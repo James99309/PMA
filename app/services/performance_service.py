@@ -650,21 +650,15 @@ class PerformanceService:
         - highly_active: 高度活跃
         - active: 活跃
         - normal: 正常（算作健康）
-        - inactive: 不活跃
+        - to_follow: 待跟进（inactive映射）
         - dormant: 休眠
-        - lost: 流失
+        - churned: 流失（lost映射）
 
         Args:
             user_id: 用户ID
 
         Returns:
-            dict: {
-                'rate': float,  # 健康度百分比 (0-100)
-                'highly_active_count': int,
-                'active_count': int,
-                'normal_count': int,
-                'total_count': int
-            }
+            dict: 包含各状态详细计数
         """
         try:
             result = db.session.query(
@@ -680,7 +674,16 @@ class PerformanceService:
                 )).label('active'),
                 func.count(case(
                     (Company.status == 'normal', Company.id)
-                )).label('normal')
+                )).label('normal'),
+                func.count(case(
+                    (Company.status.in_(['inactive', 'to_follow']), Company.id)
+                )).label('to_follow'),
+                func.count(case(
+                    (Company.status == 'dormant', Company.id)
+                )).label('dormant'),
+                func.count(case(
+                    (Company.status.in_(['lost', 'churned']), Company.id)
+                )).label('churned')
             ).filter(
                 Company.owner_id == user_id,
                 Company.is_deleted == False
@@ -691,6 +694,9 @@ class PerformanceService:
             highly_active_count = result.highly_active or 0
             active_count = result.active or 0
             normal_count = result.normal or 0
+            to_follow_count = result.to_follow or 0
+            dormant_count = result.dormant or 0
+            churned_count = result.churned or 0
 
             rate = (healthy_count / total_count * 100) if total_count > 0 else 0
 
@@ -699,6 +705,9 @@ class PerformanceService:
                 'highly_active_count': highly_active_count,
                 'active_count': active_count,
                 'normal_count': normal_count,
+                'to_follow_count': to_follow_count,
+                'dormant_count': dormant_count,
+                'churned_count': churned_count,
                 'total_count': total_count
             }
         except Exception as e:
@@ -708,6 +717,9 @@ class PerformanceService:
                 'highly_active_count': 0,
                 'active_count': 0,
                 'normal_count': 0,
+                'to_follow_count': 0,
+                'dormant_count': 0,
+                'churned_count': 0,
                 'total_count': 0
             }
 
@@ -717,13 +729,33 @@ class PerformanceService:
 
         公式: (highly_active + active + normal) / 非冻结项目总数 × 100%
         frozen 状态项目（终态）不计入分母。
+        返回各活跃状态详细计数 + 项目阶段分布。
         """
         try:
+            # 活跃状态详细计数
             result = db.session.query(
                 func.count(Project.id).label('total'),
                 func.count(case(
                     (Project.activity_status.in_(['highly_active', 'active', 'normal']), Project.id)
                 )).label('healthy'),
+                func.count(case(
+                    (Project.activity_status == 'highly_active', Project.id)
+                )).label('highly_active'),
+                func.count(case(
+                    (Project.activity_status == 'active', Project.id)
+                )).label('active'),
+                func.count(case(
+                    (Project.activity_status == 'normal', Project.id)
+                )).label('normal'),
+                func.count(case(
+                    (Project.activity_status == 'to_follow', Project.id)
+                )).label('to_follow'),
+                func.count(case(
+                    (Project.activity_status == 'dormant', Project.id)
+                )).label('dormant'),
+                func.count(case(
+                    (Project.activity_status == 'churned', Project.id)
+                )).label('churned'),
                 func.count(case(
                     (Project.activity_status == 'frozen', Project.id)
                 )).label('frozen_count')
@@ -738,21 +770,45 @@ class PerformanceService:
 
             rate = (healthy / active_total * 100) if active_total > 0 else 0
 
+            # 项目阶段分布
+            stage_rows = db.session.query(
+                Project.current_stage,
+                func.count(Project.id)
+            ).filter(
+                Project.owner_id == user_id
+            ).group_by(Project.current_stage).all()
+
+            stage_breakdown = {row[0]: row[1] for row in stage_rows if row[0]}
+
             return {
                 'rate': round(rate, 2),
                 'healthy_count': healthy,
+                'highly_active_count': result.highly_active or 0,
+                'active_count': result.active or 0,
+                'normal_count': result.normal or 0,
+                'to_follow_count': result.to_follow or 0,
+                'dormant_count': result.dormant or 0,
+                'churned_count': result.churned or 0,
                 'total_count': total,
                 'active_total': active_total,
-                'frozen_count': frozen_count
+                'frozen_count': frozen_count,
+                'stage_breakdown': stage_breakdown
             }
         except Exception as e:
             logger.error(f"计算项目活跃度失败: {e}")
             return {
                 'rate': 0,
                 'healthy_count': 0,
+                'highly_active_count': 0,
+                'active_count': 0,
+                'normal_count': 0,
+                'to_follow_count': 0,
+                'dormant_count': 0,
+                'churned_count': 0,
                 'total_count': 0,
                 'active_total': 0,
-                'frozen_count': 0
+                'frozen_count': 0,
+                'stage_breakdown': {}
             }
 
     @staticmethod

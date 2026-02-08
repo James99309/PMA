@@ -15,6 +15,7 @@ from app.models.project import Project
 from app.services.performance_service import PerformanceService
 from app.models.salary_config import EmployeeSalaryConfig, QuarterlyPerformanceData, SalesTeamConfig
 # 2026-01-08: 废弃旧的 KPI 目标系统，不再需要导入 RolePerformanceTarget, UserPerformanceTarget, PerformanceMetricsDefinition
+from app.utils.activity_tracker import FROZEN_STAGES
 from app.services.exchange_rate_service import exchange_rate_service
 from config import Config
 import logging
@@ -537,13 +538,13 @@ class PerformanceDashboardService:
         """计算活跃度评分
 
         评分维度（权重）：
-        - 行动记录数 (20%): 满分50条/月或600条/年
-        - 回复数 (10%): 满分30条/月或360条/年
-        - 平均字数 (15%): 满分200字
+        - 行动记录数 (20%): 动态目标=在跟项目数×30(年)/×2.5(月)
+        - 回复数 (10%): 动态目标=行动目标/3
+        - 平均字数 (15%): 固定目标50字
         - 客户覆盖率 (15%): 拜访客户数/总客户数
         - 项目关联率 (15%): 关联项目的行动数/总行动数
-        - 客户健康度 (15%): (highly_active+active+normal)/总客户数
-        - 项目健康度 (10%): (highly_active+active+normal)/非冻结项目数
+        - 客户活跃度 (15%): (highly_active+active+normal)/总客户数
+        - 项目活跃度 (10%): (highly_active+active+normal)/非冻结项目数
 
         Args:
             user_id: 用户ID
@@ -555,31 +556,36 @@ class PerformanceDashboardService:
             dict: 活跃度评分数据
         """
         try:
+            # 动态目标：基于在跟项目数
+            active_project_count = Project.query.filter(
+                Project.owner_id == user_id,
+                ~Project.current_stage.in_(FROZEN_STAGES)
+            ).count()
+
             # 构建基础过滤条件
             action_filters = [Action.owner_id == user_id]
 
-            # 支持三种模式：
-            # 1. year_month: 跨年月份查询（优先级最高）
-            # 2. year + month: 指定年月
-            # 3. year: 指定年份
-            # 4. 无参数: 全局分析（最近12个月基准）
+            is_monthly = False
             if year_month:
-                # 解析 'YYYY-MM' 格式
                 ym_year, ym_month = map(int, year_month.split('-'))
                 action_filters.append(extract('year', Action.created_at) == ym_year)
                 action_filters.append(extract('month', Action.created_at) == ym_month)
-                base_action_count = 50
-                base_reply_count = 30
+                is_monthly = True
             elif year is not None:
                 action_filters.append(extract('year', Action.created_at) == year)
                 if month:
                     action_filters.append(extract('month', Action.created_at) == month)
-                base_action_count = 50 if month else 600
-                base_reply_count = 30 if month else 360
+                    is_monthly = True
+            # else: 全局模式（年度基准）
+
+            # 动态目标计算
+            if is_monthly:
+                base_action_count = max(int(active_project_count * 2.5), 3)
+                base_reply_count = max(int(base_action_count / 3), 1)
             else:
-                # 全局模式：使用最近12个月的基准
-                base_action_count = 600
-                base_reply_count = 360
+                base_action_count = max(active_project_count * 30, 30)
+                base_reply_count = max(int(base_action_count / 3), 10)
+            avg_length_target = 50
 
             # 数量维度 - 行动记录数
             action_count = Action.query.filter(*action_filters).count()
@@ -625,22 +631,22 @@ class PerformanceDashboardService:
             ).count()
             project_link_rate = (linked_actions / total_actions * 100) if total_actions > 0 else 0
 
-            # 业务健康维度 - 客户健康度
-            customer_health_data = PerformanceService.calculate_customer_activity_rate(user_id)
-            customer_health_rate = customer_health_data['rate']
+            # 业务维度 - 客户活跃度
+            customer_activity_data = PerformanceService.calculate_customer_activity_rate(user_id)
+            customer_activity_rate = customer_activity_data['rate']
 
-            # 业务健康维度 - 项目健康度
-            project_health_data = PerformanceService.calculate_project_activity_rate(user_id)
-            project_health_rate = project_health_data['rate']
+            # 业务维度 - 项目活跃度
+            project_activity_data = PerformanceService.calculate_project_activity_rate(user_id)
+            project_activity_rate = project_activity_data['rate']
 
             # 各维度得分（0-100）
-            action_score = min(action_count / base_action_count * 100, 100)
-            reply_score = min(reply_count / base_reply_count * 100, 100)
-            length_score = min(avg_length / 200 * 100, 100)
+            action_score = min(action_count / base_action_count * 100, 100) if base_action_count > 0 else 0
+            reply_score = min(reply_count / base_reply_count * 100, 100) if base_reply_count > 0 else 0
+            length_score = min(avg_length / avg_length_target * 100, 100)
             coverage_score = min(customer_coverage, 100)
             link_score = min(project_link_rate, 100)
-            customer_health_score = min(customer_health_rate, 100)
-            project_health_score = min(project_health_rate, 100)
+            customer_activity_score = min(customer_activity_rate, 100)
+            project_activity_score = min(project_activity_rate, 100)
 
             # 综合评分（加权平均，7维度）
             score = (
@@ -649,8 +655,8 @@ class PerformanceDashboardService:
                 length_score * 0.15 +
                 coverage_score * 0.15 +
                 link_score * 0.15 +
-                customer_health_score * 0.15 +
-                project_health_score * 0.10
+                customer_activity_score * 0.15 +
+                project_activity_score * 0.10
             )
 
             # 等级判定
@@ -686,7 +692,7 @@ class PerformanceDashboardService:
                     },
                     'avg_length': {
                         'value': round(avg_length),
-                        'target': 200,
+                        'target': avg_length_target,
                         'score': round(length_score, 1),
                         'weight': 0.15
                     },
@@ -702,16 +708,16 @@ class PerformanceDashboardService:
                         'score': round(link_score, 1),
                         'weight': 0.15
                     },
-                    'customer_health': {
-                        'value': round(customer_health_rate, 1),
+                    'customer_activity': {
+                        'value': round(customer_activity_rate, 1),
                         'target': 100,
-                        'score': round(customer_health_score, 1),
+                        'score': round(customer_activity_score, 1),
                         'weight': 0.15
                     },
-                    'project_health': {
-                        'value': round(project_health_rate, 1),
+                    'project_activity': {
+                        'value': round(project_activity_rate, 1),
                         'target': 100,
-                        'score': round(project_health_score, 1),
+                        'score': round(project_activity_score, 1),
                         'weight': 0.10
                     },
                 },
@@ -720,16 +726,27 @@ class PerformanceDashboardService:
                     'covered_customers': covered_customers,
                     'total_actions': total_actions,
                     'linked_actions': linked_actions,
-                    'customer_health_detail': {
-                        'highly_active_count': customer_health_data.get('highly_active_count', 0),
-                        'active_count': customer_health_data.get('active_count', 0),
-                        'normal_count': customer_health_data.get('normal_count', 0),
-                        'total_count': customer_health_data.get('total_count', 0)
+                    'customer_activity_detail': {
+                        'highly_active_count': customer_activity_data.get('highly_active_count', 0),
+                        'active_count': customer_activity_data.get('active_count', 0),
+                        'normal_count': customer_activity_data.get('normal_count', 0),
+                        'to_follow_count': customer_activity_data.get('to_follow_count', 0),
+                        'dormant_count': customer_activity_data.get('dormant_count', 0),
+                        'churned_count': customer_activity_data.get('churned_count', 0),
+                        'total_count': customer_activity_data.get('total_count', 0)
                     },
-                    'project_health_detail': {
-                        'healthy_count': project_health_data.get('healthy_count', 0),
-                        'total_count': project_health_data.get('total_count', 0),
-                        'frozen_count': project_health_data.get('frozen_count', 0)
+                    'project_activity_detail': {
+                        'healthy_count': project_activity_data.get('healthy_count', 0),
+                        'highly_active_count': project_activity_data.get('highly_active_count', 0),
+                        'active_count': project_activity_data.get('active_count', 0),
+                        'normal_count': project_activity_data.get('normal_count', 0),
+                        'to_follow_count': project_activity_data.get('to_follow_count', 0),
+                        'dormant_count': project_activity_data.get('dormant_count', 0),
+                        'churned_count': project_activity_data.get('churned_count', 0),
+                        'total_count': project_activity_data.get('total_count', 0),
+                        'active_total': project_activity_data.get('active_total', 0),
+                        'frozen_count': project_activity_data.get('frozen_count', 0),
+                        'stage_breakdown': project_activity_data.get('stage_breakdown', {})
                     }
                 }
             }
@@ -747,44 +764,43 @@ class PerformanceDashboardService:
             year: 年份（可选，None表示全局模式返回最近12个月）
 
         Returns:
-            list: 月度活跃度数据列表
-                - 指定年份模式: [{month: 1, score: ..., ...}, ...]
-                - 全局模式: [{month: '2024-02', score: ..., ...}, ...]
+            list: 月度活跃度数据列表（含各维度数据用于图表联动）
         """
         try:
             trend = []
 
+            def _build_trend_item(score_data, month_label):
+                bd = score_data['breakdown']
+                return {
+                    'month': month_label,
+                    'score': score_data['score'],
+                    'grade': score_data['grade'],
+                    'action_count': bd['action_count']['value'],
+                    'reply_count': bd['reply_count']['value'],
+                    'avg_length': bd['avg_length']['value'],
+                    'customer_coverage': bd['customer_coverage']['value'],
+                    'customer_activity': bd['customer_activity']['value'],
+                    'project_activity': bd['project_activity']['value'],
+                    'project_link_rate': bd['project_link_rate']['value'],
+                }
+
             if year is not None:
-                # 指定年份模式：返回该年1-12月
                 for month in range(1, 13):
                     score_data = PerformanceDashboardService.get_activity_score(user_id, year, month)
-                    trend.append({
-                        'month': month,
-                        'score': score_data['score'],
-                        'grade': score_data['grade'],
-                        'action_count': score_data['breakdown']['action_count']['value'],
-                        'reply_count': score_data['breakdown']['reply_count']['value'],
-                    })
+                    trend.append(_build_trend_item(score_data, month))
             else:
-                # 全局模式：返回最近12个月（跨年）
                 from datetime import datetime
                 from dateutil.relativedelta import relativedelta
 
                 now = datetime.now()
-                for i in range(11, -1, -1):  # 从11个月前到当前月
+                for i in range(11, -1, -1):
                     target_date = now - relativedelta(months=i)
                     year_month = target_date.strftime('%Y-%m')
 
                     score_data = PerformanceDashboardService.get_activity_score(
                         user_id, year_month=year_month
                     )
-                    trend.append({
-                        'month': year_month,  # 格式: '2024-02'
-                        'score': score_data['score'],
-                        'grade': score_data['grade'],
-                        'action_count': score_data['breakdown']['action_count']['value'],
-                        'reply_count': score_data['breakdown']['reply_count']['value'],
-                    })
+                    trend.append(_build_trend_item(score_data, year_month))
 
             return trend
         except Exception as e:
@@ -1186,25 +1202,32 @@ class PerformanceDashboardService:
             'grade': 'D',
             'grade_text': '待提升',
             'breakdown': {
-                'action_count': {'value': 0, 'target': 600, 'score': 0, 'weight': 0.20},
-                'reply_count': {'value': 0, 'target': 360, 'score': 0, 'weight': 0.10},
-                'avg_length': {'value': 0, 'target': 200, 'score': 0, 'weight': 0.15},
+                'action_count': {'value': 0, 'target': 30, 'score': 0, 'weight': 0.20},
+                'reply_count': {'value': 0, 'target': 10, 'score': 0, 'weight': 0.10},
+                'avg_length': {'value': 0, 'target': 50, 'score': 0, 'weight': 0.15},
                 'customer_coverage': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.15},
                 'project_link_rate': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.15},
-                'customer_health': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.15},
-                'project_health': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.10},
+                'customer_activity': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.15},
+                'project_activity': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.10},
             },
             'raw_data': {
                 'total_customers': 0,
                 'covered_customers': 0,
                 'total_actions': 0,
                 'linked_actions': 0,
-                'customer_health_detail': {
+                'customer_activity_detail': {
                     'highly_active_count': 0, 'active_count': 0,
-                    'normal_count': 0, 'total_count': 0
+                    'normal_count': 0, 'to_follow_count': 0,
+                    'dormant_count': 0, 'churned_count': 0,
+                    'total_count': 0
                 },
-                'project_health_detail': {
-                    'healthy_count': 0, 'total_count': 0, 'frozen_count': 0
+                'project_activity_detail': {
+                    'healthy_count': 0, 'highly_active_count': 0,
+                    'active_count': 0, 'normal_count': 0,
+                    'to_follow_count': 0, 'dormant_count': 0,
+                    'churned_count': 0, 'total_count': 0,
+                    'active_total': 0, 'frozen_count': 0,
+                    'stage_breakdown': {}
                 }
             }
         }

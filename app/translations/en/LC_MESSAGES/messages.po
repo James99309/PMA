@@ -7394,6 +7394,18 @@ msgid "项目健康度"
 msgstr "Project Health Rate"
 
 #: app/templates/components/tw_performance_dashboard.html
+msgid "客户活跃"
+msgstr "Customer Activity"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "项目活跃"
+msgstr "Project Activity"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "项目活跃度"
+msgstr "Project Activity Rate"
+
+#: app/templates/components/tw_performance_dashboard.html
 msgid "详细指标"
 msgstr "Detailed Metrics"
 
@@ -7416,6 +7428,123 @@ msgstr "Action Records"
 #: app/templates/components/tw_performance_dashboard.html
 msgid "活跃客户数"
 msgstr "Active Customers"
+
+# 活跃度Tab页签翻译
+msgid "行动质量"
+msgstr "Action Quality"
+
+msgid "告警提示"
+msgstr "Alerts"
+
+msgid "改善建议"
+msgstr "Suggestions"
+
+msgid "阶段分布"
+msgstr "Stage Distribution"
+
+msgid "活跃状态分布"
+msgstr "Activity Status Distribution"
+
+msgid "项目关联分布"
+msgstr "Project Link Distribution"
+
+msgid "已关联项目"
+msgstr "Linked to Project"
+
+msgid "已关联"
+msgstr "Linked"
+
+msgid "未关联"
+msgstr "Unlinked"
+
+msgid "排除冻结"
+msgstr "Excl. Frozen"
+
+msgid "标前"
+msgstr "Pre-tender"
+
+msgid "标中"
+msgstr "Tendering"
+
+msgid "项目活跃度趋势"
+msgstr "Project Activity Trend"
+
+msgid "行动质量趋势"
+msgstr "Action Quality Trend"
+
+msgid "字数"
+msgstr "Words"
+
+# 活跃度告警文案
+msgid "个项目待跟进，建议安排回访"
+msgstr " projects need follow-up, suggest scheduling visits"
+
+msgid "个项目已休眠(>90天)，有流失风险"
+msgstr " projects dormant (>90 days), at risk of churning"
+
+msgid "个项目已流失(>120天无活动)"
+msgstr " projects churned (>120 days inactive)"
+
+msgid "个客户待跟进，占总数"
+msgstr " customers need follow-up, "
+
+msgid "个客户已休眠，占总数"
+msgstr " customers dormant, "
+
+msgid "个客户已流失，建议评估是否放弃"
+msgstr " customers churned, consider whether to abandon"
+
+msgid "个客户未覆盖(无行动记录)"
+msgstr " customers uncovered (no action records)"
+
+msgid "回复数严重不足，互动率极低"
+msgstr "Reply count severely low, interaction rate very low"
+
+msgid "字，低于标准"
+msgstr " words, below standard "
+
+msgid "字"
+msgstr " words"
+
+msgid "行动记录未关联项目"
+msgstr " action records not linked to projects"
+
+# 活跃度建议文案
+msgid "优先跟进待跟进状态的"
+msgstr "Prioritize follow-up on "
+
+msgid "，距离良好(60%)还需提升"
+msgstr ", need to improve by "
+
+msgid "建议每周至少更新一次项目进展"
+msgstr "Update project progress at least once a week"
+
+msgid "，低于及格线(40%)，需重点改善"
+msgstr ", below passing (40%), needs improvement"
+
+msgid "建议优先联系待跟进状态的"
+msgstr "Prioritize contacting "
+
+msgid "每月至少覆盖80%客户(当前"
+msgstr "Cover at least 80% customers monthly (current "
+
+msgid "建议增加行动记录内容详细度(目标"
+msgstr "Increase action record detail (target "
+
+msgid "字)"
+msgstr " words)"
+
+msgid "积极参与同事的跟进记录讨论，提升回复数"
+msgstr "Actively participate in colleagues' follow-up discussions to increase replies"
+
+msgid "创建行动记录时关联对应项目"
+msgstr "Link action records to corresponding projects"
+
+msgid "加快行动记录频率(目标"
+msgstr "Increase action record frequency (target "
+
+msgid "条)"
+msgstr " records)"
 
 # 绩效仪表板标签页翻译
 msgid "目标达成"

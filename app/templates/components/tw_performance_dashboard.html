@@ -463,49 +463,416 @@
         </div>
         <div class="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
             <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-4 flex items-center">
-                <span class="material-symbols-outlined mr-2 text-primary">show_chart</span>{{ _('月度趋势') }}
+                <span class="material-symbols-outlined mr-2 text-primary">show_chart</span>
+                <span x-text="getActivityTrendTitle()"></span>
             </h3>
             <div id="activityTrendChart" class="h-64"></div>
         </div>
     </div>
 
-    {# 详细指标表格 #}
+    {# 详细指标 - Tab 页签 #}
     <div class="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden">
-        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center">
-                <span class="material-symbols-outlined mr-2 text-primary">format_list_numbered</span>{{ _('详细指标') }}
-            </h3>
+        {# Tab 导航 #}
+        <div class="border-b border-slate-200 dark:border-slate-700">
+            <nav class="flex -mb-px overflow-x-auto" role="tablist">
+                <template x-for="tab in activityMetricTabs" :key="tab.key">
+                    <button @click="switchActivityMetricTab(tab.key)"
+                        :class="activeMetricTab === tab.key
+                            ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20'
+                            : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:border-slate-300'"
+                        class="flex items-center gap-1.5 px-5 py-3 border-b-2 text-sm font-medium whitespace-nowrap transition-colors">
+                        <span class="material-symbols-outlined text-[18px]" x-text="tab.icon"></span>
+                        <span x-text="tab.label"></span>
+                    </button>
+                </template>
+            </nav>
         </div>
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead class="bg-gray-50 dark:bg-gray-900">
-                    <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('指标') }}</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('实际值') }}</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('目标值') }}</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('得分') }}</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('权重') }}</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    <template x-for="(item, key) in activityScore.breakdown" :key="key">
-                        <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white" x-text="getActivityMetricLabel(key)"></td>
-                            <td class="px-6 py-4 text-sm text-right text-gray-900 dark:text-white" x-text="formatActivityValue(key, item.value)"></td>
-                            <td class="px-6 py-4 text-sm text-right text-gray-500 dark:text-gray-400" x-text="formatActivityValue(key, item.target)"></td>
-                            <td class="px-6 py-4 text-sm text-right">
-                                <span :class="getScoreClass(item.score)" x-text="item.score.toFixed(1)"></span>
-                            </td>
-                            <td class="px-6 py-4 text-sm text-right text-gray-500 dark:text-gray-400" x-text="(item.weight * 100) + '%'"></td>
-                        </tr>
-                    </template>
-                    <tr x-show="!activityScore.breakdown || Object.keys(activityScore.breakdown).length === 0">
-                        <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                            {{ _('暂无详细指标数据') }}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+
+        {# Tab 内容 #}
+        <div class="p-6">
+
+            {# ===== Tab 1: 综合评分 ===== #}
+            <div x-show="activeMetricTab === 'overview'" x-transition>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-900">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('指标') }}</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('实际值') }}</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('目标值') }}</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('得分') }}</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('权重') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            <template x-for="(item, key) in activityScore.breakdown" :key="key">
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white" x-text="getActivityMetricLabel(key)"></td>
+                                    <td class="px-6 py-4 text-sm text-right text-gray-900 dark:text-white" x-text="formatActivityValue(key, item.value)"></td>
+                                    <td class="px-6 py-4 text-sm text-right text-gray-500 dark:text-gray-400" x-text="formatActivityValue(key, item.target)"></td>
+                                    <td class="px-6 py-4 text-sm text-right">
+                                        <span :class="getScoreClass(item.score)" x-text="item.score.toFixed(1)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-right text-gray-500 dark:text-gray-400" x-text="(item.weight * 100) + '%'"></td>
+                                </tr>
+                            </template>
+                            <tr x-show="!activityScore.breakdown || Object.keys(activityScore.breakdown).length === 0">
+                                <td colspan="5" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                    {{ _('暂无详细指标数据') }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {# ===== Tab 2: 项目活跃度 ===== #}
+            <div x-show="activeMetricTab === 'project'" x-transition>
+                {# 环形进度 #}
+                <div class="mb-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-4">
+                            <div class="relative w-16 h-16 flex-shrink-0">
+                                <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="5"/>
+                                    <circle cx="32" cy="32" r="28" fill="none"
+                                        :stroke="(activityScore.breakdown?.project_activity?.value || 0) >= 80 ? '#22c55e' : (activityScore.breakdown?.project_activity?.value || 0) >= 60 ? '#f59e0b' : '#ef4444'"
+                                        stroke-width="5" stroke-linecap="round"
+                                        :stroke-dasharray="(Math.min(activityScore.breakdown?.project_activity?.value || 0, 100) / 100 * 175.9) + ' 175.9'"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-xs font-bold"
+                                        :class="(activityScore.breakdown?.project_activity?.value || 0) >= 80 ? 'text-green-600 dark:text-green-400' : (activityScore.breakdown?.project_activity?.value || 0) >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
+                                        x-text="(activityScore.breakdown?.project_activity?.value || 0) + '%'"></span>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ _('项目活跃度') }}</div>
+                                <div class="text-lg font-bold text-slate-900 dark:text-white">
+                                    <span x-text="(activityScore.breakdown?.project_activity?.value || 0) + '%'"></span>
+                                    <span class="text-sm font-normal text-slate-400"> / {{ _('得分') }} <span x-text="(activityScore.breakdown?.project_activity?.score || 0).toFixed(1)"></span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# 阶段分布 - 分段条 #}
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">account_tree</span>
+                        {{ _('阶段分布') }}
+                        <span class="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2"
+                            x-text="'{{ _("共") }} ' + (activityScore.raw_data?.project_activity_detail?.total_count || 0) + ' {{ _("个项目") }}'"></span>
+                    </h5>
+                    <div class="flex rounded-lg h-8 overflow-hidden bg-gray-100 dark:bg-gray-700 mb-3">
+                        <template x-for="stage in projectStageOrder" :key="stage">
+                            <div class="flex items-center justify-center transition-all relative group"
+                                :class="projectStageColors[stage]"
+                                :style="'width:' + getProjectStageWidth(stage) + '%'"
+                                x-show="getProjectStageCount(stage) > 0">
+                                <span class="text-[11px] font-medium text-white drop-shadow-sm"
+                                    x-show="getProjectStageWidth(stage) > 5"
+                                    x-text="getProjectStageCount(stage)"></span>
+                                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                    <span x-text="getProjectStageLabel(stage)"></span>: <span x-text="getProjectStageCount(stage)"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="flex flex-wrap gap-x-3 gap-y-1.5">
+                        <template x-for="stage in projectStageOrder" :key="stage">
+                            <div class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                                <span class="w-2.5 h-2.5 rounded flex-shrink-0" :class="projectStageColors[stage]"></span>
+                                <span x-text="getProjectStageLabel(stage)"></span>
+                                <span class="font-semibold" x-text="getProjectStageCount(stage)"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                {# 活跃状态分布 - 分段条 #}
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">monitoring</span>
+                        {{ _('活跃状态分布') }}
+                        <span class="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2"
+                            x-text="'{{ _("共") }} ' + (activityScore.raw_data?.project_activity_detail?.active_total || 0) + ' {{ _("个项目") }}（{{ _("排除冻结") }} ' + (activityScore.raw_data?.project_activity_detail?.frozen_count || 0) + ' {{ _("个") }}）'"></span>
+                    </h5>
+                    <div class="flex rounded-full h-8 overflow-hidden bg-gray-100 dark:bg-gray-700 mb-3">
+                        <template x-for="status in activityStatusList" :key="status.key">
+                            <div class="flex items-center justify-center transition-all relative group"
+                                :class="status.barClass"
+                                :style="'width:' + getActivityStatusWidth('project', status.key) + '%'"
+                                x-show="getActivityStatusCount('project', status.key) > 0">
+                                <span class="text-[11px] font-medium text-white drop-shadow-sm"
+                                    x-show="getActivityStatusWidth('project', status.key) > 6"
+                                    x-text="getActivityStatusCount('project', status.key)"></span>
+                                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                    <span x-text="status.label"></span>: <span x-text="getActivityStatusCount('project', status.key)"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                        <template x-for="status in activityStatusList" :key="status.key">
+                            <div class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="status.dotClass"></span>
+                                <span x-text="status.label"></span>
+                                <span class="font-semibold" :class="status.textClass"
+                                    x-text="getActivityStatusCount('project', status.key)"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                {# 告警 + 建议 #}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4"
+                         x-show="generateActivityAlerts('project').length > 0">
+                        <h5 class="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">warning</span>{{ _('告警提示') }}
+                        </h5>
+                        <ul class="text-sm text-amber-800 dark:text-amber-300 space-y-1.5">
+                            <template x-for="alert in generateActivityAlerts('project')" :key="alert">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-amber-500 mt-0.5">•</span>
+                                    <span x-text="alert"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                    <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+                        <h5 class="text-sm font-semibold text-blue-700 dark:text-blue-400 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">lightbulb</span>{{ _('改善建议') }}
+                        </h5>
+                        <ul class="text-sm text-blue-800 dark:text-blue-300 space-y-1.5">
+                            <template x-for="sug in generateActivitySuggestions('project')" :key="sug">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-blue-500 mt-0.5">•</span>
+                                    <span x-text="sug"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            {# ===== Tab 3: 客户活跃度 ===== #}
+            <div x-show="activeMetricTab === 'customer'" x-transition>
+                {# 环形进度 #}
+                <div class="mb-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {# 客户活跃度 #}
+                        <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-4">
+                            <div class="relative w-16 h-16 flex-shrink-0">
+                                <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="5"/>
+                                    <circle cx="32" cy="32" r="28" fill="none"
+                                        :stroke="(activityScore.breakdown?.customer_activity?.value || 0) >= 80 ? '#22c55e' : (activityScore.breakdown?.customer_activity?.value || 0) >= 40 ? '#f59e0b' : '#ef4444'"
+                                        stroke-width="5" stroke-linecap="round"
+                                        :stroke-dasharray="(Math.min(activityScore.breakdown?.customer_activity?.value || 0, 100) / 100 * 175.9) + ' 175.9'"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-xs font-bold"
+                                        :class="(activityScore.breakdown?.customer_activity?.value || 0) >= 80 ? 'text-green-600 dark:text-green-400' : (activityScore.breakdown?.customer_activity?.value || 0) >= 40 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
+                                        x-text="(activityScore.breakdown?.customer_activity?.value || 0) + '%'"></span>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ _('客户活跃度') }}</div>
+                                <div class="text-lg font-bold text-slate-900 dark:text-white" x-text="(activityScore.breakdown?.customer_activity?.value || 0) + '%'"></div>
+                            </div>
+                        </div>
+                        {# 客户覆盖率 #}
+                        <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex items-center gap-4">
+                            <div class="relative w-16 h-16 flex-shrink-0">
+                                <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                    <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="5"/>
+                                    <circle cx="32" cy="32" r="28" fill="none"
+                                        :stroke="(activityScore.breakdown?.customer_coverage?.value || 0) >= 80 ? '#22c55e' : (activityScore.breakdown?.customer_coverage?.value || 0) >= 60 ? '#f59e0b' : '#ef4444'"
+                                        stroke-width="5" stroke-linecap="round"
+                                        :stroke-dasharray="(Math.min(activityScore.breakdown?.customer_coverage?.value || 0, 100) / 100 * 175.9) + ' 175.9'"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-xs font-bold"
+                                        :class="(activityScore.breakdown?.customer_coverage?.value || 0) >= 80 ? 'text-green-600 dark:text-green-400' : (activityScore.breakdown?.customer_coverage?.value || 0) >= 60 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
+                                        x-text="(activityScore.breakdown?.customer_coverage?.value || 0) + '%'"></span>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-xs text-slate-500 dark:text-slate-400">{{ _('客户覆盖率') }}</div>
+                                <div class="text-lg font-bold text-slate-900 dark:text-white">
+                                    <span x-text="activityScore.raw_data?.covered_customers || 0"></span>
+                                    <span class="text-sm font-normal text-slate-400"> / <span x-text="activityScore.raw_data?.total_customers || 0"></span> {{ _('客户') }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# 活跃状态分布 - 分段条 #}
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">monitoring</span>
+                        {{ _('活跃状态分布') }}
+                        <span class="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2"
+                            x-text="'{{ _("共") }} ' + (activityScore.raw_data?.customer_activity_detail?.total_count || 0) + ' {{ _("个客户") }}'"></span>
+                    </h5>
+                    <div class="flex rounded-full h-8 overflow-hidden bg-gray-100 dark:bg-gray-700 mb-3">
+                        <template x-for="status in activityStatusList" :key="status.key">
+                            <div class="flex items-center justify-center transition-all relative group"
+                                :class="status.barClass"
+                                :style="'width:' + getActivityStatusWidth('customer', status.key) + '%'"
+                                x-show="getActivityStatusCount('customer', status.key) > 0">
+                                <span class="text-[11px] font-medium text-white drop-shadow-sm"
+                                    x-show="getActivityStatusWidth('customer', status.key) > 6"
+                                    x-text="getActivityStatusCount('customer', status.key)"></span>
+                                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                    <span x-text="status.label"></span>: <span x-text="getActivityStatusCount('customer', status.key)"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                        <template x-for="status in activityStatusList" :key="status.key">
+                            <div class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="status.dotClass"></span>
+                                <span x-text="status.label"></span>
+                                <span class="font-semibold" :class="status.textClass"
+                                    x-text="getActivityStatusCount('customer', status.key)"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                {# 告警 + 建议 #}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4"
+                         x-show="generateActivityAlerts('customer').length > 0">
+                        <h5 class="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">warning</span>{{ _('告警提示') }}
+                        </h5>
+                        <ul class="text-sm text-amber-800 dark:text-amber-300 space-y-1.5">
+                            <template x-for="alert in generateActivityAlerts('customer')" :key="alert">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-amber-500 mt-0.5">•</span>
+                                    <span x-text="alert"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                    <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+                        <h5 class="text-sm font-semibold text-blue-700 dark:text-blue-400 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">lightbulb</span>{{ _('改善建议') }}
+                        </h5>
+                        <ul class="text-sm text-blue-800 dark:text-blue-300 space-y-1.5">
+                            <template x-for="sug in generateActivitySuggestions('customer')" :key="sug">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-blue-500 mt-0.5">•</span>
+                                    <span x-text="sug"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            {# ===== Tab 4: 行动质量 ===== #}
+            <div x-show="activeMetricTab === 'action'" x-transition>
+                {# 指标达成 - 4个环形图 #}
+                <div class="mb-6">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <template x-for="metric in actionQualityMetrics" :key="metric.key">
+                            <div class="rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col items-center">
+                                <div class="relative w-16 h-16 mb-2">
+                                    <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                        <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="5"/>
+                                        <circle cx="32" cy="32" r="28" fill="none"
+                                            :stroke="getActionMetricRate(metric.key) >= 80 ? '#22c55e' : getActionMetricRate(metric.key) >= 50 ? '#f59e0b' : '#ef4444'"
+                                            stroke-width="5" stroke-linecap="round"
+                                            :stroke-dasharray="(Math.min(getActionMetricRate(metric.key), 100) / 100 * 175.9) + ' 175.9'"/>
+                                    </svg>
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <span class="text-xs font-bold"
+                                            :class="getActionMetricRate(metric.key) >= 80 ? 'text-green-600 dark:text-green-400' : getActionMetricRate(metric.key) >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'"
+                                            x-text="getActionMetricRate(metric.key).toFixed(0) + '%'"></span>
+                                    </div>
+                                </div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400" x-text="metric.label"></div>
+                                <div class="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                                    <span x-text="formatActivityValue(metric.key, activityScore.breakdown?.[metric.key]?.value || 0)"></span>
+                                    <span class="text-xs font-normal text-slate-400" x-text="' / ' + formatActivityValue(metric.key, activityScore.breakdown?.[metric.key]?.target || 0)"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                {# 项目关联分布 - 分段条 #}
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">link</span>
+                        {{ _('项目关联分布') }}
+                        <span class="text-xs font-normal text-slate-400 dark:text-slate-500 ml-2"
+                            x-text="'{{ _("共") }} ' + (activityScore.raw_data?.total_actions || 0) + ' {{ _("条行动记录") }}'"></span>
+                    </h5>
+                    <div class="flex rounded-full h-8 overflow-hidden bg-gray-100 dark:bg-gray-700 mb-3">
+                        <div class="flex items-center justify-center bg-blue-500 transition-all"
+                            :style="'width:' + (activityScore.breakdown?.project_link_rate?.value || 0) + '%'">
+                            <span class="text-[11px] font-medium text-white drop-shadow-sm"
+                                x-text="(activityScore.raw_data?.linked_actions || 0) + ' {{ _("已关联") }}'"></span>
+                        </div>
+                        <div class="flex items-center justify-center bg-slate-300 dark:bg-slate-600 transition-all"
+                            :style="'width:' + (100 - (activityScore.breakdown?.project_link_rate?.value || 0)) + '%'">
+                            <span class="text-[11px] font-medium text-slate-600 dark:text-slate-300"
+                                x-text="((activityScore.raw_data?.total_actions || 0) - (activityScore.raw_data?.linked_actions || 0)) + ' {{ _("未关联") }}'"></span>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                            {{ _('已关联项目') }} <span class="font-semibold text-blue-600 dark:text-blue-400" x-text="(activityScore.breakdown?.project_link_rate?.value || 0) + '%'"></span>
+                        </div>
+                        <div class="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                            <span class="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-600"></span>
+                            {{ _('未关联') }} <span class="font-semibold text-slate-500 dark:text-slate-400" x-text="(100 - (activityScore.breakdown?.project_link_rate?.value || 0)).toFixed(1) + '%'"></span>
+                        </div>
+                    </div>
+                </div>
+
+                {# 告警 + 建议 #}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4"
+                         x-show="generateActivityAlerts('action').length > 0">
+                        <h5 class="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">warning</span>{{ _('告警提示') }}
+                        </h5>
+                        <ul class="text-sm text-amber-800 dark:text-amber-300 space-y-1.5">
+                            <template x-for="alert in generateActivityAlerts('action')" :key="alert">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-amber-500 mt-0.5">•</span>
+                                    <span x-text="alert"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                    <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+                        <h5 class="text-sm font-semibold text-blue-700 dark:text-blue-400 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">lightbulb</span>{{ _('改善建议') }}
+                        </h5>
+                        <ul class="text-sm text-blue-800 dark:text-blue-300 space-y-1.5">
+                            <template x-for="sug in generateActivitySuggestions('action')" :key="sug">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-blue-500 mt-0.5">•</span>
+                                    <span x-text="sug"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -786,6 +1153,33 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         selectedExpenseScope: 0,  // 当前选中的费用范围索引
         activityScore: {},
         activityMonthlyTrend: [],
+        activeMetricTab: 'overview',
+        activityMetricTabs: [
+            { key: 'overview', label: '{{ _("综合评分") }}', icon: 'format_list_numbered' },
+            { key: 'project', label: '{{ _("项目活跃") }}', icon: 'folder_open' },
+            { key: 'customer', label: '{{ _("客户活跃") }}', icon: 'groups' },
+            { key: 'action', label: '{{ _("行动质量") }}', icon: 'edit_note' },
+        ],
+        projectStageOrder: ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused'],
+        projectStageColors: {
+            discover: 'bg-sky-400', embed: 'bg-blue-400', pre_tender: 'bg-indigo-400',
+            tendering: 'bg-violet-500', awarded: 'bg-emerald-500', quoted: 'bg-teal-500',
+            signed: 'bg-green-600', lost: 'bg-red-400', paused: 'bg-slate-400'
+        },
+        activityStatusList: [
+            { key: 'highly_active', label: '{{ _("高度活跃") }}', textClass: 'text-green-600 dark:text-green-400', barClass: 'bg-green-500', dotClass: 'bg-green-500' },
+            { key: 'active', label: '{{ _("活跃") }}', textClass: 'text-blue-600 dark:text-blue-400', barClass: 'bg-blue-500', dotClass: 'bg-blue-500' },
+            { key: 'normal', label: '{{ _("正常") }}', textClass: 'text-slate-600 dark:text-slate-400', barClass: 'bg-slate-400', dotClass: 'bg-slate-400' },
+            { key: 'to_follow', label: '{{ _("待跟进") }}', textClass: 'text-yellow-600 dark:text-yellow-400', barClass: 'bg-yellow-400', dotClass: 'bg-yellow-400' },
+            { key: 'dormant', label: '{{ _("休眠") }}', textClass: 'text-orange-600 dark:text-orange-400', barClass: 'bg-orange-400', dotClass: 'bg-orange-400' },
+            { key: 'churned', label: '{{ _("流失") }}', textClass: 'text-red-600 dark:text-red-400', barClass: 'bg-red-500', dotClass: 'bg-red-500' },
+        ],
+        actionQualityMetrics: [
+            { key: 'action_count', label: '{{ _("行动记录") }}' },
+            { key: 'reply_count', label: '{{ _("回复数") }}' },
+            { key: 'avg_length', label: '{{ _("平均字数") }}' },
+            { key: 'project_link_rate', label: '{{ _("项目关联率") }}' },
+        ],
         industryTrend: {},
         configuredItems: [],  // 配置的绩效项目代码列表（用于动态列显示）
         // 客户分布数据
@@ -1063,8 +1457,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 avg_length: '{{ _("内容详细") }}',
                 customer_coverage: '{{ _("客户覆盖") }}',
                 project_link_rate: '{{ _("项目关联") }}',
-                customer_health: '{{ _("客户健康") }}',
-                project_health: '{{ _("项目健康") }}'
+                customer_activity: '{{ _("客户活跃") }}',
+                project_activity: '{{ _("项目活跃") }}'
             };
 
             const indicators = Object.keys(this.activityScore.breakdown).map(key => ({
@@ -1096,7 +1490,6 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             const chartDom = document.getElementById('activityTrendChart');
             if (!chartDom) return;
 
-            // 如果没有数据，显示空状态
             if (!this.activityMonthlyTrend || this.activityMonthlyTrend.length === 0) {
                 chartDom.innerHTML = '<div class="flex items-center justify-center h-full text-slate-400 dark:text-slate-500">{{ _("暂无趋势数据") }}</div>';
                 return;
@@ -1108,87 +1501,67 @@ function performanceDashboardData(userId, year, dashboardUrl) {
 
             this.charts.activityTrend = echarts.init(chartDom);
 
-            // 处理月份标签：支持数字格式(1-12)和字符串格式('YYYY-MM')
             const months = this.activityMonthlyTrend.map(d => {
                 let monthNum;
                 if (typeof d.month === 'number') {
                     monthNum = d.month;
                 } else {
-                    // 'YYYY-MM' 格式
                     const parts = d.month.split('-');
                     monthNum = parseInt(parts[1]);
                 }
                 return this.getMonthLabel(monthNum);
             });
-            const scores = this.activityMonthlyTrend.map(d => d.score);
-            const actionCounts = this.activityMonthlyTrend.map(d => d.action_count);
 
-            const option = {
-                tooltip: {
-                    trigger: 'axis',
-                    formatter: function(params) {
-                        let result = params[0].axisValue + '<br/>';
-                        params.forEach(p => {
-                            result += p.marker + ' ' + p.seriesName + ': ' + p.value + '<br/>';
-                        });
-                        return result;
-                    }
-                },
-                legend: {
-                    data: ['{{ _("活跃度评分") }}', '{{ _("行动记录") }}'],
-                    bottom: 0,
-                    textStyle: { color: '#94a3b8' }
-                },
-                grid: {
-                    left: '3%',
-                    right: '4%',
-                    bottom: '15%',
-                    top: '10%',
-                    containLabel: true
-                },
-                xAxis: {
-                    type: 'category',
-                    data: months,
-                    axisLine: { lineStyle: { color: '#cbd5e1' } },
-                    axisLabel: { color: '#64748b' }
-                },
-                yAxis: [
-                    {
-                        type: 'value',
-                        name: '{{ _("评分") }}',
-                        max: 100,
-                        axisLine: { show: false },
-                        axisLabel: { color: '#64748b' },
-                        splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } }
-                    },
-                    {
-                        type: 'value',
-                        name: '{{ _("数量") }}',
-                        axisLine: { show: false },
-                        axisLabel: { color: '#64748b' },
-                        splitLine: { show: false }
-                    }
-                ],
-                series: [
-                    {
-                        name: '{{ _("活跃度评分") }}',
-                        type: 'line',
-                        smooth: true,
-                        data: scores,
-                        itemStyle: { color: '#3b82f6' },
-                        areaStyle: { color: 'rgba(59, 130, 246, 0.1)' }
-                    },
-                    {
-                        name: '{{ _("行动记录") }}',
-                        type: 'bar',
-                        yAxisIndex: 1,
-                        data: actionCounts,
-                        itemStyle: { color: '#10b981', opacity: 0.7 }
-                    }
-                ]
-            };
+            let series = [];
+            let yAxes = [];
+            let legendData = [];
+            const tabType = this.activeMetricTab;
 
-            this.charts.activityTrend.setOption(option);
+            if (tabType === 'project') {
+                legendData = ['{{ _("项目活跃度") }}'];
+                yAxes = [{ type: 'value', name: '%', max: 100, axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } } }];
+                series = [
+                    { name: '{{ _("项目活跃度") }}', type: 'line', smooth: true, data: this.activityMonthlyTrend.map(d => d.project_activity), itemStyle: { color: '#8b5cf6' }, areaStyle: { color: 'rgba(139,92,246,0.1)' } }
+                ];
+            } else if (tabType === 'customer') {
+                legendData = ['{{ _("客户活跃度") }}', '{{ _("客户覆盖率") }}'];
+                yAxes = [{ type: 'value', name: '%', max: 100, axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } } }];
+                series = [
+                    { name: '{{ _("客户活跃度") }}', type: 'line', smooth: true, data: this.activityMonthlyTrend.map(d => d.customer_activity), itemStyle: { color: '#f59e0b' }, areaStyle: { color: 'rgba(245,158,11,0.1)' } },
+                    { name: '{{ _("客户覆盖率") }}', type: 'line', smooth: true, data: this.activityMonthlyTrend.map(d => d.customer_coverage), itemStyle: { color: '#3b82f6' }, lineStyle: { type: 'dashed' } }
+                ];
+            } else if (tabType === 'action') {
+                legendData = ['{{ _("行动记录") }}', '{{ _("回复数") }}', '{{ _("平均字数") }}'];
+                yAxes = [
+                    { type: 'value', name: '{{ _("数量") }}', axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } } },
+                    { type: 'value', name: '{{ _("字数") }}', axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { show: false } }
+                ];
+                series = [
+                    { name: '{{ _("行动记录") }}', type: 'bar', data: this.activityMonthlyTrend.map(d => d.action_count), itemStyle: { color: '#10b981', opacity: 0.7 } },
+                    { name: '{{ _("回复数") }}', type: 'bar', data: this.activityMonthlyTrend.map(d => d.reply_count), itemStyle: { color: '#6366f1', opacity: 0.7 } },
+                    { name: '{{ _("平均字数") }}', type: 'line', yAxisIndex: 1, smooth: true, data: this.activityMonthlyTrend.map(d => d.avg_length), itemStyle: { color: '#f59e0b' } }
+                ];
+            } else {
+                // overview (default)
+                legendData = ['{{ _("活跃度评分") }}', '{{ _("行动记录") }}'];
+                yAxes = [
+                    { type: 'value', name: '{{ _("评分") }}', max: 100, axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } } },
+                    { type: 'value', name: '{{ _("数量") }}', axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { show: false } }
+                ];
+                series = [
+                    { name: '{{ _("活跃度评分") }}', type: 'line', smooth: true, data: this.activityMonthlyTrend.map(d => d.score), itemStyle: { color: '#3b82f6' }, areaStyle: { color: 'rgba(59,130,246,0.1)' } },
+                    { name: '{{ _("行动记录") }}', type: 'bar', yAxisIndex: 1, data: this.activityMonthlyTrend.map(d => d.action_count), itemStyle: { color: '#10b981', opacity: 0.7 } }
+                ];
+            }
+
+            this.charts.activityTrend.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { data: legendData, bottom: 0, textStyle: { color: '#94a3b8' } },
+                grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+                xAxis: { type: 'category', data: months, axisLine: { lineStyle: { color: '#cbd5e1' } }, axisLabel: { color: '#64748b' } },
+                yAxis: yAxes,
+                series: series
+            });
         },
 
         initIndustryPieChart() {
@@ -1706,8 +2079,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 avg_length: '{{ _("平均字数") }}',
                 customer_coverage: '{{ _("客户覆盖率") }}',
                 project_link_rate: '{{ _("项目关联率") }}',
-                customer_health: '{{ _("客户健康度") }}',
-                project_health: '{{ _("项目健康度") }}'
+                customer_activity: '{{ _("客户活跃度") }}',
+                project_activity: '{{ _("项目活跃度") }}'
             };
             return labels[key] || key;
         },
@@ -1809,7 +2182,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         },
 
         formatActivityValue(key, value) {
-            if (key === 'customer_coverage' || key === 'project_link_rate' || key === 'customer_health' || key === 'project_health') {
+            if (key === 'customer_coverage' || key === 'project_link_rate' || key === 'customer_activity' || key === 'project_activity') {
                 return value + '%';
             }
             return value;
@@ -1826,6 +2199,125 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             if (score >= 60) return 'text-blue-600 dark:text-blue-400';
             if (score >= 40) return 'text-yellow-600 dark:text-yellow-400';
             return 'text-red-600 dark:text-red-400';
+        },
+
+        // ===== 活跃度 Tab 页签相关方法 =====
+
+        switchActivityMetricTab(tab) {
+            this.activeMetricTab = tab;
+            this.$nextTick(() => this.initActivityTrendChart());
+        },
+
+        getActivityTrendTitle() {
+            const titles = {
+                overview: '{{ _("月度趋势") }}',
+                project: '{{ _("项目活跃度趋势") }}',
+                customer: '{{ _("客户活跃度趋势") }}',
+                action: '{{ _("行动质量趋势") }}'
+            };
+            return titles[this.activeMetricTab] || '{{ _("月度趋势") }}';
+        },
+
+        // 项目阶段分布
+        getProjectStageCount(stage) {
+            return this.activityScore.raw_data?.project_activity_detail?.stage_breakdown?.[stage] || 0;
+        },
+
+        getProjectStageWidth(stage) {
+            const count = this.getProjectStageCount(stage);
+            const breakdown = this.activityScore.raw_data?.project_activity_detail?.stage_breakdown || {};
+            const total = Object.values(breakdown).reduce((a, b) => a + b, 0);
+            if (total <= 0 || count <= 0) return 0;
+            return Math.max((count / total) * 100, 4);
+        },
+
+        getProjectStageLabel(stage) {
+            const labels = {
+                discover: '{{ _("发现") }}', embed: '{{ _("植入") }}', pre_tender: '{{ _("标前") }}',
+                tendering: '{{ _("标中") }}', awarded: '{{ _("中标") }}', quoted: '{{ _("批价") }}',
+                signed: '{{ _("签约") }}', lost: '{{ _("失败") }}', paused: '{{ _("搁置") }}'
+            };
+            return labels[stage] || stage;
+        },
+
+        // 活跃状态分布
+        getActivityStatusCount(type, statusKey) {
+            const detail = type === 'project'
+                ? this.activityScore.raw_data?.project_activity_detail
+                : this.activityScore.raw_data?.customer_activity_detail;
+            return (detail?.[statusKey + '_count']) || 0;
+        },
+
+        getActivityStatusWidth(type, statusKey) {
+            const count = this.getActivityStatusCount(type, statusKey);
+            const detail = type === 'project'
+                ? this.activityScore.raw_data?.project_activity_detail
+                : this.activityScore.raw_data?.customer_activity_detail;
+            const total = type === 'project' ? (detail?.active_total || 0) : (detail?.total_count || 0);
+            if (total <= 0 || count <= 0) return 0;
+            return Math.max((count / total) * 100, 4);
+        },
+
+        // 行动质量环形图
+        getActionMetricRate(key) {
+            const item = this.activityScore.breakdown?.[key];
+            if (!item) return 0;
+            if (['customer_coverage', 'project_link_rate', 'customer_activity', 'project_activity'].includes(key)) {
+                return item.value;
+            }
+            return item.target > 0 ? (item.value / item.target * 100) : 0;
+        },
+
+        // 动态告警
+        generateActivityAlerts(tabType) {
+            const alerts = [];
+            if (tabType === 'project') {
+                const d = this.activityScore.raw_data?.project_activity_detail || {};
+                if (d.to_follow_count > 0) alerts.push(d.to_follow_count + '{{ _("个项目待跟进，建议安排回访") }}');
+                if (d.dormant_count > 0) alerts.push(d.dormant_count + '{{ _("个项目已休眠(>90天)，有流失风险") }}');
+                if (d.churned_count > 0) alerts.push(d.churned_count + '{{ _("个项目已流失(>120天无活动)") }}');
+            } else if (tabType === 'customer') {
+                const d = this.activityScore.raw_data?.customer_activity_detail || {};
+                const total = d.total_count || 1;
+                if (d.to_follow_count > 0) alerts.push(d.to_follow_count + '{{ _("个客户待跟进，占总数") }}' + Math.round(d.to_follow_count / total * 100) + '%');
+                if (d.dormant_count > 0) alerts.push(d.dormant_count + '{{ _("个客户已休眠，占总数") }}' + Math.round(d.dormant_count / total * 100) + '%');
+                if (d.churned_count > 0) alerts.push(d.churned_count + '{{ _("个客户已流失，建议评估是否放弃") }}');
+                const uncovered = (this.activityScore.raw_data?.total_customers || 0) - (this.activityScore.raw_data?.covered_customers || 0);
+                if (uncovered > 0) alerts.push(uncovered + '{{ _("个客户未覆盖(无行动记录)") }}');
+            } else if (tabType === 'action') {
+                const b = this.activityScore.breakdown || {};
+                if ((b.reply_count?.score || 0) < 10) alerts.push('{{ _("回复数严重不足，互动率极低") }}');
+                if ((b.avg_length?.score || 0) < 50) alerts.push('{{ _("平均字数") }}' + (b.avg_length?.value || 0) + '{{ _("字，低于标准") }}' + (b.avg_length?.target || 50) + '{{ _("字") }}');
+                const unlinkedRate = 100 - (b.project_link_rate?.value || 0);
+                if (unlinkedRate > 20) alerts.push(unlinkedRate.toFixed(0) + '%{{ _("行动记录未关联项目") }}');
+            }
+            return alerts;
+        },
+
+        // 动态建议
+        generateActivitySuggestions(tabType) {
+            const suggestions = [];
+            if (tabType === 'project') {
+                const d = this.activityScore.raw_data?.project_activity_detail || {};
+                const score = this.activityScore.breakdown?.project_activity?.score || 0;
+                if (d.to_follow_count > 0) suggestions.push('{{ _("优先跟进待跟进状态的") }}' + d.to_follow_count + '{{ _("个项目") }}');
+                if (score < 60) suggestions.push('{{ _("活跃度") }}' + score.toFixed(0) + '%{{ _("，距离良好(60%)还需提升") }}' + (60 - score).toFixed(0) + '%');
+                suggestions.push('{{ _("建议每周至少更新一次项目进展") }}');
+            } else if (tabType === 'customer') {
+                const d = this.activityScore.raw_data?.customer_activity_detail || {};
+                const score = this.activityScore.breakdown?.customer_activity?.score || 0;
+                if (score < 40) suggestions.push('{{ _("活跃度") }}' + score.toFixed(1) + '%{{ _("，低于及格线(40%)，需重点改善") }}');
+                if (d.to_follow_count > 0) suggestions.push('{{ _("建议优先联系待跟进状态的") }}' + d.to_follow_count + '{{ _("个客户") }}');
+                const coverage = this.activityScore.breakdown?.customer_coverage?.value || 0;
+                if (coverage < 80) suggestions.push('{{ _("每月至少覆盖80%客户(当前") }}' + coverage + '%)');
+            } else if (tabType === 'action') {
+                const b = this.activityScore.breakdown || {};
+                if ((b.avg_length?.score || 0) < 80) suggestions.push('{{ _("建议增加行动记录内容详细度(目标") }}' + (b.avg_length?.target || 50) + '{{ _("字)") }}');
+                if ((b.reply_count?.score || 0) < 50) suggestions.push('{{ _("积极参与同事的跟进记录讨论，提升回复数") }}');
+                if ((b.project_link_rate?.score || 0) < 80) suggestions.push('{{ _("创建行动记录时关联对应项目") }}');
+                if ((b.action_count?.score || 0) < 50) suggestions.push('{{ _("加快行动记录频率(目标") }}' + (b.action_count?.target || 0) + '{{ _("条)") }}');
+            }
+            return suggestions;
         },
 
         // 客户类型标签（使用字典数据）

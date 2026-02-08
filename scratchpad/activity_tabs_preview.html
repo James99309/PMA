@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>活跃度详细指标 - Tab页签预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+    <style>
+        body { background: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; }
+    </style>
+</head>
+<body class="p-4 md:p-8 max-w-5xl mx-auto" x-data="activityTabs()">
+
+    <h1 class="text-2xl font-bold text-slate-800 mb-1">活跃度详细指标 - Tab页签预览</h1>
+    <p class="text-slate-500 mb-6">将原来的表格改为4个页签，每个页签展示详细数据+告警+建议，上方趋势图随Tab联动</p>
+
+    <!-- ========== 图表区域（雷达图 + 趋势图） ========== -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- 雷达图（不联动） -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-slate-900 mb-4 flex items-center">
+                <span class="material-symbols-outlined mr-2 text-blue-500">radar</span>维度分析
+            </h3>
+            <div id="radarChart" class="h-64"></div>
+        </div>
+        <!-- 趋势图（联动） -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-slate-900 mb-4 flex items-center">
+                <span class="material-symbols-outlined mr-2 text-blue-500">show_chart</span>
+                <span x-text="trendChartTitle()">月度趋势</span>
+            </h3>
+            <div id="trendChart" class="h-64"></div>
+        </div>
+    </div>
+
+    <!-- ========== Tab 页签区域 ========== -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <!-- Tab 导航 -->
+        <div class="border-b border-slate-200">
+            <nav class="flex -mb-px overflow-x-auto" role="tablist">
+                <template x-for="tab in tabs" :key="tab.key">
+                    <button
+                        @click="switchTab(tab.key)"
+                        :class="activeTab === tab.key
+                            ? 'border-blue-500 text-blue-600 bg-blue-50/50'
+                            : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'"
+                        class="flex items-center gap-1.5 px-5 py-3 border-b-2 text-sm font-medium whitespace-nowrap transition-colors"
+                    >
+                        <span class="material-symbols-outlined text-[18px]" x-text="tab.icon"></span>
+                        <span x-text="tab.label"></span>
+                    </button>
+                </template>
+            </nav>
+        </div>
+
+        <!-- Tab 内容 -->
+        <div class="p-6">
+
+            <!-- ===== Tab 1: 综合评分 ===== -->
+            <div x-show="activeTab === 'overview'" x-transition>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">指标</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">实际值</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">目标值</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">得分</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">权重</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <template x-for="(item, key) in mockData.breakdown" :key="key">
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="metricLabels[key]"></td>
+                                    <td class="px-6 py-4 text-sm text-right text-gray-900" x-text="formatValue(key, item.value)"></td>
+                                    <td class="px-6 py-4 text-sm text-right text-gray-500" x-text="formatValue(key, item.target)"></td>
+                                    <td class="px-6 py-4 text-sm text-right">
+                                        <span :class="getScoreClass(item.score)" x-text="item.score.toFixed(1)"></span>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-right text-gray-500" x-text="(item.weight * 100) + '%'"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ===== Tab 2: 项目活跃度 ===== -->
+            <div x-show="activeTab === 'project'" x-transition>
+
+                <!-- 考核目标达成 -->
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">flag</span>
+                        考核目标达成
+                    </h5>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <!-- 新项目目标 -->
+                        <div class="rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+                            <div class="relative w-16 h-16 flex-shrink-0">
+                                <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+                                    <circle cx="32" cy="32" r="28" fill="none"
+                                        :stroke="mockData.kpi.new_projects.rate >= 100 ? '#22c55e' : mockData.kpi.new_projects.rate >= 80 ? '#f59e0b' : '#ef4444'"
+                                        stroke-width="5" stroke-linecap="round"
+                                        :stroke-dasharray="(Math.min(mockData.kpi.new_projects.rate, 100) / 100 * 175.9) + ' 175.9'"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-xs font-bold"
+                                        :class="mockData.kpi.new_projects.rate >= 100 ? 'text-green-600' : mockData.kpi.new_projects.rate >= 80 ? 'text-amber-600' : 'text-red-600'"
+                                        x-text="mockData.kpi.new_projects.rate + '%'"></span>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-xs text-slate-500">新项目</div>
+                                <div class="text-lg font-bold text-slate-900">
+                                    <span x-text="mockData.kpi.new_projects.actual"></span>
+                                    <span class="text-sm font-normal text-slate-400"> / <span x-text="mockData.kpi.new_projects.target"></span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 项目活跃度目标 -->
+                        <div class="rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+                            <div class="relative w-16 h-16 flex-shrink-0">
+                                <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+                                    <circle cx="32" cy="32" r="28" fill="none"
+                                        :stroke="mockData.breakdown.project_activity.value >= 80 ? '#22c55e' : mockData.breakdown.project_activity.value >= 60 ? '#f59e0b' : '#ef4444'"
+                                        stroke-width="5" stroke-linecap="round"
+                                        :stroke-dasharray="(Math.min(mockData.breakdown.project_activity.value, 100) / 100 * 175.9) + ' 175.9'"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-xs font-bold"
+                                        :class="mockData.breakdown.project_activity.value >= 80 ? 'text-green-600' : mockData.breakdown.project_activity.value >= 60 ? 'text-amber-600' : 'text-red-600'"
+                                        x-text="mockData.breakdown.project_activity.value + '%'"></span>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-xs text-slate-500">项目活跃度</div>
+                                <div class="text-lg font-bold text-slate-900">
+                                    <span x-text="mockData.breakdown.project_activity.value + '%'"></span>
+                                    <span class="text-sm font-normal text-slate-400"> / 目标 80%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 阶段分布 -->
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">account_tree</span>
+                        阶段分布
+                        <span class="text-xs font-normal text-slate-400 ml-2" x-text="'共 ' + mockData.project_activity_detail.total_count + ' 个项目'"></span>
+                    </h5>
+                    <!-- 分段条 -->
+                    <div class="flex rounded-lg h-8 overflow-hidden bg-gray-100 mb-3">
+                        <template x-for="stage in stageOrder" :key="stage">
+                            <div class="flex items-center justify-center transition-all relative group"
+                                :class="stageColors[stage]"
+                                :style="'width:' + getStageSegmentWidth(stage) + '%'"
+                                x-show="(mockData.project_stage_breakdown[stage] || 0) > 0">
+                                <span class="text-[11px] font-medium text-white drop-shadow-sm"
+                                    x-show="getStageSegmentWidth(stage) > 5"
+                                    x-text="mockData.project_stage_breakdown[stage]"></span>
+                                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                    <span x-text="stageLabels[stage]"></span>: <span x-text="mockData.project_stage_breakdown[stage]"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <!-- 图例 -->
+                    <div class="flex flex-wrap gap-x-3 gap-y-1.5">
+                        <template x-for="stage in stageOrder" :key="stage">
+                            <div class="flex items-center gap-1.5 text-xs text-slate-600">
+                                <span class="w-2.5 h-2.5 rounded flex-shrink-0" :class="stageColors[stage]"></span>
+                                <span x-text="stageLabels[stage]"></span>
+                                <span class="font-semibold" x-text="mockData.project_stage_breakdown[stage] || 0"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 活跃状态分布 - 分段条 -->
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">monitoring</span>
+                        活跃状态分布
+                        <span class="text-xs font-normal text-slate-400 ml-2" x-text="'共 ' + mockData.project_activity_detail.active_total + ' 个项目（排除冻结 ' + mockData.project_activity_detail.frozen_count + ' 个）'"></span>
+                    </h5>
+                    <!-- 分段条 -->
+                    <div class="flex rounded-full h-8 overflow-hidden bg-gray-100 mb-3">
+                        <template x-for="status in activityStatuses" :key="status.key">
+                            <div class="flex items-center justify-center transition-all relative group"
+                                :class="status.barClass"
+                                :style="'width:' + getStatusBarWidth('project', status.key) + '%'"
+                                x-show="(mockData.project_activity_detail[status.key + '_count'] || 0) > 0">
+                                <span class="text-[11px] font-medium text-white drop-shadow-sm"
+                                    x-show="getStatusBarWidth('project', status.key) > 6"
+                                    x-text="mockData.project_activity_detail[status.key + '_count']"></span>
+                                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                    <span x-text="status.label"></span>: <span x-text="mockData.project_activity_detail[status.key + '_count']"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <!-- 图例 -->
+                    <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                        <template x-for="status in activityStatuses" :key="status.key">
+                            <div class="flex items-center gap-1.5 text-xs text-slate-600">
+                                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="status.dotClass"></span>
+                                <span x-text="status.label"></span>
+                                <span class="font-semibold" :class="status.textClass"
+                                    x-text="mockData.project_activity_detail[status.key + '_count'] || 0"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 告警 + 建议 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-lg bg-amber-50 border border-amber-200 p-4" x-show="generateAlerts('project').length > 0">
+                        <h5 class="text-sm font-semibold text-amber-700 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">warning</span>告警提示
+                        </h5>
+                        <ul class="text-sm text-amber-800 space-y-1.5">
+                            <template x-for="alert in generateAlerts('project')" :key="alert">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-amber-500 mt-0.5">•</span>
+                                    <span x-text="alert"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                    <div class="rounded-lg bg-blue-50 border border-blue-200 p-4">
+                        <h5 class="text-sm font-semibold text-blue-700 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">lightbulb</span>改善建议
+                        </h5>
+                        <ul class="text-sm text-blue-800 space-y-1.5">
+                            <template x-for="sug in generateSuggestions('project')" :key="sug">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-blue-500 mt-0.5">•</span>
+                                    <span x-text="sug"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Tab 3: 客户活跃度 ===== -->
+            <div x-show="activeTab === 'customer'" x-transition>
+
+                <!-- 考核目标达成 -->
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">flag</span>
+                        考核目标达成
+                    </h5>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <!-- 新客户目标 -->
+                        <div class="rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+                            <div class="relative w-16 h-16 flex-shrink-0">
+                                <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+                                    <circle cx="32" cy="32" r="28" fill="none"
+                                        :stroke="mockData.kpi.new_customers.rate >= 100 ? '#22c55e' : mockData.kpi.new_customers.rate >= 80 ? '#f59e0b' : '#ef4444'"
+                                        stroke-width="5" stroke-linecap="round"
+                                        :stroke-dasharray="(Math.min(mockData.kpi.new_customers.rate, 100) / 100 * 175.9) + ' 175.9'"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-xs font-bold"
+                                        :class="mockData.kpi.new_customers.rate >= 100 ? 'text-green-600' : mockData.kpi.new_customers.rate >= 80 ? 'text-amber-600' : 'text-red-600'"
+                                        x-text="mockData.kpi.new_customers.rate + '%'"></span>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-xs text-slate-500">新客户</div>
+                                <div class="text-lg font-bold text-slate-900">
+                                    <span x-text="mockData.kpi.new_customers.actual"></span>
+                                    <span class="text-sm font-normal text-slate-400"> / <span x-text="mockData.kpi.new_customers.target"></span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 客户活跃度目标 -->
+                        <div class="rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+                            <div class="relative w-16 h-16 flex-shrink-0">
+                                <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+                                    <circle cx="32" cy="32" r="28" fill="none"
+                                        :stroke="mockData.kpi.customer_activity.rate >= 100 ? '#22c55e' : mockData.kpi.customer_activity.rate >= 80 ? '#f59e0b' : '#ef4444'"
+                                        stroke-width="5" stroke-linecap="round"
+                                        :stroke-dasharray="(Math.min(mockData.kpi.customer_activity.rate, 100) / 100 * 175.9) + ' 175.9'"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-xs font-bold"
+                                        :class="mockData.kpi.customer_activity.rate >= 100 ? 'text-green-600' : mockData.kpi.customer_activity.rate >= 80 ? 'text-amber-600' : 'text-red-600'"
+                                        x-text="mockData.kpi.customer_activity.rate + '%'"></span>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-xs text-slate-500">客户活跃度</div>
+                                <div class="text-lg font-bold text-slate-900">
+                                    <span x-text="mockData.kpi.customer_activity.actual + '%'"></span>
+                                    <span class="text-sm font-normal text-slate-400"> / <span x-text="mockData.kpi.customer_activity.target + '%'"></span></span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 客户覆盖率 -->
+                        <div class="rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+                            <div class="relative w-16 h-16 flex-shrink-0">
+                                <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                    <circle cx="32" cy="32" r="28" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+                                    <circle cx="32" cy="32" r="28" fill="none"
+                                        :stroke="mockData.breakdown.customer_coverage.value >= 80 ? '#22c55e' : mockData.breakdown.customer_coverage.value >= 60 ? '#f59e0b' : '#ef4444'"
+                                        stroke-width="5" stroke-linecap="round"
+                                        :stroke-dasharray="(Math.min(mockData.breakdown.customer_coverage.value, 100) / 100 * 175.9) + ' 175.9'"/>
+                                </svg>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="text-xs font-bold"
+                                        :class="mockData.breakdown.customer_coverage.value >= 80 ? 'text-green-600' : mockData.breakdown.customer_coverage.value >= 60 ? 'text-amber-600' : 'text-red-600'"
+                                        x-text="mockData.breakdown.customer_coverage.value + '%'"></span>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-xs text-slate-500">客户覆盖率</div>
+                                <div class="text-lg font-bold text-slate-900">
+                                    <span x-text="mockData.raw_data.covered_customers"></span>
+                                    <span class="text-sm font-normal text-slate-400"> / <span x-text="mockData.raw_data.total_customers"></span> 客户</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 活跃状态分布 - 分段条 -->
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">monitoring</span>
+                        活跃状态分布
+                        <span class="text-xs font-normal text-slate-400 ml-2" x-text="'共 ' + mockData.customer_activity_detail.total_count + ' 个客户'"></span>
+                    </h5>
+                    <!-- 分段条 -->
+                    <div class="flex rounded-full h-8 overflow-hidden bg-gray-100 mb-3">
+                        <template x-for="status in customerStatuses" :key="status.key">
+                            <div class="flex items-center justify-center transition-all relative group"
+                                :class="status.barClass"
+                                :style="'width:' + getStatusBarWidth('customer', status.key) + '%'"
+                                x-show="(mockData.customer_activity_detail[status.key + '_count'] || 0) > 0">
+                                <span class="text-[11px] font-medium text-white drop-shadow-sm"
+                                    x-show="getStatusBarWidth('customer', status.key) > 6"
+                                    x-text="mockData.customer_activity_detail[status.key + '_count']"></span>
+                                <!-- tooltip -->
+                                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                                    <span x-text="status.label"></span>: <span x-text="mockData.customer_activity_detail[status.key + '_count']"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <!-- 图例 -->
+                    <div class="flex flex-wrap gap-x-4 gap-y-1.5">
+                        <template x-for="status in customerStatuses" :key="status.key">
+                            <div class="flex items-center gap-1.5 text-xs text-slate-600">
+                                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" :class="status.dotClass"></span>
+                                <span x-text="status.label"></span>
+                                <span class="font-semibold" :class="status.textClass"
+                                    x-text="mockData.customer_activity_detail[status.key + '_count'] || 0"></span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 告警 + 建议 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-lg bg-amber-50 border border-amber-200 p-4" x-show="generateAlerts('customer').length > 0">
+                        <h5 class="text-sm font-semibold text-amber-700 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">warning</span>告警提示
+                        </h5>
+                        <ul class="text-sm text-amber-800 space-y-1.5">
+                            <template x-for="alert in generateAlerts('customer')" :key="alert">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-amber-500 mt-0.5">•</span>
+                                    <span x-text="alert"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                    <div class="rounded-lg bg-blue-50 border border-blue-200 p-4">
+                        <h5 class="text-sm font-semibold text-blue-700 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">lightbulb</span>改善建议
+                        </h5>
+                        <ul class="text-sm text-blue-800 space-y-1.5">
+                            <template x-for="sug in generateSuggestions('customer')" :key="sug">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-blue-500 mt-0.5">•</span>
+                                    <span x-text="sug"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Tab 4: 行动质量 ===== -->
+            <div x-show="activeTab === 'action'" x-transition>
+
+                <!-- 指标达成 - 4个环形图 -->
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">flag</span>
+                        指标达成
+                    </h5>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <template x-for="metric in actionMetrics" :key="metric.key">
+                            <div class="rounded-xl border border-slate-200 p-4 flex flex-col items-center">
+                                <div class="relative w-16 h-16 mb-2">
+                                    <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                                        <circle cx="32" cy="32" r="28" fill="none" stroke="#e2e8f0" stroke-width="5"/>
+                                        <circle cx="32" cy="32" r="28" fill="none"
+                                            :stroke="getMetricRate(metric.key) >= 80 ? '#22c55e' : getMetricRate(metric.key) >= 50 ? '#f59e0b' : '#ef4444'"
+                                            stroke-width="5" stroke-linecap="round"
+                                            :stroke-dasharray="(Math.min(getMetricRate(metric.key), 100) / 100 * 175.9) + ' 175.9'"/>
+                                    </svg>
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <span class="text-xs font-bold"
+                                            :class="getMetricRate(metric.key) >= 80 ? 'text-green-600' : getMetricRate(metric.key) >= 50 ? 'text-amber-600' : 'text-red-600'"
+                                            x-text="getMetricRate(metric.key).toFixed(0) + '%'"></span>
+                                    </div>
+                                </div>
+                                <div class="text-xs text-slate-500" x-text="metric.label"></div>
+                                <div class="text-sm font-bold text-slate-900 mt-0.5">
+                                    <span x-text="formatActionMetricValue(metric.key)"></span>
+                                    <span class="text-xs font-normal text-slate-400" x-text="' / ' + formatActionMetricTarget(metric.key)"></span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 行动分布 - 关联 vs 未关联 分段条 -->
+                <div class="mb-6">
+                    <h5 class="text-sm font-semibold text-slate-700 mb-3 flex items-center">
+                        <span class="material-symbols-outlined text-[16px] mr-1 text-slate-400">link</span>
+                        项目关联分布
+                        <span class="text-xs font-normal text-slate-400 ml-2" x-text="'共 ' + mockData.raw_data.total_actions + ' 条行动记录'"></span>
+                    </h5>
+                    <div class="flex rounded-full h-8 overflow-hidden bg-gray-100 mb-3">
+                        <div class="flex items-center justify-center bg-blue-500 transition-all"
+                            :style="'width:' + mockData.breakdown.project_link_rate.value + '%'">
+                            <span class="text-[11px] font-medium text-white drop-shadow-sm"
+                                x-text="mockData.raw_data.linked_actions + ' 已关联'"></span>
+                        </div>
+                        <div class="flex items-center justify-center bg-slate-300 transition-all"
+                            :style="'width:' + (100 - mockData.breakdown.project_link_rate.value) + '%'">
+                            <span class="text-[11px] font-medium text-slate-600"
+                                x-text="(mockData.raw_data.total_actions - mockData.raw_data.linked_actions) + ' 未关联'"></span>
+                        </div>
+                    </div>
+                    <div class="flex gap-4">
+                        <div class="flex items-center gap-1.5 text-xs text-slate-600">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
+                            已关联项目 <span class="font-semibold text-blue-600" x-text="mockData.breakdown.project_link_rate.value + '%'"></span>
+                        </div>
+                        <div class="flex items-center gap-1.5 text-xs text-slate-600">
+                            <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+                            未关联 <span class="font-semibold text-slate-500" x-text="(100 - mockData.breakdown.project_link_rate.value).toFixed(1) + '%'"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 告警 + 建议 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="rounded-lg bg-amber-50 border border-amber-200 p-4" x-show="generateAlerts('action').length > 0">
+                        <h5 class="text-sm font-semibold text-amber-700 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">warning</span>告警提示
+                        </h5>
+                        <ul class="text-sm text-amber-800 space-y-1.5">
+                            <template x-for="alert in generateAlerts('action')" :key="alert">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-amber-500 mt-0.5">•</span>
+                                    <span x-text="alert"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                    <div class="rounded-lg bg-blue-50 border border-blue-200 p-4">
+                        <h5 class="text-sm font-semibold text-blue-700 mb-2 flex items-center">
+                            <span class="material-symbols-outlined text-[16px] mr-1">lightbulb</span>改善建议
+                        </h5>
+                        <ul class="text-sm text-blue-800 space-y-1.5">
+                            <template x-for="sug in generateSuggestions('action')" :key="sug">
+                                <li class="flex items-start gap-1.5">
+                                    <span class="text-blue-500 mt-0.5">•</span>
+                                    <span x-text="sug"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+<script>
+function activityTabs() {
+    return {
+        activeTab: 'overview',
+        tabs: [
+            { key: 'overview', label: '综合评分', icon: 'format_list_numbered' },
+            { key: 'project', label: '项目活跃', icon: 'folder_open' },
+            { key: 'customer', label: '客户活跃', icon: 'groups' },
+            { key: 'action', label: '行动质量', icon: 'edit_note' },
+        ],
+
+        // 模拟数据（对应截图数据）
+        mockData: {
+            score: 36.2,
+            grade: 'D',
+            grade_text: '待提升',
+            breakdown: {
+                action_count: { value: 245, target: 600, score: 40.8, weight: 0.20 },
+                avg_length: { value: 66, target: 200, score: 33.1, weight: 0.15 },
+                customer_coverage: { value: 68.9, target: 100, score: 68.9, weight: 0.15 },
+                customer_activity: { value: 27.7, target: 100, score: 27.7, weight: 0.15 },
+                project_activity: { value: 52.0, target: 100, score: 52.0, weight: 0.10 },
+                project_link_rate: { value: 64.9, target: 100, score: 64.9, weight: 0.15 },
+                reply_count: { value: 3, target: 360, score: 0.8, weight: 0.10 },
+            },
+            raw_data: {
+                total_customers: 45,
+                covered_customers: 31,
+                total_actions: 245,
+                linked_actions: 159,
+            },
+            // 考核目标（来自 summary）
+            kpi: {
+                new_customers: { actual: 8, target: 15, rate: 53.3, status: 'danger' },
+                customer_activity: { actual: 27.7, target: 80, rate: 34.6, status: 'danger' },
+                new_projects: { actual: 12, target: 20, rate: 60.0, status: 'warning' },
+            },
+            // 项目阶段分布
+            project_stage_breakdown: {
+                discover: 3, embed: 5, pre_tender: 2, tendering: 1,
+                awarded: 4, quoted: 2, signed: 8, lost: 1, paused: 0
+            },
+            // 项目活跃状态详情
+            project_activity_detail: {
+                highly_active_count: 3, active_count: 5, normal_count: 8,
+                to_follow_count: 4, dormant_count: 2, churned_count: 1,
+                frozen_count: 3, total_count: 26, active_total: 23
+            },
+            // 客户活跃状态详情
+            customer_activity_detail: {
+                highly_active_count: 2, active_count: 4, normal_count: 7,
+                to_follow_count: 10, dormant_count: 12, churned_count: 10,
+                total_count: 45
+            },
+        },
+
+        // 月度趋势模拟数据（扩展版）
+        monthlyTrend: [
+            { month: '3月', score: 10, action_count: 10, reply_count: 1, customer_coverage: 30, customer_activity: 20, project_activity: 40, avg_length: 55 },
+            { month: '4月', score: 10, action_count: 8, reply_count: 0, customer_coverage: 35, customer_activity: 22, project_activity: 42, avg_length: 58 },
+            { month: '5月', score: 40, action_count: 78, reply_count: 5, customer_coverage: 55, customer_activity: 25, project_activity: 48, avg_length: 70 },
+            { month: '6月', score: 38, action_count: 30, reply_count: 3, customer_coverage: 60, customer_activity: 26, project_activity: 50, avg_length: 65 },
+            { month: '7月', score: 40, action_count: 12, reply_count: 1, customer_coverage: 50, customer_activity: 24, project_activity: 45, avg_length: 60 },
+            { month: '8月', score: 38, action_count: 22, reply_count: 2, customer_coverage: 58, customer_activity: 28, project_activity: 52, avg_length: 68 },
+            { month: '9月', score: 35, action_count: 16, reply_count: 1, customer_coverage: 55, customer_activity: 25, project_activity: 48, avg_length: 62 },
+            { month: '10月', score: 30, action_count: 10, reply_count: 0, customer_coverage: 52, customer_activity: 23, project_activity: 46, avg_length: 58 },
+            { month: '11月', score: 38, action_count: 20, reply_count: 2, customer_coverage: 60, customer_activity: 26, project_activity: 50, avg_length: 65 },
+            { month: '12月', score: 42, action_count: 26, reply_count: 2, customer_coverage: 62, customer_activity: 27, project_activity: 52, avg_length: 66 },
+            { month: '1月', score: 43, action_count: 30, reply_count: 3, customer_coverage: 65, customer_activity: 28, project_activity: 53, avg_length: 68 },
+            { month: '2月', score: 36, action_count: 10, reply_count: 0, customer_coverage: 68.9, customer_activity: 27.7, project_activity: 52, avg_length: 66 },
+        ],
+
+        metricLabels: {
+            action_count: '行动记录数',
+            avg_length: '平均字数',
+            customer_coverage: '客户覆盖率',
+            customer_activity: '客户活跃度',
+            project_activity: '项目活跃度',
+            project_link_rate: '项目关联率',
+            reply_count: '回复数'
+        },
+
+        stageLabels: {
+            discover: '发现', embed: '植入', pre_tender: '标前', tendering: '标中',
+            awarded: '中标', quoted: '批价', signed: '签约', lost: '失败', paused: '搁置'
+        },
+        stageOrder: ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused'],
+        stageColors: {
+            discover: 'bg-sky-400', embed: 'bg-blue-400', pre_tender: 'bg-indigo-400',
+            tendering: 'bg-violet-500', awarded: 'bg-emerald-500', quoted: 'bg-teal-500',
+            signed: 'bg-green-600', lost: 'bg-red-400', paused: 'bg-slate-400'
+        },
+
+        activityStatuses: [
+            { key: 'highly_active', label: '高度活跃', textClass: 'text-green-600', barClass: 'bg-green-500', dotClass: 'bg-green-500' },
+            { key: 'active', label: '活跃', textClass: 'text-blue-600', barClass: 'bg-blue-500', dotClass: 'bg-blue-500' },
+            { key: 'normal', label: '正常', textClass: 'text-slate-600', barClass: 'bg-slate-400', dotClass: 'bg-slate-400' },
+            { key: 'to_follow', label: '待跟进', textClass: 'text-yellow-600', barClass: 'bg-yellow-400', dotClass: 'bg-yellow-400' },
+            { key: 'dormant', label: '休眠', textClass: 'text-orange-600', barClass: 'bg-orange-400', dotClass: 'bg-orange-400' },
+            { key: 'churned', label: '流失', textClass: 'text-red-600', barClass: 'bg-red-500', dotClass: 'bg-red-500' },
+        ],
+
+        customerStatuses: [
+            { key: 'highly_active', label: '高度活跃', textClass: 'text-green-600', barClass: 'bg-green-500', dotClass: 'bg-green-500' },
+            { key: 'active', label: '活跃', textClass: 'text-blue-600', barClass: 'bg-blue-500', dotClass: 'bg-blue-500' },
+            { key: 'normal', label: '正常', textClass: 'text-slate-600', barClass: 'bg-slate-400', dotClass: 'bg-slate-400' },
+            { key: 'to_follow', label: '待跟进', textClass: 'text-yellow-600', barClass: 'bg-yellow-400', dotClass: 'bg-yellow-400' },
+            { key: 'dormant', label: '休眠', textClass: 'text-orange-600', barClass: 'bg-orange-400', dotClass: 'bg-orange-400' },
+            { key: 'churned', label: '流失', textClass: 'text-red-600', barClass: 'bg-red-500', dotClass: 'bg-red-500' },
+        ],
+
+        actionMetrics: [
+            { key: 'action_count', label: '行动记录' },
+            { key: 'reply_count', label: '回复数' },
+            { key: 'avg_length', label: '平均字数' },
+            { key: 'project_link_rate', label: '项目关联率' },
+        ],
+
+        charts: {},
+
+        init() {
+            this.$nextTick(() => {
+                this.initRadarChart();
+                this.initTrendChart();
+            });
+        },
+
+        switchTab(tab) {
+            this.activeTab = tab;
+            this.$nextTick(() => this.initTrendChart());
+        },
+
+        trendChartTitle() {
+            const titles = {
+                overview: '月度趋势',
+                project: '项目活跃度趋势',
+                customer: '客户活跃度趋势',
+                action: '行动质量趋势'
+            };
+            return titles[this.activeTab] || '月度趋势';
+        },
+
+        formatValue(key, value) {
+            if (['customer_coverage', 'project_link_rate', 'customer_activity', 'project_activity'].includes(key)) {
+                return value + '%';
+            }
+            return value;
+        },
+
+        getScoreClass(score) {
+            if (score >= 80) return 'text-green-600 font-semibold';
+            if (score >= 60) return 'text-blue-600';
+            if (score >= 40) return 'text-yellow-600';
+            return 'text-red-600';
+        },
+
+        getMetricRate(key) {
+            const item = this.mockData.breakdown[key];
+            if (!item) return 0;
+            if (['customer_coverage', 'project_link_rate', 'customer_activity', 'project_activity'].includes(key)) {
+                return item.value; // already a percentage
+            }
+            return item.target > 0 ? (item.value / item.target * 100) : 0;
+        },
+
+        formatActionMetricValue(key) {
+            const item = this.mockData.breakdown[key];
+            if (['customer_coverage', 'project_link_rate'].includes(key)) return item.value + '%';
+            return item.value;
+        },
+
+        formatActionMetricTarget(key) {
+            const item = this.mockData.breakdown[key];
+            if (['customer_coverage', 'project_link_rate'].includes(key)) return item.target + '%';
+            return item.target;
+        },
+
+        getStageSegmentWidth(stage) {
+            const count = this.mockData.project_stage_breakdown[stage] || 0;
+            const total = Object.values(this.mockData.project_stage_breakdown).reduce((a, b) => a + b, 0);
+            if (total <= 0 || count <= 0) return 0;
+            return Math.max((count / total) * 100, 4);
+        },
+
+        getStageBarWidth(stage) {
+            const count = this.mockData.project_stage_breakdown[stage] || 0;
+            const max = Math.max(...Object.values(this.mockData.project_stage_breakdown), 1);
+            return Math.max((count / max) * 100, count > 0 ? 8 : 0);
+        },
+
+        getStatusBarWidth(type, statusKey) {
+            const detail = type === 'project' ? this.mockData.project_activity_detail : this.mockData.customer_activity_detail;
+            const count = detail[statusKey + '_count'] || 0;
+            const total = type === 'project' ? detail.active_total : detail.total_count;
+            if (total <= 0 || count <= 0) return 0;
+            return Math.max((count / total) * 100, 4); // min 4% so tiny segments are visible
+        },
+
+        // 动态生成告警
+        generateAlerts(tabType) {
+            const alerts = [];
+            if (tabType === 'project') {
+                const d = this.mockData.project_activity_detail;
+                if (d.to_follow_count > 0) alerts.push(`${d.to_follow_count}个项目待跟进，建议安排回访`);
+                if (d.dormant_count > 0) alerts.push(`${d.dormant_count}个项目已休眠(>90天)，有流失风险`);
+                if (d.churned_count > 0) alerts.push(`${d.churned_count}个项目已流失(>120天无活动)`);
+            } else if (tabType === 'customer') {
+                const d = this.mockData.customer_activity_detail;
+                const total = d.total_count || 1;
+                if (d.to_follow_count > 0) alerts.push(`${d.to_follow_count}个客户待跟进，占总数${Math.round(d.to_follow_count/total*100)}%`);
+                if (d.dormant_count > 0) alerts.push(`${d.dormant_count}个客户已休眠，占总数${Math.round(d.dormant_count/total*100)}%`);
+                if (d.churned_count > 0) alerts.push(`${d.churned_count}个客户已流失，建议评估是否放弃`);
+                const uncovered = this.mockData.raw_data.total_customers - this.mockData.raw_data.covered_customers;
+                if (uncovered > 0) alerts.push(`${uncovered}个客户未覆盖(无行动记录)`);
+            } else if (tabType === 'action') {
+                const b = this.mockData.breakdown;
+                if (b.reply_count.score < 10) alerts.push(`回复数严重不足(${b.reply_count.value}/${b.reply_count.target})，互动率极低`);
+                if (b.avg_length.score < 50) alerts.push(`平均字数${b.avg_length.value}字，低于标准${b.avg_length.target}字`);
+                const unlinkedRate = 100 - b.project_link_rate.value;
+                if (unlinkedRate > 20) alerts.push(`${unlinkedRate.toFixed(0)}%行动记录未关联项目`);
+            }
+            return alerts;
+        },
+
+        // 动态生成建议
+        generateSuggestions(tabType) {
+            const suggestions = [];
+            if (tabType === 'project') {
+                const score = this.mockData.breakdown.project_activity.score;
+                const d = this.mockData.project_activity_detail;
+                if (d.to_follow_count > 0) suggestions.push(`优先跟进"待跟进"状态的${d.to_follow_count}个项目`);
+                if (score < 60) {
+                    const gap = (60 - score).toFixed(0);
+                    suggestions.push(`活跃度${score.toFixed(0)}%，距离良好(60%)还需提升${gap}%`);
+                }
+                suggestions.push('建议每周至少更新一次项目进展');
+            } else if (tabType === 'customer') {
+                const score = this.mockData.breakdown.customer_activity.score;
+                const d = this.mockData.customer_activity_detail;
+                if (score < 40) suggestions.push(`活跃度${score.toFixed(1)}%，低于及格线(40%)，需重点改善`);
+                if (d.to_follow_count > 0) suggestions.push(`建议优先联系"待跟进"状态的${d.to_follow_count}个客户`);
+                const coverage = this.mockData.breakdown.customer_coverage.value;
+                if (coverage < 80) suggestions.push(`每月至少覆盖80%客户(当前${coverage}%)`);
+            } else if (tabType === 'action') {
+                const b = this.mockData.breakdown;
+                if (b.avg_length.score < 80) suggestions.push(`建议增加行动记录内容详细度(目标${b.avg_length.target}字)`);
+                if (b.reply_count.score < 50) suggestions.push('积极参与同事的跟进记录讨论，提升回复数');
+                if (b.project_link_rate.score < 80) suggestions.push('创建行动记录时关联对应项目');
+                if (b.action_count.score < 50) suggestions.push(`加快行动记录频率(目标${b.action_count.target}条/年)`);
+            }
+            return suggestions;
+        },
+
+        // 雷达图（不联动）
+        initRadarChart() {
+            const dom = document.getElementById('radarChart');
+            if (!dom) return;
+            if (this.charts.radar) this.charts.radar.dispose();
+            this.charts.radar = echarts.init(dom);
+
+            const labels = {
+                action_count: '行动记录', reply_count: '回复数', avg_length: '内容详细',
+                customer_coverage: '客户覆盖', project_link_rate: '项目关联',
+                customer_activity: '客户活跃', project_activity: '项目活跃'
+            };
+            const indicators = Object.keys(this.mockData.breakdown).map(k => ({ name: labels[k] || k, max: 100 }));
+            const values = Object.values(this.mockData.breakdown).map(i => i.score);
+
+            this.charts.radar.setOption({
+                radar: { indicator: indicators, name: { textStyle: { color: '#334155' } } },
+                series: [{ type: 'radar', data: [{ value: values, name: '活跃度' }] }]
+            });
+        },
+
+        // 趋势图（联动）
+        initTrendChart() {
+            const dom = document.getElementById('trendChart');
+            if (!dom) return;
+            if (this.charts.trend) this.charts.trend.dispose();
+            this.charts.trend = echarts.init(dom);
+
+            const months = this.monthlyTrend.map(d => d.month);
+            let series = [];
+            let yAxes = [];
+            let legendData = [];
+
+            if (this.activeTab === 'overview') {
+                legendData = ['活跃度评分', '行动记录'];
+                yAxes = [
+                    { type: 'value', name: '评分', max: 100, axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } } },
+                    { type: 'value', name: '数量', axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { show: false } }
+                ];
+                series = [
+                    { name: '活跃度评分', type: 'line', smooth: true, data: this.monthlyTrend.map(d => d.score), itemStyle: { color: '#3b82f6' }, areaStyle: { color: 'rgba(59,130,246,0.1)' } },
+                    { name: '行动记录', type: 'bar', yAxisIndex: 1, data: this.monthlyTrend.map(d => d.action_count), itemStyle: { color: '#10b981', opacity: 0.7 } }
+                ];
+            } else if (this.activeTab === 'project') {
+                legendData = ['项目活跃度'];
+                yAxes = [{ type: 'value', name: '%', max: 100, axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } } }];
+                series = [
+                    { name: '项目活跃度', type: 'line', smooth: true, data: this.monthlyTrend.map(d => d.project_activity), itemStyle: { color: '#8b5cf6' }, areaStyle: { color: 'rgba(139,92,246,0.1)' } }
+                ];
+            } else if (this.activeTab === 'customer') {
+                legendData = ['客户活跃度', '客户覆盖率'];
+                yAxes = [{ type: 'value', name: '%', max: 100, axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } } }];
+                series = [
+                    { name: '客户活跃度', type: 'line', smooth: true, data: this.monthlyTrend.map(d => d.customer_activity), itemStyle: { color: '#f59e0b' }, areaStyle: { color: 'rgba(245,158,11,0.1)' } },
+                    { name: '客户覆盖率', type: 'line', smooth: true, data: this.monthlyTrend.map(d => d.customer_coverage), itemStyle: { color: '#3b82f6' }, lineStyle: { type: 'dashed' } }
+                ];
+            } else if (this.activeTab === 'action') {
+                legendData = ['行动记录', '回复数', '平均字数'];
+                yAxes = [
+                    { type: 'value', name: '数量', axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { lineStyle: { color: '#e2e8f0', type: 'dashed' } } },
+                    { type: 'value', name: '字数', axisLine: { show: false }, axisLabel: { color: '#64748b' }, splitLine: { show: false } }
+                ];
+                series = [
+                    { name: '行动记录', type: 'bar', data: this.monthlyTrend.map(d => d.action_count), itemStyle: { color: '#10b981', opacity: 0.7 } },
+                    { name: '回复数', type: 'bar', data: this.monthlyTrend.map(d => d.reply_count), itemStyle: { color: '#6366f1', opacity: 0.7 } },
+                    { name: '平均字数', type: 'line', yAxisIndex: 1, smooth: true, data: this.monthlyTrend.map(d => d.avg_length), itemStyle: { color: '#f59e0b' } }
+                ];
+            }
+
+            this.charts.trend.setOption({
+                tooltip: { trigger: 'axis' },
+                legend: { data: legendData, bottom: 0, textStyle: { color: '#94a3b8' } },
+                grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+                xAxis: { type: 'category', data: months, axisLine: { lineStyle: { color: '#cbd5e1' } }, axisLabel: { color: '#64748b' } },
+                yAxis: yAxes,
+                series: series
+            });
+        }
+    };
+}
+</script>
+
+</body>
+</html>
