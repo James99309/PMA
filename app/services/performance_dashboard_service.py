@@ -537,11 +537,13 @@ class PerformanceDashboardService:
         """计算活跃度评分
 
         评分维度（权重）：
-        - 行动记录数 (30%): 满分50条/月或600条/年
+        - 行动记录数 (20%): 满分50条/月或600条/年
         - 回复数 (10%): 满分30条/月或360条/年
-        - 平均字数 (20%): 满分200字
-        - 客户覆盖率 (20%): 拜访客户数/总客户数
-        - 项目关联率 (20%): 关联项目的行动数/总行动数
+        - 平均字数 (15%): 满分200字
+        - 客户覆盖率 (15%): 拜访客户数/总客户数
+        - 项目关联率 (15%): 关联项目的行动数/总行动数
+        - 客户健康度 (15%): (highly_active+active+normal)/总客户数
+        - 项目健康度 (10%): (highly_active+active+normal)/非冻结项目数
 
         Args:
             user_id: 用户ID
@@ -623,20 +625,32 @@ class PerformanceDashboardService:
             ).count()
             project_link_rate = (linked_actions / total_actions * 100) if total_actions > 0 else 0
 
+            # 业务健康维度 - 客户健康度
+            customer_health_data = PerformanceService.calculate_customer_activity_rate(user_id)
+            customer_health_rate = customer_health_data['rate']
+
+            # 业务健康维度 - 项目健康度
+            project_health_data = PerformanceService.calculate_project_activity_rate(user_id)
+            project_health_rate = project_health_data['rate']
+
             # 各维度得分（0-100）
             action_score = min(action_count / base_action_count * 100, 100)
             reply_score = min(reply_count / base_reply_count * 100, 100)
             length_score = min(avg_length / 200 * 100, 100)
             coverage_score = min(customer_coverage, 100)
             link_score = min(project_link_rate, 100)
+            customer_health_score = min(customer_health_rate, 100)
+            project_health_score = min(project_health_rate, 100)
 
-            # 综合评分（加权平均）
+            # 综合评分（加权平均，7维度）
             score = (
-                action_score * 0.3 +
-                reply_score * 0.1 +
-                length_score * 0.2 +
-                coverage_score * 0.2 +
-                link_score * 0.2
+                action_score * 0.20 +
+                reply_score * 0.10 +
+                length_score * 0.15 +
+                coverage_score * 0.15 +
+                link_score * 0.15 +
+                customer_health_score * 0.15 +
+                project_health_score * 0.10
             )
 
             # 等级判定
@@ -662,31 +676,43 @@ class PerformanceDashboardService:
                         'value': action_count,
                         'target': base_action_count,
                         'score': round(action_score, 1),
-                        'weight': 0.3
+                        'weight': 0.20
                     },
                     'reply_count': {
                         'value': reply_count,
                         'target': base_reply_count,
                         'score': round(reply_score, 1),
-                        'weight': 0.1
+                        'weight': 0.10
                     },
                     'avg_length': {
                         'value': round(avg_length),
                         'target': 200,
                         'score': round(length_score, 1),
-                        'weight': 0.2
+                        'weight': 0.15
                     },
                     'customer_coverage': {
                         'value': round(customer_coverage, 1),
                         'target': 100,
                         'score': round(coverage_score, 1),
-                        'weight': 0.2
+                        'weight': 0.15
                     },
                     'project_link_rate': {
                         'value': round(project_link_rate, 1),
                         'target': 100,
                         'score': round(link_score, 1),
-                        'weight': 0.2
+                        'weight': 0.15
+                    },
+                    'customer_health': {
+                        'value': round(customer_health_rate, 1),
+                        'target': 100,
+                        'score': round(customer_health_score, 1),
+                        'weight': 0.15
+                    },
+                    'project_health': {
+                        'value': round(project_health_rate, 1),
+                        'target': 100,
+                        'score': round(project_health_score, 1),
+                        'weight': 0.10
                     },
                 },
                 'raw_data': {
@@ -694,6 +720,17 @@ class PerformanceDashboardService:
                     'covered_customers': covered_customers,
                     'total_actions': total_actions,
                     'linked_actions': linked_actions,
+                    'customer_health_detail': {
+                        'highly_active_count': customer_health_data.get('highly_active_count', 0),
+                        'active_count': customer_health_data.get('active_count', 0),
+                        'normal_count': customer_health_data.get('normal_count', 0),
+                        'total_count': customer_health_data.get('total_count', 0)
+                    },
+                    'project_health_detail': {
+                        'healthy_count': project_health_data.get('healthy_count', 0),
+                        'total_count': project_health_data.get('total_count', 0),
+                        'frozen_count': project_health_data.get('frozen_count', 0)
+                    }
                 }
             }
 
@@ -1149,17 +1186,26 @@ class PerformanceDashboardService:
             'grade': 'D',
             'grade_text': '待提升',
             'breakdown': {
-                'action_count': {'value': 0, 'target': 600, 'score': 0, 'weight': 0.3},
-                'reply_count': {'value': 0, 'target': 360, 'score': 0, 'weight': 0.1},
-                'avg_length': {'value': 0, 'target': 200, 'score': 0, 'weight': 0.2},
-                'customer_coverage': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.2},
-                'project_link_rate': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.2},
+                'action_count': {'value': 0, 'target': 600, 'score': 0, 'weight': 0.20},
+                'reply_count': {'value': 0, 'target': 360, 'score': 0, 'weight': 0.10},
+                'avg_length': {'value': 0, 'target': 200, 'score': 0, 'weight': 0.15},
+                'customer_coverage': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.15},
+                'project_link_rate': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.15},
+                'customer_health': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.15},
+                'project_health': {'value': 0, 'target': 100, 'score': 0, 'weight': 0.10},
             },
             'raw_data': {
                 'total_customers': 0,
                 'covered_customers': 0,
                 'total_actions': 0,
                 'linked_actions': 0,
+                'customer_health_detail': {
+                    'highly_active_count': 0, 'active_count': 0,
+                    'normal_count': 0, 'total_count': 0
+                },
+                'project_health_detail': {
+                    'healthy_count': 0, 'total_count': 0, 'frozen_count': 0
+                }
             }
         }
 

@@ -14,4 +14,15 @@
 | #555 | 5:32 AM | ✅ | Sales_focus Terminology Migration Completed Across Full Stack | ~471 |
 | #553 | " | 🔵 | PricingOrderService Uses Sales_focus in Business Logic | ~438 |
 | #479 | 5:14 AM | 🔵 | Supabase Backup Service with Cloud/Local Adaptability | ~606 |
+
+### Feb 8, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #927 | 9:45 AM | 🔵 | Complete Data Model and Field Mapping for Pricing and Settlement Orders | ~632 |
+| #925 | 9:44 AM | 🔵 | Pricing Order Creation Flow with Quotation Detail Copying | ~551 |
+| #924 | " | 🔵 | Pricing Order Creation Entry Point Identified | ~279 |
+| #914 | 9:42 AM | 🔵 | Core Service Methods for Pricing Order Creation and Permission Control | ~352 |
+| #913 | 9:41 AM | 🔵 | V2 Approval Flow Generation with Direct Contract Support | ~517 |
+| #912 | " | 🔵 | Pricing Order Service with V2 Migration and Validation Logic | ~500 |
 </claude-mem-context>

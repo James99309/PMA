@@ -642,52 +642,63 @@ class PerformanceService:
 
     @staticmethod
     def calculate_customer_activity_rate(user_id):
-        """计算客户活跃度比率
+        """计算客户活跃度健康比率
 
-        公式: (高度活跃 + 活跃) / 总客户数 × 100%
+        公式: (highly_active + active + normal) / 总客户数 × 100%
 
-        活跃度状态基于 Company.activity_status 字段：
+        活跃度状态基于 Company.status 字段（6级）：
         - highly_active: 高度活跃
         - active: 活跃
+        - normal: 正常（算作健康）
         - inactive: 不活跃
         - dormant: 休眠
+        - lost: 流失
 
         Args:
             user_id: 用户ID
 
         Returns:
             dict: {
-                'rate': float,  # 活跃度百分比 (0-100)
+                'rate': float,  # 健康度百分比 (0-100)
                 'highly_active_count': int,
                 'active_count': int,
+                'normal_count': int,
                 'total_count': int
             }
         """
         try:
-            # 单次条件聚合替代3次COUNT查询
             result = db.session.query(
                 func.count(Company.id).label('total'),
                 func.count(case(
-                    (Company.activity_status == 'highly_active', Company.id)
+                    (Company.status.in_(['highly_active', 'active', 'normal']), Company.id)
+                )).label('healthy'),
+                func.count(case(
+                    (Company.status == 'highly_active', Company.id)
                 )).label('highly_active'),
                 func.count(case(
-                    (Company.activity_status == 'active', Company.id)
-                )).label('active')
+                    (Company.status == 'active', Company.id)
+                )).label('active'),
+                func.count(case(
+                    (Company.status == 'normal', Company.id)
+                )).label('normal')
             ).filter(
                 Company.owner_id == user_id,
                 Company.is_deleted == False
             ).first()
 
             total_count = result.total or 0
+            healthy_count = result.healthy or 0
             highly_active_count = result.highly_active or 0
             active_count = result.active or 0
+            normal_count = result.normal or 0
 
-            rate = ((highly_active_count + active_count) / total_count * 100) if total_count > 0 else 0
+            rate = (healthy_count / total_count * 100) if total_count > 0 else 0
 
             return {
                 'rate': round(rate, 2),
                 'highly_active_count': highly_active_count,
                 'active_count': active_count,
+                'normal_count': normal_count,
                 'total_count': total_count
             }
         except Exception as e:
@@ -696,7 +707,52 @@ class PerformanceService:
                 'rate': 0,
                 'highly_active_count': 0,
                 'active_count': 0,
+                'normal_count': 0,
                 'total_count': 0
+            }
+
+    @staticmethod
+    def calculate_project_activity_rate(user_id):
+        """计算项目活跃度健康比率
+
+        公式: (highly_active + active + normal) / 非冻结项目总数 × 100%
+        frozen 状态项目（终态）不计入分母。
+        """
+        try:
+            result = db.session.query(
+                func.count(Project.id).label('total'),
+                func.count(case(
+                    (Project.activity_status.in_(['highly_active', 'active', 'normal']), Project.id)
+                )).label('healthy'),
+                func.count(case(
+                    (Project.activity_status == 'frozen', Project.id)
+                )).label('frozen_count')
+            ).filter(
+                Project.owner_id == user_id
+            ).first()
+
+            total = result.total or 0
+            healthy = result.healthy or 0
+            frozen_count = result.frozen_count or 0
+            active_total = total - frozen_count
+
+            rate = (healthy / active_total * 100) if active_total > 0 else 0
+
+            return {
+                'rate': round(rate, 2),
+                'healthy_count': healthy,
+                'total_count': total,
+                'active_total': active_total,
+                'frozen_count': frozen_count
+            }
+        except Exception as e:
+            logger.error(f"计算项目活跃度失败: {e}")
+            return {
+                'rate': 0,
+                'healthy_count': 0,
+                'total_count': 0,
+                'active_total': 0,
+                'frozen_count': 0
             }
 
     @staticmethod

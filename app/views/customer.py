@@ -235,11 +235,11 @@ def list_companies():
     country_filter = filters.get('country', '')
     status_filter = filters.get('status_filter', '')
 
-    # 初始化查询：使用权限控制
-    query = get_viewable_data(Company, current_user)
+    # 初始化查询：使用权限控制（仅1次 get_viewable_data）
+    base_query = get_viewable_data(Company, current_user)
 
     # 使用公共工具应用筛选
-    query = apply_filters_to_query(query, Company, filters, CUSTOMER_FILTER_CONFIG)
+    query = apply_filters_to_query(base_query, Company, filters, CUSTOMER_FILTER_CONFIG)
 
     # 获取排序参数
     valid_sort_fields = ['company_code', 'company_name', 'company_type', 'industry',
@@ -300,33 +300,31 @@ def list_companies():
     # 移除活跃状态过滤，确保所有实际拥有客户的用户都出现在筛选选项中
     all_users = User.query.order_by(User.real_name, User.username).all()
 
-    # 使用 SQL 查询代替全表加载到内存
-    all_viewable_query = get_viewable_data(Company, current_user)
-    unique_owner_ids = {r[0] for r in all_viewable_query.with_entities(Company.owner_id).distinct().all() if r[0]}
+    # 复用 base_query（无需额外 get_viewable_data）
+    unique_owner_ids = {r[0] for r in base_query.with_entities(Company.owner_id).distinct().all() if r[0]}
 
     # 获取实际存在的筛选器选项（传入查询对象，内部用 SQL DISTINCT）
-    company_type_options, industry_options, status_options, country_options = get_existing_filter_options(all_viewable_query)
+    company_type_options, industry_options, status_options, country_options = get_existing_filter_options(base_query)
 
-    # 构建带筛选条件的统计查询（与主查询筛选一致）
-    stats_filtered_query = apply_filters_to_query(
-        get_viewable_data(Company, current_user), Company, filters, CUSTOMER_FILTER_CONFIG
-    )
+    # 计算统计数据（复用已筛选的 query，无需再次 get_viewable_data + apply_filters）
+    from sqlalchemy import case
+    stats_result = query.with_entities(
+        func.count(Company.id).label('total'),
+        func.count(case(
+            (Company.status.in_(['highly_active', 'active', 'normal']), Company.id)
+        )).label('active'),
+        func.count(case(
+            (Company.company_type == 'user', Company.id)
+        )).label('direct_customer'),
+    ).first()
 
-    # 计算统计数据（使用筛选后的查询）
-    total_companies = stats_filtered_query.count()
+    total_companies = stats_result.total or 0
+    active_companies = stats_result.active or 0
+    direct_customers = stats_result.direct_customer or 0
 
-    # 活跃企业统计（6级状态系统：高度活跃、活跃、正常视为活跃）
-    active_companies = stats_filtered_query.filter(
-        Company.status.in_(['highly_active', 'active', 'normal'])
-    ).count()
-
-    # 直接客户统计（公司类型为user的客户数量）
-    direct_customers = stats_filtered_query.filter(Company.company_type == 'user').count()
-
-    # 项目客户统计（客户被项目关联过的数量）
+    # 项目客户统计（涉及 UNION 子查询，保持独立 count）
     from app.models.project import Project
 
-    # 用 SQL subquery 查询被项目关联过的公司名称，避免加载全部公司名到内存
     linked_companies_subquery = db.session.query(Project.end_user).filter(Project.end_user.isnot(None)).union(
         db.session.query(Project.design_issues).filter(Project.design_issues.isnot(None))
     ).union(
@@ -337,7 +335,7 @@ def list_companies():
         db.session.query(Project.system_integrator).filter(Project.system_integrator.isnot(None))
     )
 
-    project_customers = stats_filtered_query.filter(
+    project_customers = query.filter(
         Company.company_name.in_(linked_companies_subquery)
     ).count()
     
@@ -767,13 +765,20 @@ def companies_list_ajax():
             country_code_to_name=country_code_to_name
         )
         
-        # 计算统计数据 - 基于当前筛选条件的结果
-        # 重新构建基础查询以获取筛选后的统计数据（复用公共筛选工具）
-        base_filtered_query = get_viewable_data(Company, current_user)
-        base_filtered_query = apply_filters_to_query(base_filtered_query, Company, filters, CUSTOMER_FILTER_CONFIG)
-        
-        # 计算项目客户统计（基于筛选后的结果，使用优化的SQL查询）
-        # 直接使用SQL子查询统计项目关联的客户
+        # 计算统计数据 - 复用已构建的 query（行714+717已包含权限过滤和筛选条件）
+        from sqlalchemy import case
+
+        stats_result = query.with_entities(
+            func.count(Company.id).label('total'),
+            func.count(case(
+                (Company.status.in_(['highly_active', 'active', 'normal']), Company.id)
+            )).label('active'),
+            func.count(case(
+                (Company.company_type == 'user', Company.id)
+            )).label('direct_customer'),
+        ).first()
+
+        # 项目客户统计保持独立 subquery（复用 query 的筛选条件）
         linked_companies_subquery = db.session.query(Company.company_name).filter(
             Company.company_name.in_(
                 db.session.query(Project.end_user).filter(Project.end_user.isnot(None)).union(
@@ -787,16 +792,18 @@ def companies_list_ajax():
                 )
             )
         ).distinct()
-        
-        # 统计筛选结果中被项目关联过的客户数量
+
+        # 复用已有 query 的筛选，重建不含排序的基础查询
+        base_filtered_query = get_viewable_data(Company, current_user)
+        base_filtered_query = apply_filters_to_query(base_filtered_query, Company, filters, CUSTOMER_FILTER_CONFIG)
         filtered_project_customers = base_filtered_query.filter(
             Company.company_name.in_(linked_companies_subquery)
         ).count()
-        
+
         statistics = {
-            'total': base_filtered_query.count(),
-            'active': base_filtered_query.filter(Company.status.in_(['highly_active', 'active', 'normal'])).count(),
-            'direct_customer': base_filtered_query.filter(Company.company_type == 'user').count(),
+            'total': stats_result.total or 0,
+            'active': stats_result.active or 0,
+            'direct_customer': stats_result.direct_customer or 0,
             'project_customers': filtered_project_customers
         }
         

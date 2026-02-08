@@ -55,11 +55,18 @@ Tailwind 统一布局组件
                     :title="sidebarCollapsed ? '{{ _('展开侧边栏') }}' : '{{ _('收起侧边栏') }}'">
                 <span class="material-symbols-outlined text-2xl">menu</span>
             </button>
-            <!-- 桌面端：Logo -->
-            <div class="hidden sm:flex w-10 h-10 bg-primary rounded-full items-center justify-center flex-shrink-0">
-                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
+            <!-- 桌面端：Logo + 地区角标 -->
+            <div class="hidden sm:flex relative w-10 h-10 flex-shrink-0">
+                <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                {% if currency_config is defined and currency_config.is_ovs %}
+                <span class="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full border-2 border-white dark:border-black flex items-center justify-center text-[10px] leading-none bg-blue-500 shadow-sm">🌏</span>
+                {% else %}
+                <span class="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full border-2 border-white dark:border-black flex items-center justify-center text-[10px] leading-none bg-red-600 shadow-sm">🇨🇳</span>
+                {% endif %}
             </div>
             <h1 class="text-slate-900 dark:text-white text-base font-medium leading-normal whitespace-nowrap">PMA<span class="hidden sm:inline"> System</span></h1>
             <!-- 桌面端：收缩按钮 -->

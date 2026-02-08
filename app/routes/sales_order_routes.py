@@ -35,7 +35,8 @@ def list_view():
     per_page = request.args.get('per_page', 20, type=int)
 
     # 基础查询（带权限过滤）
-    query = get_viewable_data(SalesOrder, current_user)
+    base_query = get_viewable_data(SalesOrder, current_user)
+    query = base_query
 
     # 状态筛选
     if status:
@@ -59,8 +60,8 @@ def list_view():
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     orders = pagination.items
 
-    # 获取统计数据
-    stats = SalesOrderService.get_order_statistics(current_user)
+    # 获取统计数据（复用 base_query 避免重复 get_viewable_data）
+    stats = SalesOrderService.get_order_statistics(base_query=base_query)
 
     # 获取客户列表（用于筛选）
     customers = Company.query.filter(

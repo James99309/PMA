@@ -1062,7 +1062,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 reply_count: '{{ _("回复数") }}',
                 avg_length: '{{ _("内容详细") }}',
                 customer_coverage: '{{ _("客户覆盖") }}',
-                project_link_rate: '{{ _("项目关联") }}'
+                project_link_rate: '{{ _("项目关联") }}',
+                customer_health: '{{ _("客户健康") }}',
+                project_health: '{{ _("项目健康") }}'
             };
 
             const indicators = Object.keys(this.activityScore.breakdown).map(key => ({
@@ -1703,7 +1705,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 reply_count: '{{ _("回复数") }}',
                 avg_length: '{{ _("平均字数") }}',
                 customer_coverage: '{{ _("客户覆盖率") }}',
-                project_link_rate: '{{ _("项目关联率") }}'
+                project_link_rate: '{{ _("项目关联率") }}',
+                customer_health: '{{ _("客户健康度") }}',
+                project_health: '{{ _("项目健康度") }}'
             };
             return labels[key] || key;
         },
@@ -1805,7 +1809,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         },
 
         formatActivityValue(key, value) {
-            if (key === 'customer_coverage' || key === 'project_link_rate') {
+            if (key === 'customer_coverage' || key === 'project_link_rate' || key === 'customer_health' || key === 'project_health') {
                 return value + '%';
             }
             return value;

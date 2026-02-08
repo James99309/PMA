@@ -86,9 +86,10 @@ def list_quotations():
         )
 
         # ============================================================
-        # 2. 构建查询（权限控制）
+        # 2. 构建查询（权限控制，仅1次 get_viewable_data）
         # ============================================================
-        query = get_viewable_data(Quotation, current_user)
+        base_query = get_viewable_data(Quotation, current_user)
+        query = base_query
 
         # ============================================================
         # 3. 默认筛选（从权限配置的 content_filters 读取）
@@ -183,25 +184,27 @@ def list_quotations():
                 if q.owner_id and q.owner_id in owners:
                     q.owner = owners[q.owner_id]
         
-        # 获取实际存在的项目类型选项 - 优化查询避免N+1问题
+        # 获取实际存在的项目类型选项 - 复用 base_query 避免重复 get_viewable_data
         from app.utils.dictionary_helpers import PROJECT_TYPE_LABELS
-        
+
         # 获取当前语言
-        from app.utils.i18n import get_current_language
+        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
         current_lang = get_current_language()
-        
-        # 使用高效的子查询获取项目类型，避免加载所有报价单数据
-        viewable_quotation_subquery = get_viewable_data(Quotation, current_user).subquery()
+
+        # 复用 base_query（行91的 get_viewable_data），无需再次调用
+        base_subquery = base_query.with_entities(Quotation.id).subquery()
+
         unique_project_types_query = db.session.query(Project.project_type.distinct())\
-            .join(viewable_quotation_subquery, Project.id == viewable_quotation_subquery.c.project_id)\
+            .join(Quotation, Project.id == Quotation.project_id)\
+            .filter(Quotation.id.in_(db.session.query(base_subquery.c.id)))\
             .filter(Project.project_type.isnot(None))\
             .filter(Project.project_type != '')
-        
+
         unique_project_types = {row[0] for row in unique_project_types_query.all()}
-        
+
         # 构建项目类型选项（不包含"全部"选项，因为模板中已经有了）
         project_type_options = []
-        
+
         for project_type in unique_project_types:
             if project_type in PROJECT_TYPE_LABELS:
                 project_type_options.append({
@@ -209,37 +212,29 @@ def list_quotations():
                     'label': PROJECT_TYPE_LABELS[project_type][current_lang]
                 })
             else:
-                # 处理没有在字典中定义的项目类型
                 project_type_options.append({
                     'value': project_type,
                     'label': project_type
                 })
-        
-        # 获取筛选选项数据 - 优化用户查询避免N+1问题
-        unique_owner_ids_query = get_viewable_data(Quotation, current_user)\
-            .filter(Quotation.owner_id.isnot(None))\
-            .with_entities(Quotation.owner_id.distinct())
-        
-        unique_owner_ids = {row[0] for row in unique_owner_ids_query.all()}
-        
-        # 只查询需要的用户，避免加载所有用户
-        # 移除活跃状态过滤，确保所有实际拥有报价单的用户都出现在筛选选项中
+
+        # 获取筛选选项数据 - 复用 base_query
+        unique_owner_ids = {row[0] for row in base_query.with_entities(
+            Quotation.owner_id.distinct()
+        ).filter(Quotation.owner_id.isnot(None)).all()}
+
         available_users = User.query.filter(
             User.id.in_(unique_owner_ids)
         ).order_by(User.real_name, User.username).all()
-        
-        # 报价阶段选项 - 使用报价单的快照阶段
+
+        # 报价阶段选项 - 复用 base_query
         from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
 
-        # 使用高效查询获取实际存在的报价阶段
-        # 获取可见报价单的ID列表（使用子查询）
-        viewable_quotation_ids_query = get_viewable_data(Quotation, current_user).with_entities(Quotation.id)
-        unique_project_stages_query = db.session.query(Quotation.project_stage.distinct())\
-            .filter(Quotation.id.in_(viewable_quotation_ids_query))\
-            .filter(Quotation.project_stage.isnot(None))\
-            .filter(Quotation.project_stage != '')
-
-        unique_project_stages = {row[0] for row in unique_project_stages_query.all()}
+        unique_project_stages = {row[0] for row in base_query.with_entities(
+            Quotation.project_stage.distinct()
+        ).filter(
+            Quotation.project_stage.isnot(None),
+            Quotation.project_stage != ''
+        ).all()}
 
         # 构建报价阶段选项，只包含实际存在的阶段
         project_stage_options = []
@@ -259,44 +254,7 @@ def list_quotations():
         # 按标签排序
         project_stage_options.sort(key=lambda x: x['label'])
         
-        # 计算统计数据（应用与主查询相同的筛选条件）
-        stats_query = get_viewable_data(Quotation, current_user)
-        stats_joined = False
-
-        if search:
-            stats_query = stats_query.join(Project, Quotation.project_id == Project.id)
-            stats_joined = True
-            stats_query = stats_query.filter(
-                or_(
-                    Quotation.quotation_number.ilike(f'%{search}%'),
-                    Project.project_name.ilike(f'%{search}%')
-                )
-            )
-
-        if owner_filter:
-            stats_query = stats_query.filter(Quotation.owner_id == owner_filter)
-
-        if project_type_filter:
-            if not stats_joined:
-                stats_query = stats_query.join(Project, Quotation.project_id == Project.id)
-                stats_joined = True
-            stats_query = stats_query.filter(Project.project_type == project_type_filter)
-
-        if project_stage_filter:
-            if not stats_joined:
-                stats_query = stats_query.join(Project, Quotation.project_id == Project.id)
-                stats_joined = True
-            stats_query = stats_query.filter(Project.current_stage == project_stage_filter)
-
-        total_stats_count = stats_query.count()
-
-        # 获取当前语言环境的目标货币和显示配置
-        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
-        current_lang = get_current_language()
-
         # 配置语言感知的显示单位
-        # 中文：万元（除以10000），英文：M（million，除以1000000）
-        # 注意：不进行货币转换，只改变显示单位
         if current_lang == 'en':
             amount_unit = 'M'
             amount_divisor = 1000000
@@ -306,29 +264,27 @@ def list_quotations():
         default_currency = get_default_currency()
         currency_symbol = get_currency_symbol(default_currency)
 
-        # 计算金额统计（不进行货币转换，直接累加原始金额）
-        def calculate_total_amount(quotations_query):
-            """计算金额总和（不转换货币）"""
-            quotations = quotations_query.all()
-            total = 0
-            for quotation in quotations:
-                total += quotation.amount or 0
-            return total
+        # 计算统计数据（复用已筛选的 query，单次条件聚合替代 8 次 SQL）
+        from sqlalchemy import case
+        stats_result = query.with_entities(
+            func.count(Quotation.id).label('total'),
+            func.coalesce(func.sum(Quotation.amount), 0).label('total_amount'),
+            func.count(case((Quotation.approval_status == 'approved', Quotation.id))).label('approved_count'),
+            func.coalesce(func.sum(case((Quotation.approval_status == 'approved', Quotation.amount))), 0).label('approved_amount'),
+            func.count(case((Quotation.approval_status.in_(['pending', 'in_progress']), Quotation.id))).label('pending_count'),
+            func.coalesce(func.sum(case((Quotation.approval_status.in_(['pending', 'in_progress']), Quotation.amount))), 0).label('pending_amount'),
+            func.count(case((Quotation.approval_status == 'draft', Quotation.id))).label('draft_count'),
+            func.coalesce(func.sum(case((Quotation.approval_status == 'draft', Quotation.amount))), 0).label('draft_amount'),
+        ).first()
 
-        total_stats_amount = round(calculate_total_amount(stats_query) / amount_divisor, 2)
-
-        # 按状态统计
-        approved_stats = stats_query.filter(Quotation.approval_status == 'approved')
-        approved_count = approved_stats.count()
-        approved_amount = round(calculate_total_amount(approved_stats) / amount_divisor, 2)
-
-        pending_stats = stats_query.filter(Quotation.approval_status.in_(['pending', 'in_progress']))
-        pending_count = pending_stats.count()
-        pending_amount = round(calculate_total_amount(pending_stats) / amount_divisor, 2)
-
-        draft_stats = stats_query.filter(Quotation.approval_status == 'draft')
-        draft_count = draft_stats.count()
-        draft_amount = round(calculate_total_amount(draft_stats) / amount_divisor, 2)
+        total_stats_count = stats_result.total or 0
+        total_stats_amount = round((stats_result.total_amount or 0) / amount_divisor, 2)
+        approved_count = stats_result.approved_count or 0
+        approved_amount = round((stats_result.approved_amount or 0) / amount_divisor, 2)
+        pending_count = stats_result.pending_count or 0
+        pending_amount = round((stats_result.pending_amount or 0) / amount_divisor, 2)
+        draft_count = stats_result.draft_count or 0
+        draft_amount = round((stats_result.draft_amount or 0) / amount_divisor, 2)
         
         # 构建标准化筛选配置
         filter_config = {

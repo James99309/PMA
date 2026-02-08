@@ -28,21 +28,25 @@ class ProductSNService:
 
     @staticmethod
     def get_statistics() -> Dict:
-        """获取序列号统计数据"""
-        total = ProductSerialNumber.query.count()
-        registered = ProductSerialNumber.query.filter_by(status='registered').count()
-        in_stock = ProductSerialNumber.query.filter_by(status='in_stock').count()
-        reserved = ProductSerialNumber.query.filter_by(status='reserved').count()
-        shipped = ProductSerialNumber.query.filter_by(status='shipped').count()
-        delivered = ProductSerialNumber.query.filter_by(status='delivered').count()
+        """获取序列号统计数据（单次 case 聚合）"""
+        from sqlalchemy import case, func
+
+        result = db.session.query(
+            func.count(ProductSerialNumber.id).label('total'),
+            func.count(case((ProductSerialNumber.status == 'registered', ProductSerialNumber.id))).label('registered'),
+            func.count(case((ProductSerialNumber.status == 'in_stock', ProductSerialNumber.id))).label('in_stock'),
+            func.count(case((ProductSerialNumber.status == 'reserved', ProductSerialNumber.id))).label('reserved'),
+            func.count(case((ProductSerialNumber.status == 'shipped', ProductSerialNumber.id))).label('shipped'),
+            func.count(case((ProductSerialNumber.status == 'delivered', ProductSerialNumber.id))).label('delivered'),
+        ).first()
 
         return {
-            'total': total,
-            'registered': registered,
-            'in_stock': in_stock,
-            'reserved': reserved,
-            'shipped': shipped,
-            'delivered': delivered
+            'total': result.total or 0,
+            'registered': result.registered or 0,
+            'in_stock': result.in_stock or 0,
+            'reserved': result.reserved or 0,
+            'shipped': result.shipped or 0,
+            'delivered': result.delivered or 0,
         }
 
     @staticmethod

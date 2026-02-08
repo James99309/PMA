@@ -1254,15 +1254,23 @@ def _apply_pricing_order_sort(query, sort_field, sort_order):
 
 
 def _get_pricing_order_stats(base_query):
-    """计算批价单统计数据"""
+    """计算批价单统计数据（单次条件聚合）"""
     from flask_babel import gettext as _
+    from sqlalchemy import case, func
 
-    total_count = base_query.count()
-    approved_count = base_query.filter(PricingOrder.status == 'approved').count()
-    pending_count = base_query.filter(PricingOrder.status == 'pending').count()
-    draft_count = base_query.filter(PricingOrder.status == 'draft').count()
+    result = base_query.with_entities(
+        func.count(PricingOrder.id).label('total'),
+        func.count(case((PricingOrder.status == 'approved', PricingOrder.id))).label('approved'),
+        func.count(case((PricingOrder.status == 'pending', PricingOrder.id))).label('pending'),
+        func.count(case((PricingOrder.status == 'draft', PricingOrder.id))).label('draft'),
+    ).first()
 
-    return [
+    total_count = result.total or 0
+    approved_count = result.approved or 0
+    pending_count = result.pending or 0
+    draft_count = result.draft or 0
+
+    stats_cards = [
         {
             'id': 'total',
             'title': _('全部批价单'),
@@ -1296,6 +1304,7 @@ def _get_pricing_order_stats(base_query):
             'color': 'secondary',
         },
     ]
+    return stats_cards, total_count
 
 
 @pricing_order_bp.route('/list')
@@ -1319,31 +1328,27 @@ def list_pricing_orders():
         limit = request.args.get('limit', 30, type=int)
         limit = min(limit, 100)
 
-        # 构建查询
-        query = _build_pricing_order_query(current_user)
-        stats_query = _build_pricing_order_query(current_user)
-
-        # 筛选
-        query = _apply_pricing_order_filters(query, search, status_filter, owner_filter)
-        stats_query = _apply_pricing_order_filters(stats_query, search, status_filter, owner_filter)
-
-        # 统计
-        stats_cards = _get_pricing_order_stats(stats_query)
-        total_count = stats_query.count()
-
-        # 排序和分页
-        query = _apply_pricing_order_sort(query, sort_field, sort_order)
-        pricing_orders = query.offset(offset).limit(limit).all()
-        has_more = (offset + limit) < total_count
-
-        # 获取负责人列表
+        # 构建查询（仅1次 get_viewable_data）
         base_query = _build_pricing_order_query(current_user)
-        unique_owner_ids = {row[0] for row in base_query.filter(
-            PricingOrder.created_by.isnot(None)
-        ).with_entities(PricingOrder.created_by.distinct()).all()}
+
+        # 获取负责人列表（从 base_query 提取，无需额外构建）
+        unique_owner_ids = {row[0] for row in base_query.with_entities(
+            PricingOrder.created_by.distinct()
+        ).filter(PricingOrder.created_by.isnot(None)).all()}
         available_users = User.query.filter(
             User.id.in_(unique_owner_ids)
         ).order_by(User.real_name, User.username).all()
+
+        # 应用筛选
+        filtered_query = _apply_pricing_order_filters(base_query, search, status_filter, owner_filter)
+
+        # 统计（1次聚合，同时拿到 total_count）
+        stats_cards, total_count = _get_pricing_order_stats(filtered_query)
+
+        # 排序和分页
+        query = _apply_pricing_order_sort(filtered_query, sort_field, sort_order)
+        pricing_orders = query.offset(offset).limit(limit).all()
+        has_more = (offset + limit) < total_count
 
         # 筛选配置
         tw_url = url_for('pricing_order.list_pricing_orders', tw=1)

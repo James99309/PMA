@@ -358,19 +358,21 @@ def product_list():
     # ============================================================
     # 4. 统计（在分页前）
     # ============================================================
-    # 统计查询（不分页）
-    stats_query = query
-    total_count = stats_query.count()
+    # 统计查询（单次条件聚合，不分页）
+    from sqlalchemy import case
+    stats_result = query.with_entities(
+        func.count(Product.id).label('total'),
+        func.count(case((Product.status == 'active', Product.id))).label('active'),
+        func.count(case((Product.status == 'discontinued', Product.id))).label('discontinued'),
+        func.count(case((Product.status == 'upcoming', Product.id))).label('upcoming'),
+        func.coalesce(func.sum(Product.retail_price), 0).label('total_value'),
+    ).first()
 
-    # 状态统计
-    active_count = stats_query.filter(Product.status == 'active').count()
-    discontinued_count = stats_query.filter(Product.status == 'discontinued').count()
-    upcoming_count = stats_query.filter(Product.status == 'upcoming').count()
-
-    # 计算总价值
-    total_value_result = db.session.query(func.sum(Product.retail_price)).filter(
-        Product.id.in_([p.id for p in stats_query.with_entities(Product.id).all()])
-    ).scalar() or 0
+    total_count = stats_result.total or 0
+    active_count = stats_result.active or 0
+    discontinued_count = stats_result.discontinued or 0
+    upcoming_count = stats_result.upcoming or 0
+    total_value_result = stats_result.total_value or 0
 
     from app.utils.dictionary_helpers import prepare_stats_card_amount
     amount_data = prepare_stats_card_amount(float(total_value_result))

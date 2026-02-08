@@ -35,10 +35,17 @@ Tailwind 侧边导航栏组件
 
     <!-- 顶部固定区域：Logo + 切换按钮（始终显示，不随侧边栏收缩） -->
     <div class="flex items-center gap-3 p-4">
-        <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center flex-shrink-0">
-            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
+        <div class="relative w-10 h-10 flex-shrink-0">
+            <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            {% if currency_config.is_ovs %}
+            <span class="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full border-2 border-slate-50 dark:border-zinc-900 flex items-center justify-center text-[10px] leading-none bg-blue-500 shadow-sm">🌏</span>
+            {% else %}
+            <span class="absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full border-2 border-slate-50 dark:border-zinc-900 flex items-center justify-center text-[10px] leading-none bg-red-600 shadow-sm">🇨🇳</span>
+            {% endif %}
         </div>
         <h1 class="text-slate-900 dark:text-white text-base font-medium leading-normal whitespace-nowrap">PMA System</h1>
         <!-- 收缩按钮 -->

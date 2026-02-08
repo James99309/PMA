@@ -7378,6 +7378,22 @@ msgid "客户覆盖率"
 msgstr "Customer Coverage"
 
 #: app/templates/components/tw_performance_dashboard.html
+msgid "客户健康"
+msgstr "Customer Health"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "项目健康"
+msgstr "Project Health"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "客户健康度"
+msgstr "Customer Health Rate"
+
+#: app/templates/components/tw_performance_dashboard.html
+msgid "项目健康度"
+msgstr "Project Health Rate"
+
+#: app/templates/components/tw_performance_dashboard.html
 msgid "详细指标"
 msgstr "Detailed Metrics"
 

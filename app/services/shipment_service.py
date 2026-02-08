@@ -436,27 +436,38 @@ class ShipmentService:
         return timeline
 
     @staticmethod
-    def get_shipment_statistics(user=None, filters=None):
+    def get_shipment_statistics(base_query=None, user=None):
         """
-        获取发货统计数据
+        获取发货统计数据（单次 case 聚合）
 
         Args:
+            base_query: 已构建的基础查询
             user: 当前用户
-            filters: 筛选条件
 
         Returns:
             dict 统计数据
         """
-        query = Shipment.query
+        from sqlalchemy import case, func
 
-        stats = {
-            'total': query.count(),
-            'pending': query.filter(Shipment.status == 'pending').count(),
-            'shipped': query.filter(Shipment.status == 'shipped').count(),
-            'in_transit': query.filter(Shipment.status == 'in_transit').count(),
-            'delivered': query.filter(Shipment.status == 'delivered').count(),
-            'received': query.filter(Shipment.status == 'received').count(),
-            'exception': query.filter(Shipment.status == 'exception').count()
+        if base_query is None:
+            base_query = Shipment.query
+
+        result = base_query.with_entities(
+            func.count(Shipment.id).label('total'),
+            func.count(case((Shipment.status == 'pending', Shipment.id))).label('pending'),
+            func.count(case((Shipment.status == 'shipped', Shipment.id))).label('shipped'),
+            func.count(case((Shipment.status == 'in_transit', Shipment.id))).label('in_transit'),
+            func.count(case((Shipment.status == 'delivered', Shipment.id))).label('delivered'),
+            func.count(case((Shipment.status == 'received', Shipment.id))).label('received'),
+            func.count(case((Shipment.status == 'exception', Shipment.id))).label('exception'),
+        ).first()
+
+        return {
+            'total': result.total or 0,
+            'pending': result.pending or 0,
+            'shipped': result.shipped or 0,
+            'in_transit': result.in_transit or 0,
+            'delivered': result.delivered or 0,
+            'received': result.received or 0,
+            'exception': result.exception or 0,
         }
-
-        return stats

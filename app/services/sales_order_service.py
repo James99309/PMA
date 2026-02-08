@@ -343,35 +343,41 @@ class SalesOrderService:
             return False, f'操作失败: {str(e)}'
 
     @staticmethod
-    def get_order_statistics(user=None, filters=None):
+    def get_order_statistics(base_query=None, user=None):
         """
-        获取订单统计数据
+        获取订单统计数据（单次 case 聚合）
 
         Args:
-            user: 当前用户（用于权限过滤）
-            filters: 筛选条件
+            base_query: 已构建的基础查询（避免重复 get_viewable_data）
+            user: 当前用户（用于权限过滤，base_query 为空时使用）
 
         Returns:
             dict 统计数据
         """
-        from app.utils.access_control import get_viewable_data
+        from sqlalchemy import case, func
 
-        # 基础查询
-        if user:
-            query = get_viewable_data(SalesOrder, user)
-        else:
-            query = SalesOrder.query
+        if base_query is None:
+            from app.utils.access_control import get_viewable_data
+            base_query = get_viewable_data(SalesOrder, user) if user else SalesOrder.query
 
-        # 统计各状态数量
-        stats = {
-            'total': query.count(),
-            'draft': query.filter(SalesOrder.status == 'draft').count(),
-            'confirmed': query.filter(SalesOrder.status == 'confirmed').count(),
-            'preparing': query.filter(SalesOrder.status == 'preparing').count(),
-            'shipped': query.filter(SalesOrder.status == 'shipped').count(),
-            'delivered': query.filter(SalesOrder.status == 'delivered').count(),
-            'completed': query.filter(SalesOrder.status == 'completed').count(),
-            'cancelled': query.filter(SalesOrder.status == 'cancelled').count()
+        result = base_query.with_entities(
+            func.count(SalesOrder.id).label('total'),
+            func.count(case((SalesOrder.status == 'draft', SalesOrder.id))).label('draft'),
+            func.count(case((SalesOrder.status == 'confirmed', SalesOrder.id))).label('confirmed'),
+            func.count(case((SalesOrder.status == 'preparing', SalesOrder.id))).label('preparing'),
+            func.count(case((SalesOrder.status == 'shipped', SalesOrder.id))).label('shipped'),
+            func.count(case((SalesOrder.status == 'delivered', SalesOrder.id))).label('delivered'),
+            func.count(case((SalesOrder.status == 'completed', SalesOrder.id))).label('completed'),
+            func.count(case((SalesOrder.status == 'cancelled', SalesOrder.id))).label('cancelled'),
+        ).first()
+
+        return {
+            'total': result.total or 0,
+            'draft': result.draft or 0,
+            'confirmed': result.confirmed or 0,
+            'preparing': result.preparing or 0,
+            'shipped': result.shipped or 0,
+            'delivered': result.delivered or 0,
+            'completed': result.completed or 0,
+            'cancelled': result.cancelled or 0,
         }
-
-        return stats
