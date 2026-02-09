@@ -8021,6 +8021,9 @@ msgstr "Product Category Distribution"
 msgid "项目阶段分布"
 msgstr "Project Stage Distribution"
 
+msgid "件"
+msgstr "pcs"
+
 msgid "产品排名"
 msgstr "Product Ranking"
 

@@ -1001,23 +1001,39 @@ def api_v2_distribution():
             'count': int(r.count or 0)
         } for r in stage_dist]
 
-        # 按类别分布 - 通过 product_model 关联 Product -> ProductCategory
+        # 按类别+产品分布（单次查询，Python 层聚合为嵌套结构）
         try:
-            cat_q = q_year.join(
+            prod_rows = q_year.join(
                 Product, QuotationDetail.product_model == Product.model
             ).join(
                 ProductCategory, Product.category_id == ProductCategory.id
             ).with_entities(
-                ProductCategory.name,
+                ProductCategory.name.label('cat_name'),
+                QuotationDetail.product_model,
+                func.max(QuotationDetail.product_name).label('product_name'),
                 func.sum(QuotationDetail.total_price).label('amount'),
                 func.count(QuotationDetail.id).label('count')
-            ).group_by(ProductCategory.name).all()
+            ).group_by(
+                ProductCategory.name,
+                QuotationDetail.product_model
+            ).order_by(
+                ProductCategory.name,
+                func.sum(QuotationDetail.total_price).desc()
+            ).all()
 
-            categories = [{
-                'name': r.name,
-                'amount': float(r.amount or 0),
-                'count': int(r.count or 0)
-            } for r in cat_q]
+            cat_map = {}
+            for r in prod_rows:
+                if r.cat_name not in cat_map:
+                    cat_map[r.cat_name] = {'name': r.cat_name, 'amount': 0, 'count': 0, 'products': []}
+                cat_map[r.cat_name]['amount'] += float(r.amount or 0)
+                cat_map[r.cat_name]['count'] += int(r.count or 0)
+                cat_map[r.cat_name]['products'].append({
+                    'name': r.product_name,
+                    'model': r.product_model,
+                    'amount': float(r.amount or 0),
+                    'count': int(r.count or 0)
+                })
+            categories = sorted(cat_map.values(), key=lambda x: x['amount'], reverse=True)
         except Exception:
             db.session.rollback()
             categories = []

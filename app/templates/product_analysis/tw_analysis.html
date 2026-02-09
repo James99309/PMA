@@ -103,18 +103,48 @@
 
     {# Tab: 分布分析 #}
     <div x-show="activeTab === 'distribution'" x-transition>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="space-y-6">
             <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                 <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4">{{ _('产品类别分布') }}</h3>
                 <div id="categoryDistChart">
                     <template x-for="(item, idx) in distribution.categories" :key="idx">
-                        <div class="flex items-center gap-3 mb-3">
-                            <div class="w-24 text-sm text-slate-600 dark:text-slate-300 truncate" x-text="item.name"></div>
-                            <div class="flex-1 h-6 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                                <div class="h-full bg-primary/80 rounded-full transition-all duration-500"
-                                     :style="'width:' + (distribution.categories.length ? (item.amount / Math.max(...distribution.categories.map(c=>c.amount)) * 100) : 0) + '%'"></div>
+                        <div class="mb-2">
+                            {# 品类行 — 可点击展开 #}
+                            <div class="flex items-center gap-3 cursor-pointer group py-1"
+                                 @click="expandedCategory === idx ? expandedCategory = null : expandedCategory = idx">
+                                <svg class="w-4 h-4 text-slate-400 transition-transform duration-200 flex-shrink-0"
+                                     :class="expandedCategory === idx ? 'rotate-90' : ''"
+                                     fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+                                </svg>
+                                <div class="w-24 text-sm text-slate-600 dark:text-slate-300 truncate" x-text="item.name"></div>
+                                <div class="flex-1 h-6 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full bg-primary/80 rounded-full transition-all duration-500"
+                                         :style="'width:' + (distribution.categories.length ? (item.amount / Math.max(...distribution.categories.map(c=>c.amount)) * 100) : 0) + '%'"></div>
+                                </div>
+                                <div class="w-40 text-right text-sm font-medium text-slate-700 dark:text-slate-200 flex-shrink-0">
+                                    <span x-text="formatAmount(item.amount)"></span>
+                                    <span class="text-slate-400 dark:text-slate-500 ml-1" x-text="'· ' + item.count + '{{ _("件") }}'"></span>
+                                </div>
                             </div>
-                            <div class="w-28 text-right text-sm font-medium text-slate-700 dark:text-slate-200" x-text="formatAmount(item.amount)"></div>
+                            {# 子产品列表 — 展开时显示 #}
+                            <div x-show="expandedCategory === idx" x-transition.duration.200ms class="ml-8 mt-1 mb-2">
+                                <template x-for="(prod, pidx) in (item.products || [])" :key="pidx">
+                                    <div class="flex items-center gap-3 py-0.5">
+                                        <div class="w-32 text-xs text-slate-500 dark:text-slate-400 truncate" :title="prod.name">
+                                            <span x-text="prod.model"></span>
+                                        </div>
+                                        <div class="flex-1 h-4 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                            <div class="h-full bg-primary/40 rounded-full transition-all duration-500"
+                                                 :style="'width:' + (item.products.length ? (prod.amount / Math.max(...item.products.map(p=>p.amount)) * 100) : 0) + '%'"></div>
+                                        </div>
+                                        <div class="w-40 text-right text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">
+                                            <span x-text="formatAmount(prod.amount)"></span>
+                                            <span class="ml-1" x-text="'· ' + prod.count + '{{ _("件") }}'"></span>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
                     </template>
                     <div x-show="!distribution.categories.length" class="text-center py-8 text-slate-400 text-sm">{{ _('暂无数据') }}</div>
@@ -130,7 +160,10 @@
                                 <div class="h-full bg-amber-500/80 rounded-full transition-all duration-500"
                                      :style="'width:' + (distribution.stages.length ? (item.amount / Math.max(...distribution.stages.map(s=>s.amount)) * 100) : 0) + '%'"></div>
                             </div>
-                            <div class="w-28 text-right text-sm font-medium text-slate-700 dark:text-slate-200" x-text="formatAmount(item.amount)"></div>
+                            <div class="w-40 text-right text-sm font-medium text-slate-700 dark:text-slate-200 flex-shrink-0">
+                                <span x-text="formatAmount(item.amount)"></span>
+                                <span class="text-slate-400 dark:text-slate-500 ml-1" x-text="'· ' + item.count + '{{ _("件") }}'"></span>
+                            </div>
                         </div>
                     </template>
                     <div x-show="!distribution.stages.length" class="text-center py-8 text-slate-400 text-sm">{{ _('暂无数据') }}</div>
@@ -286,6 +319,7 @@ function productAnalysisDashboard() {
         overview: { total_amount: 0, total_quantity: 0, project_count: 0, mom_rate: 0, this_month_amount: 0 },
         trendData: [],
         distribution: { categories: [], stages: [] },
+        expandedCategory: null,
         ranking: [],
         rankSort: 'quantity',
         rankSortDir: 'desc',
@@ -316,6 +350,7 @@ function productAnalysisDashboard() {
             this.selectedYear = parseInt(y);
             // trendData 不清空——趋势图始终是滚动12月，不受年份影响
             this.distribution = { categories: [], stages: [] };
+            this.expandedCategory = null;
             this.ranking = [];
             this.detailData = [];
             this.loadOverview();
