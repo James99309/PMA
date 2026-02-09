@@ -13,8 +13,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #1142 | 4:51 PM | 🔵 | Performance Routes Registration Pattern | ~242 |
-| #1008 | 12:04 PM | 🔵 | Performance Routes Registration Pattern | ~214 |
 | #927 | 9:45 AM | 🔵 | Complete Data Model and Field Mapping for Pricing and Settlement Orders | ~632 |
 | #917 | 9:42 AM | 🔵 | Edit Route with V2 Approval System Integration | ~475 |
 | #910 | 9:41 AM | 🔵 | Comprehensive Pricing Order Routes Including Excel Export | ~432 |

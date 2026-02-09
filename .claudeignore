@@ -1,0 +1,5 @@
+# 已归档的 Bootstrap 模板 - 已被 Tailwind 版本完全替代
+app/templates/_archived/
+
+# 已废弃的 Bootstrap 路由文件（未被 __init__.py 注册）
+app/routes/project.py

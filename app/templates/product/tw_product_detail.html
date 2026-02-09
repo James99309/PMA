@@ -31,7 +31,7 @@
 <html lang="{{ session.get('language', 'zh') }}">
 
 <head>
-    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -114,8 +114,8 @@
         title=product.product_name or product.model or product.product_mn,
         subtitle=product.model if product.model and product.product_name else '',
         back_url=url_for('product.product_list'),
-        prev_url=url_for('product.view_product_detail', id=prev_product_id, tw=1) if prev_product_id else none,
-        next_url=url_for('product.view_product_detail', id=next_product_id, tw=1) if next_product_id else none,
+        prev_url=url_for('product.view_product_detail', id=prev_product_id) if prev_product_id else none,
+        next_url=url_for('product.view_product_detail', id=next_product_id) if next_product_id else none,
         prev_title=_('上一个产品'),
         next_title=_('下一个产品'),
         status_badges=status_badges_content,

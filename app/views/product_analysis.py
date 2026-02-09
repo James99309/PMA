@@ -234,265 +234,10 @@ def create_stage_analytics_component():
 @login_required
 @permission_required('quotation', 'view')
 def analysis():
-    """产品分析主页面 - 只统计每个项目的最新报价单"""
-    # 获取最新报价单子查询
-    latest_quotation_subq = _get_latest_quotation_subquery()
-
-    # 获取基础查询，应用权限过滤
-    # 重要：只查询最新报价单的产品明细
-    base_query = db.session.query(
-        QuotationDetail.product_name,
-        QuotationDetail.product_model,
-        QuotationDetail.product_desc
-    ).join(
-        Quotation, QuotationDetail.quotation_id == Quotation.id
-    ).join(
-        latest_quotation_subq,
-        and_(
-            Quotation.project_id == latest_quotation_subq.c.project_id,
-            Quotation.id == latest_quotation_subq.c.latest_quotation_id
-        )
-    ).join(
-        Project, Quotation.project_id == Project.id
-    ).join(
-        User, Quotation.owner_id == User.id
-    )
-
-    # 应用权限过滤（与主查询保持一致）
-    base_query = apply_permission_based_filters(base_query, current_user)
-    
-    # 从实际可访问的报价单明细中获取筛选选项
-    # 通过连接Product表获取产品类别
-    try:
-        from app.models.product_code import ProductCategory
-
-        # 方案2：只通过model字段关联（避免使用已迁移的product_name字段）
-        categories_query = base_query.join(
-            Product, QuotationDetail.product_model == Product.model
-        ).join(
-            ProductCategory, Product.category_id == ProductCategory.id
-        ).with_entities(ProductCategory.name).distinct().order_by(ProductCategory.id)
-
-        categories = categories_query.all()
-        logger.info(f"✅ 从报价单明细中获取到 {len(categories)} 个产品类别")
-    except Exception as e:
-        logger.warning(f"⚠️ 连接Product表获取类别失败: {str(e)}, 使用空列表")
-        db.session.rollback()  # 回滚失败的事务，避免影响后续查询
-        categories = []
-    
-    # 获取实际在报价单中使用的产品名称
-    product_names = base_query.with_entities(QuotationDetail.product_name).distinct().filter(
-        QuotationDetail.product_name.isnot(None),
-        QuotationDetail.product_name != '',  # 排除空字符串
-        QuotationDetail.product_name != ' '   # 排除空格字符串
-    ).order_by(QuotationDetail.product_name).all()
-    
-    # 获取实际在报价单中使用的产品型号
-    product_models = base_query.with_entities(QuotationDetail.product_model).distinct().filter(
-        QuotationDetail.product_model.isnot(None),
-        QuotationDetail.product_model != '',  # 排除空字符串
-        QuotationDetail.product_model != ' '   # 排除空格字符串
-    ).order_by(QuotationDetail.product_model).all()
-    
-    # 记录调试信息
-    logger.info(f"🔍 产品型号筛选选项: {[m[0] for m in product_models[:5]]}...")
-    
-    # 使用模组化函数计算初始统计数据
-    from datetime import datetime
-    current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
-    # 创建基础查询用于统计计算
-    # 重要：只统计最新报价单的产品明细
-    base_stats_query = db.session.query(QuotationDetail).join(
-        Quotation, QuotationDetail.quotation_id == Quotation.id
-    ).join(
-        latest_quotation_subq,
-        and_(
-            Quotation.project_id == latest_quotation_subq.c.project_id,
-            Quotation.id == latest_quotation_subq.c.latest_quotation_id
-        )
-    ).join(
-        Project, Quotation.project_id == Project.id
-    ).join(
-        User, Quotation.owner_id == User.id
-    )
-
-    # 应用权限过滤
-    base_stats_query = apply_permission_based_filters(base_stats_query, current_user)
-    
-    # 使用模组化函数计算统计数据
-    stats_data = _calculate_product_analysis_stats(base_stats_query, current_month)
-    
-    # 构建筛选配置
-    filter_config = {
-        'action_url': request.url,
-        'form_id': 'productAnalysisFilterForm',
-        'reset_url': request.path,
-        'realtime_search': False,
-        'auto_submit': True,
-        'ajax_mode': True,
-        'ajax_endpoint': url_for('product_analysis.products_list_ajax'),
-        'ajax_target': 'productAnalysisTableBody',
-        'ajax_columns': 13,
-        'dynamic_reset_button': True,
-        'adaptive_width': True,
-        'adaptive_button_layout': True,
-        'search_delay': 300,
-        
-        'search_field': {
-            'name': 'search',
-            'label': '搜索',
-            'placeholder': '产品名称、型号、描述或MN号',
-            'value': request.args.get('search', ''),
-            'col_width': 3
-        },
-        
-        'filter_fields': [
-            {
-                'name': 'category',
-                'label': '产品类别',
-                'all_option_text': '全部类别',
-                'current_value': request.args.get('category', ''),
-                'col_width': 3,
-                'options': [{'value': c[0], 'label': c[0], 'translate': False} for c in categories if c[0] and c[0].strip()]
-            },
-            {
-                'name': 'product_name',
-                'label': '产品名称',
-                'all_option_text': '全部产品',
-                'current_value': request.args.get('product_name', ''),
-                'col_width': 3,
-                'options': [{'value': p[0], 'label': p[0], 'translate': False} for p in product_names if p[0] and p[0].strip()]
-            },
-            {
-                'name': 'product_model',
-                'label': '产品型号',
-                'all_option_text': '全部型号',
-                'current_value': request.args.get('product_model', ''),
-                'col_width': 3,
-                'options': [{'value': m[0], 'label': m[0], 'translate': False} for m in product_models if m[0] and m[0].strip()]
-            }
-        ],
-        
-        'search_button_text': '搜索',
-        'reset_button_text': '重置'
-    }
-    
-    # 构建统一的list_config配置
-    list_config = {
-        'module_name': 'product_analysis',
-        'title': _('植入产品分析'),
-        'ajax_mode': True,
-        
-        # 统计卡片配置（产品分析模块：手动转换为万元以兼容通用模组）
-        'stats': {
-            'cards': [
-                {
-                    'id': 'total_amount',
-                    'title': _('总金额'),
-                    'icon': 'fas fa-dollar-sign',
-                    'value': 1,  # 数量固定为1，重点是金额
-                    'amount': round(stats_data['total_amount'] / 10000, 2),  # 转换为万元
-                    'unit': _('项'),
-                    'amount_unit': Config.AMOUNT_UNIT,  # 使用系统货币配置的金额单位
-                    'color': 'primary',
-                    'clickable': False,
-                    'data_key': 'total_amount'
-                },
-                {
-                    'id': 'total_quantity',
-                    'title': _('产品数量'),
-                    'icon': 'fas fa-boxes',
-                    'value': stats_data['total_quantity'],
-                    'unit': _('个'),
-                    'color': 'success',
-                    'clickable': False,
-                    'data_key': 'total_quantity'
-                },
-                {
-                    'id': 'monthly_increase',
-                    'title': _('本月新增'),
-                    'icon': 'fas fa-chart-line',
-                    'value': stats_data['monthly_quantity'],  # 本月新增数量
-                    'amount': round(stats_data['monthly_amount'] / 10000, 2),  # 转换为万元
-                    'unit': _('个'),
-                    'amount_unit': Config.AMOUNT_UNIT,  # 使用系统货币配置的金额单位
-                    'color': 'warning',
-                    'clickable': False,
-                    'data_key': 'monthly_increase'
-                },
-                {
-                    'id': 'avg_unit_price',
-                    'title': _('平均单价'),
-                    'icon': 'fas fa-calculator',
-                    'value': 1,  # 数量固定为1，重点是金额
-                    'amount': round(stats_data['avg_unit_price'] / 10000, 4),  # 转换为万元，保留4位小数
-                    'unit': _('项'),
-                    'amount_unit': Config.AMOUNT_UNIT,  # 使用系统货币配置的金额单位
-                    'color': 'info',
-                    'clickable': False,
-                    'data_key': 'avg_unit_price'
-                }
-            ]
-        },
-        
-        # 筛选配置
-        'filter': filter_config,
-        
-        # 表格配置
-        'table': {
-            'ajax_target': 'productAnalysisTableBody',
-            'title': _('产品明细列表'),
-            'icon': 'fas fa-table',
-            'fixed_height_scroll': True,   # 启用蓝色滚动条
-            'enhanced_striping': True,     # 启用增强斑马纹
-            'use_custom_rows': True,
-            'custom_rows_template': 'product_analysis/product_analysis_rows_simple.html',
-            'columns': [
-                {'key': 'product_name', 'field': 'product_name', 'label': _(mapping_manager.get_field_display_name('product', 'product_name')), 'width': '150px', 'sort_type': 'string'},
-                {'key': 'product_model', 'field': 'product_model', 'label': _(mapping_manager.get_field_display_name('product', 'product_model')), 'width': '200px', 'sort_type': 'string'},
-                {'key': 'quantity', 'field': 'quantity', 'label': _(mapping_manager.get_field_display_name('common', 'quantity')), 'width': '80px', 'align': 'center', 'sort_type': 'number'},
-                {'key': 'discount', 'field': 'discount', 'label': _(mapping_manager.get_field_display_name('common', 'discount')), 'width': '80px', 'align': 'center', 'sort_type': 'number'},
-                {'key': 'unit_price', 'field': 'unit_price', 'label': _(mapping_manager.get_field_display_name('common', 'unit_price')), 'width': '100px', 'align': 'right', 'sort_type': 'number'},
-                {'key': 'total_price', 'field': 'total_price', 'label': _(mapping_manager.get_field_display_name('common', 'total_price')), 'width': '100px', 'align': 'right', 'sort_type': 'number'},
-                {'key': 'product_mn', 'field': 'product_mn', 'label': _('MN号'), 'width': '120px', 'sort_type': 'string'},
-                {'key': 'owner_name', 'field': 'owner_name', 'label': _(mapping_manager.get_field_display_name('common', 'owner_id')), 'width': '100px', 'sort_type': 'string'},
-                {'key': 'project_name', 'field': 'project_name', 'label': _(mapping_manager.get_field_display_name('project', 'project_name')), 'width': '150px', 'sort_type': 'string'},
-                {'key': 'current_stage', 'field': 'current_stage', 'label': _(mapping_manager.get_field_display_name('project', 'current_stage')), 'width': '100px', 'align': 'center', 'sort_type': 'string'},
-                {'key': 'quotation_number', 'field': 'quotation_number', 'label': _(mapping_manager.get_field_display_name('quotation', 'quotation_number')), 'width': '120px', 'sort_type': 'string'},
-                {'key': 'updated_at', 'field': 'updated_at', 'label': _(mapping_manager.get_field_display_name('common', 'updated_at')), 'width': '140px', 'sort_type': 'date'},
-                {'key': 'created_at', 'field': 'created_at', 'label': _(mapping_manager.get_field_display_name('common', 'created_at')), 'width': '140px', 'sort_type': 'date'}
-            ]
-        },
-        
-        # 无限滚动配置（使用标准格式）
-        'infinite_scroll': {
-            'enabled': True,
-            'page_size': 50,
-            'scroll_threshold': 100,
-            'loading_text': _('正在加载更多产品数据...'),
-            'no_more_text': _('已加载全部产品数据')
-        },
-        
-        # 阶段统计组件配置
-        'stage_analytics': {
-            'container_id': 'stageAnalyticsContainer',
-            'chart_id': 'stageAnalyticsChart',
-            'api_endpoint': url_for('product_analysis.api_stage_statistics_api'),
-            'title': '阶段分布统计',
-            'icon': 'fas fa-chart-bar',
-            'chart_type': 'bar',
-            'switchable': True,
-            'filter_integration': True,
-            'height': '350px'
-        }
-    }
-    
-    return render_template('product_analysis/analysis.html',
-                         list_config=list_config,
-                         categories=[c[0] for c in categories],
-                         product_names=[p[0] for p in product_names],
-                         product_models=[m[0] for m in product_models])
+    """产品分析主页面 - Tailwind 仪表板"""
+    from app.services.product_attribution import get_analysis_view_scope
+    scope = get_analysis_view_scope(current_user)
+    return render_template('product_analysis/tw_analysis.html', view_scope=scope, now_year=datetime.now().year)
 
 @product_analysis.route('/api/filter_options')
 @login_required
@@ -1012,4 +757,411 @@ def export_analysis():
         
     except Exception as e:
         logger.error(f"导出产品分析数据失败: {str(e)}")
-        return jsonify({'success': False, 'error': str(e)}), 500 
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================================================
+# V2 API — Tailwind 仪表板
+# ============================================================================
+
+def _build_base_detail_query():
+    """构建基础明细查询（含最新报价单 JOIN，不含权限过滤）"""
+    latest_subq = _get_latest_quotation_subquery()
+    q = db.session.query(
+        QuotationDetail.id,
+        QuotationDetail.product_name,
+        QuotationDetail.product_model,
+        QuotationDetail.product_desc,
+        QuotationDetail.quantity,
+        QuotationDetail.unit_price,
+        QuotationDetail.total_price,
+        QuotationDetail.product_mn,
+        QuotationDetail.created_at,
+        Quotation.id.label('quotation_id'),
+        Quotation.quotation_number,
+        Quotation.owner_id.label('quotation_owner_id'),
+        Project.id.label('project_id'),
+        Project.project_name,
+        Project.current_stage,
+        Project.owner_id.label('project_owner_id'),
+    ).join(
+        Quotation, QuotationDetail.quotation_id == Quotation.id
+    ).join(
+        latest_subq,
+        and_(
+            Quotation.project_id == latest_subq.c.project_id,
+            Quotation.id == latest_subq.c.latest_quotation_id
+        )
+    ).join(
+        Project, Quotation.project_id == Project.id
+    ).join(
+        User, Quotation.owner_id == User.id
+    )
+    return q
+
+
+def _apply_scope_filter(query, scope):
+    """根据角色视角过滤查询
+
+    admin  → 无过滤
+    se     → 仅关联项目（ProjectMember role=solution_engineer）
+    pm     → 仅管理分类下的产品型号
+    sales  → 权限层过滤（自己/下属/vendor_sales_manager）
+    """
+    level = scope.get('level', 'sales')
+
+    if level == 'admin':
+        return query
+
+    elif level == 'se':
+        pids = scope.get('associated_project_ids', [])
+        if pids:
+            return query.filter(Project.id.in_(pids))
+        return query.filter(False)
+
+    elif level == 'pm':
+        cat_ids = scope.get('managed_category_ids', [])
+        if cat_ids:
+            cat_products_subq = db.session.query(Product.model).filter(
+                Product.category_id.in_(cat_ids)
+            ).distinct().subquery()
+            return query.filter(QuotationDetail.product_model.in_(
+                db.session.query(cat_products_subq.c.model)
+            ))
+        return query.filter(False)
+
+    else:  # sales
+        return apply_permission_based_filters(query, current_user)
+
+
+@product_analysis.route('/tw')
+@login_required
+@permission_required('quotation', 'view')
+def tw_analysis():
+    """向后兼容：重定向到主路由"""
+    from flask import redirect
+    return redirect(url_for('product_analysis.analysis'))
+
+
+@product_analysis.route('/api/v2/overview')
+@login_required
+@permission_required('quotation', 'view')
+def api_v2_overview():
+    """概览统计卡片数据"""
+    try:
+        from app.services.product_attribution import get_analysis_view_scope
+        scope = get_analysis_view_scope(current_user)
+        year = int(request.args.get('year', datetime.now().year))
+
+        q = _build_base_detail_query()
+        q = _apply_scope_filter(q, scope)
+
+        # 今年数据
+        year_start = datetime(year, 1, 1)
+        year_end = datetime(year + 1, 1, 1)
+        q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+
+        stats = q_year.with_entities(
+            func.sum(QuotationDetail.total_price).label('total_amount'),
+            func.sum(QuotationDetail.quantity).label('total_qty'),
+            func.count(func.distinct(Project.id)).label('project_count')
+        ).first()
+
+        total_amount = float(stats.total_amount or 0)
+        total_qty = int(stats.total_qty or 0)
+        project_count = int(stats.project_count or 0)
+
+        # 上月 vs 本月环比
+        now = datetime.now()
+        this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if now.month == 1:
+            last_month_start = datetime(now.year - 1, 12, 1)
+        else:
+            last_month_start = datetime(now.year, now.month - 1, 1)
+
+        this_month_amt = q.filter(
+            QuotationDetail.created_at >= this_month_start
+        ).with_entities(func.sum(QuotationDetail.total_price)).scalar() or 0
+
+        last_month_amt = q.filter(
+            QuotationDetail.created_at >= last_month_start,
+            QuotationDetail.created_at < this_month_start
+        ).with_entities(func.sum(QuotationDetail.total_price)).scalar() or 0
+
+        mom_rate = round((float(this_month_amt) - float(last_month_amt)) / float(last_month_amt) * 100, 1) if last_month_amt else 0
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'total_amount': total_amount,
+                'total_quantity': total_qty,
+                'project_count': project_count,
+                'mom_rate': mom_rate,
+                'this_month_amount': float(this_month_amt),
+                'last_month_amount': float(last_month_amt),
+            }
+        })
+    except Exception as e:
+        logger.error(f"v2 overview 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@product_analysis.route('/api/v2/trend')
+@login_required
+@permission_required('quotation', 'view')
+def api_v2_trend():
+    """月度趋势数据（滚动12个月：当月前6 + 当月 + 后5）"""
+    try:
+        from app.services.product_attribution import get_analysis_view_scope
+        scope = get_analysis_view_scope(current_user)
+        now = datetime.now()
+
+        # 计算滚动窗口起止
+        start_month = now.month - 6
+        start_year = now.year
+        if start_month <= 0:
+            start_month += 12
+            start_year -= 1
+        start_date = datetime(start_year, start_month, 1)
+
+        end_month = now.month + 6
+        end_year = now.year
+        if end_month > 12:
+            end_month -= 12
+            end_year += 1
+        end_date = datetime(end_year, end_month, 1)
+
+        q = _build_base_detail_query()
+        q = _apply_scope_filter(q, scope)
+
+        monthly = q.filter(
+            QuotationDetail.created_at >= start_date,
+            QuotationDetail.created_at < end_date
+        ).with_entities(
+            extract('year', QuotationDetail.created_at).label('yr'),
+            extract('month', QuotationDetail.created_at).label('mn'),
+            func.sum(QuotationDetail.total_price).label('amount'),
+            func.sum(QuotationDetail.quantity).label('qty')
+        ).group_by('yr', 'mn').order_by('yr', 'mn').all()
+
+        monthly_map = {(int(r.yr), int(r.mn)): {'amount': float(r.amount or 0), 'qty': int(r.qty or 0)} for r in monthly}
+
+        months = []
+        y, m = start_year, start_month
+        for _ in range(12):
+            d = monthly_map.get((y, m), {'amount': 0, 'qty': 0})
+            months.append({
+                'year': y,
+                'month': m,
+                'label': f'{m}月',
+                'amount': d['amount'],
+                'quantity': d['qty'],
+                'is_current': (y == now.year and m == now.month)
+            })
+            m += 1
+            if m > 12:
+                m = 1
+                y += 1
+
+        return jsonify({'success': True, 'data': months})
+    except Exception as e:
+        logger.error(f"v2 trend 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@product_analysis.route('/api/v2/distribution')
+@login_required
+@permission_required('quotation', 'view')
+def api_v2_distribution():
+    """分布数据（按类别/阶段）"""
+    try:
+        from app.services.product_attribution import get_analysis_view_scope
+        from app.models.product_code import ProductCategory
+        scope = get_analysis_view_scope(current_user)
+        year = int(request.args.get('year', datetime.now().year))
+
+        q = _build_base_detail_query()
+        q = _apply_scope_filter(q, scope)
+
+        year_start = datetime(year, 1, 1)
+        year_end = datetime(year + 1, 1, 1)
+        q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+
+        # 按阶段分布
+        stage_dist = q_year.with_entities(
+            Project.current_stage,
+            func.sum(QuotationDetail.total_price).label('amount'),
+            func.count(QuotationDetail.id).label('count')
+        ).group_by(Project.current_stage).all()
+
+        stages = [{
+            'stage': r.current_stage or 'unknown',
+            'label': get_stage_label(r.current_stage) if r.current_stage else '未知',
+            'amount': float(r.amount or 0),
+            'count': int(r.count or 0)
+        } for r in stage_dist]
+
+        # 按类别分布 - 通过 product_model 关联 Product -> ProductCategory
+        try:
+            cat_q = q_year.join(
+                Product, QuotationDetail.product_model == Product.model
+            ).join(
+                ProductCategory, Product.category_id == ProductCategory.id
+            ).with_entities(
+                ProductCategory.name,
+                func.sum(QuotationDetail.total_price).label('amount'),
+                func.count(QuotationDetail.id).label('count')
+            ).group_by(ProductCategory.name).all()
+
+            categories = [{
+                'name': r.name,
+                'amount': float(r.amount or 0),
+                'count': int(r.count or 0)
+            } for r in cat_q]
+        except Exception:
+            db.session.rollback()
+            categories = []
+
+        return jsonify({'success': True, 'data': {'stages': stages, 'categories': categories}})
+    except Exception as e:
+        logger.error(f"v2 distribution 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@product_analysis.route('/api/v2/ranking')
+@login_required
+@permission_required('quotation', 'view')
+def api_v2_ranking():
+    """排名数据"""
+    try:
+        from app.services.product_attribution import get_analysis_view_scope
+        scope = get_analysis_view_scope(current_user)
+        year = int(request.args.get('year', datetime.now().year))
+        q = _build_base_detail_query()
+        q = _apply_scope_filter(q, scope)
+
+        year_start = datetime(year, 1, 1)
+        year_end = datetime(year + 1, 1, 1)
+        q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+
+        ranking = q_year.with_entities(
+            QuotationDetail.product_name,
+            QuotationDetail.product_model,
+            func.sum(QuotationDetail.total_price).label('amount'),
+            func.sum(QuotationDetail.quantity).label('qty')
+        ).group_by(
+            QuotationDetail.product_name, QuotationDetail.product_model
+        ).order_by(func.sum(QuotationDetail.quantity).desc()).all()
+
+        data = [{
+            'name': r.product_name or '',
+            'model': r.product_model or '',
+            'amount': float(r.amount or 0),
+            'quantity': int(r.qty or 0)
+        } for r in ranking]
+
+        return jsonify({'success': True, 'data': data})
+    except Exception as e:
+        logger.error(f"v2 ranking 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@product_analysis.route('/api/v2/detail')
+@login_required
+@permission_required('quotation', 'view')
+def api_v2_detail():
+    """明细列表"""
+    try:
+        from app.services.product_attribution import get_analysis_view_scope
+        scope = get_analysis_view_scope(current_user)
+
+        year = int(request.args.get('year', datetime.now().year))
+        category = request.args.get('category')
+        product_name = request.args.get('product_name')
+        product_model = request.args.get('product_model')
+        search = request.args.get('search', '').strip()
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 50))
+
+        q = _build_base_detail_query()
+        q = _apply_scope_filter(q, scope)
+
+        year_start = datetime(year, 1, 1)
+        year_end = datetime(year + 1, 1, 1)
+        q = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+
+        if category:
+            from app.models.product_code import ProductCategory
+            cat = ProductCategory.query.filter_by(name=category).first()
+            if cat:
+                cat_models = db.session.query(Product.model).filter(
+                    Product.category_id == cat.id
+                ).distinct().subquery()
+                q = q.filter(QuotationDetail.product_model.in_(
+                    db.session.query(cat_models.c.model)
+                ))
+
+        if product_name:
+            q = q.filter(QuotationDetail.product_name == product_name)
+        if product_model:
+            q = q.filter(QuotationDetail.product_model == product_model)
+        if search:
+            q = q.filter(or_(
+                QuotationDetail.product_name.ilike(f'%{search}%'),
+                QuotationDetail.product_model.ilike(f'%{search}%'),
+                Project.project_name.ilike(f'%{search}%')
+            ))
+
+        total = q.count()
+
+        sort_by = request.args.get('sort_by', 'created_at')
+        sort_dir = request.args.get('sort_dir', 'desc')
+        sort_map = {
+            'product_name': QuotationDetail.product_name,
+            'product_model': QuotationDetail.product_model,
+            'quantity': QuotationDetail.quantity,
+            'total_price': QuotationDetail.total_price,
+            'project_name': Project.project_name,
+            'created_at': QuotationDetail.created_at,
+        }
+        sort_col = sort_map.get(sort_by, QuotationDetail.created_at)
+        order = sort_col.desc() if sort_dir == 'desc' else sort_col.asc()
+
+        results = q.order_by(order).offset(
+            (page - 1) * per_page
+        ).limit(per_page).all()
+
+        # 预加载用户名
+        owner_ids = list({r.quotation_owner_id for r in results})
+        owners = {u.id: u for u in User.query.filter(User.id.in_(owner_ids)).all()} if owner_ids else {}
+
+        data = []
+        for r in results:
+            owner = owners.get(r.quotation_owner_id)
+            data.append({
+                'product_name': r.product_name or '',
+                'product_model': r.product_model or '',
+                'product_mn': r.product_mn or '',
+                'quantity': int(r.quantity or 0),
+                'unit_price': float(r.unit_price or 0),
+                'total_price': float(r.total_price or 0),
+                'project_name': r.project_name or '',
+                'project_id': r.project_id,
+                'stage': get_stage_label(r.current_stage) if r.current_stage else '',
+                'quotation_number': r.quotation_number or '',
+                'quotation_id': r.quotation_id,
+                'owner': owner.real_name if owner else '',
+                'created_at': r.created_at.strftime('%Y-%m-%d') if r.created_at else ''
+            })
+
+        return jsonify({
+            'success': True,
+            'data': data,
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'pages': (total + per_page - 1) // per_page
+        })
+    except Exception as e:
+        logger.error(f"v2 detail 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500

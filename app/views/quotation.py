@@ -752,11 +752,8 @@ def quotations_list_ajax():
             debug_info = f"<!-- DEBUG: is_mobile={is_mobile}, mobile_param={request.args.get('mobile')} -->"
             current_app.logger.info(f"🔍 AJAX调试: URL={request.url}, is_mobile={is_mobile}, User-Agent={request.headers.get('User-Agent', 'None')}")
 
-            # 检查是否请求 Tailwind 格式（新版页面）
-            use_tw_template = request.args.get('tw', '0') == '1' or request.args.get('ajax', '0') == '1'
-
-            if use_tw_template:
-                # 新版 Tailwind 页面使用的表格行模板
+            if request.args.get('ajax', '0') == '1':
+                # Tailwind 表格行模板
                 html = render_template('quotation/tw_list_rows.html', quotations=quotations)
                 current_app.logger.info("Tailwind 表格行渲染成功")
             elif is_mobile:
@@ -2035,7 +2032,7 @@ def edit_quotation(id):
                                      return_to=return_to)
         
         # GET请求 - 重定向到详情页（编辑功能现在通过详情页的模态框完成）
-        return redirect(url_for('quotation.view_quotation', id=id, tw=1, edit=1))
+        return redirect(url_for('quotation.view_quotation', id=id, edit=1))
         
     except Exception as e:
         flash(_('加载报价单失败：%s') % str(e), 'danger')
@@ -3159,13 +3156,11 @@ def view_quotation(id):
             # 过滤用户有权限查看的报价单
             related_quotations = [q for q in all_related if can_view_quotation(current_user, q)][:10]
 
-        # 根据请求参数选择模板：?tw=1 使用 Tailwind 模板
-        use_tailwind = request.args.get('tw', '0') == '1'
-        template_name = "quotation/tw_quotation_detail.html" if use_tailwind else "quotation/detail.html"
+        template_name = "quotation/tw_quotation_detail.html"
 
         # 为编辑模态框准备产品明细JSON数据
         quotation_details_json = '[]'
-        if use_tailwind and can_edit_this_quotation:
+        if can_edit_this_quotation:
             import json
             details_for_edit = []
             for detail in quotation.details:
@@ -3204,9 +3199,8 @@ def view_quotation(id):
 
         # 查询当前报价单的"进行中"批价单（草稿或待审批状态）
         active_pricing_order = None
-        if use_tailwind:
-            from app.models.pricing_order import PricingOrder
-            active_pricing_order = PricingOrder.query.filter(
+        from app.models.pricing_order import PricingOrder
+        active_pricing_order = PricingOrder.query.filter(
                 PricingOrder.quotation_id == quotation.id,
                 PricingOrder.status.in_(['draft', 'pending'])
             ).order_by(PricingOrder.created_at.desc()).first()

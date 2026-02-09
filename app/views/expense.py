@@ -706,13 +706,10 @@ def expense_list_ajax():
         # ============================================================
         # 6. 渲染HTML
         # ============================================================
-        # 检查是否请求 Tailwind 格式（新版页面）
-        use_tw_template = request.args.get('tw', '0') == '1' or request.args.get('ajax', '0') == '1'
-
         from app.utils.mobile_helpers import is_mobile_request
 
-        if use_tw_template:
-            # 新版 Tailwind 页面使用的表格行模板
+        if request.args.get('ajax', '0') == '1':
+            # Tailwind 表格行模板
             html = render_template('expense/tw_list_rows.html', expenses=expenses)
         elif is_mobile_request():
             # 移动端：使用智能卡片配置

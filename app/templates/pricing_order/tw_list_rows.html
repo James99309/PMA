@@ -11,7 +11,7 @@
         </a>
     </td>
     {% if po.project %}
-    {{ tw_cell_link_secondary(url_for('project.view_project', project_id=po.project.id, tw=1), po.project.project_name, title=po.project.project_name) }}
+    {{ tw_cell_link_secondary(url_for('project.view_project', project_id=po.project.id), po.project.project_name, title=po.project.project_name) }}
     {% else %}
     <td class="p-3 whitespace-nowrap"><span class="text-slate-400 dark:text-slate-500">-</span></td>
     {% endif %}

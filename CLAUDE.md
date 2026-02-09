@@ -34,6 +34,38 @@
 
 ---
 
+## 🎨 模板体系规范（Bootstrap → Tailwind 迁移）
+
+### **核心规则**
+- ✅ **所有新页面必须使用 Tailwind (`tw_*.html`) 模板**
+- ✅ **参考现有 tw_ 模板的模式和组件用法**
+- ❌ **禁止参考 `_archived/bootstrap/` 中的旧 Bootstrap 模板**
+- ❌ **禁止在路由中添加 `tw=1` 条件切换逻辑**
+
+### **已完成迁移的模块**
+以下模块的列表和详情页已全面使用 Tailwind 模板，旧 Bootstrap 版本已归档到 `app/templates/_archived/bootstrap/`：
+- Customer（联系人视图）
+- Expense（列表 + 详情）
+- User（列表 + 详情 + 部门管理 + 个人资料）
+- Project（列表 + 详情）
+- Quotation（列表 + 详情）
+- Product（列表 + 详情）
+- Approval（审批中心）
+- Pricing Order（列表 + 详情）
+- Product Analysis（分析仪表板）
+
+### **仍为 Bootstrap 的页面（C类 - 暂无 tw_ 版本）**
+以下页面仍使用 Bootstrap，属于正常状态（未迁移），不需要归档：
+- 所有表单页面：`project/add.html`、`project/edit.html`、`expense/create_expense.html`、`quotation/edit_new.html` 等
+- Inventory 模块全部页面
+- Admin 和权限管理页面
+- Auth 页面（登录、注册）
+
+### **`.claudeignore` 屏蔽配置**
+`app/templates/_archived/` 和 `app/routes/project.py`（死代码）已加入 `.claudeignore`，AI 搜索时自动跳过。
+
+---
+
 ## 🔒 通用组件保护协议
 
 ### **受保护文件列表**

@@ -764,7 +764,7 @@ def api_get_expense_budgets():
         search = request.args.get('search', '').strip()
 
         # 查询用户列表
-        query = User.query.filter(User.is_active == True)
+        query = User.query.filter(User._is_active == True)
 
         # 角色筛选
         if role_filter:

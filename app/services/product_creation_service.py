@@ -173,7 +173,7 @@ class ProductCreationService:
 
             # 跳转到产品详情页以便补充规格
             # 注：研发库已废弃(2025-12-26)，统一使用产品详情页
-            final_redirect_url = url_for('product.view_product_detail', id=new_product.id, tw=1)
+            final_redirect_url = url_for('product.view_product_detail', id=new_product.id)
 
             if is_ajax:
                 return ProductCreationService._json_response(True, success_message, final_redirect_url)

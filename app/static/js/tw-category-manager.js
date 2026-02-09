@@ -16,6 +16,7 @@ const CategoryManager = {
         subcategories: [],
         fields: [],
         categoryFields: [],  // 分类级规格字段列表
+        productManagers: [],  // 产品经理列表
         deleteType: null,  // 'category', 'subcategory', 'field'
         deleteId: null,
         fieldFormMode: 'subcategory'  // 'category' 或 'subcategory'
@@ -27,6 +28,7 @@ const CategoryManager = {
     // API 端点
     API: {
         categories: '/product-code/api/categories',
+        productManagers: '/product-code/api/product-managers',
         subcategories: '/product-code/api/subcategories',
         fields: '/product-code/api/fields',
         generateCategoryCode: '/product-code/api/generate-category-code',
@@ -52,6 +54,40 @@ const CategoryManager = {
         });
 
         this.loadCategories();
+        this.loadProductManagers();
+    },
+
+    /**
+     * 加载产品经理列表
+     */
+    async loadProductManagers() {
+        try {
+            const response = await fetch(this.API.productManagers);
+            const result = await response.json();
+            if (result.success) {
+                this.state.productManagers = result.data;
+            }
+        } catch (error) {
+            console.error('加载产品经理列表失败:', error);
+        }
+    },
+
+    /**
+     * 填充产品经理下拉框
+     * @param {string} selectId - select 元素 ID
+     * @param {number|null} selectedId - 预选的 manager_id
+     */
+    populateManagerSelect(selectId, selectedId) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        select.innerHTML = '<option value="">未指定</option>';
+        this.state.productManagers.forEach(pm => {
+            const opt = document.createElement('option');
+            opt.value = pm.id;
+            opt.textContent = pm.name;
+            if (selectedId && pm.id === selectedId) opt.selected = true;
+            select.appendChild(opt);
+        });
     },
 
     // ========== 分类管理 ==========
@@ -82,7 +118,9 @@ const CategoryManager = {
                     codeLetter: cat.code_letter,
                     description: cat.description || '',
                     isUsed: cat.is_used,
-                    subcategoryCount: cat.subcategory_count || 0
+                    subcategoryCount: cat.subcategory_count || 0,
+                    managerId: cat.manager_id,
+                    managerName: cat.manager_name
                 }));
 
                 count.textContent = this.state.categories.length;
@@ -119,7 +157,10 @@ const CategoryManager = {
                 <div class="px-4 py-2.5 flex items-center justify-between">
                     <div class="flex items-center gap-2 flex-1 min-w-0">
                         <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">${cat.codeLetter}</span>
-                        <span class="text-sm font-medium text-slate-900 dark:text-white truncate">${cat.name}</span>
+                        <div class="flex flex-col min-w-0">
+                            <span class="text-sm font-medium text-slate-900 dark:text-white truncate">${cat.name}</span>
+                            ${cat.managerName ? `<span class="text-xs text-slate-400 dark:text-slate-500 truncate">PM: ${cat.managerName}</span>` : ''}
+                        </div>
                     </div>
                     <div class="flex items-center gap-1 ml-2 flex-shrink-0">
                         ${!cat.isUsed ? `
@@ -224,6 +265,7 @@ const CategoryManager = {
         document.getElementById('categoryFormNameEn').value = '';
         document.getElementById('categoryFormCode').value = '';
         document.getElementById('categoryFormDesc').value = '';
+        this.populateManagerSelect('categoryFormManager', null);
         document.getElementById('categoryFormModal-title').textContent = '添加分类';
         document.getElementById('categoryFormModal').classList.remove('hidden');
     },
@@ -243,6 +285,7 @@ const CategoryManager = {
                 document.getElementById('categoryFormNameEn').value = data.name_en || '';
                 document.getElementById('categoryFormCode').value = data.code_letter;
                 document.getElementById('categoryFormDesc').value = data.description || '';
+                this.populateManagerSelect('categoryFormManager', data.manager_id);
                 document.getElementById('categoryFormModal-title').textContent = '编辑分类';
                 document.getElementById('categoryFormModal').classList.remove('hidden');
             } else {
@@ -317,11 +360,13 @@ const CategoryManager = {
         event.preventDefault();
 
         const id = document.getElementById('categoryFormId').value;
+        const managerVal = document.getElementById('categoryFormManager').value;
         const data = {
             name: document.getElementById('categoryFormName').value.trim(),
             name_en: document.getElementById('categoryFormNameEn').value.trim(),
             code_letter: document.getElementById('categoryFormCode').value.trim().toUpperCase(),
-            description: document.getElementById('categoryFormDesc').value.trim()
+            description: document.getElementById('categoryFormDesc').value.trim(),
+            manager_id: managerVal ? parseInt(managerVal) : null
         };
 
         try {
@@ -1331,6 +1376,7 @@ const CategoryManager = {
                 document.getElementById('categoryPartialEditNameDisplay').textContent = data.name;
                 document.getElementById('categoryPartialEditCodeDisplay').textContent = data.code_letter;
                 document.getElementById('categoryPartialEditNameEn').value = data.name_en || '';
+                this.populateManagerSelect('categoryPartialEditManager', data.manager_id);
                 document.getElementById('categoryPartialEditModal').classList.remove('hidden');
             } else {
                 this.showToast(result.message, 'error');
@@ -1355,8 +1401,10 @@ const CategoryManager = {
         event.preventDefault();
 
         const id = document.getElementById('categoryPartialEditId').value;
+        const managerVal = document.getElementById('categoryPartialEditManager').value;
         const data = {
-            name_en: document.getElementById('categoryPartialEditNameEn').value.trim()
+            name_en: document.getElementById('categoryPartialEditNameEn').value.trim(),
+            manager_id: managerVal ? parseInt(managerVal) : null
         };
 
         try {
@@ -1371,7 +1419,7 @@ const CategoryManager = {
             if (result.success) {
                 this.hidePartialEditCategoryForm();
                 this.loadCategories();
-                this.showToast('英文名称保存成功', 'success');
+                this.showToast('保存成功', 'success');
             } else {
                 this.showToast(result.message, 'error');
             }

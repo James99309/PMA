@@ -345,7 +345,7 @@ Tailwind 行动记录列表组件
                             {# 关联项目链接（联系人详情场景，放在徽章右边） #}
                             {% if show_project and action.project %}
                                 {% if can_view_project(current_user, action.project) %}
-                                <a href="{{ url_for('project.view_project', project_id=action.project.id) }}?tw=1"
+                                <a href="{{ url_for('project.view_project', project_id=action.project.id) }}"
                                    class="text-sm text-primary hover:underline truncate max-w-[200px] font-medium" title="{{ action.project.project_name }}">{{ action.project.project_name }}</a>
                                 {% else %}
                                 <span class="text-sm text-slate-600 dark:text-slate-400 truncate max-w-[200px]" title="{{ action.project.project_name }}">{{ action.project.project_name }}</span>

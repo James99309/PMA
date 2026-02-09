@@ -126,7 +126,7 @@
                 <div class="btn-toolbar justify-content-end" role="toolbar">
                     {% if product %}
                         {# 编辑模式：返回产品详情页 #}
-                        {{ render_button('返回', href=url_for('product.view_product_detail', id=product.id, tw=1), color='secondary', icon='fas fa-arrow-left') }}
+                        {{ render_button('返回', href=url_for('product.view_product_detail', id=product.id), color='secondary', icon='fas fa-arrow-left') }}
                     {% else %}
                         {# 创建模式：返回列表页 #}
                         {{ render_button('返回列表', href=url_for('product.product_list'), color='secondary', icon='fas fa-arrow-left') }}

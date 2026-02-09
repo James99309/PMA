@@ -13,10 +13,12 @@ class ProductCategory(db.Model):
     code_letter = Column(String(1), nullable=False, unique=True)  # 分类标识符
     description = Column(Text)  # 描述
     display_order = Column(Integer, default=0, nullable=False)  # 显示顺序
+    manager_id = Column(Integer, ForeignKey('users.id'), nullable=True, comment='产品经理ID')
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     # 关联字段
+    manager = db.relationship('User', foreign_keys=[manager_id], backref='managed_categories')
     subcategories = db.relationship('ProductSubcategory', backref='parent_category', lazy='dynamic')
     product_codes = db.relationship('ProductCode', backref='category', lazy='dynamic')
 

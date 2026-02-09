@@ -80,7 +80,7 @@ Tailwind 共享导航菜单组件
         </a>
         {% endif %}
         {% if has_permission('quotation', 'view') %}
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'product_analysis' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('product_analysis.analysis') }}">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'product_analysis' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('product_analysis.tw_analysis') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'product_analysis' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">analytics</span>
             <span class="{% if active_page == 'product_analysis' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('植入分析') }}</span>
         </a>
@@ -101,7 +101,7 @@ Tailwind 共享导航菜单组件
     </button>
     <div x-show="openGroup === 'sales'" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
         {% if has_permission('pricing_order', 'view') %}
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'pricing_order' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('pricing_order.list_pricing_orders', tw=1) }}">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'pricing_order' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('pricing_order.list_pricing_orders') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'pricing_order' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">request_quote</span>
             <span class="{% if active_page == 'pricing_order' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('批价单') }}</span>
         </a>
@@ -220,7 +220,7 @@ Tailwind 共享导航菜单组件
     </button>
     <div x-show="openGroup === 'account'" x-collapse class="pl-4 mt-1 flex flex-col gap-1">
         {% if has_permission('user_management', 'view') %}
-        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'user_list' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('user.list_users', tw=1) }}">
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'user_list' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('user.list_users') }}">
             <span class="material-symbols-outlined text-base {% if active_page == 'user_list' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">group</span>
             <span class="{% if active_page == 'user_list' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('账户列表') }}</span>
         </a>

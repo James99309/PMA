@@ -266,11 +266,11 @@ def _get_approval_detail_url(object_type, object_id):
     """获取审批对象详情页URL（从对象类型和ID）"""
     try:
         if object_type == 'project':
-            return url_for('project.view_project', project_id=object_id, tw=1)
+            return url_for('project.view_project', project_id=object_id)
         elif object_type == 'expense':
             return url_for('expense.expense_detail', id=object_id)
         elif object_type == 'quotation':
-            return url_for('quotation.view_quotation', id=object_id, tw=1)
+            return url_for('quotation.view_quotation', id=object_id)
         elif object_type == 'pricing_order':
             return url_for('pricing_order.edit_pricing_order', order_id=object_id)
         elif object_type == 'purchase_order':

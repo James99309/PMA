@@ -2048,9 +2048,9 @@ def get_approval_object_url(instance):
     object_id = instance.object_id
     
     if object_type == 'project':
-        return url_for('project.view_project', project_id=object_id, tw=1)
+        return url_for('project.view_project', project_id=object_id)
     elif object_type == 'quotation':
-        return url_for('quotation.view_quotation', id=object_id, tw=1)
+        return url_for('quotation.view_quotation', id=object_id)
     elif object_type == 'customer':
         return url_for('customer.view_company', company_id=object_id)
     elif object_type == 'pricing_order':

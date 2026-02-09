@@ -13,7 +13,7 @@ with context %}
 <html lang="{{ session.get('language', 'zh') }}">
 
 <head>
-    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -171,7 +171,7 @@ with context %}
             </td>
             <!-- 项目名称 -->
             <td class="p-3 whitespace-nowrap">
-                <a href="{{ url_for('project.view_project', project_id=project.id, tw=1) }}"
+                <a href="{{ url_for('project.view_project', project_id=project.id) }}"
                     class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                     title="{{ project.project_name }}">
                     {{ project.project_name }}
@@ -404,7 +404,7 @@ with context %}
                                 closeFormModal('projectFormModal');
                                 // 跳转到新创建的项目详情页
                                 if (result.data && result.data.id) {
-                                    window.location.href = '{{ url_for("project.view_project", project_id=0) }}'.replace('/0', '/' + result.data.id) + '?tw=1';
+                                    window.location.href = '{{ url_for("project.view_project", project_id=0) }}'.replace('/0', '/' + result.data.id);
                                 } else {
                                     // 如果没有返回ID，刷新列表
                                     window.location.reload();

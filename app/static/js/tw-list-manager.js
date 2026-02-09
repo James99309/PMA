@@ -104,6 +104,20 @@ class TwListManager {
      * @private
      */
     _setupInfiniteScroll() {
+        // 优先使用表格自身的滚动容器（tw_data_table 生成的 {tableId}Scroll）
+        const scrollContainer = document.getElementById(`${this.tableId}Scroll`);
+        if (scrollContainer) {
+            scrollContainer.addEventListener('scroll', () => {
+                if (this.isLoading || !this.hasMore) return;
+                const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+                if (scrollTop + clientHeight >= scrollHeight - 100) {
+                    this.loadMore();
+                }
+            });
+            return;
+        }
+
+        // 回退：使用 IntersectionObserver 观察哨兵元素
         if (!this.elements.scrollSentinel) {
             console.warn(`TwListManager: Scroll sentinel not found for ${this.tableId}`);
             return;

@@ -14,7 +14,7 @@
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
-    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -94,14 +94,6 @@
 
         {{ render_tw_fixed_header_styles() }}
     </style>
-    <script>
-        // 深色模式检测
-        if (localStorage.getItem('theme') === 'dark' ||
-            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-            document.documentElement.classList.remove('light');
-        }
-    </script>
 </head>
 <body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
     {% call(slot) render_tw_layout(active_page='customer', show_search=true) %}

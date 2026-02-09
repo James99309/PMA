@@ -320,7 +320,7 @@
                                 {% endif %}
                                 {% if has_permission('quotation', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('quotation.list_quotations') }}">{{ _('报价单管理') }}</a></li>
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_analysis.analysis') }}">{{ _('植入产品分析') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('product_analysis.tw_analysis') }}">{{ _('植入产品分析') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('expense', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('expense.expense_list') }}">{{ _('报销管理') }}</a></li>
@@ -342,7 +342,7 @@
                             {% endif %}
                             {% if has_permission('quotation', 'view') %}
                             <li><a class="dropdown-item" href="{{ url_for('quotation.list_quotations') }}">{{ _('报价单管理') }}</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('product_analysis.analysis') }}">{{ _('植入产品分析') }}</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('product_analysis.tw_analysis') }}">{{ _('植入产品分析') }}</a></li>
                             {% endif %}
                             {% if has_permission('expense', 'view') %}
                             <li><a class="dropdown-item" href="{{ url_for('expense.expense_list') }}">{{ _('报销管理') }}</a></li>
@@ -441,7 +441,7 @@
                             </summary>
                             <ul class="list-unstyled ps-3 mb-0">
                                 {% if has_permission('user_management', 'view') %}
-                                <li><a class="nav-link text-sm py-2" href="{{ url_for('user.list_users', tw=1) }}">{{ _('账户列表') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('user.list_users') }}">{{ _('账户列表') }}</a></li>
                                 {% endif %}
                                 {% if has_permission('permission_management', 'view') %}
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('user.manage_role_permissions') }}">{{ _('权限管理') }}</a></li>
@@ -469,7 +469,7 @@
                             {% if has_permission('user_management', 'view') %}
                             <li>
                                 <a class="dropdown-item"
-                                   href="{{ url_for('user.list_users', tw=1) }}">
+                                   href="{{ url_for('user.list_users') }}">
                                    {{ _('账户列表') }}
                                 </a>
                             </li>

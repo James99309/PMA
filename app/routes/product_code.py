@@ -3792,6 +3792,28 @@ def toggle_option_status_api(option_id):
 # 产品分类管理 API
 # ============================================================================
 
+@product_code_bp.route('/api/product-managers', methods=['GET'])
+@login_required
+@csrf.exempt
+def get_product_managers_api():
+    """获取产品经理列表（role=product_manager 的用户）"""
+    from app.models.user import User
+    try:
+        users = User.query.filter(
+            User.role == 'product_manager',
+            User._is_active == True
+        ).order_by(User.real_name).all()
+
+        result = [{
+            'id': u.id,
+            'name': u.real_name or u.username
+        } for u in users]
+
+        return jsonify({'success': True, 'data': result})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @product_code_bp.route('/api/categories', methods=['GET'])
 @login_required
 @product_manager_required
@@ -3819,7 +3841,9 @@ def get_categories_api():
                 'description': category.description or '',
                 'display_order': category.display_order,
                 'is_used': used_in_dev or subcategory_count > 0,
-                'subcategory_count': subcategory_count
+                'subcategory_count': subcategory_count,
+                'manager_id': category.manager_id,
+                'manager_name': (category.manager.real_name or category.manager.username) if category.manager else None
             })
 
         return jsonify({
@@ -3867,6 +3891,7 @@ def create_category_api():
 
         # 计算display_order
         max_order = db.session.query(db.func.max(ProductCategory.display_order)).scalar() or 0
+        manager_id = data.get('manager_id')
 
         # 创建分类
         category = ProductCategory(
@@ -3874,7 +3899,8 @@ def create_category_api():
             name_en=name_en if name_en else None,
             code_letter=code_letter,
             description=description,
-            display_order=max_order + 1
+            display_order=max_order + 1,
+            manager_id=int(manager_id) if manager_id else None
         )
         db.session.add(category)
         db.session.commit()
@@ -3912,7 +3938,8 @@ def get_category_api(category_id):
                 'name': category.name,
                 'name_en': category.name_en or '',
                 'code_letter': category.code_letter,
-                'description': category.description or ''
+                'description': category.description or '',
+                'manager_id': category.manager_id
             }
         })
 
@@ -3970,10 +3997,12 @@ def update_category_api(category_id):
                     'message': '此分类已被使用，无法修改描述'
                 }), 400
 
-            # 仅更新 name_en（英文名称）
+            # 仅更新 name_en（英文名称）和 manager_id（产品经理）
             category.name_en = name_en if name_en else None
+            manager_id = data.get('manager_id')
+            category.manager_id = int(manager_id) if manager_id else None
             db.session.commit()
-            return jsonify({'success': True, 'message': '英文名称保存成功'})
+            return jsonify({'success': True, 'message': '保存成功'})
 
         # 分类未被使用，允许完全编辑
         # 验证必填字段
@@ -4002,6 +4031,8 @@ def update_category_api(category_id):
         category.name_en = name_en if name_en else None
         category.code_letter = code_letter
         category.description = description
+        manager_id = data.get('manager_id')
+        category.manager_id = int(manager_id) if manager_id else None
         db.session.commit()
 
         return jsonify({'success': True, 'message': '产品分类更新成功'})

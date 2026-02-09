@@ -161,12 +161,10 @@ def list_users():
         User.company_name.isnot(None)
     ).distinct().all()
 
-    # 构建筛选配置（保持 tw 参数以确保筛选后仍使用 Tailwind 模板）
-    is_tw = request.args.get('tw') == '1'
     filter_config = {
-        'action_url': url_for('user.list_users', tw=1) if is_tw else url_for('user.list_users'),
+        'action_url': url_for('user.list_users'),
         'form_id': 'userFilterForm',
-        'reset_url': url_for('user.list_users', tw=1) if is_tw else url_for('user.list_users'),
+        'reset_url': url_for('user.list_users'),
         
         # 自动筛选配置
         'realtime_search': False,
@@ -384,10 +382,8 @@ def list_users():
         }
     }
 
-    # 支持TW模板
-    template = 'user/tw_list.html' if request.args.get('tw') == '1' else 'user/list.html'
     return render_template(
-        template,
+        'user/tw_list.html',
         list_config=list_config,
         items=user_items,
         total_count=total_count,
@@ -2596,8 +2592,6 @@ def profile():
         'affiliation_count': len(affiliation_users)
     }
     
-    # 支持TW模板
-    template = 'user/tw_profile.html' if request.args.get('tw') == '1' else 'user/profile.html'
-    return render_template(template, user=user, permissions=permissions,
+    return render_template('user/tw_profile.html', user=user, permissions=permissions,
                           affiliations=affiliations, role_dict=ROLE_DICT, modules=MODULES,
                           currency_options=get_currency_type_options()) 

@@ -57,7 +57,7 @@
 <html lang="{{ session.get('language', 'zh') }}">
 
 <head>
-    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -162,7 +162,7 @@
                         show_icon=false,
                         empty_text=_('无'),
                         items=[
-                            {'label': _('关联项目'), 'value': quotation.project.project_name if quotation.project else none, 'link': url_for('project.view_project', project_id=quotation.project.id, tw=1) if quotation.project and can_view_project(current_user, quotation.project) else none},
+                            {'label': _('关联项目'), 'value': quotation.project.project_name if quotation.project else none, 'link': url_for('project.view_project', project_id=quotation.project.id) if quotation.project and can_view_project(current_user, quotation.project) else none},
                             {'label': _('关联客户'), 'value': quotation.customer.company_name if quotation.customer else none},
                             {'label': _('联系人'), 'value': quotation.contact.name if quotation.contact else none},
                             {'label': _('报价阶段'), 'badge': render_tw_project_stage_badge_key(quotation.project_stage) if quotation.project_stage else none},
@@ -208,7 +208,7 @@
                             avatar_color_index=q.owner.id % 6 if q.owner else 0,
                             title=q.quotation_number,
                             subtitle=q.currency_symbol ~ "{:,.2f}".format(q.amount) if q.amount else '-',
-                            link_url=url_for('quotation.view_quotation', id=q.id, tw=1),
+                            link_url=url_for('quotation.view_quotation', id=q.id),
                             max_title_length=18
                         ) }}
                         {% endfor %}

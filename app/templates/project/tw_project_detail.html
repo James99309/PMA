@@ -97,7 +97,7 @@ render_tw_expense_status_badge with context %}
 <html lang="{{ session.get('language', 'zh') }}">
 
 <head>
-    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -518,7 +518,7 @@ render_tw_expense_status_badge with context %}
                                         {% for quot in project_quotations %}
                                         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                             <td class="p-3 font-medium">
-                                                <a href="{{ url_for('quotation.view_quotation', id=quot.id, tw=1) }}" class="text-primary hover:underline">{{ quot.quotation_number }}</a>
+                                                <a href="{{ url_for('quotation.view_quotation', id=quot.id) }}" class="text-primary hover:underline">{{ quot.quotation_number }}</a>
                                             </td>
                                             <td class="p-3 text-slate-600 dark:text-slate-300">{{ quot.customer.company_name if quot.customer else '-' }}</td>
                                             <td class="p-3 text-right font-medium text-slate-800 dark:text-white">{{ quot.currency_symbol or currency_config.symbol }}{{ '{:,.2f}'.format(quot.amount or 0) }}</td>
@@ -557,7 +557,7 @@ render_tw_expense_status_badge with context %}
                                         {% for expense in project_expenses %}
                                         <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                             <td class="p-3 font-medium text-primary hover:underline">
-                                                <a href="{{ url_for('expense.expense_detail', id=expense.id) }}?tw=1">{{ expense.expense_number }}</a>
+                                                <a href="{{ url_for('expense.expense_detail', id=expense.id) }}">{{ expense.expense_number }}</a>
                                             </td>
                                             <td class="p-3 text-slate-600 dark:text-slate-300">{{ expense.created_at.strftime('%Y-%m-%d') if expense.created_at else '-' }}</td>
                                             <td class="p-3">
@@ -638,6 +638,34 @@ render_tw_expense_status_badge with context %}
                     view_all_url='#',
                     min_height='600px'
                 ) }}
+
+                <!-- 支持人员（自动衍生） -->
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                    <div class="p-4">
+                        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                            {{ _('支持人员') }}
+                        </h4>
+                        {% if project_contributors %}
+                        <div class="space-y-1">
+                            {% for m in project_contributors %}
+                            <div class="flex items-center gap-2.5 py-1.5">
+                                {{ render_tw_owner_badge(m.user, size='sm') }}
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-slate-900 dark:text-white truncate">{{ m.user.real_name or m.user.username }}</div>
+                                    <div class="text-xs text-slate-400">{{ m.role_label }}</div>
+                                </div>
+                                <span class="text-xs px-1.5 py-0.5 rounded font-medium {{ m.level_class }}">{{ m.level_label }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="flex flex-col items-center justify-center py-4 text-slate-400">
+                            <span class="material-symbols-outlined text-2xl mb-1">engineering</span>
+                            <span class="text-xs">{{ _('暂无技术支持活动') }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
 
                 <!-- 元数据卡片 -->
                 {{ tw_metadata_card_simple(

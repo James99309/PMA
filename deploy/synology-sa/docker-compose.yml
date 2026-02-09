@@ -81,6 +81,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
+      # SP8D 远程API配置（产品模板引入）
+      SP8D_API_BASE_URL: ${SP8D_API_BASE_URL:-https://pma.jamesgpone.win/api/v1}
+      SP8D_API_KEY: ${SP8D_API_KEY}
+
       # 邮件配置（新加坡环境使用 Gmail SMTP）
       MAIL_SERVER: ${MAIL_SERVER:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}

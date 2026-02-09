@@ -28,7 +28,7 @@ def index():
     selected_user_id = request.args.get('user_id', current_user.id, type=int)
 
     # 重定向到用户详情页的绩效标签（TW风格）
-    return redirect(url_for('user.user_detail', user_id=selected_user_id) + '?tw=1#performance')
+    return redirect(url_for('user.user_detail', user_id=selected_user_id) + '#performance')
 
 
 # 以下旧版绩效看板代码已移除（Bootstrap版本）
@@ -44,7 +44,7 @@ def index():
 def target_settings_redirect():
     """重定向到用户详情页的绩效设置"""
     selected_user_id = request.args.get('user_id', current_user.id, type=int)
-    return redirect(url_for('user.user_detail', user_id=selected_user_id) + '?tw=1#performance')
+    return redirect(url_for('user.user_detail', user_id=selected_user_id) + '#performance')
 
 
 # ============= 目标设置路由 =============

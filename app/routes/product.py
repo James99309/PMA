@@ -309,6 +309,7 @@ def product_list():
     category = request.args.get('category', '').strip()
     brand = filters.get('brand', '')
     status = filters.get('status', '')
+    category_manager = request.args.get('category_manager', '').strip()
 
     # 获取排序参数（默认按分类体系排序）
     valid_sort_fields = ['type', 'model', 'product_mn', 'brand', 'status', 'retail_price', 'created_at']
@@ -354,6 +355,15 @@ def product_list():
             query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
         query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
         query = query.filter(ProductCategory.name == category)
+
+    # 按分类负责人筛选
+    if category_manager:
+        manager_id = int(category_manager)
+        managed_cat_ids = [c.id for c in ProductCategory.query.filter_by(manager_id=manager_id).all()]
+        if managed_cat_ids:
+            query = query.filter(Product.category_id.in_(managed_cat_ids))
+        else:
+            query = query.filter(db.literal(False))
 
     # ============================================================
     # 4. 统计（在分页前）
@@ -406,7 +416,7 @@ def product_list():
     # ============================================================
     # 6. 检查是否为AJAX请求
     # ============================================================
-    if request.args.get('ajax') == '1' or request.args.get('tw') == '1' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    if request.args.get('ajax') == '1' or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         rows_html = render_template('product/tw_list_rows.html', products=products)
         return jsonify({
             'html': rows_html,
@@ -441,6 +451,18 @@ def product_list():
         {'value': 'active', 'label': _('生产中')},
         {'value': 'discontinued', 'label': _('已停产')},
         {'value': 'upcoming', 'label': _('待上市')}
+    ]
+
+    # 获取有管理分类的负责人列表
+    from app.models.user import User
+    manager_ids = db.session.query(ProductCategory.manager_id).filter(
+        ProductCategory.manager_id.isnot(None)
+    ).distinct().all()
+    manager_ids = [m[0] for m in manager_ids]
+    managers = User.query.filter(User.id.in_(manager_ids)).all() if manager_ids else []
+    manager_options = [
+        {'value': str(m.id), 'label': m.real_name or m.username}
+        for m in sorted(managers, key=lambda u: u.real_name or u.username)
     ]
 
     # ============================================================
@@ -483,6 +505,13 @@ def product_list():
                 'all_option_text': _('全部状态'),
                 'current_value': status,
                 'options': status_options
+            },
+            {
+                'name': 'category_manager',
+                'label': _('负责人'),
+                'all_option_text': _('全部负责人'),
+                'current_value': category_manager,
+                'options': manager_options
             }
         ],
     }
@@ -846,7 +875,7 @@ def product_list_ajax():
         category = request.args.get('category', '').strip()
         brand = request.args.get('brand', '').strip()
         status = request.args.get('status', '').strip()
-
+        category_manager = request.args.get('category_manager', '').strip()
         # ============================================================
         # 2. 提取排序和分页参数（默认按分类体系排序）
         # ============================================================
@@ -893,6 +922,15 @@ def product_list_ajax():
             query = query.filter(Product.brand == brand)
         if status:
             query = query.filter(Product.status == status)
+
+        # 按分类负责人筛选
+        if category_manager:
+            manager_id = int(category_manager)
+            managed_cat_ids = [c.id for c in ProductCategory.query.filter_by(manager_id=manager_id).all()]
+            if managed_cat_ids:
+                query = query.filter(Product.category_id.in_(managed_cat_ids))
+            else:
+                query = query.filter(db.literal(False))
 
         # ============================================================
         # 5. 应用排序
@@ -2346,7 +2384,7 @@ def update_product(id):
         return jsonify({
             'success': True,
             'message': '产品更新成功',
-            'redirect': url_for('product.view_product_detail', id=product.id, tw=1)
+            'redirect': url_for('product.view_product_detail', id=product.id)
         })
 
     except Exception as e:
@@ -3141,48 +3179,37 @@ def view_product_detail(id):
                 .scalar()
             order_quantity = int(order_stats or 0)
 
-        # 检查是否请求TW版本
-        use_tw = request.args.get('tw', '0') == '1'
-        template = 'product/tw_product_detail.html' if use_tw else 'product/detail.html'
-
         # 获取MN锁定状态
         is_mn_locked = product.is_mn_locked or False
 
-        # 获取模态框所需数据（用于TW版本的编辑功能）
-        modal_categories = []
+        # 获取模态框所需数据
+        from app.models.product_code import ProductCodeField, ProductCodeFieldOption
+        from app.utils.dictionary_helpers import get_currency_type_options
+
+        categories = ProductCategory.query.order_by(ProductCategory.display_order).all()
+        modal_categories = [
+            {'id': cat.id, 'name': cat.name, 'name_en': cat.name_en or cat.name, 'code_letter': cat.code_letter or ''}
+            for cat in categories
+        ]
+
+        region_fields = ProductCodeField.query.filter_by(field_type='origin_location')\
+                                              .order_by(ProductCodeField.position).all()
         modal_regions = []
-        modal_currencies = []
-        if use_tw:
-            from app.models.product_code import ProductCodeField, ProductCodeFieldOption
-            from app.utils.dictionary_helpers import get_currency_type_options
+        for field in region_fields:
+            code = field.code or '0'
+            if code == "?":
+                option = ProductCodeFieldOption.query.filter_by(field_id=field.id).first()
+                code = option.code if option else "0"
+            modal_regions.append({
+                'id': field.id,
+                'name': field.name,
+                'name_en': field.name_en or field.name,
+                'code': code
+            })
 
-            # 获取分类列表
-            categories = ProductCategory.query.order_by(ProductCategory.display_order).all()
-            modal_categories = [
-                {'id': cat.id, 'name': cat.name, 'name_en': cat.name_en or cat.name, 'code_letter': cat.code_letter or ''}
-                for cat in categories
-            ]
+        modal_currencies = get_currency_type_options()
 
-            # 获取销售区域
-            region_fields = ProductCodeField.query.filter_by(field_type='origin_location')\
-                                                  .order_by(ProductCodeField.position).all()
-            for field in region_fields:
-                code = field.code or '0'
-                if code == "?":
-                    option = ProductCodeFieldOption.query.filter_by(field_id=field.id).first()
-                    code = option.code if option else "0"
-                modal_regions.append({
-                    'id': field.id,
-                    'name': field.name,
-                    'name_en': field.name_en or field.name,
-                    'code': code
-                })
-
-            # 获取货币选项
-            modal_currencies = get_currency_type_options()
-
-
-        return render_template(template,
+        return render_template('product/tw_product_detail.html',
                                product=product,
                                product_specs=product_specs,
                                spec_categories=spec_categories,
@@ -4434,7 +4461,7 @@ def import_configuration_specs(product_id):
         return jsonify({
             'success': True,
             'message': _('成功导入 %(count)d 个规格项', count=len(new_specs)),
-            'redirect': url_for('product.view_product_detail', id=product_id, tw=1)
+            'redirect': url_for('product.view_product_detail', id=product_id)
         })
 
     except Exception as e:

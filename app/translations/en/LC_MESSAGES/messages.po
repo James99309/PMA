@@ -3123,6 +3123,8 @@ msgid "统计"
 msgstr "Statistics"
 msgid "环比"
 msgstr "Month-over-Month"
+msgid "较上月"
+msgstr "vs last month"
 msgid "增长"
 msgstr "Growth"
 msgid "下降"
@@ -7976,3 +7978,90 @@ msgstr "Asia Pacific"
 
 msgid "中国区"
 msgstr "China"
+
+msgid "技术支持团队"
+msgstr "Tech Support Team"
+
+msgid "方案工程师"
+msgstr "Solution Engineer"
+
+msgid "添加成员"
+msgstr "Add Member"
+
+msgid "暂无技术支持成员"
+msgstr "No tech support members"
+
+msgid "添加技术支持成员"
+msgstr "Add Tech Support Member"
+
+msgid "分布分析"
+msgstr "Distribution"
+
+msgid "排名分析"
+msgstr "Rankings"
+
+msgid "明细数据"
+msgstr "Detail"
+
+msgid "参与度"
+msgstr "Engagement"
+
+msgid "涉及项目数"
+msgstr "Projects Involved"
+
+msgid "月度金额趋势"
+msgstr "Monthly Amount Trend"
+
+msgid "月度数量趋势"
+msgstr "Monthly Quantity Trend"
+
+msgid "产品类别分布"
+msgstr "Product Category Distribution"
+
+msgid "项目阶段分布"
+msgstr "Project Stage Distribution"
+
+msgid "产品排名"
+msgstr "Product Ranking"
+
+msgid "PM排名"
+msgstr "PM Ranking"
+
+msgid "SE排名"
+msgstr "SE Ranking"
+
+msgid "总植入额"
+msgstr "Total Implant Value"
+
+msgid "确定要移除"
+msgstr "Are you sure to remove"
+
+msgid "请选择用户"
+msgstr "Please select a user"
+
+msgid "添加失败"
+msgstr "Add failed"
+
+msgid "选择用户"
+msgstr "Select User"
+
+msgid "请选择..."
+msgstr "Please select..."
+
+msgid "搜索产品/型号/项目..."
+msgstr "Search product/model/project..."
+
+msgid "核心"
+msgstr "Core"
+
+msgid "活跃"
+msgstr "Active"
+
+msgid "参与"
+msgstr "Involved"
+
+msgid "支持人员"
+msgstr "Support Staff"
+
+msgid "暂无技术支持活动"
+msgstr "No tech support activity"

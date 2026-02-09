@@ -20,7 +20,6 @@ from app.models.user import User
 from app.models.quotation import Quotation
 from app.models.expense import Expense, EXPENSE_CATEGORIES
 from app.models.pricing_order import PricingOrder
-from app.models.relation import ProjectMember
 from app.permissions import check_permission, Permissions
 from werkzeug.utils import secure_filename
 import os
@@ -639,11 +638,8 @@ def project_list_ajax():
             from app.utils.mobile_helpers import is_mobile_request
             from flask import render_template, render_template_string
 
-            # 检查是否请求 Tailwind 格式（新版页面）
-            use_tw_template = request.args.get('tw', '0') == '1' or request.args.get('ajax', '0') == '1'
-
-            if use_tw_template:
-                # 新版 Tailwind 页面使用的表格行模板
+            if request.args.get('ajax', '0') == '1':
+                # Tailwind 表格行模板
                 html = render_template('project/tw_list_rows.html', projects=projects)
                 current_app.logger.info("Tailwind 表格行渲染成功")
             elif is_mobile_request():
@@ -768,6 +764,126 @@ def project_list_ajax():
             'error': str(e),
             'html': f'<tr><td colspan="11" class="text-center text-danger">加载失败: {str(e)}</td></tr>'
         }), 500
+
+def get_project_contributors(project_id, exclude_user_ids=None):
+    """从工作项和跟进记录中自动发现项目参与者"""
+    from app.models.worklog import WorkItem
+    from app.utils.dictionary_helpers import get_role_display_name
+    exclude_ids = set(exclude_user_ids or [])
+
+    # 聚合 WorkItem 参与数据
+    wi_stats = db.session.query(
+        WorkItem.owner_id,
+        db.func.count(WorkItem.id).label('workitem_count'),
+        db.func.coalesce(db.func.sum(WorkItem.actual_hours), 0).label('total_hours'),
+        db.func.max(WorkItem.planned_date).label('last_wi_date')
+    ).filter(
+        WorkItem.project_id == project_id
+    ).group_by(WorkItem.owner_id).all()
+
+    # 聚合 WorkItem 共享用户参与数据
+    shared_wis = db.session.query(
+        WorkItem.shared_with_users
+    ).filter(
+        WorkItem.project_id == project_id,
+        WorkItem.shared_with_users.isnot(None)
+    ).all()
+
+    shared_counts = {}  # {user_id: count}
+    for (shared_list,) in shared_wis:
+        if not shared_list:
+            continue
+        for uid in shared_list:
+            if uid in exclude_ids:
+                continue
+            shared_counts[uid] = shared_counts.get(uid, 0) + 1
+
+    # 聚合 Action 参与数据
+    act_stats = db.session.query(
+        Action.owner_id,
+        db.func.count(Action.id).label('action_count'),
+        db.func.max(Action.date).label('last_act_date')
+    ).filter(
+        Action.project_id == project_id
+    ).group_by(Action.owner_id).all()
+
+    # 合并到字典
+    user_data = {}
+    for row in wi_stats:
+        uid = row.owner_id
+        if uid in exclude_ids:
+            continue
+        user_data[uid] = {
+            'workitem_count': row.workitem_count,
+            'action_count': 0,
+            'total_hours': float(row.total_hours or 0),
+            'last_activity': row.last_wi_date
+        }
+    for row in act_stats:
+        uid = row.owner_id
+        if uid in exclude_ids:
+            continue
+        if uid not in user_data:
+            user_data[uid] = {
+                'workitem_count': 0,
+                'action_count': 0,
+                'total_hours': 0,
+                'last_activity': None
+            }
+        user_data[uid]['action_count'] = row.action_count
+        if row.last_act_date:
+            existing = user_data[uid]['last_activity']
+            if existing is None or row.last_act_date > existing:
+                user_data[uid]['last_activity'] = row.last_act_date
+
+    # 将共享工作项计入 workitem_count
+    for uid, count in shared_counts.items():
+        if uid not in user_data:
+            user_data[uid] = {
+                'workitem_count': 0, 'action_count': 0,
+                'total_hours': 0, 'last_activity': None
+            }
+        user_data[uid]['workitem_count'] += count
+
+    if not user_data:
+        return []
+
+    # Batch load users
+    users_map = {u.id: u for u in User.query.filter(User.id.in_(user_data.keys())).all()}
+
+    # 分级 + 构建结果
+    results = []
+    for uid, stats in user_data.items():
+        user = users_map.get(uid)
+        if not user or user.role == 'admin':
+            continue
+        total = stats['workitem_count'] + stats['action_count']
+        if total >= 10:
+            level_label = _('核心')
+            level_class = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+        elif total >= 3:
+            level_label = _('活跃')
+            level_class = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+        else:
+            level_label = _('参与')
+            level_class = 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+
+        role_label = get_role_display_name(user.role) if user.role else ''
+
+        results.append({
+            'user': user,
+            'role_label': role_label,
+            'workitem_count': stats['workitem_count'],
+            'action_count': stats['action_count'],
+            'total_hours': stats['total_hours'],
+            'total_interactions': total,
+            'level_label': level_label,
+            'level_class': level_class
+        })
+
+    results.sort(key=lambda x: x['total_interactions'], reverse=True)
+    return results
+
 
 @project.route('/view/<int:project_id>')
 @permission_required_with_approval_context('project', 'view')
@@ -1100,6 +1216,12 @@ def view_project(project_id):
     from app.utils.dictionary_helpers import get_currency_type_options
     default_currency = get_default_currency()
 
+    # 获取项目参与者（自动衍生）
+    exclude_ids = [project.owner_id]
+    if project.vendor_sales_manager_id:
+        exclude_ids.append(project.vendor_sales_manager_id)
+    project_contributors = get_project_contributors(project.id, exclude_ids)
+
     # 模板上下文数据
     template_context = dict(
         project=project,
@@ -1129,6 +1251,8 @@ def view_project(project_id):
         # 关联客户和报价单数据（用于Tailwind模板）
         customer_associations_data=customer_associations_data,
         project_quotations=project_quotations,
+        # 项目参与者（自动衍生）
+        project_contributors=project_contributors,
         # 报销单数据（用于Tailwind模板）
         project_expenses=project_expenses,
         total_expense_amount=total_expense_amount,
@@ -1147,11 +1271,7 @@ def view_project(project_id):
         default_currency=default_currency
     )
 
-    # 根据请求参数选择模板：?tw=1 使用 Tailwind 模板
-    use_tailwind = request.args.get('tw', '0') == '1'
-    template_name = "project/tw_project_detail.html" if use_tailwind else "project/detail.html"
-
-    return render_template(template_name, **template_context)
+    return render_template("project/tw_project_detail.html", **template_context)
 
 @project.route('/add', methods=['GET', 'POST'])
 @permission_required('project', 'create')
@@ -2745,25 +2865,25 @@ def change_project_owner(project_id):
     project = Project.query.get_or_404(project_id)
     if not can_change_project_owner(current_user, project):
         flash('您没有权限修改该项目的拥有人', 'danger')
-        return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+        return redirect(url_for('project.view_project', project_id=project_id))
 
     # 检查项目是否被锁定
     from app.helpers.project_helpers import is_project_editable
     is_editable, lock_reason = is_project_editable(project_id, current_user.id)
     if not is_editable and current_user.role != 'admin':
         flash(f'项目已被锁定，无法修改拥有人: {lock_reason}', 'warning')
-        return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+        return redirect(url_for('project.view_project', project_id=project_id))
     
     new_owner_id = request.form.get('new_owner_id', type=int)
     if not new_owner_id:
         flash('请选择新的拥有人', 'danger')
-        return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+        return redirect(url_for('project.view_project', project_id=project_id))
 
     from app.models.user import User
     new_owner = User.query.get(new_owner_id)
     if not new_owner:
         flash('新拥有人不存在', 'danger')
-        return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+        return redirect(url_for('project.view_project', project_id=project_id))
     
     # 检查新拥有人是否是厂商企业账户
     is_vendor_company = new_owner.is_vendor_user()
@@ -2780,11 +2900,11 @@ def change_project_owner(project_id):
             vendor_sales_manager = User.query.get(form_vendor_id)
             if not vendor_sales_manager:
                 flash('厂商销售负责人不存在', 'danger')
-                return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+                return redirect(url_for('project.view_project', project_id=project_id))
 
             if not vendor_sales_manager.is_vendor_user():
                 flash('厂商销售负责人必须是厂商企业账户', 'danger')
-                return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+                return redirect(url_for('project.view_project', project_id=project_id))
             
             # 验证通过，更新为新的厂商销售负责人
             vendor_sales_manager_id = form_vendor_id
@@ -2832,7 +2952,7 @@ def change_project_owner(project_id):
     
     flash(success_msg, 'success')
     # 保持 tw 参数，返回 Tailwind 版本页面
-    return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+    return redirect(url_for('project.view_project', project_id=project_id))
 
 
 @project.route('/<int:project_id>/change_vendor_sales_manager', methods=['POST'])
@@ -2842,30 +2962,30 @@ def change_vendor_sales_manager(project_id):
     project = Project.query.get_or_404(project_id)
     if not can_change_project_owner(current_user, project):
         flash(_('您没有权限修改该项目的厂商销售负责人'), 'danger')
-        return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+        return redirect(url_for('project.view_project', project_id=project_id))
 
     # 检查项目是否被锁定
     from app.helpers.project_helpers import is_project_editable
     is_editable, lock_reason = is_project_editable(project_id, current_user.id)
     if not is_editable and current_user.role != 'admin':
         flash(_('项目已被锁定，无法修改厂商销售负责人: %(reason)s', reason=lock_reason), 'warning')
-        return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+        return redirect(url_for('project.view_project', project_id=project_id))
 
     vendor_sales_manager_id = request.form.get('vendor_sales_manager_id', type=int)
     if not vendor_sales_manager_id:
         flash(_('请选择厂商销售负责人'), 'danger')
-        return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+        return redirect(url_for('project.view_project', project_id=project_id))
 
     from app.models.user import User
     vendor_sales_manager = User.query.get(vendor_sales_manager_id)
     if not vendor_sales_manager:
         flash(_('厂商销售负责人不存在'), 'danger')
-        return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+        return redirect(url_for('project.view_project', project_id=project_id))
 
     # 验证是否为厂商用户
     if not vendor_sales_manager.is_vendor_user():
         flash(_('厂商销售负责人必须是厂商企业账户'), 'danger')
-        return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+        return redirect(url_for('project.view_project', project_id=project_id))
 
     # 记录旧值用于ChangeLog
     old_vendor_id = project.vendor_sales_manager_id
@@ -2894,7 +3014,7 @@ def change_vendor_sales_manager(project_id):
     db.session.commit()
     flash(_('厂商销售负责人已更新为 %(name)s', name=vendor_sales_manager.real_name or vendor_sales_manager.username), 'success')
     # 保持 tw 参数，返回 Tailwind 版本页面
-    return redirect(url_for('project.view_project', project_id=project_id, tw=1))
+    return redirect(url_for('project.view_project', project_id=project_id))
 
 
 @project.route('/action/reply/<int:reply_id>/delete', methods=['POST'])
@@ -4803,3 +4923,5 @@ def api_search_projects():
     except Exception as e:
         logger.error(f"搜索项目失败: {str(e)}")
         return jsonify({'results': []}), 500
+
+

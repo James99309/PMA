@@ -452,7 +452,7 @@ function messagePanel() {
                 return `/worklog/calendar?owner_id=${item.sender_id}`;
             } else if (item.related_object_type === 'quotation') {
                 // 报价单消息，跳转到报价单详情页
-                return `/quotation/${item.related_object_id}/detail?tw=1`;
+                return `/quotation/${item.related_object_id}/detail`;
             } else if (item.related_object_type === 'project') {
                 // 项目消息，跳转到项目详情页
                 return `/project/${item.related_object_id}/tw_detail`;

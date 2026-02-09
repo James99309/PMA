@@ -67,6 +67,10 @@ OLD_REQ_HASH=""
 if [ -f "requirements.txt" ]; then
     OLD_REQ_HASH=$(md5sum requirements.txt 2>/dev/null | cut -d' ' -f1 || echo "")
 fi
+OLD_COMPOSE_HASH=""
+if [ -f "$DEPLOY_DIR/docker-compose.yml" ]; then
+    OLD_COMPOSE_HASH=$(md5sum "$DEPLOY_DIR/docker-compose.yml" 2>/dev/null | cut -d' ' -f1 || echo "")
+fi
 
 echo -e "\n${YELLOW}[1/4] 拉取最新代码...${NC}"
 if [ "$SKIP_GIT" = true ]; then
@@ -81,10 +85,14 @@ else
     chown -R 1000:1000 "$PROJECT_DIR"
 fi
 
-# 检查 requirements.txt 是否变化
+# 检查 requirements.txt 和 docker-compose.yml 是否变化
 NEW_REQ_HASH=""
 if [ -f "requirements.txt" ]; then
     NEW_REQ_HASH=$(md5sum requirements.txt 2>/dev/null | cut -d' ' -f1 || echo "")
+fi
+NEW_COMPOSE_HASH=""
+if [ -f "$DEPLOY_DIR/docker-compose.yml" ]; then
+    NEW_COMPOSE_HASH=$(md5sum "$DEPLOY_DIR/docker-compose.yml" 2>/dev/null | cut -d' ' -f1 || echo "")
 fi
 
 NEED_REBUILD=false
@@ -105,6 +113,9 @@ elif [ "$OLD_REQ_HASH" != "$NEW_REQ_HASH" ] && [ -n "$OLD_REQ_HASH" ]; then
     else
         echo -e "${YELLOW}已跳过重建。注意：新依赖将不会生效！${NC}"
     fi
+elif [ "$OLD_COMPOSE_HASH" != "$NEW_COMPOSE_HASH" ] && [ -n "$OLD_COMPOSE_HASH" ]; then
+    echo -e "${YELLOW}[检测] docker-compose.yml 已变化（环境变量/配置更新）${NC}"
+    NEED_REBUILD=true
 else
     echo -e "${GREEN}[检测] requirements.txt 无变化，使用热重载${NC}"
 fi

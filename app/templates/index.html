@@ -7,7 +7,7 @@
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
-    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -77,13 +77,6 @@
     </style>
     <!-- 工作记录组件样式 -->
     {{ render_tw_work_records_styles() }}
-    <script>
-        // 深色模式检测
-        if (localStorage.getItem('theme') === 'dark' ||
-            (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-            document.documentElement.classList.add('dark');
-        }
-    </script>
     <script src="{{ url_for('static', filename='js/currency-helpers.js') }}"></script>
 </head>
 <body class="font-display bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-200">
@@ -261,7 +254,7 @@
                                         {% set progress = stage_progress.get(current_stage, 0) %}
                                         <tr>
                                             <td class="py-2 font-medium text-slate-800 dark:text-slate-200 text-sm max-w-0">
-                                                <a href="{{ url_for('project.view_project', project_id=project.id, tw=1) }}" class="hover:text-primary block truncate" title="{{ project.project_name }}">
+                                                <a href="{{ url_for('project.view_project', project_id=project.id) }}" class="hover:text-primary block truncate" title="{{ project.project_name }}">
                                                     {{ project.project_name }}
                                                 </a>
                                             </td>
@@ -309,7 +302,7 @@
                                         {% for quotation in recent_quotations %}
                                         <tr>
                                             <td class="py-2 font-medium text-slate-800 dark:text-slate-200 text-sm max-w-0">
-                                                <a href="{{ url_for('quotation.view_quotation', id=quotation.id, tw=1) }}" class="hover:text-primary block truncate" title="{{ quotation.quotation_number }}">
+                                                <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}" class="hover:text-primary block truncate" title="{{ quotation.quotation_number }}">
                                                     {{ quotation.quotation_number }}
                                                 </a>
                                             </td>
@@ -342,7 +335,7 @@
                             <h3 class="text-slate-900 dark:text-white text-base font-medium">{{ _('最近报销') }}</h3>
                             <div class="flex items-center gap-2">
                                 {% if has_permission('expense', 'create') %}
-                                <a href="{{ url_for('expense.expense_list', tw=1, action='create') }}" class="flex items-center justify-center gap-1.5 rounded-md h-8 px-3 bg-primary text-white text-xs font-bold hover:bg-primary/90">
+                                <a href="{{ url_for('expense.expense_list', action='create') }}" class="flex items-center justify-center gap-1.5 rounded-md h-8 px-3 bg-primary text-white text-xs font-bold hover:bg-primary/90">
                                     <span class="material-symbols-outlined text-sm">add</span>
                                     <span>{{ _('新建报销') }}</span>
                                 </a>

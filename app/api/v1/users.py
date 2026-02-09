@@ -42,7 +42,7 @@ def get_users():
     # 添加状态过滤
     if status:
         is_active = True if status == 'active' else False
-        query = query.filter(User.is_active == is_active)
+        query = query.filter(User._is_active == is_active)
     
     # 分页
     total = query.count()

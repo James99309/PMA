@@ -4,7 +4,7 @@
 {% for project in projects %}
 <tr class="table-row-hover transition-colors">
     {{ tw_cell_badge(render_tw_owner_badge(project.owner)) }}
-    {{ tw_cell_link(url_for('project.view_project', project_id=project.id, tw=1), project.project_name, title=project.project_name) }}
+    {{ tw_cell_link(url_for('project.view_project', project_id=project.id), project.project_name, title=project.project_name) }}
     {{ tw_cell_mono(project.authorization_code) }}
     {{ tw_cell_badge(render_tw_customer_status_badge(project.activity_status)) }}
     {{ tw_cell_badge(render_tw_project_stage_badge_key(project.current_stage)) }}

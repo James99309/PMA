@@ -42,7 +42,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
 <html lang="{{ session.get('language', 'zh') }}">
 
 <head>
-    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -339,7 +339,7 @@ render_expense_category_badge, render_tw_expense_category_badge, render_tw_curre
                                     <p class="font-medium text-slate-800 dark:text-white">
                                         {% if expense.project %}
                                             {% if can_view_project(current_user, expense.project) %}
-                                            <a href="{{ url_for('project.view_project', project_id=expense.project.id, tw=1) }}"
+                                            <a href="{{ url_for('project.view_project', project_id=expense.project.id) }}"
                                                 class="text-primary hover:underline">{{ expense.project.project_name }}</a>
                                             {% else %}
                                             <span class="text-slate-600 dark:text-slate-400">{{ expense.project.project_name }}</span>

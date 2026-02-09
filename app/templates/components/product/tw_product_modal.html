@@ -782,12 +782,7 @@ window.ProductModal = (function() {
                 close();
                 // 刷新列表或重定向
                 if (result.redirect) {
-                    // 标准产品详情页需要加上 tw=1 参数以使用 Tailwind 版本
-                    let redirectUrl = result.redirect;
-                    if (config.productType === 'standard' && redirectUrl.includes('/detail')) {
-                        redirectUrl += (redirectUrl.includes('?') ? '&' : '?') + 'tw=1';
-                    }
-                    window.location.href = redirectUrl;
+                    window.location.href = result.redirect;
                 } else {
                     window.location.reload();
                 }

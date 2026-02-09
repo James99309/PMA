@@ -318,6 +318,14 @@ Tailwind 统一布局组件
         localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
     });
 
+    // 监听系统主题变化（仅在用户未手动设置时跟随）
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+        if (!localStorage.getItem('theme')) {
+            document.documentElement.classList.remove('light', 'dark');
+            document.documentElement.classList.add(e.matches ? 'dark' : 'light');
+        }
+    });
+
     // ========== 日历待办状态提示 ==========
     function updateCalendarPendingDot() {
         const dot = document.getElementById('calendarPendingDot');

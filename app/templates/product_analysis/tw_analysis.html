@@ -1,0 +1,502 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_line_chart.html' import render_tw_line_chart, render_tw_line_chart_script, render_tw_line_chart_style %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('植入产品分析') }} - PMA</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" }, fontFamily: { "display": ["Inter","sans-serif"] } } }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+    {{ render_tw_line_chart_style() }}
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+{% call(slot) render_tw_layout(active_page='product_analysis', show_search=true) %}
+{% if slot == 'content' %}
+{% call(page_slot) render_tw_fixed_page() %}
+{% if page_slot == 'header' %}
+    <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('植入产品分析') }}</h1>
+    <div class="flex items-center gap-3">
+        <select id="yearSelect" onchange="window.dashboard && dashboard.changeYear(this.value)"
+                class="h-10 pl-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 appearance-none bg-no-repeat cursor-pointer focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                style="background-image:url('data:image/svg+xml,<%3Fxml version=%221.0%22%3F><svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');background-position:right 0.5rem center;">
+            {% for y in range(2024, 2028) %}
+            <option value="{{ y }}" {% if y == now_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+        </select>
+    </div>
+{% elif page_slot == 'content' %}
+<div x-data="productAnalysisDashboard()" x-init="init()" x-cloak>
+
+    {# Stat Cards #}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('总植入额') }}</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white" x-text="formatAmount(overview.total_amount)">-</div>
+            <div class="text-xs mt-1" :class="overview.mom_rate >= 0 ? 'text-green-600' : 'text-red-500'">
+                <span x-text="(overview.mom_rate >= 0 ? '+' : '') + overview.mom_rate + '%'"></span> {{ _('较上月') }}
+            </div>
+        </div>
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('产品数量') }}</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white" x-text="overview.total_quantity || 0">-</div>
+        </div>
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('涉及项目数') }}</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white" x-text="overview.project_count || 0">-</div>
+        </div>
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('本月新增') }}</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white" x-text="formatAmount(overview.this_month_amount)">-</div>
+        </div>
+    </div>
+
+    {# Tabs #}
+    <div class="flex border-b border-slate-200 dark:border-slate-700 mb-6 overflow-x-auto">
+        <template x-for="tab in tabs" :key="tab.key">
+            <button @click="activeTab = tab.key"
+                    :class="activeTab === tab.key ? 'border-primary text-primary font-semibold' : 'border-transparent text-slate-500 hover:text-slate-700'"
+                    class="px-4 py-2.5 text-sm border-b-2 whitespace-nowrap transition-colors"
+                    x-text="tab.label"></button>
+        </template>
+    </div>
+
+    {# Tab: 趋势分析 #}
+    <div x-show="activeTab === 'trend'" x-transition>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4">{{ _('月度金额趋势') }}</h3>
+                <div id="trendAmountChart" style="height: 280px;"></div>
+            </div>
+            <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4">{{ _('月度数量趋势') }}</h3>
+                <div id="trendQtyChart" style="height: 280px;"></div>
+            </div>
+        </div>
+    </div>
+
+    {# Tab: 分布分析 #}
+    <div x-show="activeTab === 'distribution'" x-transition>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4">{{ _('产品类别分布') }}</h3>
+                <div id="categoryDistChart">
+                    <template x-for="(item, idx) in distribution.categories" :key="idx">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-24 text-sm text-slate-600 dark:text-slate-300 truncate" x-text="item.name"></div>
+                            <div class="flex-1 h-6 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div class="h-full bg-primary/80 rounded-full transition-all duration-500"
+                                     :style="'width:' + (distribution.categories.length ? (item.amount / Math.max(...distribution.categories.map(c=>c.amount)) * 100) : 0) + '%'"></div>
+                            </div>
+                            <div class="w-28 text-right text-sm font-medium text-slate-700 dark:text-slate-200" x-text="formatAmount(item.amount)"></div>
+                        </div>
+                    </template>
+                    <div x-show="!distribution.categories.length" class="text-center py-8 text-slate-400 text-sm">{{ _('暂无数据') }}</div>
+                </div>
+            </div>
+            <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-4">{{ _('项目阶段分布') }}</h3>
+                <div id="stageDistChart">
+                    <template x-for="(item, idx) in distribution.stages" :key="idx">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-24 text-sm text-slate-600 dark:text-slate-300 truncate" x-text="item.label"></div>
+                            <div class="flex-1 h-6 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                <div class="h-full bg-amber-500/80 rounded-full transition-all duration-500"
+                                     :style="'width:' + (distribution.stages.length ? (item.amount / Math.max(...distribution.stages.map(s=>s.amount)) * 100) : 0) + '%'"></div>
+                            </div>
+                            <div class="w-28 text-right text-sm font-medium text-slate-700 dark:text-slate-200" x-text="formatAmount(item.amount)"></div>
+                        </div>
+                    </template>
+                    <div x-show="!distribution.stages.length" class="text-center py-8 text-slate-400 text-sm">{{ _('暂无数据') }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Tab: 排名分析 #}
+    <div x-show="activeTab === 'ranking'" x-transition>
+        <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <table class="w-full text-sm text-left" x-show="ranking.length">
+                <thead class="border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                        <th class="p-3 text-slate-500 font-medium" style="width:40px">#</th>
+                        <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleRankSort('name')">
+                            <span class="inline-flex items-center gap-1">{{ _('产品') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='name'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='name'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleRankSort('model')">
+                            <span class="inline-flex items-center gap-1">{{ _('型号') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='model'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='model'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleRankSort('amount')">
+                            <span class="inline-flex items-center gap-1 justify-end">{{ _('金额') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='amount'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='amount'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleRankSort('quantity')">
+                            <span class="inline-flex items-center gap-1 justify-end">{{ _('数量') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='quantity'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='quantity'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="(item, idx) in sortedRanking" :key="idx">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td class="p-3 text-slate-400" x-text="idx + 1"></td>
+                            <td class="p-3 font-medium text-slate-800 dark:text-white" x-text="item.name"></td>
+                            <td class="p-3 text-slate-600 dark:text-slate-300 font-mono text-xs" x-text="item.model"></td>
+                            <td class="p-3 text-right font-medium" x-text="formatAmount(item.amount)"></td>
+                            <td class="p-3 text-right" x-text="item.quantity"></td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+            <div x-show="!ranking.length" class="text-center py-8 text-slate-400 text-sm">{{ _('暂无数据') }}</div>
+        </div>
+    </div>
+
+    {# Tab: 明细数据 #}
+    <div x-show="activeTab === 'detail'" x-transition>
+        <div class="mb-4 flex flex-wrap gap-3">
+            <div class="relative">
+                <input type="text" x-model="detailSearch" @input.debounce.300ms="loadDetail(1)"
+                       placeholder="{{ _('搜索产品/型号/项目...') }}"
+                       class="h-10 px-4 pr-9 w-64 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm">
+                <button x-show="detailSearch" @click="detailSearch=''; loadDetail(1)"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </div>
+        <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="overflow-x-auto" style="max-height: calc(100vh - 380px);">
+                <table class="w-full text-sm text-left">
+                    <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                        <tr>
+                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleDetailSort('product_name')">
+                                <span class="inline-flex items-center gap-1">{{ _('产品') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='product_name'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='product_name'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                            </th>
+                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleDetailSort('product_model')">
+                                <span class="inline-flex items-center gap-1">{{ _('型号') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='product_model'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='product_model'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                            </th>
+                            <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleDetailSort('quantity')">
+                                <span class="inline-flex items-center gap-1 justify-end">{{ _('数量') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='quantity'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='quantity'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                            </th>
+                            <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleDetailSort('total_price')">
+                                <span class="inline-flex items-center gap-1 justify-end">{{ _('金额') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='total_price'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='total_price'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                            </th>
+                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleDetailSort('project_name')">
+                                <span class="inline-flex items-center gap-1">{{ _('项目') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='project_name'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='project_name'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                            </th>
+                            <th class="p-3 text-slate-500 font-medium">{{ _('阶段') }}</th>
+                            <th class="p-3 text-slate-500 font-medium">{{ _('负责人') }}</th>
+                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleDetailSort('created_at')">
+                                <span class="inline-flex items-center gap-1">{{ _('日期') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='created_at'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='created_at'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(row, idx) in detailData" :key="idx">
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                                <td class="p-3 font-medium text-slate-800 dark:text-white" x-text="row.product_name"></td>
+                                <td class="p-3 text-slate-600 dark:text-slate-300 font-mono text-xs" x-text="row.product_model"></td>
+                                <td class="p-3 text-right" x-text="row.quantity"></td>
+                                <td class="p-3 text-right font-medium" x-text="formatAmount(row.total_price)"></td>
+                                <td class="p-3">
+                                    <a :href="'/project/view/' + row.project_id" class="text-primary hover:underline text-sm" x-text="row.project_name"></a>
+                                </td>
+                                <td class="p-3 text-slate-500 text-xs" x-text="row.stage"></td>
+                                <td class="p-3 text-sm" x-text="row.owner"></td>
+                                <td class="p-3 text-slate-400 text-xs" x-text="row.created_at"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="!detailData.length && !loading">
+                            <td colspan="8" class="p-8 text-center text-slate-400 text-sm">{{ _('暂无数据') }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            {# Pagination #}
+            <div class="px-4 py-3 flex items-center justify-between border-t border-slate-200 dark:border-slate-700" x-show="detailTotal > detailPerPage">
+                <div class="text-sm text-slate-500">
+                    {{ _('共') }} <span x-text="detailTotal"></span> {{ _('条') }}
+                </div>
+                <div class="flex gap-1">
+                    <button @click="loadDetail(detailPage - 1)" :disabled="detailPage <= 1"
+                            class="px-3 py-1.5 rounded text-sm border border-slate-300 dark:border-slate-600 disabled:opacity-40">{{ _('上一页') }}</button>
+                    <span class="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-300" x-text="detailPage + '/' + detailPages"></span>
+                    <button @click="loadDetail(detailPage + 1)" :disabled="detailPage >= detailPages"
+                            class="px-3 py-1.5 rounded text-sm border border-slate-300 dark:border-slate-600 disabled:opacity-40">{{ _('下一页') }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Loading overlay #}
+    <div x-show="loading" class="fixed inset-0 bg-white/50 dark:bg-black/30 z-40 flex items-center justify-center" x-transition>
+        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 shadow-lg rounded-lg px-5 py-3">
+            <svg class="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span class="text-sm text-slate-600 dark:text-slate-300">{{ _('加载中...') }}</span>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endcall %}
+{% endif %}
+{% endcall %}
+
+{{ render_tw_layout_script() }}
+{{ render_tw_line_chart_script() }}
+<script>
+function productAnalysisDashboard() {
+    return {
+        selectedYear: new Date().getFullYear(),
+        activeTab: 'trend',
+        loading: false,
+        tabs: [
+            { key: 'trend', label: '{{ _("趋势分析") }}' },
+            { key: 'distribution', label: '{{ _("分布分析") }}' },
+            { key: 'ranking', label: '{{ _("排名分析") }}' },
+            { key: 'detail', label: '{{ _("明细数据") }}' }
+        ],
+        overview: { total_amount: 0, total_quantity: 0, project_count: 0, mom_rate: 0, this_month_amount: 0 },
+        trendData: [],
+        distribution: { categories: [], stages: [] },
+        ranking: [],
+        rankSort: 'quantity',
+        rankSortDir: 'desc',
+        detailData: [],
+        detailSearch: '',
+        detailPage: 1,
+        detailPerPage: 50,
+        detailTotal: 0,
+        detailPages: 1,
+        detailSort: 'created_at',
+        detailSortDir: 'desc',
+        viewScope: {{ view_scope | tojson }},
+
+        async init() {
+            window.dashboard = this;
+            this.selectedYear = parseInt(document.getElementById('yearSelect').value);
+            this.$watch('activeTab', (tab) => {
+                if (tab === 'trend' && !this.trendData.length) this.loadTrend();
+                if (tab === 'distribution' && !this.distribution.categories.length && !this.distribution.stages.length) this.loadDistribution();
+                if (tab === 'ranking' && !this.ranking.length) this.loadRanking();
+                if (tab === 'detail' && !this.detailData.length) this.loadDetail(1);
+            });
+            await this.loadOverview();
+            await this.loadTrend();
+        },
+
+        changeYear(y) {
+            this.selectedYear = parseInt(y);
+            // trendData 不清空——趋势图始终是滚动12月，不受年份影响
+            this.distribution = { categories: [], stages: [] };
+            this.ranking = [];
+            this.detailData = [];
+            this.loadOverview();
+            if (this.activeTab === 'distribution') this.loadDistribution();
+            else if (this.activeTab === 'ranking') this.loadRanking();
+            else if (this.activeTab === 'detail') this.loadDetail(1);
+        },
+
+        formatAmount(val) {
+            if (!val) return '¥0';
+            const wan = val / 10000;
+            if (wan >= 1) return '¥' + wan.toFixed(2) + '万';
+            return '¥' + parseFloat(val).toLocaleString('zh-CN', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+        },
+
+        async fetchApi(url) {
+            const sep = url.includes('?') ? '&' : '?';
+            const resp = await fetch(url + sep + 'year=' + this.selectedYear);
+            return await resp.json();
+        },
+
+        async loadOverview() {
+            this.loading = true;
+            try {
+                const result = await this.fetchApi('/product_analysis/api/v2/overview');
+                if (result.success) this.overview = result.data;
+            } catch(e) { console.error(e); }
+            this.loading = false;
+        },
+
+        async loadTrend() {
+            try {
+                const resp = await fetch('/product_analysis/api/v2/trend');
+                const result = await resp.json();
+                if (result.success) {
+                    this.trendData = result.data;
+                    this.$nextTick(() => this.renderTrendCharts());
+                }
+            } catch(e) { console.error(e); }
+        },
+
+        renderTrendCharts() {
+            const labels = this.trendData.map((d, i) => {
+                if (i === 0 || (i > 0 && d.year !== this.trendData[i-1].year)) {
+                    return d.year + '\n' + d.label;
+                }
+                return d.label;
+            });
+            const amounts = this.trendData.map(d => d.amount / 10000);
+            const qtys = this.trendData.map(d => d.quantity);
+            const currentIdx = this.trendData.findIndex(d => d.is_current);
+
+            this.drawBarChart('trendAmountChart', labels, amounts, '万元', '#137fec', currentIdx);
+            this.drawBarChart('trendQtyChart', labels, qtys, '个', '#f59e0b', currentIdx);
+        },
+
+        drawBarChart(containerId, labels, values, unit, color, currentIdx = -1) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const w = container.clientWidth || 500;
+            const h = 280;
+            const hasYearLabels = labels.some(l => l.includes('\n'));
+            const bottomPad = hasYearLabels ? 52 : 40;
+            const padding = { top: 20, right: 20, bottom: bottomPad, left: 60 };
+            const chartW = w - padding.left - padding.right;
+            const chartH = h - padding.top - padding.bottom;
+
+            const maxVal = Math.max(...values, 1);
+            const barW = Math.max(chartW / labels.length * 0.6, 8);
+            const gap = chartW / labels.length;
+
+            let svg = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">`;
+            // Grid lines
+            for (let i = 0; i <= 4; i++) {
+                const y = padding.top + chartH - (chartH / 4 * i);
+                const val = (maxVal / 4 * i).toFixed(1);
+                svg += `<line x1="${padding.left}" y1="${y}" x2="${w - padding.right}" y2="${y}" stroke="currentColor" class="text-slate-200 dark:text-slate-700" stroke-width="1"/>`;
+                svg += `<text x="${padding.left - 8}" y="${y + 4}" text-anchor="end" class="fill-slate-400" style="font-size:11px">${val}</text>`;
+            }
+            // Bars
+            labels.forEach((label, i) => {
+                const x = padding.left + gap * i + (gap - barW) / 2;
+                const barH = (values[i] / maxVal) * chartH;
+                const y = padding.top + chartH - barH;
+                const opacity = i === currentIdx ? '1' : (values[i] > 0 ? '0.7' : '0.3');
+                svg += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" rx="3" fill="${color}" opacity="${opacity}"/>`;
+                // 标签：支持多行（年份\n月份）
+                const cx = padding.left + gap * i + gap / 2;
+                const parts = label.split('\n');
+                if (parts.length === 2) {
+                    svg += `<text x="${cx}" y="${h - bottomPad + 24}" text-anchor="middle" class="fill-slate-500" style="font-size:11px">${parts[1]}</text>`;
+                    svg += `<text x="${cx}" y="${h - bottomPad + 38}" text-anchor="middle" class="fill-slate-400" style="font-size:9px">${parts[0]}</text>`;
+                } else {
+                    svg += `<text x="${cx}" y="${h - bottomPad + 24}" text-anchor="middle" class="fill-slate-500" style="font-size:11px">${label}</text>`;
+                }
+                if (values[i] > 0) {
+                    svg += `<text x="${x + barW/2}" y="${y - 5}" text-anchor="middle" class="fill-slate-600 dark:fill-slate-300" style="font-size:10px">${values[i] % 1 === 0 ? values[i] : values[i].toFixed(1)}</text>`;
+                }
+                // 当前月标记
+                if (i === currentIdx) {
+                    svg += `<circle cx="${x + barW/2}" cy="${padding.top + chartH + 6}" r="2.5" fill="${color}"/>`;
+                }
+            });
+            svg += `</svg>`;
+            container.innerHTML = svg;
+        },
+
+        async loadDistribution() {
+            try {
+                const result = await this.fetchApi('/product_analysis/api/v2/distribution');
+                if (result.success) this.distribution = result.data;
+            } catch(e) { console.error(e); }
+        },
+
+        async loadRanking() {
+            try {
+                const result = await this.fetchApi('/product_analysis/api/v2/ranking');
+                if (result.success) this.ranking = result.data;
+            } catch(e) { console.error(e); }
+        },
+
+        get sortedRanking() {
+            return [...this.ranking].sort((a, b) => {
+                let va = a[this.rankSort], vb = b[this.rankSort];
+                let cmp = typeof va === 'string' ? va.localeCompare(vb, 'zh') : va - vb;
+                return this.rankSortDir === 'desc' ? -cmp : cmp;
+            });
+        },
+
+        toggleRankSort(field) {
+            if (this.rankSort === field) {
+                this.rankSortDir = this.rankSortDir === 'desc' ? 'asc' : 'desc';
+            } else {
+                this.rankSort = field;
+                this.rankSortDir = 'desc';
+            }
+        },
+
+        toggleDetailSort(field) {
+            if (this.detailSort === field) {
+                this.detailSortDir = this.detailSortDir === 'desc' ? 'asc' : 'desc';
+            } else {
+                this.detailSort = field;
+                this.detailSortDir = 'desc';
+            }
+            this.loadDetail(1);
+        },
+
+        async loadDetail(page) {
+            if (page < 1) return;
+            this.detailPage = page;
+            try {
+                const params = new URLSearchParams({
+                    year: this.selectedYear,
+                    page: page,
+                    per_page: this.detailPerPage
+                });
+                if (this.detailSearch) params.set('search', this.detailSearch);
+                params.set('sort_by', this.detailSort);
+                params.set('sort_dir', this.detailSortDir);
+                const resp = await fetch('/product_analysis/api/v2/detail?' + params.toString());
+                const result = await resp.json();
+                if (result.success) {
+                    this.detailData = result.data;
+                    this.detailTotal = result.total;
+                    this.detailPages = result.pages;
+                }
+            } catch(e) { console.error(e); }
+        }
+    };
+}
+
+// Global reference for year selector
+window.dashboard = {
+    changeYear(y) {
+        const el = document.querySelector('[x-data]');
+        if (el && el._x_dataStack) {
+            el._x_dataStack[0].changeYear(y);
+        }
+    }
+};
+</script>
+</body>
+</html>

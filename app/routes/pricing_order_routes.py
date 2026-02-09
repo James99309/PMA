@@ -1336,134 +1336,111 @@ def list_pricing_orders():
     """批价单列表页面"""
     from flask_babel import gettext as _
 
-    tw = request.args.get('tw')
+    from app.models.user import User
 
-    if tw:
-        # ---- Tailwind 版本 ----
-        from app.models.user import User
+    search = request.args.get('search', '').strip()
+    status_filter = request.args.get('status_filter', '').strip()
+    owner_filter = request.args.get('owner_filter', '').strip()
+    sort_field = request.args.get('sort', 'created_at')
+    sort_order = request.args.get('order', 'desc')
+    offset = request.args.get('offset', 0, type=int)
+    limit = request.args.get('limit', 30, type=int)
+    limit = min(limit, 100)
 
-        search = request.args.get('search', '').strip()
-        status_filter = request.args.get('status_filter', '').strip()
-        owner_filter = request.args.get('owner_filter', '').strip()
-        sort_field = request.args.get('sort', 'created_at')
-        sort_order = request.args.get('order', 'desc')
-        offset = request.args.get('offset', 0, type=int)
-        limit = request.args.get('limit', 30, type=int)
-        limit = min(limit, 100)
+    # 构建查询（仅1次 get_viewable_data）
+    base_query = _build_pricing_order_query(current_user)
 
-        # 构建查询（仅1次 get_viewable_data）
-        base_query = _build_pricing_order_query(current_user)
+    # 获取负责人列表（从 base_query 提取，无需额外构建）
+    unique_owner_ids = {row[0] for row in base_query.with_entities(
+        PricingOrder.created_by.distinct()
+    ).filter(PricingOrder.created_by.isnot(None)).all()}
+    available_users = User.query.filter(
+        User.id.in_(unique_owner_ids)
+    ).order_by(User.real_name, User.username).all()
 
-        # 获取负责人列表（从 base_query 提取，无需额外构建）
-        unique_owner_ids = {row[0] for row in base_query.with_entities(
-            PricingOrder.created_by.distinct()
-        ).filter(PricingOrder.created_by.isnot(None)).all()}
-        available_users = User.query.filter(
-            User.id.in_(unique_owner_ids)
-        ).order_by(User.real_name, User.username).all()
+    # 应用筛选
+    filtered_query = _apply_pricing_order_filters(base_query, search, status_filter, owner_filter)
 
-        # 应用筛选
-        filtered_query = _apply_pricing_order_filters(base_query, search, status_filter, owner_filter)
+    # 统计（1次聚合，同时拿到 total_count）
+    stats_cards, total_count = _get_pricing_order_stats(filtered_query)
 
-        # 统计（1次聚合，同时拿到 total_count）
-        stats_cards, total_count = _get_pricing_order_stats(filtered_query)
+    # 排序和分页
+    query = _apply_pricing_order_sort(filtered_query, sort_field, sort_order)
+    pricing_orders = query.offset(offset).limit(limit).all()
+    has_more = (offset + limit) < total_count
 
-        # 排序和分页
-        query = _apply_pricing_order_sort(filtered_query, sort_field, sort_order)
-        pricing_orders = query.offset(offset).limit(limit).all()
-        has_more = (offset + limit) < total_count
-
-        # 筛选配置
-        tw_url = url_for('pricing_order.list_pricing_orders', tw=1)
-        filter_config = {
-            'action_url': tw_url,
-            'form_id': 'filterForm',
-            'reset_url': tw_url,
-            'search_field': {
-                'name': 'search',
-                'label': _('搜索'),
-                'placeholder': _('批价单号或项目名称'),
-                'value': search,
-            },
-            'filter_fields': [
-                {
-                    'name': 'owner_filter',
-                    'label': _('负责人'),
-                    'all_option_text': _('全部负责人'),
-                    'current_value': owner_filter,
-                    'col_width': 2,
-                    'options': [
-                        {'value': str(u.id), 'label': u.real_name or u.username}
-                        for u in available_users
-                    ],
-                },
-                {
-                    'name': 'status_filter',
-                    'label': _('状态'),
-                    'all_option_text': _('全部状态'),
-                    'current_value': status_filter,
-                    'col_width': 2,
-                    'options': [
-                        {'value': 'draft', 'label': _('草稿')},
-                        {'value': 'pending', 'label': _('审批中')},
-                        {'value': 'approved', 'label': _('已批准')},
-                        {'value': 'rejected', 'label': _('已拒绝')},
-                    ],
-                },
-            ],
-            'auto_submit': True,
-            'ajax_mode': True,
-            'dynamic_reset_button': True,
-        }
-
-        # 列表配置
-        list_config = {
-            'stats': {'cards': stats_cards},
-            'table': {
-                'columns': [
-                    {'key': 'owner', 'field': 'created_by', 'label': _('负责人'), 'type': 'text', 'width': '100px', 'sort_type': 'string'},
-                    {'key': 'order_number', 'field': 'order_number', 'label': _('批价单号'), 'type': 'link', 'width': '180px', 'min_width': '160px', 'sort_type': 'string'},
-                    {'key': 'project_name', 'field': 'project_id', 'label': _('项目名称'), 'type': 'text', 'width': '240px', 'min_width': '200px', 'sort_type': 'string'},
-                    {'key': 'status', 'field': 'status', 'label': _('状态'), 'type': 'text', 'width': '100px', 'sort_type': 'string'},
-                    {'key': 'pricing_total_amount', 'field': 'pricing_total_amount', 'label': _('批价总额'), 'type': 'number', 'align': 'end', 'width': '140px', 'sort_type': 'currency'},
-                    {'key': 'created_at', 'field': 'created_at', 'label': _('创建时间'), 'type': 'date', 'width': '120px', 'sort_type': 'date'},
+    # 筛选配置
+    filter_config = {
+        'action_url': url_for('pricing_order.list_pricing_orders'),
+        'form_id': 'filterForm',
+        'reset_url': url_for('pricing_order.list_pricing_orders'),
+        'search_field': {
+            'name': 'search',
+            'label': _('搜索'),
+            'placeholder': _('批价单号或项目名称'),
+            'value': search,
+        },
+        'filter_fields': [
+            {
+                'name': 'owner_filter',
+                'label': _('负责人'),
+                'all_option_text': _('全部负责人'),
+                'current_value': owner_filter,
+                'col_width': 2,
+                'options': [
+                    {'value': str(u.id), 'label': u.real_name or u.username}
+                    for u in available_users
                 ],
             },
-        }
+            {
+                'name': 'status_filter',
+                'label': _('状态'),
+                'all_option_text': _('全部状态'),
+                'current_value': status_filter,
+                'col_width': 2,
+                'options': [
+                    {'value': 'draft', 'label': _('草稿')},
+                    {'value': 'pending', 'label': _('审批中')},
+                    {'value': 'approved', 'label': _('已批准')},
+                    {'value': 'rejected', 'label': _('已拒绝')},
+                ],
+            },
+        ],
+        'auto_submit': True,
+        'ajax_mode': True,
+        'dynamic_reset_button': True,
+    }
 
-        # 查询结算Tab权限（用于批价单模态框）
-        can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
+    # 列表配置
+    list_config = {
+        'stats': {'cards': stats_cards},
+        'table': {
+            'columns': [
+                {'key': 'owner', 'field': 'created_by', 'label': _('负责人'), 'type': 'text', 'width': '100px', 'sort_type': 'string'},
+                {'key': 'order_number', 'field': 'order_number', 'label': _('批价单号'), 'type': 'link', 'width': '180px', 'min_width': '160px', 'sort_type': 'string'},
+                {'key': 'project_name', 'field': 'project_id', 'label': _('项目名称'), 'type': 'text', 'width': '240px', 'min_width': '200px', 'sort_type': 'string'},
+                {'key': 'status', 'field': 'status', 'label': _('状态'), 'type': 'text', 'width': '100px', 'sort_type': 'string'},
+                {'key': 'pricing_total_amount', 'field': 'pricing_total_amount', 'label': _('批价总额'), 'type': 'number', 'align': 'end', 'width': '140px', 'sort_type': 'currency'},
+                {'key': 'created_at', 'field': 'created_at', 'label': _('创建时间'), 'type': 'date', 'width': '120px', 'sort_type': 'date'},
+            ],
+        },
+    }
 
-        return render_template('pricing_order/tw_list.html',
-                             pricing_orders=pricing_orders,
-                             sort_field=sort_field,
-                             sort_order=sort_order,
-                             offset=offset,
-                             limit=limit,
-                             has_more=has_more,
-                             total_count=total_count,
-                             filter_config=filter_config,
-                             list_config=list_config,
-                             can_view_settlement=can_view_settlement,
-                             now_year=datetime.now().year)
-    else:
-        # ---- 原版 Bootstrap ----
-        from app.utils.access_control import get_viewable_data
+    # 查询结算Tab权限（用于批价单模态框）
+    can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
 
-        page = request.args.get('page', 1, type=int)
-        per_page = 20
-
-        query = get_viewable_data(PricingOrder, current_user)
-
-        pagination = query.order_by(PricingOrder.created_at.desc()).paginate(
-            page=page, per_page=per_page, error_out=False
-        )
-
-        pricing_orders = pagination.items
-
-        return render_template('pricing_order/list_pricing_orders.html',
-                             pricing_orders=pricing_orders,
-                             pagination=pagination)
+    return render_template('pricing_order/tw_list.html',
+                         pricing_orders=pricing_orders,
+                         sort_field=sort_field,
+                         sort_order=sort_order,
+                         offset=offset,
+                         limit=limit,
+                         has_more=has_more,
+                         total_count=total_count,
+                         filter_config=filter_config,
+                         list_config=list_config,
+                         can_view_settlement=can_view_settlement,
+                         now_year=datetime.now().year)
 
 
 @pricing_order_bp.route('/api/list')

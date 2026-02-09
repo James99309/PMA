@@ -4,9 +4,9 @@
 {% for quotation in quotations %}
 <tr class="table-row-hover transition-colors">
     {{ tw_cell_badge(render_tw_owner_badge(quotation.owner)) }}
-    {{ tw_cell_link(url_for('quotation.view_quotation', id=quotation.id, tw=1), quotation.quotation_number, min_width='160px') }}
+    {{ tw_cell_link(url_for('quotation.view_quotation', id=quotation.id), quotation.quotation_number, min_width='160px') }}
     {% if quotation.project %}
-    {{ tw_cell_link_secondary(url_for('project.view_project', project_id=quotation.project.id, tw=1), quotation.project.project_name, title=quotation.project.project_name) }}
+    {{ tw_cell_link_secondary(url_for('project.view_project', project_id=quotation.project.id), quotation.project.project_name, title=quotation.project.project_name) }}
     {% else %}
     <td class="p-3 whitespace-nowrap"><span class="text-slate-400 dark:text-slate-500">-</span></td>
     {% endif %}

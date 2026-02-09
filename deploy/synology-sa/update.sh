@@ -67,6 +67,10 @@ OLD_REQ_HASH=""
 if [ -f "requirements.txt" ]; then
     OLD_REQ_HASH=$(md5sum requirements.txt 2>/dev/null | cut -d' ' -f1 || echo "")
 fi
+OLD_COMPOSE_HASH=""
+if [ -f "$DEPLOY_DIR/docker-compose.yml" ]; then
+    OLD_COMPOSE_HASH=$(md5sum "$DEPLOY_DIR/docker-compose.yml" 2>/dev/null | cut -d' ' -f1 || echo "")
+fi
 
 echo -e "\n${YELLOW}[1/4] Pulling latest code...${NC}"
 if [ "$SKIP_GIT" = true ]; then
@@ -80,10 +84,14 @@ else
     chown -R 1000:1000 "$PROJECT_DIR"
 fi
 
-# Check if requirements.txt changed
+# Check if requirements.txt and docker-compose.yml changed
 NEW_REQ_HASH=""
 if [ -f "requirements.txt" ]; then
     NEW_REQ_HASH=$(md5sum requirements.txt 2>/dev/null | cut -d' ' -f1 || echo "")
+fi
+NEW_COMPOSE_HASH=""
+if [ -f "$DEPLOY_DIR/docker-compose.yml" ]; then
+    NEW_COMPOSE_HASH=$(md5sum "$DEPLOY_DIR/docker-compose.yml" 2>/dev/null | cut -d' ' -f1 || echo "")
 fi
 
 NEED_REBUILD=false
@@ -102,6 +110,9 @@ elif [ "$OLD_REQ_HASH" != "$NEW_REQ_HASH" ] && [ -n "$OLD_REQ_HASH" ]; then
     else
         echo -e "${YELLOW}Skipped rebuild. New dependencies won't take effect!${NC}"
     fi
+elif [ "$OLD_COMPOSE_HASH" != "$NEW_COMPOSE_HASH" ] && [ -n "$OLD_COMPOSE_HASH" ]; then
+    echo -e "${YELLOW}[Detect] docker-compose.yml changed (env/config update)${NC}"
+    NEED_REBUILD=true
 else
     echo -e "${GREEN}[Detect] requirements.txt unchanged, using hot reload${NC}"
 fi

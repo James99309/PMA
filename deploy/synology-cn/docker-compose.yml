@@ -81,6 +81,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
 
+      # 跨系统API密钥（OVS调用SP8D时验证）
+      CROSS_SYSTEM_API_KEY: ${CROSS_SYSTEM_API_KEY}
+
       # 邮件配置（中国环境使用国内邮件服务，如163、QQ、腾讯企业邮箱）
       MAIL_SERVER: ${MAIL_SERVER:-smtp.163.com}
       MAIL_PORT: ${MAIL_PORT:-465}

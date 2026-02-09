@@ -521,7 +521,7 @@ def api_get_users():
         from app.utils.dictionary_helpers import get_role_options
 
         # 获取所有活跃用户，按角色分组
-        users = User.query.filter(User.is_active == True).all()
+        users = User.query.filter(User._is_active == True).all()
 
         # 按角色分组
         role_options = get_role_options()

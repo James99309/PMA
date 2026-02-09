@@ -9,7 +9,7 @@
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
-    <script>document.documentElement.classList.add(localStorage.getItem('theme') || 'light')</script>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -109,7 +109,7 @@
                 action_url=filter_config.action_url,
                 filter_fields=filter_config.filter_fields,
                 search_value=filter_config.search_field.value,
-                cols=4
+                cols=5
             ) }}
 
             <!-- 表格标题栏 (sticky) -->
@@ -157,7 +157,7 @@
                     </td>
                     <!-- 型号（带链接） -->
                     <td class="p-3 truncate" title="{{ product.model or '' }}">
-                        <a href="{{ url_for('product.view_product_detail', id=product.id, tw=1) }}"
+                        <a href="{{ url_for('product.view_product_detail', id=product.id) }}"
                            class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
                             {{ product.model or '-' }}
                         </a>
