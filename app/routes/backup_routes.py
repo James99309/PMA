@@ -97,7 +97,7 @@ def index():
 
         env_info = {
             'environment': '本地开发' if Config.IS_LOCAL_ENV else '云端生产',
-            'storage_location': 'Supabase Storage' if backup_service.use_cloud_storage else '本地文件系统',
+            'storage_location': '本地文件系统',
             'database': db_display
         }
 
@@ -348,22 +348,16 @@ def download_backup(filename):
 
         backup_service = get_backup_service()
 
-        if backup_service.use_cloud_storage:
-            # 从 Supabase 生成临时下载 URL 并重定向
-            download_url = backup_service.get_download_url(filename)
-            from flask import redirect
-            return redirect(download_url)
-        else:
-            # 从本地文件系统下载
-            filepath = os.path.join(backup_service.backup_dir, filename)
-            if not os.path.exists(filepath):
-                return jsonify({'success': False, 'message': '文件不存在'}), 404
+        # 从本地文件系统下载
+        filepath = os.path.join(backup_service.backup_dir, filename)
+        if not os.path.exists(filepath):
+            return jsonify({'success': False, 'message': '文件不存在'}), 404
 
-            return send_file(
-                filepath,
-                as_attachment=True,
-                download_name=filename
-            )
+        return send_file(
+            filepath,
+            as_attachment=True,
+            download_name=filename
+        )
 
     except Exception as e:
         logger.error(f"下载备份失败: {str(e)}")
