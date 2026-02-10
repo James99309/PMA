@@ -423,7 +423,10 @@ def _get_worklog_shared_ids(user_id, field='project_id'):
     return db.session.query(target_field).filter(
         target_field.isnot(None),
         WorkItem.is_deleted == False,
-        cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user_id}]'::jsonb"))
+        db.or_(
+            WorkItem.owner_id == user_id,
+            cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user_id}]'::jsonb"))
+        )
     ).distinct()
 
 def _get_task_linked_ids(user_id, field='project_id'):
