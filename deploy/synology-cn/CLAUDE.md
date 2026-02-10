@@ -33,4 +33,12 @@
 | #460 | 5:04 AM | 🔵 | China-Optimized Dockerfile with Mirror Sources | ~438 |
 | #459 | " | 🔵 | Synology-CN Environment Configuration Template | ~465 |
 | #458 | " | 🔵 | Synology-CN Docker Compose Configuration for NAS Deployment | ~567 |
+
+### Feb 10, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #1959 | 3:31 PM | 🔵 | PostgreSQL max_connections Uses Default Value of 100 | ~501 |
+| #1946 | 3:30 PM | ✅ | PostgreSQL Idle Transaction Timeout Already Configured | ~476 |
+| #1944 | " | 🔵 | Synology-CN Dockerfile Gunicorn Configuration | ~461 |
 </claude-mem-context>

@@ -77,17 +77,33 @@ class Message(db.Model):
     @classmethod
     def get_unread_count(cls, user_id):
         """获取用户未读消息数量"""
+        from datetime import timedelta
+        expiry_cutoff = datetime.utcnow() - timedelta(days=3)
+
         return cls.query.filter(
             cls.recipient_id == user_id,
-            cls.is_read == False
+            cls.is_read == False,
+            # 行程类通知3天过期，其他类型不过期
+            db.or_(
+                ~cls.message_type.like('workitem_%'),
+                cls.created_at >= expiry_cutoff
+            )
         ).count()
 
     @classmethod
     def get_unread_messages(cls, user_id, limit=50):
         """获取用户未读消息列表"""
+        from datetime import timedelta
+        expiry_cutoff = datetime.utcnow() - timedelta(days=3)
+
         return cls.query.filter(
             cls.recipient_id == user_id,
-            cls.is_read == False
+            cls.is_read == False,
+            # 行程类通知3天过期，其他类型不过期
+            db.or_(
+                ~cls.message_type.like('workitem_%'),
+                cls.created_at >= expiry_cutoff
+            )
         ).order_by(cls.created_at.desc()).limit(limit).all()
 
     @classmethod

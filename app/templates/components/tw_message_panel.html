@@ -500,10 +500,15 @@ function messagePanel() {
             }
             if (item.related_object_type === 'workitem') {
                 // 行程类消息，跳转到日历页面查看行程
+                let url = '/worklog/calendar';
+                const params = [];
                 if (item.metadata && item.metadata.planned_date) {
-                    return `/worklog/calendar?date=${item.metadata.planned_date}`;
+                    params.push(`date=${item.metadata.planned_date}`);
                 }
-                return '/worklog/calendar';
+                if (item.related_object_id) {
+                    params.push(`open_item=${item.related_object_id}`);
+                }
+                return params.length ? `${url}?${params.join('&')}` : url;
             } else if (item.related_object_type === 'worklog') {
                 // 日志@消息，跳转到发送者的日历
                 if (item.metadata && item.metadata.log_date) {

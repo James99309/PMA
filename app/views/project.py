@@ -856,7 +856,7 @@ def get_project_contributors(project_id, exclude_user_ids=None):
     results = []
     for uid, stats in user_data.items():
         user = users_map.get(uid)
-        if not user or user.role == 'admin':
+        if not user or user.role == 'admin' or not user.is_active:
             continue
         total = stats['workitem_count'] + stats['action_count']
         if total >= 10:

@@ -1677,8 +1677,9 @@ function workCalendar() {
             const params = new URLSearchParams(window.location.search);
             const ownerId = params.get('owner_id');
             const date = params.get('date');
+            const openItemId = params.get('open_item');
 
-            if (ownerId || date) {
+            if (ownerId || date || openItemId) {
                 // 清除 URL 参数，防止刷新重复处理
                 window.history.replaceState({}, '', window.location.pathname);
 
@@ -1693,6 +1694,11 @@ function workCalendar() {
                     if (date && this.calendar) {
                         // 跳转到指定日期
                         this.calendar.gotoDate(date);
+                    }
+
+                    // 自动打开行程详情弹窗（从通知点击跳转）
+                    if (openItemId) {
+                        this.openViewModalById(openItemId);
                     }
                 }, 100);
             }
@@ -2444,6 +2450,25 @@ function workCalendar() {
 
                         // 如果是会议类型，加载录音列表
                         if (data.data.work_type === 'meeting') {
+                            this.loadMeetingRecordings(itemId);
+                        }
+                    }
+                });
+        },
+
+        // 通过 ID 直接打开行程详情弹窗（用于通知点击跳转）
+        openViewModalById(itemId) {
+            fetch(`/worklog/api/items/${itemId}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const item = data.data;
+                        this.viewIsShared = (item.owner_id !== {{ current_user.id }});
+                        this.viewOwnerName = item.owner_name || '';
+                        this.viewData = item;
+                        document.getElementById('viewItemModal').classList.remove('hidden');
+                        document.body.style.overflow = 'hidden';
+                        if (item.work_type === 'meeting') {
                             this.loadMeetingRecordings(itemId);
                         }
                     }

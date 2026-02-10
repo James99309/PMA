@@ -10,6 +10,16 @@ services:
     image: postgres:17-alpine
     container_name: pma-postgres
     restart: unless-stopped
+    command:
+      - postgres
+      - -c
+      - idle_in_transaction_session_timeout=300000
+      - -c
+      - statement_timeout=120000
+      - -c
+      - max_connections=50
+      - -c
+      - log_min_duration_statement=5000
     environment:
       POSTGRES_USER: pma
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pma_secure_password_2025}
@@ -24,7 +34,7 @@ services:
         reservations:
           memory: 256M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pma -d pma_synology"]
+      test: ["CMD-SHELL", "pg_isready -U pma -d pma_synology && psql -U pma -d pma_synology -c 'SELECT 1' -q"]
       interval: 10s
       timeout: 5s
       retries: 5
