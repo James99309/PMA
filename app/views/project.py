@@ -162,7 +162,8 @@ def list_projects():
         request.args, filters, current_user.id,
         owner_field='owner_id',
         filter_keys=['search', 'current_stage', 'industry', 'project_type', 'activity_status', 'filter_owner_id'],
-        module_id='project'
+        module_id='project',
+        model_class=Project
     )
 
     query = apply_filters_to_query(query, Project, filters, PROJECT_FILTER_CONFIG)

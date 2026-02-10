@@ -1163,6 +1163,78 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 chartColorDeep: '#d4a373',
                 isPercentage: true,
                 isAmount: false
+            },
+            'pm_implant_amount': {
+                label: '{{ _("产品植入额") }}',
+                icon: 'inventory_2',
+                colors: {
+                    active: 'border-indigo-500 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300',
+                    inactive: 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50'
+                },
+                textColor: 'text-indigo-600 dark:text-indigo-400',
+                lightTextColor: 'text-indigo-400/70 dark:text-indigo-300/70',
+                barColor: 'bg-indigo-500',
+                barColorLight: 'bg-indigo-300 dark:bg-indigo-400/50',
+                barColorDeep: 'bg-indigo-600 dark:bg-indigo-500',
+                chartColor: '#818cf8',
+                chartColorLight: '#818cf860',
+                chartColorDeep: '#818cf8',
+                isPercentage: false,
+                isAmount: true
+            },
+            'pm_sales_amount': {
+                label: '{{ _("产品批价额") }}',
+                icon: 'sell',
+                colors: {
+                    active: 'border-teal-500 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300',
+                    inactive: 'border-teal-300 dark:border-teal-600 bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/50'
+                },
+                textColor: 'text-teal-600 dark:text-teal-400',
+                lightTextColor: 'text-teal-400/70 dark:text-teal-300/70',
+                barColor: 'bg-teal-500',
+                barColorLight: 'bg-teal-300 dark:bg-teal-400/50',
+                barColorDeep: 'bg-teal-600 dark:bg-teal-500',
+                chartColor: '#2dd4bf',
+                chartColorLight: '#2dd4bf60',
+                chartColorDeep: '#2dd4bf',
+                isPercentage: false,
+                isAmount: true
+            },
+            'se_implant_amount': {
+                label: '{{ _("支持项目植入额") }}',
+                icon: 'engineering',
+                colors: {
+                    active: 'border-rose-500 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300',
+                    inactive: 'border-rose-300 dark:border-rose-600 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50'
+                },
+                textColor: 'text-rose-600 dark:text-rose-400',
+                lightTextColor: 'text-rose-400/70 dark:text-rose-300/70',
+                barColor: 'bg-rose-500',
+                barColorLight: 'bg-rose-300 dark:bg-rose-400/50',
+                barColorDeep: 'bg-rose-600 dark:bg-rose-500',
+                chartColor: '#fb7185',
+                chartColorLight: '#fb718560',
+                chartColorDeep: '#fb7185',
+                isPercentage: false,
+                isAmount: true
+            },
+            'se_sales_amount': {
+                label: '{{ _("支持项目批价额") }}',
+                icon: 'handshake',
+                colors: {
+                    active: 'border-orange-500 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300',
+                    inactive: 'border-orange-300 dark:border-orange-600 bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/50'
+                },
+                textColor: 'text-orange-600 dark:text-orange-400',
+                lightTextColor: 'text-orange-400/70 dark:text-orange-300/70',
+                barColor: 'bg-orange-500',
+                barColorLight: 'bg-orange-300 dark:bg-orange-400/50',
+                barColorDeep: 'bg-orange-600 dark:bg-orange-500',
+                chartColor: '#fb923c',
+                chartColorLight: '#fb923c60',
+                chartColorDeep: '#fb923c',
+                isPercentage: false,
+                isAmount: true
             }
         },
 
@@ -2040,7 +2112,11 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 sales_amount: '{{ _("销售额") }}/{{ _("销售目标") }}',
                 new_customers: '{{ _("新增客户") }}/{{ _("客户目标") }}',
                 new_projects: '{{ _("新增项目") }}/{{ _("项目目标") }}',
-                customer_activity_rate: '{{ _("客户活跃度") }}'
+                customer_activity_rate: '{{ _("客户活跃度") }}',
+                pm_implant_amount: '{{ _("产品植入额") }}/{{ _("植入目标") }}',
+                pm_sales_amount: '{{ _("产品批价额") }}/{{ _("批价目标") }}',
+                se_implant_amount: '{{ _("支持项目植入额") }}/{{ _("植入目标") }}',
+                se_sales_amount: '{{ _("支持项目批价额") }}/{{ _("批价目标") }}'
             };
             return labels[key] || key;
         },

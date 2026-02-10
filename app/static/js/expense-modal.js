@@ -460,7 +460,6 @@
 
                 if (noCustomerCheckbox) {
                     noCustomerCheckbox.checked = true;
-                    noCustomerCheckbox.disabled = true;
                 }
                 // 隐藏客户相关字段（包括客户、联系人、项目）
                 if (customerFields) customerFields.style.display = 'none';

@@ -1843,7 +1843,7 @@ IndicatorQuickAdd.showQuickAddModal(specName, specFieldId, rowElement)
 
 | 类型 | 说明 | API端点 | 已用页面 |
 |-----|------|---------|---------|
-| `indicator` | 产品规格指标 | `/product-management/api/spec-field-options/add` | 产品创建/编辑 |
+| `indicator` | 产品规格指标 | `/product-code/api/spec-field-options/add` | 产品创建/编辑 |
 | `subcategory` | 产品名称（子分类） | `/product-code/api/subcategories/quick-add` | 产品创建 |
 | `region` | 销售区域 | `/product-code/api/regions/quick-add` | 产品创建 |
 
@@ -1953,7 +1953,7 @@ document.getElementById('region_id').addEventListener('change', function() {
 
 **API 1: 产品指标快速添加**
 ```
-POST /product-management/api/spec-field-options/add
+POST /product-code/api/spec-field-options/add
 请求: { subcategory_id, spec_name, field_id?, value, description? }
 响应: { success, message, new_item: {id, value, code, description} }
 ```

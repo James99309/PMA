@@ -46,7 +46,7 @@ class Config:
     """基础配置类 - 支持动态数据库配置"""
 
     # 统一版本号（所有环境共用，基于代码而非数据库）
-    APP_VERSION = '1.25.8'
+    APP_VERSION = '1.26.1'
 
     # 基本配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'local-development-secret-key-pma-2025'
@@ -223,7 +223,7 @@ class Config:
 
     # 旧规格系统特性开关 - 控制ProductCodeField API和UI的可用性
     # [LegacySpecSystem] 此配置用于隔离和控制旧规格系统，支持未来的完全移除
-    LEGACY_SPEC_SYSTEM_ENABLED = os.getenv('LEGACY_SPEC_SYSTEM_ENABLED', 'true').lower() == 'true'
+    LEGACY_SPEC_SYSTEM_ENABLED = os.getenv('LEGACY_SPEC_SYSTEM_ENABLED', 'false').lower() == 'true'
 
 # 🔒 安全别名配置
 LocalConfig = Config

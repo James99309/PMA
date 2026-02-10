@@ -327,7 +327,7 @@ window.SpecManagement = {
         });
         
         // 调用API获取该子类别的非编码规格
-        fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`)
+        fetch(`/product-code/api/subcategory/${subcategoryId}/spec-fields`)
             .then(response => response.json())
             .then(data => {
                 select.innerHTML = '<option value="">-- 请选择规格 --</option>';
@@ -387,7 +387,7 @@ window.SpecManagement = {
                               document.getElementById('subcategory_id')?.value;
         if (!subcategoryId) return;
         
-        fetch(`/product-management/api/subcategory/${subcategoryId}/spec-fields`)
+        fetch(`/product-code/api/subcategory/${subcategoryId}/spec-fields`)
             .then(response => response.json())
             .then(data => {
                 if (!data.spec_fields) return;
@@ -442,7 +442,7 @@ window.SpecManagement = {
         indicatorSelect.disabled = true;
 
         // 构建API请求URL
-        const url = new URL('/product-management/api/spec-field-options', window.location.origin);
+        const url = new URL('/product-code/api/spec-field-options', window.location.origin);
         url.searchParams.append('subcategory_id', subcategoryId);
         url.searchParams.append('spec_name', specName);
         if (specFieldId) {

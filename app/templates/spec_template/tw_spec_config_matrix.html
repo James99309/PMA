@@ -186,16 +186,61 @@
             border-color: rgb(161 98 7) !important;
             color: white !important;
         }
+        /* 下拉选择框样式 */
+        .matrix-select {
+            width: 100%;
+            padding: 0.375rem 0.5rem;
+            font-size: 0.875rem;
+            border: 1px solid transparent;
+            background: transparent;
+            color: rgb(15 23 42);
+            transition: all 0.15s;
+            cursor: pointer;
+        }
+        html.dark .matrix-select {
+            color: white;
+        }
+        .matrix-select:hover {
+            background: rgb(241 245 249);
+            border-color: rgb(203 213 225);
+        }
+        html.dark .matrix-select:hover {
+            background: rgb(51 65 85);
+            border-color: rgb(71 85 105);
+        }
+        .matrix-select:focus {
+            outline: none;
+            border-color: #137fec;
+            background: white;
+            color: rgb(15 23 42);
+            box-shadow: 0 0 0 2px rgba(19, 127, 236, 0.2);
+        }
+        html.dark .matrix-select:focus {
+            background: rgb(30 41 59) !important;
+            color: white !important;
+        }
+        .matrix-select.modified {
+            background: rgb(254 249 195);
+            border-color: rgb(250 204 21);
+            color: rgb(15 23 42);
+        }
+        html.dark .matrix-select.modified {
+            background: rgb(133 77 14 / 0.3) !important;
+            border-color: rgb(161 98 7) !important;
+            color: white !important;
+        }
         /* 覆盖 Tailwind forms 插件默认样式 */
         .matrix-input,
-        .matrix-input[type="text"] {
+        .matrix-input[type="text"],
+        .matrix-select {
             -webkit-appearance: none;
             appearance: none;
             --tw-ring-color: transparent !important;
             box-shadow: none !important;
         }
         html.dark input.matrix-input,
-        html.dark input.matrix-input[type="text"] {
+        html.dark input.matrix-input[type="text"],
+        html.dark select.matrix-select {
             color: #ffffff !important;
             background-color: transparent;
         }
@@ -429,16 +474,28 @@
                                             {% endif %}
                                         </div>
                                         {% else %}
-                                        {# 未锁定配置：显示可编辑输入框 #}
+                                        {# 未锁定配置：下拉选择 #}
                                         <div class="flex items-center gap-1">
-                                            <input type="text"
-                                                   data-config-id="{{ config.id }}"
-                                                   data-item-id="{{ item.id }}"
-                                                   data-original="{{ saved_value }}"
-                                                   value="{{ saved_value }}"
-                                                   @input="markModified($event.target)"
-                                                   placeholder="{{ item.general_value or '-' }}"
-                                                   class="matrix-input rounded flex-1">
+                                            {% set opts = definition_indicators.get(item.definition_id, []) %}
+                                            {% set opt_values = opts | map(attribute='value') | list %}
+                                            <select data-config-id="{{ config.id }}"
+                                                    data-item-id="{{ item.id }}"
+                                                    data-def-id="{{ item.definition_id }}"
+                                                    data-def-name="{{ item.definition.name }}"
+                                                    data-general-value="{{ item.general_value or '' }}"
+                                                    data-original="{{ saved_value }}"
+                                                    @change="handleSelectChange($event.target)"
+                                                    class="matrix-select rounded flex-1">
+                                                <option value="">{{ '-' if (item.general_value and item.general_value in opt_values) else (item.general_value or '-') }}</option>
+                                                {% if saved_value and saved_value not in opt_values %}
+                                                <option value="{{ saved_value }}" selected>{{ saved_value }} ({{ _('自定义') }})</option>
+                                                {% endif %}
+                                                {% for opt in opts %}
+                                                <option value="{{ opt.value }}" {{ 'selected' if opt.value == saved_value else '' }}>{{ opt.value }}</option>
+                                                {% endfor %}
+                                                <option disabled>──────────</option>
+                                                <option value="__MANAGE__">+ {{ _('管理规格选项') }}</option>
+                                            </select>
                                             {% if item.definition.allow_attachment %}
                                             <button type="button"
                                                     class="attachment-btn inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex-shrink-0"
@@ -713,6 +770,85 @@
             </div>
         </div>
     </div>
+
+    <!-- 指标管理模态框 -->
+    <div id="indicatorModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4"
+         onkeydown="if(event.key==='Escape') closeIndicatorModal()">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeIndicatorModal()"></div>
+        <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden">
+            <!-- 头部 -->
+            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-primary" style="font-size: 20px;">list_alt</span>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('指标管理') }}</h3>
+                        <p id="indicatorModalDefName" class="text-xs text-slate-500 dark:text-slate-400"></p>
+                    </div>
+                </div>
+                <button onclick="closeIndicatorModal()"
+                        class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 inline-flex items-center justify-center transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
+                </button>
+            </div>
+            <!-- 指标列表 -->
+            <div class="flex-1 overflow-y-auto">
+                <div id="indicatorLoading" class="px-6 py-10 text-center">
+                    <svg class="animate-spin h-8 w-8 text-primary mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+                <div id="indicatorListContainer" class="hidden">
+                    <div class="grid grid-cols-12 gap-3 px-6 py-2.5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 sticky top-0">
+                        <div class="col-span-1 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">#</div>
+                        <div class="col-span-6 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('指标值') }}</div>
+                        <div class="col-span-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('编码') }}</div>
+                        <div class="col-span-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-right">{{ _('操作') }}</div>
+                    </div>
+                    <div id="indicatorListBody"></div>
+                </div>
+                <div id="indicatorEmpty" class="hidden px-6 py-10 text-center">
+                    <span class="material-symbols-outlined text-slate-300 dark:text-slate-600" style="font-size: 40px;">inbox</span>
+                    <p class="text-sm text-slate-400 dark:text-slate-500 mt-2">{{ _('暂无指标，请在下方添加') }}</p>
+                </div>
+            </div>
+            <!-- 底部添加区域 -->
+            <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex-shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="flex-1">
+                        <input type="text" id="indicatorNewValueInput"
+                               onkeydown="if(event.key==='Enter') addMatrixIndicator()"
+                               placeholder="{{ _('输入指标值...') }}"
+                               class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                    </div>
+                    <div class="w-20">
+                        <div class="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-sm text-slate-500 dark:text-slate-400 flex items-center justify-center font-mono">{{ _('自动') }}</div>
+                    </div>
+                    <button onclick="addMatrixIndicator()" id="indicatorAddBtn"
+                            class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-medium transition-colors bg-primary hover:bg-primary/90 text-white">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+                        {{ _('添加') }}
+                    </button>
+                </div>
+                <p class="mt-2 text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">info</span>
+                    {{ _('编码根据输入值智能生成') }}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除指标确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deleteMatrixIndicatorModal',
+        title=_('删除指标'),
+        message=_('确定要删除该指标吗？'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
 
     <!-- 布局脚本 -->
     {{ render_tw_layout_script() }}
@@ -1196,13 +1332,14 @@
     function buildPreviewOptions(itemId, savedOptions) {
         const options = {...(savedOptions || {})};
 
-        // 收集该规格项在所有配置版本中的唯一值
-        const inputs = document.querySelectorAll(`[data-item-id="${itemId}"]`);
+        // 收集该规格项在所有配置版本中的唯一值（支持 select 和 input）
+        const elements = document.querySelectorAll(`[data-item-id="${itemId}"]`);
         const allValues = [];
-        inputs.forEach(input => {
-            const value = input.value.trim();
-            // 如果没有输入值，使用 placeholder（通用值）
-            const effectiveValue = value || (input.placeholder !== '-' ? input.placeholder : '');
+        elements.forEach(el => {
+            const value = el.value.trim();
+            // 如果没有选中值，使用通用值
+            const generalValue = el.dataset.generalValue || (el.placeholder !== '-' ? el.placeholder : '');
+            const effectiveValue = value || generalValue;
             if (effectiveValue && !allValues.includes(effectiveValue)) {
                 allValues.push(effectiveValue);
             }
@@ -1267,12 +1404,14 @@
             // 构建预览选项（包含页面上所有值的编码映射）
             const previewOptions = buildPreviewOptions(item.id, item.options);
 
-            // 获取该配置版本的规格值
-            const input = document.querySelector(`[data-config-id="${configId}"][data-item-id="${item.id}"]`);
-            let value = input ? input.value.trim() : '';
+            // 获取该配置版本的规格值（支持 select 和 input）
+            const el = document.querySelector(`[data-config-id="${configId}"][data-item-id="${item.id}"]`);
+            let value = el ? el.value.trim() : '';
             // 如果没有配置值，使用通用值占位
-            if (!value) {
-                value = input ? (input.placeholder !== '-' ? input.placeholder : '') : '';
+            if (!value && el) {
+                // select 使用 data-general-value，input 使用 placeholder
+                const generalValue = el.dataset.generalValue || (el.placeholder !== '-' ? el.placeholder : '');
+                if (generalValue) value = generalValue;
             }
             specCodes += generateCodeChar(value, previewOptions, item.code_length);
         }
@@ -1475,35 +1614,50 @@
                 }
             },
 
-            markModified(input) {
-                const original = input.dataset.original || '';
-                const current = input.value;
+            // 处理 select 下拉变化
+            handleSelectChange(select) {
+                if (select.value === '__MANAGE__') {
+                    // 恢复原值
+                    select.value = select.dataset.original || '';
+                    // 打开指标管理模态框
+                    openIndicatorModal(
+                        parseInt(select.dataset.defId),
+                        select.dataset.defName
+                    );
+                    return;
+                }
+                this.markModified(select);
+            },
+
+            markModified(el) {
+                const original = el.dataset.original || '';
+                const current = el.value;
 
                 if (current !== original) {
-                    input.classList.add('modified');
+                    el.classList.add('modified');
                 } else {
-                    input.classList.remove('modified');
+                    el.classList.remove('modified');
                 }
 
                 this.checkForChanges();
 
                 // 更新对应配置版本的 MN 编码预览
-                const configId = input.dataset.configId;
+                const configId = el.dataset.configId;
                 if (configId) {
                     updateMNPreview(configId);
                 }
             },
 
             checkForChanges() {
-                const modifiedInputs = document.querySelectorAll('.matrix-input.modified');
-                this.hasChanges = modifiedInputs.length > 0;
+                const modified = document.querySelectorAll('.matrix-select.modified');
+                this.hasChanges = modified.length > 0;
             },
 
             discardChanges() {
-                const inputs = document.querySelectorAll('.matrix-input');
-                inputs.forEach(input => {
-                    input.value = input.dataset.original || '';
-                    input.classList.remove('modified');
+                const selects = document.querySelectorAll('.matrix-select');
+                selects.forEach(sel => {
+                    sel.value = sel.dataset.original || '';
+                    sel.classList.remove('modified');
                 });
                 this.hasChanges = false;
                 // 更新所有 MN 编码预览
@@ -1576,18 +1730,18 @@
     }
 
     async function saveAllChanges() {
-        const modifiedInputs = document.querySelectorAll('.matrix-input.modified');
-        if (modifiedInputs.length === 0) {
+        const modifiedSelects = document.querySelectorAll('.matrix-select.modified');
+        if (modifiedSelects.length === 0) {
             showToast('{{ _("没有需要保存的更改") }}', 'error');
             return;
         }
 
         // 按配置版本分组
         const changesByConfig = {};
-        modifiedInputs.forEach(input => {
-            const configId = input.dataset.configId;
-            const itemId = input.dataset.itemId;
-            const value = input.value;
+        modifiedSelects.forEach(sel => {
+            const configId = sel.dataset.configId;
+            const itemId = sel.dataset.itemId;
+            const value = sel.value;
 
             if (!changesByConfig[configId]) {
                 changesByConfig[configId] = [];
@@ -1619,10 +1773,10 @@
                     successCount++;
                     // 更新原始值
                     values.forEach(v => {
-                        const input = document.querySelector(`[data-config-id="${configId}"][data-item-id="${v.template_item_id}"]`);
-                        if (input) {
-                            input.dataset.original = v.value || '';
-                            input.classList.remove('modified');
+                        const el = document.querySelector(`.matrix-select[data-config-id="${configId}"][data-item-id="${v.template_item_id}"]`);
+                        if (el) {
+                            el.dataset.original = v.value || '';
+                            el.classList.remove('modified');
                         }
                     });
                     // 同步更新 CODE_ITEMS 的 options（后端返回的最新编码映射）
@@ -1658,7 +1812,7 @@
 
         // 更新Alpine状态
         const editor = Alpine.$data(document.querySelector('[x-data="specMatrixEditor()"]'));
-        editor.hasChanges = document.querySelectorAll('.matrix-input.modified').length > 0;
+        editor.hasChanges = document.querySelectorAll('.matrix-select.modified').length > 0;
 
         if (errorCount === 0) {
             showToast(`{{ _("保存成功") }} (${successCount} {{ _("个配置版本") }})`);
@@ -1674,8 +1828,8 @@
 
     // 离开页面前提示（浏览器原生提示作为保底）
     window.addEventListener('beforeunload', function(e) {
-        const modifiedInputs = document.querySelectorAll('.matrix-input.modified');
-        if (modifiedInputs.length > 0) {
+        const modified = document.querySelectorAll('.matrix-select.modified');
+        if (modified.length > 0) {
             e.preventDefault();
             e.returnValue = '';
         }
@@ -1683,10 +1837,10 @@
 
     // 返回按钮点击处理
     function handleBackClick() {
-        const modifiedInputs = document.querySelectorAll('.matrix-input.modified');
+        const modified = document.querySelectorAll('.matrix-select.modified');
         const backUrl = '{{ url_for("spec_template.view_template", template_id=template.id) }}';
 
-        if (modifiedInputs.length > 0) {
+        if (modified.length > 0) {
             // 有未保存的更改，显示确认弹窗
             openConfirmModal('leavePageModal', {
                 onConfirm: function() {
@@ -1711,14 +1865,14 @@
                 this.updateState();
                 // 使用 MutationObserver 监听 class 变化
                 const observer = new MutationObserver(() => this.updateState());
-                document.querySelectorAll('.matrix-input').forEach(input => {
-                    observer.observe(input, { attributes: true, attributeFilter: ['class'] });
+                document.querySelectorAll('.matrix-select').forEach(sel => {
+                    observer.observe(sel, { attributes: true, attributeFilter: ['class'] });
                 });
             },
 
             updateState() {
-                const modifiedInputs = document.querySelectorAll('.matrix-input.modified');
-                this.changeCount = modifiedInputs.length;
+                const modified = document.querySelectorAll('.matrix-select.modified');
+                this.changeCount = modified.length;
                 this.hasChanges = this.changeCount > 0;
             },
 
@@ -1830,10 +1984,10 @@
                         successCount++;
                         // 更新原始值
                         values.forEach(v => {
-                            const input = document.querySelector(`[data-config-id="${configId}"][data-item-id="${v.template_item_id}"]`);
-                            if (input) {
-                                input.dataset.original = v.value || '';
-                                input.classList.remove('modified');
+                            const el = document.querySelector(`.matrix-select[data-config-id="${configId}"][data-item-id="${v.template_item_id}"]`);
+                            if (el) {
+                                el.dataset.original = v.value || '';
+                                el.classList.remove('modified');
                             }
                         });
                         // 同步更新 CODE_ITEMS 的 options
@@ -1869,7 +2023,7 @@
             // 更新Alpine状态
             const editor = Alpine.$data(document.querySelector('[x-data="specMatrixEditor()"]'));
             if (editor) {
-                editor.hasChanges = document.querySelectorAll('.matrix-input.modified').length > 0;
+                editor.hasChanges = document.querySelectorAll('.matrix-select.modified').length > 0;
                 // 如果更新了MN编码，清除needsCodeUpdate状态
                 if (updateMNCode) {
                     editor.needsCodeUpdate = false;
@@ -1911,16 +2065,19 @@
     function collectAllSpecValues() {
         const valuesByConfig = {};
 
-        // 遍历所有输入框
-        const inputs = document.querySelectorAll('.matrix-input[data-config-id][data-item-id]');
-        inputs.forEach(input => {
-            const configId = input.dataset.configId;
-            const itemId = input.dataset.itemId;
+        // 遍历所有下拉选择框
+        const selects = document.querySelectorAll('.matrix-select[data-config-id][data-item-id]');
+        selects.forEach(sel => {
+            const configId = sel.dataset.configId;
+            const itemId = sel.dataset.itemId;
 
-            // 获取值：优先使用输入值，否则使用placeholder（通用值）
-            let value = input.value.trim();
-            if (!value && input.placeholder && input.placeholder !== '-') {
-                value = input.placeholder;
+            // 获取值：优先使用选中值，否则使用通用值（data-general-value）
+            let value = sel.value.trim();
+            if (!value) {
+                const generalValue = sel.dataset.generalValue;
+                if (generalValue && generalValue !== '-') {
+                    value = generalValue;
+                }
             }
 
             if (!valuesByConfig[configId]) {
@@ -2073,6 +2230,259 @@
 
             submitBtn.disabled = false;
             submitBtn.textContent = '{{ _("导入") }}';
+        }
+    }
+
+    // ============================================
+    // 指标管理模态框
+    // ============================================
+
+    let currentIndicatorDefId = null;
+    let currentIndicatorDefName = '';
+
+    /**
+     * 打开指标管理模态框
+     */
+    function openIndicatorModal(defId, defName) {
+        currentIndicatorDefId = defId;
+        currentIndicatorDefName = defName;
+
+        document.getElementById('indicatorModalDefName').textContent = defName;
+        document.getElementById('indicatorNewValueInput').value = '';
+
+        const modal = document.getElementById('indicatorModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        loadMatrixIndicators();
+
+        setTimeout(() => {
+            document.getElementById('indicatorNewValueInput').focus();
+        }, 200);
+    }
+
+    /**
+     * 关闭指标管理模态框并刷新 select
+     */
+    function closeIndicatorModal() {
+        const modal = document.getElementById('indicatorModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+
+        if (currentIndicatorDefId) {
+            refreshIndicatorSelects(currentIndicatorDefId);
+        }
+
+        currentIndicatorDefId = null;
+        currentIndicatorDefName = '';
+    }
+
+    /**
+     * 加载指标列表
+     */
+    async function loadMatrixIndicators() {
+        const loadingEl = document.getElementById('indicatorLoading');
+        const listContainer = document.getElementById('indicatorListContainer');
+        const emptyEl = document.getElementById('indicatorEmpty');
+
+        loadingEl.classList.remove('hidden');
+        listContainer.classList.add('hidden');
+        emptyEl.classList.add('hidden');
+
+        try {
+            const response = await fetch(`/admin/spec-definitions/api/${currentIndicatorDefId}/indicators`);
+            const result = await response.json();
+
+            loadingEl.classList.add('hidden');
+
+            if (result.success && result.data && result.data.length > 0) {
+                listContainer.classList.remove('hidden');
+                renderIndicatorList(result.data);
+            } else {
+                emptyEl.classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error('加载指标失败:', error);
+            loadingEl.classList.add('hidden');
+            emptyEl.classList.remove('hidden');
+        }
+    }
+
+    /**
+     * 渲染指标列表
+     */
+    function renderIndicatorList(items) {
+        const body = document.getElementById('indicatorListBody');
+        body.innerHTML = '';
+
+        items.forEach((ind, idx) => {
+            const row = document.createElement('div');
+            row.className = 'grid grid-cols-12 gap-3 px-6 py-3 border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/30 items-center transition-colors';
+            row.innerHTML = `
+                <div class="col-span-1 text-sm text-slate-400 dark:text-slate-500">${idx + 1}</div>
+                <div class="col-span-6 text-sm font-medium text-slate-800 dark:text-slate-200">${escapeHtml(ind.value)}</div>
+                <div class="col-span-3">
+                    <span class="inline-flex px-2.5 py-0.5 text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded">${escapeHtml(ind.code)}</span>
+                </div>
+                <div class="col-span-2 text-right">
+                    <button onclick="deleteMatrixIndicator(${ind.id}, '${escapeHtml(ind.value)}')"
+                            class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 inline-flex items-center justify-center transition-colors"
+                            title="{{ _('删除') }}">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                    </button>
+                </div>
+            `;
+            body.appendChild(row);
+        });
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    /**
+     * 添加指标
+     */
+    async function addMatrixIndicator() {
+        const input = document.getElementById('indicatorNewValueInput');
+        const value = input.value.trim();
+        if (!value || !currentIndicatorDefId) return;
+
+        const btn = document.getElementById('indicatorAddBtn');
+        btn.disabled = true;
+
+        try {
+            const response = await fetch(`/admin/spec-definitions/api/${currentIndicatorDefId}/indicators`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ value: value })
+            });
+            const result = await response.json();
+            if (result.success) {
+                showToast(result.message || '{{ _("添加成功") }}');
+                input.value = '';
+                await loadMatrixIndicators();
+                input.focus();
+            } else {
+                showToast(result.message || '{{ _("添加失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('添加指标失败:', error);
+            showToast('{{ _("添加失败") }}', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    /**
+     * 删除指标
+     */
+    function deleteMatrixIndicator(optionId, optionValue) {
+        openConfirmModal('deleteMatrixIndicatorModal', {
+            message: `{{ _("确定要删除指标") }} "${optionValue}" {{ _("吗？") }}`,
+            data: { optionId: optionId },
+            onConfirm: async function(data) {
+                try {
+                    const response = await fetch(`/admin/spec-definitions/api/indicators/${data.optionId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                        }
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        showToast(result.message || '{{ _("删除成功") }}');
+                        await loadMatrixIndicators();
+                    } else {
+                        throw new Error(result.message || '{{ _("删除失败") }}');
+                    }
+                } catch (error) {
+                    throw error;
+                }
+            }
+        });
+    }
+
+    /**
+     * 刷新所有该 definition_id 的 select 的选项
+     */
+    async function refreshIndicatorSelects(defId) {
+        try {
+            const response = await fetch(`/admin/spec-definitions/api/${defId}/indicators`);
+            const result = await response.json();
+            if (!result.success) return;
+
+            const newOptions = result.data || [];
+
+            // 找到所有该 defId 的 select
+            const selects = document.querySelectorAll(`.matrix-select[data-def-id="${defId}"]`);
+
+            selects.forEach(sel => {
+                const currentValue = sel.value;
+                const originalValue = sel.dataset.original || '';
+                const generalValue = sel.dataset.generalValue || '';
+                const optValues = newOptions.map(o => o.value);
+
+                // 重建选项
+                sel.innerHTML = '';
+
+                // 空选项（显示通用值）
+                const emptyOpt = document.createElement('option');
+                emptyOpt.value = '';
+                emptyOpt.textContent = generalValue || '-';
+                sel.appendChild(emptyOpt);
+
+                // 自定义值（不在指标列表中的已保存值）
+                const savedVal = currentValue || originalValue;
+                if (savedVal && !optValues.includes(savedVal)) {
+                    const customOpt = document.createElement('option');
+                    customOpt.value = savedVal;
+                    customOpt.textContent = savedVal + ' ({{ _("自定义") }})';
+                    sel.appendChild(customOpt);
+                }
+
+                // 指标选项
+                newOptions.forEach(opt => {
+                    const optEl = document.createElement('option');
+                    optEl.value = opt.value;
+                    optEl.textContent = opt.value;
+                    sel.appendChild(optEl);
+                });
+
+                // 分隔线 + 管理
+                const sep = document.createElement('option');
+                sep.disabled = true;
+                sep.textContent = '──────────';
+                sel.appendChild(sep);
+
+                const manageOpt = document.createElement('option');
+                manageOpt.value = '__MANAGE__';
+                manageOpt.textContent = '+ {{ _("管理规格选项") }}';
+                sel.appendChild(manageOpt);
+
+                // 恢复值
+                sel.value = currentValue;
+
+                // 检查修改状态
+                if (sel.value !== originalValue) {
+                    sel.classList.add('modified');
+                }
+            });
+
+            // 更新 MN 编码预览
+            updateAllMNPreviews();
+
+            // 更新浮动条状态
+            const floatingBar = Alpine.$data(document.querySelector('[x-data="floatingActionBar()"]'));
+            if (floatingBar) floatingBar.updateState();
+
+        } catch (error) {
+            console.error('刷新指标选项失败:', error);
         }
     }
     </script>

@@ -20,7 +20,10 @@ from app.models.spec_template import (
     SAFE_CHARS, calculate_check_digit, generate_safe_code_char,
     CODE_RULE_VERSION
 )
-from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField
+from app.models.product_code import (
+    ProductCategory, ProductSubcategory, ProductCodeField,
+    SpecificationDictionary, SpecificationOption
+)
 from app.models.dev_product import DevProduct
 from app.decorators import permission_required
 
@@ -362,6 +365,42 @@ def detect_structural_changes(template, new_items_data, new_category_id=None, ne
     }
 
 
+def _load_definition_indicators(definitions):
+    """批量加载每个 SpecDefinition 对应的 SpecificationOption 列表（通过 name 桥接）"""
+    def_names = [d.name for d in definitions]
+    if not def_names:
+        return {}
+
+    spec_dicts = SpecificationDictionary.query.filter(
+        SpecificationDictionary.name.in_(def_names)
+    ).all()
+    spec_dict_map = {sd.name: sd for sd in spec_dicts}
+
+    spec_dict_ids = [sd.id for sd in spec_dicts]
+    if not spec_dict_ids:
+        return {}
+
+    all_options = SpecificationOption.query.filter(
+        SpecificationOption.spec_id.in_(spec_dict_ids),
+        SpecificationOption.is_active == True
+    ).order_by(SpecificationOption.id).all()
+
+    options_by_spec_id = {}
+    for opt in all_options:
+        options_by_spec_id.setdefault(opt.spec_id, []).append(opt)
+
+    definition_indicators = {}
+    for d in definitions:
+        sd = spec_dict_map.get(d.name)
+        if sd:
+            opts = options_by_spec_id.get(sd.id, [])
+            if opts:
+                definition_indicators[d.id] = [
+                    {'value': o.value, 'code': o.code} for o in opts
+                ]
+    return definition_indicators
+
+
 spec_template_bp = Blueprint('spec_template', __name__, url_prefix='/dev-product/spec-templates')
 
 
@@ -417,12 +456,16 @@ def create_template_page():
     for category_id, defs in definitions_by_category.items():
         definitions_data[category_id] = [d.to_dict() for d in defs]
 
+    # 批量加载指标选项（通过 SpecificationDictionary.name 桥接）
+    definition_indicators = _load_definition_indicators(definitions)
+
     return render_template(
         'spec_template/tw_edit.html',
         template=None,
         categories=categories,
         definitions_by_category=definitions_by_category,
         definitions_data=definitions_data,
+        definition_indicators=definition_indicators,
         test_methods=test_methods,
         test_conditions=test_conditions,
         product_categories=product_categories,
@@ -514,12 +557,16 @@ def edit_template_page(template_id):
     for category_id, defs in definitions_by_category.items():
         definitions_data[category_id] = [d.to_dict() for d in defs]
 
+    # 批量加载指标选项（通过 SpecificationDictionary.name 桥接）
+    definition_indicators = _load_definition_indicators(definitions)
+
     return render_template(
         'spec_template/tw_edit.html',
         template=template,
         categories=categories,
         definitions_by_category=definitions_by_category,
         definitions_data=definitions_data,
+        definition_indicators=definition_indicators,
         test_methods=test_methods,
         test_conditions=test_conditions,
         selected_items=selected_items,
@@ -995,6 +1042,10 @@ def spec_config_matrix_page(template_id):
                                 orphaned_items_by_category[cat_id] = []
                             orphaned_items_by_category[cat_id].append(item)
 
+    # 加载指标选项（用于配置矩阵下拉选择）
+    definitions = list({item.definition for item in all_items if item.definition})
+    definition_indicators = _load_definition_indicators(definitions)
+
     # 构建 MN 编码相关数据
     # 获取参与编码的规格项（按 display_order 排序）
     code_items = sorted(
@@ -1040,7 +1091,8 @@ def spec_config_matrix_page(template_id):
         code_items_data=code_items_data,
         code_position_map=code_position_map,
         selected_config_id=selected_config_id,
-        orphaned_items_by_category=orphaned_items_by_category
+        orphaned_items_by_category=orphaned_items_by_category,
+        definition_indicators=definition_indicators
     )
 
 

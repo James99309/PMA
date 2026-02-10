@@ -31,13 +31,6 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #1374 | 10:52 PM | ⚖️ | Product Manager Filter Toggle Implementation Plan Created | ~460 |
-| #1372 | 10:51 PM | 🔵 | Product Follow Feature Gap Analysis Completed | ~528 |
-| #1370 | 10:50 PM | 🔵 | Customer Model Implements Shared Access with Enable Toggle | ~354 |
-| #1369 | 10:49 PM | 🔵 | System Has Existing Shared_With Pattern for Data Access Control | ~331 |
-| #1368 | " | 🔵 | Product Category Has Manager Assignment Field | ~282 |
-| #1367 | 10:47 PM | 🔵 | Product Model Has Owner Field for Product Manager Assignment | ~354 |
-| #1104 | 4:04 PM | 🔵 | Monthly Activity Snapshot Model Already Exists in Database Schema | ~380 |
 | #927 | 9:45 AM | 🔵 | Complete Data Model and Field Mapping for Pricing and Settlement Orders | ~632 |
 | #926 | " | 🔵 | Company Model Structure for Dealer and Distributor Lookup | ~360 |
 | #923 | 9:44 AM | 🔵 | QuotationDetail Schema Matches PricingOrderDetail Structure | ~525 |
@@ -46,4 +39,14 @@
 | #920 | " | 🔵 | Complete Project Model Schema with Sales Manager and Type Fields | ~469 |
 | #919 | " | 🔵 | Project Model with Owner and Vendor Sales Manager Fields | ~345 |
 | #906 | 9:39 AM | 🔵 | Pricing Order Database Schema Defined with Dual-Entity Structure | ~569 |
+
+### Feb 9, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #1535 | 9:15 AM | 🔵 | Orphaned Specification Fields in Configuration System | ~321 |
+| #1534 | " | 🔵 | Snapshot Status Determined by Field ID Presence, Not Database Field | ~308 |
+| #1530 | 9:14 AM | 🔵 | Specification Template System Model Structure | ~363 |
+| #1528 | 9:13 AM | 🔵 | ProductSpec Model Stores Specification Values for Products | ~381 |
+| #1527 | " | 🔵 | New Specification System Model Architecture Revealed | ~417 |
 </claude-mem-context>

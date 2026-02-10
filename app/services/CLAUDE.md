@@ -38,6 +38,7 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
+| #1670 | 8:09 PM | 🔴 | Performance Dashboard Tab Capsule Count and Data Statistics Title Language Issues | ~698 |
 | #1496 | 8:44 AM | 🔵 | Backup Service Task Management and Storage Operations | ~514 |
 | #1484 | 8:43 AM | 🔵 | Supabase Backup Service Architecture and Cloud Storage Integration | ~448 |
 </claude-mem-context>

@@ -600,7 +600,11 @@
                     implant_amount: '{{ _("植入额") }}',
                     sales_amount: '{{ _("销售额") }}',
                     new_customers: '{{ _("新增客户") }}',
-                    new_projects: '{{ _("新增项目") }}'
+                    new_projects: '{{ _("新增项目") }}',
+                    pm_implant_amount: '{{ _("产品植入额") }}',
+                    pm_sales_amount: '{{ _("产品批价额") }}',
+                    se_implant_amount: '{{ _("支持项目植入额") }}',
+                    se_sales_amount: '{{ _("支持项目批价额") }}'
                 };
                 return labels[key] || key;
             },
@@ -611,7 +615,11 @@
                     implant_amount: 'payments',
                     sales_amount: 'point_of_sale',
                     new_projects: 'folder_open',
-                    new_customers: 'person_add'
+                    new_customers: 'person_add',
+                    pm_implant_amount: 'inventory_2',
+                    pm_sales_amount: 'sell',
+                    se_implant_amount: 'engineering',
+                    se_sales_amount: 'handshake'
                 };
                 return icons[key] || 'analytics';
             },
@@ -622,14 +630,20 @@
                     implant_amount: 'text-blue-500',
                     sales_amount: 'text-green-500',
                     new_projects: 'text-purple-500',
-                    new_customers: 'text-amber-500'
+                    new_customers: 'text-amber-500',
+                    pm_implant_amount: 'text-indigo-500',
+                    pm_sales_amount: 'text-teal-500',
+                    se_implant_amount: 'text-rose-500',
+                    se_sales_amount: 'text-orange-500'
                 };
                 return colors[key] || 'text-slate-500';
             },
 
             // 格式化指标值（金额用万元，数量用个）
             formatMetricValue(key, value) {
-                if (key === 'implant_amount' || key === 'sales_amount') {
+                if (key === 'implant_amount' || key === 'sales_amount'
+                    || key === 'pm_implant_amount' || key === 'pm_sales_amount'
+                    || key === 'se_implant_amount' || key === 'se_sales_amount') {
                     // 使用 CurrencyHelpers 转换 CNY 元 → 用户货币（包括0值也要显示货币符号）
                     return CurrencyHelpers.formatFromCNYYuan(value || 0, USER_CURRENCY, { withSymbol: true });
                 }

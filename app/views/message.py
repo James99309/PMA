@@ -5,6 +5,8 @@
 提供消息面板所需的 API 接口
 """
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from flask import Blueprint, jsonify, request, url_for
 from flask_login import login_required, current_user
 from flask_babel import gettext as _
@@ -121,7 +123,98 @@ def get_panel_data():
             }
             approval_list.append(approval_info)
 
-        # 4. 计算总未读数（消息 + 公告）
+        # 4. 获取待办任务（产品确认等）— pending + 最近24h已确认
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+        from sqlalchemy.orm import joinedload as jl
+        from datetime import timedelta
+        cutoff = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None) - timedelta(hours=24)
+
+        todo_tasks = QuotationConfirmationTask.query.options(
+            jl(QuotationConfirmationTask.quotation),
+            jl(QuotationConfirmationTask.requester)
+        ).filter(
+            QuotationConfirmationTask.assignee_id == current_user.id,
+            db.or_(
+                QuotationConfirmationTask.status == 'pending',
+                db.and_(
+                    QuotationConfirmationTask.status == 'confirmed',
+                    QuotationConfirmationTask.confirmed_at >= cutoff
+                )
+            )
+        ).order_by(
+            # pending 排在 confirmed 前面
+            db.case(
+                (QuotationConfirmationTask.status == 'pending', 0),
+                else_=1
+            ),
+            QuotationConfirmationTask.created_at.desc()
+        ).limit(20).all()
+
+        todo_list = []
+        pending_todo_count = 0
+        for task in todo_tasks:
+            qt = task.quotation
+            todo_list.append({
+                'id': task.id,
+                'type': 'product_confirmation',
+                'status': task.status,
+                'title': f'产品确认: {qt.quotation_number if qt else ""}',
+                'message': task.message or '',
+                'requester_name': (task.requester.real_name or task.requester.username) if task.requester else '',
+                'due_date': task.due_date.isoformat() if task.due_date else None,
+                'created_at': task.created_at.isoformat() if task.created_at else None,
+                'detail_url': url_for('quotation.view_quotation', id=task.quotation_id) if qt else '#',
+                'quotation_id': task.quotation_id
+            })
+            if task.status == 'pending':
+                pending_todo_count += 1
+
+        # 4.5 获取通用任务 — pending/in_progress + 最近24h已完成
+        from app.models.task import Task as GeneralTask
+        general_tasks = GeneralTask.query.filter(
+            db.or_(GeneralTask.assignee_id == current_user.id, GeneralTask.creator_id == current_user.id),
+            GeneralTask.is_deleted == False,
+            db.or_(
+                GeneralTask.status.in_(['pending', 'in_progress']),
+                db.and_(
+                    GeneralTask.status == 'completed',
+                    GeneralTask.completed_at >= cutoff
+                )
+            )
+        ).order_by(
+            db.case(
+                (GeneralTask.status.in_(['pending', 'in_progress']), 0),
+                else_=1
+            ),
+            GeneralTask.due_date.asc().nullslast(),
+            GeneralTask.created_at.desc()
+        ).limit(20).all()
+
+        for gt in general_tasks:
+            todo_list.append({
+                'id': f'gt_{gt.id}',
+                'type': 'general_task',
+                'status': 'confirmed' if gt.status == 'completed' else gt.status,
+                'title': gt.title,
+                'message': gt.description or '',
+                'requester_name': (gt.creator.real_name or gt.creator.username) if gt.creator else '',
+                'due_date': gt.due_date.isoformat() if gt.due_date else None,
+                'created_at': gt.created_at.isoformat() if gt.created_at else None,
+                'detail_url': '#',
+                'task_id': gt.id,
+                'priority': gt.priority,
+            })
+            if gt.status in ('pending', 'in_progress'):
+                pending_todo_count += 1
+
+        # 4.9 混合排序：pending/in_progress 在前，confirmed/completed 在后，各组内按创建时间倒序
+        def todo_sort_key(item):
+            s = item.get('status', '')
+            is_done = 1 if s in ('confirmed', 'completed') else 0
+            return (is_done, -(datetime.fromisoformat(item['created_at']).timestamp() if item.get('created_at') else 0))
+        todo_list.sort(key=todo_sort_key)
+
+        # 5. 计算总未读数（消息 + 公告）
         unread_mention_count = Message.get_unread_count(current_user.id)
         unread_announcement_count = AnnouncementRead.get_unread_count(current_user.id)
         # 直接使用实际查询结果的总数，避免缓存导致数量与列表不一致
@@ -134,10 +227,12 @@ def get_panel_data():
             'data': {
                 'mentions': mention_list,
                 'approvals': approval_list,
+                'todos': todo_list,
                 'counts': {
                     'unread_mentions': total_mentions_unread,
                     'pending_approvals': pending_approval_count,
-                    'total': total_mentions_unread + pending_approval_count
+                    'pending_todos': pending_todo_count,
+                    'total': total_mentions_unread + pending_approval_count + pending_todo_count
                 }
             }
         })
@@ -181,12 +276,27 @@ def get_unread_count():
         # @我标签未读 = 消息 + 公告
         total_mentions_unread = unread_mention_count + unread_announcement_count
 
+        # 待办任务数（产品确认 + 通用任务）
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+        pending_todo_count = QuotationConfirmationTask.query.filter_by(
+            assignee_id=current_user.id,
+            status='pending'
+        ).count()
+
+        from app.models.task import Task as GeneralTask
+        pending_todo_count += GeneralTask.query.filter(
+            GeneralTask.assignee_id == current_user.id,
+            GeneralTask.is_deleted == False,
+            GeneralTask.status.in_(['pending', 'in_progress'])
+        ).count()
+
         return jsonify({
             'success': True,
             'data': {
                 'unread_mentions': total_mentions_unread,
                 'pending_approvals': pending_approval_count,
-                'total': total_mentions_unread + pending_approval_count
+                'pending_todos': pending_todo_count,
+                'total': total_mentions_unread + pending_approval_count + pending_todo_count
             }
         })
     except Exception as e:
@@ -205,7 +315,20 @@ def has_unread():
         unread_announcement_count = AnnouncementRead.get_unread_count(current_user.id)
         pending_approval_count = get_pending_approval_count(current_user.id)
 
-        total = unread_mention_count + unread_announcement_count + pending_approval_count
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+        pending_todo_count = QuotationConfirmationTask.query.filter_by(
+            assignee_id=current_user.id,
+            status='pending'
+        ).count()
+
+        from app.models.task import Task as GeneralTask
+        pending_todo_count += GeneralTask.query.filter(
+            GeneralTask.assignee_id == current_user.id,
+            GeneralTask.is_deleted == False,
+            GeneralTask.status.in_(['pending', 'in_progress'])
+        ).count()
+
+        total = unread_mention_count + unread_announcement_count + pending_approval_count + pending_todo_count
         has_unread_flag = total > 0
 
         return jsonify({

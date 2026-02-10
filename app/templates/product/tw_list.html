@@ -79,6 +79,8 @@
                     <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
                     <span>{{ _('新增产品') }}</span>
                 </button>
+                {% endif %}
+                {% if current_user.role == 'admin' %}
                 <button type="button" onclick="exportProducts()"
                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors">
                     <span class="material-symbols-outlined" style="font-size: 20px;">download</span>

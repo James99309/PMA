@@ -410,6 +410,39 @@ def get_projects_through_customer_sharing_condition(user, model_class):
     logger.info("客户自动项目共享功能已被禁用，请使用项目直接共享功能")
     return None
 
+def _get_worklog_shared_ids(user_id, field='project_id'):
+    """获取通过行程共享获得的关联ID（子查询）
+
+    Args:
+        user_id: 当前用户ID
+        field: 'project_id' 或 'customer_id'
+    """
+    from app.models.worklog import WorkItem
+
+    target_field = getattr(WorkItem, field)
+    return db.session.query(target_field).filter(
+        target_field.isnot(None),
+        WorkItem.is_deleted == False,
+        cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user_id}]'::jsonb"))
+    ).distinct()
+
+def _get_task_linked_ids(user_id, field='project_id'):
+    """获取通过任务指派获得的关联ID（子查询）
+
+    Args:
+        user_id: 当前用户ID
+        field: 'project_id' 或 'quotation_id'
+    """
+    from app.models.task import Task as GeneralTask
+
+    target_field = getattr(GeneralTask, field)
+    return db.session.query(target_field).filter(
+        target_field.isnot(None),
+        GeneralTask.is_deleted == False,
+        GeneralTask.status.in_(['pending', 'in_progress']),
+        db.or_(GeneralTask.assignee_id == user_id, GeneralTask.creator_id == user_id)
+    ).distinct()
+
 def get_viewable_data(model_class, user, special_filters=None):
     """
     通用数据访问控制函数，根据用户权限返回可查看的数据集
@@ -530,6 +563,14 @@ def get_viewable_data(model_class, user, special_filters=None):
             if project_sharing_condition is not None:
                 basic_permission_conditions.append(project_sharing_condition)
 
+            # 行程共享 → 项目可见
+            worklog_shared_project_ids = _get_worklog_shared_ids(user.id, 'project_id')
+            basic_permission_conditions.append(model_class.id.in_(worklog_shared_project_ids))
+
+            # 任务关联 → 项目可见
+            task_linked_project_ids = _get_task_linked_ids(user.id, 'project_id')
+            basic_permission_conditions.append(model_class.id.in_(task_linked_project_ids))
+
             query = model_class.query.filter(
                 db.or_(*basic_permission_conditions),
                 *special_filters
@@ -614,6 +655,21 @@ def get_viewable_data(model_class, user, special_filters=None):
                 sales_manager_quotations = model_class.query.filter(model_class.project_id.in_(sales_manager_project_ids)).with_entities(model_class.id).all()
                 accessible_quotation_ids.update([q.id for q in sales_manager_quotations])
 
+            # 4. PM/SE：行程共享项目 → 项目下报价单可见
+            if user_role in ('product_manager', 'solution_manager'):
+                worklog_shared_project_ids = _get_worklog_shared_ids(user.id, 'project_id')
+                worklog_quotations = model_class.query.filter(
+                    model_class.project_id.in_(worklog_shared_project_ids)
+                ).with_entities(model_class.id).all()
+                accessible_quotation_ids.update([q.id for q in worklog_quotations])
+
+            # 5. 任务关联 → 报价单直接可见（任务明确指定了报价单）
+            task_linked_quotation_ids = _get_task_linked_ids(user.id, 'quotation_id')
+            task_quotations = model_class.query.filter(
+                model_class.id.in_(task_linked_quotation_ids)
+            ).with_entities(model_class.id).all()
+            accessible_quotation_ids.update([q.id for q in task_quotations])
+
             # 返回基于ID列表的查询
             if accessible_quotation_ids:
                 query = model_class.query.filter(model_class.id.in_(accessible_quotation_ids)).filter(*special_filters if special_filters else [])
@@ -671,6 +727,10 @@ def get_viewable_data(model_class, user, special_filters=None):
                 company_sharing_condition = SharingService.get_sharing_query_condition(model_class, user.id)
                 if company_sharing_condition is not None:
                     permission_conditions.append(company_sharing_condition)
+
+                # 行程共享 → 客户可见
+                worklog_shared_company_ids = _get_worklog_shared_ids(user.id, 'customer_id')
+                permission_conditions.append(model_class.id.in_(worklog_shared_company_ids))
 
             # 使用OR条件组合所有权限
             from sqlalchemy import or_
@@ -1263,7 +1323,21 @@ def can_view_company(user, company):
     if contact_count > 0:
         logger.debug(f"[权限检查] 联系人创建权限 - 允许访问")
         return True
-    
+
+    # 行程共享：如果用户被共享了关联该客户的行程记录
+    try:
+        from app.models.worklog import WorkItem
+        is_worklog_shared = WorkItem.query.filter(
+            WorkItem.customer_id == company.id,
+            WorkItem.is_deleted == False,
+            cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user.id}]'::jsonb"))
+        ).first() is not None
+        if is_worklog_shared:
+            logger.debug(f"[权限检查] 行程共享权限 - 允许访问")
+            return True
+    except Exception as e:
+        logger.debug(f"检查行程共享权限时出错: {e}")
+
     logger.debug(f"[权限检查] 所有权限检查失败 - 拒绝访问")
     return False
 
@@ -1358,6 +1432,38 @@ def can_view_quotation(user, quotation):
         if quotation.project.vendor_sales_manager_id == user.id:
             logger.debug(f"[权限检查] 厂商销售负责人权限 - 允许访问")
             return True
+
+    # 产品经理/解决方案经理：如果是报价单关联项目的支持人员，允许查看
+    if user.role in ('product_manager', 'solution_manager') and quotation.project_id:
+        from app.models.worklog import WorkItem
+        from sqlalchemy import cast, text
+        from sqlalchemy.dialects.postgresql import JSONB
+        is_contributor = WorkItem.query.filter(
+            WorkItem.project_id == quotation.project_id,
+            WorkItem.is_deleted == False,
+            db.or_(
+                WorkItem.owner_id == user.id,
+                cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user.id}]'::jsonb"))
+            )
+        ).first() is not None
+        if is_contributor:
+            logger.debug(f"[权限检查] 项目支持人员(PM/SE) - 允许访问报价单")
+            return True
+
+    # 任务关联：如果用户是关联该报价单的任务的创建者或被指派人
+    try:
+        from app.models.task import Task as GeneralTask
+        is_task_linked = GeneralTask.query.filter(
+            GeneralTask.quotation_id == quotation.id,
+            GeneralTask.is_deleted == False,
+            GeneralTask.status.in_(['pending', 'in_progress']),
+            db.or_(GeneralTask.assignee_id == user.id, GeneralTask.creator_id == user.id)
+        ).first() is not None
+        if is_task_linked:
+            logger.debug(f"[权限检查] 任务关联权限 - 允许访问报价单")
+            return True
+    except Exception as e:
+        logger.debug(f"检查任务关联权限时出错: {e}")
 
     logger.debug(f"[权限检查] 所有权限检查失败 - 拒绝访问")
     return False
@@ -1621,7 +1727,34 @@ def can_view_project(user, project):
             return True
     except Exception as e:
         logger.debug(f"检查项目直接共享权限时出错: {e}")
-    
+
+    # 行程共享：如果用户被共享了关联该项目的行程记录
+    try:
+        from app.models.worklog import WorkItem
+        is_worklog_shared = WorkItem.query.filter(
+            WorkItem.project_id == project.id,
+            WorkItem.is_deleted == False,
+            cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{user.id}]'::jsonb"))
+        ).first() is not None
+        if is_worklog_shared:
+            return True
+    except Exception as e:
+        logger.debug(f"检查行程共享权限时出错: {e}")
+
+    # 任务关联：如果用户是关联该项目的任务的创建者或被指派人
+    try:
+        from app.models.task import Task as GeneralTask
+        is_task_linked = GeneralTask.query.filter(
+            GeneralTask.project_id == project.id,
+            GeneralTask.is_deleted == False,
+            GeneralTask.status.in_(['pending', 'in_progress']),
+            db.or_(GeneralTask.assignee_id == user.id, GeneralTask.creator_id == user.id)
+        ).first() is not None
+        if is_task_linked:
+            return True
+    except Exception as e:
+        logger.debug(f"检查任务关联权限时出错: {e}")
+
     return False
 
 def register_context_processors(app):

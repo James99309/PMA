@@ -58,6 +58,7 @@ class SmartStorageManager:
             'product': 'products',
             'rd_product': 'rd_products',
             'meeting': 'meetings',
+            'task': 'tasks',
         }
 
         self._initialized = True

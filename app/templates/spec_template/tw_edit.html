@@ -298,25 +298,29 @@
                                                 <div class="flex items-start gap-4">
                                                     <!-- 左侧：通用值（固定40%宽度）-->
                                                     <div class="w-2/5 flex-shrink-0">
-                                                        <!-- 通用值输入 -->
+                                                        <!-- 通用值选择 -->
                                                         <div>
                                                             <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                                                                 {{ _('通用值 (General)') }}
-                                                                <span x-show="hasOptions(def.id)" class="text-slate-400 font-normal ml-1">({{ _('可选择或输入') }})</span>
+                                                                <span x-show="hasOptions(def.id)" class="text-slate-400 font-normal ml-1">({{ _('从指标中选择') }})</span>
                                                             </label>
-                                                            <input type="text"
-                                                                   :value="getItemValue(def.id, 'general_value')"
-                                                                   @input="setItemValue(def.id, 'general_value', $event.target.value)"
-                                                                   :list="hasOptions(def.id) ? 'options_' + def.id : null"
-                                                                   class="form-input w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                                                                   placeholder="{{ _('输入通用规格值') }}">
-                                                            <template x-if="hasOptions(def.id)">
-                                                                <datalist :id="'options_' + def.id">
-                                                                    <template x-for="opt in getDefinitionOptions(def.id)" :key="opt">
-                                                                        <option :value="opt"></option>
-                                                                    </template>
-                                                                </datalist>
-                                                            </template>
+                                                            <select @change="handleGeneralValueChange($event, def)"
+                                                                    class="form-select w-full text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                                                                <option value="">{{ _('-- 请选择 --') }}</option>
+                                                                <!-- 历史自由文本值（不在选项列表中时保留） -->
+                                                                <template x-if="getItemValue(def.id, 'general_value') && !isValueInOptions(def.id, getItemValue(def.id, 'general_value'))">
+                                                                    <option :value="getItemValue(def.id, 'general_value')" selected
+                                                                            x-text="getItemValue(def.id, 'general_value') + ' ({{ _('自定义') }})'"></option>
+                                                                </template>
+                                                                <!-- 指标选项 -->
+                                                                <template x-for="opt in getDefinitionOptions(def.id)" :key="opt.value">
+                                                                    <option :value="opt.value" x-text="opt.value"
+                                                                            :selected="opt.value === getItemValue(def.id, 'general_value')"></option>
+                                                                </template>
+                                                                <!-- 分隔线 + 管理规格选项 -->
+                                                                <option disabled>──────────</option>
+                                                                <option value="__MANAGE_OPTIONS__">+ {{ _('管理规格选项') }}</option>
+                                                            </select>
                                                         </div>
                                                         <!-- 附件区域（allow_attachment 为 true 时显示，独立一行）-->
                                                         <div x-show="def.allow_attachment" class="mt-2">
@@ -455,6 +459,115 @@
             </div>
         {% endif %}
         {% endcall %}
+
+        <!-- 指标管理模态框 (inside x-data scope) -->
+        <div x-show="indicatorModalOpen" x-cloak
+             class="fixed inset-0 z-50 flex items-center justify-center p-4"
+             @keydown.escape.window="if(indicatorModalOpen) closeIndicatorModal()">
+            <!-- 遮罩层 -->
+            <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="closeIndicatorModal()"
+                 x-show="indicatorModalOpen"
+                 x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                 x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+            <!-- 模态框内容 -->
+            <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col overflow-hidden"
+                 x-show="indicatorModalOpen"
+                 x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                 x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
+                <!-- 头部 -->
+                <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-primary" style="font-size: 20px;">list_alt</span>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('指标管理') }}</h3>
+                            <p class="text-xs text-slate-500 dark:text-slate-400"
+                               x-text="indicatorModalDef ? indicatorModalDef.name + (indicatorModalDef.unit ? ' (' + indicatorModalDef.unit + ')' : '') : ''"></p>
+                        </div>
+                    </div>
+                    <button @click="closeIndicatorModal()"
+                            class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 inline-flex items-center justify-center transition-colors">
+                        <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
+                    </button>
+                </div>
+                <!-- 指标列表 -->
+                <div class="flex-1 overflow-y-auto">
+                    <!-- 加载状态 -->
+                    <div x-show="indicatorLoading" class="px-6 py-10 text-center">
+                        <svg class="animate-spin h-8 w-8 text-primary mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                    <!-- 有指标时 -->
+                    <template x-if="!indicatorLoading && indicatorItems.length > 0">
+                        <div>
+                            <div class="grid grid-cols-12 gap-3 px-6 py-2.5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 sticky top-0">
+                                <div class="col-span-1 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">#</div>
+                                <div class="col-span-6 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('指标值') }}</div>
+                                <div class="col-span-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('编码') }}</div>
+                                <div class="col-span-2 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase text-right">{{ _('操作') }}</div>
+                            </div>
+                            <template x-for="(ind, idx) in indicatorItems" :key="ind.id">
+                                <div class="grid grid-cols-12 gap-3 px-6 py-3 border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/30 items-center transition-colors">
+                                    <div class="col-span-1 text-sm text-slate-400 dark:text-slate-500" x-text="idx + 1"></div>
+                                    <div class="col-span-6 text-sm font-medium text-slate-800 dark:text-slate-200" x-text="ind.value"></div>
+                                    <div class="col-span-3">
+                                        <span class="inline-flex px-2.5 py-0.5 text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded" x-text="ind.code"></span>
+                                    </div>
+                                    <div class="col-span-2 text-right">
+                                        <button @click="deleteIndicator(ind.id, ind.value)"
+                                                class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 inline-flex items-center justify-center transition-colors"
+                                                title="{{ _('删除') }}">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                    <!-- 空状态 -->
+                    <template x-if="!indicatorLoading && indicatorItems.length === 0">
+                        <div class="px-6 py-10 text-center">
+                            <span class="material-symbols-outlined text-slate-300 dark:text-slate-600" style="font-size: 40px;">inbox</span>
+                            <p class="text-sm text-slate-400 dark:text-slate-500 mt-2">{{ _('暂无指标，请在下方添加') }}</p>
+                        </div>
+                    </template>
+                </div>
+                <!-- 底部添加区域 -->
+                <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="flex-1">
+                            <input type="text" x-ref="indicatorNewValueInput"
+                                   x-model="indicatorNewValue"
+                                   @keydown.enter="addIndicator()"
+                                   :placeholder="'{{ _('输入指标值...') }}'"
+                                   class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                        </div>
+                        <div class="w-20">
+                            <div class="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-sm text-slate-500 dark:text-slate-400 flex items-center justify-center font-mono">{{ _('自动') }}</div>
+                        </div>
+                        <button @click="addIndicator()"
+                                :disabled="!indicatorNewValue.trim() || indicatorAdding"
+                                class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-medium transition-colors"
+                                :class="indicatorNewValue.trim() && !indicatorAdding ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'">
+                            <span class="material-symbols-outlined" style="font-size: 16px;" x-show="!indicatorAdding">add</span>
+                            <svg x-show="indicatorAdding" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            {{ _('添加') }}
+                        </button>
+                    </div>
+                    <p class="mt-2 text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
+                        <span class="material-symbols-outlined" style="font-size: 14px;">info</span>
+                        {{ _('编码根据输入值智能生成') }}
+                    </p>
+                </div>
+            </div>
+        </div>
+
         </div>
     {% endif %}
     {% endcall %}
@@ -510,16 +623,8 @@
                 {{ category.id }}: [{% for d in definitions_by_category.get(category.id, []) %}{{ d.id }}{% if not loop.last %},{% endif %}{% endfor %}]{% if not loop.last %},{% endif %}
                 {% endfor %}
             },
-            // 规格项预设选项
-            definitionOptions: {
-                {% for category in categories %}
-                {% for d in definitions_by_category.get(category.id, []) %}
-                {% if d.default_options %}
-                {{ d.id }}: {{ d.default_options|tojson }},
-                {% endif %}
-                {% endfor %}
-                {% endfor %}
-            },
+            // 规格项预设选项（从 SpecificationOption 加载）
+            definitionOptions: {{ definition_indicators|tojson }},
             // 规格项值类型
             definitionValueTypes: {
                 {% for category in categories %}
@@ -528,6 +633,14 @@
                 {% endfor %}{% if not loop.last %},{% endif %}
                 {% endfor %}
             },
+
+            // 指标管理模态框
+            indicatorModalOpen: false,
+            indicatorModalDef: null,
+            indicatorItems: [],
+            indicatorNewValue: '',
+            indicatorLoading: false,
+            indicatorAdding: false,
 
             // 修改追踪
             isDirty: false,
@@ -929,23 +1042,155 @@
                 this.checkDirty();
             },
 
-            // 获取规格项的预设选项（支持字符串和数组格式）
+            // 获取规格项的预设选项（返回 {value, code} 对象数组）
             getDefinitionOptions(definitionId) {
-                let options = this.definitionOptions[definitionId];
-                if (!options) return [];
-
-                // 如果是字符串，按换行或逗号分割
-                if (typeof options === 'string') {
-                    options = options.split(/[\n,]/).map(s => s.trim()).filter(s => s);
-                }
-
-                return Array.isArray(options) ? options : [];
+                const options = this.definitionOptions[definitionId];
+                if (!options || !Array.isArray(options)) return [];
+                return options;
             },
 
             // 检查规格项是否有预设选项
             hasOptions(definitionId) {
                 const options = this.getDefinitionOptions(definitionId);
                 return options && options.length > 0;
+            },
+
+            // 检查值是否在选项列表中
+            isValueInOptions(defId, value) {
+                if (!value) return false;
+                const options = this.getDefinitionOptions(defId);
+                return options.some(opt => opt.value === value);
+            },
+
+            // 处理通用值选择变化
+            handleGeneralValueChange($event, def) {
+                if ($event.target.value === '__MANAGE_OPTIONS__') {
+                    // 恢复之前的值
+                    $event.target.value = this.getItemValue(def.id, 'general_value') || '';
+                    // 打开指标管理模态框
+                    this.openIndicatorModal(def);
+                } else {
+                    this.setItemValue(def.id, 'general_value', $event.target.value);
+                }
+            },
+
+            // 打开指标管理模态框
+            async openIndicatorModal(def) {
+                this.indicatorModalDef = def;
+                this.indicatorNewValue = '';
+                this.indicatorItems = [];
+                this.indicatorModalOpen = true;
+                this.indicatorLoading = true;
+
+                this.$nextTick(() => {
+                    this.$refs.indicatorNewValueInput && this.$refs.indicatorNewValueInput.focus();
+                });
+
+                await this.loadIndicators(def.id);
+            },
+
+            // 加载指标列表
+            async loadIndicators(defId) {
+                this.indicatorLoading = true;
+                try {
+                    const response = await fetch(`/admin/spec-definitions/api/${defId}/indicators`);
+                    const result = await response.json();
+                    if (result.success) {
+                        this.indicatorItems = result.data || [];
+                    } else {
+                        this.showToast(result.message || '{{ _("加载失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error loading indicators:', error);
+                    this.showToast('{{ _("加载失败") }}', 'error');
+                } finally {
+                    this.indicatorLoading = false;
+                }
+            },
+
+            // 添加指标
+            async addIndicator() {
+                const value = this.indicatorNewValue.trim();
+                if (!value || !this.indicatorModalDef || this.indicatorAdding) return;
+
+                this.indicatorAdding = true;
+                try {
+                    const response = await fetch(`/admin/spec-definitions/api/${this.indicatorModalDef.id}/indicators`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: value })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        this.showToast(result.message || '{{ _("添加成功") }}');
+                        this.indicatorNewValue = '';
+                        await this.loadIndicators(this.indicatorModalDef.id);
+                        this.$nextTick(() => {
+                            this.$refs.indicatorNewValueInput && this.$refs.indicatorNewValueInput.focus();
+                        });
+                    } else {
+                        this.showToast(result.message || '{{ _("添加失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error adding indicator:', error);
+                    this.showToast('{{ _("添加失败") }}', 'error');
+                } finally {
+                    this.indicatorAdding = false;
+                }
+            },
+
+            // 删除指标
+            deleteIndicator(optionId, optionValue) {
+                const self = this;
+                openConfirmModal('deleteIndicatorModal', {
+                    message: `{{ _("确定要删除指标") }} "${optionValue}" {{ _("吗？") }}`,
+                    data: { optionId: optionId },
+                    onConfirm: async function(data) {
+                        try {
+                            const response = await fetch(`/admin/spec-definitions/api/indicators/${data.optionId}`, {
+                                method: 'DELETE'
+                            });
+                            const result = await response.json();
+                            if (result.success) {
+                                self.showToast(result.message || '{{ _("删除成功") }}');
+                                await self.loadIndicators(self.indicatorModalDef.id);
+                            } else {
+                                throw new Error(result.message || '{{ _("删除失败") }}');
+                            }
+                        } catch (error) {
+                            throw error;
+                        }
+                    }
+                });
+            },
+
+            // 关闭指标管理模态框（刷新下拉选项）
+            async closeIndicatorModal() {
+                this.indicatorModalOpen = false;
+                if (this.indicatorModalDef) {
+                    await this.refreshDefinitionOptions(this.indicatorModalDef.id);
+                }
+            },
+
+            // 刷新某个规格项的指标选项
+            async refreshDefinitionOptions(defId) {
+                try {
+                    const response = await fetch(`/admin/spec-definitions/api/${defId}/indicators`);
+                    const result = await response.json();
+                    if (result.success) {
+                        const options = (result.data || []).map(ind => ({
+                            value: ind.value,
+                            code: ind.code
+                        }));
+                        if (options.length > 0) {
+                            this.definitionOptions[defId] = options;
+                        } else {
+                            delete this.definitionOptions[defId];
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error refreshing options:', error);
+                }
             },
 
             // 检查是否可以显示附件按钮（仅编辑模式且 allow_attachment 为 true 且已保存时）
@@ -1267,6 +1512,18 @@
         confirm_text=_('删除'),
         cancel_text=_('取消'),
         variant='danger'
+    ) }}
+
+    <!-- 删除指标确认模态框 (z-[60] 确保在指标管理模态框 z-50 之上) -->
+    {{ tw_confirm_modal(
+        modal_id='deleteIndicatorModal',
+        title=_('确认删除'),
+        message=_('确定要删除此指标吗？'),
+        confirm_text=_('删除'),
+        cancel_text=_('取消'),
+        variant='danger',
+        show_error=true,
+        z_index='z-[60]'
     ) }}
 
     {{ tw_confirm_modal_script() }}

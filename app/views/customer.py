@@ -228,7 +228,8 @@ def list_companies():
         request.args, filters, current_user.id,
         owner_field='owner_filter',
         filter_keys=['search', 'company_type', 'industry', 'country', 'status_filter'],
-        module_id='customer'
+        module_id='customer',
+        model_class=Company
     )
     company_type_filter = filters.get('company_type', '')
     industry_filter = filters.get('industry', '')

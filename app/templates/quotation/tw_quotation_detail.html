@@ -245,16 +245,40 @@
                 {'field': 'product_mn', 'label': _('产品编码')}
             ] %}
 
-            {# 确认状态徽章配置 #}
-            {% set is_confirmed = quotation.confirmation_badge_status == 'confirmed' %}
-            {% set confirm_badge = {
-                'id': 'confirmStatusBtn',
-                'text': _('已确认') if is_confirmed else _('未确认'),
-                'icon': 'check_circle' if is_confirmed else 'info',
-                'class': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' if is_confirmed else 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700',
-                'onclick': 'toggleConfirmStatus()',
-                'filled': is_confirmed
-            } %}
+            {# 确认状态徽章配置（三态：none/pending/confirmed） #}
+            {% set confirm_badge = none %}
+            {% set badge_status = quotation.confirmation_badge_status %}
+            {% if badge_status == 'confirmed' %}
+                {% set confirm_badge = {
+                    'id': 'confirmStatusBtn',
+                    'text': _('已确认'),
+                    'icon': 'check_circle',
+                    'class': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                    'onclick': 'showConfirmationDetail()',
+                    'filled': true
+                } %}
+            {% elif badge_status == 'pending' %}
+                {% set confirm_badge = {
+                    'id': 'confirmStatusBtn',
+                    'text': _('待确认'),
+                    'icon': 'hourglass_top',
+                    'class': 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+                    'onclick': 'showConfirmationDetail()',
+                    'filled': false
+                } %}
+            {% else %}
+                {# 只有报价单创建者才能发起确认请求 #}
+                {% if quotation.owner_id == current_user.id %}
+                    {% set confirm_badge = {
+                        'id': 'confirmStatusBtn',
+                        'text': _('请求确认'),
+                        'icon': 'assignment',
+                        'class': 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700',
+                        'onclick': 'openConfirmationTaskModal()',
+                        'filled': false
+                    } %}
+                {% endif %}
+            {% endif %}
 
             {% call render_tw_data_table(
                 table_id='productDetailTable',
@@ -391,6 +415,91 @@
     {{ tw_pricing_order_modal() }}
     {% endif %}
 
+    <!-- 产品确认任务创建模态框 -->
+    <div id="confirmationTaskModal" class="fixed inset-0 z-[60] hidden" role="dialog">
+        <div class="absolute inset-0 bg-black/30 dark:bg-black/50" onclick="closeConfirmationTaskModal()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white dark:bg-slate-900 rounded-xl shadow-2xl">
+            <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span class="material-symbols-outlined text-orange-500">assignment</span>
+                    {{ _('发起产品确认') }}
+                </h3>
+                <button onclick="closeConfirmationTaskModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="p-5 space-y-4">
+                <!-- 消息 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('消息') }}</label>
+                    <textarea id="confirmTaskMessage" rows="2"
+                              class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">{{ _('请确认报价单') }} {{ quotation.quotation_number }} {{ _('的产品选型和配置清单') }}</textarea>
+                </div>
+
+                <!-- 指派确认人（多选 checkbox） -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('指派确认人') }}</label>
+                    <div class="border border-slate-300 dark:border-slate-600 rounded-lg max-h-48 overflow-y-auto">
+                        {% for user in confirmation_candidates %}
+                        <label class="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors {% if not loop.last %}border-b border-slate-100 dark:border-slate-800{% endif %}">
+                            <input type="checkbox" name="assignee_ids" value="{{ user.id }}"
+                                   class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50">
+                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ user.real_name or user.username }}</span>
+                            <span class="text-xs text-slate-400 ml-auto">{{ role_display_map.get(user.id, user.role) }}</span>
+                        </label>
+                        {% else %}
+                        <div class="px-3 py-4 text-center text-sm text-slate-400">{{ _('暂无可选人员') }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- 截止时间 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('截止时间') }}</label>
+                    <input type="date" id="confirmTaskDueDate"
+                           class="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                </div>
+            </div>
+            <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+                {% if current_user.role in ['solution_manager', 'admin'] %}
+                <button onclick="directConfirm()" class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    {{ _('直接确认') }}
+                </button>
+                {% endif %}
+                <button onclick="closeConfirmationTaskModal()" class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button onclick="submitConfirmationTask()" class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-dark rounded-lg transition-colors">
+                    {{ _('发送确认请求') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 确认任务详情弹窗 -->
+    <div id="confirmationDetailModal" class="fixed inset-0 z-[60] hidden" role="dialog">
+        <div class="absolute inset-0 bg-black/30 dark:bg-black/50" onclick="closeConfirmationDetail()"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-white dark:bg-slate-900 rounded-xl shadow-2xl">
+            <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('确认进度') }}</h3>
+                <button onclick="closeConfirmationDetail()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div id="confirmationDetailContent" class="p-5">
+                <div class="flex items-center justify-center py-6">
+                    <div class="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
+                </div>
+            </div>
+            <div id="confirmationDetailFooter" class="px-5 py-4 border-t border-slate-200 dark:border-slate-700 hidden">
+                <button onclick="confirmMyTask()" class="w-full px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center justify-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">check_circle</span>
+                    {{ _('确认产品选型') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 布局脚本 -->
     {{ render_tw_layout_script() }}
 
@@ -475,66 +584,202 @@
         openCustomModal(modalId);
     }
 
-    // 切换确认状态
-    let isConfirmed = {{ 'true' if quotation.confirmation_badge_status == 'confirmed' else 'false' }};
+    // ========== 产品确认待办任务系统 ==========
+    let confirmationStatus = '{{ quotation.confirmation_badge_status }}';
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
-    // 定义样式常量
-    const CONFIRMED_CLASS = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
-    const UNCONFIRMED_CLASS = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700';
+    // 样式常量
+    const CONFIRM_STYLES = {
+        'confirmed': { class: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: 'check_circle', filled: true },
+        'pending': { class: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: 'hourglass_top', filled: false },
+        'none': { class: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700', icon: 'assignment', filled: false }
+    };
 
-    function toggleConfirmStatus() {
-        const btn = document.getElementById('confirmStatusBtn');
-        const text = document.getElementById('confirmStatusBtnText');
-        const icon = btn.querySelector('.material-symbols-outlined');
+    // 打开确认任务创建弹窗
+    function openConfirmationTaskModal() {
+        // 重置所有checkbox
+        document.querySelectorAll('#confirmationTaskModal input[name="assignee_ids"]').forEach(cb => cb.checked = false);
+        // 设置默认截止时间为明天
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('confirmTaskDueDate').value = tomorrow.toISOString().split('T')[0];
+        document.getElementById('confirmationTaskModal').classList.remove('hidden');
+    }
 
-        isConfirmed = !isConfirmed;
-        updateConfirmUI();
+    function closeConfirmationTaskModal() {
+        document.getElementById('confirmationTaskModal').classList.add('hidden');
+    }
 
-        // 保存到后端
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        fetch(`/quotation/{{ quotation.id }}/toggle_product_detail_confirmation`, {
+    // 提交确认任务
+    function submitConfirmationTask() {
+        const checkedIds = Array.from(
+            document.querySelectorAll('#confirmationTaskModal input[name="assignee_ids"]:checked')
+        ).map(cb => parseInt(cb.value));
+
+        if (!checkedIds.length) {
+            showMessage('{{ _("请选择至少一个确认人") }}', 'error');
+            return;
+        }
+        const message = document.getElementById('confirmTaskMessage').value;
+        const dueDate = document.getElementById('confirmTaskDueDate').value;
+
+        fetch(`/quotation/{{ quotation.id }}/confirmation-tasks`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            }
-        }).then(response => response.json())
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({
+                assignee_ids: checkedIds,
+                message: message,
+                due_date: dueDate
+            })
+        })
+        .then(r => r.json())
         .then(data => {
-            if (!data.success) {
-                // 恢复UI状态
-                isConfirmed = !isConfirmed;
-                updateConfirmUI();
+            if (data.success) {
+                closeConfirmationTaskModal();
+                showMessage(`{{ _("已发送确认请求给") }} ${data.task_count} {{ _("人") }}`, 'success');
+                updateConfirmBadge('pending', data.confirmed, data.total);
+            } else {
                 showMessage(data.message || '{{ _("操作失败") }}', 'error');
             }
-        }).catch(error => {
-            console.error('切换确认状态失败:', error);
-            // 恢复UI状态
-            isConfirmed = !isConfirmed;
-            updateConfirmUI();
+        })
+        .catch(e => {
+            console.error('创建确认任务失败:', e);
             showMessage('{{ _("操作失败，请重试") }}', 'error');
         });
     }
 
-    function updateConfirmUI() {
+    // SE/admin 直接确认（兜底）
+    function directConfirm() {
+        fetch(`/quotation/{{ quotation.id }}/toggle_product_detail_confirmation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeConfirmationTaskModal();
+                updateConfirmBadge('confirmed', 0, 0);
+                showMessage('{{ _("已直接确认产品明细") }}', 'success');
+            } else {
+                showMessage(data.message || '{{ _("操作失败") }}', 'error');
+            }
+        })
+        .catch(e => showMessage('{{ _("操作失败，请重试") }}', 'error'));
+    }
+
+    // 显示确认详情弹窗
+    function showConfirmationDetail() {
+        document.getElementById('confirmationDetailModal').classList.remove('hidden');
+        loadConfirmationDetail();
+    }
+
+    function closeConfirmationDetail() {
+        document.getElementById('confirmationDetailModal').classList.add('hidden');
+    }
+
+    function loadConfirmationDetail() {
+        const content = document.getElementById('confirmationDetailContent');
+        const footer = document.getElementById('confirmationDetailFooter');
+        content.innerHTML = '<div class="flex items-center justify-center py-6"><div class="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div></div>';
+        footer.classList.add('hidden');
+
+        fetch(`/quotation/{{ quotation.id }}/confirmation-tasks`)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { content.innerHTML = '<p class="text-center text-slate-400 py-4">{{ _("加载失败") }}</p>'; return; }
+            if (!data.tasks.length) {
+                // 如果是已确认状态但没有任务记录（直接确认的）
+                {% if quotation.confirmer %}
+                content.innerHTML = `<div class="space-y-2"><div class="flex items-center gap-2 text-sm"><span class="material-symbols-outlined text-green-500 text-base">check_circle</span><span class="text-slate-700 dark:text-slate-300">{{ quotation.confirmer.real_name or quotation.confirmer.username }}</span><span class="text-xs text-slate-400">{{ _('已确认') }}</span></div></div>`;
+                {% else %}
+                content.innerHTML = '<p class="text-center text-slate-400 py-4">{{ _("暂无确认记录") }}</p>';
+                {% endif %}
+                return;
+            }
+            content.innerHTML = '<div class="space-y-3">' + data.tasks.map(t => {
+                const isConfirmed = t.status === 'confirmed';
+                const icon = isConfirmed ? 'check_circle' : 'hourglass_top';
+                const color = isConfirmed ? 'text-green-500' : 'text-orange-500';
+                const time = isConfirmed && t.confirmed_at ? new Date(t.confirmed_at).toLocaleString() : '';
+                return `<div class="flex items-center gap-3 py-1">
+                    <span class="material-symbols-outlined ${color} text-lg">${icon}</span>
+                    <div class="flex-1">
+                        <div class="text-sm font-medium text-slate-700 dark:text-slate-300">${t.assignee_name || ''}</div>
+                        <div class="text-xs text-slate-400">${isConfirmed ? '{{ _("已确认") }} ' + time : '{{ _("待确认") }}'}</div>
+                    </div>
+                </div>`;
+            }).join('') + `<div class="pt-2 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 text-center">${data.confirmed}/${data.total} {{ _("已确认") }}</div></div>`;
+
+            // 如果当前用户有pending任务，显示确认按钮
+            if (data.has_pending_task) {
+                footer.classList.remove('hidden');
+            }
+        })
+        .catch(e => { content.innerHTML = '<p class="text-center text-red-400 py-4">{{ _("加载失败") }}</p>'; });
+    }
+
+    // 当前用户确认
+    function confirmMyTask() {
+        fetch(`/quotation/{{ quotation.id }}/confirmation-tasks/confirm`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showMessage('{{ _("已确认产品选型") }}', 'success');
+                if (data.all_confirmed) {
+                    updateConfirmBadge('confirmed', data.confirmed, data.total);
+                } else {
+                    updateConfirmBadge('pending', data.confirmed, data.total);
+                }
+                loadConfirmationDetail();
+                document.getElementById('confirmationDetailFooter').classList.add('hidden');
+            } else {
+                showMessage(data.message || '{{ _("操作失败") }}', 'error');
+            }
+        })
+        .catch(e => showMessage('{{ _("操作失败，请重试") }}', 'error'));
+    }
+
+    // 更新确认徽章UI
+    function updateConfirmBadge(status, confirmed, total) {
+        confirmationStatus = status;
         const btn = document.getElementById('confirmStatusBtn');
         const text = document.getElementById('confirmStatusBtnText');
         const icon = btn.querySelector('.material-symbols-outlined');
+        const style = CONFIRM_STYLES[status] || CONFIRM_STYLES['none'];
 
-        // 移除旧样式，添加新样式
-        btn.classList.remove(...CONFIRMED_CLASS.split(' '), ...UNCONFIRMED_CLASS.split(' '));
+        // 移除所有可能的样式
+        Object.values(CONFIRM_STYLES).forEach(s => {
+            btn.classList.remove(...s.class.split(' '));
+        });
+        btn.classList.add(...style.class.split(' '));
+        icon.textContent = style.icon;
+        if (style.filled) { icon.classList.add('fill'); } else { icon.classList.remove('fill'); }
 
-        if (isConfirmed) {
-            btn.classList.add(...CONFIRMED_CLASS.split(' '));
-            icon.textContent = 'check_circle';
-            icon.classList.add('fill');
+        if (status === 'confirmed') {
             text.textContent = '{{ _("已确认") }}';
+            btn.onclick = showConfirmationDetail;
+        } else if (status === 'pending') {
+            text.textContent = total > 0 ? `{{ _("待确认") }} (${confirmed}/${total})` : '{{ _("待确认") }}';
+            btn.onclick = showConfirmationDetail;
         } else {
-            btn.classList.add(...UNCONFIRMED_CLASS.split(' '));
-            icon.textContent = 'info';
-            icon.classList.remove('fill');
-            text.textContent = '{{ _("未确认") }}';
+            text.textContent = '{{ _("请求确认") }}';
+            btn.onclick = openConfirmationTaskModal;
         }
     }
+
+    // 页面加载时，如果是pending状态，获取进度数字
+    {% if quotation.confirmation_badge_status == 'pending' %}
+    fetch(`/quotation/{{ quotation.id }}/confirmation-tasks`)
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.total > 0) {
+            updateConfirmBadge('pending', data.confirmed, data.total);
+        }
+    }).catch(() => {});
+    {% endif %}
 
     // 导出PDF
     function exportQuotationPdf() {
@@ -969,6 +1214,26 @@
                     QuotationEditModal.submit();
                 }
             });
+
+            // 根据已有数据初始化级联下拉（项目→客户→联系人）
+            const existingProjectId = document.getElementById('project_id_modal').value;
+            if (existingProjectId) {
+                const existingCustomerId = '{{ quotation.customer_id or "" }}';
+                const existingContactId = '{{ quotation.contact_id or "" }}';
+
+                QuotationEditModal.loadProjectCustomers(existingProjectId).then(function() {
+                    if (existingCustomerId) {
+                        const customerSelect = document.getElementById('customer_id_modal');
+                        customerSelect.value = existingCustomerId;
+
+                        QuotationEditModal.loadCustomerContacts(existingCustomerId).then(function() {
+                            if (existingContactId) {
+                                document.getElementById('contact_id_modal').value = existingContactId;
+                            }
+                        });
+                    }
+                });
+            }
         };
 
         // 绑定事件监听

@@ -2324,7 +2324,13 @@ msgstr "All Specifications"
 msgid "搜索规格..."
 msgstr "Search specifications..."
 msgid "添加规格"
-msgstr "Add Specification"
+msgstr "Add Specifications"
+msgid "已选"
+msgstr "Selected"
+msgid "添加选中规格"
+msgstr "Add Selected"
+msgid "没有匹配的规格"
+msgstr "No matching specifications"
 msgid "编辑规格"
 msgstr "Edit Specification"
 msgid "删除规格"
@@ -8068,3 +8074,265 @@ msgstr "Support Staff"
 
 msgid "暂无技术支持活动"
 msgstr "No tech support activity"
+
+msgid "产品植入额"
+msgstr "Product Implant Amount"
+
+msgid "产品批价额"
+msgstr "Product Sales Amount"
+
+msgid "支持项目植入额"
+msgstr "Support Implant Amount"
+
+msgid "支持项目批价额"
+msgstr "Support Sales Amount"
+
+msgid "批价目标"
+msgstr "Pricing Target"
+
+msgid "发起产品确认"
+msgstr "Request Product Confirmation"
+
+msgid "请求确认"
+msgstr "Request Confirmation"
+
+msgid "待确认"
+msgstr "Pending Confirmation"
+
+msgid "指派确认人"
+msgstr "Assign Reviewer"
+
+msgid "选择确认人"
+msgstr "Select Reviewer"
+
+msgid "请选择确认人"
+msgstr "Please select a reviewer"
+
+msgid "截止时间"
+msgstr "Due Date"
+
+msgid "发送确认请求"
+msgstr "Send Confirmation Request"
+
+msgid "直接确认"
+msgstr "Confirm Directly"
+
+msgid "请选择至少一个确认人"
+msgstr "Please select at least one reviewer"
+
+msgid "已发送确认请求给"
+msgstr "Confirmation request sent to"
+
+msgid "人"
+msgstr "people"
+
+msgid "已直接确认产品明细"
+msgstr "Product details confirmed directly"
+
+msgid "确认进度"
+msgstr "Confirmation Progress"
+
+msgid "暂无确认记录"
+msgstr "No confirmation records"
+
+msgid "确认产品选型"
+msgstr "Confirm Product Selection"
+
+msgid "已确认产品选型"
+msgstr "Product selection confirmed"
+
+msgid "的产品选型和配置清单"
+msgstr " product selection and configuration"
+
+msgid "暂无待办任务"
+msgstr "No pending tasks"
+
+msgid "发起"
+msgstr "requested"
+
+msgid "截止"
+msgstr "Due"
+
+msgid "待办"
+msgstr "To-Do"
+
+msgid "请确认报价单"
+msgstr "Please confirm quotation"
+
+msgid "暂无可选人员"
+msgstr "No available reviewers"
+
+# ========== 通用任务模块 ==========
+msgid "新建任务"
+msgstr "New Task"
+
+msgid "任务标题"
+msgstr "Task Title"
+
+msgid "输入任务标题"
+msgstr "Enter task title"
+
+msgid "指派给"
+msgstr "Assign To"
+
+msgid "搜索用户"
+msgstr "Search user"
+
+msgid "优先级"
+msgstr "Priority"
+
+msgid "低"
+msgstr "Low"
+
+msgid "普通"
+msgstr "Normal"
+
+msgid "高"
+msgstr "High"
+
+msgid "紧急"
+msgstr "Urgent"
+
+msgid "截止日期"
+msgstr "Due Date"
+
+msgid "任务描述（可选）"
+msgstr "Task description (optional)"
+
+msgid "外部链接"
+msgstr "External Link"
+
+msgid "链接名称"
+msgstr "Link label"
+
+msgid "关联项目"
+msgstr "Related Project"
+
+msgid "搜索项目（可选）"
+msgstr "Search project (optional)"
+
+msgid "搜索项目"
+msgstr "Search project"
+
+msgid "选择报价单"
+msgstr "Select quotation"
+
+msgid "创建任务"
+msgstr "Create Task"
+
+msgid "请输入任务标题"
+msgstr "Please enter task title"
+
+msgid "请选择指派人"
+msgstr "Please select assignee"
+
+msgid "任务创建成功"
+msgstr "Task created successfully"
+
+msgid "创建失败"
+msgstr "Creation failed"
+
+msgid "网络错误"
+msgstr "Network error"
+
+msgid "任务详情"
+msgstr "Task Details"
+
+msgid "待处理"
+msgstr "Pending"
+
+msgid "进行中"
+msgstr "In Progress"
+
+msgid "已过期"
+msgstr "Overdue"
+
+msgid "天"
+msgstr "d "
+
+msgid "小时"
+msgstr "h "
+
+msgid "分钟"
+msgstr "m"
+
+msgid "剩余"
+msgstr "Remaining "
+
+msgid "刚刚"
+msgstr "just now"
+
+msgid "分钟前"
+msgstr "m ago"
+
+msgid "小时前"
+msgstr "h ago"
+
+msgid "关联客户"
+msgstr "Related Customer"
+
+msgid "附件"
+msgstr "Attachments"
+
+msgid "上传"
+msgstr "Upload"
+
+msgid "上传中..."
+msgstr "Uploading..."
+
+msgid "回复"
+msgstr "Reply"
+
+msgid "输入回复..."
+msgstr "Type a reply..."
+
+msgid "完成任务"
+msgstr "Complete Task"
+
+msgid "取消任务"
+msgstr "Cancel Task"
+
+msgid "确定完成此任务？"
+msgstr "Confirm complete this task?"
+
+msgid "确定取消此任务？"
+msgstr "Confirm cancel this task?"
+
+msgid "确定删除此附件？"
+msgstr "Confirm delete this attachment?"
+
+msgid "任务已完成"
+msgstr "Task completed"
+
+msgid "任务已取消"
+msgstr "Task cancelled"
+
+msgid "任务已更新"
+msgstr "Task updated"
+
+msgid "任务已删除"
+msgstr "Task deleted"
+
+msgid "附件上传成功"
+msgstr "Attachment uploaded"
+
+msgid "附件已删除"
+msgstr "Attachment deleted"
+
+msgid "回复成功"
+msgstr "Reply sent"
+
+msgid "回复失败"
+msgstr "Reply failed"
+
+msgid "操作失败"
+msgstr "Operation failed"
+
+msgid "上传失败"
+msgstr "Upload failed"
+
+msgid "删除失败"
+msgstr "Delete failed"
+
+msgid "加载失败"
+msgstr "Loading failed"

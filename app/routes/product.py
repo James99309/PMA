@@ -40,7 +40,7 @@ from flask_login import login_required, current_user
 from datetime import datetime
 from sqlalchemy import func, and_, or_
 from flask import url_for
-from app.decorators import permission_required  # 添加权限装饰器导入
+from app.decorators import permission_required, admin_required
 import os
 import io
 import uuid
@@ -3594,7 +3594,7 @@ def get_product_configurations(product_id):
 
 @bp.route('/products/export', methods=['GET'])
 @login_required
-@permission_required('product', 'edit')
+@admin_required
 def export_products():
     """导出产品库为Excel文件"""
     try:

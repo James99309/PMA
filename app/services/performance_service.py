@@ -370,6 +370,171 @@ class PerformanceService:
         return monthly_stats
     
     @staticmethod
+    def calculate_pm_yearly_statistics_batch(user_id, year):
+        """批量计算产品经理全年12个月的绩效统计
+
+        PM归属逻辑（复刻 get_product_manager）：
+        - Product.owner_id 的用户 role='product_manager' → 使用 owner_id
+        - 否则 ProductCategory.manager_id 的用户 role='product_manager' → 使用 manager_id
+        仅计算 is_vendor_product=true 的产品。
+        """
+        try:
+            result = db.session.execute(text("""
+                WITH all_months AS (
+                    SELECT generate_series(1, 12) AS month
+                ),
+                product_pm AS (
+                    SELECT p.product_mn,
+                           CASE
+                               WHEN u_owner.role = 'product_manager' THEN p.owner_id
+                               WHEN u_cat_mgr.role = 'product_manager' THEN pc.manager_id
+                               ELSE NULL
+                           END AS pm_id
+                    FROM products p
+                    LEFT JOIN users u_owner ON p.owner_id = u_owner.id
+                    LEFT JOIN product_categories pc ON p.category_id = pc.id
+                    LEFT JOIN users u_cat_mgr ON pc.manager_id = u_cat_mgr.id
+                    WHERE p.is_vendor_product = true
+                ),
+                pm_implant AS (
+                    SELECT EXTRACT(month FROM q.created_at)::int AS month,
+                           COALESCE(SUM(qd.quantity * qd.market_price), 0) AS amount
+                    FROM quotation_details qd
+                    JOIN quotations q ON qd.quotation_id = q.id
+                    JOIN product_pm pp ON qd.product_mn = pp.product_mn
+                    WHERE pp.pm_id = :user_id
+                      AND EXTRACT(year FROM q.created_at) = :year
+                    GROUP BY 1
+                ),
+                pm_sales AS (
+                    SELECT EXTRACT(month FROM po.approved_at)::int AS month,
+                           COALESCE(SUM(pod.total_price), 0) AS amount
+                    FROM pricing_order_details pod
+                    JOIN pricing_orders po ON pod.pricing_order_id = po.id
+                    JOIN product_pm pp ON pod.product_mn = pp.product_mn
+                    WHERE pp.pm_id = :user_id
+                      AND po.status = 'approved'
+                      AND EXTRACT(year FROM po.approved_at) = :year
+                    GROUP BY 1
+                )
+                SELECT am.month,
+                       COALESCE(pi.amount, 0) AS pm_implant_amount,
+                       COALESCE(ps.amount, 0) AS pm_sales_amount
+                FROM all_months am
+                LEFT JOIN pm_implant pi ON am.month = pi.month
+                LEFT JOIN pm_sales ps ON am.month = ps.month
+                ORDER BY am.month
+            """), {'user_id': user_id, 'year': year}).fetchall()
+
+            monthly_stats = []
+            for row in result:
+                stats = type('PMStats', (), {
+                    'pm_implant_amount_actual': float(row.pm_implant_amount or 0),
+                    'pm_sales_amount_actual': float(row.pm_sales_amount or 0),
+                })()
+                monthly_stats.append(stats)
+
+            while len(monthly_stats) < 12:
+                monthly_stats.append(type('PMStats', (), {
+                    'pm_implant_amount_actual': 0,
+                    'pm_sales_amount_actual': 0,
+                })())
+
+            return monthly_stats
+        except Exception as e:
+            logger.error(f"计算产品经理年度统计失败: {e}")
+            return [type('PMStats', (), {
+                'pm_implant_amount_actual': 0,
+                'pm_sales_amount_actual': 0,
+            })() for _ in range(12)]
+
+    @staticmethod
+    def calculate_se_yearly_statistics_batch(user_id, year):
+        """批量计算解决方案经理全年12个月的绩效统计
+
+        SE归属逻辑：
+        - 通过 project_members 表 role='solution_engineer' 关联项目
+        - 门槛：互动量 >= 3（工作项 + 共享工作项 + 跟进记录）才算活跃项目
+        - 仅计算 is_vendor_product=true 的产品植入额
+        - 批价额使用整单金额
+        """
+        try:
+            result = db.session.execute(text("""
+                WITH all_months AS (
+                    SELECT generate_series(1, 12) AS month
+                ),
+                se_projects AS (
+                    SELECT project_id FROM project_members
+                    WHERE user_id = :user_id AND role = 'solution_engineer'
+                ),
+                se_interactions AS (
+                    SELECT sp.project_id,
+                        (SELECT COUNT(*) FROM work_items wi
+                         WHERE wi.project_id = sp.project_id AND wi.owner_id = :user_id)
+                        + (SELECT COUNT(*) FROM work_items wi
+                           WHERE wi.project_id = sp.project_id
+                             AND wi.shared_with_users IS NOT NULL
+                             AND CAST(wi.shared_with_users AS jsonb) @> to_jsonb(CAST(:user_id AS int)))
+                        + (SELECT COUNT(*) FROM actions a
+                           WHERE a.project_id = sp.project_id AND a.owner_id = :user_id)
+                        AS total
+                    FROM se_projects sp
+                ),
+                qualified_projects AS (
+                    SELECT project_id FROM se_interactions WHERE total >= 3
+                ),
+                se_implant AS (
+                    SELECT EXTRACT(month FROM q.created_at)::int AS month,
+                           COALESCE(SUM(qd.quantity * qd.market_price), 0) AS amount
+                    FROM quotation_details qd
+                    JOIN quotations q ON qd.quotation_id = q.id
+                    JOIN qualified_projects qp ON q.project_id = qp.project_id
+                    JOIN products p ON qd.product_mn = p.product_mn
+                    WHERE p.is_vendor_product = true
+                      AND EXTRACT(year FROM q.created_at) = :year
+                    GROUP BY 1
+                ),
+                se_sales AS (
+                    SELECT EXTRACT(month FROM po.approved_at)::int AS month,
+                           COALESCE(SUM(po.pricing_total_amount), 0) AS amount
+                    FROM pricing_orders po
+                    JOIN qualified_projects qp ON po.project_id = qp.project_id
+                    WHERE po.status = 'approved'
+                      AND EXTRACT(year FROM po.approved_at) = :year
+                    GROUP BY 1
+                )
+                SELECT am.month,
+                       COALESCE(si.amount, 0) AS se_implant_amount,
+                       COALESCE(ss.amount, 0) AS se_sales_amount
+                FROM all_months am
+                LEFT JOIN se_implant si ON am.month = si.month
+                LEFT JOIN se_sales ss ON am.month = ss.month
+                ORDER BY am.month
+            """), {'user_id': user_id, 'year': year}).fetchall()
+
+            monthly_stats = []
+            for row in result:
+                stats = type('SEStats', (), {
+                    'se_implant_amount_actual': float(row.se_implant_amount or 0),
+                    'se_sales_amount_actual': float(row.se_sales_amount or 0),
+                })()
+                monthly_stats.append(stats)
+
+            while len(monthly_stats) < 12:
+                monthly_stats.append(type('SEStats', (), {
+                    'se_implant_amount_actual': 0,
+                    'se_sales_amount_actual': 0,
+                })())
+
+            return monthly_stats
+        except Exception as e:
+            logger.error(f"计算解决方案经理年度统计失败: {e}")
+            return [type('SEStats', (), {
+                'se_implant_amount_actual': 0,
+                'se_sales_amount_actual': 0,
+            })() for _ in range(12)]
+
+    @staticmethod
     def calculate_monthly_statistics_realtime(user_id, year, month):
         """实时计算用户指定月份的绩效统计（不使用缓存）- 优化版本"""
         try:

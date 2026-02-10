@@ -101,6 +101,14 @@
                       x-text="data.counts.pending_approvals > 99 ? '99+' : data.counts.pending_approvals"
                       class="min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full"></span>
             </button>
+            <button @click="activeTab = 'todos'"
+                    :class="activeTab === 'todos' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                    class="flex-1 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors flex items-center justify-center gap-1.5">
+                {{ _('待办') }}
+                <span x-show="data.counts.pending_todos > 0"
+                      x-text="data.counts.pending_todos > 99 ? '99+' : data.counts.pending_todos"
+                      class="min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-orange-500 rounded-full"></span>
+            </button>
         </div>
 
         <!-- 内容区域 -->
@@ -137,6 +145,56 @@
                         </div>
                         <span class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
                     </a>
+                </template>
+            </div>
+
+            <!-- 待办任务列表 -->
+            <div x-show="activeTab === 'todos' && !loading">
+                <template x-if="data.todos.length === 0">
+                    <div class="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <span class="material-symbols-outlined text-4xl mb-2">playlist_add_check</span>
+                        <span class="text-sm">{{ _('暂无待办任务') }}</span>
+                    </div>
+                </template>
+                <template x-for="item in data.todos" :key="item.id">
+                    <div @click="handleTodoClick(item)"
+                       class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                       :class="item.status === 'confirmed' ? 'opacity-60' : ''">
+                        <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+                             :class="item.status === 'confirmed' ? 'bg-green-100 dark:bg-green-900/30'
+                                    : 'bg-orange-100 dark:bg-orange-900/30'">
+                            <span class="material-symbols-outlined"
+                                  :class="item.status === 'confirmed' ? 'text-green-600 dark:text-green-400'
+                                         : 'text-orange-600 dark:text-orange-400'"
+                                  x-text="item.status === 'confirmed' ? 'check_circle' : (item.type === 'general_task' ? 'task_alt' : 'assignment')"></span>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                    <!-- 优先级圆点（通用任务） -->
+                                    <span x-show="item.type === 'general_task' && item.priority && item.status !== 'confirmed'"
+                                          class="w-2 h-2 rounded-full flex-shrink-0"
+                                          :class="{'bg-red-500': item.priority === 'urgent', 'bg-orange-500': item.priority === 'high', 'bg-blue-500': item.priority === 'normal', 'bg-slate-400': item.priority === 'low'}"></span>
+                                    <span class="text-sm font-medium truncate"
+                                          :class="item.status === 'confirmed' ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-900 dark:text-white'"
+                                          x-text="item.title"></span>
+                                </div>
+                                <template x-if="item.status === 'confirmed'">
+                                    <span class="text-xs text-green-600 dark:text-green-400 flex-shrink-0 font-medium">{{ _('已完成') }}</span>
+                                </template>
+                                <template x-if="item.status !== 'confirmed'">
+                                    <span class="text-xs text-slate-400 flex-shrink-0" x-text="formatTime(item.created_at)"></span>
+                                </template>
+                            </div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-text="item.requester_name + ' {{ _("发起") }}'"></div>
+                            <div x-show="item.due_date && item.status !== 'confirmed'" class="text-xs mt-0.5"
+                                 :class="new Date(item.due_date) < new Date() ? 'text-red-500 font-medium' : 'text-orange-500'">
+                                <span class="material-symbols-outlined text-xs align-middle">schedule</span>
+                                <span x-text="formatCountdown(item.due_date)"></span>
+                            </div>
+                        </div>
+                        <span class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                    </div>
                 </template>
             </div>
 
@@ -243,9 +301,11 @@ function messagePanel() {
         data: {
             mentions: [],
             approvals: [],
+            todos: [],
             counts: {
                 unread_mentions: 0,
                 pending_approvals: 0,
+                pending_todos: 0,
                 total: 0
             }
         },
@@ -384,7 +444,7 @@ function messagePanel() {
                     if (msg) msg.is_read = true;
                 });
                 this.data.counts.unread_mentions = this.data.mentions.filter(m => !m.is_read).length;
-                this.data.counts.total = this.data.counts.unread_mentions + this.data.counts.pending_approvals;
+                this.data.counts.total = this.data.counts.unread_mentions + this.data.counts.pending_approvals + (this.data.counts.pending_todos || 0);
                 if (Alpine.store('message')) {
                     Alpine.store('message').unreadCount = this.data.counts.total;
                 }
@@ -423,7 +483,7 @@ function messagePanel() {
                 // 更新本地状态
                 this.data.mentions.forEach(m => m.is_read = true);
                 this.data.counts.unread_mentions = 0;
-                this.data.counts.total = this.data.counts.pending_approvals;
+                this.data.counts.total = this.data.counts.pending_approvals + (this.data.counts.pending_todos || 0);
                 if (Alpine.store('message')) {
                     Alpine.store('message').unreadCount = this.data.counts.total;
                 }
@@ -484,7 +544,10 @@ function messagePanel() {
                 'approval_cc': 'mail',
                 // 报价单消息类型
                 'quotation_created': 'request_quote',
-                'quotation_updated': 'edit_note'
+                'quotation_updated': 'edit_note',
+                // 产品确认消息类型
+                'confirmation_request': 'assignment',
+                'confirmation_completed': 'task_alt'
             };
             return icons[item.message_type] || 'notifications';
         },
@@ -507,7 +570,10 @@ function messagePanel() {
                 // 审批消息类型
                 'approval_approved': 'bg-green-100 dark:bg-green-900/30',
                 'approval_rejected': 'bg-red-100 dark:bg-red-900/30',
-                'approval_cc': 'bg-sky-100 dark:bg-sky-900/30'
+                'approval_cc': 'bg-sky-100 dark:bg-sky-900/30',
+                // 产品确认消息类型
+                'confirmation_request': 'bg-orange-100 dark:bg-orange-900/30',
+                'confirmation_completed': 'bg-green-100 dark:bg-green-900/30'
             };
             return colors[item.message_type] || 'bg-blue-100 dark:bg-blue-900/30';
         },
@@ -530,7 +596,10 @@ function messagePanel() {
                 // 审批消息类型
                 'approval_approved': 'text-green-600 dark:text-green-400',
                 'approval_rejected': 'text-red-600 dark:text-red-400',
-                'approval_cc': 'text-sky-600 dark:text-sky-400'
+                'approval_cc': 'text-sky-600 dark:text-sky-400',
+                // 产品确认消息类型
+                'confirmation_request': 'text-orange-600 dark:text-orange-400',
+                'confirmation_completed': 'text-green-600 dark:text-green-400'
             };
             return colors[item.message_type] || 'text-blue-600 dark:text-blue-400';
         },
@@ -550,6 +619,24 @@ function messagePanel() {
             return labels[type] || type;
         },
 
+        formatCountdown(dueDateStr) {
+            if (!dueDateStr) return '';
+            const due = new Date(dueDateStr);
+            const now = new Date();
+            const diff = due - now;
+            if (diff <= 0) {
+                const elapsed = Math.abs(diff);
+                const days = Math.floor(elapsed / 86400000);
+                const hours = Math.floor((elapsed % 86400000) / 3600000);
+                return '{{ _("已过期") }} ' + (days > 0 ? days + '{{ _("天") }}' : '') + hours + '{{ _("小时") }}';
+            }
+            const days = Math.floor(diff / 86400000);
+            const hours = Math.floor((diff % 86400000) / 3600000);
+            if (days > 0) return '{{ _("剩余") }} ' + days + '{{ _("天") }}' + hours + '{{ _("小时") }}';
+            const mins = Math.floor((diff % 3600000) / 60000);
+            return '{{ _("剩余") }} ' + hours + '{{ _("小时") }}' + mins + '{{ _("分钟") }}';
+        },
+
         formatTime(isoString) {
             if (!isoString) return '';
             const date = new Date(isoString);
@@ -566,6 +653,21 @@ function messagePanel() {
             if (diff < 604800000) return Math.floor(diff / 86400000) + '{{ _("天前") }}';
             // 其他
             return date.toLocaleDateString();
+        },
+
+        // 处理待办点击
+        handleTodoClick(item) {
+            if (item.type === 'general_task' && item.task_id) {
+                // 通用任务 → 打开任务详情模态框
+                this.close();
+                window.dispatchEvent(new CustomEvent('open-task-detail-modal', {
+                    detail: { taskId: item.task_id }
+                }));
+            } else if (item.detail_url && item.detail_url !== '#') {
+                // 其他类型 → 跳转 URL
+                this.close();
+                window.location.href = item.detail_url;
+            }
         },
 
         // 处理消息点击

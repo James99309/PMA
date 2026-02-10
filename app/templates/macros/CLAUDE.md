@@ -5,5 +5,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #410 | 3:46 AM | 🔵 | Expense List Template Follows Same TW Pattern as Customer Management | ~558 |
+| #437 | 4:13 AM | 🔵 | Quotation Configs Macro Provides Centralized Configuration Management | ~750 |
 </claude-mem-context>

@@ -107,13 +107,14 @@ echo ""
 # ============================================================
 echo -e "${CYAN}📁 选择文件存储方式:${NC}"
 echo "   [1] 本地文件存储（开发推荐）"
-echo "   [2] 新加坡NAS存储（WebDAV，与生产一致）"
+echo "   [2] 中国NAS存储（SP8D，外网Cloudflare隧道）"
+echo "   [3] 新加坡NAS存储（OVS，内网直连）"
 echo ""
-read -p "请选择 [1-2，默认1]: " storage_choice
+read -p "请选择 [1-3，默认1]: " storage_choice
 storage_choice=${storage_choice:-1}
 
 # 验证输入
-if [ "$storage_choice" != "1" ] && [ "$storage_choice" != "2" ]; then
+if [ "$storage_choice" != "1" ] && [ "$storage_choice" != "2" ] && [ "$storage_choice" != "3" ]; then
     print_error "❌ 无效的选择，使用默认选项 1（本地存储）"
     storage_choice=1
 fi
@@ -125,33 +126,42 @@ echo ""
 # ============================================================
 STORAGE_TYPE=""
 STORAGE_LOCATION=""
+NAS_ENV_FILE=""
 
 if [ "$storage_choice" = "1" ]; then
     STORAGE_TYPE="本地文件存储"
     STORAGE_LOCATION="本地文件系统"
     print_success "✅ 使用本地文件存储"
-else
-    STORAGE_TYPE="新加坡NAS存储"
-    STORAGE_LOCATION="新加坡NAS WebDAV"
+elif [ "$storage_choice" = "2" ]; then
+    STORAGE_TYPE="中国NAS存储（SP8D）"
+    STORAGE_LOCATION="中国NAS WebDAV（Cloudflare隧道）"
+    NAS_ENV_FILE=".env.nas.cn"
+elif [ "$storage_choice" = "3" ]; then
+    STORAGE_TYPE="新加坡NAS存储（OVS）"
+    STORAGE_LOCATION="新加坡NAS WebDAV（内网直连）"
+    NAS_ENV_FILE=".env.nas"
+fi
 
+# NAS 存储通用加载逻辑
+if [ ! -z "$NAS_ENV_FILE" ]; then
     # 检查NAS存储配置文件
-    if [ ! -f ".env.nas" ]; then
-        print_error "❌ 错误: 未找到NAS存储配置文件 .env.nas"
+    if [ ! -f "$NAS_ENV_FILE" ]; then
+        print_error "❌ 错误: 未找到NAS存储配置文件 $NAS_ENV_FILE"
         print_warning "💡 请确保文件存在并包含正确的 WebDAV 配置"
         exit 1
     fi
 
-    print_info "🔍 正在加载NAS存储配置..."
+    print_info "🔍 正在加载NAS存储配置（$NAS_ENV_FILE）..."
 
     # 加载NAS配置
-    export $(cat .env.nas | grep -v '^#' | grep -v '^$' | xargs)
+    export $(cat "$NAS_ENV_FILE" | grep -v '^#' | grep -v '^$' | xargs)
 
     # 设置阻止Supabase自动加载
     export FORCE_LOCAL_STORAGE=true
 
-    # 验证必要的环境变量
-    if [ -z "$SYNOLOGY_WEBDAV_EXTERNAL_URL" ]; then
-        print_error "❌ 错误: SYNOLOGY_WEBDAV_EXTERNAL_URL 未设置"
+    # 验证必要的环境变量（至少需要内网或外网地址之一）
+    if [ -z "$SYNOLOGY_WEBDAV_EXTERNAL_URL" ] && [ -z "$SYNOLOGY_WEBDAV_INTERNAL_URL" ]; then
+        print_error "❌ 错误: SYNOLOGY_WEBDAV_EXTERNAL_URL 和 SYNOLOGY_WEBDAV_INTERNAL_URL 均未设置"
         exit 1
     fi
 
@@ -160,29 +170,42 @@ else
         exit 1
     fi
 
-    # 验证WebDAV外网地址可达
+    # 验证WebDAV地址可达
     print_info "🔍 正在验证NAS WebDAV连接..."
-    WEBDAV_URL="$SYNOLOGY_WEBDAV_EXTERNAL_URL"
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$WEBDAV_URL" 2>/dev/null)
-    if [ "$HTTP_CODE" = "000" ]; then
-        print_warning "⚠️  NAS WebDAV外网地址不可达: $WEBDAV_URL"
-        print_warning "   将尝试使用内网地址..."
-        if [ ! -z "$SYNOLOGY_WEBDAV_INTERNAL_URL" ]; then
-            HTTP_CODE_INT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$SYNOLOGY_WEBDAV_INTERNAL_URL" 2>/dev/null)
-            if [ "$HTTP_CODE_INT" != "000" ]; then
-                print_success "   内网地址可达: $SYNOLOGY_WEBDAV_INTERNAL_URL"
-            else
-                print_warning "   内网地址也不可达，启动后可能无法访问NAS文件"
-            fi
+    NAS_VERIFIED=false
+
+    # 优先验证外网地址
+    if [ ! -z "$SYNOLOGY_WEBDAV_EXTERNAL_URL" ]; then
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "$SYNOLOGY_WEBDAV_EXTERNAL_URL" 2>/dev/null)
+        if [ "$HTTP_CODE" != "000" ]; then
+            print_success "✅ NAS WebDAV外网连接验证通过"
+            NAS_VERIFIED=true
+        else
+            print_warning "⚠️  NAS WebDAV外网地址不可达: $SYNOLOGY_WEBDAV_EXTERNAL_URL"
         fi
-    else
-        print_success "✅ NAS WebDAV连接验证通过"
+    fi
+
+    # 如果外网不可达，尝试内网
+    if [ "$NAS_VERIFIED" = "false" ] && [ ! -z "$SYNOLOGY_WEBDAV_INTERNAL_URL" ]; then
+        HTTP_CODE_INT=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$SYNOLOGY_WEBDAV_INTERNAL_URL" 2>/dev/null)
+        if [ "$HTTP_CODE_INT" != "000" ]; then
+            print_success "✅ NAS WebDAV内网连接验证通过"
+            NAS_VERIFIED=true
+        else
+            print_warning "⚠️  NAS WebDAV内网地址也不可达: $SYNOLOGY_WEBDAV_INTERNAL_URL"
+        fi
+    fi
+
+    if [ "$NAS_VERIFIED" = "false" ]; then
+        print_warning "⚠️  NAS WebDAV地址均不可达，启动后可能无法访问NAS文件"
     fi
 
     # 显示NAS连接信息
     echo ""
     print_success "✅ NAS存储配置已加载"
-    echo "   外网地址: $SYNOLOGY_WEBDAV_EXTERNAL_URL"
+    if [ ! -z "$SYNOLOGY_WEBDAV_EXTERNAL_URL" ]; then
+        echo "   外网地址: $SYNOLOGY_WEBDAV_EXTERNAL_URL"
+    fi
     if [ ! -z "$SYNOLOGY_WEBDAV_INTERNAL_URL" ]; then
         echo "   内网地址: $SYNOLOGY_WEBDAV_INTERNAL_URL"
     fi
@@ -216,8 +239,13 @@ echo -e "${CYAN}📁 文件存储配置:${NC}"
 echo "   类型: $STORAGE_TYPE"
 echo "   位置: $STORAGE_LOCATION"
 
-if [ "$storage_choice" = "2" ]; then
-    echo "   WebDAV: $SYNOLOGY_WEBDAV_EXTERNAL_URL"
+if [ "$storage_choice" = "2" ] || [ "$storage_choice" = "3" ]; then
+    if [ ! -z "$SYNOLOGY_WEBDAV_EXTERNAL_URL" ]; then
+        echo "   WebDAV外网: $SYNOLOGY_WEBDAV_EXTERNAL_URL"
+    fi
+    if [ ! -z "$SYNOLOGY_WEBDAV_INTERNAL_URL" ]; then
+        echo "   WebDAV内网: $SYNOLOGY_WEBDAV_INTERNAL_URL"
+    fi
     echo "   路径: $SYNOLOGY_WEBDAV_PATH"
 fi
 echo ""
@@ -236,9 +264,15 @@ echo ""
 # ============================================================
 if [ "$storage_choice" = "2" ]; then
     print_warning "⚠️  重要提醒:"
-    print_warning "   - 当前使用新加坡NAS WebDAV存储"
-    print_warning "   - 文件将通过WebDAV上传到NAS"
-    print_warning "   - 需要网络可达NAS WebDAV服务"
+    print_warning "   - 当前使用中国NAS WebDAV存储（SP8D）"
+    print_warning "   - 文件通过Cloudflare隧道外网传输"
+    print_warning "   - 上传/下载速度取决于外网带宽"
+    echo ""
+elif [ "$storage_choice" = "3" ]; then
+    print_warning "⚠️  重要提醒:"
+    print_warning "   - 当前使用新加坡NAS WebDAV存储（OVS）"
+    print_warning "   - 文件通过内网直连传输"
+    print_warning "   - 需要在新加坡局域网内"
     echo ""
 fi
 
@@ -254,7 +288,8 @@ case $confirm in
         print_info "💡 提示:"
         echo "   - 修改数据库配置: 编辑 .env 文件"
         echo "   - 使用本地存储: 重新运行并选择选项 1"
-        echo "   - 使用NAS存储: 重新运行并选择选项 2"
+        echo "   - 使用中国NAS: 重新运行并选择选项 2"
+        echo "   - 使用新加坡NAS: 重新运行并选择选项 3"
         echo ""
         exit 0
         ;;
@@ -287,13 +322,8 @@ fi
 export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}
 
 # 启动Flask应用
-if [ "$storage_choice" = "2" ]; then
-    # NAS存储模式：环境变量已通过export设置
-    python3 run.py
-else
-    # 本地存储模式：不传递参数
-    python3 run.py
-fi
+# NAS存储模式下环境变量已通过export设置，直接启动即可
+python3 run.py
 
 # ============================================================
 # 8. 启动后清理（可选）

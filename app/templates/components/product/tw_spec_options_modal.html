@@ -64,7 +64,7 @@ SpecOptionsModal.open('规格名称');
                             <span>{{ _('添加新选项') }}</span>
                         </div>
 
-                        <!-- 子分类模式：从规格字典选择 + 创建新选项 -->
+                        <!-- 子分类模式：从规格字典选择 -->
                         <div id="subcategoryAddPanel" class="hidden">
                             <div class="flex flex-col md:flex-row gap-3">
                                 <div class="flex-grow">
@@ -80,15 +80,10 @@ SpecOptionsModal.open('规格名称');
                                         <span class="material-symbols-outlined" style="font-size: 18px;">add</span>
                                         {{ _('添加') }}
                                     </button>
-                                    <button onclick="SpecOptionsModal.openCreateModal()"
-                                            class="inline-flex items-center justify-center gap-1.5 h-10 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold shadow-sm transition-colors whitespace-nowrap">
-                                        <span class="material-symbols-outlined" style="font-size: 18px;">edit_note</span>
-                                        {{ _('创建') }}
-                                    </button>
                                 </div>
                             </div>
                             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                                {{ _('选择已有指标直接添加，或点击"创建"添加新指标到规格字典') }}
+                                {{ _('从规格字典中选择已有指标添加，新指标请在规格字典管理页创建') }}
                             </p>
                         </div>
 
@@ -342,12 +337,11 @@ const SpecOptionsModal = (function() {
             elements.addSelectedOptionBtn().disabled = true;
         }
 
-        // 加载子分类模式数据
+        // 加载数据
         if (state.subcategoryId && state.fieldId) {
             await loadSubcategoryMode();
         } else {
-            // 参数不完整，显示错误
-            showNotFound();
+            await loadGlobalMode();
         }
     }
 
@@ -384,6 +378,42 @@ const SpecOptionsModal = (function() {
         } catch (error) {
             console.error('加载子分类模式数据失败:', error);
             showError('{{ _("加载失败，请重试") }}');
+        }
+    }
+
+    /**
+     * 加载全局模式的数据（无子分类/fieldId时，按规格名称查询字典）
+     */
+    async function loadGlobalMode() {
+        try {
+            const url = `/api/spec-dictionary/options/by-name/${encodeURIComponent(state.specName)}`;
+            const response = await fetch(url);
+            const result = await response.json();
+
+            if (result.success && result.spec) {
+                // 规格在字典中存在 → 加载选项并显示主面板
+                state.specId = result.spec.id;
+                state.specUnit = result.spec.unit || '';
+                state.options = (result.data || []).map(opt => ({
+                    id: opt.id,
+                    value: opt.value,
+                    code: opt.code || '',
+                    is_active: opt.is_active
+                }));
+                elements.specUnit().textContent = state.specUnit || '-';
+                renderOptions();
+                // global 模式下隐藏子分类专用面板
+                if (elements.subcategoryAddPanel()) {
+                    elements.subcategoryAddPanel().classList.add('hidden');
+                }
+                showMainPanel();
+            } else {
+                // 规格确实不存在 → 显示创建面板
+                showNotFound();
+            }
+        } catch (error) {
+            console.error('加载全局规格数据失败:', error);
+            showNotFound();
         }
     }
 
@@ -430,7 +460,7 @@ const SpecOptionsModal = (function() {
         selectEl.innerHTML = '<option value="">{{ _("-- 从规格字典中选择 --") }}</option>';
 
         if (state.availableOptions.length === 0) {
-            selectEl.innerHTML = '<option value="">{{ _("所有指标都已添加，可点击创建") }}</option>';
+            selectEl.innerHTML = '<option value="">{{ _("所有指标都已添加") }}</option>';
             return;
         }
 

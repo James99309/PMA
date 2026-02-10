@@ -1,0 +1,794 @@
+{#
+=============================================================================
+通用任务模态框组件
+=============================================================================
+提供任务创建按钮、创建模态框、详情模态框及相关 JavaScript。
+
+使用方式：
+{% from 'components/tw_task_modal.html' import render_task_create_button,
+    render_task_create_modal, render_task_detail_modal, render_task_modal_script %}
+
+{{ render_task_create_button() }}
+{{ render_task_create_modal() }}
+{{ render_task_detail_modal() }}
+{{ render_task_modal_script() }}
+=============================================================================
+#}
+
+{# ========== 顶栏创建任务按钮 ========== #}
+{% macro render_task_create_button() %}
+<button @click="$dispatch('open-task-create-modal')"
+        title="{{ _('新建任务') }}"
+        class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+    <span class="material-symbols-outlined text-xl">add_task</span>
+</button>
+{% endmacro %}
+
+
+{# ========== 创建任务模态框 ========== #}
+{% macro render_task_create_modal() %}
+<div x-data="taskCreateModal()" x-show="open" x-cloak
+     @open-task-create-modal.window="openModal($event.detail || {})"
+     class="fixed inset-0 z-[60] flex items-center justify-center">
+    <!-- 遮罩 -->
+    <div class="absolute inset-0 bg-black/50" @click="close()"></div>
+    <!-- 模态框 -->
+    <div class="relative w-full max-w-lg mx-4 bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-h-[90vh] flex flex-col"
+         @click.stop>
+        <!-- 标题栏 -->
+        <div class="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('新建任务') }}</h3>
+            <button @click="close()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <span class="material-symbols-outlined text-xl">close</span>
+            </button>
+        </div>
+        <!-- 表单 -->
+        <div class="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+            <!-- 标题 -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('任务标题') }} <span class="text-red-500">*</span></label>
+                <input type="text" x-model="form.title" maxlength="200"
+                       class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                       :placeholder="'{{ _('输入任务标题') }}'">
+            </div>
+            <!-- 指派人 + 优先级 一行 -->
+            <div class="grid grid-cols-2 gap-3">
+                <!-- 指派人 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('指派给') }} <span class="text-red-500">*</span></label>
+                    <div class="relative" @click.away="showUserDropdown = false">
+                        <input type="text"
+                               :value="form.assignee_id ? selectedUserName : userSearch"
+                               @input="userSearch = $event.target.value; filterUsers()"
+                               @focus="if(form.assignee_id) { form.assignee_id = null; selectedUserName = ''; userSearch = ''; } showUserDropdown = true; filterUsers()"
+                               :placeholder="'{{ _('搜索用户') }}'"
+                               class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                        <div x-show="showUserDropdown && filteredUsers.length > 0" x-cloak
+                             class="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto">
+                            <template x-for="user in filteredUsers" :key="user.id">
+                                <div @click="selectUser(user)"
+                                     class="px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-sm text-slate-900 dark:text-white">
+                                    <span x-text="user.real_name || user.username"></span>
+                                    <span class="text-slate-400 text-xs ml-1" x-text="user.company_name ? '(' + user.company_name + ')' : ''"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                <!-- 优先级下拉 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('优先级') }}</label>
+                    <select x-model="form.priority"
+                            class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                        <option value="normal">{{ _('普通') }}</option>
+                        <option value="high">{{ _('高') }}</option>
+                        <option value="urgent">{{ _('紧急') }}</option>
+                    </select>
+                </div>
+            </div>
+            <!-- 截止日期 -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('截止日期') }}</label>
+                <input type="datetime-local" x-model="form.due_date"
+                       class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
+            </div>
+            <!-- 描述 -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('描述') }}</label>
+                <textarea x-model="form.description" rows="2"
+                          class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary resize-y"
+                          :placeholder="'{{ _('任务描述（可选）') }}'"></textarea>
+            </div>
+            <!-- 关联项目 + 报价单 二级联动 -->
+            <div class="grid grid-cols-2 gap-3">
+                <!-- 关联项目 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('关联项目') }}</label>
+                    <div class="relative" @click.away="showProjectDropdown = false">
+                        <input type="text"
+                               :value="form.project_id ? selectedProjectName : projectSearch"
+                               @input="projectSearch = $event.target.value; searchProjects()"
+                               @focus="if(form.project_id) { clearProject(); } showProjectDropdown = true"
+                               :placeholder="'{{ _('搜索项目') }}'"
+                               class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                        <button x-show="form.project_id" @click.stop="clearProject()"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <span class="material-symbols-outlined text-sm">close</span>
+                        </button>
+                        <div x-show="showProjectDropdown && projectResults.length > 0" x-cloak
+                             class="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto">
+                            <template x-for="proj in projectResults" :key="proj.id">
+                                <div @click="selectProject(proj)"
+                                     class="px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-sm text-slate-900 dark:text-white truncate"
+                                     x-text="proj.project_name"></div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                <!-- 关联报价单 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('关联报价单') }}</label>
+                    <select x-model="form.quotation_id" :disabled="!form.project_id"
+                            class="w-full px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                        <option value="">{{ _('选择报价单') }}</option>
+                        <template x-for="q in quotationOptions" :key="q.id">
+                            <option :value="q.id" x-text="q.quotation_number + ' ¥' + q.amount"></option>
+                        </template>
+                    </select>
+                </div>
+            </div>
+            <!-- 附件上传 -->
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('附件') }}</label>
+                <div class="space-y-1">
+                    <template x-for="(file, idx) in pendingFiles" :key="idx">
+                        <div class="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="material-symbols-outlined text-sm text-slate-400">attach_file</span>
+                                <span class="truncate text-slate-700 dark:text-slate-300" x-text="file.name"></span>
+                            </div>
+                            <button @click="pendingFiles.splice(idx, 1)" class="text-slate-400 hover:text-red-500 flex-shrink-0">
+                                <span class="material-symbols-outlined text-sm">close</span>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+                <label class="inline-flex items-center gap-1 mt-1 text-sm text-primary hover:underline cursor-pointer">
+                    <span class="material-symbols-outlined text-base">upload_file</span>
+                    {{ _('选择文件') }}
+                    <input type="file" class="hidden" @change="addFiles($event)" multiple>
+                </label>
+            </div>
+        </div>
+        <!-- 底部按钮 -->
+        <div class="flex justify-end gap-3 px-5 py-3 border-t border-slate-200 dark:border-slate-700">
+            <button @click="close()"
+                    class="px-4 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                {{ _('取消') }}
+            </button>
+            <button @click="submit()" :disabled="submitting"
+                    class="px-4 py-1.5 text-sm text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50">
+                <span x-show="!submitting">{{ _('创建任务') }}</span>
+                <span x-show="submitting">{{ _('创建中...') }}</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ========== 任务详情模态框 ========== #}
+{% macro render_task_detail_modal() %}
+<div x-data="taskDetailModal()" x-show="open" x-cloak
+     @open-task-detail-modal.window="openModal($event.detail)"
+     class="fixed inset-0 z-[60] flex items-center justify-center">
+    <!-- 遮罩 -->
+    <div class="absolute inset-0 bg-black/50" @click="close()"></div>
+    <!-- 模态框 -->
+    <div class="relative w-full max-w-2xl mx-4 bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-h-[90vh] flex flex-col"
+         @click.stop>
+        <!-- 标题栏 -->
+        <div class="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+            <div class="flex items-center gap-3">
+                <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('任务详情') }}</h3>
+                <!-- 状态徽章 -->
+                <span class="px-2 py-0.5 text-xs font-medium rounded-full"
+                      :class="statusBadgeClass(task.status)"
+                      x-text="statusLabel(task.status)"></span>
+                <!-- 优先级徽章 -->
+                <span class="flex items-center gap-1 text-xs" :class="priorityClass(task.priority)">
+                    <span class="w-2 h-2 rounded-full" :class="priorityDotClass(task.priority)"></span>
+                    <span x-text="priorityLabel(task.priority)"></span>
+                </span>
+            </div>
+            <button @click="close()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <!-- 内容区 -->
+        <div class="flex-1 overflow-y-auto px-5 py-4 space-y-4" x-show="!loading">
+            <!-- 任务标题 -->
+            <h4 class="text-base font-semibold text-slate-900 dark:text-white" x-text="task.title"></h4>
+
+            <!-- 基本信息 -->
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                    <span class="text-slate-500 dark:text-slate-400">{{ _('创建人') }}:</span>
+                    <span class="text-slate-900 dark:text-white ml-1" x-text="task.creator_name"></span>
+                </div>
+                <div>
+                    <span class="text-slate-500 dark:text-slate-400">{{ _('指派给') }}:</span>
+                    <span class="text-slate-900 dark:text-white ml-1" x-text="task.assignee_name"></span>
+                </div>
+                <div x-show="task.due_date">
+                    <span class="text-slate-500 dark:text-slate-400">{{ _('截止日期') }}:</span>
+                    <span class="ml-1" :class="isOverdue ? 'text-red-600 font-medium' : 'text-slate-900 dark:text-white'"
+                          x-text="formatDueDate(task.due_date)"></span>
+                </div>
+                <div x-show="task.due_date && task.status !== 'completed' && task.status !== 'cancelled'">
+                    <span class="text-sm" :class="isOverdue ? 'text-red-500' : 'text-orange-500'" x-text="countdownText"></span>
+                </div>
+                <div x-show="task.project_name">
+                    <span class="text-slate-500 dark:text-slate-400">{{ _('关联项目') }}:</span>
+                    <a :href="'/project/view/' + task.project_id" class="text-blue-600 dark:text-blue-400 hover:underline ml-1" x-text="task.project_name"></a>
+                </div>
+                <div x-show="task.quotation_number">
+                    <span class="text-slate-500 dark:text-slate-400">{{ _('关联报价单') }}:</span>
+                    <a :href="'/quotation/' + task.quotation_id + '/detail'" class="text-blue-600 dark:text-blue-400 hover:underline ml-1" x-text="task.quotation_number"></a>
+                </div>
+            </div>
+
+            <!-- 描述 -->
+            <div x-show="task.description">
+                <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('描述') }}</div>
+                <div class="text-sm text-slate-900 dark:text-white whitespace-pre-wrap bg-slate-50 dark:bg-slate-800 rounded-lg p-3" x-text="task.description"></div>
+            </div>
+
+            <!-- 外部链接 -->
+            <div x-show="task.external_link">
+                <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('外部链接') }}</div>
+                <a :href="task.external_link" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+                    <span class="material-symbols-outlined text-base">open_in_new</span>
+                    <span x-text="task.external_link_label || task.external_link"></span>
+                </a>
+            </div>
+
+            <!-- 附件区域 -->
+            <div>
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm text-slate-500 dark:text-slate-400">{{ _('附件') }} (<span x-text="task.attachments ? task.attachments.length : 0"></span>)</span>
+                    <label x-show="task.status !== 'completed' && task.status !== 'cancelled'"
+                           class="text-sm text-primary hover:underline cursor-pointer">
+                        <span class="material-symbols-outlined text-base align-middle">upload_file</span>
+                        {{ _('上传') }}
+                        <input type="file" class="hidden" @change="uploadAttachment($event)" multiple>
+                    </label>
+                </div>
+                <div x-show="task.attachments && task.attachments.length > 0" class="space-y-1">
+                    <template x-for="att in task.attachments" :key="att.id">
+                        <div class="flex items-center justify-between px-3 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-lg text-sm">
+                            <a :href="'/task/api/' + task.id + '/attachments/' + att.id + '/download'"
+                               class="flex items-center gap-2 min-w-0 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                <span class="material-symbols-outlined text-base text-slate-400">attach_file</span>
+                                <span class="truncate text-slate-900 dark:text-white" x-text="att.filename"></span>
+                                <span class="text-slate-400 flex-shrink-0" x-text="formatFileSize(att.file_size)"></span>
+                                <span x-show="att.is_cloud" class="material-symbols-outlined text-sm text-blue-400 flex-shrink-0" title="NAS {{ _('云端存储') }}">cloud_done</span>
+                                <span x-show="!att.is_cloud" class="material-symbols-outlined text-sm text-slate-300 flex-shrink-0" title="{{ _('本地存储') }}">hard_drive</span>
+                            </a>
+                            <button x-show="att.uploaded_by === __taskCurrentUserId"
+                                    @click="deleteAttachment(att.id)" class="text-slate-400 hover:text-red-500 flex-shrink-0 ml-2">
+                                <span class="material-symbols-outlined text-base">delete</span>
+                            </button>
+                        </div>
+                    </template>
+                </div>
+                <!-- 上传进度条 -->
+                <div x-show="uploadingFile" class="mt-2">
+                    <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                        <span>{{ _('上传中...') }}</span>
+                        <span x-text="uploadProgress + '%'"></span>
+                    </div>
+                    <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                        <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" :style="'width: ' + uploadProgress + '%'"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 回复区域 -->
+            <div>
+                <div class="text-sm text-slate-500 dark:text-slate-400 mb-2">{{ _('回复') }} (<span x-text="task.replies ? task.replies.length : 0"></span>)</div>
+                <div x-show="task.replies && task.replies.length > 0" class="space-y-3 mb-3 max-h-60 overflow-y-auto">
+                    <template x-for="reply in task.replies" :key="reply.id">
+                        <div class="flex gap-3">
+                            <div class="flex-shrink-0 w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-medium text-slate-600 dark:text-slate-300"
+                                 x-text="(reply.author_name || '?')[0]"></div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="reply.author_name"></span>
+                                    <span class="text-xs text-slate-400" x-text="formatTime(reply.created_at)"></span>
+                                </div>
+                                <div class="text-sm text-slate-700 dark:text-slate-300 mt-0.5 whitespace-pre-wrap" x-text="reply.content"></div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+                <!-- 回复输入框 -->
+                <div x-show="task.status !== 'completed' && task.status !== 'cancelled'" class="flex gap-2 items-end">
+                    <textarea x-model="replyContent" @keydown.ctrl.enter="submitReply()" rows="1"
+                              :placeholder="'{{ _('输入回复...') }}'"
+                              class="flex-1 px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary resize-y"></textarea>
+                    <button @click="submitReply()" :disabled="!replyContent.trim() || submittingReply"
+                            class="px-3 py-1.5 text-sm text-white bg-primary rounded-lg hover:bg-primary/90 disabled:opacity-50 flex-shrink-0">
+                        <span class="material-symbols-outlined text-base">send</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 加载中 -->
+        <div x-show="loading" class="flex items-center justify-center py-12">
+            <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+        </div>
+
+        <!-- 底部操作按钮 -->
+        <div x-show="!loading && task.id" class="flex justify-end gap-3 px-5 py-3 border-t border-slate-200 dark:border-slate-700">
+            <button x-show="task.can_edit && task.status !== 'completed' && task.status !== 'cancelled'"
+                    @click="showConfirm('{{ _('确定取消此任务？') }}', () => doCancelTask())"
+                    class="px-4 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+                {{ _('取消任务') }}
+            </button>
+            <button x-show="task.can_complete && task.status !== 'completed' && task.status !== 'cancelled'"
+                    @click="showConfirm('{{ _('确定完成此任务？') }}', () => doCompleteTask())"
+                    class="px-4 py-1.5 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg">
+                <span class="material-symbols-outlined text-base align-middle mr-1">check_circle</span>
+                {{ _('完成任务') }}
+            </button>
+        </div>
+
+        <!-- 确认对话框 -->
+        <div x-show="confirmVisible" x-cloak class="absolute inset-0 z-10 flex items-center justify-center bg-black/30 rounded-xl">
+            <div class="bg-white dark:bg-slate-800 rounded-lg shadow-xl mx-8 max-w-sm w-full" @click.stop>
+                <div class="px-5 py-4">
+                    <p class="text-sm text-slate-900 dark:text-white" x-text="confirmMessage"></p>
+                </div>
+                <div class="flex justify-end gap-3 px-5 py-3 border-t border-slate-200 dark:border-slate-700">
+                    <button @click="confirmVisible = false"
+                            class="px-4 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+                        {{ _('取消') }}
+                    </button>
+                    <button @click="confirmVisible = false; confirmCallback && confirmCallback()"
+                            class="px-4 py-1.5 text-sm text-white bg-primary hover:bg-primary/90 rounded-lg">
+                        {{ _('确定') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# ========== JavaScript ========== #}
+{% macro render_task_modal_script(current_user_id=0) %}
+<script>
+const __taskCurrentUserId = {{ current_user_id }};
+// 创建任务模态框
+function taskCreateModal() {
+    return {
+        open: false,
+        submitting: false,
+        allUsers: [],
+        filteredUsers: [],
+        userSearch: '',
+        selectedUserName: '',
+        showUserDropdown: false,
+        projectSearch: '',
+        projectResults: [],
+        selectedProjectName: '',
+        showProjectDropdown: false,
+        quotationOptions: [],
+        pendingFiles: [],
+        form: {
+            title: '',
+            description: '',
+            assignee_id: null,
+            priority: 'normal',
+            due_date: '',
+            project_id: null,
+            quotation_id: '',
+            customer_id: null,
+        },
+
+        async openModal(detail) {
+            this.resetForm();
+            if (detail && detail.project_id) this.form.project_id = detail.project_id;
+            this.open = true;
+            if (this.allUsers.length === 0) await this.loadUsers();
+        },
+
+        close() { this.open = false; },
+
+        resetForm() {
+            // 默认截止日期：明天 18:00
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(18, 0, 0, 0);
+            const pad = n => String(n).padStart(2, '0');
+            const defaultDue = tomorrow.getFullYear() + '-' + pad(tomorrow.getMonth()+1) + '-' + pad(tomorrow.getDate()) + 'T' + pad(tomorrow.getHours()) + ':' + pad(tomorrow.getMinutes());
+            this.form = { title: '', description: '', assignee_id: null, priority: 'normal', due_date: defaultDue, project_id: null, quotation_id: '', customer_id: null };
+            this.userSearch = '';
+            this.selectedUserName = '';
+            this.projectSearch = '';
+            this.selectedProjectName = '';
+            this.quotationOptions = [];
+            this.pendingFiles = [];
+        },
+
+        async loadUsers() {
+            try {
+                const res = await fetch('/user/api/users/active');
+                const data = await res.json();
+                if (data.success) this.allUsers = data.data;
+                this.filteredUsers = this.allUsers.slice(0, 20);
+            } catch (e) { console.error('加载用户失败:', e); }
+        },
+
+        filterUsers() {
+            const q = this.userSearch.toLowerCase();
+            if (!q) {
+                this.filteredUsers = this.allUsers.slice(0, 20);
+            } else {
+                this.filteredUsers = this.allUsers.filter(u =>
+                    (u.real_name || '').toLowerCase().includes(q) ||
+                    (u.username || '').toLowerCase().includes(q)
+                ).slice(0, 20);
+            }
+            this.showUserDropdown = true;
+        },
+
+        selectUser(user) {
+            this.form.assignee_id = user.id;
+            this.selectedUserName = user.real_name || user.username;
+            this.userSearch = '';
+            this.showUserDropdown = false;
+        },
+
+        async searchProjects() {
+            const q = this.projectSearch.trim();
+            if (q.length < 1) { this.projectResults = []; return; }
+            try {
+                const res = await fetch('/task/api/search-projects?keyword=' + encodeURIComponent(q));
+                const data = await res.json();
+                this.projectResults = data.results || [];
+                this.showProjectDropdown = true;
+            } catch (e) { this.projectResults = []; }
+        },
+
+        async selectProject(proj) {
+            this.form.project_id = proj.id;
+            this.selectedProjectName = proj.project_name;
+            this.projectSearch = '';
+            this.showProjectDropdown = false;
+            // 联动加载报价单
+            this.form.quotation_id = '';
+            this.quotationOptions = [];
+            try {
+                const res = await fetch('/task/api/project-quotations/' + proj.id);
+                const data = await res.json();
+                if (data.success) this.quotationOptions = data.data;
+            } catch (e) { /* ignore */ }
+        },
+
+        clearProject() {
+            this.form.project_id = null;
+            this.selectedProjectName = '';
+            this.projectSearch = '';
+            this.form.quotation_id = '';
+            this.quotationOptions = [];
+        },
+
+        addFiles(event) {
+            const files = event.target.files;
+            for (let i = 0; i < files.length; i++) {
+                this.pendingFiles.push(files[i]);
+            }
+            event.target.value = '';
+        },
+
+        async submit() {
+            if (!this.form.title.trim()) {
+                if (window.showToast) window.showToast('{{ _("请输入任务标题") }}', 'error');
+                return;
+            }
+            if (!this.form.assignee_id) {
+                if (window.showToast) window.showToast('{{ _("请选择指派人") }}', 'error');
+                return;
+            }
+            this.submitting = true;
+            try {
+                // 先创建任务
+                const payload = { ...this.form };
+                if (!payload.quotation_id) payload.quotation_id = null;
+                const res = await fetch('/task/api/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // 上传附件
+                    const taskId = data.data.id;
+                    for (const file of this.pendingFiles) {
+                        const fd = new FormData();
+                        fd.append('file', file);
+                        try { await fetch('/task/api/' + taskId + '/attachments', { method: 'POST', body: fd }); } catch (e) { /* ignore */ }
+                    }
+                    if (window.showToast) window.showToast('{{ _("任务创建成功") }}', 'success');
+                    this.close();
+                    window.dispatchEvent(new CustomEvent('task-created', { detail: data.data }));
+                } else {
+                    if (window.showToast) window.showToast(data.message || '{{ _("创建失败") }}', 'error');
+                }
+            } catch (e) {
+                if (window.showToast) window.showToast('{{ _("网络错误") }}', 'error');
+            } finally {
+                this.submitting = false;
+            }
+        }
+    };
+}
+
+// 任务详情模态框
+function taskDetailModal() {
+    return {
+        open: false,
+        loading: false,
+        task: {},
+        replyContent: '',
+        submittingReply: false,
+        uploadingFile: false,
+        uploadProgress: 0,
+        countdownText: '',
+        isOverdue: false,
+        _countdownTimer: null,
+        confirmVisible: false,
+        confirmMessage: '',
+        confirmCallback: null,
+
+        async openModal(detail) {
+            if (!detail || !detail.taskId) return;
+            this.open = true;
+            this.loading = true;
+            this.task = {};
+            this.replyContent = '';
+            try {
+                const res = await fetch('/task/api/' + detail.taskId);
+                const data = await res.json();
+                if (data.success) {
+                    this.task = data.data;
+                    this.startCountdown();
+                } else {
+                    if (window.showToast) window.showToast(data.message || '{{ _("加载失败") }}', 'error');
+                    this.close();
+                }
+            } catch (e) {
+                if (window.showToast) window.showToast('{{ _("网络错误") }}', 'error');
+                this.close();
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        close() {
+            this.open = false;
+            if (this._countdownTimer) { clearInterval(this._countdownTimer); this._countdownTimer = null; }
+        },
+
+        startCountdown() {
+            if (this._countdownTimer) clearInterval(this._countdownTimer);
+            if (!this.task.due_date) { this.countdownText = ''; return; }
+            const update = () => {
+                const due = new Date(this.task.due_date);
+                const now = new Date();
+                const diff = due - now;
+                if (diff <= 0) {
+                    this.isOverdue = true;
+                    const elapsed = Math.abs(diff);
+                    const days = Math.floor(elapsed / 86400000);
+                    const hours = Math.floor((elapsed % 86400000) / 3600000);
+                    this.countdownText = '{{ _("已过期") }} ' + (days > 0 ? days + '{{ _("天") }}' : '') + hours + '{{ _("小时") }}';
+                } else {
+                    this.isOverdue = false;
+                    const days = Math.floor(diff / 86400000);
+                    const hours = Math.floor((diff % 86400000) / 3600000);
+                    const mins = Math.floor((diff % 3600000) / 60000);
+                    this.countdownText = '{{ _("剩余") }} ' + (days > 0 ? days + '{{ _("天") }}' : '') + hours + '{{ _("小时") }}' + mins + '{{ _("分钟") }}';
+                }
+            };
+            update();
+            this._countdownTimer = setInterval(update, 60000);
+        },
+
+        formatDueDate(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+        },
+
+        formatTime(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            const now = new Date();
+            const diffMs = now - d;
+            if (diffMs < 60000) return '{{ _("刚刚") }}';
+            if (diffMs < 3600000) return Math.floor(diffMs/60000) + '{{ _("分钟前") }}';
+            if (diffMs < 86400000) return Math.floor(diffMs/3600000) + '{{ _("小时前") }}';
+            return String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0') + ' ' + String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+        },
+
+        formatFileSize(bytes) {
+            if (!bytes) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+            return (bytes/1048576).toFixed(1) + ' MB';
+        },
+
+        statusLabel(s) {
+            const map = { pending: '{{ _("待处理") }}', in_progress: '{{ _("进行中") }}', completed: '{{ _("已完成") }}', cancelled: '{{ _("已取消") }}' };
+            return map[s] || s;
+        },
+
+        statusBadgeClass(s) {
+            const map = {
+                pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+                in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                completed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+                cancelled: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
+            };
+            return map[s] || '';
+        },
+
+        priorityLabel(p) {
+            const map = { normal: '{{ _("普通") }}', high: '{{ _("高") }}', urgent: '{{ _("紧急") }}' };
+            return map[p] || p;
+        },
+
+        priorityClass(p) {
+            const map = { normal: 'text-blue-500', high: 'text-orange-500', urgent: 'text-red-500' };
+            return map[p] || '';
+        },
+
+        priorityDotClass(p) {
+            const map = { normal: 'bg-blue-500', high: 'bg-orange-500', urgent: 'bg-red-500' };
+            return map[p] || 'bg-blue-500';
+        },
+
+        showConfirm(message, callback) {
+            this.confirmMessage = message;
+            this.confirmCallback = callback;
+            this.confirmVisible = true;
+        },
+
+        async doCompleteTask() {
+            try {
+                const res = await fetch('/task/api/' + this.task.id + '/complete', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showToast) window.showToast('{{ _("任务已完成") }}', 'success');
+                    this.task.status = 'completed';
+                    window.dispatchEvent(new CustomEvent('task-updated'));
+                    this.close();
+                } else {
+                    if (window.showToast) window.showToast(data.message, 'error');
+                }
+            } catch (e) {
+                if (window.showToast) window.showToast('{{ _("操作失败") }}', 'error');
+            }
+        },
+
+        async doCancelTask() {
+            try {
+                const res = await fetch('/task/api/' + this.task.id + '/cancel', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    if (window.showToast) window.showToast('{{ _("任务已取消") }}', 'success');
+                    this.task.status = 'cancelled';
+                    window.dispatchEvent(new CustomEvent('task-updated'));
+                    this.close();
+                } else {
+                    if (window.showToast) window.showToast(data.message, 'error');
+                }
+            } catch (e) {
+                if (window.showToast) window.showToast('{{ _("操作失败") }}', 'error');
+            }
+        },
+
+        async submitReply() {
+            const content = this.replyContent.trim();
+            if (!content) return;
+            this.submittingReply = true;
+            try {
+                const res = await fetch('/task/api/' + this.task.id + '/replies', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    if (!this.task.replies) this.task.replies = [];
+                    this.task.replies.push(data.data);
+                    this.replyContent = '';
+                } else {
+                    if (window.showToast) window.showToast(data.message, 'error');
+                }
+            } catch (e) {
+                if (window.showToast) window.showToast('{{ _("回复失败") }}', 'error');
+            } finally {
+                this.submittingReply = false;
+            }
+        },
+
+        async uploadAttachment(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+            this.uploadingFile = true;
+            this.uploadProgress = 0;
+            const taskId = this.task.id;
+            const self = this;
+
+            for (let i = 0; i < files.length; i++) {
+                const formData = new FormData();
+                formData.append('file', files[i]);
+                try {
+                    const data = await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('POST', '/task/api/' + taskId + '/attachments');
+                        xhr.upload.onprogress = (e) => {
+                            if (e.lengthComputable) {
+                                self.uploadProgress = Math.round((e.loaded / e.total) * 100);
+                            }
+                        };
+                        xhr.onload = () => {
+                            try { resolve(JSON.parse(xhr.responseText)); }
+                            catch { reject(new Error('解析失败')); }
+                        };
+                        xhr.onerror = () => reject(new Error('网络错误'));
+                        xhr.send(formData);
+                    });
+                    if (data.success) {
+                        if (!this.task.attachments) this.task.attachments = [];
+                        data.data.uploaded_by = data.data.uploaded_by || __taskCurrentUserId;
+                        this.task.attachments.push(data.data);
+                    } else {
+                        if (window.showToast) window.showToast(data.message || '{{ _("上传失败") }}', 'error');
+                    }
+                } catch (e) {
+                    if (window.showToast) window.showToast('{{ _("上传失败") }}', 'error');
+                }
+                this.uploadProgress = 0;
+            }
+            this.uploadingFile = false;
+            event.target.value = '';
+        },
+
+        async deleteAttachment(attId) {
+            this.showConfirm('{{ _("确定删除此附件？") }}', async () => { await this.doDeleteAttachment(attId); });
+        },
+
+        async doDeleteAttachment(attId) {
+            try {
+                const res = await fetch('/task/api/' + this.task.id + '/attachments/' + attId, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.success) {
+                    this.task.attachments = this.task.attachments.filter(a => a.id !== attId);
+                }
+            } catch (e) {
+                if (window.showToast) window.showToast('{{ _("删除失败") }}', 'error');
+            }
+        }
+    };
+}
+</script>
+{% endmacro %}

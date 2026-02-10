@@ -36,6 +36,9 @@
              data-unit="{{ spec.unit or '' }}"
              data-include-in-desc="{{ 'true' if spec.include_in_description else 'false' }}"
              data-category-id="{{ category.id }}">
+            <span class="spec-drag-handle hidden cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 mr-1 shrink-0">
+                <span class="material-symbols-outlined text-lg">drag_indicator</span>
+            </span>
             <div class="flex-1 grid grid-cols-3 gap-4">
                 <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">{% if get_current_language() == 'en' %}{{ spec.field_name_en or _(spec.field_name) }}{% else %}{{ spec.field_name }}{% endif %}</dt>
                 <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
@@ -53,11 +56,9 @@
                 <button type="button" onclick="toggleSpecEdit(this)" class="p-1.5 text-slate-400 hover:text-primary rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('编辑') }}">
                     <span class="material-symbols-outlined text-lg">edit</span>
                 </button>
-                {% if not spec.field_code and not spec.is_coded %}
                 <button type="button" onclick="deleteSpec(this)" class="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('删除') }}">
                     <span class="material-symbols-outlined text-lg">delete</span>
                 </button>
-                {% endif %}
                 <button type="button" onclick="toggleSpecInDescription(this)" class="p-1.5 text-slate-400 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('从描述中排除') if spec.include_in_description else _('包含到描述中') }}">
                     <span class="material-symbols-outlined text-lg">{{ 'visibility' if spec.include_in_description else 'visibility_off' }}</span>
                 </button>
@@ -101,6 +102,9 @@
              data-field-code="{{ spec.field_code or '' }}"
              data-unit="{{ spec.unit or '' }}"
              data-include-in-desc="{{ 'true' if spec.include_in_description else 'false' }}">
+            <span class="spec-drag-handle hidden cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 mr-1 shrink-0">
+                <span class="material-symbols-outlined text-lg">drag_indicator</span>
+            </span>
             <div class="flex-1 grid grid-cols-3 gap-4">
                 <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">{% if get_current_language() == 'en' %}{{ spec.field_name_en or _(spec.field_name) }}{% else %}{{ spec.field_name }}{% endif %}</dt>
                 <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
@@ -118,11 +122,9 @@
                 <button type="button" onclick="toggleSpecEdit(this)" class="p-1.5 text-slate-400 hover:text-primary rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('编辑') }}">
                     <span class="material-symbols-outlined text-lg">edit</span>
                 </button>
-                {% if not spec.field_code and not spec.is_coded %}
                 <button type="button" onclick="deleteSpec(this)" class="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('删除') }}">
                     <span class="material-symbols-outlined text-lg">delete</span>
                 </button>
-                {% endif %}
                 <button type="button" onclick="toggleSpecInDescription(this)" class="p-1.5 text-slate-400 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="{{ _('从描述中排除') if spec.include_in_description else _('包含到描述中') }}">
                     <span class="material-symbols-outlined text-lg">{{ 'visibility' if spec.include_in_description else 'visibility_off' }}</span>
                 </button>

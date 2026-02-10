@@ -119,6 +119,8 @@ class WorkItem(db.Model):
         'inventory_management': '#06b6d4',
         'logistics': '#06b6d4',
         'quality_tracking': '#06b6d4',
+        # 产品确认 - 橘色（与产品类同色系）
+        'product_confirmation': '#f97316',
     }
 
     # 工作类型标签（31个子类型，出差已改为独立勾选框）
@@ -168,6 +170,8 @@ class WorkItem(db.Model):
         'inventory_management': '库存管理',
         'logistics': '物流协调',
         'quality_tracking': '品质跟踪',
+        # 待办任务
+        'product_confirmation': '产品确认',
     }
 
     def to_calendar_event(self, current_user_id=None):

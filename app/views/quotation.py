@@ -73,7 +73,8 @@ def list_quotations():
             request.args, filters, current_user.id,
             owner_field='owner_filter',
             filter_keys=['search', 'project_stage_filter', 'project_type_filter', 'project'],
-            module_id='quotation'
+            module_id='quotation',
+            model_class=Quotation
         )
         project_search = request.args.get('project', '')
 
@@ -3156,6 +3157,13 @@ def view_quotation(id):
             # 过滤用户有权限查看的报价单
             related_quotations = [q for q in all_related if can_view_quotation(current_user, q)][:10]
 
+        # 获取产品经理和解决方案经理列表（用于确认任务选择器）
+        confirmation_candidates = User.query.filter(
+            User.role.in_(['product_manager', 'solution_manager']),
+            User._is_active == True
+        ).order_by(User.real_name).all()
+        role_display_map = {u.id: get_role_display_name(u.role) for u in confirmation_candidates}
+
         template_name = "quotation/tw_quotation_detail.html"
 
         # 为编辑模态框准备产品明细JSON数据
@@ -3220,7 +3228,9 @@ def view_quotation(id):
                              quotation_details_json=quotation_details_json,
                              currency_options=get_currency_type_options(),
                              default_currency=quotation.currency or Config.DEFAULT_CURRENCY,
-                             active_pricing_order=active_pricing_order)
+                             active_pricing_order=active_pricing_order,
+                             confirmation_candidates=confirmation_candidates,
+                             role_display_map=role_display_map)
     except Exception as e:
         import traceback
         logger.error(f"加载报价单详情失败: {str(e)}\n{traceback.format_exc()}")
@@ -3870,6 +3880,243 @@ def get_product_detail_confirmation_status(quotation_id):
             'success': False,
             'message': f'获取状态失败：{str(e)}'
         }), 500
+
+# ========== 产品确认待办任务 API ==========
+
+@quotation.route('/<int:quotation_id>/confirmation-tasks', methods=['POST'])
+@login_required
+def create_confirmation_tasks(quotation_id):
+    """创建产品确认待办任务"""
+    try:
+        quotation_obj = Quotation.query.get_or_404(quotation_id)
+
+        if not can_view_quotation(current_user, quotation_obj):
+            return jsonify({'success': False, 'message': '权限不足'}), 403
+
+        # 只有报价单创建者才能发起确认请求
+        if quotation_obj.owner_id != current_user.id:
+            return jsonify({'success': False, 'message': '只有报价单创建者才能请求确认'}), 403
+
+        if quotation_obj.is_locked:
+            return jsonify({'success': False, 'message': '报价单已被锁定'}), 400
+
+        data = request.get_json() or {}
+        assignee_ids = data.get('assignee_ids', [])
+        message_text = data.get('message', '')
+        due_date_str = data.get('due_date')
+
+        if not assignee_ids:
+            return jsonify({'success': False, 'message': '请选择至少一个确认人'}), 400
+
+        due_date = None
+        if due_date_str:
+            try:
+                due_date = datetime.strptime(due_date_str, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({'success': False, 'message': '日期格式无效'}), 400
+
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+        from app.models.worklog import WorkItem
+        from app.models.message import Message
+
+        created_count = 0
+        for uid in assignee_ids:
+            user = User.query.get(uid)
+            if not user:
+                continue
+
+            # 检查是否已有pending任务
+            existing = QuotationConfirmationTask.query.filter_by(
+                quotation_id=quotation_id,
+                assignee_id=uid,
+                status='pending'
+            ).first()
+            if existing:
+                continue
+
+            # 创建WorkItem日程
+            work_item = WorkItem(
+                title=f'产品确认: {quotation_obj.quotation_number}',
+                description=message_text or f'请确认报价单 {quotation_obj.quotation_number} 的产品选型和配置清单',
+                planned_date=datetime.now(ZoneInfo('Asia/Shanghai')).date(),
+                end_date=due_date.date() if due_date else None,
+                is_all_day=True,
+                work_type='product_confirmation',
+                status='planned',
+                owner_id=uid,
+                project_id=quotation_obj.project_id
+            )
+            db.session.add(work_item)
+            db.session.flush()  # 获取work_item.id
+
+            # 创建确认任务
+            task = QuotationConfirmationTask(
+                quotation_id=quotation_id,
+                assignee_id=uid,
+                requester_id=current_user.id,
+                message=message_text,
+                due_date=due_date,
+                workitem_id=work_item.id
+            )
+            db.session.add(task)
+
+            # 发送消息通知
+            msg = Message.create_confirmation_request(
+                sender_id=current_user.id,
+                recipient_id=uid,
+                quotation=quotation_obj,
+                message_text=message_text
+            )
+            db.session.add(msg)
+            created_count += 1
+
+        # 更新报价单确认状态为pending
+        if created_count > 0:
+            quotation_obj.confirmation_badge_status = 'pending'
+            quotation_obj.confirmation_badge_color = '#f97316'
+            quotation_obj.product_signature = quotation_obj.calculate_product_signature()
+
+        db.session.commit()
+
+        # 查询当前进度
+        all_tasks = QuotationConfirmationTask.query.filter_by(
+            quotation_id=quotation_id
+        ).filter(QuotationConfirmationTask.status.in_(['pending', 'confirmed'])).all()
+        confirmed_count = sum(1 for t in all_tasks if t.status == 'confirmed')
+
+        return jsonify({
+            'success': True,
+            'task_count': created_count,
+            'confirmed': confirmed_count,
+            'total': len(all_tasks)
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'创建确认任务失败: {str(e)}')
+        return jsonify({'success': False, 'message': f'操作失败：{str(e)}'}), 500
+
+
+@quotation.route('/<int:quotation_id>/confirmation-tasks/confirm', methods=['POST'])
+@login_required
+def confirm_quotation_task(quotation_id):
+    """PM/SE确认产品选型"""
+    try:
+        quotation_obj = Quotation.query.get_or_404(quotation_id)
+
+        if not can_view_quotation(current_user, quotation_obj):
+            return jsonify({'success': False, 'message': '权限不足'}), 403
+
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+        from app.models.message import Message
+
+        # 查找当前用户的pending任务
+        task = QuotationConfirmationTask.query.filter_by(
+            quotation_id=quotation_id,
+            assignee_id=current_user.id,
+            status='pending'
+        ).first()
+
+        if not task:
+            return jsonify({'success': False, 'message': '未找到待确认的任务'}), 404
+
+        # 标记任务完成
+        now = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+        task.status = 'confirmed'
+        task.confirmed_at = now
+
+        # 标记对应的 confirmation_request 消息为已读
+        conf_msg = Message.query.filter_by(
+            recipient_id=current_user.id,
+            related_object_type='quotation',
+            related_object_id=quotation_id,
+            message_type='confirmation_request',
+            is_read=False
+        ).first()
+        if conf_msg:
+            conf_msg.is_read = True
+            conf_msg.read_at = now
+
+        # 完成关联的WorkItem
+        if task.workitem:
+            task.workitem.status = 'completed'
+            task.workitem.completed_at = now
+
+        # 检查是否全部确认
+        all_tasks = QuotationConfirmationTask.query.filter_by(
+            quotation_id=quotation_id
+        ).filter(QuotationConfirmationTask.status.in_(['pending', 'confirmed'])).all()
+        confirmed_count = sum(1 for t in all_tasks if t.status == 'confirmed')
+        total = len(all_tasks)
+        all_confirmed = confirmed_count == total
+
+        if all_confirmed:
+            # 全部确认完成，更新报价单状态
+            quotation_obj.set_confirmation_badge('#28a745', current_user.id)
+            # 通知发起人
+            requester_ids = set(t.requester_id for t in all_tasks)
+            for req_id in requester_ids:
+                msg = Message.create_confirmation_completed(
+                    sender_id=current_user.id,
+                    recipient_id=req_id,
+                    quotation=quotation_obj
+                )
+                db.session.add(msg)
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'all_confirmed': all_confirmed,
+            'confirmed': confirmed_count,
+            'total': total
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'确认任务失败: {str(e)}')
+        return jsonify({'success': False, 'message': f'操作失败：{str(e)}'}), 500
+
+
+@quotation.route('/<int:quotation_id>/confirmation-tasks', methods=['GET'])
+@login_required
+def get_confirmation_tasks(quotation_id):
+    """查询确认任务状态"""
+    try:
+        quotation_obj = Quotation.query.get_or_404(quotation_id)
+
+        if not can_view_quotation(current_user, quotation_obj):
+            return jsonify({'success': False, 'message': '权限不足'}), 403
+
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+
+        tasks = QuotationConfirmationTask.query.filter_by(
+            quotation_id=quotation_id
+        ).filter(
+            QuotationConfirmationTask.status.in_(['pending', 'confirmed'])
+        ).order_by(QuotationConfirmationTask.created_at.desc()).all()
+
+        confirmed_count = sum(1 for t in tasks if t.status == 'confirmed')
+        total = len(tasks)
+
+        # 检查当前用户是否有pending任务
+        has_pending_task = any(
+            t.assignee_id == current_user.id and t.status == 'pending'
+            for t in tasks
+        )
+
+        return jsonify({
+            'success': True,
+            'tasks': [t.to_dict() for t in tasks],
+            'confirmed': confirmed_count,
+            'total': total,
+            'all_confirmed': confirmed_count == total and total > 0,
+            'has_pending_task': has_pending_task
+        })
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 
 @quotation.route('/export_pdf/<int:quotation_id>')
 @login_required

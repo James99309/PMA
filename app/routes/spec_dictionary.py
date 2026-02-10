@@ -1171,6 +1171,93 @@ def get_options_by_spec_name(spec_name):
         }), 500
 
 
+@spec_dict_bp.route('/tree', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def get_spec_tree():
+    """
+    获取规格分类树形结构（SpecCategory → SpecDefinition）
+
+    Query参数:
+        subcategory_id: int - 如提供则交叉匹配 ProductCodeField 获取 field_id（可选）
+        exclude: str - 逗号分隔的已有规格名，排除掉（可选）
+
+    返回:
+        {
+            "success": true,
+            "data": [
+                {
+                    "id": 1, "name": "射频性能", "name_en": "RF Performance",
+                    "specs": [
+                        {"id": 10, "name": "频率范围", "name_en": "Frequency Range", "unit": "MHz", "field_id": 5},
+                        {"id": 11, "name": "发射功率", "name_en": "TX Power", "unit": "dBm", "field_id": null}
+                    ]
+                }
+            ]
+        }
+    """
+    from app.models.spec_template import SpecCategory, SpecDefinition
+
+    try:
+        subcategory_id = request.args.get('subcategory_id', type=int)
+        exclude_str = request.args.get('exclude', '')
+        exclude_names = set(n.strip() for n in exclude_str.split(',') if n.strip()) if exclude_str else set()
+
+        # 1. 查询所有活跃分类
+        categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
+
+        # 2. 查询所有活跃规格定义
+        definitions = SpecDefinition.query.filter_by(is_active=True).order_by(
+            SpecDefinition.category_id, SpecDefinition.display_order
+        ).all()
+
+        # 3. 如有 subcategory_id，构建 {name: field_id} 映射
+        field_id_map = {}
+        if subcategory_id:
+            fields_data = ProductCodeField.get_all_fields_for_subcategory(subcategory_id)
+            all_fields = fields_data['inherited'] + fields_data['own']
+            for f in all_fields:
+                field_id_map[f.name] = f.id
+
+        # 4. 按 category 分组，排除 exclude 中的名称
+        cat_specs = {}
+        for d in definitions:
+            if d.name in exclude_names:
+                continue
+            if d.category_id not in cat_specs:
+                cat_specs[d.category_id] = []
+            cat_specs[d.category_id].append({
+                'id': d.id,
+                'name': d.name,
+                'name_en': d.name_en,
+                'unit': d.unit,
+                'field_id': field_id_map.get(d.name)
+            })
+
+        # 5. 只返回有 specs 的分类
+        result = []
+        for cat in categories:
+            specs = cat_specs.get(cat.id, [])
+            if specs:
+                result.append({
+                    'id': cat.id,
+                    'name': cat.name,
+                    'name_en': cat.name_en,
+                    'specs': specs
+                })
+
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'获取规格树失败: {str(e)}'
+        }), 500
+
+
 @spec_dict_bp.route('/available-for-subcategory/<int:subcategory_id>', methods=['GET'])
 @login_required
 @permission_required('product_code', 'view')

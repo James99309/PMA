@@ -317,6 +317,8 @@
         .dark .fc .fc-daygrid-more-link { color: #94a3b8; }
         .fc-event-completed { opacity: 0.7; text-decoration: line-through; }
         .fc-event-cancelled { opacity: 0.5; text-decoration: line-through; }
+        /* 任务事件样式 - 玫红色左边框 */
+        .fc-event-task { border-left: 3px solid #e11d48 !important; }
         /* 共享给我的事件 - 细虚线边框 */
         .fc-event-shared {
             outline: 1px dashed currentColor;
@@ -837,8 +839,8 @@
                             <h4 class="font-medium text-slate-900 dark:text-white" x-text="selectedItem?.title"></h4>
                             <div class="text-sm text-slate-500 dark:text-slate-400 mt-2 space-y-1">
                                 <p>{{ _('计划日期') }}: <span x-text="selectedItem?.planned_date"></span></p>
-                                <p x-show="selectedItem?.project_name">{{ _('关联项目') }}: <span x-text="selectedItem?.project_name"></span></p>
-                                <p x-show="selectedItem?.customer_name">{{ _('关联客户') }}: <span x-text="selectedItem?.customer_name"></span></p>
+                                <p x-show="selectedItem?.project_name">{{ _('关联项目') }}: <a :href="'/project/view/' + selectedItem?.project_id" class="text-blue-600 dark:text-blue-400 hover:underline" x-text="selectedItem?.project_name"></a></p>
+                                <p x-show="selectedItem?.customer_name">{{ _('关联客户') }}: <a :href="'/customer/' + selectedItem?.customer_id + '/view'" class="text-blue-600 dark:text-blue-400 hover:underline" x-text="selectedItem?.customer_name"></a></p>
                             </div>
                         </div>
                         <div class="space-y-4">
@@ -916,11 +918,11 @@
                             </div>
                             <div x-show="viewData.project_name" class="text-sm">
                                 <span class="text-slate-500 dark:text-slate-400">{{ _('关联项目') }}:</span>
-                                <span class="text-slate-900 dark:text-white ml-2" x-text="viewData.project_name"></span>
+                                <a :href="'/project/view/' + viewData.project_id" class="text-blue-600 dark:text-blue-400 hover:underline ml-2" x-text="viewData.project_name"></a>
                             </div>
                             <div x-show="viewData.customer_name" class="text-sm">
                                 <span class="text-slate-500 dark:text-slate-400">{{ _('关联客户') }}:</span>
-                                <span class="text-slate-900 dark:text-white ml-2" x-text="viewData.customer_name"></span>
+                                <a :href="'/customer/' + viewData.customer_id + '/view'" class="text-blue-600 dark:text-blue-400 hover:underline ml-2" x-text="viewData.customer_name"></a>
                             </div>
                             <div x-show="viewData.description">
                                 <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('描述') }}</div>
@@ -1663,6 +1665,9 @@ function workCalendar() {
             window.addEventListener('workitem-users-selected', (e) => {
                 this.sharedUsers = e.detail.users || [];
             });
+            // 监听任务创建/更新，刷新日历
+            window.addEventListener('task-created', () => { if (this.calendar) this.calendar.refetchEvents(); });
+            window.addEventListener('task-updated', () => { if (this.calendar) this.calendar.refetchEvents(); });
             // 检测 URL 参数，自动切换账户和日期
             this.checkUrlParams();
         },
@@ -1782,6 +1787,17 @@ function workCalendar() {
                         // 返回事件数据
                         return response.events || [];
                     }
+                },
+                // 任务事件源
+                {
+                    url: '/task/api/calendar-events',
+                    method: 'GET',
+                    extraParams: function() {
+                        return self.selectedAccountId ? { account_id: self.selectedAccountId } : {};
+                    },
+                    success: function(response) {
+                        return response.events || [];
+                    }
                 }],
                 editable: true,
                 selectable: true,
@@ -1823,6 +1839,13 @@ function workCalendar() {
                 },
                 eventClick: function(info) {
                     const props = info.event.extendedProps;
+                    // 任务类型 → 打开任务详情模态框
+                    if (props.event_type === 'task') {
+                        window.dispatchEvent(new CustomEvent('open-task-detail-modal', {
+                            detail: { taskId: props.task_id }
+                        }));
+                        return;
+                    }
                     if (props.status === 'completed' || props.status === 'cancelled' || !props.is_owner) {
                         // 已完成/已取消/共享行程 → 只读查看
                         self.openViewModal(info.event.id, props);
@@ -1832,11 +1855,20 @@ function workCalendar() {
                     }
                 },
                 eventDrop: function(info) {
+                    // 任务事件不支持拖动修改日期
+                    if (info.event.extendedProps.event_type === 'task') { info.revert(); return; }
                     console.log('[拖动事件] 原始:', info.oldEvent?.startStr, '→ 新:', info.event.startStr);
                     self.updateItemDate(info.event.id, info.event.startStr, info.event.endStr);
                 },
                 eventDidMount: function(info) {
                     const props = info.event.extendedProps;
+                    // 任务事件 → 直接添加任务样式，跳过工作类型逻辑
+                    if (props.event_type === 'task') {
+                        info.el.classList.add('fc-event-task');
+                        if (props.status === 'completed') info.el.classList.add('fc-event-completed');
+                        else if (props.status === 'cancelled') info.el.classList.add('fc-event-cancelled');
+                        return;
+                    }
                     // 添加工作类型样式类
                     const workType = props.work_type || 'other';
                     info.el.classList.add('fc-event-' + workType);

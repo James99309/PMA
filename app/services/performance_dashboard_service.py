@@ -121,6 +121,28 @@ class PerformanceDashboardService:
             # 复用现有服务获取年度统计
             yearly_stats = PerformanceService.get_yearly_statistics(user_id, year)
 
+            # 获取配置的绩效项目列表（提前获取，用于按需触发角色专属计算）
+            configured_items = PerformanceDashboardService._get_configured_performance_items(user_id, year)
+
+            # 按需加载角色专属指标（仅在配置管理中启用后才计算）
+            pm_codes = {'pm_implant_amount', 'pm_sales_amount'}
+            se_codes = {'se_implant_amount', 'se_sales_amount'}
+            configured_set = set(configured_items) if configured_items else set()
+
+            if configured_items and pm_codes & configured_set:
+                pm_stats = PerformanceService.calculate_pm_yearly_statistics_batch(user_id, year)
+                for i, rs in enumerate(pm_stats):
+                    if i < len(yearly_stats):
+                        yearly_stats[i].pm_implant_amount_actual = rs.pm_implant_amount_actual
+                        yearly_stats[i].pm_sales_amount_actual = rs.pm_sales_amount_actual
+
+            if configured_items and se_codes & configured_set:
+                se_stats = PerformanceService.calculate_se_yearly_statistics_batch(user_id, year)
+                for i, rs in enumerate(se_stats):
+                    if i < len(yearly_stats):
+                        yearly_stats[i].se_implant_amount_actual = rs.se_implant_amount_actual
+                        yearly_stats[i].se_sales_amount_actual = rs.se_sales_amount_actual
+
             # 从绩效目标配置获取目标数据（使用新的目标表）
             targets_dict = PerformanceDashboardService.get_user_kpi_targets(user_id, year)
             logger.info(f"[DEBUG] get_user_kpi_targets returned: {bool(targets_dict)}, keys: {list(targets_dict.keys()) if targets_dict else []}")
@@ -178,9 +200,6 @@ class PerformanceDashboardService:
 
             # 汇总年度数据（传入 user_id 用于计算客户活跃度）
             summary = PerformanceDashboardService._calculate_yearly_summary(yearly_stats, targets_dict, user_id)
-
-            # 获取配置的绩效项目列表（用于前端动态列显示）
-            configured_items = PerformanceDashboardService._get_configured_performance_items(user_id, year)
 
             # lite 模式：仅返回首页所需的轻量数据，跳过重型聚合查询
             if lite:
@@ -1001,12 +1020,23 @@ class PerformanceDashboardService:
                 'new_projects': 0,
             }
 
+            # 动态检测已启用的角色指标（通过 yearly_stats 上的属性存在性判断）
+            extra_keys = []
+            for key in ['pm_implant_amount', 'pm_sales_amount', 'se_implant_amount', 'se_sales_amount']:
+                if yearly_stats and hasattr(yearly_stats[0], f'{key}_actual'):
+                    extra_keys.append(key)
+                    totals[key] = 0
+                    targets[key] = 0
+
             for i, stats in enumerate(yearly_stats):
                 month = i + 1
                 totals['implant_amount'] += getattr(stats, 'implant_amount_actual', 0) or 0
                 totals['sales_amount'] += getattr(stats, 'sales_amount_actual', 0) or 0
                 totals['new_customers'] += getattr(stats, 'new_customers_actual', 0) or 0
                 totals['new_projects'] += getattr(stats, 'new_projects_actual', 0) or 0
+
+                for key in extra_keys:
+                    totals[key] += getattr(stats, f'{key}_actual', 0) or 0
 
                 if month in targets_dict:
                     target = targets_dict[month]
@@ -1016,6 +1046,8 @@ class PerformanceDashboardService:
                         targets['sales_amount'] += float(target.get('sales_amount_target', 0) or 0)
                         targets['new_customers'] += int(target.get('new_customers_target', 0) or 0)
                         targets['new_projects'] += int(target.get('new_projects_target', 0) or 0)
+                        for key in extra_keys:
+                            targets[key] += float(target.get(f'{key}_target', 0) or 0)
                     else:
                         # 兼容旧格式 PerformanceTarget 对象
                         targets['implant_amount'] += float(target.implant_amount_target or 0)
@@ -1132,6 +1164,10 @@ class PerformanceDashboardService:
                 'sales_amount': ('sales_amount_actual', 'sales_amount_target'),
                 'new_customers': ('new_customers_actual', 'new_customers_target'),
                 'new_projects': ('new_projects_actual', 'new_projects_target'),
+                'pm_implant_amount': ('pm_implant_amount_actual', 'pm_implant_amount_target'),
+                'pm_sales_amount': ('pm_sales_amount_actual', 'pm_sales_amount_target'),
+                'se_implant_amount': ('se_implant_amount_actual', 'se_implant_amount_target'),
+                'se_sales_amount': ('se_sales_amount_actual', 'se_sales_amount_target'),
             }
 
             # 客户活跃度：优先从快照取历史数据，当前月用实时计算
@@ -1343,6 +1379,10 @@ class PerformanceDashboardService:
             'implant_amount': 'implant_amount_target',
             'new_customers': 'new_customers_target',
             'new_projects': 'new_projects_target',
+            'pm_implant_amount': 'pm_implant_amount_target',
+            'pm_sales_amount': 'pm_sales_amount_target',
+            'se_implant_amount': 'se_implant_amount_target',
+            'se_sales_amount': 'se_sales_amount_target',
         }
         return mapping.get(item_code)
 
@@ -1371,6 +1411,10 @@ class PerformanceDashboardService:
             'customer_activity_rate': 'customer_activity_rate',
             'high_price_amount': 'high_price_amount',
             'quotation_count': 'quotation_count',
+            'pm_implant_amount': 'pm_implant_amount',
+            'pm_sales_amount': 'pm_sales_amount',
+            'se_implant_amount': 'se_implant_amount',
+            'se_sales_amount': 'se_sales_amount',
         }
 
         try:

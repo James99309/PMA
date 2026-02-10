@@ -166,7 +166,7 @@ class SpecEditor {
         try {
             if (!this.subcategoryId) return;
 
-            const response = await fetch(`/product-management/api/subcategory/${this.subcategoryId}/spec-fields`);
+            const response = await fetch(`/product-code/api/subcategory/${this.subcategoryId}/spec-fields`);
             const data = await response.json();
             if (!data.spec_fields) return;
 
@@ -192,16 +192,18 @@ class SpecEditor {
                 select.appendChild(option);
             });
 
-            // 添加分隔线和管理选项
-            const separator = document.createElement('option');
-            separator.disabled = true;
-            separator.textContent = '──────────';
-            select.appendChild(separator);
+            // 添加分隔线和管理选项（仅在 SpecOptionsModal 可用时）
+            if (typeof SpecOptionsModal !== 'undefined') {
+                const separator = document.createElement('option');
+                separator.disabled = true;
+                separator.textContent = '──────────';
+                select.appendChild(separator);
 
-            const manageOption = document.createElement('option');
-            manageOption.value = '__MANAGE_OPTIONS__';
-            manageOption.textContent = '+ 管理规格选项';
-            select.appendChild(manageOption);
+                const manageOption = document.createElement('option');
+                manageOption.value = '__MANAGE_OPTIONS__';
+                manageOption.textContent = '+ 管理规格选项';
+                select.appendChild(manageOption);
+            }
 
             // 尝试恢复之前的选择
             if (currentValue) {
@@ -306,13 +308,12 @@ class SpecEditor {
             document.getElementById(this.buttons.add)?.classList.remove('hidden');
         }
 
-        // 显示操作按钮
+        // 显示操作按钮和拖拽手柄
         document.querySelectorAll('.spec-actions').forEach(el => el.classList.remove('hidden'));
+        document.querySelectorAll('.spec-drag-handle').forEach(el => el.classList.remove('hidden'));
 
-        // 加载缺失的编码规格（引入产品不加载，因为不能添加新规格）
-        if (this.subcategoryId && !this.isImportedProduct) {
-            this._loadMissingCodedSpecs();
-        }
+        // 初始化拖拽排序
+        this._initDragAndDrop();
 
         // 更新应用按钮状态
         this.updateApplyButtonState();
@@ -328,7 +329,7 @@ class SpecEditor {
      */
     async _loadMissingCodedSpecs() {
         try {
-            const response = await fetch(`/product-management/api/subcategory/${this.subcategoryId}/spec-fields`);
+            const response = await fetch(`/product-code/api/subcategory/${this.subcategoryId}/spec-fields`);
             const data = await response.json();
             if (!data.spec_fields) return;
 
@@ -381,6 +382,9 @@ class SpecEditor {
         const unit = spec.unit || '';
 
         row.innerHTML = `
+            <span class="spec-drag-handle cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 mr-1 shrink-0">
+                <span class="material-symbols-outlined text-lg">drag_indicator</span>
+            </span>
             <div class="flex-1 grid grid-cols-3 gap-4">
                 <dt class="text-sm font-medium text-slate-500 dark:text-slate-400">
                     <span class="spec-name">${spec.name}</span>
@@ -505,16 +509,18 @@ class SpecEditor {
             select.appendChild(opt);
         });
 
-        // 添加分隔线和管理选项
-        const separator = document.createElement('option');
-        separator.disabled = true;
-        separator.textContent = '──────────';
-        select.appendChild(separator);
+        // 添加分隔线和管理选项（仅在 SpecOptionsModal 可用时）
+        if (typeof SpecOptionsModal !== 'undefined') {
+            const separator = document.createElement('option');
+            separator.disabled = true;
+            separator.textContent = '──────────';
+            select.appendChild(separator);
 
-        const manageOption = document.createElement('option');
-        manageOption.value = '__MANAGE_OPTIONS__';
-        manageOption.textContent = '+ 管理规格选项';
-        select.appendChild(manageOption);
+            const manageOption = document.createElement('option');
+            manageOption.value = '__MANAGE_OPTIONS__';
+            manageOption.textContent = '+ 管理规格选项';
+            select.appendChild(manageOption);
+        }
     }
 
     /**
@@ -522,7 +528,7 @@ class SpecEditor {
      */
     async _reloadCodedSpecOptions(select, spec) {
         try {
-            const response = await fetch(`/product-management/api/subcategory/${this.subcategoryId}/spec-fields`);
+            const response = await fetch(`/product-code/api/subcategory/${this.subcategoryId}/spec-fields`);
             const data = await response.json();
             if (!data.spec_fields) return;
 
@@ -572,8 +578,12 @@ class SpecEditor {
         document.getElementById(this.buttons.cancel)?.classList.add('hidden');
         document.getElementById(this.buttons.add)?.classList.add('hidden');
 
-        // 隐藏操作按钮
+        // 隐藏操作按钮和拖拽手柄
         document.querySelectorAll('.spec-actions').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.spec-drag-handle').forEach(el => el.classList.add('hidden'));
+
+        // 销毁拖拽排序
+        this._destroyDragAndDrop();
 
         // 隐藏所有编辑选择框
         document.querySelectorAll('.value-select').forEach(el => el.classList.add('hidden'));
@@ -958,7 +968,7 @@ class SpecEditor {
             try {
                 // 优先使用子分类过滤的API
                 if (this.subcategoryId) {
-                    const response = await fetch(`/product-management/api/spec-field-options?subcategory_id=${this.subcategoryId}&spec_name=${encodeURIComponent(fieldName)}`);
+                    const response = await fetch(`/product-code/api/spec-field-options?subcategory_id=${this.subcategoryId}&spec_name=${encodeURIComponent(fieldName)}`);
                     const result = await response.json();
                     if (result.options && result.options.length > 0) {
                         this.specOptionsCache[cacheKey] = result.options;
@@ -1008,17 +1018,19 @@ class SpecEditor {
             selectElement.appendChild(option);
         }
 
-        // 添加管理选项
-        const separator = document.createElement('option');
-        separator.disabled = true;
-        separator.textContent = '──────────';
-        selectElement.appendChild(separator);
+        // 添加管理选项（仅在 SpecOptionsModal 可用时）
+        if (typeof SpecOptionsModal !== 'undefined') {
+            const separator = document.createElement('option');
+            separator.disabled = true;
+            separator.textContent = '──────────';
+            selectElement.appendChild(separator);
 
-        const manageOption = document.createElement('option');
-        manageOption.value = '__MANAGE_OPTIONS__';
-        manageOption.textContent = '+ 管理规格选项';
-        manageOption.className = 'text-primary font-medium';
-        selectElement.appendChild(manageOption);
+            const manageOption = document.createElement('option');
+            manageOption.value = '__MANAGE_OPTIONS__';
+            manageOption.textContent = '+ 管理规格选项';
+            manageOption.className = 'text-primary font-medium';
+            selectElement.appendChild(manageOption);
+        }
 
         // 监听管理选项
         if (!selectElement.dataset.manageListenerAdded) {
@@ -1064,262 +1076,375 @@ class SpecEditor {
     }
 
     /**
-     * 添加新规格行
+     * 添加新规格行 - 打开分类树形多选模态框
      */
     async addNewSpecRow() {
+        this._showAddSpecModal();
+    }
+
+    /**
+     * 显示添加规格的树形多选模态框
+     */
+    async _showAddSpecModal() {
+        // 收集已有规格名
+        const usedNames = new Set();
+        document.querySelectorAll('.spec-row:not(.deleted)').forEach(row => {
+            if (row.dataset.fieldName) usedNames.add(row.dataset.fieldName);
+        });
+
+        // 调用树形 API
+        const excludeParam = usedNames.size > 0 ? `&exclude=${encodeURIComponent([...usedNames].join(','))}` : '';
+        const subcatParam = this.subcategoryId ? `subcategory_id=${this.subcategoryId}` : '';
+        const url = `/api/spec-dictionary/tree?${subcatParam}${excludeParam}`;
+
+        let treeData = [];
+        try {
+            const response = await fetch(url);
+            const result = await response.json();
+            if (result.success) {
+                treeData = result.data;
+            }
+        } catch (error) {
+            console.error('加载规格树失败:', error);
+        }
+
+        if (treeData.length === 0) {
+            alert(this.i18n.noAvailableSpecs);
+            return;
+        }
+
+        // 创建模态框
+        this._renderAddSpecModal(treeData);
+    }
+
+    /**
+     * 渲染添加规格模态框
+     */
+    _renderAddSpecModal(treeData) {
+        // 移除已存在的模态框
+        const existingModal = document.getElementById('addSpecTreeModal');
+        if (existingModal) existingModal.remove();
+
+        const self = this;
+        const selectedSpecs = new Set();
+
+        // 构建分类树 HTML
+        let treeHtml = '';
+        treeData.forEach(cat => {
+            const specCount = cat.specs.length;
+            treeHtml += `
+                <div class="spec-tree-category" data-cat-id="${cat.id}">
+                    <button type="button" class="spec-tree-toggle w-full flex items-center gap-2 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
+                            onclick="this.closest('.spec-tree-category').classList.toggle('expanded')">
+                        <span class="material-symbols-outlined text-base text-slate-400 transition-transform toggle-icon" style="font-size:18px">chevron_right</span>
+                        <span class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex-1">${cat.name}</span>
+                        ${cat.name_en ? `<span class="text-xs text-slate-400 dark:text-slate-500 mr-1">${cat.name_en}</span>` : ''}
+                        <span class="text-xs text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">${specCount}</span>
+                    </button>
+                    <div class="spec-tree-items hidden pl-4">
+                        ${cat.specs.map(spec => `
+                            <label class="spec-tree-item flex items-center gap-3 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                                   data-spec-id="${spec.id}" data-spec-name="${spec.name}" data-spec-name-en="${spec.name_en || ''}"
+                                   data-spec-unit="${spec.unit || ''}" data-field-id="${spec.field_id || ''}">
+                                <input type="checkbox" class="spec-tree-checkbox w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50"
+                                       value="${spec.id}">
+                                <span class="text-sm text-slate-700 dark:text-slate-300">${spec.name}</span>
+                                ${spec.unit ? `<span class="text-xs text-slate-400">(${spec.unit})</span>` : ''}
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        });
+
+        // 创建模态框
+        const modal = document.createElement('div');
+        modal.id = 'addSpecTreeModal';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="absolute inset-0 bg-black/50" onclick="document.getElementById('addSpecTreeModal')?.remove()"></div>
+            <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg max-h-[80vh] flex flex-col">
+                <!-- Header -->
+                <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-base font-semibold text-slate-900 dark:text-white">${this.i18n.addSpecTitle || '添加规格'}</h3>
+                    <button type="button" onclick="document.getElementById('addSpecTreeModal')?.remove()"
+                            class="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span class="material-symbols-outlined text-xl">close</span>
+                    </button>
+                </div>
+                <!-- Search -->
+                <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                        <input type="text" id="addSpecSearchInput" placeholder="${this.i18n.searchSpec || '搜索规格...'}"
+                               class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    </div>
+                </div>
+                <!-- Tree content -->
+                <div class="flex-1 overflow-y-auto min-h-0" id="addSpecTreeContent">
+                    ${treeHtml}
+                    <div id="addSpecNoMatch" class="hidden py-8 text-center text-sm text-slate-400">
+                        <span class="material-symbols-outlined text-3xl text-slate-300 dark:text-slate-600 block mb-2">search_off</span>
+                        ${this.i18n.noMatchingSpecs || '没有匹配的规格'}
+                    </div>
+                </div>
+                <!-- Footer -->
+                <div class="flex items-center justify-between px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 rounded-b-xl">
+                    <span id="addSpecSelectedCount" class="text-sm text-slate-500 dark:text-slate-400">
+                        ${this.i18n.selectedCount || '已选'} <strong>0</strong> ${this.i18n.items || '项'}
+                    </span>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="document.getElementById('addSpecTreeModal')?.remove()"
+                                class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+                            ${this.i18n.cancel}
+                        </button>
+                        <button type="button" id="addSpecConfirmBtn" disabled
+                                class="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            ${this.i18n.addSelected || '添加选中规格'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <style>
+                .spec-tree-category.expanded .toggle-icon { transform: rotate(90deg); }
+                .spec-tree-category.expanded .spec-tree-items { display: block !important; }
+                .spec-tree-item.filtered-out { display: none !important; }
+                .spec-tree-category.filtered-out { display: none !important; }
+            </style>
+        `;
+
+        document.body.appendChild(modal);
+
+        // 绑定搜索过滤
+        const searchInput = modal.querySelector('#addSpecSearchInput');
+        const noMatchEl = modal.querySelector('#addSpecNoMatch');
+        searchInput.addEventListener('input', function() {
+            const keyword = this.value.trim().toLowerCase();
+            let hasVisible = false;
+            modal.querySelectorAll('.spec-tree-category').forEach(cat => {
+                let catHasVisible = false;
+                cat.querySelectorAll('.spec-tree-item').forEach(item => {
+                    const name = (item.dataset.specName || '').toLowerCase();
+                    const nameEn = (item.dataset.specNameEn || '').toLowerCase();
+                    const match = !keyword || name.includes(keyword) || nameEn.includes(keyword);
+                    item.classList.toggle('filtered-out', !match);
+                    if (match) catHasVisible = true;
+                });
+                cat.classList.toggle('filtered-out', !catHasVisible);
+                // 搜索时自动展开匹配的分类
+                if (keyword && catHasVisible) {
+                    cat.classList.add('expanded');
+                } else if (!keyword) {
+                    cat.classList.remove('expanded');
+                }
+                if (catHasVisible) hasVisible = true;
+            });
+            noMatchEl.classList.toggle('hidden', hasVisible);
+        });
+
+        // 绑定复选框事件
+        const updateCount = () => {
+            const count = selectedSpecs.size;
+            modal.querySelector('#addSpecSelectedCount').innerHTML =
+                `${self.i18n.selectedCount || '已选'} <strong>${count}</strong> ${self.i18n.items || '项'}`;
+            modal.querySelector('#addSpecConfirmBtn').disabled = count === 0;
+        };
+
+        modal.querySelectorAll('.spec-tree-checkbox').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const item = this.closest('.spec-tree-item');
+                const specData = {
+                    id: parseInt(item.dataset.specId),
+                    name: item.dataset.specName,
+                    name_en: item.dataset.specNameEn || '',
+                    unit: item.dataset.specUnit || '',
+                    field_id: item.dataset.fieldId || null
+                };
+                if (this.checked) {
+                    selectedSpecs.add(JSON.stringify(specData));
+                } else {
+                    selectedSpecs.delete(JSON.stringify(specData));
+                }
+                updateCount();
+            });
+        });
+
+        // 绑定确认按钮
+        modal.querySelector('#addSpecConfirmBtn').addEventListener('click', () => {
+            const specs = [...selectedSpecs].map(s => JSON.parse(s));
+            modal.remove();
+            specs.forEach(spec => self._createSpecRowFromDefinition(spec));
+            self.updateApplyButtonState();
+        });
+
+        // 聚焦搜索框
+        searchInput.focus();
+    }
+
+    /**
+     * 从 SpecDefinition 创建规格行
+     * 新行创建后立即显示 select 下拉框，等待用户选择指标
+     * 确认后显示值文字和可见性按钮
+     */
+    _createSpecRowFromDefinition(spec) {
         let specsList = document.getElementById(this.listId);
         if (!specsList) {
             const container = document.getElementById(this.containerId);
             const emptyMsg = document.getElementById(this.emptyMessageId);
-            if (emptyMsg) emptyMsg.remove();
+            if (emptyMsg) emptyMsg.style.display = 'none';
 
             specsList = document.createElement('dl');
             specsList.id = this.listId;
             container.appendChild(specsList);
         }
 
-        // 检查已有未完成行
-        const existingNewRow = specsList.querySelector('.spec-row-new-input');
-        if (existingNewRow) {
-            existingNewRow.querySelector('.new-spec-name')?.focus();
-            return;
-        }
+        // 隐藏空消息
+        const emptyMsg = document.getElementById(this.emptyMessageId);
+        if (emptyMsg) emptyMsg.style.display = 'none';
 
-        // 获取已使用规格
-        const usedNames = new Set();
-        document.querySelectorAll('.spec-row:not(.deleted)').forEach(row => {
-            usedNames.add(row.dataset.fieldName);
-        });
+        const tempId = 'new_' + Date.now() + '_' + spec.id;
+        const unit = spec.unit || '';
 
-        // 加载可用规格
-        // 如果配置了subcategoryId，则只加载该子分类的非编码规格
-        // 否则加载所有规格字典
-        let availableSpecsData = [];
-        try {
-            let apiUrl = '/api/spec-dictionary';
-            if (this.subcategoryId) {
-                apiUrl = `/api/spec-dictionary/available-for-subcategory/${this.subcategoryId}`;
-            }
-            const response = await fetch(apiUrl);
-            const result = await response.json();
-            if (result.success) {
-                availableSpecsData = result.data.filter(spec => !usedNames.has(spec.name));
-            }
-        } catch (error) {
-            console.error('加载可用规格失败:', error);
-        }
+        const row = document.createElement('div');
+        row.className = 'spec-row px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-t border-slate-100 dark:border-slate-800';
+        row.dataset.specId = tempId;
+        row.dataset.new = 'true';
+        row.dataset.fieldName = spec.name;
+        row.dataset.fieldId = spec.field_id || '';
+        row.dataset.fieldValue = '';
+        row.dataset.fieldCode = '';
+        row.dataset.unit = unit;
+        row.dataset.includeInDesc = 'true';
 
-        if (availableSpecsData.length === 0) {
-            alert(this.i18n.noAvailableSpecs);
-            return;
-        }
-
-        // 创建新行
-        const tempId = 'new_' + Date.now();
-        const newRow = document.createElement('div');
-        newRow.className = 'spec-row spec-row-new-input px-6 py-4 flex items-center justify-between transition-colors border-t border-slate-100 dark:border-slate-800';
-        newRow.dataset.specId = tempId;
-        newRow.dataset.new = 'true';
-
-        let specOptionsHtml = `<option value="">${this.i18n.selectSpec}</option>`;
-        availableSpecsData.forEach(spec => {
-            specOptionsHtml += `<option value="${spec.id}" data-name="${spec.name}" data-unit="${spec.unit || ''}">${spec.name}${spec.unit ? ' (' + spec.unit + ')' : ''}</option>`;
-        });
-
-        newRow.innerHTML = `
+        row.innerHTML = `
+            <span class="spec-drag-handle cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 mr-1 shrink-0">
+                <span class="material-symbols-outlined text-lg">drag_indicator</span>
+            </span>
             <div class="flex-1 grid grid-cols-3 gap-4">
-                <dt class="text-sm font-medium text-slate-500 dark:text-slate-400">
-                    <select class="new-spec-name w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200">
-                        ${specOptionsHtml}
-                    </select>
-                </dt>
+                <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">${spec.name}</dt>
                 <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
-                    <select class="new-spec-value w-32 px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" disabled>
-                        <option value="">${this.i18n.selectSpecFirst}</option>
+                    <span class="value-display hidden"></span>
+                    <span class="unit-display hidden text-slate-400">${unit}</span>
+                    <select class="value-select w-32 px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200" data-field-name="${spec.name}">
+                        <option value="">-- 请选择 --</option>
                     </select>
-                    <span class="new-spec-unit text-slate-400"></span>
+                    <span class="unit-edit text-slate-400">${unit}</span>
                 </dd>
             </div>
             <div class="spec-actions flex items-center gap-1 ml-4">
-                <button type="button" class="confirm-new-spec p-1.5 text-slate-400 hover:text-green-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.apply}">
+                <button type="button" class="spec-confirm-btn p-1.5 text-slate-400 hover:text-green-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.apply || '确认'}">
                     <span class="material-symbols-outlined text-lg">check</span>
                 </button>
-                <button type="button" class="cancel-new-spec p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.cancel}">
-                    <span class="material-symbols-outlined text-lg">close</span>
+                <button type="button" class="delete-new-spec p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.delete}">
+                    <span class="material-symbols-outlined text-lg">delete</span>
+                </button>
+                <button type="button" class="spec-visibility-btn hidden p-1.5 text-slate-400 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.excludeFromDesc || '从描述中排除'}">
+                    <span class="material-symbols-outlined text-lg">visibility</span>
                 </button>
             </div>
         `;
 
-        specsList.appendChild(newRow);
-        this.updateApplyButtonState();
+        specsList.appendChild(row);
 
-        // 绑定事件
-        const nameSelect = newRow.querySelector('.new-spec-name');
-        const valueSelect = newRow.querySelector('.new-spec-value');
-        const unitSpan = newRow.querySelector('.new-spec-unit');
         const self = this;
+        const select = row.querySelector('.value-select');
+        const valueDisplay = row.querySelector('.value-display');
+        const unitDisplay = row.querySelector('.unit-display');
+        const unitEdit = row.querySelector('.unit-edit');
+        const confirmBtn = row.querySelector('.spec-confirm-btn');
+        const visibilityBtn = row.querySelector('.spec-visibility-btn');
 
-        nameSelect.addEventListener('change', async function() {
-            const selectedOption = this.options[this.selectedIndex];
-            const specId = this.value;
+        // 记入 pendingChanges.added
+        this.pendingChanges.added.push({
+            tempId: tempId,
+            field_name: spec.name,
+            field_value: '',
+            field_id: spec.field_id || null,
+            unit: unit,
+            include_in_description: true
+        });
 
-            if (!specId) {
-                valueSelect.innerHTML = `<option value="">${self.i18n.selectSpecFirst}</option>`;
-                valueSelect.disabled = true;
-                unitSpan.textContent = '';
-                return;
-            }
+        // 立即加载选项
+        this.loadSpecOptions(select, spec.name, '').then(() => {
+            select.focus();
+        });
 
-            unitSpan.textContent = selectedOption.dataset.unit || '';
-            valueSelect.innerHTML = `<option value="">${self.i18n.loading}</option>`;
-            valueSelect.disabled = true;
+        // 确认按钮：选择值后确认
+        confirmBtn.addEventListener('click', function() {
+            const icon = this.querySelector('.material-symbols-outlined');
 
-            try {
-                const specName = selectedOption.dataset.name;
-                // 缓存键：如果有subcategoryId，按子分类缓存
-                const cacheKey = self.subcategoryId ? `${self.subcategoryId}_${specName}` : specId;
+            if (icon.textContent === 'check') {
+                // 确认模式：验证并确认选择
+                if (!select.value || select.value === '__MANAGE_OPTIONS__') return;
 
-                if (!self.specOptionsCache[cacheKey]) {
-                    // 优先使用子分类过滤的API
-                    if (self.subcategoryId && specName) {
-                        const response = await fetch(`/product-management/api/spec-field-options?subcategory_id=${self.subcategoryId}&spec_name=${encodeURIComponent(specName)}`);
-                        const result = await response.json();
-                        if (result.options && result.options.length > 0) {
-                            self.specOptionsCache[cacheKey] = result.options;
-                        }
-                    }
+                const selectedOption = select.options[select.selectedIndex];
+                const code = selectedOption?.dataset?.code || '';
 
-                    // 如果没有子分类或获取失败，回退到全局规格字典
-                    if (!self.specOptionsCache[cacheKey]) {
-                        const response = await fetch(`/api/spec-dictionary/${specId}/options`);
-                        const result = await response.json();
-                        if (result.success) {
-                            self.specOptionsCache[cacheKey] = result.data;
-                        }
-                    }
+                // 更新数据
+                row.dataset.fieldValue = select.value;
+                row.dataset.fieldCode = code;
+
+                // 更新 pendingChanges
+                const addedItem = self.pendingChanges.added.find(a => a.tempId === tempId);
+                if (addedItem) {
+                    addedItem.field_value = select.value;
+                    addedItem.field_code = code;
                 }
 
-                const options = self.specOptionsCache[cacheKey] || [];
-                valueSelect.innerHTML = '';
+                // 切换到显示模式
+                valueDisplay.textContent = select.value;
+                valueDisplay.classList.remove('hidden');
+                unitDisplay.classList.remove('hidden');
+                select.classList.add('hidden');
+                unitEdit.classList.add('hidden');
 
-                if (options.length === 0) {
-                    // 即使没有选项，也添加一个占位符
-                    const emptyOpt = document.createElement('option');
-                    emptyOpt.value = '';
-                    emptyOpt.textContent = self.i18n.noAvailableOptions;
-                    valueSelect.appendChild(emptyOpt);
-                } else {
-                    options.forEach(opt => {
-                        const option = document.createElement('option');
-                        option.value = opt.value;
-                        option.textContent = opt.value;
-                        option.dataset.code = opt.code || '';
-                        valueSelect.appendChild(option);
-                    });
-                }
+                // 显示可见性按钮
+                visibilityBtn.classList.remove('hidden');
 
-                // 添加管理规格选项
-                const separator = document.createElement('option');
-                separator.disabled = true;
-                separator.textContent = '──────────';
-                valueSelect.appendChild(separator);
+                // 切换图标为编辑
+                icon.textContent = 'edit';
+                this.classList.remove('text-slate-400', 'hover:text-green-500');
+                this.classList.add('text-green-500');
+                this.title = self.i18n.edit || '编辑';
 
-                const manageOption = document.createElement('option');
-                manageOption.value = '__MANAGE_OPTIONS__';
-                manageOption.textContent = '+ 管理规格选项';
-                manageOption.className = 'text-primary font-medium';
-                valueSelect.appendChild(manageOption);
+                self.updateApplyButtonState();
+            } else {
+                // 编辑模式：重新打开选择
+                valueDisplay.classList.add('hidden');
+                unitDisplay.classList.add('hidden');
+                select.classList.remove('hidden');
+                unitEdit.classList.remove('hidden');
+                select.focus();
 
-                // 启用下拉框（无论是否有选项，都需要能选择"管理规格选项"）
-                valueSelect.disabled = false;
+                // 切换图标为确认
+                icon.textContent = 'check';
+                this.classList.remove('text-green-500');
+                this.classList.add('text-slate-400', 'hover:text-green-500');
+                this.title = self.i18n.apply || '确认';
 
-                // 绑定管理选项事件
-                if (!valueSelect.dataset.manageListenerAdded) {
-                    valueSelect.dataset.manageListenerAdded = 'true';
-                    valueSelect.dataset.specId = specId;
-                    valueSelect.dataset.specName = selectedOption.dataset.name;
-
-                    valueSelect.addEventListener('change', function(e) {
-                        if (e.target.value === '__MANAGE_OPTIONS__') {
-                            // 恢复之前的选择
-                            const firstOpt = e.target.querySelector('option:not([disabled])');
-                            if (firstOpt) e.target.value = firstOpt.value;
-
-                            if (typeof SpecOptionsModal !== 'undefined') {
-                                const specName = e.target.dataset.specName;
-                                const specIdForRefresh = e.target.dataset.specId;
-                                SpecOptionsModal.open(specName, async function(updatedFieldName) {
-                                    // 刷新选项缓存 - 使用正确的缓存键格式
-                                    const cacheKeyToDelete = self.subcategoryId ? `${self.subcategoryId}_${specName}` : specIdForRefresh;
-                                    delete self.specOptionsCache[cacheKeyToDelete];
-                                    // 重新触发规格选择以刷新选项
-                                    nameSelect.dispatchEvent(new Event('change'));
-                                });
-                            }
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('加载指标选项失败:', error);
-                valueSelect.innerHTML = '';
-
-                const emptyOpt = document.createElement('option');
-                emptyOpt.value = '';
-                emptyOpt.textContent = self.i18n.noAvailableOptions;
-                valueSelect.appendChild(emptyOpt);
-
-                // 即使出错也添加管理规格选项
-                const separator = document.createElement('option');
-                separator.disabled = true;
-                separator.textContent = '──────────';
-                valueSelect.appendChild(separator);
-
-                const manageOption = document.createElement('option');
-                manageOption.value = '__MANAGE_OPTIONS__';
-                manageOption.textContent = '+ 管理规格选项';
-                manageOption.className = 'text-primary font-medium';
-                valueSelect.appendChild(manageOption);
-
-                valueSelect.disabled = false;
-
-                // 绑定管理选项事件
-                if (!valueSelect.dataset.manageListenerAdded) {
-                    valueSelect.dataset.manageListenerAdded = 'true';
-                    valueSelect.dataset.specId = specId;
-                    valueSelect.dataset.specName = selectedOption.dataset.name;
-
-                    valueSelect.addEventListener('change', function(e) {
-                        if (e.target.value === '__MANAGE_OPTIONS__') {
-                            const firstOpt = e.target.querySelector('option:not([disabled])');
-                            if (firstOpt) e.target.value = firstOpt.value;
-
-                            if (typeof SpecOptionsModal !== 'undefined') {
-                                const specName = e.target.dataset.specName;
-                                const specIdForRefresh = e.target.dataset.specId;
-                                SpecOptionsModal.open(specName, async function() {
-                                    // 刷新选项缓存 - 使用正确的缓存键格式
-                                    const cacheKeyToDelete = self.subcategoryId ? `${self.subcategoryId}_${specName}` : specIdForRefresh;
-                                    delete self.specOptionsCache[cacheKeyToDelete];
-                                    nameSelect.dispatchEvent(new Event('change'));
-                                });
-                            }
-                        }
-                    });
-                }
+                self.updateApplyButtonState();
             }
         });
 
-        // 确认按钮
-        newRow.querySelector('.confirm-new-spec').addEventListener('click', () => {
-            this.confirmNewSpecRow(newRow);
+        // 删除按钮
+        row.querySelector('.delete-new-spec').addEventListener('click', function() {
+            self.deleteNewSpec(row);
         });
 
-        // 取消按钮
-        newRow.querySelector('.cancel-new-spec').addEventListener('click', () => {
-            this.cancelNewSpecRow(newRow);
-        });
+        // 可见性切换
+        visibilityBtn.addEventListener('click', function() {
+            const icon = this.querySelector('.material-symbols-outlined');
+            const isVisible = icon.textContent === 'visibility';
+            icon.textContent = isVisible ? 'visibility_off' : 'visibility';
+            row.dataset.includeInDesc = isVisible ? 'false' : 'true';
+            this.title = isVisible ? (self.i18n.includeInDesc || '包含在描述中') : (self.i18n.excludeFromDesc || '从描述中排除');
 
-        nameSelect.focus();
+            // 更新 pendingChanges
+            const addedItem = self.pendingChanges.added.find(a => a.tempId === tempId);
+            if (addedItem) {
+                addedItem.include_in_description = !isVisible;
+            }
+        });
     }
 
     /**
@@ -1355,6 +1480,9 @@ class SpecEditor {
 
         const self = this;
         row.innerHTML = `
+            <span class="spec-drag-handle cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 mr-1 shrink-0">
+                <span class="material-symbols-outlined text-lg">drag_indicator</span>
+            </span>
             <div class="flex-1 grid grid-cols-3 gap-4">
                 <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">${specName}</dt>
                 <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
@@ -1604,6 +1732,10 @@ class SpecEditor {
         document.getElementById(this.buttons.add)?.classList.add('hidden');
 
         document.querySelectorAll('.spec-actions').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.spec-drag-handle').forEach(el => el.classList.add('hidden'));
+
+        // 销毁拖拽排序
+        this._destroyDragAndDrop();
 
         // 隐藏编辑控件
         document.querySelectorAll('.value-select').forEach(el => el.classList.add('hidden'));
@@ -1618,6 +1750,107 @@ class SpecEditor {
             btn.classList.add('text-slate-400');
             btn.classList.remove('text-green-500');
         });
+    }
+
+    // ==================== 拖拽排序 ====================
+
+    /**
+     * 初始化拖拽排序
+     * 使用 HTML5 Drag and Drop API，仅通过拖拽手柄触发
+     */
+    _initDragAndDrop() {
+        const container = document.getElementById(this.listId);
+        if (!container) return;
+
+        this._dragState = { draggedRow: null };
+        const state = this._dragState;
+
+        // 通过 mousedown 在拖拽手柄上启用行的 draggable
+        this._onHandleMouseDown = (e) => {
+            const handle = e.target.closest('.spec-drag-handle');
+            if (!handle) return;
+            const row = handle.closest('.spec-row');
+            if (row) row.draggable = true;
+        };
+
+        // mouseup 时禁用 draggable（防止非手柄区域拖拽）
+        this._onMouseUp = () => {
+            container.querySelectorAll('.spec-row[draggable="true"]').forEach(r => r.draggable = false);
+        };
+
+        this._onDragStart = (e) => {
+            const row = e.target.closest('.spec-row');
+            if (!row || !row.draggable) { e.preventDefault(); return; }
+            state.draggedRow = row;
+            row.classList.add('opacity-40');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', '');
+        };
+
+        this._onDragOver = (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (!state.draggedRow) return;
+
+            const afterEl = this._getDragAfterElement(container, e.clientY);
+            if (afterEl) {
+                container.insertBefore(state.draggedRow, afterEl);
+            } else {
+                container.appendChild(state.draggedRow);
+            }
+        };
+
+        this._onDragEnd = () => {
+            if (state.draggedRow) {
+                state.draggedRow.classList.remove('opacity-40');
+                state.draggedRow.draggable = false;
+                state.draggedRow = null;
+            }
+        };
+
+        container.addEventListener('mousedown', this._onHandleMouseDown);
+        document.addEventListener('mouseup', this._onMouseUp);
+        container.addEventListener('dragstart', this._onDragStart);
+        container.addEventListener('dragover', this._onDragOver);
+        container.addEventListener('dragend', this._onDragEnd);
+    }
+
+    /**
+     * 获取拖拽后的插入位置
+     * 返回鼠标位置之后的第一个 spec-row 元素
+     */
+    _getDragAfterElement(container, y) {
+        const rows = [...container.querySelectorAll('.spec-row:not(.opacity-40)')];
+        let closest = null;
+        let closestOffset = Number.NEGATIVE_INFINITY;
+
+        rows.forEach(row => {
+            const box = row.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closestOffset) {
+                closestOffset = offset;
+                closest = row;
+            }
+        });
+        return closest;
+    }
+
+    /**
+     * 销毁拖拽排序
+     */
+    _destroyDragAndDrop() {
+        const container = document.getElementById(this.listId);
+        if (!container) return;
+
+        if (this._onHandleMouseDown) container.removeEventListener('mousedown', this._onHandleMouseDown);
+        if (this._onMouseUp) document.removeEventListener('mouseup', this._onMouseUp);
+        if (this._onDragStart) container.removeEventListener('dragstart', this._onDragStart);
+        if (this._onDragOver) container.removeEventListener('dragover', this._onDragOver);
+        if (this._onDragEnd) container.removeEventListener('dragend', this._onDragEnd);
+
+        // 清理所有 draggable 属性
+        container.querySelectorAll('.spec-row[draggable]').forEach(r => r.removeAttribute('draggable'));
+        this._dragState = null;
     }
 
     /**
@@ -1664,6 +1897,9 @@ class SpecEditor {
             const visibilityTitle = spec.include_in_description ? this.i18n.excludeFromDesc : this.i18n.includeInDesc;
 
             row.innerHTML = `
+                <span class="spec-drag-handle hidden cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 mr-1 shrink-0">
+                    <span class="material-symbols-outlined text-lg">drag_indicator</span>
+                </span>
                 <div class="flex-1 grid grid-cols-3 gap-4">
                     <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">${spec.field_name}</dt>
                     <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
@@ -1679,9 +1915,9 @@ class SpecEditor {
                     <button type="button" onclick="toggleSpecEdit(this)" class="p-1.5 text-slate-400 hover:text-primary rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.edit}">
                         <span class="material-symbols-outlined text-lg">edit</span>
                     </button>
-                    ${!hasCode ? `<button type="button" onclick="deleteSpec(this)" class="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.delete}">
+                    <button type="button" onclick="deleteSpec(this)" class="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.delete}">
                         <span class="material-symbols-outlined text-lg">delete</span>
-                    </button>` : ''}
+                    </button>
                     <button type="button" onclick="toggleSpecInDescription(this)" class="p-1.5 text-slate-400 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${visibilityTitle}">
                         <span class="material-symbols-outlined text-lg">${visibilityIcon}</span>
                     </button>
@@ -1753,6 +1989,9 @@ class SpecEditor {
                 const visibilityTitle = spec.include_in_description ? this.i18n.excludeFromDesc : this.i18n.includeInDesc;
 
                 row.innerHTML = `
+                    <span class="spec-drag-handle hidden cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 mr-1 shrink-0">
+                        <span class="material-symbols-outlined text-lg">drag_indicator</span>
+                    </span>
                     <div class="flex-1 grid grid-cols-3 gap-4">
                         <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">${spec.field_name}</dt>
                         <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
@@ -1768,9 +2007,9 @@ class SpecEditor {
                         <button type="button" onclick="toggleSpecEdit(this)" class="p-1.5 text-slate-400 hover:text-primary rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.edit}">
                             <span class="material-symbols-outlined text-lg">edit</span>
                         </button>
-                        ${!hasCode ? `<button type="button" onclick="deleteSpec(this)" class="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.delete}">
+                        <button type="button" onclick="deleteSpec(this)" class="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.delete}">
                             <span class="material-symbols-outlined text-lg">delete</span>
-                        </button>` : ''}
+                        </button>
                         <button type="button" onclick="toggleSpecInDescription(this)" class="p-1.5 text-slate-400 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${visibilityTitle}">
                             <span class="material-symbols-outlined text-lg">${visibilityIcon}</span>
                         </button>

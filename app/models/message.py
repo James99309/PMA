@@ -571,7 +571,137 @@ class Message(db.Model):
             }
         )
 
+    # ========== 产品确认任务通知相关方法 ==========
+
+    @classmethod
+    def create_confirmation_request(cls, sender_id, recipient_id, quotation, message_text=None):
+        """创建产品确认请求通知
+
+        Args:
+            sender_id: 发送者用户ID（销售/发起人）
+            recipient_id: 接收者用户ID（PM/SE）
+            quotation: Quotation 对象
+            message_text: 自定义消息文本
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        content_preview = message_text[:100] if message_text else f'报价单 {quotation.quotation_number}'
+
+        return cls(
+            message_type='confirmation_request',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 请求你确认产品选型',
+            content=content_preview,
+            related_object_type='quotation',
+            related_object_id=quotation.id,
+            extra_data={
+                'quotation_number': quotation.quotation_number,
+                'project_id': quotation.project_id,
+                'task_type': 'product_confirmation'
+            }
+        )
+
+    @classmethod
+    def create_confirmation_completed(cls, sender_id, recipient_id, quotation):
+        """创建产品确认完成通知（通知发起人）
+
+        Args:
+            sender_id: 系统或最后确认人ID
+            recipient_id: 接收者用户ID（发起人/销售）
+            quotation: Quotation 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        return cls(
+            message_type='confirmation_completed',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'报价单 {quotation.quotation_number} 产品确认已完成',
+            content='所有指派人已完成产品选型确认',
+            related_object_type='quotation',
+            related_object_id=quotation.id,
+            extra_data={
+                'quotation_number': quotation.quotation_number,
+                'task_type': 'product_confirmation'
+            }
+        )
+
     # ========== 日志评论通知相关方法 ==========
+
+    # ========== 通用任务通知相关方法 ==========
+
+    @classmethod
+    def create_task_assigned(cls, sender_id, recipient_id, task):
+        """创建任务指派通知
+
+        Args:
+            sender_id: 发送者用户ID（任务创建人）
+            recipient_id: 接收者用户ID（被指派人）
+            task: Task 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        content_preview = task.title[:100] if task.title else ''
+
+        return cls(
+            message_type='task_assigned',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 给你分配了任务',
+            content=content_preview,
+            related_object_type='task',
+            related_object_id=task.id,
+            extra_data={
+                'task_id': task.id,
+                'priority': task.priority,
+                'due_date': task.due_date.isoformat() if task.due_date else None
+            }
+        )
+
+    @classmethod
+    def create_task_completed(cls, sender_id, recipient_id, task):
+        """创建任务完成通知
+
+        Args:
+            sender_id: 发送者用户ID（被指派人/完成人）
+            recipient_id: 接收者用户ID（任务创建人）
+            task: Task 对象
+
+        Returns:
+            Message: 创建的消息对象（未提交到数据库）
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        content_preview = task.title[:100] if task.title else ''
+
+        return cls(
+            message_type='task_completed',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 完成了任务',
+            content=content_preview,
+            related_object_type='task',
+            related_object_id=task.id,
+            extra_data={
+                'task_id': task.id,
+                'priority': task.priority,
+                'completed_at': task.completed_at.isoformat() if task.completed_at else None
+            }
+        )
 
     @classmethod
     def create_worklog_comment(cls, sender_id, recipient_id, worklog, comment_content):

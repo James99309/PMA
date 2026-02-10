@@ -1372,6 +1372,67 @@ def api_subcategory_fields(id):
 
     return jsonify({'success': True, 'data': result})
 
+@product_code_bp.route('/api/subcategory/<int:id>/spec-fields', methods=['GET'])
+@login_required
+def api_subcategory_spec_fields(id):
+    """获取子分类的规格字段列表（含选项），兼容原 /product-management 蓝图格式"""
+    subcategory = ProductSubcategory.query.get(id)
+    if not subcategory:
+        return jsonify({'spec_fields': []}), 200
+
+    # 获取分类级继承字段 + 子分类自有字段
+    category_fields = ProductCodeField.query.filter_by(
+        category_id=subcategory.category_id,
+        subcategory_id=None,
+        field_type='spec'
+    ).order_by(ProductCodeField.position).all()
+
+    subcategory_fields = ProductCodeField.query.filter_by(
+        subcategory_id=id,
+        field_type='spec'
+    ).order_by(ProductCodeField.position).all()
+
+    all_fields = category_fields + subcategory_fields
+    all_fields.sort(key=lambda f: f.position or 999)
+
+    result = []
+    for field in all_fields:
+        # 获取子分类级选项（优先），否则获取分类级选项
+        options = ProductCodeFieldOption.query.filter_by(
+            field_id=field.id,
+            subcategory_id=id,
+            is_active=True
+        ).order_by(ProductCodeFieldOption.position).all()
+
+        if not options:
+            options = ProductCodeFieldOption.query.filter_by(
+                field_id=field.id,
+                subcategory_id=None,
+                is_active=True
+            ).order_by(ProductCodeFieldOption.position).all()
+
+        # 获取单位（从关联的 SpecificationDefinition）
+        unit = ''
+        if field.name:
+            from app.models.spec_template import SpecDefinition
+            spec_def = SpecDefinition.query.filter_by(name=field.name).first()
+            if spec_def:
+                unit = spec_def.unit or ''
+
+        result.append({
+            'id': field.id,
+            'name': field.name,
+            'use_in_code': field.use_in_code,
+            'is_required': field.is_required,
+            'unit': unit,
+            'options': [{
+                'value': opt.effective_value,
+                'code': opt.effective_code or ''
+            } for opt in options]
+        })
+
+    return jsonify({'spec_fields': result})
+
 @product_code_bp.route('/generate-preview', methods=['POST'])
 @login_required
 @permission_required('product_code', 'create')
@@ -5712,4 +5773,206 @@ def delete_subcategory_field_option(option_id):
             'message': f'删除失败: {str(e)}'
         }), 500
 
+
+# ============================================================================
+# 产品编辑页规格指标选项 API（替代已废弃的 /product-management 蓝图）
+# ============================================================================
+
+@product_code_bp.route('/api/spec-field-options', methods=['GET'])
+@login_required
+@csrf.exempt
+def get_spec_field_options():
+    """
+    获取指定子分类下某个规格字段的指标选项
+
+    参数:
+        subcategory_id: 子分类ID (必填)
+        spec_name: 规格名称 (必填)
+        field_id: 字段ID (可选，优先使用)
+
+    返回格式（与原 /product-management/api/spec-field-options 兼容）:
+        {
+            "options": [
+                {"value": "LC", "code": "L", "id": 123, "is_active": true}
+            ],
+            "field_unit": "-"
+        }
+    """
+    subcategory_id = request.args.get('subcategory_id', type=int)
+    spec_name = request.args.get('spec_name', '')
+    field_id = request.args.get('field_id', type=int)
+
+    if not subcategory_id or not spec_name:
+        return jsonify({'options': [], 'field_unit': ''})
+
+    try:
+        field = None
+
+        # 优先通过 field_id 查找
+        if field_id:
+            field = ProductCodeField.query.get(field_id)
+
+        # 回退：通过 spec_name + subcategory_id 查找
+        if not field:
+            all_fields = ProductCodeField.get_all_fields_for_subcategory(subcategory_id)
+            for f in (all_fields['inherited'] + all_fields['own']):
+                if f.name == spec_name:
+                    field = f
+                    break
+
+        if not field:
+            return jsonify({'options': [], 'field_unit': ''})
+
+        # 根据字段类型决定选项过滤方式
+        is_inherited = field.subcategory_id is None
+        if is_inherited:
+            field_options = ProductCodeFieldOption.query.filter_by(
+                field_id=field.id,
+                subcategory_id=subcategory_id,
+                is_active=True
+            ).order_by(ProductCodeFieldOption.position).all()
+        else:
+            field_options = ProductCodeFieldOption.query.filter_by(
+                field_id=field.id,
+                is_active=True
+            ).order_by(ProductCodeFieldOption.position).all()
+
+        # 构建返回数据
+        field_unit = ''
+        options = []
+        for opt in field_options:
+            if not field_unit and opt.spec_option and opt.spec_option.spec:
+                field_unit = opt.spec_option.spec.unit or ''
+            options.append({
+                'value': opt.effective_value,
+                'code': opt.effective_code or '',
+                'id': opt.id,
+                'is_active': opt.is_active
+            })
+
+        return jsonify({
+            'options': options,
+            'field_unit': field_unit
+        })
+
+    except Exception as e:
+        current_app.logger.error(f'获取规格指标选项失败: {str(e)}')
+        return jsonify({'options': [], 'field_unit': ''}), 500
+
+
+@product_code_bp.route('/api/spec-field-options/add', methods=['POST'])
+@login_required
+@csrf.exempt
+def add_spec_field_option():
+    """
+    快速添加规格指标选项（产品编辑页"快速添加新指标"功能）
+
+    请求体:
+        subcategory_id: 子分类ID
+        spec_name: 规格名称
+        field_id: 字段ID (可选)
+        value: 新指标值
+        description: 指标描述 (可选)
+
+    返回:
+        {"success": true, "data": {"id": 123, "value": "...", "code": "..."}}
+    """
+    data = request.get_json() or request.form
+    subcategory_id = int(data.get('subcategory_id', 0))
+    spec_name = data.get('spec_name', '')
+    field_id_raw = data.get('field_id', '')
+    field_id = int(field_id_raw) if field_id_raw else 0
+    value = data.get('value', '').strip()
+    description = data.get('description', '').strip()
+
+    if not subcategory_id or not spec_name or not value:
+        return jsonify({
+            'success': False,
+            'message': '缺少必要参数（subcategory_id, spec_name, value）'
+        }), 400
+
+    try:
+        # 查找对应的字段
+        field = None
+        if field_id:
+            field = ProductCodeField.query.get(field_id)
+        if not field:
+            all_fields = ProductCodeField.get_all_fields_for_subcategory(subcategory_id)
+            for f in (all_fields['inherited'] + all_fields['own']):
+                if f.name == spec_name:
+                    field = f
+                    break
+
+        if not field:
+            return jsonify({
+                'success': False,
+                'message': f'未找到规格字段: {spec_name}'
+            }), 404
+
+        # 检查是否已存在同名指标
+        is_inherited = field.subcategory_id is None
+        existing_query = ProductCodeFieldOption.query.filter_by(field_id=field.id)
+        if is_inherited:
+            existing_query = existing_query.filter_by(subcategory_id=subcategory_id)
+        existing = existing_query.all()
+        for opt in existing:
+            if opt.effective_value == value:
+                return jsonify({
+                    'success': False,
+                    'message': f'指标值 "{value}" 已存在'
+                }), 400
+
+        # 先在规格字典中创建 SpecificationOption（如果关联了规格字典）
+        spec_option_id = None
+        spec_dict = SpecificationDictionary.query.filter_by(name=spec_name).first()
+        if spec_dict:
+            code = generate_smart_code(value, spec_dict.id)
+            new_spec_option = SpecificationOption(
+                spec_id=spec_dict.id,
+                value=value,
+                code=code,
+                description=description or None,
+                is_active=True,
+                position=SpecificationOption.query.filter_by(spec_id=spec_dict.id).count()
+            )
+            db.session.add(new_spec_option)
+            db.session.flush()
+            spec_option_id = new_spec_option.id
+
+        # 计算新选项的 position
+        max_pos = db.session.query(db.func.max(ProductCodeFieldOption.position)).filter_by(
+            field_id=field.id
+        ).scalar() or 0
+
+        # 创建字段选项
+        new_option = ProductCodeFieldOption(
+            field_id=field.id,
+            subcategory_id=subcategory_id if is_inherited else field.subcategory_id,
+            spec_option_id=spec_option_id,
+            value=value if not spec_option_id else None,
+            code=generate_smart_code(value, field.id) if not spec_option_id else None,
+            description=description or None,
+            is_active=True,
+            position=max_pos + 1
+        )
+        db.session.add(new_option)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'id': new_option.id,
+                'value': new_option.effective_value,
+                'code': new_option.effective_code or '',
+                'is_active': True
+            }
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'快速添加规格指标失败: {str(e)}')
+        return jsonify({
+            'success': False,
+            'message': f'添加失败: {str(e)}'
+        }), 500
 

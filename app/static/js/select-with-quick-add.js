@@ -641,7 +641,7 @@
      */
     SelectWithQuickAdd.register('indicator', {
         modalId: 'selectQuickAddModal',
-        apiEndpoint: '/product-management/api/spec-field-options/add',
+        apiEndpoint: '/product-code/api/spec-field-options/add',
         valueFieldLabel: '指标名称',
         descriptionFieldLabel: '指标描述',
         relatedIdErrorMsg: '无法获取产品分类信息，请先选择产品分类',

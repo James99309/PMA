@@ -577,7 +577,8 @@ def apply_default_owner_filter(
     current_user_id: int,
     owner_field: str = 'owner_filter',
     filter_keys: Optional[List[str]] = None,
-    module_id: Optional[str] = None
+    module_id: Optional[str] = None,
+    model_class=None
 ) -> str:
     """
     应用默认的负责人筛选（首次加载时只显示当前用户的数据）
@@ -595,6 +596,7 @@ def apply_default_owner_filter(
         owner_field: 负责人筛选字段名（如 'owner_filter', 'owner_id'）
         filter_keys: 需要检查的筛选参数列表，None则使用默认列表
         module_id: 模块ID，用于检查用户权限级别（如 'customer', 'project'）
+        model_class: 模型类，用于检查用户是否有自己的数据（无自有数据时跳过默认过滤，展示共享数据）
 
     Returns:
         owner_filter 的值（用于模板显示）
@@ -605,28 +607,18 @@ def apply_default_owner_filter(
             request.args, filters, current_user.id,
             owner_field='owner_filter',
             filter_keys=['search', 'status', 'type'],
-            module_id='customer'
+            module_id='customer',
+            model_class=Company
         )
     """
     # 检查是否应该跳过默认owner过滤，让 get_viewable_data() 的权限结果生效
-    # 两种情况跳过：1. 非个人级别权限  2. 有数据归属（下属）
     if module_id:
         from flask_login import current_user
-        from app.utils.module_metadata import module_supports_affiliation
 
-        # 1. 检查权限级别：system/company/department 不应用默认过滤
+        # system/company/department 不应用默认过滤
         permission_level = current_user.get_permission_level(module_id)
         if permission_level in ('system', 'company', 'department'):
             return filters.get(owner_field, '')
-
-        # 2. 检查数据归属：如果模块支持归属且用户有下属，也跳过过滤
-        if module_supports_affiliation(module_id):
-            from app.models.user import Affiliation
-            has_subordinates = Affiliation.query.filter_by(
-                viewer_id=current_user.id
-            ).first() is not None
-            if has_subordinates:
-                return filters.get(owner_field, '')
 
     # 默认检查的筛选参数
     if filter_keys is None:
@@ -636,7 +628,20 @@ def apply_default_owner_filter(
     has_any_filter = owner_field in request_args or any(k in request_args for k in filter_keys)
 
     if not has_any_filter:
-        # 首次加载，默认按当前用户筛选
+        # 首次加载：检查用户是否有自己的记录
+        # 无自有数据时跳过默认过滤，展示 get_viewable_data() 的完整结果（含共享）
+        if model_class and hasattr(model_class, 'owner_id'):
+            from app import db
+            exists_q = model_class.query.filter(
+                model_class.owner_id == current_user_id
+            )
+            if hasattr(model_class, 'is_deleted'):
+                exists_q = exists_q.filter(model_class.is_deleted == False)
+            has_own = db.session.query(exists_q.exists()).scalar()
+            if not has_own:
+                return ''
+
+        # 有自有数据，默认按当前用户筛选
         owner_value = str(current_user_id)
         filters[owner_field] = owner_value
         return owner_value

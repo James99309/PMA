@@ -12,6 +12,7 @@ from app.models.spec_template import (
     SpecCategory, SpecDefinition, TestMethodDictionary, TestConditionDictionary,
     SPEC_CATEGORIES
 )
+from app.models.product_code import SpecificationDictionary, SpecificationOption
 from app.decorators import permission_required
 
 spec_definition_bp = Blueprint('spec_definition', __name__, url_prefix='/admin/spec-definitions')
@@ -634,4 +635,118 @@ def api_delete_test_condition(condition_id):
     return jsonify({
         'success': True,
         'message': _('测试条件删除成功')
+    })
+
+
+# ==================== 规格指标管理（桥接到 SpecificationDictionary/SpecificationOption） ====================
+
+def _get_or_create_spec_dict(definition):
+    """通过 SpecDefinition.name 查找或创建 SpecificationDictionary 记录"""
+    spec_dict = SpecificationDictionary.query.filter_by(name=definition.name).first()
+    if not spec_dict:
+        spec_dict = SpecificationDictionary(
+            name=definition.name,
+            unit=definition.unit,
+            is_active=True
+        )
+        db.session.add(spec_dict)
+        db.session.flush()
+    return spec_dict
+
+
+@spec_definition_bp.route('/api/<int:definition_id>/indicators', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def api_list_indicators(definition_id):
+    """API: 获取规格定义的指标列表（通过 name 桥接到 SpecificationOption）"""
+    definition = SpecDefinition.query.get_or_404(definition_id)
+
+    spec_dict = SpecificationDictionary.query.filter_by(name=definition.name).first()
+    if not spec_dict:
+        return jsonify({
+            'success': True,
+            'data': [],
+            'spec_dict_id': None
+        })
+
+    options = SpecificationOption.query.filter_by(
+        spec_id=spec_dict.id
+    ).order_by(SpecificationOption.position, SpecificationOption.id).all()
+
+    return jsonify({
+        'success': True,
+        'data': [opt.to_dict() for opt in options],
+        'spec_dict_id': spec_dict.id
+    })
+
+
+@spec_definition_bp.route('/api/<int:definition_id>/indicators', methods=['POST'])
+@login_required
+@permission_required('product_code', 'create')
+def api_create_indicator(definition_id):
+    """API: 创建指标（通过 name 桥接，自动创建 SpecificationDictionary）"""
+    from app.views.spec_template import allocate_code_for_value
+
+    definition = SpecDefinition.query.get_or_404(definition_id)
+    data = request.get_json()
+
+    value = (data.get('value') or '').strip()
+    if not value:
+        return jsonify({'success': False, 'message': _('指标值不能为空')}), 400
+
+    # 查找或创建 SpecificationDictionary
+    spec_dict = _get_or_create_spec_dict(definition)
+
+    # 检查重复
+    existing = SpecificationOption.query.filter_by(
+        spec_id=spec_dict.id, value=value
+    ).first()
+    if existing:
+        return jsonify({'success': False, 'message': _('指标值已存在')}), 400
+
+    # 生成编码（使用 allocate_code_for_value 与 MN 编码系统保持一致）
+    existing_options = {opt.value: opt.code for opt in
+        SpecificationOption.query.filter_by(spec_id=spec_dict.id, is_active=True).all()}
+    code = allocate_code_for_value(value, existing_options)
+
+    option = SpecificationOption(
+        spec_id=spec_dict.id,
+        value=value,
+        code=code,
+        is_active=True
+    )
+    db.session.add(option)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('指标创建成功'),
+        'data': option.to_dict()
+    })
+
+
+@spec_definition_bp.route('/api/indicators/<int:option_id>', methods=['DELETE'])
+@login_required
+@permission_required('product_code', 'delete')
+def api_delete_indicator(option_id):
+    """API: 删除指标（检查是否被引用）"""
+    option = SpecificationOption.query.get_or_404(option_id)
+
+    # 检查是否被子分类引用（ProductCodeFieldOption）
+    from app.models.product_code import ProductCodeFieldOption
+    ref_count = ProductCodeFieldOption.query.filter_by(
+        spec_option_id=option.id
+    ).count()
+    if ref_count > 0:
+        return jsonify({
+            'success': False,
+            'message': _('该指标已被 %(count)s 个子分类引用，无法删除', count=ref_count)
+        }), 400
+
+    db.session.delete(option)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'message': _('指标删除成功')
     })

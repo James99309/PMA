@@ -37,6 +37,8 @@ from app.models.monthly_activity_snapshot import MonthlyActivitySnapshot
 from app.models.worklog import WorkItem, WorkLog
 from app.models.worklog_read import WorklogRead
 from app.models.message import Message
+from app.models.quotation_confirmation_task import QuotationConfirmationTask
+from app.models.task import Task, TaskAttachment, TaskReply
 from app.models.announcement import Announcement, AnnouncementRead, AnnouncementAttachment
 # 订单模块
 from app.models.product_test import ProductTest, ProductTestDetail, ProductTestSampling
@@ -77,4 +79,6 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'SalesOrder', 'SalesOrderDetail',
            'Shipment', 'ShipmentDetail', 'ProductSerialNumber', 'SerialNumberHistory',
            'MeetingRecording', 'MeetingTranscript', 'MeetingSpeaker',
-           'MeetingMinutes', 'MeetingActionItem'] 
+           'MeetingMinutes', 'MeetingActionItem',
+           'QuotationConfirmationTask',
+           'Task', 'TaskAttachment', 'TaskReply']
