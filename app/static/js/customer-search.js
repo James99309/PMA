@@ -13,7 +13,8 @@ class CustomerSearchComponent {
         this.selectedCustomer = null;
         this.searchTimeout = null;
         this.isLoading = false;
-        
+        this._isSelectingCustomer = false;  // 防止blur关闭下拉框
+
         this.init();
     }
     
@@ -111,8 +112,12 @@ class CustomerSearchComponent {
             }
         });
         
-        // 下拉框点击事件代理
-        this.customerList.addEventListener('click', (e) => this.handleCustomerSelect(e));
+        // 下拉框mousedown事件代理（mousedown在blur之前触发，解决Windows点击无响应问题）
+        this.customerList.addEventListener('mousedown', (e) => {
+            e.preventDefault();  // 阻止输入框失焦
+            this._isSelectingCustomer = true;
+            this.handleCustomerSelect(e);
+        });
     }
     
     /**
@@ -165,12 +170,17 @@ class CustomerSearchComponent {
      * 处理输入框失去焦点
      */
     handleInputBlur(e) {
-        // 延时隐藏，允许点击下拉框项目
+        // 如果正在选择客户，不关闭下拉框
+        if (this._isSelectingCustomer) {
+            this._isSelectingCustomer = false;
+            return;
+        }
+        // 延时隐藏，允许其他交互完成
         setTimeout(() => {
             if (!this.container.contains(document.activeElement)) {
                 this.hideDropdown();
             }
-        }, 150);
+        }, 200);
     }
     
     /**

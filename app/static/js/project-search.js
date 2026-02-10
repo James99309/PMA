@@ -15,7 +15,8 @@ class ProjectSearchComponent {
         this.isSearching = false;
         this.currentResults = [];
         this.activeIndex = -1;
-        
+        this._isSelectingProject = false;  // 防止blur关闭下拉框（Windows兼容）
+
         this.init();
     }
     
@@ -47,11 +48,14 @@ class ProjectSearchComponent {
             
             // 搜索配置
             search_config: {
-                min_length: 1,
+                min_length: 0,  // 支持空搜索（点击展开）
                 delay: 300,
                 limit: 10,
                 include_auth_code: true
             },
+
+            // 客户关联过滤（可选）
+            customer_id: null,
             
             // 权限配置
             permission_config: {
@@ -194,46 +198,44 @@ class ProjectSearchComponent {
         // 输入事件
         this.input.addEventListener('input', (e) => {
             const query = e.target.value.trim();
-            
+
             // 清除之前的搜索定时器
             if (this.searchTimeout) {
                 clearTimeout(this.searchTimeout);
             }
-            
+
             // 如果输入为空，清除选择（但不隐藏清除按钮，因为可能还有选中项目）
             if (!query && this.selectedProject) {
                 // 输入框清空但还有选中项目时，清除选择
                 this.clearSelection();
-                this.hideDropdown();
+                // 空搜索：展开显示所有项目
+                this.searchProjects('');
                 return;
             } else if (!query) {
-                // 输入框清空且没有选中项目时，只隐藏下拉菜单
-                this.hideDropdown();
+                // 空搜索：展开显示所有项目
+                this.searchProjects('');
                 return;
             }
-            
-            // 如果输入长度不足，不进行搜索
-            if (query.length < this.config.search_config.min_length) {
-                this.hideDropdown();
-                return;
-            }
-            
+
             // 设置搜索延迟
             this.searchTimeout = setTimeout(() => {
                 this.searchProjects(query);
             }, this.config.search_config.delay);
         });
-        
-        // 获得焦点事件
+
+        // 获得焦点事件 — 点击即展开（空搜索触发）
         this.input.addEventListener('focus', () => {
             const query = this.input.value.trim();
-            if (query.length >= this.config.search_config.min_length) {
-                this.searchProjects(query);
-            }
+            this.searchProjects(query);
         });
-        
-        // 失去焦点事件（延迟隐藏，允许点击下拉项）
+
+        // 失去焦点事件
         this.input.addEventListener('blur', () => {
+            // 如果正在选择项目，不关闭下拉框（Windows兼容）
+            if (this._isSelectingProject) {
+                this._isSelectingProject = false;
+                return;
+            }
             setTimeout(() => {
                 this.hideDropdown();
             }, 200);
@@ -258,15 +260,18 @@ class ProjectSearchComponent {
      * 绑定下拉菜单事件
      */
     bindDropdownEvents() {
-        // 使用事件委托处理项目项点击
-        this.dropdown.addEventListener('click', (e) => {
+        // 使用事件委托处理项目项选择
+        // mousedown 在 blur 之前触发，解决 Windows 点击无响应问题
+        this.dropdown.addEventListener('mousedown', (e) => {
             const projectItem = e.target.closest('.project-item');
             if (projectItem && !projectItem.classList.contains('locked')) {
+                e.preventDefault();  // 阻止输入框失焦
+                this._isSelectingProject = true;
                 const projectData = JSON.parse(projectItem.dataset.project);
                 this.selectProject(projectData);
             }
         });
-        
+
         // 鼠标悬停高亮
         this.dropdown.addEventListener('mouseover', (e) => {
             const projectItem = e.target.closest('.project-item');
@@ -339,7 +344,11 @@ class ProjectSearchComponent {
         this.showLoading();
         
         try {
-            const response = await fetch(`${this.config.api_endpoints.search}?q=${encodeURIComponent(query)}&limit=${this.config.search_config.limit}`);
+            let url = `${this.config.api_endpoints.search}?q=${encodeURIComponent(query)}&limit=${this.config.search_config.limit}`;
+            if (this.config.customer_id) {
+                url += `&customer_id=${this.config.customer_id}`;
+            }
+            const response = await fetch(url);
             const result = await response.json();
             
             if (result.success && result.data) {
@@ -565,6 +574,17 @@ class ProjectSearchComponent {
      */
     getSelectedProject() {
         return this.selectedProject;
+    }
+
+    /**
+     * 设置客户ID过滤（外部调用）
+     * 设置后搜索将仅返回该客户关联的项目
+     * @param {number|null} customerId - 客户ID，null表示不过滤
+     */
+    setCustomerId(customerId) {
+        this.config.customer_id = customerId || null;
+        // 清空当前选择
+        this.clearSelection();
     }
     
     /**

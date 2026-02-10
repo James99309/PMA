@@ -386,7 +386,7 @@ def search_projects_without_quotations(query_term: str, user=None, limit: int = 
         logger.error(f"搜索无报价单项目失败: {str(e)}")
         return []
 
-def search_projects_for_expense(query_term: str, user=None, limit: int = 10) -> List[Dict[str, Any]]:
+def search_projects_for_expense(query_term: str, user=None, limit: int = 10, customer_id: int = None) -> List[Dict[str, Any]]:
     """
     为报销单搜索项目
 
@@ -394,18 +394,27 @@ def search_projects_for_expense(query_term: str, user=None, limit: int = 10) -> 
         query_term: 搜索关键词（支持空搜索，点击展开显示所有项目）
         user: 用户对象
         limit: 返回结果数量限制
+        customer_id: 客户ID（可选，用于过滤该客户关联的项目）
 
     返回:
         用户有权限查看的项目列表
     """
     from app.models.project import Project
     from app.models.user import User
+    from app.models.project_customer_association import ProjectCustomerAssociation
     from app.utils.access_control import get_viewable_data
     from sqlalchemy import or_
 
     try:
         # 获取用户可查看的项目
         projects_query = get_viewable_data(Project, user)
+
+        # 按客户过滤项目（通过 project_customer_associations 表）
+        if customer_id:
+            associated_project_ids = select(ProjectCustomerAssociation.project_id).where(
+                ProjectCustomerAssociation.company_id == customer_id
+            )
+            projects_query = projects_query.filter(Project.id.in_(associated_project_ids))
 
         # 添加搜索条件（支持空搜索）
         if query_term:

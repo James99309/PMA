@@ -359,6 +359,12 @@
                 attributeSelect.innerHTML = '<option value="">' + (config.i18n.loading || '加载中...') + '</option>';
             }
 
+            // 重置客户关联的项目过滤
+            this._currentCustomerId = null;
+            if (this.projectSearchComponent) {
+                this.projectSearchComponent.config.customer_id = null;
+            }
+
             // 隐藏说明必填标记
             const descRequired = document.querySelector('.expense-desc-required');
             if (descRequired) descRequired.classList.add('hidden');
@@ -437,6 +443,9 @@
                 if (customerId) customerId.value = data.customer_id;
                 if (customerSearch) customerSearch.value = data.customer_name || '';
                 if (clearCustomer) clearCustomer.classList.remove('hidden');
+
+                // 设置项目搜索的客户过滤
+                this.updateProjectSearchCustomer(data.customer_id);
 
                 if (contactSelect && data.contact_id) {
                     contactSelect.innerHTML = `<option value="${data.contact_id}" selected>${data.contact_name || ''}</option>`;
@@ -998,12 +1007,14 @@
                 const customer = e.detail.customer;
                 if (customer && customer.id) {
                     this.loadContacts(customer.id);
+                    this.updateProjectSearchCustomer(customer.id);
                 }
             });
 
             // 监听客户清除事件
             container.addEventListener('customerCleared', () => {
                 this.resetContactSelect();
+                this.updateProjectSearchCustomer(null);
             });
         },
 
@@ -1068,6 +1079,7 @@
             document.getElementById('expense_customer_dropdown').style.display = 'none';
             document.getElementById('expense_clear_customer')?.classList.remove('hidden');
             this.loadContacts(id);
+            this.updateProjectSearchCustomer(id);
         },
 
         /**
@@ -1078,6 +1090,7 @@
             document.getElementById('expense_customer_search').value = '';
             document.getElementById('expense_clear_customer')?.classList.add('hidden');
             this.resetContactSelect();
+            this.updateProjectSearchCustomer(null);
 
             // 如果使用组件，也清除组件状态
             if (this.customerSearchComponent) {
@@ -1146,13 +1159,14 @@
                 project_id_field: 'expense_project_id',
                 placeholder: '输入项目名称进行搜索...',
                 api_endpoints: {
-                    search: config.api.projectSearch || '/api/v1/search/projects'
+                    search: config.api.projectSearch || '/api/v1/search/projects/for-expense'
                 },
                 search_config: {
-                    min_length: 1,
+                    min_length: 0,  // 支持空搜索（点击展开）
                     delay: 300,
                     limit: 20
                 },
+                customer_id: this._currentCustomerId || null,
                 validation: {
                     required: false
                 }
@@ -1203,7 +1217,11 @@
 
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
-                fetch(`${config.api.projectSearch}?q=${encodeURIComponent(query)}&limit=20`)
+                let url = `${config.api.projectSearch}?q=${encodeURIComponent(query)}&limit=20`;
+                if (this._currentCustomerId) {
+                    url += `&customer_id=${this._currentCustomerId}`;
+                }
+                fetch(url)
                     .then(r => r.json())
                     .then(data => {
                         const dropdown = document.getElementById('expense_project_dropdown');
@@ -1255,6 +1273,22 @@
             // 如果使用组件，也清除组件状态
             if (this.projectSearchComponent) {
                 this.projectSearchComponent.clearSelection();
+            }
+        },
+
+        /**
+         * 更新项目搜索的客户过滤
+         * @param {number|null} customerId - 客户ID，null表示不过滤
+         */
+        updateProjectSearchCustomer: function(customerId) {
+            this._currentCustomerId = customerId || null;
+
+            if (this.projectSearchComponent) {
+                // 使用组件模式：通过 setCustomerId 更新过滤并清空选择
+                this.projectSearchComponent.setCustomerId(customerId);
+            } else {
+                // 简化版模式：手动清空项目选择
+                this.clearProject();
             }
         },
 

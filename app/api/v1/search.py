@@ -283,9 +283,11 @@ def search_projects_for_expense_api():
 
         query_term = request.args.get('q', '').strip()
         limit = min(int(request.args.get('limit', 20)), 50)
+        customer_id = request.args.get('customer_id', type=int)
 
         # 支持空搜索：点击时展开显示所有符合条件的项目
-        results = search_projects_for_expense(query_term, current_user, limit)
+        # customer_id 可选：传入时仅返回该客户关联的项目
+        results = search_projects_for_expense(query_term, current_user, limit, customer_id=customer_id)
 
         return jsonify({
             'success': True,
