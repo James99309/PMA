@@ -904,6 +904,13 @@ window.ProductModal = (function() {
 
             // 隐藏下拉框
             selectEl.classList.add('hidden');
+            // 添加临时option确保表单提交时能带上ID（select没有动态加载的option时value设置会静默失败）
+            if (idValue) {
+                const opt = document.createElement('option');
+                opt.value = idValue;
+                opt.selected = true;
+                selectEl.appendChild(opt);
+            }
             selectEl.value = idValue;  // 仍然设置值用于表单提交
             selectEl.removeAttribute('required');  // 移除 required 避免浏览器验证隐藏字段
 

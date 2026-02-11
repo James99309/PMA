@@ -2137,7 +2137,8 @@ def create_product():
                     logger.error(f"导入SP8D规格失败: {e}")
                     # 规格导入失败不影响产品创建，只记录日志
 
-        return jsonify({
+        # 构建响应
+        response_data = {
             'success': True,
             'message': '产品创建成功',
             'product': {
@@ -2147,7 +2148,13 @@ def create_product():
                 'has_image': has_image,
                 'has_pdf': has_pdf
             }
-        })
+        }
+
+        # 从配置引入时，重定向到产品详情页并自动打开规格引入模态框
+        if source_type in ('from_config', 'from_sp8d'):
+            response_data['redirect'] = url_for('product.view_product_detail', id=new_product.id) + '?import_specs=1'
+
+        return jsonify(response_data)
         
     except Exception as e:
         db.session.rollback()
@@ -2821,7 +2828,7 @@ def delete_product(id):
             current_user.role == 'admin' or
             current_user.role in ['product_manager', 'product'] or
             current_user.has_permission('product', 'delete') or
-            (hasattr(product, 'created_by') and product.created_by == current_user.id)
+            product.owner_id == current_user.id
         )
 
         if not can_delete:

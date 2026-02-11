@@ -124,7 +124,7 @@
             'onclick': 'ProductModal.openEdit(' ~ product.id ~ ')'
         },
         delete_btn={
-            'show': has_permission('product', 'delete'),
+            'show': has_permission('product', 'delete') or product.owner_id == current_user.id,
             'onclick': 'confirmDeleteProduct()'
         },
         has_sidebar=true
@@ -1201,6 +1201,19 @@
     // 如果是引入产品，设置标记以启用编辑限制
     if (hasSourceConfiguration) {
         specEditor.setImportedProduct(true);
+    }
+
+    // 从配置引入后自动打开规格引入模态框
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('import_specs') === '1' && hasSourceConfiguration) {
+        // 延迟触发，确保 Alpine.js 组件已初始化
+        setTimeout(function() {
+            window.dispatchEvent(new CustomEvent('open-spec-import-modal', {
+                detail: { productId: productId }
+            }));
+        }, 500);
+        // 清除URL参数，避免刷新时重复打开
+        window.history.replaceState({}, '', window.location.pathname);
     }
 
     // 绑定全局函数以兼容规格行内的onclick
