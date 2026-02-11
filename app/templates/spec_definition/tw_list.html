@@ -376,11 +376,19 @@
                                             </div>
                                             <div class="col-span-2 text-right">
                                                 {% if has_permission('product_code', 'delete') %}
-                                                <button @click="deleteIndicator(ind.id, ind.value)"
-                                                        class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 inline-flex items-center justify-center transition-colors"
-                                                        title="{{ _('删除') }}">
-                                                    <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
-                                                </button>
+                                                <template x-if="ind.is_used">
+                                                    <span class="w-7 h-7 rounded-lg text-slate-300 dark:text-slate-600 inline-flex items-center justify-center cursor-not-allowed"
+                                                          :title="'{{ _('已被使用，无法删除') }}'">
+                                                        <span class="material-symbols-outlined" style="font-size: 16px;">lock</span>
+                                                    </span>
+                                                </template>
+                                                <template x-if="!ind.is_used">
+                                                    <button @click="deleteIndicator(ind.id, ind.value)"
+                                                            class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 inline-flex items-center justify-center transition-colors"
+                                                            title="{{ _('删除') }}">
+                                                        <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                                                    </button>
+                                                </template>
                                                 {% endif %}
                                             </div>
                                         </div>

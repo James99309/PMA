@@ -395,12 +395,17 @@ const SpecDictionaryManager = (function() {
                                 title="${opt.is_active ? '停用' : '启用'}">
                             <span class="material-symbols-outlined text-lg">${opt.is_active ? 'block' : 'check_circle'}</span>
                         </button>
-                        ${opt.is_used !== true ? `
+                        ${opt.is_used === true ? `
+                            <button type="button" onclick="SpecDictionaryManager.showProductUsage(${opt.id}, '${escapeHtml(opt.value)}')"
+                                    class="p-2 text-slate-300 dark:text-slate-600 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-not-allowed" title="已被产品引用，无法删除（点击查看）">
+                                <span class="material-symbols-outlined text-lg">delete</span>
+                            </button>
+                        ` : `
                             <button type="button" onclick="SpecDictionaryManager.confirmDeleteOption(${opt.id})"
                                     class="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="删除">
                                 <span class="material-symbols-outlined text-lg">delete</span>
                             </button>
-                        ` : ''}
+                        `}
                     </div>
                 </td>
             </tr>
@@ -812,25 +817,55 @@ const SpecDictionaryManager = (function() {
             const response = await fetch(`/api/spec-dictionary/options/${optionId}/products`);
             const result = await response.json();
 
-            if (result.success && result.data && result.data.length > 0) {
-                content.innerHTML = result.data.map(s => `
-                    <div class="p-4 border-b border-slate-200 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <div class="flex items-center justify-between">
-                            <div class="font-medium text-slate-900 dark:text-white">${escapeHtml(s.name)}</div>
-                            <span class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded">
-                                ${s.product_count} 个产品
-                            </span>
+            if (result.success) {
+                let html = '';
+
+                // 分类引用展示
+                if (result.data && result.data.length > 0) {
+                    html += '<div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase px-4 pt-3 pb-1">引用的子分类</div>';
+                    html += result.data.map(s => `
+                        <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div class="font-medium text-slate-900 dark:text-white text-sm">${escapeHtml(s.name)}</div>
+                                <span class="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded">
+                                    ${s.product_count} 个产品
+                                </span>
+                            </div>
+                            <div class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                                分类: ${escapeHtml(s.category_name || '-')}
+                            </div>
                         </div>
-                        <div class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                            分类: ${escapeHtml(s.category_name || '-')}
+                    `).join('');
+                }
+
+                // 产品配置展示
+                if (result.configurations && result.configurations.length > 0) {
+                    html += '<div class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase px-4 pt-4 pb-1' + (result.data && result.data.length > 0 ? ' border-t border-slate-200 dark:border-slate-700 mt-2' : '') + '">使用此指标的产品配置</div>';
+                    html += result.configurations.map(c => `
+                        <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <div class="flex items-center justify-between">
+                                <span class="font-medium text-slate-900 dark:text-white text-sm">${escapeHtml(c.product_model || '-')}</span>
+                                <span class="font-mono text-xs bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded">${escapeHtml(c.mn_code || '-')}</span>
+                            </div>
                         </div>
-                    </div>
-                `).join('');
+                    `).join('');
+                }
+
+                if (!html) {
+                    html = `
+                        <div class="flex flex-col items-center justify-center py-8 text-slate-400">
+                            <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
+                            <span class="text-sm">暂无引用</span>
+                        </div>
+                    `;
+                }
+
+                content.innerHTML = html;
             } else {
                 content.innerHTML = `
                     <div class="flex flex-col items-center justify-center py-8 text-slate-400">
                         <span class="material-symbols-outlined text-4xl mb-2">inbox</span>
-                        <span class="text-sm">暂无子分类使用此指标</span>
+                        <span class="text-sm">暂无引用</span>
                     </div>
                 `;
             }

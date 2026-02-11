@@ -9,10 +9,39 @@ from app.models.product_code import SpecificationDictionary, SpecificationOption
 from app.models.product import Product
 from app.decorators import permission_required
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
 from datetime import datetime
 
 # 创建蓝图
 spec_dict_bp = Blueprint('spec_dictionary', __name__, url_prefix='/api/spec-dictionary')
+
+
+def _is_option_used_in_snapshot(option_value):
+    """检查指标值是否在任何 ProductConfiguration 的 code_rule_snapshot 中被引用"""
+    result = db.session.execute(text("""
+        SELECT 1 FROM product_configurations pc
+        WHERE pc.code_rule_snapshot IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM jsonb_array_elements(pc.code_rule_snapshot::jsonb->'code_items') item
+            WHERE item->>'value' = :option_value
+          )
+        LIMIT 1
+    """), {'option_value': option_value}).first()
+    return result is not None
+
+
+def _batch_check_snapshot_usage(option_values):
+    """批量检查哪些指标值在 code_rule_snapshot 中被引用，返回被引用的值集合"""
+    if not option_values:
+        return set()
+    result = db.session.execute(text("""
+        SELECT DISTINCT item->>'value' as used_value
+        FROM product_configurations pc,
+             jsonb_array_elements(pc.code_rule_snapshot::jsonb->'code_items') item
+        WHERE pc.code_rule_snapshot IS NOT NULL
+          AND item->>'value' = ANY(:option_values)
+    """), {'option_values': list(option_values)}).fetchall()
+    return {r.used_value for r in result}
 
 
 @spec_dict_bp.route('', methods=['GET'])
@@ -535,14 +564,18 @@ def get_spec_options(spec_id):
         # 按position排序
         options = query.order_by(SpecificationOption.position.asc()).all()
 
-        # 为每个选项添加 is_used 字段
+        # 为每个选项添加 is_used 字段（批量检查 code_rule_snapshot 引用）
+        all_values = {opt.value for opt in options}
+        snapshot_used_values = _batch_check_snapshot_usage(all_values)
+
         options_data = []
         for opt in options:
             opt_dict = opt.to_dict()
-            # 检查是否被产品字段选项引用
-            opt_dict['is_used'] = ProductCodeFieldOption.query.filter_by(
+            # 检查是否被产品字段选项引用 或 被 code_rule_snapshot 引用
+            field_used = ProductCodeFieldOption.query.filter_by(
                 spec_option_id=opt.id
             ).first() is not None
+            opt_dict['is_used'] = field_used or (opt.value in snapshot_used_values)
             options_data.append(opt_dict)
 
         return jsonify({
@@ -782,8 +815,9 @@ def update_spec_option(option_id):
                 'message': '指标不存在'
             }), 404
 
-        # 检查是否被产品使用
-        is_used = ProductCodeFieldOption.query.filter_by(spec_option_id=option_id).first() is not None
+        # 检查是否被产品使用（字段选项引用 或 code_rule_snapshot 引用）
+        is_used = (ProductCodeFieldOption.query.filter_by(spec_option_id=option_id).first() is not None
+                   or _is_option_used_in_snapshot(option.value))
 
         data = request.get_json()
 
@@ -897,8 +931,9 @@ def delete_spec_option(option_id):
                 'message': '指标不存在'
             }), 404
 
-        # 检查是否被产品使用
-        is_used = ProductCodeFieldOption.query.filter_by(spec_option_id=option_id).first() is not None
+        # 检查是否被产品使用（字段选项引用 或 code_rule_snapshot 引用）
+        is_used = (ProductCodeFieldOption.query.filter_by(spec_option_id=option_id).first() is not None
+                   or _is_option_used_in_snapshot(option.value))
         if is_used:
             return jsonify({
                 'success': False,
@@ -1071,9 +1106,30 @@ def get_option_products(option_id):
                     'source': 'subcategory'  # 标记来源
                 })
 
+        # 查询 code_rule_snapshot 中引用了此指标值的产品配置
+        configs = db.session.execute(text("""
+            SELECT pc.id, pc.mn_code, pc.status, st.model as product_model
+            FROM product_configurations pc
+            JOIN spec_templates st ON pc.template_id = st.id
+            WHERE pc.code_rule_snapshot IS NOT NULL
+              AND EXISTS (
+                SELECT 1 FROM jsonb_array_elements(pc.code_rule_snapshot::jsonb->'code_items') item
+                WHERE item->>'value' = :option_value
+              )
+            ORDER BY st.model, pc.mn_code
+        """), {'option_value': option.value}).fetchall()
+
+        config_data = [{
+            'id': c.id,
+            'mn_code': c.mn_code,
+            'status': c.status,
+            'product_model': c.product_model
+        } for c in configs]
+
         return jsonify({
             'success': True,
-            'data': result_data
+            'data': result_data,
+            'configurations': config_data
         })
 
     except Exception as e:
@@ -1148,14 +1204,18 @@ def get_options_by_spec_name(spec_name):
         # 按position排序
         options = query.order_by(SpecificationOption.position.asc()).all()
 
-        # 为每个选项添加 is_used 字段
+        # 为每个选项添加 is_used 字段（批量检查 code_rule_snapshot 引用）
+        all_values = {opt.value for opt in options}
+        snapshot_used_values = _batch_check_snapshot_usage(all_values)
+
         options_data = []
         for opt in options:
             opt_dict = opt.to_dict()
-            # 检查是否被产品字段选项引用
-            opt_dict['is_used'] = ProductCodeFieldOption.query.filter_by(
+            # 检查是否被产品字段选项引用 或 被 code_rule_snapshot 引用
+            field_used = ProductCodeFieldOption.query.filter_by(
                 spec_option_id=opt.id
             ).first() is not None
+            opt_dict['is_used'] = field_used or (opt.value in snapshot_used_values)
             options_data.append(opt_dict)
 
         return jsonify({

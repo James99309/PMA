@@ -14,6 +14,7 @@ from app.models.spec_template import (
 )
 from app.models.product_code import SpecificationDictionary, SpecificationOption
 from app.decorators import permission_required
+from app.routes.spec_dictionary import _batch_check_snapshot_usage, _is_option_used_in_snapshot
 
 spec_definition_bp = Blueprint('spec_definition', __name__, url_prefix='/admin/spec-definitions')
 
@@ -673,9 +674,26 @@ def api_list_indicators(definition_id):
         spec_id=spec_dict.id
     ).order_by(SpecificationOption.position, SpecificationOption.id).all()
 
+    # 批量检查 snapshot 引用
+    all_values = [opt.value for opt in options]
+    snapshot_used_values = _batch_check_snapshot_usage(all_values)
+
+    # 批量检查 ProductCodeFieldOption 引用
+    from app.models.product_code import ProductCodeFieldOption
+    field_option_refs = db.session.query(ProductCodeFieldOption.spec_option_id).filter(
+        ProductCodeFieldOption.spec_option_id.in_([opt.id for opt in options])
+    ).distinct().all()
+    field_option_used_ids = {r[0] for r in field_option_refs}
+
+    data = []
+    for opt in options:
+        d = opt.to_dict()
+        d['is_used'] = opt.id in field_option_used_ids or opt.value in snapshot_used_values
+        data.append(d)
+
     return jsonify({
         'success': True,
-        'data': [opt.to_dict() for opt in options],
+        'data': data,
         'spec_dict_id': spec_dict.id
     })
 
@@ -741,6 +759,13 @@ def api_delete_indicator(option_id):
         return jsonify({
             'success': False,
             'message': _('该指标已被 %(count)s 个子分类引用，无法删除', count=ref_count)
+        }), 400
+
+    # 检查是否被产品编码快照引用
+    if _is_option_used_in_snapshot(option.value):
+        return jsonify({
+            'success': False,
+            'message': _('该指标已被产品编码使用，无法删除')
         }), 400
 
     db.session.delete(option)

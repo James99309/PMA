@@ -17,4 +17,12 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #599 | 8:36 AM | 🔵 | SQL import file contains 35 projects with 295 pricing and settlement records | ~480 |
+
+### Feb 10, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #2082 | 7:16 PM | 🔴 | Rewrote Project Queries Using Raw SQL to Bypass Schema Mismatch | ~655 |
+| #2080 | 7:15 PM | 🔴 | Removed is_deleted Filter from Project Query | ~386 |
+| #2079 | " | 🟣 | Performance Data Collection Script for Solution Manager Evaluation | ~777 |
 </claude-mem-context>
