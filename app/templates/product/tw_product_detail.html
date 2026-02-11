@@ -188,10 +188,17 @@
                                                 <div>
                                                     <p class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('产品分类') }}</p>
                                                     <p class="mt-1">
+                                                        {% if currency_config.is_ovs %}
                                                         {{ render_tw_product_category_badge(
                                                             product.subcategory_obj.parent_category.name_en if product.subcategory_obj and product.subcategory_obj.parent_category else none,
                                                             product.subcategory_obj.name_en if product.subcategory_obj else none
                                                         ) }}
+                                                        {% else %}
+                                                        {{ render_tw_product_category_badge(
+                                                            product.subcategory_obj.parent_category.name if product.subcategory_obj and product.subcategory_obj.parent_category else none,
+                                                            product.subcategory_obj.name if product.subcategory_obj else none
+                                                        ) }}
+                                                        {% endif %}
                                                     </p>
                                                 </div>
                                                 <div>
