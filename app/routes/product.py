@@ -4181,8 +4181,8 @@ def get_configurations_tree():
                 if region_option:
                     region_id = region_option.field_id
 
-        # 获取产品名称（使用子分类名称）
-        product_name = template.subcategory.name if template.subcategory else ''
+        # 获取产品名称（使用模板名称）
+        product_name = template.name or ''
 
         # 构建配置节点数据
         config_node = {
@@ -4205,7 +4205,7 @@ def get_configurations_tree():
             'subcategory_name': template.subcategory.name if template.subcategory else None,
             'subcategory_name_en': template.subcategory.name_en if template.subcategory else None,
             'product_name': product_name,
-            'product_name_en': template.subcategory.name_en if template.subcategory else None,
+            'product_name_en': template.name_en or None,
             'already_imported': already_imported
         }
 
