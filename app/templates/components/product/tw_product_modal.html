@@ -293,6 +293,8 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
  */
 window.ProductModal = (function() {
     // 配置数据
+    const isOvsSystem = {{ 'true' if currency_config.is_ovs else 'false' }};
+
     const config = {
         categories: {{ categories | tojson }},
         regions: {{ regions | tojson }},
@@ -905,9 +907,11 @@ window.ProductModal = (function() {
             selectEl.value = idValue;  // 仍然设置值用于表单提交
             selectEl.removeAttribute('required');  // 移除 required 避免浏览器验证隐藏字段
 
-            // 显示只读文本（OVS优化：优先显示英文名，无英文名时显示中文名）
+            // 显示只读文本（根据环境选择语言优先级：OVS优先英文，SP8D优先中文）
             readonlyEl.classList.remove('hidden');
-            readonlyEl.textContent = englishName || chineseName || '';
+            readonlyEl.textContent = isOvsSystem
+                ? (englishName || chineseName || '')
+                : (chineseName || englishName || '');
         }
 
         // 重置表单
@@ -970,8 +974,10 @@ window.ProductModal = (function() {
                     configData.region_name, configData.region_name_en, configData.region_id);
             }
 
-            // 设置产品名称和型号（优先英文，回退中文）
-            productNameInput.value = configData.product_name_en || configData.product_name || '';
+            // 设置产品名称和型号（根据环境选择语言优先级）
+            productNameInput.value = isOvsSystem
+                ? (configData.product_name_en || configData.product_name || '')
+                : (configData.product_name || configData.product_name_en || '');
             productModelInput.value = configData.template_model || '';
 
             // 设置MN编码（只读）

@@ -206,7 +206,7 @@ Tailwind 配置产品选择器模态框组件
                         </div>
                         <div class="flex items-center">
                             <span class="text-slate-500 dark:text-slate-400 mr-2">{{ _('分类') }}:</span>
-                            <span x-text="(selectedConfig?.category_name_en || selectedConfig?.category_name || '') + ' / ' + (selectedConfig?.subcategory_name_en || selectedConfig?.subcategory_name || '')"
+                            <span x-text="displayName(selectedConfig?.category_name_en, selectedConfig?.category_name) + ' / ' + displayName(selectedConfig?.subcategory_name_en, selectedConfig?.subcategory_name)"
                                   class="text-slate-800 dark:text-slate-200"></span>
                         </div>
                     </div>
@@ -235,6 +235,8 @@ Tailwind 配置产品选择器模态框组件
 {% macro tw_config_selector_script(modal_id) %}
 <script>
 function {{ modal_id }}Data() {
+    const isOvs = {{ 'true' if currency_config.is_ovs else 'false' }};
+
     return {
         open: false,
         loading: false,
@@ -243,6 +245,7 @@ function {{ modal_id }}Data() {
         expandedNodes: new Set(),
         selectedConfigId: null,
         selectedConfig: null,
+        isOvs: isOvs,
 
         // 打开模态框
         async openModal() {
@@ -327,6 +330,11 @@ function {{ modal_id }}Data() {
 
         isExpanded(nodeId) {
             return this.expandedNodes.has(nodeId);
+        },
+
+        // 根据环境选择显示名称（OVS优先英文，SP8D优先中文）
+        displayName(enName, cnName) {
+            return this.isOvs ? (enName || cnName || '') : (cnName || enName || '');
         },
 
         // 选择配置
