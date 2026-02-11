@@ -303,7 +303,7 @@
     </div>
 
     <!-- 配置选择器模态框 -->
-    {% from 'components/product/tw_config_selector_modal.html' import tw_config_selector_modal, tw_config_selector_script %}
+    {% from 'components/product/tw_config_selector_modal.html' import tw_config_selector_modal, tw_config_selector_script with context %}
     {{ tw_config_selector_modal(
         modal_id='configSelectorModal',
         title=_('选择配置产品'),
