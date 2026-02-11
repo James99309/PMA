@@ -121,6 +121,9 @@ class ProductFileService:
         Returns:
             Response: 文件下载响应
         """
+        # 强制刷新会话，确保获取最新数据（上传后立即下载场景）
+        db.session.expire_all()
+
         product = Product.query.get_or_404(product_id)
 
         # 获取有效的PDF路径（产品自身或分类共享）

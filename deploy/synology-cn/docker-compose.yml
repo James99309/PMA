@@ -87,6 +87,10 @@ services:
       # 强制本地存储（不使用 Supabase）
       FORCE_LOCAL_STORAGE: "true"
 
+      # 禁止 NAS 不可用时静默回退（避免文件存到错误路径）
+      NAS_SYNC_TO_SUPABASE: "false"
+      NAS_FALLBACK_TO_SUPABASE: "false"
+
       # AI 服务（会议纪要功能 - 中国网络可能需要代理）
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

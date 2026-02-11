@@ -61,6 +61,10 @@ services:
       NAS_STORAGE_ENABLED: "true"
       FORCE_LOCAL_STORAGE: "true"
 
+      # 禁止 NAS 不可用时静默回退（避免文件存到错误路径）
+      NAS_SYNC_TO_SUPABASE: "false"
+      NAS_FALLBACK_TO_SUPABASE: "false"
+
       # 群晖 WebDAV 存储（DS925+ 本机）
       MEETING_STORAGE_TYPE: synology
       SYNOLOGY_WEBDAV_URL: ${SYNOLOGY_WEBDAV_URL:-http://192.168.1.2:5005}
