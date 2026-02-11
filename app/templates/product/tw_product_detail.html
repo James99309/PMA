@@ -756,14 +756,14 @@
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
-        // 显示上传中状态（替换 PDF 容器内容，支持进度百分比）
+        // 显示上传中状态（替换 PDF 容器内容）
         function showPdfUploadingState(fileName, fileSize) {
             const container = document.getElementById('pdfDocumentContainer');
             if (!container) return;
             container._originalHtml = container.innerHTML;
             container.innerHTML = `
                 <div class="px-6 py-4">
-                    <div class="flex items-center gap-3 mb-2">
+                    <div class="flex items-center gap-3">
                         <svg class="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
@@ -773,18 +773,19 @@
                             <p class="text-xs text-slate-500" id="uploadProgressText">${fileSize} · {{ _('上传中...') }} 0%</p>
                         </div>
                     </div>
-                    <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
-                        <div id="uploadProgressBar" class="bg-primary h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-                    </div>
                 </div>`;
         }
 
         // 更新上传进度
         function updateUploadProgress(percent, fileSize) {
-            const bar = document.getElementById('uploadProgressBar');
             const text = document.getElementById('uploadProgressText');
-            if (bar) bar.style.width = percent + '%';
-            if (text) text.textContent = fileSize + ' · {{ _("上传中...") }} ' + percent + '%';
+            if (!text) return;
+            if (percent >= 100) {
+                // 浏览器已发送完数据，服务器正在保存到 NAS
+                text.textContent = fileSize + ' · {{ _("处理中...") }}';
+            } else {
+                text.textContent = fileSize + ' · {{ _("上传中...") }} ' + percent + '%';
+            }
         }
 
         // 显示上传成功状态

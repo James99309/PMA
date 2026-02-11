@@ -131,6 +131,8 @@ NAS_ENV_FILE=""
 if [ "$storage_choice" = "1" ]; then
     STORAGE_TYPE="本地文件存储"
     STORAGE_LOCATION="本地文件系统"
+    # 显式告知run.py不加载任何NAS配置
+    export NAS_ENV_FILE=""
     print_success "✅ 使用本地文件存储"
 elif [ "$storage_choice" = "2" ]; then
     STORAGE_TYPE="中国NAS存储（SP8D）"
@@ -155,6 +157,9 @@ if [ ! -z "$NAS_ENV_FILE" ]; then
 
     # 加载NAS配置
     export $(cat "$NAS_ENV_FILE" | grep -v '^#' | grep -v '^$' | xargs)
+
+    # 导出NAS配置文件路径，让run.py加载正确的NAS配置
+    export NAS_ENV_FILE="$NAS_ENV_FILE"
 
     # 设置阻止Supabase自动加载
     export FORCE_LOCAL_STORAGE=true

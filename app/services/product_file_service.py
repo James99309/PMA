@@ -543,6 +543,42 @@ class ProductFileService:
             db.session.rollback()
             return {'success': False, 'error': f'{file_type}上传错误: {str(e)}'}
 
+    def check_file_exists(self, file_path: str) -> bool:
+        """
+        检查文件是否实际存在于存储中（NAS/本地）
+
+        用于在页面渲染前验证数据库记录的文件路径是否真实可用，
+        避免显示无法下载的文件链接。
+        """
+        if not file_path:
+            return False
+
+        try:
+            # NAS 智能存储路径: /storage/nas/product?path=products/...
+            if file_path.startswith('/storage/nas/'):
+                from urllib.parse import urlparse, parse_qs
+                parsed = urlparse(file_path)
+                query_params = parse_qs(parsed.query)
+                nas_path = query_params.get('path', [''])[0]
+                if nas_path:
+                    from app.utils.synology_webdav_client import get_webdav_client
+                    client = get_webdav_client()
+                    return client.file_exists(nas_path) if client and client.is_configured else False
+                return False
+
+            # 云端 URL (http/https) — 不做远程检查，信任数据库
+            elif file_path.startswith('http'):
+                return True
+
+            # 本地文件
+            else:
+                local_path = os.path.join(current_app.static_folder, file_path)
+                return os.path.exists(local_path)
+
+        except Exception as e:
+            logger.warning(f"文件存在性检查失败: {file_path}, 错误: {e}")
+            return False
+
     def get_effective_file_path(self, product: Product, file_type: str) -> Optional[str]:
         """
         获取产品的有效文件路径（三级引用：产品自身 > 同名产品 > 子分类共享）

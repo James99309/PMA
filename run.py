@@ -30,9 +30,10 @@ def main():
         from dotenv import load_dotenv
 
         # 加载 NAS 存储配置（优先级最高）
-        if os.path.exists('.env.nas'):
-            load_dotenv('.env.nas', override=True)
-            logger.info("🗄️ 加载 NAS 存储配置文件 .env.nas")
+        nas_env_file = os.environ.get('NAS_ENV_FILE', '.env.nas')
+        if nas_env_file and os.path.exists(nas_env_file):
+            load_dotenv(nas_env_file, override=True)
+            logger.info(f"🗄️ 加载 NAS 存储配置文件 {nas_env_file}")
 
         # 注意：启动脚本已经导出环境变量，但我们仍需尝试从对应的.env文件加载
         # 检测数据库类型（SP8D/OVS），兼容旧变量名 SUPABASE_DB_TYPE

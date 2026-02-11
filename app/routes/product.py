@@ -3149,6 +3149,16 @@ def view_product_detail(id):
         effective_image = get_effective_image(product)
         effective_pdf = get_effective_pdf(product)
 
+        # 验证文件实际存在于存储中，避免显示无法下载的链接
+        from app.services.product_file_service import ProductFileService
+        file_service = ProductFileService()
+        if effective_pdf and not file_service.check_file_exists(effective_pdf):
+            logger.info(f"产品 {product.id} 的 effective_pdf 路径存在但文件不存在: {effective_pdf}")
+            effective_pdf = None
+        if effective_image and not file_service.check_file_exists(effective_image):
+            logger.info(f"产品 {product.id} 的 effective_image 路径存在但文件不存在: {effective_image}")
+            effective_image = None
+
         # 计算上一个/下一个产品ID（按列表页排序）
         all_product_ids = db.session.query(Product.id)\
             .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
