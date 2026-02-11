@@ -561,8 +561,8 @@ class ProductFileService:
                 query_params = parse_qs(parsed.query)
                 nas_path = query_params.get('path', [''])[0]
                 if nas_path:
-                    from app.utils.synology_webdav_client import get_webdav_client
-                    client = get_webdav_client()
+                    from app.utils.synology_webdav_client import get_synology_webdav_client
+                    client = get_synology_webdav_client()
                     return client.file_exists(nas_path) if client and client.is_configured else False
                 return False
 
