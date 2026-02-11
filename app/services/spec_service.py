@@ -147,10 +147,14 @@ class SpecService:
             # 检查是否为OVS系统，决定描述使用的语言
             is_ovs = current_app.config.get('IS_OVS', False)
 
+            from app.routes.product_code import get_field_unit
             description_parts = []
             for spec in all_specs:
                 if spec.include_in_description and spec.field_value:
                     unit = getattr(spec, unit_field, '') or ''
+                    # ProductSpec 没有 unit 列，回退到字典查询
+                    if not unit:
+                        unit = get_field_unit(spec.field_name) or ''
                     unit_str = f" {unit}" if unit else ""
                     # OVS使用英文名称，SP8D使用中文名称
                     if is_ovs and hasattr(spec, 'field_name_en') and spec.field_name_en:
@@ -215,6 +219,9 @@ class SpecService:
                 if hasattr(spec, 'field_code'):
                     spec_dict['field_code'] = spec.field_code or ''
                 unit_value = getattr(spec, unit_field, '') or ''
+                # ProductSpec 没有 unit 列，回退到字典查询
+                if not unit_value:
+                    unit_value = get_field_unit(spec.field_name) or ''
                 spec_dict['unit' if product_type == cls.TYPE_PRODUCT else 'field_unit'] = unit_value
                 specs_list.append(spec_dict)
 

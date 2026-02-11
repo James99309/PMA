@@ -312,7 +312,7 @@
                                             <div class="flex items-center">
                                                 <span class="material-symbols-outlined text-3xl mr-4 fill {{ 'text-red-500' if effective_pdf else 'text-slate-300 dark:text-slate-600' }}">picture_as_pdf</span>
                                                 <div>
-                                                    <p class="text-sm font-medium text-slate-900 dark:text-white">{{ _('产品规格书') }}.pdf</p>
+                                                    <p class="text-sm font-medium text-slate-900 dark:text-white">{{ (product.product_name or product.product_mn or _('产品规格书')) }}.pdf</p>
                                                     <p class="text-xs text-slate-500 dark:text-slate-400">
                                                         {% if effective_pdf %}{{ _('点击下载或预览') }}{% else %}{{ _('暂无文档') }}{% endif %}
                                                     </p>
@@ -749,6 +749,53 @@
             openCustomModal('categoryFileConfirmModal');
         }
 
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        // 显示上传中状态（替换 PDF 容器内容）
+        function showPdfUploadingState(fileName, fileSize) {
+            const container = document.getElementById('pdfDocumentContainer');
+            if (!container) return;
+            container._originalHtml = container.innerHTML;
+            container.innerHTML = `
+                <div class="flex items-center gap-3 px-6 py-4">
+                    <svg class="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <div>
+                        <p class="text-sm font-medium text-slate-900 dark:text-white">${fileName}</p>
+                        <p class="text-xs text-slate-500">${fileSize} · {{ _('上传中...') }}</p>
+                    </div>
+                </div>`;
+        }
+
+        // 显示上传成功状态
+        function showPdfUploadSuccess(fileSize) {
+            const container = document.getElementById('pdfDocumentContainer');
+            if (!container) return;
+            container.innerHTML = `
+                <div class="flex items-center gap-3 px-6 py-4">
+                    <span class="material-symbols-outlined text-green-500 text-2xl">check_circle</span>
+                    <div>
+                        <p class="text-sm font-medium text-green-600 dark:text-green-400">{{ _('上传成功') }}</p>
+                        <p class="text-xs text-slate-500">${fileSize}</p>
+                    </div>
+                </div>`;
+        }
+
+        // 恢复 PDF 显示（上传失败时）
+        function restorePdfDisplay() {
+            const container = document.getElementById('pdfDocumentContainer');
+            if (container && container._originalHtml) {
+                container.innerHTML = container._originalHtml;
+            }
+        }
+
         // 上传文件（支持 updateCategory 参数）
         async function uploadFile(file, type, updateCategory) {
             const formData = new FormData();
@@ -758,6 +805,12 @@
             // 添加 update_category 参数（仅当不为 null 时）
             if (updateCategory !== null) {
                 formData.append('update_category', updateCategory.toString());
+            }
+
+            // 显示上传中状态
+            const fileSize = formatFileSize(file.size);
+            if (type === 'pdf') {
+                showPdfUploadingState(file.name, fileSize);
             }
 
             try {
@@ -772,13 +825,19 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    // 上传成功，更新显示而不刷新整页
-                    updateFileDisplay(type, data.file_url);
+                    if (type === 'pdf') {
+                        showPdfUploadSuccess(fileSize);
+                        setTimeout(() => updateFileDisplay(type, data.file_url), 1500);
+                    } else {
+                        updateFileDisplay(type, data.file_url);
+                    }
                 } else {
+                    if (type === 'pdf') restorePdfDisplay();
                     alert(data.error || data.message || i18n.uploadError);
                 }
             } catch (error) {
                 console.error('上传错误:', error);
+                if (type === 'pdf') restorePdfDisplay();
                 alert(i18n.uploadError);
             }
         }
@@ -818,7 +877,7 @@
                         <div class="flex items-center">
                             <span class="material-symbols-outlined text-red-500 text-3xl mr-4 fill">picture_as_pdf</span>
                             <div>
-                                <p class="text-sm font-medium text-slate-900 dark:text-white">{{ _('产品规格书') }}.pdf</p>
+                                <p class="text-sm font-medium text-slate-900 dark:text-white">{{ (product.product_name or product.product_mn or _('产品规格书')) }}.pdf</p>
                                 <p class="text-xs text-slate-500 dark:text-slate-400">{{ _('点击下载或预览') }}</p>
                             </div>
                         </div>

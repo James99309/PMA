@@ -1667,9 +1667,12 @@ def get_product_specs(product_id):
         specs = ProductSpec.query.filter_by(product_id=product_id).order_by(ProductSpec.display_order).all()
 
         # 转换为字典并添加position信息
+        from app.routes.product_code import get_field_unit
         spec_list = []
         for spec in specs:
             spec_dict = spec.to_dict()
+            # 补充单位（ProductSpec 无 unit 列，从 SpecDefinition 查询）
+            spec_dict['unit'] = get_field_unit(spec.field_name) or ''
 
             # 获取规格字段的position（用于MN编码排序）
             if product.subcategory_id and spec.field_name:
@@ -4438,11 +4441,14 @@ def import_configuration_specs(product_id):
 
         db.session.flush()
 
-        # 重新生成产品描述
+        # 重新生成产品描述（包含单位）
+        from app.routes.product_code import get_field_unit
         description_parts = []
         for spec in new_specs:
             if spec.include_in_description and spec.field_value:
-                description_parts.append(f"{spec.field_name}: {spec.field_value}")
+                unit = get_field_unit(spec.field_name) or ''
+                unit_str = f" {unit}" if unit else ""
+                description_parts.append(f"{spec.field_name}: {spec.field_value}{unit_str}")
         product.specification = ", ".join(description_parts) if description_parts else ""
 
         # 直接使用配置版本的 mn_code 作为 spec_mn（不重新计算，避免 ProductCodeField 配置不一致问题）

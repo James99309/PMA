@@ -458,10 +458,7 @@
 
             const paddingLeft = level * 1.5;
 
-            // 分类/子分类节点添加悬停展开事件
-            const hoverEvents = hasChildren ? `onmouseenter="window.expandTreeNode('${node.id}')" onmouseleave="window.collapseTreeNode('${node.id}')"` : '';
-
-            let html = `<li data-node-id="${node.id}" data-node-type="${node.type}" ${hoverEvents} class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">`;
+            let html = `<li data-node-id="${node.id}" data-node-type="${node.type}" class="border-b border-slate-200 dark:border-slate-700 last:border-b-0">`;
 
             // 节点内容
             html += `<div class="tree-node-item flex items-center p-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">`;
@@ -590,45 +587,6 @@
         }
     };
 
-    // ============== 悬停展开/折叠的延迟计时器 ==============
-    const hoverExpandTimers = {};
-    const hoverCollapseTimers = {};
-
-    // ============== 悬停展开节点（延迟300ms）==============
-    window.expandTreeNode = function(nodeId) {
-        // 清除折叠计时器
-        if (hoverCollapseTimers[nodeId]) {
-            clearTimeout(hoverCollapseTimers[nodeId]);
-            hoverCollapseTimers[nodeId] = null;
-        }
-        // 如果已经有展开计时器在运行，不重复设置
-        if (hoverExpandTimers[nodeId]) return;
-
-        // 设置300ms延迟后展开
-        hoverExpandTimers[nodeId] = setTimeout(() => {
-            hoverExpandTimers[nodeId] = null;
-            if (!state.expandedNodes.has(nodeId)) {
-                expandNodeWithAnimation(nodeId);
-            }
-        }, 300);
-    };
-
-    // ============== 悬停离开折叠节点 ==============
-    window.collapseTreeNode = function(nodeId) {
-        // 清除展开计时器
-        if (hoverExpandTimers[nodeId]) {
-            clearTimeout(hoverExpandTimers[nodeId]);
-            hoverExpandTimers[nodeId] = null;
-        }
-        // 延迟200ms折叠，给用户时间移动到子节点
-        hoverCollapseTimers[nodeId] = setTimeout(() => {
-            hoverCollapseTimers[nodeId] = null;
-            if (state.expandedNodes.has(nodeId)) {
-                collapseNodeWithAnimation(nodeId);
-            }
-        }, 200);
-    };
-
     // ============== 点击产品文本区域选中 ==============
     window.handleProductTextClick = function(productId) {
         const els = getElements();
@@ -663,11 +621,23 @@
         updateRelationTypeOptions();
     };
 
-    // ============== 展开节点动画 ==============
+    // ============== 展开节点动画（手风琴：折叠同级其他节点）==============
     function expandNodeWithAnimation(nodeId) {
         const els = getElements();
         const li = els.treeContainer.querySelector(`li[data-node-id="${nodeId}"]`);
         if (!li) return;
+
+        // 手风琴：折叠同级的其他展开节点
+        const parentUl = li.parentElement;
+        if (parentUl) {
+            parentUl.querySelectorAll(':scope > li').forEach(siblingLi => {
+                if (siblingLi === li) return;
+                const siblingId = siblingLi.dataset.nodeId;
+                if (siblingId && state.expandedNodes.has(siblingId)) {
+                    collapseNodeWithAnimation(siblingId);
+                }
+            });
+        }
 
         state.expandedNodes.add(nodeId);
 
@@ -679,7 +649,7 @@
             childrenUl.classList.add('expanded');
         }
         if (toggleIcon) {
-            toggleIcon.textContent = 'arrow_drop_down';
+            toggleIcon.classList.add('rotate-90');
         }
     }
 
@@ -699,7 +669,7 @@
             childrenUl.classList.add('collapsed');
         }
         if (toggleIcon) {
-            toggleIcon.textContent = 'arrow_right';
+            toggleIcon.classList.remove('rotate-90');
         }
     }
 
