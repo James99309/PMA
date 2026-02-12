@@ -3298,6 +3298,16 @@ def view_product_detail(id):
 
         modal_currencies = get_currency_type_options()
 
+        # 计算快照状态
+        snapshot = product.code_definition_snapshot
+        has_valid_snapshot = False
+        if snapshot and isinstance(snapshot, dict):
+            code_parts = snapshot.get('code_parts', [])
+            for part in code_parts:
+                if part.get('use_in_code', True) and part.get('code'):
+                    has_valid_snapshot = True
+                    break
+
         return render_template('product/tw_product_detail.html',
                                product=product,
                                product_specs=product_specs,
@@ -3311,7 +3321,8 @@ def view_product_detail(id):
                                is_mn_locked=is_mn_locked,
                                modal_categories=modal_categories,
                                modal_regions=modal_regions,
-                               modal_currencies=modal_currencies)
+                               modal_currencies=modal_currencies,
+                               has_valid_snapshot=has_valid_snapshot)
     except Exception as e:
         logger.error(f'查看产品详情页面时出错: {str(e)}', exc_info=True)
         flash(_('查看产品详情失败: %s') % str(e), 'danger')

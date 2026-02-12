@@ -236,7 +236,20 @@
                             <!-- 产品规格卡片（支持编辑模式） -->
                             <div id="productSpecsCard" class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
                                 <div class="px-6 py-5 flex justify-between items-center">
-                                    <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('产品规格') }}</h3>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('产品规格') }}</h3>
+                                        {% if has_valid_snapshot %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                            <span class="material-symbols-outlined text-sm mr-0.5">verified</span>
+                                            {{ _('快照就绪') }}
+                                        </span>
+                                        {% else %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                            <span class="material-symbols-outlined text-sm mr-0.5">warning</span>
+                                            {{ _('缺少快照') }}
+                                        </span>
+                                        {% endif %}
+                                    </div>
                                     {% if has_permission('product', 'edit') %}
                                     <div class="flex items-center gap-2">
                                         <!-- 添加按钮（编辑模式显示） -->
