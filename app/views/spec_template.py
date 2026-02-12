@@ -1262,11 +1262,12 @@ def api_update_configuration(config_id):
         if not data.get('config_code'):
             return jsonify({'success': False, 'message': _('配置编码不能为空')}), 400
 
-        # 检查配置编码是否重复（排除自己）
+        # 检查配置编码是否重复（排除自己和已删除的）
         existing = ProductConfiguration.query.filter(
             ProductConfiguration.template_id == config.template_id,
             ProductConfiguration.config_code == data['config_code'],
-            ProductConfiguration.id != config_id
+            ProductConfiguration.id != config_id,
+            ProductConfiguration.is_active == True
         ).first()
         if existing:
             return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400

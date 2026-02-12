@@ -28,7 +28,6 @@
  *     },
  *     previewEndpoint: '/api/products/123/specs/preview',  // 预览API
  *     onShowPreview: function(data, confirmFn) { ... },     // 显示预览模态框
- *     onShowConflict: function(data) { ... },               // 显示冲突模态框
  *     onPartialRefresh: function(result) { ... }            // 局部刷新DOM
  * });
  * specEditor.init();
@@ -54,13 +53,11 @@ class SpecEditor {
         // 编码预览相关配置（产品库用）
         this.previewEndpoint = options.previewEndpoint || null;
         this.onShowPreview = options.onShowPreview || null;
-        this.onShowConflict = options.onShowConflict || null;
         this.onPartialRefresh = options.onPartialRefresh || null;
 
         // 模态框 ID 配置
         this.modals = Object.assign({
-            preview: 'specMnPreviewModal',
-            conflict: 'specConflictModal'
+            preview: 'specMnPreviewModal'
         }, options.modals || {});
 
         // 预览确认回调
@@ -833,14 +830,6 @@ class SpecEditor {
     }
 
     /**
-     * 关闭编码冲突模态框
-     */
-    closeConflictModal() {
-        const modal = document.getElementById(this.modals.conflict);
-        if (modal) modal.classList.add('hidden');
-    }
-
-    /**
      * 设置预览确认回调
      * @param {Function} callback - 确认后执行的回调函数
      */
@@ -855,10 +844,8 @@ class SpecEditor {
      */
     showPreviewModal(previewData, confirmCallback) {
         document.getElementById('previewProductMnBefore').textContent = previewData.current_product_mn || '-';
-        document.getElementById('previewSpecMnBefore').textContent = previewData.current_spec_mn || '-';
 
         const productMnAfter = document.getElementById('previewProductMnAfter');
-        const specMnAfter = document.getElementById('previewSpecMnAfter');
 
         // 产品MN：锁定时不更新（研发库没有此字段，走else分支）
         if (previewData.is_mn_locked) {
@@ -871,46 +858,8 @@ class SpecEditor {
             document.getElementById('previewProductMnResult').innerHTML = '<span class="material-symbols-outlined text-emerald-500 text-xl" title="将更新">check_circle</span>';
         }
 
-        // 规格MN：总是更新
-        specMnAfter.textContent = previewData.new_spec_mn || '-';
-        specMnAfter.className = 'font-mono text-sm text-slate-900 dark:text-white font-medium';
-        document.getElementById('previewSpecMnResult').innerHTML = '<span class="material-symbols-outlined text-emerald-500 text-xl" title="将更新">check_circle</span>';
-
         this.setPreviewConfirmCallback(confirmCallback);
         document.getElementById(this.modals.preview).classList.remove('hidden');
-    }
-
-    /**
-     * 显示编码冲突模态框
-     * @param {Object} result - 冲突结果
-     * @param {Object} currentProduct - 当前产品信息 {name, model, code}
-     */
-    showConflictModal(result, currentProduct = {}) {
-        const newCode = result.new_spec_mn;
-        const conflictProduct = result.conflict_product;
-        const currentSpecs = result.current_specs;
-
-        // 格式化规格列表为HTML
-        function formatSpecs(specsList) {
-            if (!specsList || specsList.length === 0) return '<span class="text-slate-400">-</span>';
-            return specsList.map(s => `<div>${s.name}: ${s.value}</div>`).join('');
-        }
-
-        // 当前产品信息
-        document.getElementById('conflictCurrentName').textContent = currentProduct.name || '-';
-        document.getElementById('conflictCurrentModel').textContent = currentProduct.model || '-';
-        document.getElementById('conflictCurrentCode').textContent = currentProduct.code || '-';
-        document.getElementById('conflictNewCode').textContent = newCode || '-';
-        document.getElementById('conflictCurrentSpecs').innerHTML = formatSpecs(currentSpecs);
-
-        // 冲突产品信息
-        document.getElementById('conflictProductName').textContent = conflictProduct.product_name || '-';
-        document.getElementById('conflictProductModel').textContent = conflictProduct.model || '-';
-        document.getElementById('conflictProductMn').textContent = conflictProduct.product_mn || '-';
-        document.getElementById('conflictSpecMn').textContent = conflictProduct.spec_mn || '-';
-        document.getElementById('conflictProductSpecs').innerHTML = formatSpecs(conflictProduct.specs);
-
-        document.getElementById(this.modals.conflict).classList.remove('hidden');
     }
 
     /**
@@ -1635,12 +1584,6 @@ class SpecEditor {
             if (result.missing_codes && result.missing_codes.length > 0) {
                 const missingList = result.missing_codes.join('、');
                 alert(this.i18n.missingCodes + missingList);
-                return;
-            }
-
-            // 检查是否有编码冲突
-            if (result.conflict_product && this.onShowConflict) {
-                this.onShowConflict(result);
                 return;
             }
 

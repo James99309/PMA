@@ -8,7 +8,7 @@
 {% from 'components/product/tw_product_relation_modal.html' import render_tw_product_relation_modal, render_tw_product_relation_script with context %}
 {% from 'components/product/tw_product_modal.html' import render_product_modal, render_product_modal_script with context %}
 {% from 'components/product/tw_spec_options_modal.html' import tw_spec_options_modal, tw_spec_options_modal_script with context %}
-{% from 'components/product/tw_spec_modals.html' import tw_spec_preview_modal, tw_spec_conflict_modal with context %}
+{% from 'components/product/tw_spec_modals.html' import tw_spec_preview_modal with context %}
 {% from 'components/product/tw_spec_list.html' import render_tw_spec_list, render_tw_spec_list_grouped with context %}
 {% from 'components/product/tw_spec_import_modal.html' import tw_spec_import_modal, tw_spec_import_script with context %}
 {% from 'components/tw_coin_icon.html' import coin_icon with context %}
@@ -218,16 +218,9 @@
                                                         <span class="material-symbols-outlined text-sm {{ 'text-red-500' if product.is_mn_locked else 'text-green-500' }}"
                                                               title="{{ _('编码已锁定') if product.is_mn_locked else _('编码未锁定') }}">{{ 'lock' if product.is_mn_locked else 'lock_open' }}</span>
                                                         {% endif %}
-                                                        <span class="text-slate-400 dark:text-slate-500">[{{ _('规格编码') }}]</span>
                                                     </p>
                                                     <p class="mt-1 text-sm font-mono text-slate-900 dark:text-white">
                                                         <span id="productMnDisplay">{{ product.product_mn or '-' }}</span>
-                                                        {# 只有当 spec_mn 与 product_mn 不同时才显示规格编码 #}
-                                                        {% if product.spec_mn and product.spec_mn != product.product_mn %}
-                                                        <span id="specMnWrapper" class="text-slate-400 dark:text-slate-500 ml-1">[<span id="specMnMainDisplay">{{ product.spec_mn }}</span>]</span>
-                                                        {% else %}
-                                                        <span id="specMnWrapper" class="text-slate-400 dark:text-slate-500 ml-1 hidden">[<span id="specMnMainDisplay">{{ product.spec_mn or '-' }}</span>]</span>
-                                                        {% endif %}
                                                     </p>
                                                 </div>
                                                 <div>
@@ -450,10 +443,6 @@
                                 <div class="p-6">
                                     <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">{{ _('元数据') }}</h4>
                                     <div class="space-y-3 text-sm">
-                                        <div class="flex justify-between">
-                                            <span class="text-slate-500 dark:text-slate-400">{{ _('规格编码') }}</span>
-                                            <span id="specMnDisplay" class="text-slate-900 dark:text-white font-mono text-xs">{{ product.spec_mn or '-' }}</span>
-                                        </div>
                                         <div class="flex justify-between">
                                             <span class="text-slate-500 dark:text-slate-400">{{ _('产品ID') }}</span>
                                             <span class="text-slate-900 dark:text-white">#{{ product.id }}</span>
@@ -1255,9 +1244,6 @@
     variant='primary'
 ) }}
 
-<!-- 编码冲突警告模态框 -->
-{{ tw_spec_conflict_modal() }}
-
 <!-- 规格引入模态框（从配置版本引入规格） -->
 {% if product.source_configuration_id %}
 {{ tw_spec_import_modal() }}
@@ -1336,7 +1322,6 @@
         previewEndpoint: `/api/products/${productId}/specs/preview`,
         // 回调函数
         onShowPreview: showSpecMnPreviewModal,
-        onShowConflict: showSpecConflictModal,
         onPartialRefresh: handlePartialRefresh
     });
     specEditor.init();
@@ -1384,26 +1369,14 @@
         }
     };
 
-    // 当前产品信息（用于冲突模态框）
-    const currentProductInfo = {
-        name: '{{ product.product_name or product.name or "-" }}',
-        model: '{{ product.model or "-" }}',
-        code: '{{ product.product_mn or "-" }}'
-    };
-
     // 使用公共方法显示模态框
     function showSpecMnPreviewModal(previewData, confirmCallback) {
         specEditor.showPreviewModal(previewData, confirmCallback);
     }
 
-    function showSpecConflictModal(result) {
-        specEditor.showConflictModal(result, currentProductInfo);
-    }
-
     // 暴露给模态框按钮调用
     window.closeSpecMnPreviewModal = () => specEditor.closePreviewModal();
     window.confirmSpecMnPreview = () => specEditor.confirmPreview();
-    window.closeSpecConflictModal = () => specEditor.closeConflictModal();
 
     // 处理保存后的局部刷新
     function handlePartialRefresh(result) {
@@ -1413,28 +1386,7 @@
             productMnDisplay.textContent = result.product_mn || '-';
         }
 
-        // 2. 更新规格MN显示（产品概览区域）- 只有不同时才显示
-        const specMnMainDisplay = document.getElementById('specMnMainDisplay');
-        const specMnWrapper = document.getElementById('specMnWrapper');
-        if (specMnMainDisplay) {
-            specMnMainDisplay.textContent = result.spec_mn || '-';
-        }
-        if (specMnWrapper) {
-            // 只有当 spec_mn 与 product_mn 不同时才显示
-            if (result.spec_mn && result.spec_mn !== result.product_mn) {
-                specMnWrapper.classList.remove('hidden');
-            } else {
-                specMnWrapper.classList.add('hidden');
-            }
-        }
-
-        // 3. 更新规格MN显示（侧边栏）
-        const specMnDisplay = document.getElementById('specMnDisplay');
-        if (specMnDisplay) {
-            specMnDisplay.textContent = result.spec_mn || '-';
-        }
-
-        // 4. 更新规格说明
+        // 2. 更新规格说明
         const specDisplay = document.getElementById('specificationDisplay');
         const specText = document.getElementById('specificationText');
         if (specDisplay && specText) {

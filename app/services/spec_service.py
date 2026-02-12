@@ -2,7 +2,7 @@
 """
 统一的产品规格服务
 
-支持产品库和研发产品库的规格保存、预览、冲突检测
+支持产品库和研发产品库的规格保存、预览
 """
 
 import logging
@@ -62,7 +62,6 @@ class SpecService:
                 'message': str,
                 'description': str,
                 'specs': list,
-                'spec_mn': str,
                 'product_mn': str
             }
         """
@@ -173,32 +172,29 @@ class SpecService:
 
             # 5. 更新MN编码（如果适用）
             # 引入产品（有source_configuration_id）跳过编码更新，保持从配置引入的编码
-            spec_mn = None
             product_mn = None
             is_imported_product = product_type == cls.TYPE_PRODUCT and getattr(product, 'source_configuration_id', None)
 
             if product_type == cls.TYPE_PRODUCT:
                 if is_imported_product:
                     # 引入产品：保持现有编码不变
-                    spec_mn = product.spec_mn
                     product_mn = product.product_mn
-                    logger.debug(f"引入产品 {product_id} 跳过编码更新，保持 spec_mn={spec_mn}, product_mn={product_mn}")
+                    logger.debug(f"引入产品 {product_id} 跳过编码更新，保持 product_mn={product_mn}")
                 else:
-                    # 普通产品：重新计算编码
+                    # 普通产品：重新计算编码，仅更新 product_mn（不再写入 spec_mn）
                     from app.utils.product_helpers import generate_spec_mn
-                    spec_mn = generate_spec_mn(product)
-                    if spec_mn:
-                        product.spec_mn = spec_mn
+                    generated_mn = generate_spec_mn(product)
+                    if generated_mn:
                         if not getattr(product, 'is_mn_locked', False) or not product.product_mn:
-                            product.product_mn = spec_mn
+                            product.product_mn = generated_mn
                         product_mn = product.product_mn
             else:
                 # 研发产品的MN编码逻辑
                 from app.utils.product_helpers import generate_dev_product_mn
                 try:
-                    spec_mn = generate_dev_product_mn(product)
-                    if spec_mn:
-                        product.mn_code = spec_mn
+                    dev_mn = generate_dev_product_mn(product)
+                    if dev_mn:
+                        product.mn_code = dev_mn
                     product_mn = product.mn_code
                 except Exception as e:
                     logger.warning(f"生成研发产品MN失败: {e}")
@@ -231,7 +227,6 @@ class SpecService:
                 'description': new_description,
                 'specification': new_description,  # 兼容产品库
                 'specs': specs_list,
-                'spec_mn': spec_mn,
                 'product_mn': product_mn
             }
 
@@ -258,7 +253,6 @@ class SpecService:
                 'new_spec_mn': str,
                 'is_mn_locked': bool,
                 'missing_codes': list,
-                'conflict_product': dict or None,
                 'current_specs': list
             }
         """
@@ -304,22 +298,10 @@ class SpecService:
 
             # 计算新的spec_mn
             new_spec_mn = None
-            conflict_product = None
 
             if not missing_codes:
                 from app.utils.product_helpers import calculate_spec_mn_from_data
                 new_spec_mn = calculate_spec_mn_from_data(product, specs_data)
-
-                # 冲突检测（同时检查研发库和产品库）
-                if new_spec_mn:
-                    conflict_product = cls._check_mn_conflict(
-                        new_spec_mn,
-                        product_type,
-                        product_id,
-                        specs_data,
-                        SpecModel,
-                        id_field
-                    )
 
             # 获取当前修改的规格
             filter_kwargs = {id_field: product_id}
@@ -350,60 +332,12 @@ class SpecService:
                 'new_spec_mn': new_spec_mn or '',
                 'is_mn_locked': is_mn_locked,
                 'missing_codes': missing_codes,
-                'conflict_product': conflict_product,
                 'current_specs': changed_spec_list
             }
 
         except Exception as e:
             logger.error(f"预览规格MN失败: {str(e)}")
             return {'success': False, 'message': str(e)}
-
-    @classmethod
-    def _check_mn_conflict(cls, new_mn, product_type, product_id, specs_data, SpecModel, id_field):
-        """
-        检查MN冲突（检查产品库）
-
-        Returns:
-            dict or None: 冲突产品信息
-        """
-        from app.models.product import Product
-        from app.models.product_spec import ProductSpec
-
-        # 检查产品库
-        product_query = Product.query.filter(
-            db.or_(
-                Product.spec_mn == new_mn,
-                Product.product_mn == new_mn
-            )
-        )
-        if product_type == cls.TYPE_PRODUCT:
-            product_query = product_query.filter(Product.id != product_id)
-        conflict = product_query.first()
-
-        if not conflict:
-            return None
-
-        # 获取修改的字段名
-        changed_field_names = set()
-        for s in specs_data:
-            if s.get('field_code'):
-                changed_field_names.add(s.get('field_name'))
-
-        # 获取冲突产品的规格
-        conflict_specs = ProductSpec.query.filter_by(product_id=conflict.id).all()
-        conflict_spec_list = [
-            {'name': s.field_name, 'value': s.field_value}
-            for s in conflict_specs
-            if s.field_code and s.field_name in changed_field_names
-        ]
-        return {
-            'id': conflict.id,
-            'product_name': conflict.product_name or conflict.name or '-',
-            'model': conflict.model or '-',
-            'product_mn': conflict.product_mn or '-',
-            'spec_mn': conflict.spec_mn or '-',
-            'specs': conflict_spec_list
-        }
 
     @classmethod
     def get_specs_with_coded_fields(cls, product_type, product_id, subcategory_id):

@@ -41,7 +41,36 @@ Tailwind 统一布局组件
 {# 获取待审批数量 #}
 {% set pending_approval_count = get_pending_approval_count() if get_pending_approval_count is defined else 0 %}
 {# x-cloak 样式：防止 Alpine.js 初始化前的闪烁 #}
-<style>[x-cloak] { display: none !important; }</style>
+<style>
+[x-cloak] { display: none !important; }
+/* 积分变化动画 */
+@keyframes pointsGlowGreen {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+    50% { box-shadow: 0 0 12px 4px rgba(34,197,94,0.4); }
+}
+@keyframes pointsGlowRed {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+    50% { box-shadow: 0 0 12px 4px rgba(239,68,68,0.25); }
+}
+.points-animating.increase { animation: pointsGlowGreen 1.2s ease-out; border-radius: 8px; }
+.points-animating.decrease { animation: pointsGlowRed 1.2s ease-out; border-radius: 8px; }
+.points-delta-badge {
+    position: absolute; top: -8px; right: -8px;
+    font-size: 0.7rem; font-weight: 600;
+    padding: 1px 6px; border-radius: 10px;
+    white-space: nowrap; z-index: 10;
+    pointer-events: none;
+    animation: deltaFade 2.5s ease-in-out forwards;
+}
+.points-delta-badge.increase { background: #10b981; color: #fff; }
+.points-delta-badge.decrease { background: #ef4444; color: #fff; }
+@keyframes deltaFade {
+    0% { opacity: 0; transform: translateY(8px) scale(0.8); }
+    15% { opacity: 1; transform: translateY(0) scale(1); }
+    70% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-8px); }
+}
+</style>
 <div x-data="{ sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true' }"
      x-init="$watch('sidebarCollapsed', val => localStorage.setItem('sidebarCollapsed', val))"
      class="h-screen flex flex-col">
@@ -377,6 +406,44 @@ Tailwind 统一布局组件
     window.updateCalendarPendingDot = updateCalendarPendingDot;
 
     // ========== 产品积分导航栏 ==========
+    function getPreviousPointsState() {
+        try {
+            const s = localStorage.getItem('pma_points_state');
+            return s ? JSON.parse(s) : null;
+        } catch { return null; }
+    }
+    function storePointsState(points, tier, year) {
+        try {
+            localStorage.setItem('pma_points_state', JSON.stringify({ points, tier, year }));
+        } catch {}
+    }
+    function detectPointsChange(prev, points, tier, year) {
+        if (!prev || prev.year !== year) return { type: 'none' };
+        const delta = points - prev.points;
+        if (delta === 0) return { type: 'none' };
+        return { type: delta > 0 ? 'increase' : 'decrease', delta, oldValue: prev.points, newValue: points };
+    }
+    function animateCounter(el, from, to, duration, fmt) {
+        const start = performance.now();
+        const diff = to - from;
+        function tick(now) {
+            const t = Math.min((now - start) / duration, 1);
+            const ease = 1 - Math.pow(1 - t, 3);
+            el.textContent = fmt(Math.round(from + diff * ease));
+            if (t < 1) requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    }
+    function showDeltaBadge(container, delta, type) {
+        const badge = document.createElement('span');
+        badge.className = 'points-delta-badge ' + type;
+        badge.textContent = (delta > 0 ? '+' : '') + delta.toLocaleString();
+        const btn = container.querySelector('button');
+        btn.style.position = 'relative';
+        btn.appendChild(badge);
+        setTimeout(() => badge.remove(), 2500);
+    }
+
     function formatPoints(pts, tier) {
         if (tier === 'gold') return (pts / 10000000).toFixed(2);
         if (tier === 'silver') return (pts / 1000000).toFixed(1);
@@ -417,8 +484,24 @@ Tailwind 统一布局组件
                     `</svg>`;
 
                 const valueEl = document.getElementById('navPointsValue');
-                valueEl.textContent = formatPoints(data.total_points, tier);
                 valueEl.className = 'text-sm font-semibold ' + textClasses[tier];
+
+                // 检测积分变化并播放动画
+                const prev = getPreviousPointsState();
+                const year = data.year || new Date().getFullYear();
+                const change = detectPointsChange(prev, data.total_points, tier, year);
+
+                if (change.type !== 'none') {
+                    animateCounter(valueEl, change.oldValue, change.newValue, 800, v => formatPoints(v, tier));
+                    showDeltaBadge(container, change.delta, change.type);
+                    const btn = container.querySelector('button');
+                    btn.classList.add('points-animating', change.type);
+                    setTimeout(() => btn.classList.remove('points-animating', 'increase', 'decrease'), 1200);
+                } else {
+                    valueEl.textContent = formatPoints(data.total_points, tier);
+                }
+
+                storePointsState(data.total_points, tier, year);
 
                 // 填充弹出卡片
                 const yearEl = document.getElementById('pointsCardYear');
