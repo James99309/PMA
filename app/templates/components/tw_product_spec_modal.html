@@ -69,10 +69,10 @@ ProductSpecModal.open({
             <div class="flex-1 overflow-y-auto p-6 md:p-8">
                 <!-- 步骤1：规格选择 -->
                 <div id="specStep1" class="step-content">
-                    <div class="flex gap-8">
+                    <div class="flex gap-8 items-start">
                         <!-- 左侧：产品图片和基本信息 -->
                         <div class="w-1/3 flex-shrink-0">
-                            <div id="specProductImage" class="spec-image-container rounded-xl aspect-[4/3] flex items-center justify-center mb-4">
+                            <div id="specProductImage" class="spec-image-container rounded-xl aspect-[4/3] flex items-center justify-center mb-4 overflow-hidden">
                                 <span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>
                             </div>
                             <h2 id="specProductName" class="text-xl font-semibold text-slate-900 dark:text-white mb-1">--</h2>
@@ -123,10 +123,10 @@ ProductSpecModal.open({
 
                 <!-- 步骤2：配置选择 -->
                 <div id="specStep2" class="step-content hidden">
-                    <div class="flex gap-8">
+                    <div class="flex gap-8 items-start">
                         <!-- 左侧：已选产品信息 -->
                         <div class="w-1/3 flex-shrink-0">
-                            <div id="specStep2ProductImage" class="spec-image-container rounded-xl aspect-[4/3] flex items-center justify-center mb-4">
+                            <div id="specStep2ProductImage" class="spec-image-container rounded-xl aspect-[4/3] flex items-center justify-center mb-4 overflow-hidden">
                                 <span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>
                             </div>
                             <h2 id="specStep2ProductName" class="text-xl font-semibold text-slate-900 dark:text-white mb-1">--</h2>
