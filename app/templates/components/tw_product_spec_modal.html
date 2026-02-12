@@ -741,6 +741,12 @@ const ProductSpecModal = (function() {
             updateProductInfo(state.products[0]);
         }
 
+        // 初始化时过滤掉无有效快照的产品（无法参与规格筛选）
+        state.remainingProducts = state.products.filter(product => {
+            const snapshot = parseSnapshot(product.code_definition_snapshot);
+            return snapshot.length > 0;
+        });
+
         // 分析并渲染规格字段
         analyzeAndRenderFields();
 
@@ -858,8 +864,15 @@ const ProductSpecModal = (function() {
             return;
         }
 
-        // 获取第一个产品的编码快照作为基准
-        const baseSnapshot = parseSnapshot(products[0].code_definition_snapshot);
+        // 获取第一个有有效快照的产品作为基准
+        let baseSnapshot = [];
+        for (const product of products) {
+            const snapshot = parseSnapshot(product.code_definition_snapshot);
+            if (snapshot.length > 0) {
+                baseSnapshot = snapshot;
+                break;
+            }
+        }
 
         if (baseSnapshot.length === 0) {
             renderEmptyState();
@@ -1160,10 +1173,19 @@ const ProductSpecModal = (function() {
         state.remainingProducts = state.products.filter(product => {
             const snapshot = parseSnapshot(product.code_definition_snapshot);
 
+            // 没有有效快照的产品不参与规格筛选
+            if (snapshot.length === 0) {
+                return false;
+            }
+
             // 检查每个用户选择是否匹配
             for (const [position, selection] of Object.entries(state.userSelections)) {
                 const posIdx = parseInt(position);
-                if (snapshot[posIdx] && snapshot[posIdx].code !== selection.code) {
+                // 快照中没有该位置的字段 → 数据不完整，排除
+                if (!snapshot[posIdx]) {
+                    return false;
+                }
+                if (snapshot[posIdx].code !== selection.code) {
                     return false;
                 }
             }
@@ -1197,9 +1219,11 @@ const ProductSpecModal = (function() {
 
         state.allSpecsSelected = allSelected && state.remainingProducts.length > 0;
 
-        // 如果只剩一个产品，自动选中
-        if (state.remainingProducts.length === 1) {
+        // 所有规格选完后，自动选中第一个匹配产品（用于左侧面板展示）
+        if (state.allSpecsSelected && state.remainingProducts.length >= 1) {
             state.selectedProduct = state.remainingProducts[0];
+        } else if (state.remainingProducts.length === 0) {
+            state.selectedProduct = null;
         }
 
         // 更新左侧信息显示

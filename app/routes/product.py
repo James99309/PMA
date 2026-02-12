@@ -738,6 +738,12 @@ def create():
                         new_product.product_mn = result['spec_mn']
                     logger.debug(f'生成规格MN: {result["spec_mn"]}, product_mn: {new_product.product_mn}')
 
+                # 生成编码定义快照
+                from app.utils.product_helpers import generate_product_snapshot
+                snapshot = generate_product_snapshot(product=new_product, source="manual_create")
+                if snapshot:
+                    new_product.code_definition_snapshot = snapshot
+
         # 提交事务
         db.session.commit()
 
@@ -1795,6 +1801,14 @@ def save_product_specs_api(product_id):
             # 补充 display_mn 字段（SpecService 不返回此字段）
             product = Product.query.get(product_id)  # 重新查询获取最新数据
             result['display_mn'] = product.display_mn if hasattr(product, 'display_mn') else None
+
+            # 更新编码定义快照
+            from app.utils.product_helpers import generate_product_snapshot
+            snapshot = generate_product_snapshot(product=product, source="manual_update")
+            if snapshot:
+                product.code_definition_snapshot = snapshot
+                db.session.commit()
+
             return jsonify(result)
         else:
             return jsonify(result), 500
@@ -2134,6 +2148,11 @@ def create_product():
                         )
                         if result.get('success'):
                             logger.info(f"已从SP8D导入 {len(specs_to_save)} 条规格到产品 {new_product.id}")
+                            # 生成编码定义快照
+                            from app.utils.product_helpers import generate_product_snapshot
+                            snapshot = generate_product_snapshot(product=new_product, source="sp8d_import")
+                            if snapshot:
+                                new_product.code_definition_snapshot = snapshot
                         else:
                             logger.warning(f"SP8D规格导入部分失败: {result.get('message')}")
                     else:
