@@ -129,6 +129,12 @@ Tailwind 统一布局组件
                 </div>
             </div>
 
+            <!-- 产品积分 -->
+            <div id="navProductPoints" class="hidden items-center gap-1.5 cursor-default" title="{{ _('我的产品积分') }}">
+                <span id="navPointsCoin" class="flex-shrink-0"></span>
+                <span id="navPointsValue" class="text-sm font-semibold">--</span>
+            </div>
+
             <!-- 帮助/引导按钮 -->
             <button onclick="window.startOnboardingManually && window.startOnboardingManually()"
                     class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
@@ -355,12 +361,47 @@ Tailwind 统一布局组件
     // 暴露到全局，供其他页面调用
     window.updateCalendarPendingDot = updateCalendarPendingDot;
 
+    // ========== 产品积分导航栏 ==========
+    function loadNavProductPoints() {
+        const container = document.getElementById('navProductPoints');
+        if (!container) return;
+
+        fetch('/api/v1/user/product-points-summary')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success || !data.total_points) return;
+                const tier = data.points_tier || 'bronze';
+                const colors = {gold:'#EAB308', silver:'#A1A1AA', bronze:'#F97316'};
+                const strokes = {gold:'#CA8A04', silver:'#71717A', bronze:'#EA580C'};
+                const textClasses = {gold:'text-yellow-600', silver:'text-zinc-500', bronze:'text-orange-500'};
+                const c = colors[tier] || colors.bronze, s = strokes[tier] || strokes.bronze;
+
+                document.getElementById('navPointsCoin').innerHTML =
+                    `<svg class="w-5 h-5 inline-block" viewBox="0 0 24 24" fill="none">` +
+                    `<circle cx="12" cy="12" r="10.5" fill="${c}" opacity="0.15"/>` +
+                    `<circle cx="12" cy="12" r="9.5" stroke="${c}" stroke-width="1.5"/>` +
+                    `<circle cx="12" cy="12" r="7" stroke="${c}" stroke-width="0.75" opacity="0.4"/>` +
+                    `<text x="12" y="16.5" text-anchor="middle" font-size="11" font-weight="700" fill="${s}" font-family="serif">$</text>` +
+                    `</svg>`;
+
+                const valueEl = document.getElementById('navPointsValue');
+                valueEl.textContent = data.total_points.toLocaleString();
+                valueEl.className = 'text-sm font-semibold ' + (textClasses[tier] || textClasses.bronze);
+
+                container.classList.remove('hidden');
+                container.classList.add('flex');
+            })
+            .catch(() => {});
+    }
+
     // 初始化
     document.addEventListener('DOMContentLoaded', updateLanguageDisplay);
     document.addEventListener('DOMContentLoaded', updateCalendarPendingDot);
+    document.addEventListener('DOMContentLoaded', loadNavProductPoints);
     if (document.readyState !== 'loading') {
         updateLanguageDisplay();
         updateCalendarPendingDot();
+        loadNavProductPoints();
     }
 })();
 </script>

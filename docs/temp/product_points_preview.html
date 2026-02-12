@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>产品积分系统 - UI预览 v3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <style>
+        body { background: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        .preview-section { margin-bottom: 48px; }
+        .preview-label {
+            display: inline-block;
+            background: #6366f1;
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 10px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body class="p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-2xl font-bold text-slate-900 mb-2">产品积分系统 - UI 效果预览 v3</h1>
+        <p class="text-sm text-slate-500 mb-8">
+            修改：导航栏无外框 | 新阈值(100万/1000万) | 银色方案对比选择
+        </p>
+
+        <!-- SVG渐变定义 (全局) -->
+        <svg width="0" height="0" style="position:absolute">
+            <defs>
+                <!-- 金色渐变 -->
+                <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#FCD34D"/>
+                    <stop offset="50%" style="stop-color:#EAB308"/>
+                    <stop offset="100%" style="stop-color:#CA8A04"/>
+                </linearGradient>
+                <!-- 银色方案A: 金属银 (冷灰+高光渐变) -->
+                <linearGradient id="silverGradA" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#D4D4D8"/>
+                    <stop offset="35%" style="stop-color:#A1A1AA"/>
+                    <stop offset="65%" style="stop-color:#D4D4D8"/>
+                    <stop offset="100%" style="stop-color:#71717A"/>
+                </linearGradient>
+                <!-- 银色方案B: 钢蓝银 -->
+                <linearGradient id="silverGradB" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#CBD5E1"/>
+                    <stop offset="40%" style="stop-color:#94A3B8"/>
+                    <stop offset="70%" style="stop-color:#CBD5E1"/>
+                    <stop offset="100%" style="stop-color:#64748B"/>
+                </linearGradient>
+                <!-- 银色方案C: 珍珠银 (暖白银) -->
+                <linearGradient id="silverGradC" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#E2E8F0"/>
+                    <stop offset="30%" style="stop-color:#B0B8C8"/>
+                    <stop offset="60%" style="stop-color:#D6DCE5"/>
+                    <stop offset="100%" style="stop-color:#8892A0"/>
+                </linearGradient>
+                <!-- 铜色渐变 -->
+                <linearGradient id="bronzeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#FDBA74"/>
+                    <stop offset="50%" style="stop-color:#F97316"/>
+                    <stop offset="100%" style="stop-color:#EA580C"/>
+                </linearGradient>
+            </defs>
+        </svg>
+
+        <script>
+            // v3 配色 - 渐变金属质感
+            const TIER_CONFIG = {
+                gold:   { color: '#EAB308', stroke: '#CA8A04', textClass: 'text-yellow-600' },
+                bronze: { color: '#F97316', stroke: '#EA580C', textClass: 'text-orange-500' },
+            };
+
+            // 三个银色方案
+            const SILVER_OPTIONS = {
+                A: { label: '金属银', color: '#A1A1AA', stroke: '#71717A', grad: 'silverGradA', textClass: 'text-zinc-500', desc: 'zinc系 纯金属质感' },
+                B: { label: '钢蓝银', color: '#94A3B8', stroke: '#64748B', grad: 'silverGradB', textClass: 'text-slate-500', desc: 'slate系 微蓝银' },
+                C: { label: '珍珠银', color: '#B0B8C8', stroke: '#8892A0', grad: 'silverGradC', textClass: 'text-slate-400', desc: '暖白银 柔和' },
+            };
+
+            // 当前选中的银色方案 (默认A)
+            let currentSilver = 'A';
+
+            function coinSvg(tier, sizeClass, silverOption) {
+                silverOption = silverOption || currentSilver;
+                let gradId, fillColor, strokeColor, textColor;
+
+                if (tier === 'gold') {
+                    gradId = 'goldGrad';
+                    fillColor = '#EAB308';
+                    strokeColor = '#CA8A04';
+                    textColor = '#A16207';
+                } else if (tier === 'silver') {
+                    const s = SILVER_OPTIONS[silverOption];
+                    gradId = s.grad;
+                    fillColor = s.color;
+                    strokeColor = s.stroke;
+                    textColor = s.stroke;
+                } else {
+                    gradId = 'bronzeGrad';
+                    fillColor = '#F97316';
+                    strokeColor = '#EA580C';
+                    textColor = '#C2410C';
+                }
+
+                return `<svg class="${sizeClass} inline-block flex-shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="10.5" fill="url(#${gradId})" opacity="0.2"/>
+                    <circle cx="12" cy="12" r="9.5" stroke="url(#${gradId})" stroke-width="1.5"/>
+                    <circle cx="12" cy="12" r="7" stroke="${fillColor}" stroke-width="0.75" opacity="0.4"/>
+                    <text x="12" y="16.5" text-anchor="middle" font-size="11" font-weight="700" fill="${textColor}" font-family="serif">$</text>
+                </svg>`;
+            }
+
+            function getTierTextClass(tier, silverOption) {
+                silverOption = silverOption || currentSilver;
+                if (tier === 'gold') return 'text-yellow-600';
+                if (tier === 'silver') return SILVER_OPTIONS[silverOption].textClass;
+                return 'text-orange-500';
+            }
+        </script>
+
+        <!-- ============================================ -->
+        <!-- 0. 银色方案对比选择 -->
+        <!-- ============================================ -->
+        <div class="preview-section">
+            <div class="preview-label">银色方案对比 - 请选择</div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <p class="text-sm text-slate-600 mb-4">三种银色渐变方案，均使用 SVG linearGradient 实现金属质感（非纯灰色）：</p>
+                <div class="grid grid-cols-3 gap-6">
+                    <!-- 方案A -->
+                    <div class="p-4 rounded-xl border-2 border-zinc-300 bg-zinc-50 relative">
+                        <div class="absolute top-2 right-2 px-2 py-0.5 bg-zinc-500 text-white text-[10px] font-bold rounded">A</div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <span id="silver-a-big"></span>
+                            <div>
+                                <span class="text-sm font-bold text-zinc-600">方案A: 金属银</span>
+                                <p class="text-xs text-zinc-400">zinc系 · 纯金属质感</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2 bg-white rounded-lg px-3 py-2">
+                                <span id="silver-a-sm"></span>
+                                <span class="text-lg font-bold text-zinc-500">2,580,000</span>
+                            </div>
+                            <div class="flex items-center gap-2 px-1">
+                                <span id="silver-a-xs"></span>
+                                <span class="text-xs font-semibold text-zinc-500">86,500</span>
+                                <span class="text-[10px] text-zinc-400 ml-1">导航栏效果</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 方案B -->
+                    <div class="p-4 rounded-xl border-2 border-slate-300 bg-slate-50 relative">
+                        <div class="absolute top-2 right-2 px-2 py-0.5 bg-slate-500 text-white text-[10px] font-bold rounded">B</div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <span id="silver-b-big"></span>
+                            <div>
+                                <span class="text-sm font-bold text-slate-600">方案B: 钢蓝银</span>
+                                <p class="text-xs text-slate-400">slate系 · 微蓝银</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2 bg-white rounded-lg px-3 py-2">
+                                <span id="silver-b-sm"></span>
+                                <span class="text-lg font-bold text-slate-500">2,580,000</span>
+                            </div>
+                            <div class="flex items-center gap-2 px-1">
+                                <span id="silver-b-xs"></span>
+                                <span class="text-xs font-semibold text-slate-500">86,500</span>
+                                <span class="text-[10px] text-slate-400 ml-1">导航栏效果</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 方案C -->
+                    <div class="p-4 rounded-xl border-2 border-gray-300 bg-gray-50 relative">
+                        <div class="absolute top-2 right-2 px-2 py-0.5 bg-gray-400 text-white text-[10px] font-bold rounded">C</div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <span id="silver-c-big"></span>
+                            <div>
+                                <span class="text-sm font-bold text-gray-500">方案C: 珍珠银</span>
+                                <p class="text-xs text-gray-400">暖白银 · 柔和</p>
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex items-center gap-2 bg-white rounded-lg px-3 py-2">
+                                <span id="silver-c-sm"></span>
+                                <span class="text-lg font-bold text-gray-400">2,580,000</span>
+                            </div>
+                            <div class="flex items-center gap-2 px-1">
+                                <span id="silver-c-xs"></span>
+                                <span class="text-xs font-semibold text-gray-400">86,500</span>
+                                <span class="text-[10px] text-gray-300 ml-1">导航栏效果</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 三色并排对比 -->
+                <div class="mt-6 pt-4 border-t border-slate-200">
+                    <p class="text-xs text-slate-500 mb-3 font-semibold">三色并排对比 (铜 / 银 / 金)：</p>
+                    <div class="grid grid-cols-3 gap-6">
+                        <div>
+                            <p class="text-[10px] text-zinc-400 mb-2">方案A: 金属银</p>
+                            <div class="flex items-center gap-4">
+                                <span class="flex items-center gap-1"><span id="row-a-bronze"></span><span class="text-sm font-bold text-orange-500">580</span></span>
+                                <span class="flex items-center gap-1"><span id="row-a-silver"></span><span class="text-sm font-bold text-zinc-500">2.58M</span></span>
+                                <span class="flex items-center gap-1"><span id="row-a-gold"></span><span class="text-sm font-bold text-yellow-600">15.8M</span></span>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 mb-2">方案B: 钢蓝银</p>
+                            <div class="flex items-center gap-4">
+                                <span class="flex items-center gap-1"><span id="row-b-bronze"></span><span class="text-sm font-bold text-orange-500">580</span></span>
+                                <span class="flex items-center gap-1"><span id="row-b-silver"></span><span class="text-sm font-bold text-slate-500">2.58M</span></span>
+                                <span class="flex items-center gap-1"><span id="row-b-gold"></span><span class="text-sm font-bold text-yellow-600">15.8M</span></span>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-gray-400 mb-2">方案C: 珍珠银</p>
+                            <div class="flex items-center gap-4">
+                                <span class="flex items-center gap-1"><span id="row-c-bronze"></span><span class="text-sm font-bold text-orange-500">580</span></span>
+                                <span class="flex items-center gap-1"><span id="row-c-silver"></span><span class="text-sm font-bold text-gray-400">2.58M</span></span>
+                                <span class="flex items-center gap-1"><span id="row-c-gold"></span><span class="text-sm font-bold text-yellow-600">15.8M</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // 银色大图标
+            document.getElementById('silver-a-big').innerHTML = coinSvg('silver', 'w-12 h-12', 'A');
+            document.getElementById('silver-b-big').innerHTML = coinSvg('silver', 'w-12 h-12', 'B');
+            document.getElementById('silver-c-big').innerHTML = coinSvg('silver', 'w-12 h-12', 'C');
+            // 银色中图标
+            document.getElementById('silver-a-sm').innerHTML = coinSvg('silver', 'w-6 h-6', 'A');
+            document.getElementById('silver-b-sm').innerHTML = coinSvg('silver', 'w-6 h-6', 'B');
+            document.getElementById('silver-c-sm').innerHTML = coinSvg('silver', 'w-6 h-6', 'C');
+            // 银色小图标
+            document.getElementById('silver-a-xs').innerHTML = coinSvg('silver', 'w-4 h-4', 'A');
+            document.getElementById('silver-b-xs').innerHTML = coinSvg('silver', 'w-4 h-4', 'B');
+            document.getElementById('silver-c-xs').innerHTML = coinSvg('silver', 'w-4 h-4', 'C');
+            // 三色并排
+            ['a','b','c'].forEach(opt => {
+                const O = opt.toUpperCase();
+                document.getElementById(`row-${opt}-bronze`).innerHTML = coinSvg('bronze', 'w-5 h-5', O);
+                document.getElementById(`row-${opt}-silver`).innerHTML = coinSvg('silver', 'w-5 h-5', O);
+                document.getElementById(`row-${opt}-gold`).innerHTML = coinSvg('gold', 'w-5 h-5', O);
+            });
+        </script>
+
+        <!-- ============================================ -->
+        <!-- 1. 新阈值三级金币体系 -->
+        <!-- ============================================ -->
+        <div class="preview-section">
+            <div class="preview-label">新阈值三级金币体系</div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="grid grid-cols-3 gap-8">
+                    <!-- 铜币 -->
+                    <div class="text-center p-4 rounded-xl bg-orange-50 border border-orange-200">
+                        <div class="mb-3" id="coin-bronze-demo"></div>
+                        <h3 class="text-lg font-bold text-orange-500">铜币</h3>
+                        <p class="text-xs text-slate-500 mt-1">积分 < 1,000,000</p>
+                        <p class="text-xs text-slate-400 mt-0.5">百万以下产品</p>
+                        <div class="mt-3 flex items-center justify-center gap-2">
+                            <span id="coin-bronze-sm"></span>
+                            <span class="text-xl font-bold text-orange-500">580,000</span>
+                        </div>
+                    </div>
+                    <!-- 银币 (使用方案A默认) -->
+                    <div class="text-center p-4 rounded-xl bg-zinc-50 border border-zinc-200">
+                        <div class="mb-3" id="coin-silver-demo"></div>
+                        <h3 class="text-lg font-bold text-zinc-500">银币</h3>
+                        <p class="text-xs text-slate-500 mt-1">1,000,000 ~ 9,999,999</p>
+                        <p class="text-xs text-slate-400 mt-0.5">百万至千万级产品</p>
+                        <div class="mt-3 flex items-center justify-center gap-2">
+                            <span id="coin-silver-sm"></span>
+                            <span class="text-xl font-bold text-zinc-500">2,580,000</span>
+                        </div>
+                    </div>
+                    <!-- 金币 -->
+                    <div class="text-center p-4 rounded-xl bg-yellow-50 border border-yellow-300">
+                        <div class="mb-3" id="coin-gold-demo"></div>
+                        <h3 class="text-lg font-bold text-yellow-600">金币</h3>
+                        <p class="text-xs text-slate-500 mt-1">≥ 10,000,000</p>
+                        <p class="text-xs text-slate-400 mt-0.5">千万以上方案</p>
+                        <div class="mt-3 flex items-center justify-center gap-2">
+                            <span id="coin-gold-sm"></span>
+                            <span class="text-xl font-bold text-yellow-600">36,000,000</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            document.getElementById('coin-bronze-demo').innerHTML = coinSvg('bronze', 'w-12 h-12');
+            document.getElementById('coin-silver-demo').innerHTML = coinSvg('silver', 'w-12 h-12', 'A');
+            document.getElementById('coin-gold-demo').innerHTML = coinSvg('gold', 'w-12 h-12');
+            document.getElementById('coin-bronze-sm').innerHTML = coinSvg('bronze', 'w-5 h-5');
+            document.getElementById('coin-silver-sm').innerHTML = coinSvg('silver', 'w-5 h-5', 'A');
+            document.getElementById('coin-gold-sm').innerHTML = coinSvg('gold', 'w-5 h-5');
+        </script>
+
+        <!-- ============================================ -->
+        <!-- 2. 产品详情页 - 三种等级 -->
+        <!-- ============================================ -->
+        <div class="preview-section">
+            <div class="preview-label">产品详情页 - 侧边栏 (三种等级对比)</div>
+            <div class="grid grid-cols-3 gap-6">
+                <!-- 金币产品 -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-5 space-y-4">
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium mb-1">市场价格</p>
+                            <div class="flex items-baseline">
+                                <span class="text-2xl font-bold text-slate-900">¥5,800,000</span>
+                                <span class="ml-1 text-xs text-slate-500">CNY</span>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-slate-200">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-xs text-slate-500 uppercase tracking-wide font-semibold">产品积分</p>
+                                <span class="text-xs text-slate-400">系数: 3.0X</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span id="detail-gold"></span>
+                                <span class="text-2xl font-bold text-yellow-600">17,400,000</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">= 3.0 × ¥5,800,000</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 银币产品 -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-5 space-y-4">
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium mb-1">市场价格</p>
+                            <div class="flex items-baseline">
+                                <span class="text-2xl font-bold text-slate-900">¥580,000</span>
+                                <span class="ml-1 text-xs text-slate-500">CNY</span>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-slate-200">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-xs text-slate-500 uppercase tracking-wide font-semibold">产品积分</p>
+                                <span class="text-xs text-slate-400">系数: 2.5X</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span id="detail-silver"></span>
+                                <span class="text-2xl font-bold text-zinc-500">1,450,000</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">= 2.5 × ¥580,000</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 铜币产品 -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-5 space-y-4">
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium mb-1">市场价格</p>
+                            <div class="flex items-baseline">
+                                <span class="text-2xl font-bold text-slate-900">¥15,000</span>
+                                <span class="ml-1 text-xs text-slate-500">CNY</span>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-slate-200">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-xs text-slate-500 uppercase tracking-wide font-semibold">产品积分</p>
+                                <span class="text-xs text-slate-400">系数: 1.0X</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span id="detail-bronze"></span>
+                                <span class="text-2xl font-bold text-orange-500">15,000</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">= 1.0 × ¥15,000</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            document.getElementById('detail-gold').innerHTML = coinSvg('gold', 'w-7 h-7');
+            document.getElementById('detail-silver').innerHTML = coinSvg('silver', 'w-7 h-7', 'A');
+            document.getElementById('detail-bronze').innerHTML = coinSvg('bronze', 'w-7 h-7');
+        </script>
+
+        <!-- ============================================ -->
+        <!-- 3. 全局导航栏 (无外框无底色) -->
+        <!-- ============================================ -->
+        <div class="preview-section">
+            <div class="preview-label">全局导航栏 - 无外框无底色 (三种等级用户)</div>
+
+            <!-- 金币用户 -->
+            <div class="bg-slate-50 rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-3">
+                <header class="h-14 flex items-center px-6 bg-white border-b border-slate-200">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-indigo-500 rounded-full flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                        <h1 class="text-slate-900 text-sm font-medium">PMA System</h1>
+                    </div>
+                    <div class="flex-1"></div>
+                    <div class="flex items-center gap-3">
+                        <button class="flex items-center gap-1.5 px-2.5 h-9 rounded-lg text-slate-600 text-sm">
+                            <span class="material-symbols-outlined text-base">language</span>
+                            <span class="text-xs">中文</span>
+                        </button>
+                        <!-- 金币用户 - 无外框 -->
+                        <div class="flex items-center gap-1.5 cursor-default" title="我的产品积分">
+                            <span id="nav-gold"></span>
+                            <span class="text-sm font-semibold text-yellow-600">12,458,000</span>
+                        </div>
+                        <button class="w-9 h-9 rounded-lg text-slate-500 flex items-center justify-center"><span class="material-symbols-outlined text-xl">calendar_today</span></button>
+                        <button class="w-9 h-9 rounded-lg text-slate-500 flex items-center justify-center"><span class="material-symbols-outlined text-xl">notifications</span></button>
+                        <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold text-xs">PM</div>
+                    </div>
+                </header>
+            </div>
+
+            <!-- 银币用户 -->
+            <div class="bg-slate-50 rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-3">
+                <header class="h-14 flex items-center px-6 bg-white border-b border-slate-200">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-indigo-500 rounded-full flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                        <h1 class="text-slate-900 text-sm font-medium">PMA System</h1>
+                    </div>
+                    <div class="flex-1"></div>
+                    <div class="flex items-center gap-3">
+                        <button class="flex items-center gap-1.5 px-2.5 h-9 rounded-lg text-slate-600 text-sm">
+                            <span class="material-symbols-outlined text-base">language</span>
+                            <span class="text-xs">中文</span>
+                        </button>
+                        <!-- 银币用户 - 无外框 -->
+                        <div class="flex items-center gap-1.5 cursor-default" title="我的产品积分">
+                            <span id="nav-silver"></span>
+                            <span class="text-sm font-semibold text-zinc-500">2,580,000</span>
+                        </div>
+                        <button class="w-9 h-9 rounded-lg text-slate-500 flex items-center justify-center"><span class="material-symbols-outlined text-xl">notifications</span></button>
+                        <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-semibold text-xs">LW</div>
+                    </div>
+                </header>
+            </div>
+
+            <!-- 铜币用户 -->
+            <div class="bg-slate-50 rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <header class="h-14 flex items-center px-6 bg-white border-b border-slate-200">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-indigo-500 rounded-full flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                        </div>
+                        <h1 class="text-slate-900 text-sm font-medium">PMA System</h1>
+                    </div>
+                    <div class="flex-1"></div>
+                    <div class="flex items-center gap-3">
+                        <button class="flex items-center gap-1.5 px-2.5 h-9 rounded-lg text-slate-600 text-sm">
+                            <span class="material-symbols-outlined text-base">language</span>
+                            <span class="text-xs">中文</span>
+                        </button>
+                        <!-- 铜币用户 - 无外框 -->
+                        <div class="flex items-center gap-1.5 cursor-default" title="我的产品积分">
+                            <span id="nav-bronze"></span>
+                            <span class="text-sm font-semibold text-orange-500">680,000</span>
+                        </div>
+                        <button class="w-9 h-9 rounded-lg text-slate-500 flex items-center justify-center"><span class="material-symbols-outlined text-xl">notifications</span></button>
+                        <div class="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-semibold text-xs">XZ</div>
+                    </div>
+                </header>
+            </div>
+        </div>
+
+        <script>
+            document.getElementById('nav-gold').innerHTML = coinSvg('gold', 'w-5 h-5');
+            document.getElementById('nav-silver').innerHTML = coinSvg('silver', 'w-5 h-5', 'A');
+            document.getElementById('nav-bronze').innerHTML = coinSvg('bronze', 'w-5 h-5');
+        </script>
+
+        <!-- ============================================ -->
+        <!-- 4. 报价单详情 -->
+        <!-- ============================================ -->
+        <div class="preview-section">
+            <div class="preview-label">报价单详情 - 基本信息区积分汇总 + 纯净产品明细表</div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <!-- 基本信息卡片 -->
+                <div class="p-6 border-b border-slate-200">
+                    <h3 class="text-sm font-semibold text-slate-900 mb-4">基本信息</h3>
+                    <div class="grid grid-cols-4 gap-4 text-sm">
+                        <div>
+                            <span class="text-slate-500">关联项目</span>
+                            <p class="font-medium text-indigo-600 mt-0.5">某市智慧城市项目</p>
+                        </div>
+                        <div>
+                            <span class="text-slate-500">报价总额</span>
+                            <p class="font-medium text-slate-900 mt-0.5">¥21,850,000.00</p>
+                        </div>
+                        <div>
+                            <span class="text-slate-500">植入总额</span>
+                            <p class="font-medium text-slate-900 mt-0.5">¥19,600,000.00</p>
+                        </div>
+                        <!-- 积分总额 -->
+                        <div>
+                            <span class="text-slate-500">积分总额</span>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span id="summary-coin"></span>
+                                <p class="font-bold text-yellow-600">48,150,000</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 产品明细表格 (保持干净) -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 bg-slate-50">
+                                <th class="p-3 text-center text-xs font-semibold text-slate-500 uppercase">序号</th>
+                                <th class="p-3 text-left text-xs font-semibold text-slate-500 uppercase">产品名称</th>
+                                <th class="p-3 text-left text-xs font-semibold text-slate-500 uppercase">产品型号</th>
+                                <th class="p-3 text-left text-xs font-semibold text-slate-500 uppercase">品牌</th>
+                                <th class="p-3 text-center text-xs font-semibold text-slate-500 uppercase">数量</th>
+                                <th class="p-3 text-right text-xs font-semibold text-slate-500 uppercase">单价</th>
+                                <th class="p-3 text-right text-xs font-semibold text-slate-500 uppercase">总价</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-b border-slate-100 hover:bg-slate-50">
+                                <td class="p-3 text-center text-sm font-bold text-slate-700">1</td>
+                                <td class="p-3 text-sm font-medium text-slate-700">智慧基站 Pro</td>
+                                <td class="p-3 text-sm text-slate-600">BS-X500-PRO</td>
+                                <td class="p-3 text-sm text-slate-600">华为</td>
+                                <td class="p-3 text-sm text-center text-slate-600">2</td>
+                                <td class="p-3 text-sm text-right text-slate-600">¥5,800,000.00</td>
+                                <td class="p-3 text-sm text-right font-medium text-slate-900">¥11,600,000.00</td>
+                            </tr>
+                            <tr class="bg-slate-50/50 border-b border-slate-100">
+                                <td class="p-3 text-center text-sm text-slate-500">1.1</td>
+                                <td class="p-3 text-sm text-slate-500"><span class="text-slate-400 mr-1">└</span>天线模块</td>
+                                <td class="p-3 text-sm text-slate-500">ANT-3600</td>
+                                <td class="p-3 text-sm text-slate-500">华为</td>
+                                <td class="p-3 text-sm text-center text-slate-500">2</td>
+                                <td class="p-3 text-sm text-right text-slate-500">¥450,000.00</td>
+                                <td class="p-3 text-sm text-right text-slate-500">¥900,000.00</td>
+                            </tr>
+                            <tr class="border-b border-slate-100 hover:bg-slate-50">
+                                <td class="p-3 text-center text-sm font-bold text-slate-700">2</td>
+                                <td class="p-3 text-sm font-medium text-slate-700">核心交换机集群</td>
+                                <td class="p-3 text-sm text-slate-600">SW-9300X</td>
+                                <td class="p-3 text-sm text-slate-600">新华三</td>
+                                <td class="p-3 text-sm text-center text-slate-600">5</td>
+                                <td class="p-3 text-sm text-right text-slate-600">¥450,000.00</td>
+                                <td class="p-3 text-sm text-right font-medium text-slate-900">¥2,250,000.00</td>
+                            </tr>
+                            <tr class="hover:bg-slate-50">
+                                <td class="p-3 text-center text-sm font-bold text-slate-700">3</td>
+                                <td class="p-3 text-sm font-medium text-slate-700">光纤跳线模块</td>
+                                <td class="p-3 text-sm text-slate-600">SFP-10G-LR</td>
+                                <td class="p-3 text-sm text-slate-600">锐捷</td>
+                                <td class="p-3 text-sm text-center text-slate-600">20</td>
+                                <td class="p-3 text-sm text-right text-slate-600">¥6,000.00</td>
+                                <td class="p-3 text-sm text-right font-medium text-slate-900">¥120,000.00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="text-xs text-slate-400 mt-2 ml-1">* 产品明细表保持干净，积分仅在基本信息区汇总显示</p>
+        </div>
+
+        <script>
+            document.getElementById('summary-coin').innerHTML = coinSvg('gold', 'w-5 h-5');
+        </script>
+
+        <!-- ============================================ -->
+        <!-- 5. 产品选择器 -->
+        <!-- ============================================ -->
+        <div class="preview-section">
+            <div class="preview-label">产品选择器 - 搜索结果</div>
+            <div class="max-w-lg">
+                <div class="bg-white border border-slate-300 rounded-lg px-4 py-2 mb-1 text-sm text-slate-400">
+                    搜索产品: <span class="text-slate-900">基站</span>
+                </div>
+                <div class="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden" style="width: 480px;">
+                    <!-- 金币 -->
+                    <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                        <div class="font-medium text-slate-900 text-sm">智慧基站 Pro</div>
+                        <div class="text-xs text-slate-500 mt-0.5">型号: BS-X500-PRO | 品牌: 华为</div>
+                        <div class="flex items-center gap-3 mt-1">
+                            <span class="text-xs font-medium text-indigo-600">¥5,800,000.00</span>
+                            <span class="flex items-center gap-1">
+                                <span id="search-1"></span>
+                                <span class="text-xs font-semibold text-yellow-600">17,400,000</span>
+                            </span>
+                        </div>
+                    </div>
+                    <!-- 银币 -->
+                    <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                        <div class="font-medium text-slate-900 text-sm">微基站 Lite</div>
+                        <div class="text-xs text-slate-500 mt-0.5">型号: BS-3200L | 品牌: 华为</div>
+                        <div class="flex items-center gap-3 mt-1">
+                            <span class="text-xs font-medium text-indigo-600">¥1,200,000.00</span>
+                            <span class="flex items-center gap-1">
+                                <span id="search-2"></span>
+                                <span class="text-xs font-semibold text-zinc-500">2,400,000</span>
+                            </span>
+                        </div>
+                    </div>
+                    <!-- 银币 (老产品) -->
+                    <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                        <div class="font-medium text-slate-900 text-sm">室外基站 A200</div>
+                        <div class="text-xs text-slate-500 mt-0.5">型号: BS-A200 | 品牌: 中兴</div>
+                        <div class="flex items-center gap-3 mt-1">
+                            <span class="text-xs font-medium text-indigo-600">¥850,000.00</span>
+                            <span class="flex items-center gap-1">
+                                <span id="search-3"></span>
+                                <span class="text-xs font-semibold text-orange-500">850,000</span>
+                            </span>
+                            <span class="text-[10px] text-slate-400">(1.0X)</span>
+                        </div>
+                    </div>
+                    <!-- 铜币 -->
+                    <div class="px-4 py-3 hover:bg-slate-50 cursor-pointer">
+                        <div class="font-medium text-slate-900 text-sm">基站电源模块</div>
+                        <div class="text-xs text-slate-500 mt-0.5">型号: PWR-48V | 品牌: 华为</div>
+                        <div class="flex items-center gap-3 mt-1">
+                            <span class="text-xs font-medium text-indigo-600">¥28,000.00</span>
+                            <span class="flex items-center gap-1">
+                                <span id="search-4"></span>
+                                <span class="text-xs font-semibold text-orange-500">28,000</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            document.getElementById('search-1').innerHTML = coinSvg('gold', 'w-3.5 h-3.5');
+            document.getElementById('search-2').innerHTML = coinSvg('silver', 'w-3.5 h-3.5', 'A');
+            document.getElementById('search-3').innerHTML = coinSvg('bronze', 'w-3.5 h-3.5');
+            document.getElementById('search-4').innerHTML = coinSvg('bronze', 'w-3.5 h-3.5');
+        </script>
+
+        <!-- ============================================ -->
+        <!-- 6. 系数衰减时间线 -->
+        <!-- ============================================ -->
+        <div class="preview-section">
+            <div class="preview-label">积分系数衰减示意 (¥5,800,000 产品)</div>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                <div class="flex items-center gap-4 overflow-x-auto pb-2">
+                    <div class="flex-shrink-0 text-center">
+                        <div class="text-xs text-slate-400 mb-2">创建</div>
+                        <div class="w-16 h-16 rounded-full bg-yellow-50 border-2 border-yellow-400 flex flex-col items-center justify-center">
+                            <span class="text-sm font-bold text-yellow-600">3.0X</span>
+                        </div>
+                        <div class="mt-2 flex items-center justify-center gap-0.5">
+                            <span id="tl-1"></span>
+                            <span class="text-xs font-bold text-yellow-600">17.4M</span>
+                        </div>
+                    </div>
+                    <span class="text-slate-300 flex-shrink-0">→</span>
+                    <div class="flex-shrink-0 text-center">
+                        <div class="text-xs text-slate-400 mb-2">3个月</div>
+                        <div class="w-16 h-16 rounded-full bg-yellow-50 border-2 border-yellow-300 flex flex-col items-center justify-center">
+                            <span class="text-sm font-bold text-yellow-500">2.5X</span>
+                        </div>
+                        <div class="mt-2 flex items-center justify-center gap-0.5">
+                            <span id="tl-2"></span>
+                            <span class="text-xs font-bold text-yellow-600">14.5M</span>
+                        </div>
+                    </div>
+                    <span class="text-slate-300 flex-shrink-0">→</span>
+                    <div class="flex-shrink-0 text-center">
+                        <div class="text-xs text-slate-400 mb-2">6个月</div>
+                        <div class="w-16 h-16 rounded-full bg-yellow-50 border-2 border-yellow-200 flex flex-col items-center justify-center">
+                            <span class="text-sm font-bold text-yellow-500">2.0X</span>
+                        </div>
+                        <div class="mt-2 flex items-center justify-center gap-0.5">
+                            <span id="tl-3"></span>
+                            <span class="text-xs font-bold text-yellow-600">11.6M</span>
+                        </div>
+                    </div>
+                    <span class="text-slate-300 flex-shrink-0">→</span>
+                    <div class="flex-shrink-0 text-center">
+                        <div class="text-xs text-slate-400 mb-2">9个月</div>
+                        <div class="w-16 h-16 rounded-full bg-zinc-100 border-2 border-zinc-300 flex flex-col items-center justify-center">
+                            <span class="text-sm font-bold text-zinc-500">1.5X</span>
+                        </div>
+                        <div class="mt-2 flex items-center justify-center gap-0.5">
+                            <span id="tl-4"></span>
+                            <span class="text-xs font-bold text-zinc-500">8.7M</span>
+                        </div>
+                    </div>
+                    <span class="text-slate-300 flex-shrink-0">→</span>
+                    <div class="flex-shrink-0 text-center">
+                        <div class="text-xs text-slate-400 mb-2">12个月+</div>
+                        <div class="w-16 h-16 rounded-full bg-zinc-100 border-2 border-zinc-200 flex flex-col items-center justify-center">
+                            <span class="text-sm font-bold text-zinc-400">1.0X</span>
+                        </div>
+                        <div class="mt-2 flex items-center justify-center gap-0.5">
+                            <span id="tl-5"></span>
+                            <span class="text-xs font-bold text-zinc-500">5.8M</span>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-400 mt-4 text-center">
+                    <span class="inline-flex items-center gap-1"><span id="tl-legend-gold"></span> 金 ≥10M</span>
+                    <span class="mx-3">|</span>
+                    <span class="inline-flex items-center gap-1"><span id="tl-legend-silver"></span> 银 1M~10M</span>
+                    <span class="mx-3">|</span>
+                    <span class="inline-flex items-center gap-1"><span id="tl-legend-bronze"></span> 铜 <1M</span>
+                </p>
+            </div>
+        </div>
+
+        <script>
+            document.getElementById('tl-1').innerHTML = coinSvg('gold', 'w-3.5 h-3.5');
+            document.getElementById('tl-2').innerHTML = coinSvg('gold', 'w-3.5 h-3.5');
+            document.getElementById('tl-3').innerHTML = coinSvg('gold', 'w-3.5 h-3.5');
+            document.getElementById('tl-4').innerHTML = coinSvg('silver', 'w-3.5 h-3.5', 'A');
+            document.getElementById('tl-5').innerHTML = coinSvg('silver', 'w-3.5 h-3.5', 'A');
+            document.getElementById('tl-legend-gold').innerHTML = coinSvg('gold', 'w-4 h-4');
+            document.getElementById('tl-legend-silver').innerHTML = coinSvg('silver', 'w-4 h-4', 'A');
+            document.getElementById('tl-legend-bronze').innerHTML = coinSvg('bronze', 'w-4 h-4');
+        </script>
+
+    </div>
+</body>
+</html>

@@ -148,6 +148,28 @@ services:
         reservations:
           memory: 8M
 
+  # 保活心跳 - 防止 NAS 硬盘休眠导致首次外网访问 502
+  keepalive:
+    image: alpine:3.19
+    container_name: pma-keepalive
+    restart: unless-stopped
+    command: >
+      sh -c 'while true; do
+        wget -qO /dev/null http://pma-app:5000/health 2>/dev/null && echo "[$(date +%H:%M)] OK" || echo "[$(date +%H:%M)] FAIL";
+        sleep 240;
+      done'
+    depends_on:
+      pma:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 16M
+        reservations:
+          memory: 4M
+    networks:
+      - pma-network
+
 # 数据卷
 volumes:
   postgres_data:

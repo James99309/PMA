@@ -79,7 +79,10 @@ ProductSpecModal.open({
 
                             <!-- 选完规格后才显示的信息 -->
                             <div id="specSelectedInfo" class="hidden">
-                                <p id="specProductBrandLeft" class="text-sm text-slate-500 dark:text-slate-400 mb-4">--</p>
+                                <div class="flex items-center gap-2 mb-4">
+                                    <p id="specProductBrandLeft" class="text-sm text-slate-500 dark:text-slate-400">--</p>
+                                    <span id="specStep1PointsValue" class="hidden flex items-center gap-1 text-sm font-medium"></span>
+                                </div>
                                 <!-- 固定字段区域（编码规格）- 放在左侧图片下方 -->
                                 <div id="specFixedFields" class="space-y-2 text-sm">
                                     <!-- 固定字段由 JS 填充 -->
@@ -141,6 +144,10 @@ ProductSpecModal.open({
                                     <span class="text-slate-500 dark:text-slate-400 text-sm">{{ _('产品单价') }}</span>
                                     <span id="specStep2ProductPrice" class="text-xl font-bold text-primary">--</span>
                                 </div>
+                                <div id="specStep2PointsRow" class="hidden flex justify-between items-center mt-2">
+                                    <span class="text-slate-500 dark:text-slate-400 text-sm">{{ _('产品积分') }}</span>
+                                    <span id="specStep2PointsValue" class="flex items-center gap-1 text-sm font-medium"></span>
+                                </div>
                             </div>
                         </div>
 
@@ -188,6 +195,10 @@ ProductSpecModal.open({
                                 <div class="border-t border-slate-200 dark:border-slate-700 pt-3 flex justify-between items-center">
                                     <span class="text-lg font-semibold text-slate-800 dark:text-slate-200">{{ _('合计') }}</span>
                                     <span id="confirmTotalPrice" class="text-2xl font-bold text-primary">--</span>
+                                </div>
+                                <div id="confirmPointsRow" class="hidden pt-2 flex justify-between items-center text-sm">
+                                    <span class="text-slate-500 dark:text-slate-400">{{ _('产品积分') }}</span>
+                                    <span id="confirmPointsValue" class="flex items-center gap-1 font-medium"></span>
                                 </div>
                             </div>
                         </div>
@@ -311,6 +322,17 @@ ProductSpecModal.open({
 .spec-option-card.selected {
     border-color: var(--color-primary, #3b82f6);
     background-color: rgba(59, 130, 246, 0.1);
+}
+
+.spec-option-card.disabled {
+    opacity: 0.4;
+    cursor: pointer;
+}
+.spec-option-card.disabled .spec-option-radio {
+    border-color: #cbd5e1;
+}
+.dark .spec-option-card.disabled .spec-option-radio {
+    border-color: #334155;
 }
 
 /* 选项左侧：单选按钮 + 内容 */
@@ -691,6 +713,7 @@ const ProductSpecModal = (function() {
             remainingProducts: [...(config.products || [])],
             selectedProduct: null,
             userSelections: {},
+            autoSelectedPositions: new Set(),
             fixedFields: [],
             selectableFields: [],
             selectedConfigs: [],
@@ -763,6 +786,7 @@ const ProductSpecModal = (function() {
             remainingProducts: [],
             selectedProduct: null,
             userSelections: {},
+            autoSelectedPositions: new Set(),
             fixedFields: [],
             selectableFields: [],
             selectedConfigs: [],
@@ -987,23 +1011,38 @@ const ProductSpecModal = (function() {
      * 选择规格选项
      */
     function selectOption(position, code, value, unit) {
-        // 记录用户选择
+        // 用户手动选择：只清除下级自动选中的字段（上级保持不变，严格自上而下级联）
+        state.autoSelectedPositions.forEach(autoPos => {
+            if (autoPos > position) {
+                delete state.userSelections[autoPos];
+                // 清除该字段的 UI 选中状态
+                const container = document.querySelector(`.spec-field-group[data-position="${autoPos}"]`);
+                if (container) {
+                    container.querySelectorAll('.spec-option-card').forEach(c => c.classList.remove('selected'));
+                }
+            }
+        });
+        // 保留上级的自动选中，移除当前及下级
+        const keptAuto = new Set();
+        state.autoSelectedPositions.forEach(pos => {
+            if (pos < position) keptAuto.add(pos);
+        });
+        state.autoSelectedPositions = keptAuto;
+
+        // 此位置是用户手动选择，不标记为自动
         state.userSelections[position] = { code, value, unit: unit || null };
 
         // 更新选中状态的 UI（不重新渲染整个区域）
         updateOptionSelection(position, code);
 
-        // 根据选择过滤剩余产品
+        // 过滤 + 级联（内部只做 filterRemainingProducts，不触发重量级 UI）
         filterRemainingProducts();
+        updateOptionAvailability();
 
-        // 更新剩余产品数量和 MN 号
+        // 级联完成后，统一执行一次 UI 更新（避免中间状态导致左侧面板闪烁）
         updateRemainingCount();
         updateMNDisplay();
-
-        // 检查是否所有可选字段都已选择
         checkAllFieldsSelected();
-
-        // 更新按钮状态（检查是否可以进入下一步）
         updateButtons();
     }
 
@@ -1023,6 +1062,94 @@ const ProductSpecModal = (function() {
         const selectedCard = container.querySelector(`.spec-option-card[data-code="${selectedCode}"]`);
         if (selectedCard) {
             selectedCard.classList.add('selected');
+        }
+    }
+
+    /**
+     * 计算每个字段的有效选项集合
+     * 对于每个字段，遍历所有产品，找出在其他已选字段条件下仍然有效的 code 值
+     * @returns {Object} { position: Set<code> }
+     */
+    function getValidCodesPerField() {
+        const result = {};
+        state.selectableFields.forEach(field => {
+            const pos = field.position;
+            const validCodes = new Set();
+
+            state.products.forEach(product => {
+                const snapshot = parseSnapshot(product.code_definition_snapshot);
+                // 只检查【上级字段】的已选值（严格自上而下级联，上级永不灰化）
+                let matches = true;
+                for (const [p, sel] of Object.entries(state.userSelections)) {
+                    const pIdx = parseInt(p);
+                    if (pIdx >= pos) continue; // 只看上级字段（position < 当前）
+                    if (snapshot[pIdx] && snapshot[pIdx].code !== sel.code) {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches && snapshot[pos]) {
+                    validCodes.add(snapshot[pos].code);
+                }
+            });
+
+            result[pos] = validCodes;
+        });
+        return result;
+    }
+
+    /**
+     * 更新其他字段的可用性：灰化不兼容选项，自动选中唯一有效选项
+     */
+    function updateOptionAvailability() {
+        const validCodes = getValidCodesPerField();
+        let autoSelected = false;
+
+        state.selectableFields.forEach(field => {
+            const pos = field.position;
+            const valid = validCodes[pos];
+            if (!valid) return;
+
+            const container = document.querySelector(`.spec-field-group[data-position="${pos}"]`);
+            if (!container) return;
+
+            container.querySelectorAll('.spec-option-card').forEach(card => {
+                const code = card.dataset.code;
+                if (valid.has(code)) {
+                    card.classList.remove('disabled');
+                } else {
+                    card.classList.remove('selected');
+                    card.classList.add('disabled');
+                }
+            });
+
+            // 已选值失效 → 清除选择
+            const currentSel = state.userSelections[pos];
+            if (currentSel && !valid.has(currentSel.code)) {
+                delete state.userSelections[pos];
+            }
+
+            // 自动选中：该字段未选 或 已选值已失效，且只有1个有效选项
+            const activeSel = state.userSelections[pos];
+            const needsAuto = !activeSel;
+            if (needsAuto && valid.size === 1) {
+                const onlyCode = [...valid][0];
+                const opt = field.options.find(o => o.code === onlyCode);
+                if (opt) {
+                    state.userSelections[pos] = { code: opt.code, value: opt.value, unit: opt.unit || null };
+                    state.autoSelectedPositions.add(pos);
+                    updateOptionSelection(pos, opt.code);
+                    autoSelected = true;
+                }
+            }
+        });
+
+        // 如果有自动选择，重新过滤并递归处理级联
+        // UI 更新（updateRemainingCount/checkAllFieldsSelected/updateButtons）
+        // 由 selectOption() 在级联完成后统一执行，避免中间状态导致面板闪烁
+        if (autoSelected) {
+            filterRemainingProducts();
+            updateOptionAvailability();
         }
     }
 
@@ -1113,6 +1240,9 @@ const ProductSpecModal = (function() {
 
             // 渲染规格字段（从编码快照）
             renderSelectedSpecs();
+
+            // 积分显示（品牌右侧内联）
+            renderPointsInline('specStep1PointsValue', state.selectedProduct);
         } else {
             // 隐藏详细信息
             selectedInfoEl.classList.add('hidden');
@@ -1257,6 +1387,9 @@ const ProductSpecModal = (function() {
 
         // 产品价格
         if (priceEl) priceEl.textContent = formatPrice(product.retail_price || product.market_price);
+
+        // 积分显示
+        renderPointsRow('specStep2PointsRow', 'specStep2PointsValue', product);
 
         // 产品图片
         if (imageEl) {
@@ -1605,6 +1738,9 @@ const ProductSpecModal = (function() {
         if (specEl) specEl.textContent = product.specification || product.product_spec || '--';
         if (brandEl) brandEl.textContent = product.brand || '--';
         if (basePriceEl) basePriceEl.textContent = formatPrice(product.retail_price || product.market_price);
+
+        // 积分显示
+        renderPointsRow('confirmPointsRow', 'confirmPointsValue', product);
 
         if (imageEl) {
             const imageUrl = product.effective_image || product.image_path || product.image_url || product.image;
@@ -2132,6 +2268,51 @@ const ProductSpecModal = (function() {
 
         const symbol = currency === 'CNY' ? '¥' : '$';
         return `${symbol}${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    /**
+     * 生成积分HTML片段（金币图标+数值）
+     */
+    function pointsHtml(product, iconSize = 14) {
+        const pts = product.points;
+        if (!pts || pts <= 0) return null;
+        const tier = product.points_tier || 'bronze';
+        const colors = { gold: '#EAB308', silver: '#A1A1AA', bronze: '#F97316' };
+        const strokes = { gold: '#CA8A04', silver: '#71717A', bronze: '#EA580C' };
+        const fill = colors[tier] || colors.bronze;
+        const stroke = strokes[tier] || strokes.bronze;
+        return `<svg style="width:${iconSize}px;height:${iconSize}px;flex-shrink:0" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10.5" fill="${fill}" opacity="0.15"/><circle cx="12" cy="12" r="9.5" stroke="${fill}" stroke-width="1.5"/><circle cx="12" cy="12" r="7" stroke="${fill}" stroke-width="0.75" opacity="0.4"/><text x="12" y="16.5" text-anchor="middle" font-size="11" font-weight="700" fill="${stroke}" font-family="serif">$</text></svg><span style="color:${stroke}">${pts.toLocaleString()}</span>`;
+    }
+
+    /**
+     * 渲染积分行（复用于步骤2和步骤3，带标签的行）
+     */
+    function renderPointsRow(rowId, valueId, product) {
+        const row = document.getElementById(rowId);
+        const val = document.getElementById(valueId);
+        if (!row || !val) return;
+        const html = pointsHtml(product);
+        if (html) {
+            val.innerHTML = html;
+            row.classList.remove('hidden');
+        } else {
+            row.classList.add('hidden');
+        }
+    }
+
+    /**
+     * 渲染积分内联（步骤1品牌右侧，单元素显隐）
+     */
+    function renderPointsInline(elId, product) {
+        const el = document.getElementById(elId);
+        if (!el) return;
+        const html = pointsHtml(product);
+        if (html) {
+            el.innerHTML = html;
+            el.classList.remove('hidden');
+        } else {
+            el.classList.add('hidden');
+        }
     }
 
     /**

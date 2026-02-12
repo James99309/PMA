@@ -13,6 +13,7 @@
 {% from 'components/tw_editable_table.html' import tw_editable_table, tw_editable_table_styles, tw_editable_table_script with context %}
 {% from 'macros/product_config_modal.html' import render_product_config_modal with context %}
 {% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script with context %}
+{% from 'components/tw_coin_icon.html' import coin_icon with context %}
 {% from 'components/tw_pricing_order_modal.html' import tw_pricing_order_modal, tw_pricing_order_modal_script with context %}
 
 {# 批价按钮显示条件：产品明细确认是必须条件 #}
@@ -156,6 +157,16 @@
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
                 <!-- 基本信息 2/4 -->
                 <div id="basicInfoColumn" class="lg:col-span-2">
+                    {% set points_badge %}
+                    {% if quotation_total_points|default(0) > 0 %}
+                    <div class="flex items-center gap-1.5">
+                        {{ coin_icon(get_points_tier(quotation_total_points), 'sm') }}
+                        <span class="font-bold {{ points_tier_class(quotation_total_points) }}">
+                            {{ '{:,.0f}'.format(quotation_total_points) }}
+                        </span>
+                    </div>
+                    {% endif %}
+                    {% endset %}
                     {{ tw_info_card(
                         title=_('基本信息'),
                         columns=2,
@@ -169,7 +180,8 @@
                             {'label': _('项目类型'), 'badge': render_tw_project_type_badge(quotation.project_type) if quotation.project_type else none},
                             {'label': _('报价总额'), 'value': quotation.currency_symbol ~ "{:,.2f}".format(quotation.amount) if quotation.amount else quotation.currency_symbol ~ '0.00'},
                             {'label': _('植入总额'), 'value': quotation.currency_symbol ~ "{:,.2f}".format(quotation.implant_total_amount) if quotation.implant_total_amount else quotation.currency_symbol ~ '0.00'},
-                            {'label': _('负责人'), 'badge': render_tw_owner_badge(quotation.owner) if quotation.owner else none}
+                            {'label': _('负责人'), 'badge': render_tw_owner_badge(quotation.owner) if quotation.owner else none},
+                            {'label': _('产品积分'), 'badge': points_badge if quotation_total_points|default(0) > 0 else none}
                         ]
                     ) }}
                 </div>

@@ -1404,7 +1404,15 @@ def create_quotation():
                     current_app.logger.info('准备提交所有更改到数据库...')
                     db.session.commit()
                     current_app.logger.info(f'报价单数据保存完成: 总额={quotation.amount}, 植入总额={quotation.implant_total_amount}')
-                    
+
+                    # 写入积分流水
+                    try:
+                        from app.helpers.product_points import sync_quotation_points
+                        sync_quotation_points(quotation)
+                        db.session.commit()
+                    except Exception as pts_err:
+                        current_app.logger.warning(f"写入积分流水失败: {pts_err}")
+
                     # 记录创建历史
                     try:
                         from app.utils.change_tracker import ChangeTracker
@@ -2150,6 +2158,13 @@ def delete_quotation(id):
                 db.session.delete(detail)
             current_app.logger.info(f"已删除 {len(quotation_details)} 个报价单明细")
         
+        # 删除积分流水
+        try:
+            from app.helpers.product_points import delete_quotation_points
+            delete_quotation_points(id)
+        except Exception as pts_err:
+            current_app.logger.warning(f"删除积分流水失败: {pts_err}")
+
         db.session.delete(quotation)
         db.session.commit()
         flash(_('报价单删除成功！'), 'success')
@@ -2204,6 +2219,13 @@ def batch_delete_quotations():
                             for detail in quotation_details:
                                 db.session.delete(detail)
                         
+                        # 删除积分流水
+                        try:
+                            from app.helpers.product_points import delete_quotation_points
+                            delete_quotation_points(quotation_id)
+                        except Exception as pts_err:
+                            current_app.logger.warning(f"删除积分流水失败: {pts_err}")
+
                         # 删除报价单
                         db.session.delete(quotation)
                         deleted_count += 1
@@ -3213,8 +3235,13 @@ def view_quotation(id):
                 PricingOrder.status.in_(['draft', 'pending'])
             ).order_by(PricingOrder.created_at.desc()).first()
 
+        # 计算报价单产品积分汇总
+        from app.helpers.product_points import calculate_points_for_quotation_details
+        _detail_points_map, quotation_total_points = calculate_points_for_quotation_details(quotation.details)
+
         return render_template(template_name,
                              quotation=quotation,
+                             quotation_total_points=quotation_total_points,
                              all_users=all_users,
                              has_change_owner_permission=has_change_owner_permission,
                              user_tree_data=user_tree_data,
@@ -3580,6 +3607,14 @@ def save_quotation(id):
                 db.session.commit()
                 current_app.logger.info('数据库更改提交成功')
 
+                # 更新积分流水
+                try:
+                    from app.helpers.product_points import sync_quotation_points
+                    sync_quotation_points(quotation)
+                    db.session.commit()
+                except Exception as pts_err:
+                    current_app.logger.warning(f"更新积分流水失败: {pts_err}")
+
                 # 处理需要创建新研发产品的明细项
                 try:
                     created_products = create_products_from_configured_specs(quotation)
@@ -3720,6 +3755,15 @@ def change_quotation_owner(id):
         return redirect(url_for('quotation.view_quotation', id=id))
     quotation.owner_id = new_owner_id
     db.session.commit()
+
+    # 转移积分流水归属
+    try:
+        from app.helpers.product_points import transfer_quotation_points
+        transfer_quotation_points(quotation, new_owner_id)
+        db.session.commit()
+    except Exception as pts_err:
+        current_app.logger.warning(f"转移积分流水失败: {pts_err}")
+
     flash(_('报价单拥有人已更新'), 'success')
     return redirect(url_for('quotation.view_quotation', id=id))
 

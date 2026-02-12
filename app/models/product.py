@@ -43,6 +43,10 @@ class Product(db.Model):
     source_configuration_id = db.Column(db.Integer, db.ForeignKey('product_configurations.id'))  # 来源配置版本ID
     productized_at = db.Column(db.DateTime)  # 产品化时间
 
+    # 积分系数 - Admin手动设置起始值，设置后仍按时间衰减
+    points_coefficient_override = db.Column(db.Numeric(3, 1), nullable=True, comment='手动积分系数起始值(Admin设置,NULL=按created_at自动)')
+    points_coefficient_override_at = db.Column(db.DateTime, nullable=True, comment='手动系数设置时间(衰减起点)')
+
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -204,4 +208,28 @@ class Product(db.Model):
     @property
     def has_configuration_specs(self):
         """检查是否使用新的配置版本规格系统"""
-        return self.source_configuration_id is not None 
+        return self.source_configuration_id is not None
+
+    @property
+    def points_coefficient(self):
+        """积分系数：以起始值为基点，按时间衰减"""
+        from app.helpers.product_points import calculate_decaying_coefficient
+        if self.points_coefficient_override is not None:
+            return calculate_decaying_coefficient(
+                start_value=float(self.points_coefficient_override),
+                start_time=self.points_coefficient_override_at
+            )
+        return calculate_decaying_coefficient(start_time=self.created_at)
+
+    @property
+    def points(self):
+        """积分 = 系数 × retail_price"""
+        if not self.retail_price:
+            return 0
+        return round(self.points_coefficient * float(self.retail_price))
+
+    @property
+    def points_tier(self):
+        """积分等级: 'gold' / 'silver' / 'bronze'"""
+        from app.helpers.product_points import get_points_tier
+        return get_points_tier(self.points)

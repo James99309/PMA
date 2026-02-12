@@ -50,6 +50,7 @@ from app.models.meeting import (
     MeetingRecording, MeetingTranscript, MeetingSpeaker,
     MeetingMinutes, MeetingActionItem
 )
+from app.models.user_points_ledger import UserPointsLedger
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField',
@@ -81,4 +82,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'MeetingRecording', 'MeetingTranscript', 'MeetingSpeaker',
            'MeetingMinutes', 'MeetingActionItem',
            'QuotationConfirmationTask',
-           'Task', 'TaskAttachment', 'TaskReply']
+           'Task', 'TaskAttachment', 'TaskReply',
+           'UserPointsLedger']

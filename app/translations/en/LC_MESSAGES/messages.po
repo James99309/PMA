@@ -8336,3 +8336,27 @@ msgstr "Delete failed"
 
 msgid "加载失败"
 msgstr "Loading failed"
+
+msgid "产品积分"
+msgstr "Product Points"
+
+msgid "积分系数"
+msgstr "Points Coefficient"
+
+msgid "系数"
+msgstr "Coefficient"
+
+msgid "手动"
+msgstr "Manual"
+
+msgid "积分总额"
+msgstr "Total Points"
+
+msgid "我的产品积分"
+msgstr "My Product Points"
+
+msgid "留空=自动计算 (当前: {:.1f}X)"
+msgstr "Empty = auto (current: {:.1f}X)"
+
+msgid "留空表示按时间衰减自动计算系数"
+msgstr "Leave empty for auto-decaying coefficient"

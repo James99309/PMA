@@ -11,6 +11,7 @@
 {% from 'components/product/tw_spec_modals.html' import tw_spec_preview_modal, tw_spec_conflict_modal with context %}
 {% from 'components/product/tw_spec_list.html' import render_tw_spec_list, render_tw_spec_list_grouped with context %}
 {% from 'components/product/tw_spec_import_modal.html' import tw_spec_import_modal, tw_spec_import_script with context %}
+{% from 'components/tw_coin_icon.html' import coin_icon with context %}
 
 {# 产品状态徽章 #}
 {% macro render_tw_status_badge(status) %}
@@ -367,6 +368,27 @@
                                             {% endif %}
                                         </div>
                                     </div>
+
+                                    {# 产品积分 #}
+                                    {% if product.retail_price and product.points > 0 %}
+                                    <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
+                                        <div class="flex justify-between items-center mb-1">
+                                            <p class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-semibold">{{ _('产品积分') }}</p>
+                                            <span class="text-xs text-slate-400 dark:text-slate-500">{{ _('系数') }}: {{ '{:.1f}'.format(product.points_coefficient) }}X
+                                                {% if product.points_coefficient_override is not none %}<span class="text-orange-400">({{ _('手动') }})</span>{% endif %}
+                                            </span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            {{ coin_icon(product.points_tier, 'lg') }}
+                                            <span class="text-2xl font-bold {{ points_tier_class(product.points) }}">
+                                                {{ '{:,.0f}'.format(product.points) }}
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                            = {{ '{:.1f}'.format(product.points_coefficient) }} &times; {{ product.currency_symbol or currency_config.symbol }}{{ '{:,.2f}'.format(product.retail_price) }}
+                                        </p>
+                                    </div>
+                                    {% endif %}
 
                                     <!-- 订单进度条 -->
                                     {% set progress_percent = ((order_quantity / design_quantity) * 100)|round(0)|int if design_quantity > 0 else 0 %}

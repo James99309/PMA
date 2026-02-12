@@ -544,6 +544,20 @@ class ProductSelector {
                 background-color: rgba(220, 38, 38, 0.2);
                 color: #f87171;
             }
+            .product-points {
+                font-size: 0.75rem;
+                font-weight: 500;
+                white-space: nowrap;
+                display: inline-flex;
+                align-items: center;
+                gap: 2px;
+            }
+            .product-points.tier-gold { color: #CA8A04; }
+            .product-points.tier-silver { color: #71717A; }
+            .product-points.tier-bronze { color: #F97316; }
+            .dark .product-points.tier-gold { color: #EAB308; }
+            .dark .product-points.tier-silver { color: #A1A1AA; }
+            .dark .product-points.tier-bronze { color: #F97316; }
 
             /* 展开箭头和提示 */
             .expand-hint {
@@ -721,6 +735,21 @@ class ProductSelector {
         }, this.config.searchDelay);
     }
     
+    /**
+     * 渲染积分徽章（带金币图标，三级配色）
+     */
+    _renderPointsBadge(product) {
+        const pts = product.points;
+        if (!pts || pts <= 0) return '';
+        const tier = product.points_tier || 'bronze';
+        const colors = { gold: '#EAB308', silver: '#A1A1AA', bronze: '#F97316' };
+        const strokes = { gold: '#CA8A04', silver: '#71717A', bronze: '#EA580C' };
+        const fill = colors[tier] || colors.bronze;
+        const stroke = strokes[tier] || strokes.bronze;
+        const coinSvg = `<svg style="width:12px;height:12px;flex-shrink:0" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10.5" fill="${fill}" opacity="0.15"/><circle cx="12" cy="12" r="9.5" stroke="${fill}" stroke-width="1.5"/><circle cx="12" cy="12" r="7" stroke="${fill}" stroke-width="0.75" opacity="0.4"/><text x="12" y="16.5" text-anchor="middle" font-size="11" font-weight="700" fill="${stroke}" font-family="serif">$</text></svg>`;
+        return `<span class="product-points tier-${tier}">${coinSvg} ${pts.toLocaleString()}</span>`;
+    }
+
     /**
      * 显示产品选择菜单
      */
@@ -1129,6 +1158,7 @@ class ProductSelector {
                         </div>
                         <div class="product-price-area">
                             <span class="${priceClass}">${priceText}</span>
+                            ${this._renderPointsBadge(product)}
                             ${isDiscontinued ? '<span class="product-status-badge discontinued">停产</span>' : ''}
                         </div>
                     `;
@@ -1260,6 +1290,7 @@ class ProductSelector {
                 </div>
                 <div class="product-price-area">
                     <span class="${priceClass}">${price}</span>
+                    ${this._renderPointsBadge(product)}
                     ${isDiscontinued ? '<span class="product-status-badge discontinued">停产</span>' : ''}
                 </div>
             `;
@@ -1381,10 +1412,11 @@ class ProductSelector {
                     </div>
                     <div class="product-price-area">
                         <span class="${priceClass}">${priceText}</span>
+                        ${this._renderPointsBadge(product)}
                         ${isDiscontinued ? '<span class="product-status-badge discontinued">停产</span>' : ''}
                     </div>
                 `;
-                
+
                 // 点击直接选择该产品
                 item.addEventListener('click', () => {
                     // 构造完整的产品信息对象 - 修复字段映射
@@ -1663,7 +1695,13 @@ class ProductSelector {
                 const isDiscontinued = product.status === 'discontinued' || product.status === '停产';
                 const priceClass = isDiscontinued ? 'product-price-discontinued' : 'product-price';
                 const priceText = product.retail_price ? `${this.formatPriceWithCurrency(product.retail_price, product.currency)}${isDiscontinued ? ' (停产)' : ''}` : '';
-                
+
+                // 积分显示
+                const tierColors = {gold:'#EAB308', silver:'#A1A1AA', bronze:'#F97316'};
+                const tier = product.points_tier || 'bronze';
+                const pointsHtml = product.points ?
+                    `<span style="color:${tierColors[tier]};margin-left:8px;font-weight:500;">\u25CF ${product.points.toLocaleString()}</span>` : '';
+
                 item.innerHTML = `
                     <div class="product-info">
                         <div class="product-name">${product.product_name}</div>
@@ -1672,7 +1710,7 @@ class ProductSelector {
                             ${product.specification ? ` | 规格: ${product.specification}` : ''}
                             ${product.brand ? ` | 品牌: ${product.brand}` : ''}
                         </div>
-                        ${priceText ? `<div class="${priceClass}">${priceText}</div>` : ''}
+                        ${priceText ? `<div class="${priceClass}">${priceText}${pointsHtml}</div>` : ''}
                     </div>
                 `;
                 

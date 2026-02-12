@@ -1104,6 +1104,8 @@ def get_products():
                     'currency': p.currency if hasattr(p, 'currency') else Config.DEFAULT_CURRENCY,  # 添加货币字段
                     'status': p.status,
                     'is_vendor_product': p.is_vendor_product if hasattr(p, 'is_vendor_product') else False,  # 添加厂商产品标记
+                    'points': p.points,
+                    'points_tier': p.points_tier,
                     'created_at': p.created_at.strftime('%Y-%m-%d %H:%M:%S') if p.created_at else None,
                     'updated_at': p.updated_at.strftime('%Y-%m-%d %H:%M:%S') if p.updated_at else None,
                     'owner_id': p.owner_id,  # 添加所有者ID
@@ -2284,6 +2286,21 @@ def update_product(id):
                 return jsonify({'success': False, 'message': '零售价格格式不正确'}), 400
         else:
             product.retail_price = Decimal('0.00')
+
+        # 积分系数 (仅admin可设置)
+        if current_user.role == 'admin':
+            coeff_str = request.form.get('points_coefficient_override', '').strip()
+            if coeff_str:
+                try:
+                    new_val = float(coeff_str)
+                    if product.points_coefficient_override is None or float(product.points_coefficient_override) != new_val:
+                        product.points_coefficient_override = new_val
+                        product.points_coefficient_override_at = datetime.now()
+                except (ValueError, TypeError):
+                    pass
+            else:
+                product.points_coefficient_override = None
+                product.points_coefficient_override_at = None
 
         # 如果分类改变且已确认，清空规格数据并更新编码
         if category_changed and clear_specs_confirmed:
@@ -3500,7 +3517,10 @@ def get_products_by_subcategory_api():
                 'image_path': product.image_path,
                 'effective_image': effective_image,  # 三级引用图片
                 'config_count': config_count,
-                'has_configurations': config_count > 0
+                'has_configurations': config_count > 0,
+                'points': product.points,
+                'points_tier': product.points_tier,
+                'points_coefficient': float(product.points_coefficient) if product.points_coefficient else None
             }
 
             name_groups[name].append(product_data)
@@ -3531,6 +3551,80 @@ def get_products_by_subcategory_api():
             'success': False,
             'message': f'查询产品失败: {str(e)}'
         }), 500
+
+
+@bp.route('/api/products/search', methods=['GET'])
+@login_required
+def search_products_api():
+    """产品搜索API（供产品选择器使用）"""
+    try:
+        term = request.args.get('term', '').strip()
+        if not term or len(term) < 1:
+            return jsonify([])
+
+        from app.models.product_code import ProductSubcategory
+        search_term = f'%{term}%'
+
+        query = Product.query.outerjoin(
+            ProductSubcategory, Product.subcategory_id == ProductSubcategory.id
+        ).filter(
+            Product.status == 'active',
+            or_(
+                ProductSubcategory.name.ilike(search_term),
+                Product.product_name.ilike(search_term),
+                Product.product_mn.ilike(search_term),
+                Product.model.ilike(search_term),
+                Product.brand.ilike(search_term)
+            )
+        ).order_by(Product.product_mn.asc()).limit(20).all()
+
+        results = []
+        for p in query:
+            results.append({
+                'id': p.id,
+                'product_name': p.name,
+                'model': p.model,
+                'product_mn': p.product_mn,
+                'specification': p.specification,
+                'brand': p.brand,
+                'unit': p.unit,
+                'retail_price': float(p.retail_price) if p.retail_price else None,
+                'currency': p.currency,
+                'status': p.status,
+                'points': p.points,
+                'points_tier': p.points_tier
+            })
+
+        return jsonify(results)
+    except Exception as e:
+        logger.error(f'搜索产品失败: {str(e)}')
+        return jsonify([])
+
+
+@bp.route('/api/v1/user/product-points-summary', methods=['GET'])
+@login_required
+def get_user_product_points_summary():
+    """获取当前用户的产品积分汇总（从积分流水表读取，供导航栏使用）"""
+    try:
+        from app.models.user_points_ledger import UserPointsLedger
+        from app.helpers.product_points import get_points_tier
+
+        current_year = datetime.now().year
+        total_points = db.session.query(
+            db.func.coalesce(db.func.sum(UserPointsLedger.points), 0)
+        ).filter(
+            UserPointsLedger.user_id == current_user.id,
+            UserPointsLedger.year == current_year
+        ).scalar()
+
+        return jsonify({
+            'success': True,
+            'total_points': total_points,
+            'points_tier': get_points_tier(total_points)
+        })
+    except Exception as e:
+        logger.error(f'获取用户积分汇总失败: {str(e)}')
+        return jsonify({'success': False, 'total_points': 0, 'points_tier': 'bronze'})
 
 
 @bp.route('/api/products/<int:product_id>/configurations', methods=['GET'])
