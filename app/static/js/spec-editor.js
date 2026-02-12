@@ -958,37 +958,19 @@ class SpecEditor {
 
     /**
      * 加载规格选项
-     * 优先使用子分类过滤的API，获取继承关系下的正确选项
+     * 直接从规格字典获取（唯一真实来源）
      */
     async loadSpecOptions(selectElement, fieldName, currentValue) {
-        // 缓存键：如果有subcategoryId，按子分类缓存；否则按规格名称全局缓存
-        const cacheKey = this.subcategoryId ? `${this.subcategoryId}_${fieldName}` : fieldName;
+        const cacheKey = fieldName;
 
         if (!this.specOptionsCache[cacheKey]) {
             try {
-                // 优先使用子分类过滤的API
-                if (this.subcategoryId) {
-                    const response = await fetch(`/product-code/api/spec-field-options?subcategory_id=${this.subcategoryId}&spec_name=${encodeURIComponent(fieldName)}`);
-                    const result = await response.json();
-                    if (result.options && result.options.length > 0) {
-                        this.specOptionsCache[cacheKey] = result.options;
-                    }
-                }
-
-                // 如果没有子分类或获取失败，回退到全局规格字典
-                if (!this.specOptionsCache[cacheKey]) {
-                    const specsResponse = await fetch('/api/spec-dictionary');
-                    const specsResult = await specsResponse.json();
-                    if (specsResult.success) {
-                        const spec = specsResult.data.find(s => s.name === fieldName);
-                        if (spec) {
-                            const optionsResponse = await fetch(`/api/spec-dictionary/${spec.id}/options`);
-                            const optionsResult = await optionsResponse.json();
-                            if (optionsResult.success) {
-                                this.specOptionsCache[cacheKey] = optionsResult.data;
-                            }
-                        }
-                    }
+                const response = await fetch(
+                    `/api/spec-dictionary/options/by-name/${encodeURIComponent(fieldName)}?active_only=true`
+                );
+                const result = await response.json();
+                if (result.success && result.data && result.data.length > 0) {
+                    this.specOptionsCache[cacheKey] = result.data;
                 }
             } catch (error) {
                 console.error('加载规格选项失败:', error);

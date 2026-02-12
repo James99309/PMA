@@ -375,7 +375,7 @@
                                                 <span class="inline-flex px-2.5 py-0.5 text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded" x-text="ind.code"></span>
                                             </div>
                                             <div class="col-span-2 text-right">
-                                                {% if has_permission('product_code', 'delete') %}
+                                                {% if has_permission('product_code', 'edit') %}
                                                 <template x-if="ind.is_used">
                                                     <span class="w-7 h-7 rounded-lg text-slate-300 dark:text-slate-600 inline-flex items-center justify-center cursor-not-allowed"
                                                           :title="'{{ _('已被使用，无法删除') }}'">

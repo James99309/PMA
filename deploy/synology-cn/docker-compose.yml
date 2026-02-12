@@ -193,7 +193,7 @@ services:
         limits:
           memory: 16M
         reservations:
-          memory: 4M
+          memory: 6M
     networks:
       - pma-network
 
