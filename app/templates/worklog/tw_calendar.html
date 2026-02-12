@@ -670,7 +670,7 @@
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" x-show="!formData.is_all_day" x-transition>
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('开始时间') }}</label>
-                                        <input type="time" x-model="formData.start_time" @change="calculateDuration()"
+                                        <input type="time" x-model="formData.start_time" @change="updateEndTime()"
                                                class="w-full h-11 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary">
                                     </div>
                                     <div>
@@ -752,9 +752,18 @@
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('行动记录') }}</label>
-                                <textarea x-model="formData.description" rows="3"
-                                          class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
-                                          placeholder="{{ _('记录工作内容、沟通情况...') }}"></textarea>
+                                <div class="relative">
+                                    <textarea x-model="formData.description" rows="3"
+                                              class="w-full px-3 py-2 pr-8 pb-6 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
+                                              placeholder="{{ _('记录工作内容、沟通情况...') }}"></textarea>
+                                    <button type="button" @click="descriptionFullscreen = true"
+                                            class="absolute right-1.5 bottom-1.5 p-1 rounded text-slate-300 hover:text-slate-500 dark:text-slate-600 dark:hover:text-slate-400 transition-colors"
+                                            :title="'{{ _('全屏编辑') }}'">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 3h6m0 0v6m0-6l-7 7M9 21H3m0 0v-6m0 6l7-7"/>
+                                        </svg>
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- 共享用户 -->
@@ -823,6 +832,30 @@
                         </div>
                     </footer>
                 </div>
+            </div>
+        </div>
+
+        <!-- ==================== 行动记录全屏编辑 ==================== -->
+        <div x-show="descriptionFullscreen" x-cloak
+             class="fixed inset-0 z-[60] flex flex-col bg-white dark:bg-slate-900"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 translate-y-4"
+             x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 translate-y-0"
+             x-transition:leave-end="opacity-0 translate-y-4">
+            <header class="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                <h4 class="text-base font-medium text-slate-900 dark:text-white">{{ _('行动记录') }}</h4>
+                <button type="button" @click="descriptionFullscreen = false"
+                        class="h-9 px-4 rounded-lg text-sm font-medium text-white bg-primary hover:bg-primary/90 transition-colors">
+                    {{ _('完成') }}
+                </button>
+            </header>
+            <div class="flex-1 p-4">
+                <textarea x-model="formData.description" x-ref="fullscreenTextarea"
+                          class="w-full h-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm leading-relaxed focus:ring-2 focus:ring-primary/50 focus:border-primary resize-none"
+                          placeholder="{{ _('记录工作内容、沟通情况...') }}"
+                          x-init="$watch('descriptionFullscreen', v => { if(v) $nextTick(() => $refs.fullscreenTextarea.focus()) })"></textarea>
             </div>
         </div>
 
@@ -1627,6 +1660,7 @@ function workCalendar() {
         showProjectDropdown: false,
         showCustomerDropdown: false,
         searchTimer: null,
+        descriptionFullscreen: false,
         formData: {
             planned_date: '', end_date: '', work_type: 'other', is_all_day: false,
             is_business_trip: false, start_time: '', end_time: '', estimated_hours: '',
@@ -2427,6 +2461,7 @@ function workCalendar() {
         },
 
         closeWorkItemModal() {
+            this.descriptionFullscreen = false;
             document.getElementById('workItemModal').classList.add('hidden');
             document.body.style.overflow = '';
             this.editingItem = null;

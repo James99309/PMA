@@ -2835,6 +2835,39 @@ def get_product(id):
             'message': str(e)
         }), 500
 
+@bp.route('/api/products/<int:id>/coefficient', methods=['POST'])
+@login_required
+def update_product_coefficient(id):
+    """更新产品积分系数 (仅admin)"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '无权限'}), 403
+
+    product = Product.query.get_or_404(id)
+    data = request.get_json(silent=True) or {}
+    coeff_str = str(data.get('coefficient', '')).strip()
+
+    if coeff_str:
+        try:
+            val = float(coeff_str)
+            if val < 1.0 or val > 10.0:
+                return jsonify({'success': False, 'message': '系数范围 1.0 ~ 10.0'}), 400
+            product.points_coefficient_override = val
+            product.points_coefficient_override_at = datetime.now()
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': '系数格式不正确'}), 400
+    else:
+        product.points_coefficient_override = None
+        product.points_coefficient_override_at = None
+
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'coefficient': round(float(product.points_coefficient), 1),
+        'points': product.points,
+        'is_override': product.points_coefficient_override is not None
+    })
+
+
 @bp.route('/api/products/<int:id>/delete', methods=['POST'])
 @login_required
 # 注意：不使用 @permission_required 装饰器，因为创建者即使没有模块权限也可以删除自己的产品
@@ -3620,14 +3653,25 @@ def get_user_product_points_summary():
             UserPointsLedger.year == current_year
         ).scalar()
 
+        # 按来源分类汇总：quotation + pm_category 均归为"产品植入积分"
+        categories = []
+        if total_points > 0:
+            categories.append({
+                'name': '产品植入积分',
+                'name_en': 'Product Points',
+                'points': total_points
+            })
+
         return jsonify({
             'success': True,
             'total_points': total_points,
-            'points_tier': get_points_tier(total_points)
+            'points_tier': get_points_tier(total_points),
+            'year': current_year,
+            'categories': categories
         })
     except Exception as e:
         logger.error(f'获取用户积分汇总失败: {str(e)}')
-        return jsonify({'success': False, 'total_points': 0, 'points_tier': 'none'})
+        return jsonify({'success': False, 'total_points': 0, 'points_tier': 'none', 'year': datetime.now().year, 'categories': []})
 
 
 @bp.route('/api/products/<int:product_id>/configurations', methods=['GET'])

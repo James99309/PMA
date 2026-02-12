@@ -374,9 +374,30 @@
                                     <div class="pt-4 border-t border-slate-200 dark:border-slate-700">
                                         <div class="flex justify-between items-center mb-1">
                                             <p class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-semibold">{{ _('产品积分') }}</p>
-                                            <span class="text-xs text-slate-400 dark:text-slate-500">{{ _('系数') }}: {{ '{:.1f}'.format(product.points_coefficient) }}X
+                                            <span class="text-xs text-slate-400 dark:text-slate-500" id="coeffDisplay">
+                                                {{ _('系数') }}: {{ '{:.1f}'.format(product.points_coefficient) }}X
                                                 {% if product.points_coefficient_override is not none %}<span class="text-orange-400">({{ _('手动') }})</span>{% endif %}
+                                                {% if current_user.role == 'admin' %}
+                                                <button onclick="toggleCoeffEdit(true)" class="ml-1 text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 align-middle" title="{{ _('编辑系数') }}">
+                                                    <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                                </button>
+                                                {% endif %}
                                             </span>
+                                            {% if current_user.role == 'admin' %}
+                                            <div id="coeffEditForm" class="hidden items-center gap-1.5">
+                                                <input type="number" id="coeffInput" step="0.5" min="1.0" max="10.0"
+                                                       value="{{ product.points_coefficient_override if product.points_coefficient_override is not none else '' }}"
+                                                       placeholder="{{ _('自动') }}{{ '{:.1f}'.format(product.points_coefficient) }}"
+                                                       class="w-16 px-1.5 py-0.5 text-xs border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary-500 focus:border-primary-500">
+                                                <span class="text-xs text-slate-400">X</span>
+                                                <button onclick="saveCoeff()" class="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300" title="{{ _('保存') }}">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                                </button>
+                                                <button onclick="toggleCoeffEdit(false)" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" title="{{ _('取消') }}">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                </button>
+                                            </div>
+                                            {% endif %}
                                         </div>
                                         <div class="flex items-center gap-2">
                                             {{ coin_icon(product.points_tier, 'lg') }}
@@ -1438,6 +1459,35 @@
     }
 })();
 </script>
+
+{% if current_user.role == 'admin' %}
+<script>
+function toggleCoeffEdit(show) {
+    document.getElementById('coeffDisplay').classList.toggle('hidden', show);
+    const form = document.getElementById('coeffEditForm');
+    form.classList.toggle('hidden', !show);
+    if (show) form.classList.add('flex');
+    else form.classList.remove('flex');
+    if (show) document.getElementById('coeffInput').focus();
+}
+function saveCoeff() {
+    const input = document.getElementById('coeffInput');
+    const val = input.value.trim();
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    fetch('/api/products/{{ product.id }}/coefficient', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+        body: JSON.stringify({coefficient: val})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) location.reload();
+        else alert(data.message || '{{ _("保存失败") }}');
+    })
+    .catch(() => alert('{{ _("保存失败") }}'));
+}
+</script>
+{% endif %}
 
 {# 产品编辑模态框 #}
 {{ render_product_modal(product_type='standard') }}

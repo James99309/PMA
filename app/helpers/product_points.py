@@ -165,12 +165,12 @@ def sync_quotation_points(quotation):
 
 
 def delete_quotation_points(quotation_id):
-    """删除报价单对应的积分记录（销售 + PM）"""
+    """删除报价单对应的积分记录（销售 + PM + SE）"""
     from app.models.user_points_ledger import UserPointsLedger
     from app.extensions import db
     UserPointsLedger.query.filter(
         UserPointsLedger.source_id == quotation_id,
-        UserPointsLedger.source_type.in_(['quotation', 'pm_category'])
+        UserPointsLedger.source_type.in_(['quotation', 'pm_category', 'se_project'])
     ).delete(synchronize_session=False)
 
 
@@ -254,6 +254,138 @@ def sync_pm_category_points(quotation):
             ))
 
     # 删除不再需要的条目
+    for leftover in existing_map.values():
+        db.session.delete(leftover)
+
+
+# SE 合格项目互动门槛
+QUALIFIED_INTERACTION_MIN = 3
+
+
+def sync_se_project_points(quotation):
+    """SE项目积分：合格项目中厂商产品的积分 → 按明细年份写入 ledger
+
+    流程:
+    1. 获取 quotation.project_id，无则跳过
+    2. 查 project_members 找 role='solution_engineer' 的用户
+    3. 对每个 SE 计算互动数 (work_items created + shared + actions)
+    4. 互动 ≥3 → 合格 → 累加该报价单中厂商产品的 product.points
+    5. 按 (SE user_id, year) upsert ledger
+    """
+    from app.models.product import Product
+    from app.models.relation import ProjectMember
+    from app.models.worklog import WorkItem
+    from app.models.action import Action
+    from app.models.user_points_ledger import UserPointsLedger
+    from app.extensions import db
+    from sqlalchemy import func, cast, Integer
+    from sqlalchemy.dialects.postgresql import JSONB
+
+    project_id = quotation.project_id
+    if not project_id:
+        # 无关联项目 → 清除该报价单所有旧 SE 积分
+        UserPointsLedger.query.filter_by(
+            source_type='se_project', source_id=quotation.id
+        ).delete()
+        return
+
+    # 找该项目的 SE 成员
+    se_members = ProjectMember.query.filter_by(
+        project_id=project_id, role='solution_engineer'
+    ).all()
+    se_user_ids = [m.user_id for m in se_members]
+
+    if not se_user_ids:
+        UserPointsLedger.query.filter_by(
+            source_type='se_project', source_id=quotation.id
+        ).delete()
+        return
+
+    # 批量计算每个 SE 的互动数（3 个 COUNT 合并为一次查询）
+    # 互动 = 创建的 work_items + 被分享的 work_items + 创建的 actions
+    qualified_ses = set()
+    for uid in se_user_ids:
+        # work_items created by SE for this project
+        wi_created = WorkItem.query.filter_by(
+            owner_id=uid, project_id=project_id
+        ).count()
+
+        # work_items shared with SE for this project
+        wi_shared = WorkItem.query.filter(
+            WorkItem.project_id == project_id,
+            WorkItem.shared_with_users.cast(db.Text).contains(str(uid))
+        ).count()
+
+        # actions created by SE for this project
+        act_count = Action.query.filter_by(
+            owner_id=uid, project_id=project_id
+        ).count()
+
+        if wi_created + wi_shared + act_count >= QUALIFIED_INTERACTION_MIN:
+            qualified_ses.add(uid)
+
+    if not qualified_ses:
+        UserPointsLedger.query.filter_by(
+            source_type='se_project', source_id=quotation.id
+        ).delete()
+        return
+
+    # 计算厂商产品积分（按明细年份分组）
+    if not quotation.details:
+        UserPointsLedger.query.filter_by(
+            source_type='se_project', source_id=quotation.id
+        ).delete()
+        return
+
+    mn_set = {d.product_mn for d in quotation.details if d.product_mn}
+    if not mn_set:
+        UserPointsLedger.query.filter_by(
+            source_type='se_project', source_id=quotation.id
+        ).delete()
+        return
+
+    products = Product.query.filter(
+        Product.product_mn.in_(mn_set),
+        Product.is_vendor_product == True
+    ).all()
+    product_map = {p.product_mn: p for p in products}
+
+    # 按年份汇总厂商产品积分
+    year_points = {}
+    for d in quotation.details:
+        if d.product_mn and d.product_mn in product_map:
+            yr = d.created_at.year if d.created_at else quotation.created_at.year
+            year_points[yr] = year_points.get(yr, 0) + product_map[d.product_mn].points
+
+    if not year_points:
+        UserPointsLedger.query.filter_by(
+            source_type='se_project', source_id=quotation.id
+        ).delete()
+        return
+
+    # 每个合格 SE 都获得同样的积分 → 按 (SE, year) upsert
+    se_year_points = {}
+    for uid in qualified_ses:
+        for yr, pts in year_points.items():
+            se_year_points[(uid, yr)] = pts
+
+    existing = UserPointsLedger.query.filter_by(
+        source_type='se_project', source_id=quotation.id
+    ).all()
+    existing_map = {(e.user_id, e.year): e for e in existing}
+
+    for (uid, yr), pts in se_year_points.items():
+        if (uid, yr) in existing_map:
+            existing_map[(uid, yr)].points = pts
+            del existing_map[(uid, yr)]
+        else:
+            db.session.add(UserPointsLedger(
+                user_id=uid, year=yr,
+                source_type='se_project', source_id=quotation.id,
+                points=pts, memo=f'SE:Q#{quotation.quotation_number}'
+            ))
+
+    # 删除不再需要的条目（SE 不再合格或积分归零）
     for leftover in existing_map.values():
         db.session.delete(leftover)
 

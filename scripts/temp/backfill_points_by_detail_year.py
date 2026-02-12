@@ -2,10 +2,12 @@
 # -*- coding: utf-8 -*-
 """回填积分按明细年份分组
 
-对所有报价单重新执行 sync_quotation_points + sync_pm_category_points，
-使积分条目按 QuotationDetail.created_at.year 正确归年。
+对所有报价单重新执行三种积分同步：
+- sync_quotation_points（销售积分）
+- sync_pm_category_points（产品经理积分）
+- sync_se_project_points（解决方案经理积分）
 
-运行前确保已执行 Alembic 迁移 a7f3e1c9d024（唯一约束含 year）。
+使积分条目按 QuotationDetail.created_at.year 正确归年。
 """
 import sys
 import os
@@ -25,7 +27,7 @@ sys.path.insert(0, get_project_root())
 
 from app import create_app, db
 from app.models.quotation import Quotation
-from app.helpers.product_points import sync_quotation_points, sync_pm_category_points
+from app.helpers.product_points import sync_quotation_points, sync_pm_category_points, sync_se_project_points
 
 
 def main():
@@ -40,6 +42,7 @@ def main():
             try:
                 sync_quotation_points(q)
                 sync_pm_category_points(q)
+                sync_se_project_points(q)
                 if i % 50 == 0:
                     db.session.commit()
                     print(f"  已处理 {i}/{total}")

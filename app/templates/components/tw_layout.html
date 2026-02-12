@@ -130,9 +130,24 @@ Tailwind 统一布局组件
             </div>
 
             <!-- 产品积分 -->
-            <div id="navProductPoints" class="hidden items-center gap-1.5 cursor-default" title="{{ _('我的产品积分') }}">
-                <span id="navPointsCoin" class="flex-shrink-0"></span>
-                <span id="navPointsValue" class="text-sm font-semibold">--</span>
+            <div id="navProductPoints" class="hidden relative" x-data="{ open: false }" title="{{ _('我的产品积分') }}">
+                <button @click="open = !open" class="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity">
+                    <span id="navPointsCoin" class="flex-shrink-0"></span>
+                    <span id="navPointsValue" class="text-sm font-semibold">--</span>
+                </button>
+                <!-- 积分明细弹出卡片 -->
+                <div id="pointsDropdownCard"
+                     class="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50"
+                     x-show="open" x-transition x-cloak @click.away="open = false">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('我的积分') }}</span>
+                        <span id="pointsCardYear" class="text-xs text-slate-400 dark:text-slate-500"></span>
+                    </div>
+                    <div id="pointsCardTotal" class="text-2xl font-bold text-slate-900 dark:text-white mb-3">--</div>
+                    <div class="border-t border-slate-100 dark:border-slate-700 pt-3">
+                        <div id="pointsCardCategories" class="space-y-2"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- 帮助/引导按钮 -->
@@ -380,6 +395,8 @@ Tailwind 统一布局组件
         const container = document.getElementById('navProductPoints');
         if (!container) return;
 
+        const lang = document.documentElement.lang || 'zh';
+
         fetch('/api/v1/user/product-points-summary')
             .then(r => r.json())
             .then(data => {
@@ -402,6 +419,26 @@ Tailwind 统一布局组件
                 const valueEl = document.getElementById('navPointsValue');
                 valueEl.textContent = formatPoints(data.total_points, tier);
                 valueEl.className = 'text-sm font-semibold ' + textClasses[tier];
+
+                // 填充弹出卡片
+                const yearEl = document.getElementById('pointsCardYear');
+                if (yearEl) yearEl.textContent = (data.year || new Date().getFullYear()) + (lang === 'en' ? '' : '年');
+
+                const totalEl = document.getElementById('pointsCardTotal');
+                if (totalEl) {
+                    totalEl.textContent = data.total_points.toLocaleString();
+                    totalEl.className = 'text-2xl font-bold mb-3 ' + textClasses[tier];
+                }
+
+                const catEl = document.getElementById('pointsCardCategories');
+                if (catEl && data.categories) {
+                    catEl.innerHTML = data.categories.map(cat =>
+                        `<div class="flex items-center justify-between">` +
+                        `<span class="text-sm text-slate-600 dark:text-slate-300">${lang === 'en' ? cat.name_en : cat.name}</span>` +
+                        `<span class="text-sm font-semibold text-slate-900 dark:text-white">${cat.points.toLocaleString()}</span>` +
+                        `</div>`
+                    ).join('');
+                }
 
                 container.classList.remove('hidden');
                 container.classList.add('flex');

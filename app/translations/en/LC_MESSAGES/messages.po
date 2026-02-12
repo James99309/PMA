@@ -167,6 +167,8 @@ msgid "主要联系人"
 msgstr "Primary Contact"
 msgid "行动记录"
 msgstr "Action Records"
+msgid "全屏编辑"
+msgstr "Fullscreen Edit"
 msgid "添加行动记录"
 msgstr "Add Action Record"
 msgid "记录人"
@@ -8346,6 +8348,12 @@ msgstr "Points Coefficient"
 msgid "系数"
 msgstr "Coefficient"
 
+msgid "编辑系数"
+msgstr "Edit Coefficient"
+
+msgid "自动"
+msgstr "Auto"
+
 msgid "手动"
 msgstr "Manual"
 
@@ -8354,6 +8362,9 @@ msgstr "Total Points"
 
 msgid "我的产品积分"
 msgstr "My Product Points"
+
+msgid "我的积分"
+msgstr "My Points"
 
 msgid "留空=自动计算 (当前: {:.1f}X)"
 msgstr "Empty = auto (current: {:.1f}X)"

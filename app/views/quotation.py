@@ -1407,9 +1407,10 @@ def create_quotation():
 
                     # 写入积分流水
                     try:
-                        from app.helpers.product_points import sync_quotation_points, sync_pm_category_points
+                        from app.helpers.product_points import sync_quotation_points, sync_pm_category_points, sync_se_project_points
                         sync_quotation_points(quotation)
                         sync_pm_category_points(quotation)
+                        sync_se_project_points(quotation)
                         db.session.commit()
                     except Exception as pts_err:
                         current_app.logger.warning(f"写入积分流水失败: {pts_err}")
@@ -3610,9 +3611,10 @@ def save_quotation(id):
 
                 # 更新积分流水
                 try:
-                    from app.helpers.product_points import sync_quotation_points, sync_pm_category_points
+                    from app.helpers.product_points import sync_quotation_points, sync_pm_category_points, sync_se_project_points
                     sync_quotation_points(quotation)
                     sync_pm_category_points(quotation)
+                    sync_se_project_points(quotation)
                     db.session.commit()
                 except Exception as pts_err:
                     current_app.logger.warning(f"更新积分流水失败: {pts_err}")
