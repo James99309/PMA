@@ -17,8 +17,15 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column('products', sa.Column('points_coefficient_override', sa.Numeric(precision=3, scale=1), nullable=True, comment='手动积分系数起始值(Admin设置,NULL=按created_at自动)'))
-    op.add_column('products', sa.Column('points_coefficient_override_at', sa.DateTime(), nullable=True, comment='手动系数设置时间(衰减起点)'))
+    conn = op.get_bind()
+    cols = [row[0] for row in conn.execute(sa.text(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = 'products'"
+    )).fetchall()]
+
+    if 'points_coefficient_override' not in cols:
+        op.add_column('products', sa.Column('points_coefficient_override', sa.Numeric(precision=3, scale=1), nullable=True, comment='手动积分系数起始值(Admin设置,NULL=按created_at自动)'))
+    if 'points_coefficient_override_at' not in cols:
+        op.add_column('products', sa.Column('points_coefficient_override_at', sa.DateTime(), nullable=True, comment='手动系数设置时间(衰减起点)'))
 
 
 def downgrade():

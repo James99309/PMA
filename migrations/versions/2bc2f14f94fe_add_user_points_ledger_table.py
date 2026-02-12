@@ -17,20 +17,26 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table('user_points_ledger',
-        sa.Column('id', sa.Integer(), primary_key=True),
-        sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False),
-        sa.Column('year', sa.Integer(), nullable=False),
-        sa.Column('source_type', sa.String(length=50), nullable=False, server_default='quotation'),
-        sa.Column('source_id', sa.Integer(), nullable=True),
-        sa.Column('points', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('memo', sa.String(length=200), nullable=True),
-        sa.Column('created_at', sa.DateTime(), nullable=True),
-        sa.Column('updated_at', sa.DateTime(), nullable=True),
-        sa.UniqueConstraint('user_id', 'source_type', 'source_id', name='uq_user_points_source'),
-    )
-    op.create_index('ix_user_points_ledger_user_id', 'user_points_ledger', ['user_id'])
-    op.create_index('ix_user_points_year', 'user_points_ledger', ['user_id', 'year'])
+    conn = op.get_bind()
+    table_exists = conn.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_points_ledger')"
+    )).scalar()
+
+    if not table_exists:
+        op.create_table('user_points_ledger',
+            sa.Column('id', sa.Integer(), primary_key=True),
+            sa.Column('user_id', sa.Integer(), sa.ForeignKey('users.id'), nullable=False),
+            sa.Column('year', sa.Integer(), nullable=False),
+            sa.Column('source_type', sa.String(length=50), nullable=False, server_default='quotation'),
+            sa.Column('source_id', sa.Integer(), nullable=True),
+            sa.Column('points', sa.Integer(), nullable=False, server_default='0'),
+            sa.Column('memo', sa.String(length=200), nullable=True),
+            sa.Column('created_at', sa.DateTime(), nullable=True),
+            sa.Column('updated_at', sa.DateTime(), nullable=True),
+            sa.UniqueConstraint('user_id', 'source_type', 'source_id', name='uq_user_points_source'),
+        )
+        op.create_index('ix_user_points_ledger_user_id', 'user_points_ledger', ['user_id'])
+        op.create_index('ix_user_points_year', 'user_points_ledger', ['user_id', 'year'])
 
 
 def downgrade():
