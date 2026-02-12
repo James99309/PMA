@@ -85,6 +85,9 @@ Tailwind 筛选栏组件
             form.submit();
         });
     });
+
+    // 保存当前筛选状态，供详情页返回时恢复
+    sessionStorage.setItem('list_filter_url:' + window.location.pathname, window.location.href);
 })();
 </script>
 {% endmacro %}

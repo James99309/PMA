@@ -270,6 +270,18 @@ Slot 说明（v3.0简化）：
         </div>
     </div>
 </div>
+{% if back_url %}
+<script>
+(function() {
+    var saved = sessionStorage.getItem('list_filter_url:{{ back_url }}');
+    if (saved && saved !== window.location.href) {
+        document.querySelectorAll('a[href="{{ back_url }}"]').forEach(function(a) {
+            a.href = saved;
+        });
+    }
+})();
+</script>
+{% endif %}
 {% endmacro %}
 
 
@@ -399,4 +411,16 @@ Slot 说明（v3.0简化）：
         </div>
     </div>
 </div>
+{% if back_url %}
+<script>
+(function() {
+    var saved = sessionStorage.getItem('list_filter_url:{{ back_url }}');
+    if (saved && saved !== window.location.href) {
+        document.querySelectorAll('a[href="{{ back_url }}"]').forEach(function(a) {
+            a.href = saved;
+        });
+    }
+})();
+</script>
+{% endif %}
 {% endmacro %}
