@@ -240,11 +240,11 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
         # 注意：这里读取的是标准产品的规格表，研发入库时已经复制过来了
         specs = ProductSpec.query.filter_by(
             product_id=product.id
-        ).order_by(ProductSpec.id).all()
+        ).all()
 
-        # 添加所有规格到快照（包括编码规格和非编码规格）
-        # use_in_code 字段用于区分：True=编码规格，False=非编码规格
-        position = 1
+        # 先收集所有 (spec, field_def) 对，再按字典 position 排序
+        # 确保同子分类下所有产品的 code_parts 顺序一致
+        spec_with_defs = []
         for spec in specs:
             # 查询字段定义，获取 use_in_code 值
             # 先查子分类级字段
@@ -263,16 +263,21 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
                     ProductCodeField.field_type == 'spec'
                 ).first()
 
+            spec_with_defs.append((spec, field_def))
+
+        # 按字典 position 排序：有字典定义的在前（按 position 升序），无字典定义的在后（保持原序）
+        spec_with_defs.sort(key=lambda x: (0, x[1].position) if x[1] else (1, 9999))
+
+        # 用字典 position 构建 code_parts
+        for idx, (spec, field_def) in enumerate(spec_with_defs):
+            dict_position = field_def.position if field_def else (1000 + idx)
+            use_in_code = field_def.use_in_code if field_def else False
+
             # 查询规格单位
             unit = get_field_unit(spec.field_name)
 
-            # 判断是否为编码规格
-            # 如果找到字段定义，使用其 use_in_code 值
-            # 如果找不到字段定义，默认为 False（非编码规格）
-            use_in_code = field_def.use_in_code if field_def else False
-
             snapshot["code_parts"].append({
-                "position": position,
+                "position": dict_position,
                 "field_name": spec.field_name,
                 "field_code": spec.field_code if spec.field_code else "",
                 "code": spec.field_code if spec.field_code else "",
@@ -281,7 +286,6 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
                 "use_in_code": use_in_code,
                 "description": ""
             })
-            position += 1
 
         current_app.logger.info(
             f"生成编码定义快照成功: 产品ID={product.id}, "
