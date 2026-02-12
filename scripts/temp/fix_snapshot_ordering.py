@@ -3,11 +3,11 @@
 """
 修复快照 code_parts 排序不一致问题
 
-问题：generate_code_definition_snapshot() 按 ProductSpec.id 排序，
-      而 ProductCode.generate_snapshot() 按字典 position 排序，
-      导致同子分类下不同产品的 code_parts 顺序不一致，前端错位。
+问题：旧逻辑按 ProductCodeField.position 排序，
+      现改为按规格字典 SpecCategory.display_order → SpecDefinition.display_order 排序，
+      同时 use_in_code 改为按 field_code 非空判断。
 
-修复：重新生成所有产品的 code_definition_snapshot，使用字典 position 排序。
+修复：重新生成所有产品的 code_definition_snapshot，使用规格字典排序。
 """
 import sys
 import os
@@ -15,6 +15,9 @@ from datetime import datetime
 
 # 路径修正
 def get_project_root():
+    # Docker 容器内项目在 /app
+    if os.path.exists('/app/app') and os.path.exists('/app/run.py'):
+        return '/app'
     current = os.path.dirname(os.path.abspath(__file__))
     while current != '/':
         if os.path.exists(os.path.join(current, 'app')) and \
@@ -36,8 +39,7 @@ def fix_snapshots():
     with app.app_context():
         # 查询所有有快照的产品
         products = Product.query.filter(
-            Product.code_definition_snapshot.isnot(None),
-            Product.is_deleted == False
+            Product.code_definition_snapshot.isnot(None)
         ).all()
 
         print(f"找到 {len(products)} 个有快照的产品")
@@ -51,15 +53,12 @@ def fix_snapshots():
             old_snapshot = product.code_definition_snapshot
             old_source = old_snapshot.get("source", "unknown") if old_snapshot else "unknown"
 
-            # 提取旧的 use_in_code=true 的字段顺序
-            old_code_fields = []
+            # 提取旧的字段顺序
+            old_fields = []
             if old_snapshot and "code_parts" in old_snapshot:
-                old_code_fields = [
-                    p["field_name"] for p in old_snapshot["code_parts"]
-                    if p.get("use_in_code")
-                ]
+                old_fields = [p["field_name"] for p in old_snapshot["code_parts"]]
 
-            # 重新生成快照（使用修复后的排序逻辑）
+            # 重新生成快照（使用规格字典排序逻辑）
             new_snapshot = generate_product_snapshot(product, source=old_source)
 
             if not new_snapshot:
@@ -70,18 +69,15 @@ def fix_snapshots():
             # 添加重排序时间戳
             new_snapshot["reordered_at"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
 
-            # 提取新的 use_in_code=true 的字段顺序
-            new_code_fields = [
-                p["field_name"] for p in new_snapshot["code_parts"]
-                if p.get("use_in_code")
-            ]
+            # 提取新的字段顺序
+            new_fields = [p["field_name"] for p in new_snapshot["code_parts"]]
 
             # 比较顺序是否变化
-            if old_code_fields != new_code_fields:
+            if old_fields != new_fields:
                 print(f"  [CHANGED] 产品 {product.id} ({product.product_mn}) "
                       f"子分类={product.subcategory_id}")
-                print(f"    旧顺序: {old_code_fields}")
-                print(f"    新顺序: {new_code_fields}")
+                print(f"    旧顺序: {old_fields}")
+                print(f"    新顺序: {new_fields}")
                 changed += 1
             else:
                 unchanged += 1

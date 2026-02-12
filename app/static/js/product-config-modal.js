@@ -14,7 +14,7 @@ class ProductConfigModal {
         this.currentProducts = [];
         this.remainingProducts = [];  // 剩余候选产品列表（渐进式过滤）
         this.selectedProduct = null;
-        this.userSelections = {};  // 用户选择的字段 {position: {code, value}}
+        this.userSelections = {};  // 用户选择的字段 {position: {code, value, unit}}
         this.fixedFields = [];  // 固定字段（值相同的字段）
         this.selectableFields = [];  // 可选字段（值不同的字段）
         this.pendingSpecs = [];  // 待定规格列表（使用默认值的字段）
@@ -148,7 +148,7 @@ class ProductConfigModal {
                 unit: field.unit || null
             },
             options: [],
-            selectedCode: field.code
+            selectedValue: field.value
         }));
         this.selectableFields = [];
         this.userSelections = {};
@@ -185,25 +185,14 @@ class ProductConfigModal {
                 parsed = JSON.parse(rawSnapshot);
             }
 
-            // 定义编码规格过滤器：
-            // 1. use_in_code 必须不为 false
-            // 2. 必须有编码值（code 字段非空）- 真正的编码规格必须有对应编码
-            const isCodeField = (part) => {
-                // use_in_code 明确为 false 的排除
-                if (part.use_in_code === false) return false;
-                // 没有编码值的排除（非编码规格）
-                if (!part.code || part.code.trim() === '') return false;
-                return true;
-            };
-
-            // 新格式：从code_parts提取（仅编码规格）
+            // 返回所有规格（不再按 code 过滤，改用 value 比对）
             if (parsed && parsed.code_parts && Array.isArray(parsed.code_parts)) {
-                return parsed.code_parts.filter(isCodeField);
+                return parsed.code_parts;
             }
 
             // 旧格式：直接是数组
             if (Array.isArray(parsed)) {
-                return parsed.filter(isCodeField);
+                return parsed;
             }
 
             console.error('快照格式不匹配:', parsed);
@@ -227,32 +216,7 @@ class ProductConfigModal {
                 this.userSelections = {};
                 this.initialSelectablePositions = new Set();  // 记录初始可选字段位置
                 this.initialFieldOptions = new Map();  // 存储每个字段的初始选项
-                this.specFieldMap = new Map();  // 🆕 存储规格字段映射（可配置字段信息）
                 console.log(`🎯 初始分析: ${products.length} 个产品`);
-
-                // 🆕 首先获取可配置字段信息（在分析产品之前）
-                // 从产品对象或快照中获取 subcategory_id
-                let subcategoryId = products[0].subcategory_id;
-                if (!subcategoryId) {
-                    // 尝试从快照中获取
-                    const snapshot = products[0].code_definition_snapshot;
-                    if (snapshot && snapshot.subcategory && snapshot.subcategory.id) {
-                        subcategoryId = snapshot.subcategory.id;
-                    }
-                }
-
-                if (products.length > 0 && subcategoryId) {
-                    try {
-                        const specFieldsData = await this.fetchSpecFieldOptions(subcategoryId);
-                        if (specFieldsData && specFieldsData.spec_fields) {
-                            specFieldsData.spec_fields.forEach(sf => {
-                                this.specFieldMap.set(sf.field_name, sf);
-                            });
-                        }
-                    } catch (e) {
-                        console.warn('获取规格字段选项失败:', e);
-                    }
-                }
             } else {
                 console.log(`🔄 重新分析: ${products.length} 个剩余产品`);
             }
@@ -274,83 +238,81 @@ class ProductConfigModal {
                 const fieldName = field.field_name || field.name;  // 适配新旧字段名
 
                 // 检查该字段是否已被用户手动选择（区分手动和自动选中）
-                // 修复：用户已选字段保持为可选状态，允许用户修改
                 const isUserManualSelection = this.userManualSelections &&
                                               this.userManualSelections.hasOwnProperty(position);
-                const userSelectedCode = isUserManualSelection
-                    ? this.userSelections[position].code
+                const userSelectedValue = isUserManualSelection
+                    ? this.userSelections[position].value
                     : null;
 
-                // 收集该位置所有产品的编码值和指标值
-                const codeOptions = new Map();
+                // 收集该位置所有产品的规格值（按 value 分组，不再按 code 分组）
+                const valueOptions = new Map();
 
                 products.forEach(product => {
                     try {
                         const snapshot = this.parseSnapshot(product.code_definition_snapshot);
                         if (snapshot[position]) {
-                            const codeValue = snapshot[position].code;
-                            const indicatorValue = snapshot[position].value;
+                            const specValue = snapshot[position].value || '';
+                            const codeValue = snapshot[position].code || '';
                             const unitValue = snapshot[position].unit || null;
 
-                            if (!codeOptions.has(codeValue)) {
-                                codeOptions.set(codeValue, {
+                            if (!valueOptions.has(specValue)) {
+                                valueOptions.set(specValue, {
                                     code: codeValue,
-                                    value: indicatorValue,
+                                    value: specValue,
                                     unit: unitValue,
                                     count: 0
                                 });
                             }
-                            codeOptions.get(codeValue).count++;
+                            valueOptions.get(specValue).count++;
                         }
                     } catch (e) {
                         console.error('Error parsing product snapshot:', e);
                     }
                 });
 
-                // 判断是否有差异（多个选项）
-                const isDifferent = codeOptions.size > 1;
+                // 判断是否有差异（多个不同 value）
+                const isDifferent = valueOptions.size > 1;
 
                 // 初始分析时，记录初始可选字段位置和选项
                 if (isInitial && isDifferent) {
                     this.initialSelectablePositions.add(position);
-                    this.initialFieldOptions.set(position, Array.from(codeOptions.values()));
+                    this.initialFieldOptions.set(position, Array.from(valueOptions.values()));
                 }
 
                 // 检查是否为初始可选字段（即使现在只剩一个选项）
                 const wasInitiallySelectable = this.initialSelectablePositions &&
                                                this.initialSelectablePositions.has(position);
 
-                // 修复：初始可选字段即使过滤后只剩一个选项，也保持可选状态
-                const showAsSelectable = isDifferent || userSelectedCode !== null || wasInitiallySelectable;
+                // 初始可选字段即使过滤后只剩一个选项，也保持可选状态
+                const showAsSelectable = isDifferent || userSelectedValue !== null || wasInitiallySelectable;
 
                 // 确定字段状态
                 let fieldStatus;
-                if (userSelectedCode) {
+                if (userSelectedValue) {
                     fieldStatus = 'user_selected';
                 } else if (isDifferent) {
                     fieldStatus = 'selectable';
                 } else if (wasInitiallySelectable) {
-                    fieldStatus = 'auto_selected';  // 新状态：初始可选但被过滤成单选
+                    fieldStatus = 'auto_selected';
                 } else {
                     fieldStatus = 'auto_fixed';
                 }
 
                 // 对于auto_selected状态，自动选中唯一的选项并记录到userSelections
-                let autoSelectedCode = null;
-                if (fieldStatus === 'auto_selected' && codeOptions.size === 1) {
-                    const autoOption = codeOptions.values().next().value;
-                    autoSelectedCode = autoOption.code;
-                    // 将auto_selected的值加入userSelections，以便后续过滤使用
+                let autoSelectedValue = null;
+                if (fieldStatus === 'auto_selected' && valueOptions.size === 1) {
+                    const autoOption = valueOptions.values().next().value;
+                    autoSelectedValue = autoOption.value;
                     this.userSelections[position] = {
                         code: autoOption.code,
                         value: autoOption.value,
                         unit: autoOption.unit || null
                     };
-                    console.log(`  ✓ 自动选中字段 [${position}]: ${autoOption.value} (${autoOption.code})`);
+                    console.log(`  ✓ 自动选中字段 [${position}]: ${autoOption.value}`);
                 }
 
                 // 确定要使用的选项列表：用户选中字段使用初始选项，允许切换
-                let optionsToUse = Array.from(codeOptions.values());
+                let optionsToUse = Array.from(valueOptions.values());
                 if (isUserManualSelection && this.initialFieldOptions && this.initialFieldOptions.has(position)) {
                     optionsToUse = this.initialFieldOptions.get(position);
                 }
@@ -361,76 +323,15 @@ class ProductConfigModal {
                     isDifferent: showAsSelectable,
                     status: fieldStatus,
                     options: optionsToUse,
-                    selectedCode: userSelectedCode || autoSelectedCode,
+                    selectedValue: userSelectedValue || autoSelectedValue,
                     // 如果是真正的固定字段（初始就单选），记录确定的值
-                    fixedValue: (!showAsSelectable) ? codeOptions.values().next().value : null
+                    fixedValue: (!showAsSelectable) ? valueOptions.values().next().value : null
                 });
             });
 
-            // 🆕 使用已加载的可配置字段信息处理 codeAnalysis
-            // 对于可配置字段：用规格定义中的全部选项替换
-            // 对于非可配置但有差异的字段：按规格定义的顺序重排现有选项
-            if (this.specFieldMap && this.specFieldMap.size > 0) {
-                codeAnalysis.forEach(field => {
-                    const specField = this.specFieldMap.get(field.fieldName);
-                    if (specField && specField.options.length > 0) {
-                        if (specField.allow_quotation_config) {
-                            // 可配置字段：用规格定义的全部选项替换
-                            field.isConfigurable = true;
-
-                            // 保存原始选项（现有产品使用的值）
-                            const originalCode = field.fixedValue?.code || (field.options.length > 0 ? field.options[0].code : null);
-
-                            // 用规格定义的全部选项替换
-                            // 使用字段级别的单位（specField.unit）
-                            field.options = specField.options.map(opt => ({
-                                code: opt.code,
-                                value: opt.value,
-                                unit: specField.unit || null,  // 使用字段的单位
-                                price_adjustment: opt.price_adjustment,
-                                hasExistingProduct: opt.code === originalCode
-                            }));
-
-                            // 可配置字段强制设为可选（即使原来是固定字段）
-                            if (specField.options.length > 1) {
-                                field.isDifferent = true;
-                                field.status = 'configurable';
-                                // 如果原来是固定字段，保留固定值作为默认选中
-                                if (field.fixedValue) {
-                                    field.selectedCode = field.fixedValue.code;
-                                    field.autoLinkedCode = field.fixedValue.code;
-                                }
-                            }
-                        } else if (field.isDifferent && field.options.length > 1) {
-                            // 非可配置但有差异的字段：按 API 返回的顺序（position）重排现有选项
-                            const existingCodes = new Set(field.options.map(o => o.code));
-                            const sortedOptions = specField.options
-                                .filter(opt => existingCodes.has(opt.code))
-                                .map(opt => {
-                                    // 保留现有选项的完整信息（包括 count 等）
-                                    const existing = field.options.find(o => o.code === opt.code);
-                                    return existing || {
-                                        code: opt.code,
-                                        value: opt.value,
-                                        unit: specField.unit || null
-                                    };
-                                });
-                            // 只有当所有选项都找到时才替换（确保不丢失选项）
-                            if (sortedOptions.length === field.options.length) {
-                                field.options = sortedOptions;
-                            }
-                        }
-                    }
-                });
-            }
-
-            // 分离两类字段：固定字段（确定的值）和可选字段（需要选择）
+            // 分离两类字段：固定字段（值相同）和可选字段（值不同）
             this.fixedFields = codeAnalysis.filter(field => !field.isDifferent);
             this.selectableFields = codeAnalysis.filter(field => field.isDifferent);
-
-            // 🆕 进一步分类可选字段：产品差异字段 vs 可配置字段
-            this.productDifferenceFields = this.selectableFields.filter(field => !field.isConfigurable);
-            this.configurableSelectableFields = this.selectableFields.filter(field => field.isConfigurable);
 
             // 显示产品数量
             const productCountElem = document.getElementById('productCount');
@@ -497,62 +398,20 @@ class ProductConfigModal {
             container.appendChild(gridContainer);
         }
 
-        // 2. 渲染产品差异字段（非可配置，必须先选）
-        if (this.productDifferenceFields && this.productDifferenceFields.length > 0) {
-            this.productDifferenceFields.forEach(field => {
-                // 🆕 对于初始可选字段，使用保存的完整选项（修复切换后选项丢失的问题）
+        // 2. 渲染可选字段（有差异的规格，需要用户选择）
+        if (this.selectableFields && this.selectableFields.length > 0) {
+            this.selectableFields.forEach(field => {
+                // 对于初始可选字段，使用保存的完整选项（修复切换后选项丢失的问题）
                 if (this.initialFieldOptions && this.initialFieldOptions.has(field.position)) {
                     const initialOptions = this.initialFieldOptions.get(field.position);
-                    // 临时替换选项进行渲染
                     const originalOptions = field.options;
                     field.options = initialOptions;
-                    this.renderSelectableField(container, field, false);
-                    field.options = originalOptions;  // 恢复原选项
+                    this.renderSelectableField(container, field);
+                    field.options = originalOptions;
                 } else {
-                    this.renderSelectableField(container, field, false);
+                    this.renderSelectableField(container, field);
                 }
             });
-        }
-
-        // 3. 检查产品差异字段是否都已选择
-        const allDifferenceFieldsSelected = !this.productDifferenceFields ||
-            this.productDifferenceFields.length === 0 ||
-            this.productDifferenceFields.every(field =>
-                this.userSelections && this.userSelections[field.position]
-            );
-
-        // 4. 只有产品差异字段都选完，才渲染可配置字段
-        if (this.configurableSelectableFields && this.configurableSelectableFields.length > 0) {
-            if (allDifferenceFieldsSelected) {
-                // 计算可配置字段的自动关联值
-                this.calculateAutoLinkedValues();
-
-                // 初始化 configurableSelections（用于自动关联的默认选择）
-                if (!this.configurableSelections) {
-                    this.configurableSelections = {};
-                }
-                this.configurableSelectableFields.forEach(field => {
-                    // 如果有自动关联值且尚未被用户手动选择，初始化选择
-                    if (field.autoLinkedCode && !this.configurableSelections[field.position]) {
-                        const autoLinkedOption = field.options?.find(opt => opt.code === field.autoLinkedCode);
-                        if (autoLinkedOption) {
-                            this.configurableSelections[field.position] = {
-                                code: autoLinkedOption.code,
-                                value: autoLinkedOption.value,
-                                unit: autoLinkedOption.unit || null
-                            };
-                        }
-                    }
-                });
-
-                // 渲染可配置字段
-                this.configurableSelectableFields.forEach(field => {
-                    this.renderSelectableField(container, field, true);
-                });
-            } else {
-                // 显示提示：请先选择产品规格差异
-                this.renderConfigurableFieldsPlaceholder(container);
-            }
         }
     }
 
@@ -560,9 +419,8 @@ class ProductConfigModal {
      * 渲染单个可选字段
      * @param {HTMLElement} container - 容器元素
      * @param {Object} field - 字段数据
-     * @param {boolean} isConfigurable - 是否为可配置字段
      */
-    renderSelectableField(container, field, isConfigurable) {
+    renderSelectableField(container, field) {
         const fieldDiv = document.createElement('div');
         fieldDiv.className = 'spec-field-selectable';
         fieldDiv.dataset.position = field.position;
@@ -570,8 +428,6 @@ class ProductConfigModal {
         // 字段标签
         const label = document.createElement('label');
         label.className = 'form-label';
-
-        // 只显示字段名称，不显示必填和可配置符号
         label.textContent = field.fieldName;
         fieldDiv.appendChild(label);
 
@@ -583,30 +439,28 @@ class ProductConfigModal {
             const optionDiv = document.createElement('div');
             optionDiv.className = 'form-check d-flex align-items-center';
 
-            // Radio input
+            // Radio input — 用 value 作为选项值
             const input = document.createElement('input');
             input.type = 'radio';
             input.className = 'form-check-input';
             input.name = `code-${field.position}`;
             input.id = `code-${field.position}-${optIndex}`;
-            input.value = option.code;
+            input.value = option.value;
 
-            // 检查是否应该选中
-            const isAutoLinked = isConfigurable && field.autoLinkedCode === option.code;
-            const isUserSelected = field.selectedCode === option.code;
-            if (isAutoLinked || isUserSelected) {
+            // 检查是否应该选中（按 value 匹配）
+            if (field.selectedValue === option.value) {
                 input.checked = true;
             }
 
-            // auto_selected 状态：禁用radio（因为被过滤自动确定）- 但可配置字段不禁用
-            if (field.status === 'auto_selected' && !isConfigurable) {
+            // auto_selected 状态：禁用radio（因为被过滤自动确定）
+            if (field.status === 'auto_selected') {
                 input.disabled = true;
             }
 
             // 绑定事件处理器
             if (!input.disabled) {
                 input.addEventListener('change', () => {
-                    this.onFieldSelect(field.position, option.code, option.value, option.unit, isConfigurable);
+                    this.onFieldSelect(field.position, option.code, option.value, option.unit);
                 });
             }
 
@@ -616,35 +470,10 @@ class ProductConfigModal {
             optionLabel.setAttribute('for', input.id);
 
             const unitText = option.unit ? ` ${option.unit}` : '';
-
-            // 构建标签内容
-            let labelHtml = `${option.value}${unitText}`;
-
-            // 可配置字段的自动关联选项添加蓝色圆圈标记
-            if (isAutoLinked) {
-                labelHtml += ` <span class="auto-linked-indicator" title="自动关联"></span>`;
-            }
-
-            // 如果有价格增量，显示价格标识（复用货币符号，蓝色靠右，与上方价格对齐）
-            let priceTag = '';
-            if (option.price_adjustment && option.price_adjustment !== 0) {
-                const adjustmentYuan = option.price_adjustment / 100;
-                const sign = adjustmentYuan > 0 ? '+' : '';
-                const currencySymbol = document.getElementById('currencySymbol')?.textContent?.trim() || '¥';
-                // padding-right 约等于右侧图片区域宽度(col-md-4 约33%)，使价格与上方产品价格对齐
-                priceTag = `<span class="price-adjustment-tag fw-bold text-primary" style="margin-left: auto; padding-right: calc(33.33% + 15px);">${sign}${currencySymbol}${Math.abs(adjustmentYuan).toLocaleString()}</span>`;
-            }
-
-            optionLabel.innerHTML = labelHtml;
+            optionLabel.textContent = `${option.value}${unitText}`;
 
             optionDiv.appendChild(input);
             optionDiv.appendChild(optionLabel);
-            // 价格标签放在最右侧
-            if (priceTag) {
-                const priceSpan = document.createElement('span');
-                priceSpan.innerHTML = priceTag;
-                optionDiv.appendChild(priceSpan.firstChild);
-            }
             optionsContainer.appendChild(optionDiv);
         });
 
@@ -656,80 +485,25 @@ class ProductConfigModal {
         } else if (field.status === 'auto_selected') {
             fieldDiv.classList.add('auto-selected');
         }
-        if (isConfigurable) {
-            fieldDiv.classList.add('configurable-field');
-        }
 
         container.appendChild(fieldDiv);
     }
 
     /**
-     * 计算可配置字段的自动关联值
-     * 基于当前剩余产品的规格值
-     */
-    calculateAutoLinkedValues() {
-        if (!this.configurableSelectableFields || !this.remainingProducts || this.remainingProducts.length === 0) {
-            return;
-        }
-
-        // 使用第一个剩余产品作为参考
-        const referenceProduct = this.remainingProducts[0];
-        const snapshot = this.parseSnapshot(referenceProduct.code_definition_snapshot);
-
-        this.configurableSelectableFields.forEach(field => {
-            const productValue = snapshot[field.position];
-            if (productValue) {
-                // 产品有该字段的值 → 自动关联
-                field.autoLinkedCode = productValue.code;
-                field.autoLinkedValue = productValue.value;
-                console.log(`  🔗 自动关联 [${field.fieldName}]: ${productValue.value} (${productValue.code})`);
-            } else {
-                // 产品无该字段的值 → 无自动关联
-                field.autoLinkedCode = null;
-                field.autoLinkedValue = null;
-            }
-        });
-    }
-
-    /**
-     * 渲染可配置字段的占位提示
-     * @param {HTMLElement} container - 容器元素
-     */
-    renderConfigurableFieldsPlaceholder(container) {
-        const placeholderDiv = document.createElement('div');
-        placeholderDiv.className = 'configurable-fields-placeholder';
-        placeholderDiv.innerHTML = `
-            <div class="placeholder-content">
-                <i class="fas fa-info-circle text-muted"></i>
-                <span class="text-muted">请先选择上方产品规格，完成后将显示可配置选项</span>
-            </div>
-        `;
-        container.appendChild(placeholderDiv);
-    }
-
-    /**
-     * 处理用户选择字段事件（核心新逻辑）
+     * 处理用户选择字段事件 — 按 value 过滤产品
      * @param {number} position - 字段位置
      * @param {string} code - 选择的编码
      * @param {string} value - 选择的值
      * @param {string|null} unit - 单位
-     * @param {boolean} isConfigurable - 是否为可配置字段
      */
-    onFieldSelect(position, code, value, unit = null, isConfigurable = false) {
-        console.log(`👉 用户选择字段 [${position}]: ${value} (${code})${isConfigurable ? ' [可配置]' : ''}`);
+    onFieldSelect(position, code, value, unit = null) {
+        console.log(`👉 用户选择字段 [${position}]: ${value}`);
 
-        // 🆕 可配置字段的选择逻辑不同：不过滤产品，只记录选择
-        if (isConfigurable) {
-            this.onConfigurableFieldSelect(position, code, value, unit);
-            return;
-        }
-
-        // ✅ 非可配置字段：智能清除不兼容的选择
-        // 步骤1：先只用当前选择过滤产品
+        // 步骤1：用当前 value 选择过滤产品
         const currentSelection = { code, value, unit };
         let compatibleProducts = this.currentProducts.filter(product => {
             const snapshot = this.parseSnapshot(product.code_definition_snapshot);
-            return snapshot[position]?.code === code;
+            return (snapshot[position]?.value || '') === value;
         });
         console.log(`  → 当前选择匹配 ${compatibleProducts.length} 个产品`);
 
@@ -740,22 +514,20 @@ class ProductConfigModal {
         if (this.userManualSelections) {
             for (const [pos, sel] of Object.entries(this.userSelections)) {
                 const posInt = parseInt(pos);
-                if (posInt === position) continue;  // 跳过当前字段
-                if (!this.userManualSelections[posInt]) continue;  // 跳过非手动选择
+                if (posInt === position) continue;
+                if (!this.userManualSelections[posInt]) continue;
 
-                // 检查该选择是否在兼容产品中存在
                 const isCompatible = compatibleProducts.some(product => {
                     const snapshot = this.parseSnapshot(product.code_definition_snapshot);
-                    return snapshot[posInt]?.code === sel.code;
+                    return (snapshot[posInt]?.value || '') === sel.value;
                 });
 
                 if (isCompatible) {
                     newUserSelections[posInt] = sel;
                     newUserManualSelections[posInt] = true;
-                    // 进一步过滤产品
                     compatibleProducts = compatibleProducts.filter(product => {
                         const snapshot = this.parseSnapshot(product.code_definition_snapshot);
-                        return snapshot[posInt]?.code === sel.code;
+                        return (snapshot[posInt]?.value || '') === sel.value;
                     });
                     console.log(`  ✓ 保留兼容选择 [${posInt}]: ${sel.value}`);
                 } else {
@@ -782,120 +554,19 @@ class ProductConfigModal {
             this.updateMNDisplay();
 
         } else if (this.remainingProducts.length === 1) {
-            // 只剩一个产品 → 显示关联规格选中效果，不自动跳转
+            // 只剩一个产品 → 显示关联规格选中效果
             console.log('✅ 产品规格已完全确定，显示关联效果');
-
-            // 🆕 检测产品是否变化，如果变化则重置可配置规格状态
-            const newProduct = this.remainingProducts[0];
-            if (this.selectedProduct && this.selectedProduct.id !== newProduct.id) {
-                console.log('📦 产品已切换，重置可配置规格状态');
-                this.configurableSelections = {};
-                this.configurablePriceAdjustment = 0;
-                this.configurablePriceDetails = [];
-            }
-
             this.showFinalizedSpecs();
 
         } else {
             // 还有多个产品 → 重新分析并渲染
             console.log(`🔄 继续筛选 (剩余 ${this.remainingProducts.length} 个产品)`);
-
-            // 🆕 多产品情况下也重置可配置规格状态（因为还未确定最终产品）
-            this.configurableSelections = {};
-            this.configurablePriceAdjustment = 0;
-            this.configurablePriceDetails = [];
-
-            this.analyzeAndShowCodeSelection(this.remainingProducts, false);  // 非初始调用
+            this.analyzeAndShowCodeSelection(this.remainingProducts, false);
         }
     }
 
     /**
-     * 处理可配置字段的选择事件
-     * 可配置字段选择不影响产品过滤，只记录用户选择并更新MN号
-     * @param {number} position - 字段位置
-     * @param {string} code - 选择的编码
-     * @param {string} value - 选择的值
-     * @param {string|null} unit - 单位
-     */
-    onConfigurableFieldSelect(position, code, value, unit = null) {
-        // 初始化可配置字段选择存储
-        if (!this.configurableSelections) {
-            this.configurableSelections = {};
-        }
-
-        // 记录可配置字段的选择
-        this.configurableSelections[position] = { code, value, unit };
-
-        // 更新对应字段的 autoLinkedCode（清除自动关联标记，因为用户已手动选择）
-        const field = this.configurableSelectableFields?.find(f => f.position === position);
-        if (field) {
-            field.userSelectedCode = code;
-        }
-
-        // 计算价格增量
-        this.calculateConfigurablePriceAdjustment();
-
-        // 立即更新价格显示
-        this.updatePriceDisplay();
-
-        // 更新MN号显示
-        this.updateMNDisplay();
-
-        // 更新产品描述（Step 1 使用 configurableSelectableFields）
-        this.updateSpecificationFromConfigurableFields();
-    }
-
-    /**
-     * 更新产品描述（Step 1：根据 configurableSelectableFields 的选择更新描述）
-     * 与 Step 2 的 updateProductSpecification 不同，这里使用 configurableSelections
-     * 如果原描述中没有该字段，会追加到末尾
-     */
-    updateSpecificationFromConfigurableFields() {
-        const specElement = document.getElementById('configProductSpec');
-        if (!specElement || !this.selectedProduct) {
-            return;
-        }
-
-        // 从原始描述开始
-        let specification = this.selectedProduct.specification || '';
-        const addedFields = [];  // 记录需要追加的字段
-
-        if (this.configurableSelectableFields && this.configurableSelections) {
-            this.configurableSelectableFields.forEach(field => {
-                const selection = this.configurableSelections[field.position];
-                if (!selection) return;
-
-                const fieldName = field.fieldName;
-                const newValue = selection.value;
-                const unit = selection.unit || '';
-
-                if (newValue) {
-                    // 替换描述中对应字段的值（匹配 "字段名: 值" 或 "字段名: 值 单位" 格式）
-                    // 支持中英文冒号和逗号/分号分隔
-                    const pattern = new RegExp(`${fieldName}[:：]\\s*[^,，;；]+`, 'g');
-                    const replacement = unit ? `${fieldName}: ${newValue} ${unit}` : `${fieldName}: ${newValue}`;
-                    const beforeReplace = specification;
-                    specification = specification.replace(pattern, replacement);
-
-                    // 如果替换未生效（原描述中没有该字段），记录需要追加
-                    if (specification === beforeReplace) {
-                        addedFields.push(replacement);
-                    }
-                }
-            });
-        }
-
-        // 追加原描述中不存在的可配置规格
-        if (addedFields.length > 0) {
-            const separator = specification.trim() ? ', ' : '';
-            specification = specification.trim() + separator + addedFields.join(', ');
-        }
-
-        specElement.textContent = specification;
-    }
-
-    /**
-     * 更新价格显示（包含可配置字段的价格增量）
+     * 更新价格显示
      */
     updatePriceDisplay() {
         const brandPriceElement = document.getElementById('configProductBrandPrice');
@@ -903,19 +574,8 @@ class ProductConfigModal {
 
         const brand = this.selectedProduct.brand || '';
         const basePrice = this.selectedProduct.retail_price || this.selectedProduct.market_price || 0;
-        const adjustmentTotal = this.configurablePriceAdjustment || 0;
-        const adjustmentYuan = adjustmentTotal / 100;
-        const finalPrice = parseFloat(basePrice) + adjustmentYuan;
         const currencySymbol = document.getElementById('currencySymbol')?.textContent?.trim() || '¥';
-
-        let priceHtml = '';
-        if (adjustmentTotal !== 0) {
-            // 有价格增量时，只显示新价格（橘色，与可配置字段圆圈颜色一致）
-            priceHtml = `<span class="fw-bold" style="color: #f0ad4e;">${currencySymbol}${finalPrice.toLocaleString()}</span>`;
-        } else {
-            // 无价格增量，显示原价（蓝色）
-            priceHtml = `<span class="fw-bold text-primary">${currencySymbol}${basePrice ? parseFloat(basePrice).toLocaleString() : basePrice}</span>`;
-        }
+        const priceHtml = `<span class="fw-bold text-primary">${currencySymbol}${basePrice ? parseFloat(basePrice).toLocaleString() : basePrice}</span>`;
 
         if (brand && basePrice) {
             brandPriceElement.innerHTML = `
@@ -934,110 +594,20 @@ class ProductConfigModal {
     }
 
     /**
-     * 计算可配置字段的价格增量总额
-     * @returns {number} 价格增量总额（分）
-     */
-    calculateConfigurablePriceAdjustment() {
-        let total = 0;
-        let adjustmentDetails = [];
-
-        if (this.configurableSelectableFields) {
-            this.configurableSelectableFields.forEach(field => {
-                // 获取用户选择的 code（手动选择或自动关联）
-                const selectedCode = this.configurableSelections?.[field.position]?.code
-                    || field.userSelectedCode
-                    || field.autoLinkedCode;
-
-                if (selectedCode) {
-                    // 找到选中选项的价格增量
-                    const selectedOption = field.options?.find(opt => opt.code === selectedCode);
-
-                    if (selectedOption && selectedOption.price_adjustment) {
-                        total += selectedOption.price_adjustment;
-                        adjustmentDetails.push({
-                            fieldName: field.fieldName,
-                            value: selectedOption.value,
-                            adjustment: selectedOption.price_adjustment
-                        });
-                    }
-                }
-            });
-        }
-
-        this.configurablePriceAdjustment = total;
-        this.configurablePriceDetails = adjustmentDetails;
-
-        return total;
-    }
-
-    /**
-     * 根据产品的 spec_mn 和用户的可配置字段选择，生成新的规格MN
-     *
-     * MN 结构：地区(0) + 分类(1) + 子分类(2) + 规格编码(3+)
-     * configurableSelections 的 key 是 code_parts 数组的索引（规格字段在数组中的位置）
-     * 实际 MN 位置 = 数组索引 + 3（因为前3位是地区+分类+子分类）
-     *
-     * @returns {string|null} 生成的规格MN字符串，如果无法生成则返回null
-     */
-    generateSpecMn() {
-        if (!this.selectedProduct) {
-            return null;
-        }
-
-        // 必须使用 spec_mn 作为基础（不是 product_mn）
-        const originalSpecMn = this.selectedProduct.spec_mn;
-        if (!originalSpecMn) {
-            return null;
-        }
-
-        // 如果没有可配置字段选择，返回null（保留原始product_mn）
-        if (!this.configurableSelections || Object.keys(this.configurableSelections).length === 0) {
-            return null;
-        }
-
-        // 将 spec_mn 转换为字符数组
-        let mnChars = originalSpecMn.split('');
-
-        // MN 结构偏移量：前3位是地区+分类+子分类，规格编码从位置3开始
-        const MN_SPEC_OFFSET = 3;
-
-        // 遍历可配置字段选择
-        // key (posStr) 是 code_parts 数组的索引，需要 +3 才是 MN 中的实际位置
-        for (const [posStr, selection] of Object.entries(this.configurableSelections)) {
-            const arrayIndex = parseInt(posStr);
-            const mnPosition = arrayIndex + MN_SPEC_OFFSET;  // 转换为 MN 中的实际位置
-
-            if (mnPosition < mnChars.length && selection.code) {
-                mnChars[mnPosition] = selection.code;
-            }
-        }
-
-        const generatedMn = mnChars.join('');
-
-        // 如果生成的MN与原始spec_mn相同，返回null（保留原始product_mn）
-        if (generatedMn === originalSpecMn) {
-            return null;
-        }
-
-        return generatedMn;
-    }
-
-    /**
-     * 根据用户已选择的字段过滤产品列表
+     * 根据用户已选择的字段过滤产品列表（按 value 匹配）
      */
     filterProductsBySelections() {
         this.remainingProducts = this.currentProducts.filter(product => {
             const snapshot = this.parseSnapshot(product.code_definition_snapshot);
 
-            // 检查所有用户已选择的字段是否匹配
             for (const [pos, selection] of Object.entries(this.userSelections)) {
                 const position = parseInt(pos);
-                if (snapshot[position]?.code !== selection.code) {
-                    return false;  // 不匹配，过滤掉
+                if ((snapshot[position]?.value || '') !== selection.value) {
+                    return false;
                 }
             }
 
-            return true;  // 所有字段匹配，保留
+            return true;
         });
     }
 
@@ -1057,25 +627,20 @@ class ProductConfigModal {
         // 🆕 更新产品基本信息（包括图片），确保切换规格时图片也跟随更新
         this.fillProductBasicInfo(this.selectedProduct);
 
-        // 自动填充未选择的字段（非可配置字段）
+        // 自动填充未选择的字段
         const snapshot = this.parseSnapshot(this.selectedProduct.code_definition_snapshot);
-        const configurablePositions = new Set(
-            (this.configurableSelectableFields || []).map(f => f.position)
-        );
-
         snapshot.forEach((field, pos) => {
-            // 🆕 只自动填充非可配置字段
-            if (!this.userSelections.hasOwnProperty(pos) && !configurablePositions.has(pos)) {
+            if (!this.userSelections.hasOwnProperty(pos)) {
                 this.userSelections[pos] = {
-                    code: field.code,
-                    value: field.value,
+                    code: field.code || '',
+                    value: field.value || '',
                     unit: field.unit || null
                 };
-                console.log(`  ✓ 自动关联字段 [${pos}]: ${field.value} (${field.code})`);
+                console.log(`  ✓ 自动关联字段 [${pos}]: ${field.value}`);
             }
         });
 
-        // 🆕 重新渲染字段，确保可配置字段显示（此时产品差异字段已全部选完）
+        // 重新渲染字段
         this.renderFields();
 
         // 然后在现有UI上更新状态
@@ -1094,18 +659,11 @@ class ProductConfigModal {
     /**
      * 将所有规格字段渲染为选中状态
      * 区分用户手动选择（可修改）和自动关联选中（禁用）
-     * 🆕 可配置字段始终保持可选状态
      */
     renderAllFieldsAsSelected() {
         const container = document.getElementById('codeFieldsContainer');
         if (!container) return;
 
-        // 获取可配置字段的位置集合
-        const configurablePositions = new Set(
-            (this.configurableSelectableFields || []).map(f => f.position)
-        );
-
-        // 遍历所有规格字段容器
         const fieldContainers = container.querySelectorAll('.spec-field-selectable');
         fieldContainers.forEach(fieldDiv => {
             const position = parseInt(fieldDiv.dataset.position);
@@ -1113,28 +671,23 @@ class ProductConfigModal {
             if (!selection) return;
 
             const isManual = this.userManualSelections && this.userManualSelections[position];
-            const isConfigurable = configurablePositions.has(position);
 
-            // 找到所有单选框
+            // 找到所有单选框（现在用 value 匹配）
             const radioInputs = fieldDiv.querySelectorAll('input[type="radio"]');
             radioInputs.forEach(radio => {
-                if (radio.value === selection.code) {
-                    radio.checked = true;   // 选中
+                if (radio.value === selection.value) {
+                    radio.checked = true;
                 }
-                // 🆕 可配置字段始终保持可用，不禁用
-                // 非可配置字段：只有自动关联的才禁用
-                if (!isConfigurable && !isManual) {
-                    radio.disabled = true;  // 自动关联的禁用
+                if (!isManual) {
+                    radio.disabled = true;
                 }
             });
 
-            // 添加视觉提示：区分手动选择和自动关联
-            if (!isManual && !isConfigurable) {
+            if (!isManual) {
                 fieldDiv.classList.add('auto-selected');
-            } else if (isManual) {
+            } else {
                 fieldDiv.classList.add('user-selected');
             }
-            // 可配置字段保持原有的 configurable-field 样式
         });
     }
 
@@ -1255,39 +808,15 @@ class ProductConfigModal {
                 modelElement.textContent = product.product_model || product.model || '未知';
             }
 
-            const hasConfigurableAdjustment = this.configurablePriceAdjustment > 0;
+            // 显示产品MN，绿色徽章
+            const displayMn = product.product_mn || '无';
+            mnElement.innerHTML = `
+                <span class="mn-badge confirmed">
+                    <i class="fas fa-check-circle"></i> ${displayMn}
+                </span>
+            `;
 
-            // 🔍 调试：MN显示逻辑
-            console.log('🔍 updateMNDisplay 调试信息:');
-            console.log('  - product_mn:', product.product_mn);
-            console.log('  - spec_mn:', product.spec_mn);
-            console.log('  - configurablePriceAdjustment:', this.configurablePriceAdjustment);
-            console.log('  - hasConfigurableAdjustment:', hasConfigurableAdjustment);
-            console.log('  - configurableSelections:', JSON.stringify(this.configurableSelections));
-            console.log('  - selectedProduct:', this.selectedProduct);
-
-            if (hasConfigurableAdjustment) {
-                // 有价格增量时：生成新的规格MN，橘色徽章 + 感叹号图标
-                const generatedMn = this.generateSpecMn();
-                console.log('  - generateSpecMn() 返回:', generatedMn);
-                const newSpecMn = generatedMn || product.spec_mn || product.product_mn || '无';
-                console.log('  - 最终显示的MN:', newSpecMn);
-                mnElement.innerHTML = `
-                    <span class="mn-badge" style="background-color: #f0ad4e; color: white;">
-                        <i class="fas fa-exclamation-circle"></i> ${newSpecMn}
-                    </span>
-                `;
-            } else {
-                // 无价格增量时：显示产品MN，绿色徽章 + 打勾图标
-                const displayMn = product.product_mn || '无';
-                mnElement.innerHTML = `
-                    <span class="mn-badge confirmed">
-                        <i class="fas fa-check-circle"></i> ${displayMn}
-                    </span>
-                `;
-            }
-
-            // 更新品牌 + 价格（复用 updatePriceDisplay 以支持价格增量）
+            // 更新品牌 + 价格
             this.updatePriceDisplay();
 
             // 更新规格说明
@@ -1735,34 +1264,18 @@ class ProductConfigModal {
      * @param {Array} configurations - 配置列表
      */
     executeAddProduct(configurations = []) {
-        // ⭐ 获取动态规格配置数据
+        // 获取动态规格配置数据
         const dynamicSpecConfig = this.getDynamicSpecConfigData();
-
-        // ⭐ 计算可配置字段的价格增量（步骤1的规格选择）
-        this.calculateConfigurablePriceAdjustment();
-
-        // ⭐ 修改：准备产品数据，包含配置信息和动态规格配置
-        const generatedSpecMn = this.generateSpecMn();
 
         const productData = {
             mainProduct: {
                 ...this.selectedProduct,
-                pending_specs: this.pendingSpecs || []  // 传递待定规格数据
+                pending_specs: this.pendingSpecs || []
             },
-            configurations: configurations,  // 配置列表
-            dynamicSpecConfig: dynamicSpecConfig,  // 动态规格配置（步骤2）
-            // ⭐ 新增：可配置字段价格增量（步骤1）
-            configurableSpecConfig: {
-                price_adjustment_total: this.configurablePriceAdjustment || 0,
-                price_details: this.configurablePriceDetails || [],
-                configurable_selections: this.configurableSelections || {},
-                spec_mn: generatedSpecMn,  // 生成的规格MN
-                // ⭐ 传递更新后的描述（配置确认页面显示的描述）
-                configured_description: document.getElementById('configProductSpec')?.textContent?.trim() || ''
-            }
+            configurations: configurations,
+            dynamicSpecConfig: dynamicSpecConfig
         };
 
-        // 日志输出
         if (this.pendingSpecs && this.pendingSpecs.length > 0) {
             console.log('📋 产品包含待定规格:', this.pendingSpecs);
         }
@@ -1771,15 +1284,8 @@ class ProductConfigModal {
             console.log(`📦 产品包含 ${configurations.length} 个配置:`, configurations);
         }
 
-        // 输出动态规格配置日志
         if (dynamicSpecConfig) {
             console.log('🔧 产品包含动态规格配置:', dynamicSpecConfig);
-        }
-
-        // ⭐ 输出可配置字段价格增量
-        if (this.configurablePriceAdjustment && this.configurablePriceAdjustment !== 0) {
-            console.log(`💰 可配置字段价格增量: ¥${(this.configurablePriceAdjustment / 100).toFixed(2)}`);
-            console.log('  - 明细:', this.configurablePriceDetails);
         }
 
         // 添加产品
@@ -3330,26 +2836,6 @@ class ProductConfigModal {
     }
 
     // ============== 动态规格配置功能 ==============
-
-    /**
-     * 获取子分类的所有规格字段及其选项（包括继承的分类级字段）
-     * @param {number} subcategoryId - 子分类ID
-     * @returns {Object|null} 规格字段数据，包含 spec_fields 数组
-     */
-    async fetchSpecFieldOptions(subcategoryId) {
-        try {
-            const response = await fetch(`/quotation/api/subcategory/${subcategoryId}/spec-field-options`);
-            const result = await response.json();
-            if (result.success) {
-                return result.data;
-            }
-            console.warn('获取规格字段选项失败:', result.message);
-            return null;
-        } catch (error) {
-            console.error('获取规格字段选项请求失败:', error);
-            return null;
-        }
-    }
 
     /**
      * 加载产品的可配置规格

@@ -208,8 +208,7 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
     """
     try:
         from app.models.product_spec import ProductSpec
-        from app.models.product_code import ProductCodeField
-        from app.routes.product_code import get_field_unit
+        from app.models.spec_template import SpecDefinition, SpecCategory
 
         # 构建快照基础结构
         # 注意: full_code 字段已废弃，保留仅为兼容旧代码
@@ -237,52 +236,48 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
             snapshot["dev_product_id"] = dev_product.id
 
         # 从ProductSpec读取规格数据
-        # 注意：这里读取的是标准产品的规格表，研发入库时已经复制过来了
         specs = ProductSpec.query.filter_by(
             product_id=product.id
         ).all()
 
-        # 先收集所有 (spec, field_def) 对，再按字典 position 排序
-        # 确保同子分类下所有产品的 code_parts 顺序一致
-        spec_with_defs = []
-        for spec in specs:
-            # 查询字段定义，获取 use_in_code 值
-            # 先查子分类级字段
-            field_def = ProductCodeField.query.filter_by(
-                subcategory_id=product.subcategory_id,
-                name=spec.field_name,
-                field_type='spec'
-            ).first()
+        # 批量查询所有 SpecDefinition（含 category 关联），按 field_name 建索引
+        spec_names = [s.field_name for s in specs if s.field_name]
+        definitions = SpecDefinition.query.filter(
+            SpecDefinition.name.in_(spec_names)
+        ).all() if spec_names else []
+        name_to_def = {d.name: d for d in definitions}
 
-            # 如果找不到，再查分类级字段
-            if not field_def and product.category_id:
-                field_def = ProductCodeField.query.filter(
-                    ProductCodeField.category_id == product.category_id,
-                    ProductCodeField.subcategory_id.is_(None),
-                    ProductCodeField.name == spec.field_name,
-                    ProductCodeField.field_type == 'spec'
-                ).first()
+        # 预加载分类的 display_order
+        cat_ids = {d.category_id for d in definitions if d.category_id}
+        categories = SpecCategory.query.filter(
+            SpecCategory.id.in_(cat_ids)
+        ).all() if cat_ids else []
+        cat_order_map = {c.id: c.display_order for c in categories}
 
-            spec_with_defs.append((spec, field_def))
+        # 按 SpecCategory.display_order → SpecDefinition.display_order 排序
+        def sort_key(spec):
+            defn = name_to_def.get(spec.field_name)
+            if defn:
+                cat_order = cat_order_map.get(defn.category_id, 9999)
+                return (0, cat_order, defn.display_order)
+            return (1, 9999, 9999)
 
-        # 按字典 position 排序：有字典定义的在前（按 position 升序），无字典定义的在后（保持原序）
-        spec_with_defs.sort(key=lambda x: (0, x[1].position) if x[1] else (1, 9999))
+        specs_sorted = sorted(specs, key=sort_key)
 
-        # 用字典 position 构建 code_parts
-        for idx, (spec, field_def) in enumerate(spec_with_defs):
-            dict_position = field_def.position if field_def else (1000 + idx)
-            use_in_code = field_def.use_in_code if field_def else False
-
-            # 查询规格单位
-            unit = get_field_unit(spec.field_name)
+        # 构建 code_parts
+        for idx, spec in enumerate(specs_sorted):
+            defn = name_to_def.get(spec.field_name)
+            # use_in_code: 有 field_code 即参与编码
+            use_in_code = bool(spec.field_code and spec.field_code.strip())
+            unit = defn.unit if defn else None
 
             snapshot["code_parts"].append({
-                "position": dict_position,
+                "position": idx,
                 "field_name": spec.field_name,
                 "field_code": spec.field_code if spec.field_code else "",
                 "code": spec.field_code if spec.field_code else "",
                 "value": spec.field_value if spec.field_value else "",
-                "unit": unit,
+                "unit": unit or "",
                 "use_in_code": use_in_code,
                 "description": ""
             })

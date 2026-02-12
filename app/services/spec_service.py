@@ -506,11 +506,12 @@ class SpecService:
         all_categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
         category_map = {cat.id: cat for cat in all_categories}
 
-        # 通过 field_name 匹配 SpecDefinition 获取分类信息和英文名称
+        # 通过 field_name 匹配 SpecDefinition 获取分类信息、英文名称和排序
         spec_names = [s.get('field_name') or s.get('name', '') for s in specs if s.get('field_name') or s.get('name')]
         definitions = SpecDefinition.query.filter(SpecDefinition.name.in_(spec_names)).all()
         name_to_category = {d.name: d.category_id for d in definitions}
         name_to_name_en = {d.name: d.name_en for d in definitions}
+        name_to_display_order = {d.name: d.display_order for d in definitions}
 
         # 按分类分组
         specs_by_category = {}
@@ -536,15 +537,21 @@ class SpecService:
             else:
                 uncategorized_specs.append(spec_with_en)
 
-        # 构建按 display_order 排序的分类列表
+        # 构建按 display_order 排序的分类列表，分类内规格按 SpecDefinition.display_order 排序
         spec_categories = []
         for cat in all_categories:
             if cat.id in specs_by_category:
+                sorted_specs = sorted(
+                    specs_by_category[cat.id],
+                    key=lambda s: name_to_display_order.get(
+                        s.get('field_name') or s.get('name', ''), 9999
+                    )
+                )
                 spec_categories.append({
                     'id': cat.id,
                     'name': cat.name,
                     'name_en': cat.name_en,
-                    'specs': specs_by_category[cat.id]
+                    'specs': sorted_specs
                 })
 
         # 未分类的规格放在最后
