@@ -361,18 +361,13 @@ class SpecService:
     @classmethod
     def _check_mn_conflict(cls, new_mn, product_type, product_id, specs_data, SpecModel, id_field):
         """
-        检查MN冲突（同时检查研发库和产品库）
+        检查MN冲突（检查产品库）
 
         Returns:
             dict or None: 冲突产品信息
         """
         from app.models.product import Product
-        from app.models.dev_product import DevProduct
         from app.models.product_spec import ProductSpec
-        from app.models.dev_product import DevProductSpec
-
-        conflict = None
-        conflict_source = None
 
         # 检查产品库
         product_query = Product.query.filter(
@@ -384,17 +379,6 @@ class SpecService:
         if product_type == cls.TYPE_PRODUCT:
             product_query = product_query.filter(Product.id != product_id)
         conflict = product_query.first()
-        if conflict:
-            conflict_source = 'product'
-
-        # 如果产品库没有冲突，检查研发库
-        if not conflict:
-            dev_query = DevProduct.query.filter(DevProduct.mn_code == new_mn)
-            if product_type == cls.TYPE_DEV_PRODUCT:
-                dev_query = dev_query.filter(DevProduct.id != product_id)
-            conflict = dev_query.first()
-            if conflict:
-                conflict_source = 'dev_product'
 
         if not conflict:
             return None
@@ -406,38 +390,20 @@ class SpecService:
                 changed_field_names.add(s.get('field_name'))
 
         # 获取冲突产品的规格
-        if conflict_source == 'product':
-            conflict_specs = ProductSpec.query.filter_by(product_id=conflict.id).all()
-            conflict_spec_list = [
-                {'name': s.field_name, 'value': s.field_value}
-                for s in conflict_specs
-                if s.field_code and s.field_name in changed_field_names
-            ]
-            return {
-                'id': conflict.id,
-                'product_name': conflict.product_name or conflict.name or '-',
-                'model': conflict.model or '-',
-                'product_mn': conflict.product_mn or '-',
-                'spec_mn': conflict.spec_mn or '-',
-                'specs': conflict_spec_list,
-                'source': '产品库'
-            }
-        else:
-            conflict_specs = DevProductSpec.query.filter_by(dev_product_id=conflict.id).all()
-            conflict_spec_list = [
-                {'name': s.field_name, 'value': s.field_value}
-                for s in conflict_specs
-                if s.field_code and s.field_name in changed_field_names
-            ]
-            return {
-                'id': conflict.id,
-                'product_name': conflict.name or '-',
-                'model': conflict.model or '-',
-                'product_mn': conflict.mn_code or '-',
-                'spec_mn': conflict.mn_code or '-',
-                'specs': conflict_spec_list,
-                'source': '研发产品库'
-            }
+        conflict_specs = ProductSpec.query.filter_by(product_id=conflict.id).all()
+        conflict_spec_list = [
+            {'name': s.field_name, 'value': s.field_value}
+            for s in conflict_specs
+            if s.field_code and s.field_name in changed_field_names
+        ]
+        return {
+            'id': conflict.id,
+            'product_name': conflict.product_name or conflict.name or '-',
+            'model': conflict.model or '-',
+            'product_mn': conflict.product_mn or '-',
+            'spec_mn': conflict.spec_mn or '-',
+            'specs': conflict_spec_list
+        }
 
     @classmethod
     def get_specs_with_coded_fields(cls, product_type, product_id, subcategory_id):

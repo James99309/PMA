@@ -909,7 +909,6 @@ class SpecEditor {
         document.getElementById('conflictProductMn').textContent = conflictProduct.product_mn || '-';
         document.getElementById('conflictSpecMn').textContent = conflictProduct.spec_mn || '-';
         document.getElementById('conflictProductSpecs').innerHTML = formatSpecs(conflictProduct.specs);
-        document.getElementById('conflictProductSource').textContent = conflictProduct.source || '';
 
         document.getElementById(this.modals.conflict).classList.remove('hidden');
     }
