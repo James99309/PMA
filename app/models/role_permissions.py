@@ -10,6 +10,7 @@ class RolePermission(db.Model):
     can_edit = db.Column(db.Boolean, default=False)
     can_delete = db.Column(db.Boolean, default=False)
     can_change_owner = db.Column(db.Boolean, default=False)  # 拥有人修改权限
+    can_export_email = db.Column(db.Boolean, default=False)  # 导出邮箱权限
     
     # 批价单和结算单特殊权限字段
     pricing_discount_limit = db.Column(db.Float, nullable=True)  # 批价折扣下限（百分比形式，如40.5表示40.5%）
@@ -35,6 +36,7 @@ class RolePermission(db.Model):
             'can_edit': self.can_edit,
             'can_delete': self.can_delete,
             'can_change_owner': self.can_change_owner,
+            'can_export_email': self.can_export_email,
             'pricing_discount_limit': self.pricing_discount_limit,
             'settlement_discount_limit': self.settlement_discount_limit,
             'permission_level': self.permission_level,

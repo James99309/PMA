@@ -837,6 +837,17 @@
                                                                                 <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('修改拥有人') }}</span>
                                                                             </label>
                                                                         </template>
+                                                                        <!-- 导出邮箱权限 - 仅当模块支持时显示 -->
+                                                                        <template x-if="hasExportEmail(module.id)">
+                                                                            <label class="flex items-center gap-2" :class="isEditing ? 'cursor-pointer' : 'cursor-default'">
+                                                                                <input type="checkbox" class="perm-export-email w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                       :data-module="module.id"
+                                                                                       :checked="getPermission(module.id).can_export_email"
+                                                                                       :disabled="!isEditing"
+                                                                                       @change="markChanged()">
+                                                                                <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('导出邮箱') }}</span>
+                                                                            </label>
+                                                                        </template>
                                                                     </div>
 
                                                                     <!-- 折扣权限 -->
@@ -3198,6 +3209,7 @@
                             can_edit: container.querySelector('.perm-edit')?.checked || false,
                             can_delete: container.querySelector('.perm-delete')?.checked || false,
                             can_change_owner: container.querySelector('.perm-change-owner')?.checked || false,
+                            can_export_email: container.querySelector('.perm-export-email')?.checked || false,
                             permission_level: container.querySelector('.perm-level')?.value || 'personal'
                         };
 
@@ -3301,6 +3313,7 @@
                             can_edit: container.querySelector('.perm-edit')?.checked || false,
                             can_delete: container.querySelector('.perm-delete')?.checked || false,
                             can_change_owner: container.querySelector('.perm-change-owner')?.checked || false,
+                            can_export_email: container.querySelector('.perm-export-email')?.checked || false,
                             permission_level: container.querySelector('.perm-level')?.value || 'personal'
                         };
 
@@ -3580,6 +3593,12 @@
             hasOwnerChange(moduleId) {
                 const module = this.modules.find(m => m.id === moduleId);
                 return module?.supports_owner_change === true;
+            },
+
+            // 导出邮箱权限辅助方法
+            hasExportEmail(moduleId) {
+                const module = this.modules.find(m => m.id === moduleId);
+                return module?.supports_export_email === true;
             },
 
             // 折扣辅助方法

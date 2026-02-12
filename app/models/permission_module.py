@@ -31,6 +31,7 @@ class PermissionModule(db.Model):
     supports_owner_change = db.Column(db.Boolean, default=False)  # 支持拥有人修改
     supports_affiliation = db.Column(db.Boolean, default=False)  # 支持数据归属
     supports_content_filter = db.Column(db.Boolean, default=False)  # 支持内容筛选
+    supports_export_email = db.Column(db.Boolean, default=False)  # 支持导出邮箱
 
     is_active = db.Column(db.Boolean, default=True)  # 是否启用
     created_at = db.Column(db.Float, default=time.time)
@@ -59,6 +60,7 @@ class PermissionModule(db.Model):
             'supports_owner_change': self.supports_owner_change,
             'supports_affiliation': self.supports_affiliation,
             'supports_content_filter': self.supports_content_filter,
+            'supports_export_email': self.supports_export_email,
             'is_active': self.is_active
         }
 

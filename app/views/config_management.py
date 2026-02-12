@@ -309,6 +309,7 @@ def api_get_role_permissions(role):
                 'supports_owner_change': m.supports_owner_change,
                 'supports_affiliation': m.supports_affiliation,
                 'supports_content_filter': m.supports_content_filter,
+                'supports_export_email': getattr(m, 'supports_export_email', False),
                 'features': [f.to_dict(lang) for f in module_features]
             })
 
@@ -327,6 +328,7 @@ def api_get_role_permissions(role):
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete,
                 'can_change_owner': perm.can_change_owner,
+                'can_export_email': getattr(perm, 'can_export_email', False),
                 'permission_level': perm.permission_level or 'personal',
                 'pricing_discount_limit': perm.pricing_discount_limit,
                 'settlement_discount_limit': perm.settlement_discount_limit,
@@ -393,6 +395,7 @@ def api_save_role_permissions(role):
                 'can_edit': perm_data.get('can_edit', False),
                 'can_delete': perm_data.get('can_delete', False),
                 'can_change_owner': perm_data.get('can_change_owner', False),
+                'can_export_email': perm_data.get('can_export_email', False),
                 'permission_level': perm_data.get('permission_level', 'personal'),
                 'pricing_discount_limit': perm_data.get('pricing_discount_limit'),
                 'settlement_discount_limit': perm_data.get('settlement_discount_limit'),
@@ -531,6 +534,7 @@ def api_batch_get_user_permissions():
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete,
                 'can_change_owner': perm.can_change_owner,
+                'can_export_email': getattr(perm, 'can_export_email', False),
                 'permission_level': perm.permission_level or 'personal',
                 'pricing_discount_limit': perm.pricing_discount_limit,
                 'settlement_discount_limit': perm.settlement_discount_limit,
@@ -553,6 +557,7 @@ def api_batch_get_user_permissions():
                     p['can_edit'] == first_perm['can_edit'] and
                     p['can_delete'] == first_perm['can_delete'] and
                     p['can_change_owner'] == first_perm['can_change_owner'] and
+                    p['can_export_email'] == first_perm['can_export_email'] and
                     p['permission_level'] == first_perm['permission_level']
                     for p in module_perms
                 )
@@ -564,6 +569,7 @@ def api_batch_get_user_permissions():
                         'can_edit': first_perm['can_edit'],
                         'can_delete': first_perm['can_delete'],
                         'can_change_owner': first_perm['can_change_owner'],
+                        'can_export_email': first_perm['can_export_email'],
                         'permission_level': first_perm['permission_level'],
                         'pricing_discount_limit': first_perm['pricing_discount_limit'],
                         'settlement_discount_limit': first_perm['settlement_discount_limit'],
@@ -578,6 +584,7 @@ def api_batch_get_user_permissions():
                         'can_edit': None,
                         'can_delete': None,
                         'can_change_owner': None,
+                        'can_export_email': None,
                         'permission_level': None,
                         'pricing_discount_limit': None,
                         'settlement_discount_limit': None,
@@ -592,6 +599,7 @@ def api_batch_get_user_permissions():
                     'can_edit': None,
                     'can_delete': None,
                     'can_change_owner': None,
+                    'can_export_email': None,
                     'permission_level': None,
                     'pricing_discount_limit': None,
                     'settlement_discount_limit': None,
@@ -677,6 +685,7 @@ def api_batch_save_user_permissions():
                     'can_edit': perm_data.get('can_edit', False),
                     'can_delete': perm_data.get('can_delete', False),
                     'can_change_owner': perm_data.get('can_change_owner', False),
+                    'can_export_email': perm_data.get('can_export_email', False),
                     'permission_level': perm_data.get('permission_level', 'personal'),
                     'pricing_discount_limit': perm_data.get('pricing_discount_limit'),
                     'settlement_discount_limit': perm_data.get('settlement_discount_limit'),
@@ -694,6 +703,7 @@ def api_batch_save_user_permissions():
                         'can_edit': False,
                         'can_delete': False,
                         'can_change_owner': False,
+                        'can_export_email': False,
                         'permission_level': 'none'
                     })
 
@@ -1253,7 +1263,8 @@ def get_ordered_modules():
                     'supports_discount': m.supports_discount,
                     'supports_owner_change': m.supports_owner_change,
                     'supports_affiliation': m.supports_affiliation,
-                    'supports_content_filter': m.supports_content_filter
+                    'supports_content_filter': m.supports_content_filter,
+                    'supports_export_email': getattr(m, 'supports_export_email', False)
                 })
             return result
     except Exception:

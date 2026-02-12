@@ -121,6 +121,8 @@ def has_permission(module, action):
             return role_permission.can_edit or False
         elif action == 'delete':
             return role_permission.can_delete or False
+        elif action == 'export_email':
+            return role_permission.can_export_email or False
         elif action in ['admin', 'import', 'all', 'department']:
             # 对于特殊权限，检查是否有管理权限
             # 这里可以根据需要扩展逻辑

@@ -200,6 +200,8 @@ class User(db.Model, UserMixin):
             return perm_obj.can_delete
         elif action == 'change_owner':
             return getattr(perm_obj, 'can_change_owner', False)
+        elif action == 'export_email':
+            return getattr(perm_obj, 'can_export_email', False)
         return False
 
     def has_permission(self, module, action):
@@ -509,7 +511,8 @@ class Permission(db.Model):
     can_edit = db.Column(db.Boolean, default=False)  # 编辑权限
     can_delete = db.Column(db.Boolean, default=False)  # 删除权限
     can_change_owner = db.Column(db.Boolean, default=False)  # 拥有人修改权限
-    
+    can_export_email = db.Column(db.Boolean, default=False)  # 导出邮箱权限
+
     # 权限级别相关字段（与角色权限表保持一致）
     permission_level = db.Column(db.String(20), default='personal')  # 权限级别：system, company, department, personal
     permission_level_description = db.Column(db.Text)  # 权限级别说明
@@ -530,6 +533,7 @@ class Permission(db.Model):
             'can_edit': self.can_edit,
             'can_delete': self.can_delete,
             'can_change_owner': self.can_change_owner,
+            'can_export_email': self.can_export_email,
             'permission_level': self.permission_level,
             'permission_level_description': self.permission_level_description,
             'pricing_discount_limit': self.pricing_discount_limit,

@@ -40,7 +40,8 @@ def get_user_permissions(user_id):
                 'can_create': perm.can_create,
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete,
-                'can_change_owner': getattr(perm, 'can_change_owner', False)
+                'can_change_owner': getattr(perm, 'can_change_owner', False),
+                'can_export_email': getattr(perm, 'can_export_email', False)
             })
     return api_response(
         success=True,
@@ -101,6 +102,7 @@ def update_user_permissions(user_id):
             can_edit = perm_data.get('can_edit', False)
             can_delete = perm_data.get('can_delete', False)
             can_change_owner = perm_data.get('can_change_owner', False)
+            can_export_email = perm_data.get('can_export_email', False)
             permission_level = perm_data.get('permission_level', 'personal')
 
             # 数据一致性验证：如果permission_level为'none'，强制所有权限为False
@@ -110,6 +112,7 @@ def update_user_permissions(user_id):
                 can_edit = False
                 can_delete = False
                 can_change_owner = False
+                can_export_email = False
                 logger.info(f"✅ 数据一致性保护：模块 {module} level='none'，已强制清空所有权限")
 
             permission_records.append({
@@ -120,6 +123,7 @@ def update_user_permissions(user_id):
                 'can_edit': can_edit,
                 'can_delete': can_delete,
                 'can_change_owner': can_change_owner,
+                'can_export_email': can_export_email,
                 'permission_level': permission_level,
                 'permission_level_description': perm_data.get('permission_level_description'),
                 'pricing_discount_limit': perm_data.get('pricing_discount_limit'),
@@ -291,6 +295,7 @@ def get_role_permissions(role):
                 'can_edit': perm.can_edit,
                 'can_delete': perm.can_delete,
                 'can_change_owner': getattr(perm, 'can_change_owner', False),
+                'can_export_email': getattr(perm, 'can_export_email', False),
                 'permission_level': perm.permission_level,
                 'permission_level_description': perm.permission_level_description,
                 'pricing_discount_limit': perm.pricing_discount_limit,
@@ -484,6 +489,7 @@ def update_role_permissions():
                     can_edit=can_edit,
                     can_delete=can_delete,
                     can_change_owner=perm.get('can_change_owner', False),
+                    can_export_email=perm.get('can_export_email', False),
                     permission_level=permission_level,
                     permission_level_description=perm.get('permission_level_description'),
                     pricing_discount_limit=perm.get('pricing_discount_limit'),
@@ -565,6 +571,7 @@ def get_permission_modules():
                 'supports_owner_change': m.supports_owner_change,
                 'supports_affiliation': m.supports_affiliation,
                 'supports_content_filter': m.supports_content_filter,
+                'supports_export_email': getattr(m, 'supports_export_email', False),
                 'features': [f.to_dict(lang) for f in features]
             })
 

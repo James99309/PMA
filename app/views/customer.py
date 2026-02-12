@@ -3846,6 +3846,72 @@ def get_available_accounts_api():
             'message': f'获取可用账户列表失败: {str(e)}'
         }), 500
 
+# ==================== 导出客户邮箱 ====================
+
+@customer.route('/api/export_email_csv')
+@login_required
+@permission_required('customer', 'export_email')
+def export_email_csv():
+    """导出客户联系人邮箱为CSV文件"""
+    import csv
+    import io
+    from flask import Response
+
+    # 获取选中的 company_type（逗号分隔）
+    company_types = request.args.get('company_types', '')
+    selected_types = [t.strip() for t in company_types.split(',') if t.strip()]
+
+    # 权限控制：只导出用户可查看的客户
+    query = get_viewable_data(Company, current_user)
+    query = query.filter(Company.is_deleted == False)
+
+    # 始终排除供应商
+    query = query.filter(Company.company_type != 'supplier')
+
+    # 按选中的类型筛选
+    if selected_types:
+        query = query.filter(Company.company_type.in_(selected_types))
+
+    # JOIN Contact 查询有邮箱的联系人
+    from app.utils.dictionary_helpers import company_type_label
+    results = db.session.query(
+        Company.company_name,
+        Company.company_type,
+        Contact.name,
+        Contact.position,
+        Contact.email
+    ).join(Contact, Contact.company_id == Company.id).filter(
+        Company.id.in_(query.with_entities(Company.id)),
+        Contact.email.isnot(None),
+        Contact.email != ''
+    ).order_by(Company.company_name, Contact.name).all()
+
+    # 生成 CSV
+    output = io.StringIO()
+    output.write('\ufeff')  # UTF-8 BOM
+    writer = csv.writer(output)
+    writer.writerow([_('企业名称'), _('企业类型'), _('联系人'), _('职位'), _('邮箱')])
+
+    for row in results:
+        company_name, comp_type, contact_name, position, email = row
+        type_label = company_type_label(comp_type) if comp_type else ''
+        writer.writerow([company_name, type_label, contact_name, position or '', email])
+
+    # 文件名: 客户邮箱地址列表-日期-版本.csv
+    from urllib.parse import quote
+    now = datetime.now()
+    filename = f"客户邮箱地址列表-{now.strftime('%Y%m%d')}-v{now.strftime('%H%M')}.csv"
+
+    response = Response(
+        output.getvalue(),
+        mimetype='text/csv; charset=utf-8',
+        headers={
+            'Content-Disposition': f"attachment; filename=\"export.csv\"; filename*=UTF-8''{quote(filename)}"
+        }
+    )
+    return response
+
+
 # ==================== 客户合并功能 ====================
 
 @customer.route('/merge-tool')

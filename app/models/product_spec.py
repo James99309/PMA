@@ -39,6 +39,6 @@ class ProductSpec(db.Model):
             'field_name_en': self.field_name_en or '',
             'field_value': self.field_value,
             'field_code': self.field_code,
-            'include_in_description': self.include_in_description if self.include_in_description is not None else True,
+            'include_in_description': self.include_in_description if self.include_in_description is not None else False,
             'display_order': self.display_order
         }

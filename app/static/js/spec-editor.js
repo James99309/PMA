@@ -1075,7 +1075,8 @@ class SpecEditor {
                         ${cat.specs.map(spec => `
                             <label class="spec-tree-item flex items-center gap-3 px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
                                    data-spec-id="${spec.id}" data-spec-name="${spec.name}" data-spec-name-en="${spec.name_en || ''}"
-                                   data-spec-unit="${spec.unit || ''}" data-field-id="${spec.field_id || ''}">
+                                   data-spec-unit="${spec.unit || ''}" data-field-id="${spec.field_id || ''}"
+                                   data-cat-id="${cat.id}" data-cat-name="${cat.name}" data-cat-name-en="${cat.name_en || ''}">
                                 <input type="checkbox" class="spec-tree-checkbox w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50"
                                        value="${spec.id}">
                                 <span class="text-sm text-slate-700 dark:text-slate-300">${spec.name}</span>
@@ -1188,7 +1189,10 @@ class SpecEditor {
                     name: item.dataset.specName,
                     name_en: item.dataset.specNameEn || '',
                     unit: item.dataset.specUnit || '',
-                    field_id: item.dataset.fieldId || null
+                    field_id: item.dataset.fieldId || null,
+                    category_id: item.dataset.catId || null,
+                    category_name: item.dataset.catName || '',
+                    category_name_en: item.dataset.catNameEn || ''
                 };
                 if (this.checked) {
                     selectedSpecs.add(JSON.stringify(specData));
@@ -1234,6 +1238,7 @@ class SpecEditor {
 
         const tempId = 'new_' + Date.now() + '_' + spec.id;
         const unit = spec.unit || '';
+        const categoryId = spec.category_id || null;
 
         const row = document.createElement('div');
         row.className = 'spec-row px-6 py-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-t border-slate-100 dark:border-slate-800';
@@ -1244,7 +1249,8 @@ class SpecEditor {
         row.dataset.fieldValue = '';
         row.dataset.fieldCode = '';
         row.dataset.unit = unit;
-        row.dataset.includeInDesc = 'true';
+        row.dataset.includeInDesc = 'false';
+        if (categoryId) row.dataset.categoryId = categoryId;
 
         row.innerHTML = `
             <span class="spec-drag-handle cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 mr-1 shrink-0">
@@ -1268,13 +1274,14 @@ class SpecEditor {
                 <button type="button" class="delete-new-spec p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.delete}">
                     <span class="material-symbols-outlined text-lg">delete</span>
                 </button>
-                <button type="button" class="spec-visibility-btn hidden p-1.5 text-slate-400 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.excludeFromDesc || '从描述中排除'}">
-                    <span class="material-symbols-outlined text-lg">visibility</span>
+                <button type="button" class="spec-visibility-btn hidden p-1.5 text-slate-400 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-700" title="${this.i18n.includeInDesc || '包含在描述中'}">
+                    <span class="material-symbols-outlined text-lg">visibility_off</span>
                 </button>
             </div>
         `;
 
-        specsList.appendChild(row);
+        // 插入到正确的分类位置（而非总是追加到末尾）
+        this._insertRowInCategory(specsList, row, categoryId, spec.category_name, spec.category_name_en);
 
         const self = this;
         const select = row.querySelector('.value-select');
@@ -1291,7 +1298,7 @@ class SpecEditor {
             field_value: '',
             field_id: spec.field_id || null,
             unit: unit,
-            include_in_description: true
+            include_in_description: false
         });
 
         // 立即加载选项
@@ -1375,6 +1382,51 @@ class SpecEditor {
                 addedItem.include_in_description = !isVisible;
             }
         });
+    }
+
+    /**
+     * 将新规格行插入到正确的分类位置
+     * 如果找到匹配的分类，插入到该分类最后一个规格行之后
+     * 如果分类不存在，创建分类标题并插入
+     * 如果没有分类信息，追加到末尾
+     */
+    _insertRowInCategory(specsList, row, categoryId, categoryName, categoryNameEn) {
+        if (!categoryId) {
+            specsList.appendChild(row);
+            return;
+        }
+
+        // 查找匹配的分类标题
+        const categoryHeader = specsList.querySelector(`.spec-category-header[data-category-id="${categoryId}"]`);
+
+        if (categoryHeader) {
+            // 找到该分类下最后一个规格行
+            let lastRowInCategory = categoryHeader;
+            let nextSibling = categoryHeader.nextElementSibling;
+            while (nextSibling) {
+                if (nextSibling.classList.contains('spec-category-header')) {
+                    // 遇到下一个分类标题，停止
+                    break;
+                }
+                if (nextSibling.classList.contains('spec-row')) {
+                    lastRowInCategory = nextSibling;
+                }
+                nextSibling = nextSibling.nextElementSibling;
+            }
+            // 插入到该分类最后一个规格行之后
+            lastRowInCategory.insertAdjacentElement('afterend', row);
+        } else {
+            // 分类标题不存在，创建新的分类标题并插入
+            const newHeader = document.createElement('div');
+            newHeader.className = 'spec-category-header px-6 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800';
+            newHeader.dataset.categoryId = categoryId;
+            newHeader.innerHTML = `
+                <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">${categoryName || ''}</span>
+                ${categoryNameEn ? `<span class="text-xs text-slate-400 dark:text-slate-500 ml-2">${categoryNameEn}</span>` : ''}
+            `;
+            specsList.appendChild(newHeader);
+            specsList.appendChild(row);
+        }
     }
 
     /**

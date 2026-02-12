@@ -91,6 +91,13 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
                 <span class="hidden sm:inline">{{ _('智能合并') }}</span>
             </a>
             {% endif %}
+            {% if has_permission('customer', 'export_email') %}
+            <button type="button" onclick="openExportEmailModal()"
+                class="inline-flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-medium transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 18px;">mail</span>
+                <span class="hidden sm:inline">{{ _('导出邮箱') }}</span>
+            </button>
+            {% endif %}
             {% if has_permission('customer', 'create') %}
             <button type="button" onclick="openAddCustomerModal()"
                 class="inline-flex items-center justify-center gap-1 sm:gap-2 h-9 sm:h-10 px-3 sm:px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-xs sm:text-sm font-medium transition-colors">
@@ -271,6 +278,96 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
     <script src="{{ url_for('static', filename='js/map-picker.js') }}"></script>
     <!-- 通用地址选择器 -->
     <script src="{{ url_for('static', filename='js/address-picker.js') }}"></script>
+
+    <!-- 导出邮箱模态框 -->
+    {% if has_permission('customer', 'export_email') %}
+    <div id="exportEmailModal" class="fixed inset-0 z-50 hidden" x-data="exportEmailModal()" x-ref="modal">
+        <!-- 背景遮罩 -->
+        <div class="fixed inset-0 bg-black/50 transition-opacity" @click="close()"></div>
+        <!-- 模态框内容 -->
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-md" @click.stop>
+                <!-- 标题 -->
+                <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-emerald-600">mail</span>
+                        {{ _('导出客户邮箱') }}
+                    </h3>
+                    <button @click="close()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <span class="material-symbols-outlined text-slate-400">close</span>
+                    </button>
+                </div>
+                <!-- 内容 -->
+                <div class="p-5">
+                    <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">{{ _('选择要导出的客户类型（排除供应商）：') }}</p>
+                    <!-- 全选 -->
+                    <label class="flex items-center gap-2 mb-3 pb-3 border-b border-slate-200 dark:border-slate-700 cursor-pointer">
+                        <input type="checkbox" :checked="allSelected" @change="toggleAll($event.target.checked)"
+                               class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('全选') }}</span>
+                    </label>
+                    <!-- 类型列表 -->
+                    <div class="space-y-2 max-h-60 overflow-y-auto">
+                        <template x-for="opt in types" :key="opt.value">
+                            <label class="flex items-center gap-2 cursor-pointer py-1">
+                                <input type="checkbox" :value="opt.value" x-model="selected"
+                                       class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                                <span class="text-sm text-slate-700 dark:text-slate-300" x-text="opt.label"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+                <!-- 底部按钮 -->
+                <div class="flex justify-end gap-3 p-5 border-t border-slate-200 dark:border-slate-700">
+                    <button @click="close()"
+                            class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                        {{ _('取消') }}
+                    </button>
+                    <button @click="doExport()" :disabled="selected.length === 0"
+                            class="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                        <span class="flex items-center gap-1">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
+                            {{ _('导出CSV') }}
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        function exportEmailModal() {
+            // 从筛选栏提取企业类型选项，排除 supplier
+            const filterConfig = {{ filter_config | tojson }};
+            const companyTypeFilter = (filterConfig.filter_fields || []).find(f => f.name === 'company_type');
+            const allOptions = companyTypeFilter ? companyTypeFilter.options : [];
+            const types = allOptions.filter(o => o.value !== 'supplier');
+
+            return {
+                types: types,
+                selected: types.map(t => t.value),
+                get allSelected() {
+                    return this.selected.length === this.types.length;
+                },
+                toggleAll(checked) {
+                    this.selected = checked ? this.types.map(t => t.value) : [];
+                },
+                doExport() {
+                    if (this.selected.length === 0) return;
+                    const params = new URLSearchParams({ company_types: this.selected.join(',') });
+                    window.location.href = '{{ url_for("customer.export_email_csv") }}?' + params.toString();
+                    this.close();
+                },
+                close() {
+                    document.getElementById('exportEmailModal').classList.add('hidden');
+                }
+            };
+        }
+
+        function openExportEmailModal() {
+            document.getElementById('exportEmailModal').classList.remove('hidden');
+        }
+    </script>
+    {% endif %}
 
     <!-- 新建客户模态框脚本 -->
     <script>

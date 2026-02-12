@@ -456,6 +456,7 @@ COMPANY_TYPE_LABELS = {
     'dealer': {'zh': '经销', 'en': 'Dealer'},
     'distributor': {'zh': '分销', 'en': 'Distri'},
     'partner': {'zh': '伙伴', 'en': 'Partner'},
+    'supplier': {'zh': '供应商', 'en': 'Supplier'},
     'other': {'zh': '其他', 'en': 'Other'},
     # 中文 key 别名（兼容旧数据）
     '用户': {'zh': '用户', 'en': 'User'},

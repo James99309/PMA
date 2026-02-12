@@ -24,6 +24,7 @@ MODULE_METADATA_FALLBACK = {
         'supports_owner_change': True,
         'supports_affiliation': True,
         'supports_content_filter': True,
+        'supports_export_email': True,
         'description': '管理客户信息和联系人'
     },
     'dictionary_management': {
@@ -286,7 +287,8 @@ def _get_cached_modules():
                     'supports_discount': m.supports_discount,
                     'supports_owner_change': m.supports_owner_change,
                     'supports_affiliation': m.supports_affiliation,
-                    'supports_content_filter': m.supports_content_filter
+                    'supports_content_filter': m.supports_content_filter,
+                    'supports_export_email': getattr(m, 'supports_export_email', False)
                 }
             setattr(g, cache_key, result)
             return result
@@ -355,6 +357,7 @@ def get_module_metadata(module_id):
         'supports_owner_change': False,
         'supports_affiliation': False,
         'supports_content_filter': False,
+        'supports_export_email': False,
         'description': ''
     })
 
@@ -450,6 +453,20 @@ def module_supports_content_filter(module_id):
     """
     meta = get_module_metadata(module_id)
     return meta.get('supports_content_filter', False)
+
+
+def module_supports_export_email(module_id):
+    """
+    检查模块是否支持导出邮箱
+
+    Args:
+        module_id: 模块ID
+
+    Returns:
+        bool: 是否支持导出邮箱
+    """
+    meta = get_module_metadata(module_id)
+    return meta.get('supports_export_email', False)
 
 
 def get_permission_levels():

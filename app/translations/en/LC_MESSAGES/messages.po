@@ -8375,3 +8375,15 @@ msgstr "Empty = auto (current: {:.1f}X)"
 
 msgid "留空表示按时间衰减自动计算系数"
 msgstr "Leave empty for auto-decaying coefficient"
+
+msgid "导出邮箱"
+msgstr "Export Emails"
+
+msgid "导出客户邮箱"
+msgstr "Export Customer Emails"
+
+msgid "选择要导出的客户类型（排除供应商）："
+msgstr "Select customer types to export (excluding suppliers):"
+
+msgid "导出CSV"
+msgstr "Export CSV"

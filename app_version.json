@@ -1,7 +1,7 @@
 {
-  "app_version": "1.27.17",
+  "app_version": "1.27.19",
   "environment": "production",
-  "timestamp": "2026-02-12 21:55:23",
+  "timestamp": "2026-02-12 23:24:47",
   "modules": {
     "user": {
       "files": {
@@ -10,12 +10,12 @@
           "last_modified": "2026-02-08 21:54:38"
         },
         "app/models/user.py": {
-          "hash": "3c2e06bb0c9a60a97b6f70b3c1bf6cf0",
-          "last_modified": "2026-02-02 10:06:00"
+          "hash": "0c28107efa7616bd5aee7d243410bc35",
+          "last_modified": "2026-02-12 22:51:17"
         },
         "app/permissions.py": {
-          "hash": "d3c61de6cee9dd4fbdc0f2d0cebf634e",
-          "last_modified": "2025-12-13 10:54:15"
+          "hash": "4ab5d1191816348aa07763489d8722ca",
+          "last_modified": "2026-02-12 22:50:04"
         },
         "app/utils/permissions.py": {
           "hash": "7e19cb40909041ae68599fdb4257a427",
@@ -27,8 +27,8 @@
     "customer": {
       "files": {
         "app/views/customer.py": {
-          "hash": "16dbd4308f5d9a239550bf8cd5500a3f",
-          "last_modified": "2026-02-10 08:30:52"
+          "hash": "e79e0cf520b2c1e926644a4993b255e6",
+          "last_modified": "2026-02-12 23:24:44"
         },
         "app/models/customer.py": {
           "hash": "dbdfc0488242df84703221eb414893ea",
@@ -67,7 +67,7 @@
       "files": {
         "app/routes/product.py": {
           "hash": "cc1375cc1fd8f1018b1c115745cb33ac",
-          "last_modified": "2026-02-12 21:52:20"
+          "last_modified": "2026-02-12 23:14:59"
         },
         "app/models/product.py": {
           "hash": "6a747fd10a8905b12c60e734d0c22f51",
