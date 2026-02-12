@@ -38,4 +38,11 @@
 |----|------|---|-------|------|
 | #1897 | 12:31 PM | ✅ | Header Button Order Reorganized | ~361 |
 | #1896 | 12:30 PM | 🔵 | Tailwind Layout Component Structure Analysis | ~439 |
+
+### Feb 13, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #2830 | 1:01 AM | ✅ | Product Image Display Improvements in Spec Modal | ~265 |
+| #2829 | " | 🔴 | Product Image Layout Fix in Tailwind Specification Modal | ~298 |
 </claude-mem-context>
