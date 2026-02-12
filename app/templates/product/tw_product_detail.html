@@ -381,7 +381,7 @@
                                         <div class="flex items-center gap-2">
                                             {{ coin_icon(product.points_tier, 'lg') }}
                                             <span class="text-2xl font-bold {{ points_tier_class(product.points) }}">
-                                                {{ '{:,.0f}'.format(product.points) }}
+                                                {{ format_points_display(product.points) }}
                                             </span>
                                         </div>
                                         <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">

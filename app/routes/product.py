@@ -3604,10 +3604,13 @@ def search_products_api():
 @bp.route('/api/v1/user/product-points-summary', methods=['GET'])
 @login_required
 def get_user_product_points_summary():
-    """获取当前用户的产品积分汇总（从积分流水表读取，供导航栏使用）"""
+    """获取当前用户的产品积分汇总（供导航栏使用）
+
+    统一从 ledger 读取。销售：source_type='quotation'，产品经理：source_type='pm_category'。
+    """
     try:
-        from app.models.user_points_ledger import UserPointsLedger
         from app.helpers.product_points import get_points_tier
+        from app.models.user_points_ledger import UserPointsLedger
 
         current_year = datetime.now().year
         total_points = db.session.query(
@@ -3624,7 +3627,7 @@ def get_user_product_points_summary():
         })
     except Exception as e:
         logger.error(f'获取用户积分汇总失败: {str(e)}')
-        return jsonify({'success': False, 'total_points': 0, 'points_tier': 'bronze'})
+        return jsonify({'success': False, 'total_points': 0, 'points_tier': 'none'})
 
 
 @bp.route('/api/products/<int:product_id>/configurations', methods=['GET'])
@@ -4658,16 +4661,19 @@ def get_product_relations(product_id):
                 )
             ).count()
 
+            related = relation.related_product
             relation_info = {
                 'id': relation.id,
                 'related_product_id': relation.related_product_id,
-                'product_name': relation.related_product.product_name or relation.related_product.model or '',
-                'product_model': relation.related_product.model or relation.related_product.product_name or '',
-                'product_mn': relation.related_product.product_mn,
-                'brand': relation.related_product.brand or '',
-                'specification': relation.related_product.specification or '',
-                'retail_price': float(relation.related_product.retail_price) if relation.related_product.retail_price else 0,
-                'unit': relation.related_product.unit or 'Set',
+                'product_name': related.product_name or related.model or '',
+                'product_model': related.model or related.product_name or '',
+                'product_mn': related.product_mn,
+                'brand': related.brand or '',
+                'specification': related.specification or '',
+                'retail_price': float(related.retail_price) if related.retail_price else 0,
+                'unit': related.unit or 'Set',
+                'points': related.points,
+                'points_tier': related.points_tier,
                 'relation_type': relation.relation_type,
                 'relation_type_label': badge_label_map.get(relation.relation_type, {}).get(lang, relation.relation_type),
                 'relation_type_label_class': badge_class,

@@ -362,6 +362,20 @@ Tailwind 统一布局组件
     window.updateCalendarPendingDot = updateCalendarPendingDot;
 
     // ========== 产品积分导航栏 ==========
+    function formatPoints(pts, tier) {
+        if (tier === 'gold') return (pts / 10000000).toFixed(2);
+        if (tier === 'silver') return (pts / 1000000).toFixed(1);
+        if (tier === 'bronze') return (pts / 100000).toFixed(1);
+        return pts.toLocaleString();
+    }
+
+    function getPointsTier(pts) {
+        if (pts >= 10000000) return 'gold';
+        if (pts >= 1000000) return 'silver';
+        if (pts >= 100000) return 'bronze';
+        return 'none';
+    }
+
     function loadNavProductPoints() {
         const container = document.getElementById('navProductPoints');
         if (!container) return;
@@ -370,11 +384,12 @@ Tailwind 统一布局组件
             .then(r => r.json())
             .then(data => {
                 if (!data.success || !data.total_points) return;
-                const tier = data.points_tier || 'bronze';
-                const colors = {gold:'#EAB308', silver:'#A1A1AA', bronze:'#F97316'};
-                const strokes = {gold:'#CA8A04', silver:'#71717A', bronze:'#EA580C'};
-                const textClasses = {gold:'text-yellow-600', silver:'text-zinc-500', bronze:'text-orange-500'};
-                const c = colors[tier] || colors.bronze, s = strokes[tier] || strokes.bronze;
+                const tier = data.points_tier || getPointsTier(data.total_points);
+
+                const colors = {gold:'#EAB308', silver:'#A1A1AA', bronze:'#F97316', none:'#7C9CBF'};
+                const strokes = {gold:'#CA8A04', silver:'#71717A', bronze:'#EA580C', none:'#5A7A9B'};
+                const textClasses = {gold:'text-yellow-600', silver:'text-zinc-500', bronze:'text-orange-500', none:'text-slate-600'};
+                const c = colors[tier], s = strokes[tier];
 
                 document.getElementById('navPointsCoin').innerHTML =
                     `<svg class="w-5 h-5 inline-block" viewBox="0 0 24 24" fill="none">` +
@@ -385,8 +400,8 @@ Tailwind 统一布局组件
                     `</svg>`;
 
                 const valueEl = document.getElementById('navPointsValue');
-                valueEl.textContent = data.total_points.toLocaleString();
-                valueEl.className = 'text-sm font-semibold ' + (textClasses[tier] || textClasses.bronze);
+                valueEl.textContent = formatPoints(data.total_points, tier);
+                valueEl.className = 'text-sm font-semibold ' + textClasses[tier];
 
                 container.classList.remove('hidden');
                 container.classList.add('flex');

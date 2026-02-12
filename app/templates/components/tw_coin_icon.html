@@ -2,8 +2,8 @@
 
 {% macro coin_icon(tier='bronze', size='sm') %}
 {% set sizes = {'xs': 'w-3 h-3', 'sm': 'w-4 h-4', 'md': 'w-5 h-5', 'lg': 'w-6 h-6', 'xl': 'w-8 h-8'} %}
-{% set colors = {'gold': '#EAB308', 'silver': '#A1A1AA', 'bronze': '#F97316'} %}
-{% set strokes = {'gold': '#CA8A04', 'silver': '#71717A', 'bronze': '#EA580C'} %}
+{% set colors = {'gold': '#EAB308', 'silver': '#A1A1AA', 'bronze': '#F97316', 'none': '#7C9CBF'} %}
+{% set strokes = {'gold': '#CA8A04', 'silver': '#71717A', 'bronze': '#EA580C', 'none': '#5A7A9B'} %}
 <svg class="{{ sizes[size] }} inline-block flex-shrink-0" viewBox="0 0 24 24" fill="none">
   <circle cx="12" cy="12" r="10.5" fill="{{ colors[tier] }}" opacity="0.15"/>
   <circle cx="12" cy="12" r="9.5" stroke="{{ colors[tier] }}" stroke-width="1.5"/>

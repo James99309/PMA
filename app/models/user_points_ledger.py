@@ -21,7 +21,7 @@ class UserPointsLedger(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
-        db.UniqueConstraint('user_id', 'source_type', 'source_id', name='uq_user_points_source'),
+        db.UniqueConstraint('user_id', 'source_type', 'source_id', 'year', name='uq_user_points_source_year'),
         db.Index('ix_user_points_year', 'user_id', 'year'),
     )
 

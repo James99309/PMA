@@ -1,7 +1,7 @@
 {
-  "app_version": "1.27.5",
+  "app_version": "1.27.7",
   "environment": "production",
-  "timestamp": "2026-02-12 11:18:59",
+  "timestamp": "2026-02-12 13:31:30",
   "modules": {
     "user": {
       "files": {
@@ -53,8 +53,8 @@
     "quotation": {
       "files": {
         "app/views/quotation.py": {
-          "hash": "aae9b5be0a3fa4875a2748aeaea97523",
-          "last_modified": "2026-02-12 07:58:50"
+          "hash": "74a2644c82268ecd5c70257451c86b73",
+          "last_modified": "2026-02-12 12:43:11"
         },
         "app/models/quotation.py": {
           "hash": "0687dea40e58947d0f2aa616d74b457a",
@@ -66,8 +66,8 @@
     "product": {
       "files": {
         "app/routes/product.py": {
-          "hash": "1321214905948e171535992e8a2ecfda",
-          "last_modified": "2026-02-12 08:22:22"
+          "hash": "c6776510ee8678bbc35987bd43c56412",
+          "last_modified": "2026-02-12 13:01:31"
         },
         "app/models/product.py": {
           "hash": "6a747fd10a8905b12c60e734d0c22f51",

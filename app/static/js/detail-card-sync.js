@@ -98,7 +98,7 @@
                 }
 
                 if (target) {
-                    target.style.height = referenceHeight + 'px';
+                    target.style.minHeight = referenceHeight + 'px';
                 }
             });
         },
@@ -137,7 +137,7 @@
                     }
 
                     if (target) {
-                        target.style.height = '';
+                        target.style.minHeight = '';
                     }
                 });
             });
