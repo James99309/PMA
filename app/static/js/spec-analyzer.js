@@ -175,16 +175,26 @@ class SpecAnalyzer {
         // 至少需要 2 个有快照的产品才能比较
         if (allSnapshots.length < 2) return [];
 
-        const maxLen = Math.max(...allSnapshots.map(s => s.length));
+        // 收集所有唯一字段名（按第一个快照的顺序为基准）
+        const fieldNames = [];
+        const fieldNameSet = new Set();
+        allSnapshots.forEach(snap => {
+            snap.forEach(field => {
+                const fn = field.field_name || field.name || '';
+                if (fn && !fieldNameSet.has(fn)) {
+                    fieldNameSet.add(fn);
+                    fieldNames.push(fn);
+                }
+            });
+        });
+
         const result = [];
-
-        for (let pos = 0; pos < maxLen; pos++) {
-            // 只收集该位置有值的快照
+        fieldNames.forEach((fieldName, pos) => {
+            // 按 field_name 从每个快照中查找对应值
             const values = allSnapshots
-                .filter(snap => snap[pos]?.value)
-                .map(snap => snap[pos].value);
-
-            const fieldName = allSnapshots.find(s => s[pos])?.[pos]?.field_name || '';
+                .map(snap => snap.find(s => (s.field_name || s.name) === fieldName))
+                .filter(f => f?.value)
+                .map(f => f.value);
 
             result.push({
                 position: pos,
@@ -192,7 +202,7 @@ class SpecAnalyzer {
                 isDiff: new Set(values).size > 1,
                 values: [...new Set(values)]
             });
-        }
+        });
 
         return result;
     }
@@ -246,7 +256,7 @@ class SpecAnalyzer {
         if (!parsed.length) return '-';
 
         return parsed.map((field, pos) => {
-            const diff = diffPositions.find(d => d.position === pos);
+            const diff = diffPositions.find(d => d.fieldName === (field.field_name || field.name));
             if (diff && diff.isDiff) {
                 // 只高亮指标值部分，规格名称保持不变
                 return `${field.field_name}: <span class="spec-diff-highlight">${field.value}</span>`;

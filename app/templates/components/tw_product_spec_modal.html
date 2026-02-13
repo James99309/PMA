@@ -853,6 +853,13 @@ const ProductSpecModal = (function() {
     }
 
     /**
+     * 按 field_name 在快照中查找字段（不依赖数组索引）
+     */
+    function findFieldInSnapshot(snapshot, fieldName) {
+        return snapshot.find(s => (s.field_name || s.name) === fieldName);
+    }
+
+    /**
      * 分析产品差异并渲染规格字段
      */
     function analyzeAndRenderFields() {
@@ -894,10 +901,11 @@ const ProductSpecModal = (function() {
             products.forEach(product => {
                 try {
                     const snapshot = parseSnapshot(product.code_definition_snapshot);
-                    if (snapshot[position]) {
-                        const codeValue = snapshot[position].code;
-                        const indicatorValue = snapshot[position].value;
-                        const unitValue = snapshot[position].unit || null;
+                    const matchingField = findFieldInSnapshot(snapshot, fieldName);
+                    if (matchingField) {
+                        const codeValue = matchingField.code;
+                        const indicatorValue = matchingField.value;
+                        const unitValue = matchingField.unit || null;
 
                         if (!codeOptions.has(codeValue)) {
                             codeOptions.set(codeValue, {
@@ -1041,8 +1049,12 @@ const ProductSpecModal = (function() {
         });
         state.autoSelectedPositions = keptAuto;
 
+        // 查找该 position 对应的 fieldName
+        const fieldDef = state.selectableFields.find(f => f.position === position);
+        const fieldName = fieldDef ? fieldDef.fieldName : null;
+
         // 此位置是用户手动选择，不标记为自动
-        state.userSelections[position] = { code, value, unit: unit || null };
+        state.userSelections[position] = { code, value, unit: unit || null, fieldName };
 
         // 更新选中状态的 UI（不重新渲染整个区域）
         updateOptionSelection(position, code);
@@ -1095,13 +1107,17 @@ const ProductSpecModal = (function() {
                 for (const [p, sel] of Object.entries(state.userSelections)) {
                     const pIdx = parseInt(p);
                     if (pIdx >= pos) continue; // 只看上级字段（position < 当前）
-                    if (snapshot[pIdx] && snapshot[pIdx].code !== sel.code) {
+                    const selField = sel.fieldName ? findFieldInSnapshot(snapshot, sel.fieldName) : null;
+                    if (selField && selField.code !== sel.code) {
                         matches = false;
                         break;
                     }
                 }
-                if (matches && snapshot[pos]) {
-                    validCodes.add(snapshot[pos].code);
+                if (matches) {
+                    const currentField = findFieldInSnapshot(snapshot, field.fieldName);
+                    if (currentField) {
+                        validCodes.add(currentField.code);
+                    }
                 }
             });
 
@@ -1148,7 +1164,7 @@ const ProductSpecModal = (function() {
                 const onlyCode = [...valid][0];
                 const opt = field.options.find(o => o.code === onlyCode);
                 if (opt) {
-                    state.userSelections[pos] = { code: opt.code, value: opt.value, unit: opt.unit || null };
+                    state.userSelections[pos] = { code: opt.code, value: opt.value, unit: opt.unit || null, fieldName: field.fieldName };
                     state.autoSelectedPositions.add(pos);
                     updateOptionSelection(pos, opt.code);
                     autoSelected = true;
@@ -1177,14 +1193,14 @@ const ProductSpecModal = (function() {
                 return false;
             }
 
-            // 检查每个用户选择是否匹配
+            // 检查每个用户选择是否匹配（按 fieldName 查找，不依赖数组索引）
             for (const [position, selection] of Object.entries(state.userSelections)) {
-                const posIdx = parseInt(position);
-                // 快照中没有该位置的字段 → 数据不完整，排除
-                if (!snapshot[posIdx]) {
+                const matchField = selection.fieldName ? findFieldInSnapshot(snapshot, selection.fieldName) : null;
+                // 快照中没有该字段 → 数据不完整，排除
+                if (!matchField) {
                     return false;
                 }
-                if (snapshot[posIdx].code !== selection.code) {
+                if (matchField.code !== selection.code) {
                     return false;
                 }
             }

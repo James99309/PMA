@@ -516,11 +516,8 @@ class ProductConfigModal {
         const currentSelection = { code, value, unit, fieldName };
         let compatibleProducts = this.currentProducts.filter(product => {
             const snapshot = this.parseSnapshot(product.code_definition_snapshot);
-            if (fieldName) {
-                const field = this.findFieldInSnapshot(snapshot, fieldName);
-                return (field?.value || '') === value;
-            }
-            return (snapshot[position]?.value || '') === value;
+            const field = this.findFieldInSnapshot(snapshot, fieldName);
+            return (field?.value || '') === value;
         });
         console.log(`  → 当前选择匹配 ${compatibleProducts.length} 个产品`);
 
@@ -536,11 +533,8 @@ class ProductConfigModal {
 
                 const isCompatible = compatibleProducts.some(product => {
                     const snapshot = this.parseSnapshot(product.code_definition_snapshot);
-                    if (sel.fieldName) {
-                        const field = this.findFieldInSnapshot(snapshot, sel.fieldName);
-                        return (field?.value || '') === sel.value;
-                    }
-                    return (snapshot[posInt]?.value || '') === sel.value;
+                    const field = this.findFieldInSnapshot(snapshot, sel.fieldName);
+                    return (field?.value || '') === sel.value;
                 });
 
                 if (isCompatible) {
@@ -548,11 +542,8 @@ class ProductConfigModal {
                     newUserManualSelections[posInt] = true;
                     compatibleProducts = compatibleProducts.filter(product => {
                         const snapshot = this.parseSnapshot(product.code_definition_snapshot);
-                        if (sel.fieldName) {
-                            const field = this.findFieldInSnapshot(snapshot, sel.fieldName);
-                            return (field?.value || '') === sel.value;
-                        }
-                        return (snapshot[posInt]?.value || '') === sel.value;
+                        const field = this.findFieldInSnapshot(snapshot, sel.fieldName);
+                        return (field?.value || '') === sel.value;
                     });
                     console.log(`  ✓ 保留兼容选择 [${posInt}]: ${sel.value}`);
                 } else {
@@ -626,16 +617,9 @@ class ProductConfigModal {
             const snapshot = this.parseSnapshot(product.code_definition_snapshot);
 
             for (const [pos, selection] of Object.entries(this.userSelections)) {
-                if (selection.fieldName) {
-                    const field = this.findFieldInSnapshot(snapshot, selection.fieldName);
-                    if ((field?.value || '') !== selection.value) {
-                        return false;
-                    }
-                } else {
-                    const position = parseInt(pos);
-                    if ((snapshot[position]?.value || '') !== selection.value) {
-                        return false;
-                    }
+                const field = this.findFieldInSnapshot(snapshot, selection.fieldName);
+                if ((field?.value || '') !== selection.value) {
+                    return false;
                 }
             }
 
