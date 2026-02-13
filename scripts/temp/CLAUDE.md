@@ -32,4 +32,11 @@
 |----|------|---|-------|------|
 | #2637 | 7:45 PM | 🔴 | Fixed PostgreSQL JSON Type Casting in Snapshot Query | ~299 |
 | #2635 | " | 🔴 | Enhanced Snapshot Generation Script to Handle Empty Code Parts | ~429 |
+
+### Feb 13, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #2840 | 9:03 AM | 🟣 | RFS Specification Verification Script | ~518 |
+| #2837 | 8:59 AM | 🟣 | Product Specification Unification Script for RFS Series | ~730 |
 </claude-mem-context>
