@@ -1,7 +1,7 @@
 {
-  "app_version": "1.27.39",
+  "app_version": "1.27.41",
   "environment": "production",
-  "timestamp": "2026-02-13 12:36:37",
+  "timestamp": "2026-02-13 13:47:12",
   "modules": {
     "user": {
       "files": {

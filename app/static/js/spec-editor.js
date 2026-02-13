@@ -656,7 +656,7 @@ class SpecEditor {
             const selectedOption = valueSelect.options[valueSelect.selectedIndex];
             const newCode = selectedOption?.dataset?.code || '';
 
-            if (newValue !== row.dataset.fieldValue) {
+            if (newValue !== row.dataset.fieldValue || newCode !== (row.dataset.fieldCode || '')) {
                 const existingIdx = this.pendingChanges.modified.findIndex(m => m.id === row.dataset.specId);
                 if (existingIdx >= 0) {
                     this.pendingChanges.modified[existingIdx].field_value = newValue;
