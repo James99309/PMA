@@ -72,7 +72,7 @@ ProductSpecModal.open({
                     <div class="flex gap-8 items-start">
                         <!-- 左侧：产品图片和基本信息 -->
                         <div class="w-1/3 flex-shrink-0">
-                            <div id="specProductImage" class="spec-image-container rounded-xl max-h-[200px] flex items-center justify-center mb-4 overflow-hidden">
+                            <div id="specProductImage" class="spec-image-container rounded-xl h-[200px] flex items-center justify-center mb-4 overflow-hidden">
                                 <span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>
                             </div>
                             <h2 id="specProductName" class="text-xl font-semibold text-slate-900 dark:text-white mb-1">--</h2>
@@ -126,7 +126,7 @@ ProductSpecModal.open({
                     <div class="flex gap-8 items-start">
                         <!-- 左侧：已选产品信息 -->
                         <div class="w-1/3 flex-shrink-0">
-                            <div id="specStep2ProductImage" class="spec-image-container rounded-xl max-h-[200px] flex items-center justify-center mb-4 overflow-hidden">
+                            <div id="specStep2ProductImage" class="spec-image-container rounded-xl h-[200px] flex items-center justify-center mb-4 overflow-hidden">
                                 <span class="material-symbols-outlined text-6xl text-slate-600">inventory_2</span>
                             </div>
                             <h2 id="specStep2ProductName" class="text-xl font-semibold text-slate-900 dark:text-white mb-1">--</h2>
@@ -592,12 +592,11 @@ ProductSpecModal.open({
 }
 
 #specProductImage img,
+#specStep2ProductImage img,
 #configProductImage img,
 #confirmProductImage img {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
+    width: 100%;
+    height: 100%;
     object-fit: contain;
 }
 
