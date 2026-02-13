@@ -308,7 +308,10 @@ def product_list():
     product_type = filters.get('product_type', '')
     category = request.args.get('category', '').strip()
     brand = filters.get('brand', '')
-    status = filters.get('status', '')
+    # 默认筛选"生产中"状态，用户手动选"全部状态"时 status 参数为空字符串
+    status = filters.get('status', '') or ('active' if 'status' not in request.args else '')
+    if status and status != filters.get('status', ''):
+        filters['status'] = status
     category_manager = request.args.get('category_manager', '').strip()
 
     # 获取排序参数（默认按分类体系排序）
@@ -881,7 +884,8 @@ def product_list_ajax():
         product_type = request.args.get('product_type', '').strip()
         category = request.args.get('category', '').strip()
         brand = request.args.get('brand', '').strip()
-        status = request.args.get('status', '').strip()
+        # 默认筛选"生产中"状态，用户手动选"全部状态"时 status 参数为空字符串
+        status = request.args.get('status', '').strip() or ('active' if 'status' not in request.args else '')
         category_manager = request.args.get('category_manager', '').strip()
         # ============================================================
         # 2. 提取排序和分页参数（默认按分类体系排序）
