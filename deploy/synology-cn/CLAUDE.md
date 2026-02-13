@@ -41,4 +41,10 @@
 | #1959 | 3:31 PM | 🔵 | PostgreSQL max_connections Uses Default Value of 100 | ~501 |
 | #1946 | 3:30 PM | ✅ | PostgreSQL Idle Transaction Timeout Already Configured | ~476 |
 | #1944 | " | 🔵 | Synology-CN Dockerfile Gunicorn Configuration | ~461 |
+
+### Feb 13, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #2835 | 8:57 AM | 🔵 | China NAS PMA Deployment Configuration | ~299 |
 </claude-mem-context>
