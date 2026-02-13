@@ -455,33 +455,41 @@ class SpecService:
                 all_coded_fields = list(all_coded_fields_map.values())
 
                 # 为缺失的编码规格创建空条目（用 field_id 判断，更准确）
-                for field in all_coded_fields:
-                    if field.id not in existing_field_ids:
-                        # 获取该字段的选项
-                        if field.id in inherited_field_ids:
-                            options = ProductCodeFieldOption.query.filter_by(
-                                field_id=field.id,
-                                subcategory_id=subcategory_id
-                            ).order_by(ProductCodeFieldOption.position).all()
-                        else:
-                            options = ProductCodeFieldOption.query.filter_by(
-                                field_id=field.id
-                            ).order_by(ProductCodeFieldOption.position).all()
+                missing_fields = [(f, f.id in inherited_field_ids) for f in all_coded_fields if f.id not in existing_field_ids]
+                missing_field_ids = [f.id for f, _ in missing_fields]
 
-                        specs.append({
-                            'id': None,
-                            'field_name': field.name,
-                            'field_name_en': field.name_en or '',
-                            'field_value': '',
-                            'field_code': '',
-                            'unit': get_field_unit(field.name) or '',
-                            'include_in_description': True,
-                            'is_missing': True,
-                            'is_coded': True,
-                            'field_id': field.id,
-                            'is_inherited': field.id in inherited_field_ids,
-                            'options': [{'value': o.effective_value, 'code': o.effective_code or ''} for o in options]
-                        })
+                # 一次批量查询所有缺失字段的选项，避免 N+1
+                from collections import defaultdict
+                options_by_field = defaultdict(list)
+                options_by_field_sub = defaultdict(list)
+                if missing_field_ids:
+                    all_options = ProductCodeFieldOption.query.filter(
+                        ProductCodeFieldOption.field_id.in_(missing_field_ids)
+                    ).order_by(ProductCodeFieldOption.field_id, ProductCodeFieldOption.position).all()
+                    for opt in all_options:
+                        options_by_field[opt.field_id].append(opt)
+                        if opt.subcategory_id == subcategory_id:
+                            options_by_field_sub[(opt.field_id, opt.subcategory_id)].append(opt)
+
+                for field, is_inherited in missing_fields:
+                    if is_inherited:
+                        options = options_by_field_sub.get((field.id, subcategory_id), [])
+                    else:
+                        options = options_by_field.get(field.id, [])
+                    specs.append({
+                        'id': None,
+                        'field_name': field.name,
+                        'field_name_en': field.name_en or '',
+                        'field_value': '',
+                        'field_code': '',
+                        'unit': get_field_unit(field.name) or '',
+                        'include_in_description': True,
+                        'is_missing': True,
+                        'is_coded': True,
+                        'field_id': field.id,
+                        'is_inherited': is_inherited,
+                        'options': [{'value': o.effective_value, 'code': o.effective_code or ''} for o in options]
+                    })
 
         return specs
 

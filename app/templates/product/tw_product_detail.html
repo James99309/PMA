@@ -143,12 +143,13 @@
                                         <div class="w-full md:w-1/3 flex-shrink-0">
                                             <div class="aspect-square bg-slate-100 dark:bg-slate-700 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 relative group">
                                                 {% if effective_image %}
+                                                    {% set _onerror = "this.style.display='none';this.parentElement.insertAdjacentHTML('afterbegin','<div class=\"w-full h-full flex items-center justify-center\"><span class=\"material-symbols-outlined text-6xl text-slate-300 dark:text-slate-600\">inventory_2</span></div>')" %}
                                                     {% if effective_image.startswith('http') %}
-                                                    <img src="{{ effective_image }}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain">
+                                                    <img src="{{ effective_image }}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain" onerror="{{ _onerror }}">
                                                     {% elif effective_image.startswith('/storage/') %}
-                                                    <img src="{{ effective_image }}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain">
+                                                    <img src="{{ effective_image }}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain" onerror="{{ _onerror }}">
                                                     {% else %}
-                                                    <img src="{{ url_for('static', filename='uploads/products/' + effective_image) }}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain">
+                                                    <img src="{{ url_for('static', filename='uploads/products/' + effective_image) }}" alt="{{ product.product_name or product.model }}" class="w-full h-full object-contain" onerror="{{ _onerror }}">
                                                     {% endif %}
                                                 {% else %}
                                                 <div class="w-full h-full flex items-center justify-center">

@@ -38,7 +38,7 @@ import logging
 from decimal import Decimal, InvalidOperation
 from flask_login import login_required, current_user
 from datetime import datetime
-from sqlalchemy import func, and_, or_
+from sqlalchemy import func, and_, or_, text, case
 from flask import url_for
 from app.decorators import permission_required, admin_required
 import os
@@ -372,7 +372,6 @@ def product_list():
     # 4. 统计（在分页前）
     # ============================================================
     # 统计查询（单次条件聚合，不分页）
-    from sqlalchemy import case
     stats_result = query.with_entities(
         func.count(Product.id).label('total'),
         func.count(case((Product.status == 'active', Product.id))).label('active'),
@@ -3230,55 +3229,40 @@ def view_product_detail(id):
         effective_image = get_effective_image(product)
         effective_pdf = get_effective_pdf(product)
 
-        # 验证文件实际存在于存储中，避免显示无法下载的链接
-        from app.services.product_file_service import ProductFileService
-        file_service = ProductFileService()
-        if effective_pdf and not file_service.check_file_exists(effective_pdf):
-            logger.info(f"产品 {product.id} 的 effective_pdf 路径存在但文件不存在: {effective_pdf}")
-            effective_pdf = None
-        if effective_image and not file_service.check_file_exists(effective_image):
-            logger.info(f"产品 {product.id} 的 effective_image 路径存在但文件不存在: {effective_image}")
-            effective_image = None
+        # 信任数据库路径，图片由前端 onerror 兜底，PDF 由下载/预览路由处理
 
-        # 计算上一个/下一个产品ID（按列表页排序）
-        all_product_ids = db.session.query(Product.id)\
-            .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
-            .outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)\
-            .order_by(
-                ProductCategory.display_order.asc(),
-                ProductCategory.id.asc(),
-                ProductSubcategory.display_order.asc(),
-                ProductSubcategory.name.asc(),
-                Product.model.asc(),
-                Product.id.asc()
-            ).all()
-        product_ids = [p.id for p in all_product_ids]
-        current_index = product_ids.index(product.id) if product.id in product_ids else -1
-        prev_product_id = product_ids[current_index - 1] if current_index > 0 else None
-        next_product_id = product_ids[current_index + 1] if current_index < len(product_ids) - 1 else None
+        # 计算上一个/下一个产品ID（按列表页排序，用窗口函数避免加载全量ID）
+        nav_result = db.session.execute(text("""
+            WITH ordered AS (
+                SELECT p.id,
+                       LAG(p.id) OVER w AS prev_id,
+                       LEAD(p.id) OVER w AS next_id
+                FROM products p
+                LEFT JOIN product_subcategories ps ON p.subcategory_id = ps.id
+                LEFT JOIN product_categories pc ON ps.category_id = pc.id
+                WINDOW w AS (ORDER BY pc.display_order, pc.id, ps.display_order, ps.name, p.model, p.id)
+            )
+            SELECT prev_id, next_id FROM ordered WHERE id = :pid
+        """), {'pid': id}).fetchone()
+        prev_product_id = nav_result.prev_id if nav_result else None
+        next_product_id = nav_result.next_id if nav_result else None
 
-        # 统计该产品MN在报价单中的数量
-        # 设计总量 = 所有报价单中该产品MN的数量总和
-        # 订单总量 = 中标(awarded)/签约(signed)状态报价单中该产品MN的数量
+        # 统计该产品MN在报价单中的数量（单次条件聚合）
         design_quantity = 0
         order_quantity = 0
         if product.product_mn:
             from app.models.quotation import QuotationDetail, Quotation
-            from sqlalchemy import func
 
-            # 设计总量：所有报价单中该产品MN的数量
-            design_stats = db.session.query(func.sum(QuotationDetail.quantity))\
-                .filter(QuotationDetail.product_mn == product.product_mn)\
-                .scalar()
-            design_quantity = int(design_stats or 0)
-
-            # 订单总量：中标/签约状态的报价单中该产品MN的数量
-            order_stats = db.session.query(func.sum(QuotationDetail.quantity))\
-                .join(Quotation, QuotationDetail.quotation_id == Quotation.id)\
-                .filter(QuotationDetail.product_mn == product.product_mn)\
-                .filter(Quotation.project_stage.in_(['awarded', 'signed']))\
-                .scalar()
-            order_quantity = int(order_stats or 0)
+            stats = db.session.query(
+                func.coalesce(func.sum(QuotationDetail.quantity), 0),
+                func.coalesce(func.sum(case(
+                    (Quotation.project_stage.in_(['awarded', 'signed']), QuotationDetail.quantity),
+                    else_=0
+                )), 0)
+            ).outerjoin(Quotation, QuotationDetail.quotation_id == Quotation.id)\
+             .filter(QuotationDetail.product_mn == product.product_mn)\
+             .first()
+            design_quantity, order_quantity = int(stats[0]), int(stats[1])
 
         # 获取MN锁定状态
         is_mn_locked = product.is_mn_locked or False
