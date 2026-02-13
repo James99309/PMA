@@ -202,6 +202,19 @@ class SpecService:
             db.session.commit()
             logger.info(f"{'产品' if product_type == cls.TYPE_PRODUCT else '研发产品'} {product_id} 规格保存成功")
 
+            # 5.5 重建编码定义快照（规格变动后需同步）
+            if product_type == cls.TYPE_PRODUCT:
+                try:
+                    from app.utils.product_helpers import generate_product_snapshot
+                    snapshot = generate_product_snapshot(product, source="manual_update")
+                    if snapshot:
+                        import json
+                        product.code_definition_snapshot = json.dumps(snapshot, ensure_ascii=False)
+                        db.session.commit()
+                        logger.info(f"产品 {product_id} 快照已重建")
+                except Exception as e:
+                    logger.warning(f"重建快照失败（不影响保存）: {e}")
+
             # 6. 返回更新后的规格列表
             specs_list = []
             for spec in all_specs:
