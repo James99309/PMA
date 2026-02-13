@@ -238,17 +238,10 @@
                                 <div class="px-6 py-5 flex justify-between items-center">
                                     <div class="flex items-center gap-2">
                                         <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('产品规格') }}</h3>
-                                        {% if has_valid_snapshot %}
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                                            <span class="material-symbols-outlined text-sm mr-0.5">verified</span>
-                                            {{ _('快照就绪') }}
+                                        <span id="snapshotBadge" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' if has_valid_snapshot else 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }}">
+                                            <span class="material-symbols-outlined text-sm mr-0.5">{{ 'verified' if has_valid_snapshot else 'warning' }}</span>
+                                            {{ _('快照就绪') if has_valid_snapshot else _('缺少快照') }}
                                         </span>
-                                        {% else %}
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                            <span class="material-symbols-outlined text-sm mr-0.5">warning</span>
-                                            {{ _('缺少快照') }}
-                                        </span>
-                                        {% endif %}
                                     </div>
                                     {% if has_permission('product', 'edit') %}
                                     <div class="flex items-center gap-2">
@@ -1393,6 +1386,18 @@
 
     // 处理保存后的局部刷新
     function handlePartialRefresh(result) {
+        // 0. 更新快照 badge
+        const badge = document.getElementById('snapshotBadge');
+        if (badge && result.has_valid_snapshot !== undefined) {
+            if (result.has_valid_snapshot) {
+                badge.className = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+                badge.innerHTML = '<span class="material-symbols-outlined text-sm mr-0.5">verified</span>' + '{{ _("快照就绪") }}';
+            } else {
+                badge.className = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+                badge.innerHTML = '<span class="material-symbols-outlined text-sm mr-0.5">warning</span>' + '{{ _("缺少快照") }}';
+            }
+        }
+
         // 1. 更新产品MN显示
         const productMnDisplay = document.getElementById('productMnDisplay');
         if (productMnDisplay) {

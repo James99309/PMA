@@ -406,6 +406,7 @@ def product_list():
             ProductCategory.id.asc(),
             ProductSubcategory.display_order.asc(),
             ProductSubcategory.id.asc(),
+            Product.product_name.asc(),
             Product.id.asc()
         )
 
@@ -957,6 +958,7 @@ def product_list_ajax():
                 ProductCategory.id.asc(),
                 ProductSubcategory.display_order.asc(),
                 ProductSubcategory.id.asc(),
+                Product.product_name.asc(),
                 Product.id.asc()
             )
 
@@ -1809,6 +1811,7 @@ def save_product_specs_api(product_id):
                 product.code_definition_snapshot = snapshot
                 db.session.commit()
 
+            result['has_valid_snapshot'] = snapshot is not None
             return jsonify(result)
         else:
             return jsonify(result), 500
@@ -3839,6 +3842,7 @@ def export_products():
                 ProductCategory.id.asc(),
                 ProductSubcategory.display_order.asc(),
                 ProductSubcategory.id.asc(),
+                Product.product_name.asc(),
                 Product.id.asc()
             ).all()
 
@@ -4651,6 +4655,13 @@ def import_configuration_specs(product_id):
 
         # 锁定产品MN编码（引入后不可再修改）
         product.is_mn_locked = True
+
+        # 生成编码定义快照
+        from app.utils.product_helpers import generate_product_snapshot
+        snapshot = generate_product_snapshot(product=product, source="config_import")
+        if snapshot:
+            product.code_definition_snapshot = snapshot
+            logger.info(f'配置引入后生成编码快照成功: 产品ID={product.id}')
 
         product.updated_at = datetime.now()
         db.session.commit()

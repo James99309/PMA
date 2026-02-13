@@ -46,7 +46,7 @@ class Config:
     """基础配置类 - 支持动态数据库配置"""
 
     # 统一版本号（所有环境共用，基于代码而非数据库）
-    APP_VERSION = '1.27.32'
+    APP_VERSION = '1.27.34'
 
     # 基本配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'local-development-secret-key-pma-2025'
@@ -168,8 +168,9 @@ class Config:
             }
         }
         
-        # 非云端环境（本地开发、NAS部署等）统一使用生产域名
-        APP_DOMAIN = 'https://pma.jamesgpone.win'
+        # 非云端环境（本地开发、NAS部署等）
+        # 优先使用 EXTERNAL_URL 环境变量（NAS部署时各环境域名不同）
+        APP_DOMAIN = os.environ.get('APP_DOMAIN') or os.environ.get('EXTERNAL_URL') or 'https://pma.jamesgpone.win'
         PORT = 5005
     
     # 模板配置

@@ -157,6 +157,7 @@ def create_user():
         
         # 准备用户数据以发送邀请邮件（不包含密码，用户通过邮件链接设置）
         user_data = {
+            "id": user.id,
             "username": username,
             "real_name": real_name,
             "company_name": company_name,
