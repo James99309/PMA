@@ -3430,6 +3430,7 @@ def get_subcategories_api():
     """
     获取指定分类下的所有子分类
     用于报价单产品选择的级联菜单
+    优化：使用 JOIN + GROUP BY 单条 SQL，避免加载 Product 对象和 N+1 查询
     """
     try:
         category = request.args.get('category')
@@ -3440,8 +3441,7 @@ def get_subcategories_api():
                 'message': '缺少分类参数'
             }), 400
 
-        # 查询该分类下的所有产品
-        from app.models.product_code import ProductCategory
+        from app.models.product_code import ProductCategory, ProductSubcategory
 
         category_obj = ProductCategory.query.filter_by(name=category).first()
         if not category_obj:
@@ -3450,40 +3450,34 @@ def get_subcategories_api():
                 'message': f'未找到分类: {category}'
             }), 404
 
-        products = Product.query.filter(
+        # 单条 SQL：JOIN + GROUP BY 直接统计子分类产品数量
+        rows = db.session.query(
+            ProductSubcategory.name,
+            ProductSubcategory.display_order,
+            func.count(Product.id)
+        ).join(Product, Product.subcategory_id == ProductSubcategory.id)\
+         .filter(
             Product.category_id == category_obj.id,
             Product.status == 'active'
-        ).all()
+        ).group_by(ProductSubcategory.id, ProductSubcategory.name, ProductSubcategory.display_order)\
+         .order_by(func.coalesce(ProductSubcategory.display_order, 999))\
+         .all()
 
-        # 统计子分类（支持新旧数据结构，记录display_order用于排序）
-        subcategory_data = {}  # {name: {'count': x, 'display_order': y}}
-        for product in products:
-            # 优先使用新的关联子分类，回退到旧的product_name字段
-            if product.subcategory_obj:
-                subcategory_name = product.subcategory_obj.name
-                display_order = product.subcategory_obj.display_order or 999
-            elif product.product_name:
-                subcategory_name = product.product_name
-                display_order = 999  # 旧数据放在最后
-            else:
-                continue  # 跳过没有子分类信息的产品
+        result = [{'name': name, 'count': count} for name, _, count in rows]
 
-            if subcategory_name not in subcategory_data:
-                subcategory_data[subcategory_name] = {
-                    'count': 0,
-                    'display_order': display_order
-                }
-            subcategory_data[subcategory_name]['count'] += 1
+        # 兼容旧数据：没有 subcategory_id 但有 product_name 的产品
+        orphan_rows = db.session.query(
+            Product.product_name,
+            func.count(Product.id)
+        ).filter(
+            Product.category_id == category_obj.id,
+            Product.status == 'active',
+            Product.subcategory_id.is_(None),
+            Product.product_name.isnot(None)
+        ).group_by(Product.product_name).all()
 
-        # 构建返回结果，按display_order排序
-        result = []
-        for name, data in sorted(subcategory_data.items(), key=lambda x: x[1]['display_order']):
-            result.append({
-                'name': name,
-                'count': data['count']
-            })
-
-        logger.info(f'查询分类 {category} 下的子分类，共 {len(result)} 个')
+        for pname, cnt in orphan_rows:
+            result.append({'name': pname, 'count': cnt})
 
         return jsonify({
             'success': True,
@@ -3505,6 +3499,7 @@ def get_products_by_subcategory_api():
     获取指定分类和子分类下的所有产品，按型号分组
     用于报价单产品选择：显示型号列表，每个型号下可能有多个产品
     注意：不返回product_desc字段（按需求隐藏描述）
+    优化：SQL 直接过滤 + eager load + 批量关联查询，避免 400+ N+1 查询
     """
     try:
         category = request.args.get('category')
@@ -3516,10 +3511,8 @@ def get_products_by_subcategory_api():
                 'message': '缺少分类或子分类参数'
             }), 400
 
-        # 查询所有产品（支持新旧数据结构）
         from app.models.product_code import ProductSubcategory, ProductCategory
 
-        # 先查询该分类下的生产中产品（排除停产和待上市）
         category_obj = ProductCategory.query.filter_by(name=category).first()
         if not category_obj:
             return jsonify({
@@ -3527,45 +3520,101 @@ def get_products_by_subcategory_api():
                 'message': f'未找到分类: {category}'
             }), 404
 
-        all_products = Product.query.filter(
-            Product.category_id == category_obj.id,
-            Product.status == 'active'
-        ).all()
+        # 尝试通过子分类表查找，SQL 直接过滤
+        subcategory_obj = ProductSubcategory.query.filter_by(
+            category_id=category_obj.id, name=subcategory
+        ).first()
 
-        # 在Python中过滤子分类（支持新旧数据）
-        products = []
-        for product in all_products:
-            # 使用智能属性获取产品子分类名称
-            product_subcategory = product.name
+        if subcategory_obj:
+            # SQL 直接按 subcategory_id 过滤 + eager load subcategory_obj
+            products = Product.query.options(joinedload(Product.subcategory_obj))\
+                .filter(
+                    Product.subcategory_id == subcategory_obj.id,
+                    Product.status == 'active'
+                ).all()
+        else:
+            # 兼容旧数据：按 product_name 过滤
+            products = Product.query.filter(
+                Product.category_id == category_obj.id,
+                Product.product_name == subcategory,
+                Product.subcategory_id.is_(None),
+                Product.status == 'active'
+            ).all()
 
-            if product_subcategory == subcategory:
-                products.append(product)
+        # 批量查询所有匹配产品的关联配置数量（替代逐个调用 get_relations_for_product）
+        product_ids = [p.id for p in products]
+        subcategory_ids = list({p.subcategory_id for p in products if p.subcategory_id})
 
-        # 按产品名称分组（原按型号分组）
+        from app.models.product_relation import ProductRelation
+        config_counts = {}
+        if product_ids:
+            # 产品级关联数量
+            product_rel_rows = db.session.query(
+                ProductRelation.main_product_id,
+                func.count(ProductRelation.id)
+            ).filter(
+                ProductRelation.main_product_type == ProductRelation.MAIN_TYPE_PRODUCT,
+                ProductRelation.main_product_id.in_(product_ids),
+                ProductRelation.is_active == True
+            ).group_by(ProductRelation.main_product_id).all()
+            for pid, cnt in product_rel_rows:
+                config_counts[pid] = cnt
+
+            # 子分类级关联数量（所有同子分类产品共享）
+            sub_rel_count = 0
+            if subcategory_ids:
+                sub_rel_count = db.session.query(func.count(ProductRelation.id)).filter(
+                    ProductRelation.main_product_type == ProductRelation.MAIN_TYPE_SUBCATEGORY,
+                    ProductRelation.main_product_id.in_(subcategory_ids),
+                    ProductRelation.is_active == True
+                ).scalar() or 0
+
+            for pid in product_ids:
+                config_counts[pid] = config_counts.get(pid, 0) + sub_rel_count
+
+        # 批量查询同子分类下有图片的兄弟产品（用于 effective_image 的优先级2回退）
+        sibling_images = {}
+        if subcategory_obj:
+            # 按 product_name 分组，找到每组第一个有图片的产品
+            sibling_rows = db.session.query(
+                Product.product_name,
+                Product.image_path
+            ).filter(
+                Product.subcategory_id == subcategory_obj.id,
+                Product.image_path.isnot(None),
+                Product.image_path != ''
+            ).all()
+            for pname, img in sibling_rows:
+                if pname and pname not in sibling_images:
+                    sibling_images[pname] = img
+
+        # 子分类图片（用于 effective_image 的优先级3回退）
+        subcategory_image = None
+        if subcategory_obj and hasattr(subcategory_obj, 'image_path'):
+            subcategory_image = subcategory_obj.image_path
+
+        # 构建产品数据 + 按名称分组
         name_groups = {}
         for product in products:
-            # 使用product_name作为分组键
             name = product.product_name or product.model or '未命名产品'
-
             if name not in name_groups:
                 name_groups[name] = []
 
-            # 获取产品配置数量
-            from app.models.product_relation import ProductRelation
-            config_relations = ProductRelation.get_relations_for_product(product.id)
-            config_count = len(config_relations)
+            config_count = config_counts.get(product.id, 0)
 
-            # 计算有效图片路径（三级引用）
-            from app.utils.product_helpers import get_effective_image
-            effective_image = get_effective_image(product)
+            # 内联 effective_image 逻辑，避免逐个查询
+            effective_image = product.image_path
+            if not effective_image and product.product_name:
+                effective_image = sibling_images.get(product.product_name)
+            if not effective_image:
+                effective_image = subcategory_image
 
-            # 构建产品数据
-            product_data = {
+            name_groups[name].append({
                 'id': product.id,
-                'product_name': product.product_name,  # 使用独立的产品名称字段
+                'product_name': product.product_name,
                 'model': product.model,
                 'product_mn': product.product_mn,
-                'spec_mn': product.spec_mn,  # 完整规格MN（用于可配置字段计算）
+                'spec_mn': product.spec_mn,
                 'specification': product.specification,
                 'brand': product.brand,
                 'unit': product.unit,
@@ -3574,30 +3623,18 @@ def get_products_by_subcategory_api():
                 'status': product.status,
                 'code_definition_snapshot': product.code_definition_snapshot,
                 'image_path': product.image_path,
-                'effective_image': effective_image,  # 三级引用图片
+                'effective_image': effective_image,
                 'config_count': config_count,
                 'has_configurations': config_count > 0,
                 'points': product.points,
                 'points_tier': product.points_tier,
                 'points_coefficient': float(product.points_coefficient) if product.points_coefficient else None
-            }
-
-            name_groups[name].append(product_data)
-
-        # 构建返回结果
-        result = []
-        for name, products_list in name_groups.items():
-            result.append({
-                'product_name': name,  # 产品名称
-                'model': name,         # 保持兼容
-                'count': len(products_list),
-                'products': products_list
             })
 
-        # 按产品名称排序
-        result.sort(key=lambda x: x['product_name'])
-
-        logger.info(f'查询 {category}/{subcategory} 下的产品，共 {len(result)} 个产品名称，{len(products)} 个产品')
+        result = sorted([
+            {'product_name': name, 'model': name, 'count': len(plist), 'products': plist}
+            for name, plist in name_groups.items()
+        ], key=lambda x: x['product_name'])
 
         return jsonify({
             'success': True,
