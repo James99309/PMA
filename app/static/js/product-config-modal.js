@@ -204,6 +204,16 @@ class ProductConfigModal {
     }
 
     /**
+     * 在快照中按 field_name 查找字段（避免因字段顺序不同导致按索引取值错误）
+     * @param {Array} snapshot - 产品编码快照数组
+     * @param {string} fieldName - 要查找的字段名
+     * @returns {Object|undefined} 匹配的字段对象
+     */
+    findFieldInSnapshot(snapshot, fieldName) {
+        return snapshot.find(s => (s.field_name || s.name) === fieldName);
+    }
+
+    /**
      * 分析编码差异并显示编码选择器
      * @param {Array} products - 产品列表
      * @param {boolean} isInitial - 是否为初始调用（首次打开）
@@ -250,10 +260,11 @@ class ProductConfigModal {
                 products.forEach(product => {
                     try {
                         const snapshot = this.parseSnapshot(product.code_definition_snapshot);
-                        if (snapshot[position]) {
-                            const specValue = snapshot[position].value || '';
-                            const codeValue = snapshot[position].code || '';
-                            const unitValue = snapshot[position].unit || null;
+                        const matchingField = this.findFieldInSnapshot(snapshot, fieldName);
+                        if (matchingField) {
+                            const specValue = matchingField.value || '';
+                            const codeValue = matchingField.code || '';
+                            const unitValue = matchingField.unit || null;
 
                             if (!valueOptions.has(specValue)) {
                                 valueOptions.set(specValue, {
@@ -306,7 +317,8 @@ class ProductConfigModal {
                     this.userSelections[position] = {
                         code: autoOption.code,
                         value: autoOption.value,
-                        unit: autoOption.unit || null
+                        unit: autoOption.unit || null,
+                        fieldName: fieldName
                     };
                     console.log(`  ✓ 自动选中字段 [${position}]: ${autoOption.value}`);
                 }
@@ -460,7 +472,7 @@ class ProductConfigModal {
             // 绑定事件处理器
             if (!input.disabled) {
                 input.addEventListener('change', () => {
-                    this.onFieldSelect(field.position, option.code, option.value, option.unit);
+                    this.onFieldSelect(field.position, option.code, option.value, option.unit, field.fieldName);
                 });
             }
 
@@ -495,14 +507,19 @@ class ProductConfigModal {
      * @param {string} code - 选择的编码
      * @param {string} value - 选择的值
      * @param {string|null} unit - 单位
+     * @param {string} fieldName - 字段名称（用于按名称匹配）
      */
-    onFieldSelect(position, code, value, unit = null) {
-        console.log(`👉 用户选择字段 [${position}]: ${value}`);
+    onFieldSelect(position, code, value, unit = null, fieldName = null) {
+        console.log(`👉 用户选择字段 [${position}] ${fieldName}: ${value}`);
 
-        // 步骤1：用当前 value 选择过滤产品
-        const currentSelection = { code, value, unit };
+        // 步骤1：用当前 value 选择过滤产品（按 fieldName 匹配）
+        const currentSelection = { code, value, unit, fieldName };
         let compatibleProducts = this.currentProducts.filter(product => {
             const snapshot = this.parseSnapshot(product.code_definition_snapshot);
+            if (fieldName) {
+                const field = this.findFieldInSnapshot(snapshot, fieldName);
+                return (field?.value || '') === value;
+            }
             return (snapshot[position]?.value || '') === value;
         });
         console.log(`  → 当前选择匹配 ${compatibleProducts.length} 个产品`);
@@ -519,6 +536,10 @@ class ProductConfigModal {
 
                 const isCompatible = compatibleProducts.some(product => {
                     const snapshot = this.parseSnapshot(product.code_definition_snapshot);
+                    if (sel.fieldName) {
+                        const field = this.findFieldInSnapshot(snapshot, sel.fieldName);
+                        return (field?.value || '') === sel.value;
+                    }
                     return (snapshot[posInt]?.value || '') === sel.value;
                 });
 
@@ -527,6 +548,10 @@ class ProductConfigModal {
                     newUserManualSelections[posInt] = true;
                     compatibleProducts = compatibleProducts.filter(product => {
                         const snapshot = this.parseSnapshot(product.code_definition_snapshot);
+                        if (sel.fieldName) {
+                            const field = this.findFieldInSnapshot(snapshot, sel.fieldName);
+                            return (field?.value || '') === sel.value;
+                        }
                         return (snapshot[posInt]?.value || '') === sel.value;
                     });
                     console.log(`  ✓ 保留兼容选择 [${posInt}]: ${sel.value}`);
@@ -601,9 +626,16 @@ class ProductConfigModal {
             const snapshot = this.parseSnapshot(product.code_definition_snapshot);
 
             for (const [pos, selection] of Object.entries(this.userSelections)) {
-                const position = parseInt(pos);
-                if ((snapshot[position]?.value || '') !== selection.value) {
-                    return false;
+                if (selection.fieldName) {
+                    const field = this.findFieldInSnapshot(snapshot, selection.fieldName);
+                    if ((field?.value || '') !== selection.value) {
+                        return false;
+                    }
+                } else {
+                    const position = parseInt(pos);
+                    if ((snapshot[position]?.value || '') !== selection.value) {
+                        return false;
+                    }
                 }
             }
 
@@ -634,7 +666,8 @@ class ProductConfigModal {
                 this.userSelections[pos] = {
                     code: field.code || '',
                     value: field.value || '',
-                    unit: field.unit || null
+                    unit: field.unit || null,
+                    fieldName: field.field_name || field.name || null
                 };
                 console.log(`  ✓ 自动关联字段 [${pos}]: ${field.value}`);
             }
