@@ -264,6 +264,9 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
 
         specs_sorted = sorted(specs, key=sort_key)
 
+        # 过滤空值规格（防御性）
+        specs_sorted = [s for s in specs_sorted if s.field_value and s.field_value.strip()]
+
         # 构建 code_parts
         for idx, spec in enumerate(specs_sorted):
             defn = name_to_def.get(spec.field_name)

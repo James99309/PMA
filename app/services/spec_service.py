@@ -84,6 +84,7 @@ class SpecService:
                         logger.debug(f"删除规格: {spec.field_name}")
 
             # 2. 更新或添加规格
+            processed_ids = set()
             display_order = 0
             for spec_data in specs_data:
                 spec_id = spec_data.get('id')
@@ -110,6 +111,7 @@ class SpecService:
                         # 保存英文名称（如果提供且模型支持）
                         if hasattr(spec, 'field_name_en') and field_name_en:
                             spec.field_name_en = field_name_en
+                        processed_ids.add(spec.id)
                         logger.debug(f"更新规格: {field_name} = {field_value}")
                 else:
                     # 添加新规格
@@ -132,6 +134,18 @@ class SpecService:
                     logger.debug(f"添加规格: {field_name} = {field_value}")
 
                 display_order += 1
+
+            # 3. 清理孤儿规格（前端已删除但未通过 deleted_ids 传递的）
+            existing_filter = {id_field: product_id}
+            all_existing = SpecModel.query.filter_by(**existing_filter).all()
+            orphan_count = 0
+            for spec in all_existing:
+                if spec.id not in processed_ids and spec not in db.session.new:
+                    logger.debug(f"清理孤儿规格: {spec.field_name} (id={spec.id})")
+                    db.session.delete(spec)
+                    orphan_count += 1
+            if orphan_count:
+                logger.info(f"产品 {product_id} 清理了 {orphan_count} 个孤儿规格")
 
             db.session.flush()
 
