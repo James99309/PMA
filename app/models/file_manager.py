@@ -33,6 +33,13 @@ class FileLibrary(db.Model):
     ref_count = Column(Integer, default=1)  # 引用计数
     created_at = Column(DateTime, default=get_local_time)
 
+    # 归档压缩相关
+    is_archived = Column(Boolean, default=False, index=True)     # 是否已压缩归档
+    archived_at = Column(DateTime, nullable=True)                 # 归档时间
+    archive_reason = Column(String(20), nullable=True)            # 'deleted' | 'inactive'
+    original_size = Column(BigInteger, nullable=True)             # 压缩前原始大小
+    last_accessed_at = Column(DateTime, nullable=True)            # 上次访问时间
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -44,6 +51,11 @@ class FileLibrary(db.Model):
             'storage_type': self.storage_type,
             'ref_count': self.ref_count,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+            'is_archived': self.is_archived or False,
+            'archived_at': self.archived_at.isoformat() if self.archived_at else None,
+            'archive_reason': self.archive_reason,
+            'original_size': self.original_size,
+            'last_accessed_at': self.last_accessed_at.isoformat() if self.last_accessed_at else None,
         }
 
 
@@ -131,4 +143,6 @@ class UserFileRef(db.Model):
             'mime_type': lib.mime_type if lib else None,
             'storage_path': lib.storage_path if lib else None,
             'storage_type': lib.storage_type if lib else None,
+            'is_archived': lib.is_archived if lib else False,
+            'original_size': lib.original_size if lib else None,
         }

@@ -8524,3 +8524,18 @@ msgstr "View My Files"
 
 msgid "已用"
 msgstr "Used"
+
+msgid "已归档"
+msgstr "Archived"
+
+msgid "正在解压文件..."
+msgstr "Decompressing file..."
+
+msgid "归档文件列表"
+msgstr "Archived Files"
+
+msgid "恢复文件"
+msgstr "Restore File"
+
+msgid "压缩不活跃文件"
+msgstr "Compress Inactive Files"

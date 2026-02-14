@@ -3,11 +3,14 @@
 文件管理服务
 
 提供文件上传（SHA256去重）、文件夹管理、配额控制、回收站等功能。
+支持归档压缩（gzip）替代永久删除、不活跃文件自动压缩、透明解压。
 """
+import gzip
 import hashlib
 import logging
 import mimetypes
-from datetime import datetime
+import threading
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from flask import current_app
@@ -142,6 +145,7 @@ class FileManagerService:
                 mime_type=mime_type,
                 storage_path=storage_result['storage_path'],
                 storage_type=storage_result.get('storage', 'nas'),
+                last_accessed_at=get_local_time(),
             )
             db.session.add(lib_entry)
             db.session.flush()
@@ -167,11 +171,20 @@ class FileManagerService:
         try:
             from app.utils.smart_storage_manager import SmartStorageManager
             storage = SmartStorageManager()
+
+            # 根据 mime_type 选择正确的 file_type，匹配存储层白名单
+            if mime_type and mime_type.startswith('image/'):
+                file_type = 'image'
+            elif mime_type == 'application/pdf':
+                file_type = 'pdf'
+            else:
+                file_type = 'attachment'
+
             result = storage.upload_file(
                 object_id=user_id,
                 file=file_data,
                 filename=filename,
-                file_type='attachment',
+                file_type=file_type,
                 bucket_type='file_library',
                 business_type='file_manager',
             )
@@ -451,7 +464,7 @@ class FileManagerService:
 
     @staticmethod
     def permanent_delete(user, file_ref_id):
-        """永久删除文件"""
+        """永久删除文件（实际为归档压缩，物理文件不真删）"""
         ref = UserFileRef.query.filter_by(
             id=file_ref_id, user_id=user.id, is_deleted=True
         ).first()
@@ -464,11 +477,11 @@ class FileManagerService:
         # 减少引用计数
         if lib:
             lib.ref_count = max(lib.ref_count - 1, 0)
-            if lib.ref_count <= 0:
-                # 无引用，删除物理文件
-                FileManagerService._delete_from_storage(lib.storage_path)
-                db.session.delete(lib)
+            if lib.ref_count <= 0 and not lib.is_archived:
+                # 无引用，归档压缩而非删除
+                FileManagerService._compress_and_archive(lib, reason='deleted')
 
+        # 删除用户引用（用户看不到了）
         db.session.delete(ref)
 
         # 释放配额
@@ -478,7 +491,7 @@ class FileManagerService:
 
     @staticmethod
     def empty_trash(user):
-        """清空回收站"""
+        """清空回收站（归档压缩而非真删）"""
         refs = UserFileRef.query.filter_by(
             user_id=user.id, is_deleted=True
         ).all()
@@ -489,9 +502,8 @@ class FileManagerService:
             if lib:
                 total_freed += lib.file_size
                 lib.ref_count = max(lib.ref_count - 1, 0)
-                if lib.ref_count <= 0:
-                    FileManagerService._delete_from_storage(lib.storage_path)
-                    db.session.delete(lib)
+                if lib.ref_count <= 0 and not lib.is_archived:
+                    FileManagerService._compress_and_archive(lib, reason='deleted')
             db.session.delete(ref)
 
         user.storage_used = max((user.storage_used or 0) - total_freed, 0)
@@ -500,17 +512,298 @@ class FileManagerService:
 
     @staticmethod
     def _delete_from_storage(storage_path):
-        """从 NAS 删除物理文件"""
+        """从存储删除物理文件（NAS 或本地）"""
         try:
             from app.utils.smart_storage_manager import SmartStorageManager
+            import os
             storage = SmartStorageManager()
             if storage.nas_enabled and storage.is_nas_available():
                 nas_subdir = storage.bucket_mapping.get('file_library', 'file-library')
                 full_path = f"{nas_subdir}/{storage_path}"
                 storage.nas_client.delete_file(full_path)
                 logger.info(f"已删除 NAS 文件: {full_path}")
+            else:
+                local_path = os.path.join('./storage', storage_path)
+                if os.path.exists(local_path):
+                    os.remove(local_path)
+                    logger.info(f"已删除本地文件: {local_path}")
         except Exception as e:
             logger.error(f"删除存储文件失败: {e}")
+
+    # ------------------------------------------------------------------
+    # 归档压缩
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _compress_and_archive(lib, reason):
+        """将文件 gzip 压缩并标记为归档"""
+        try:
+            # 幂等检查：已归档则跳过
+            if lib.is_archived:
+                return True
+
+            content = FileManagerService._read_library_content(lib)
+            if not content:
+                logger.warning(f"归档失败: 无法读取文件 {lib.storage_path}")
+                return False
+
+            compressed = gzip.compress(content)
+            new_path = lib.storage_path + '.gz'
+
+            # 先上传压缩文件（DB 未变，失败无副作用）
+            ok = FileManagerService._upload_raw_to_storage(compressed, new_path, lib.storage_type)
+            if not ok:
+                logger.error(f"归档失败: 无法上传压缩文件 {new_path}")
+                return False
+
+            # 上传成功后更新 DB
+            old_path = lib.storage_path
+            lib.original_size = lib.file_size
+            lib.file_size = len(compressed)
+            lib.storage_path = new_path
+            lib.is_archived = True
+            lib.archived_at = get_local_time()
+            lib.archive_reason = reason
+            db.session.flush()
+
+            # 删除原始文件（非关键操作，失败不影响归档状态）
+            FileManagerService._delete_from_storage(old_path)
+            return True
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"归档压缩异常: {e}")
+            return False
+
+    @staticmethod
+    def _read_library_content(lib):
+        """从存储后端读取 FileLibrary 的原始内容（不解压）"""
+        try:
+            from app.utils.smart_storage_manager import SmartStorageManager
+            import os
+
+            if lib.storage_type == 'nas':
+                storage = SmartStorageManager()
+                if storage.nas_enabled and storage.is_nas_available():
+                    nas_subdir = storage.bucket_mapping.get('file_library', 'file-library')
+                    full_path = f"{nas_subdir}/{lib.storage_path}"
+                    return storage.nas_client.download_file(full_path)
+            else:
+                local_path = os.path.join('./storage', lib.storage_path)
+                if os.path.exists(local_path):
+                    with open(local_path, 'rb') as f:
+                        return f.read()
+        except Exception as e:
+            logger.error(f"读取文件内容失败: {e}")
+        return None
+
+    @staticmethod
+    def _upload_raw_to_storage(data, storage_path, storage_type):
+        """直接上传原始字节到存储"""
+        try:
+            from app.utils.smart_storage_manager import SmartStorageManager
+            import os
+
+            if storage_type == 'nas':
+                storage = SmartStorageManager()
+                if storage.nas_enabled and storage.is_nas_available():
+                    nas_subdir = storage.bucket_mapping.get('file_library', 'file-library')
+                    full_path = f"{nas_subdir}/{storage_path}"
+                    result = storage.nas_client.upload_file(
+                        file_content=data,
+                        remote_path=full_path,
+                        content_type='application/gzip'
+                    )
+                    return bool(result)
+            else:
+                local_path = os.path.join('./storage', storage_path)
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                with open(local_path, 'wb') as f:
+                    f.write(data)
+                return True
+        except Exception as e:
+            logger.error(f"上传原始文件失败: {e}")
+        return False
+
+    @staticmethod
+    def read_file_content_auto_decompress(lib):
+        """读取文件内容，如果是归档文件则自动解压"""
+        content = FileManagerService._read_library_content(lib)
+        if not content:
+            return None
+
+        # 如果是归档文件，自动解压
+        if lib.is_archived and lib.storage_path.endswith('.gz'):
+            try:
+                content = gzip.decompress(content)
+            except Exception as e:
+                logger.error(f"解压文件失败: {e}")
+                return None
+
+        # 更新访问时间
+        lib.last_accessed_at = get_local_time()
+        db.session.commit()
+
+        # 如果是不活跃归档，异步恢复为非归档
+        if lib.is_archived and lib.archive_reason == 'inactive':
+            FileManagerService._async_restore_inactive(lib.id)
+
+        return content
+
+    @staticmethod
+    def _async_restore_inactive(lib_id):
+        """在后台线程恢复不活跃归档文件"""
+        from flask import current_app
+        app = current_app._get_current_object()
+
+        def _restore():
+            with app.app_context():
+                try:
+                    from sqlalchemy import text
+                    # 使用行级锁防止并发恢复
+                    lib = db.session.query(FileLibrary).filter_by(
+                        id=lib_id, is_archived=True, archive_reason='inactive'
+                    ).with_for_update(skip_locked=True).first()
+                    if not lib:
+                        return
+
+                    content = FileManagerService._read_library_content(lib)
+                    if not content:
+                        return
+                    original = gzip.decompress(content)
+                    original_path = lib.storage_path[:-3]  # 去掉 .gz
+
+                    # 先更新 DB（指向新路径），再操作存储
+                    old_gz_path = lib.storage_path
+                    lib.file_size = lib.original_size or len(original)
+                    lib.storage_path = original_path
+                    lib.is_archived = False
+                    lib.archived_at = None
+                    lib.archive_reason = None
+                    lib.original_size = None
+                    db.session.flush()
+
+                    # 上传原始文件
+                    ok = FileManagerService._upload_raw_to_storage(original, original_path, lib.storage_type)
+                    if not ok:
+                        db.session.rollback()
+                        return
+
+                    db.session.commit()
+
+                    # 删除压缩文件（非关键，失败也不影响）
+                    FileManagerService._delete_from_storage(old_gz_path)
+                    logger.info(f"已自动恢复不活跃归档文件: {original_path}")
+                except Exception as e:
+                    db.session.rollback()
+                    logger.error(f"异步恢复归档文件失败: {e}")
+
+        threading.Thread(target=_restore, daemon=True).start()
+
+    @staticmethod
+    def archive_inactive_files(days=90):
+        """压缩超过 N 天未访问的文件"""
+        cutoff = get_local_time() - timedelta(days=days)
+        libs = FileLibrary.query.filter(
+            FileLibrary.is_archived == False,
+            FileLibrary.ref_count > 0,
+            FileLibrary.file_size > 4096,  # 跳过 <4KB 的小文件（gzip 开销大于收益）
+            db.or_(
+                FileLibrary.last_accessed_at < cutoff,
+                db.and_(
+                    FileLibrary.last_accessed_at == None,
+                    FileLibrary.created_at < cutoff
+                )
+            )
+        ).all()
+
+        archived_count = 0
+        for lib in libs:
+            try:
+                ok = FileManagerService._compress_and_archive(lib, reason='inactive')
+                if ok:
+                    db.session.commit()
+                    archived_count += 1
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"归档文件 {lib.id} 失败: {e}")
+
+        return archived_count
+
+    @staticmethod
+    def admin_restore_archived_file(admin_user, lib_id, target_user_id):
+        """管理员恢复已归档文件给指定用户"""
+        if admin_user.role != 'admin':
+            return False, '权限不足'
+
+        lib = FileLibrary.query.get(lib_id)
+        if not lib:
+            return False, '文件不存在'
+        if not lib.is_archived:
+            return False, '文件未被归档'
+
+        # 读取并解压
+        content = FileManagerService._read_library_content(lib)
+        if not content:
+            return False, '无法读取归档文件'
+
+        try:
+            original = gzip.decompress(content)
+        except Exception:
+            return False, '解压失败'
+
+        # 上传原始文件
+        original_path = lib.storage_path[:-3] if lib.storage_path.endswith('.gz') else lib.storage_path
+        ok = FileManagerService._upload_raw_to_storage(original, original_path, lib.storage_type)
+        if not ok:
+            return False, '恢复文件上传失败'
+
+        # 删除压缩文件
+        FileManagerService._delete_from_storage(lib.storage_path)
+
+        # 更新 FileLibrary
+        lib.file_size = lib.original_size or len(original)
+        lib.storage_path = original_path
+        lib.is_archived = False
+        lib.archived_at = None
+        lib.archive_reason = None
+        lib.original_size = None
+        lib.ref_count = max(lib.ref_count, 1)
+
+        # 创建新的 UserFileRef
+        from app.models.user import User
+        target_user = User.query.get(target_user_id)
+        if not target_user:
+            return False, '目标用户不存在'
+
+        ref = UserFileRef(
+            user_id=target_user_id,
+            folder_id=None,
+            file_library_id=lib.id,
+            display_name=lib.original_filename,
+        )
+        db.session.add(ref)
+
+        # 更新配额
+        target_user.storage_used = (target_user.storage_used or 0) + lib.file_size
+
+        db.session.commit()
+        return True, ref.to_dict()
+
+    @staticmethod
+    def list_archived_files(page=1, per_page=50):
+        """列出所有归档文件（管理员用）"""
+        query = FileLibrary.query.filter(
+            FileLibrary.is_archived == True
+        ).order_by(FileLibrary.archived_at.desc())
+
+        total = query.count()
+        items = query.offset((page - 1) * per_page).limit(per_page).all()
+
+        return {
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'items': [lib.to_dict() for lib in items],
+        }
 
     # ------------------------------------------------------------------
     # 搜索

@@ -41,9 +41,17 @@ function fileManager() {
 
         // 预览
         previewModal: { show: false, file: null, type: 'other' },
+        spreadsheetHtml: '',
+
+        // 解压动画
+        decompressModal: { show: false, fileName: '' },
 
         // 扁平化文件夹列表（用于移动对话框）
         allFoldersFlat: [],
+
+        // 拖拽移动
+        dragFileId: null,
+        dropTargetFolderId: null,
 
         init() {
             this.currentFolderId = window.__fileManagerInitFolderId || null;
@@ -125,17 +133,22 @@ function fileManager() {
             }
         },
 
-        async deleteFolder(folderId) {
-            if (!confirm('确定要删除此文件夹及其所有内容吗？')) return;
-            const data = await this.api(`/files/api/folders/${folderId}`, {
-                method: 'DELETE',
+        deleteFolder(folderId) {
+            openConfirmModal('fileConfirmModal', {
+                title: '确认删除',
+                message: '确定要删除此文件夹及其所有内容吗？文件将移入回收站。',
+                onConfirm: async () => {
+                    const data = await this.api(`/files/api/folders/${folderId}`, {
+                        method: 'DELETE',
+                    });
+                    if (data.success) {
+                        this.loadFiles();
+                        this.loadFolderTree();
+                    } else {
+                        throw new Error(data.message);
+                    }
+                }
             });
-            if (data.success) {
-                this.loadFiles();
-                this.loadFolderTree();
-            } else {
-                alert(data.message);
-            }
         },
 
         // ------------------------------------------------------------------
@@ -204,23 +217,46 @@ function fileManager() {
             }
         },
 
-        async batchDelete() {
+        batchDelete() {
             if (!this.selectedFiles.length) return;
-            if (!confirm(`确定要删除选中的 ${this.selectedFiles.length} 个文件吗？`)) return;
-
-            const data = await this.api('/files/api/files/delete-batch', {
-                method: 'POST',
-                body: JSON.stringify({ file_ids: this.selectedFiles }),
+            openConfirmModal('fileConfirmModal', {
+                title: '确认删除',
+                message: `确定要删除选中的 ${this.selectedFiles.length} 个文件吗？文件将移入回收站。`,
+                onConfirm: async () => {
+                    const data = await this.api('/files/api/files/delete-batch', {
+                        method: 'POST',
+                        body: JSON.stringify({ file_ids: this.selectedFiles }),
+                    });
+                    if (data.success) {
+                        this.selectedFiles = [];
+                        this.loadFiles();
+                    } else {
+                        throw new Error(data.message);
+                    }
+                }
             });
-            if (data.success) {
-                this.selectedFiles = [];
-                this.loadFiles();
-            } else {
-                alert(data.message);
-            }
         },
 
-        downloadFile(file) {
+        async downloadFile(file) {
+            if (file.is_archived) {
+                this.decompressModal = { show: true, fileName: file.display_name };
+                try {
+                    const resp = await fetch(`/files/api/files/${file.id}/download`);
+                    this.decompressModal.show = false;
+                    if (!resp.ok) throw new Error('下载失败');
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = file.display_name;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                } catch (e) {
+                    this.decompressModal.show = false;
+                    console.error('下载归档文件失败:', e);
+                }
+                return;
+            }
             const a = document.createElement('a');
             a.href = `/files/api/files/${file.id}/download`;
             a.download = file.display_name;
@@ -238,21 +274,35 @@ function fileManager() {
             }
         },
 
-        async permanentDelete(fileId) {
-            if (!confirm('永久删除后无法恢复，确定继续吗？')) return;
-            const data = await this.api(`/files/api/trash/${fileId}/permanent`, { method: 'DELETE' });
-            if (data.success) {
-                this.loadTrash();
-            }
+        permanentDelete(fileId) {
+            openConfirmModal('fileConfirmModal', {
+                title: '确认删除',
+                message: '删除后将从您的文件列表中移除，确定继续吗？',
+                onConfirm: async () => {
+                    const data = await this.api(`/files/api/trash/${fileId}/permanent`, { method: 'DELETE' });
+                    if (data.success) {
+                        this.loadTrash();
+                    } else {
+                        throw new Error(data.message);
+                    }
+                }
+            });
         },
 
-        async emptyTrash() {
-            if (!confirm('确定要清空回收站吗？所有文件将被永久删除。')) return;
-            const data = await this.api('/files/api/trash/empty', { method: 'POST' });
-            if (data.success) {
-                this.trashFiles = [];
-                this.loadFiles();  // 刷新配额
-            }
+        emptyTrash() {
+            openConfirmModal('fileConfirmModal', {
+                title: '清空回收站',
+                message: '确定要清空回收站吗？所有文件将从您的文件列表中移除。',
+                onConfirm: async () => {
+                    const data = await this.api('/files/api/trash/empty', { method: 'POST' });
+                    if (data.success) {
+                        this.trashFiles = [];
+                        this.loadFiles();
+                    } else {
+                        throw new Error(data.message);
+                    }
+                }
+            });
         },
 
         // ------------------------------------------------------------------
@@ -385,43 +435,157 @@ function fileManager() {
         },
 
         // ------------------------------------------------------------------
+        // 拖拽移动文件到文件夹
+        // ------------------------------------------------------------------
+        onFileDragStart(event, file) {
+            this.dragFileId = file.id;
+            // 如果文件已选中且有多选，拖拽全部选中的
+            if (this.selectedFiles.length > 0 && this.selectedFiles.includes(file.id)) {
+                event.dataTransfer.setData('text/plain', JSON.stringify(this.selectedFiles));
+            } else {
+                event.dataTransfer.setData('text/plain', JSON.stringify([file.id]));
+            }
+            event.dataTransfer.effectAllowed = 'move';
+        },
+
+        onFileDragEnd() {
+            this.dragFileId = null;
+            this.dropTargetFolderId = null;
+        },
+
+        onFolderDragOver(event, folderId) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            this.dropTargetFolderId = folderId;
+        },
+
+        onFolderDragLeave(folderId) {
+            if (this.dropTargetFolderId === folderId) {
+                this.dropTargetFolderId = null;
+            }
+        },
+
+        async onFolderDrop(event, folderId) {
+            event.preventDefault();
+            this.dropTargetFolderId = null;
+
+            let fileIds;
+            try {
+                fileIds = JSON.parse(event.dataTransfer.getData('text/plain'));
+            } catch {
+                return;
+            }
+            if (!fileIds || !fileIds.length) return;
+
+            const data = await this.api('/files/api/files/move-batch', {
+                method: 'POST',
+                body: JSON.stringify({ file_ids: fileIds, folder_id: folderId }),
+            });
+            if (data.success) {
+                this.selectedFiles = [];
+                this.loadFiles();
+                this.loadFolderTree();
+            } else {
+                alert(data.message);
+            }
+        },
+
+        // 拖拽到面包屑（上级文件夹/根目录）
+        async onBreadcrumbDrop(event, folderId) {
+            event.preventDefault();
+            let fileIds;
+            try {
+                fileIds = JSON.parse(event.dataTransfer.getData('text/plain'));
+            } catch {
+                return;
+            }
+            if (!fileIds || !fileIds.length) return;
+
+            const data = await this.api('/files/api/files/move-batch', {
+                method: 'POST',
+                body: JSON.stringify({ file_ids: fileIds, folder_id: folderId }),
+            });
+            if (data.success) {
+                this.selectedFiles = [];
+                this.loadFiles();
+                this.loadFolderTree();
+            }
+        },
+
+        // ------------------------------------------------------------------
         // 预览
         // ------------------------------------------------------------------
-        previewFile(file) {
+        async previewFile(file) {
             const mime = file.mime_type || '';
             let type = 'other';
             if (mime.startsWith('image/')) type = 'image';
             else if (mime === 'application/pdf') type = 'pdf';
+            else if (mime.startsWith('video/')) type = 'video';
+            else if (mime.includes('sheet') || mime.includes('excel') || mime === 'text/csv') type = 'spreadsheet';
 
             if (type === 'other') {
-                // 不支持预览的直接下载
                 this.downloadFile(file);
                 return;
             }
 
+            // 归档文件 + 电子表格：先显示解压动画，fetch 完成后关闭
+            if (file.is_archived && type === 'spreadsheet') {
+                this.decompressModal = { show: true, fileName: file.display_name };
+            }
+
+            this.spreadsheetHtml = '';
             this.previewModal = { show: true, file, type };
+
+            // 归档的图片/PDF/视频：显示简短解压提示（浏览器 src 加载自动处理）
+            if (file.is_archived && type !== 'spreadsheet') {
+                this.decompressModal = { show: true, fileName: file.display_name };
+                setTimeout(() => { this.decompressModal.show = false; }, 1500);
+            }
+
+            if (type === 'spreadsheet') {
+                await this.loadSpreadsheet(file);
+                this.decompressModal.show = false;
+            }
+        },
+
+        async loadSpreadsheet(file) {
+            try {
+                const resp = await fetch(`/files/api/files/${file.id}/preview`);
+                if (!resp.ok) throw new Error('Failed to fetch');
+                const buf = await resp.arrayBuffer();
+                const wb = XLSX.read(buf, { type: 'array' });
+                const sheet = wb.Sheets[wb.SheetNames[0]];
+                this.spreadsheetHtml = XLSX.utils.sheet_to_html(sheet);
+            } catch (e) {
+                console.error('Spreadsheet preview error:', e);
+                this.spreadsheetHtml = '<p class="text-center text-slate-500 py-8">无法预览该文件</p>';
+            }
         },
 
         // ------------------------------------------------------------------
         // 辅助函数
         // ------------------------------------------------------------------
         getFileIcon(file) {
+            if (file.is_archived) return 'inventory_2';
             const mime = file.mime_type || '';
             if (mime.startsWith('image/')) return 'image';
             if (mime === 'application/pdf') return 'picture_as_pdf';
+            if (mime.startsWith('video/')) return 'videocam';
             if (mime.includes('word') || mime.includes('document')) return 'description';
-            if (mime.includes('sheet') || mime.includes('excel')) return 'table_chart';
+            if (mime.includes('sheet') || mime.includes('excel') || mime === 'text/csv') return 'table_chart';
             if (mime.includes('presentation') || mime.includes('powerpoint')) return 'slideshow';
             if (mime.includes('zip') || mime.includes('rar') || mime.includes('7z')) return 'folder_zip';
             return 'insert_drive_file';
         },
 
         getFileIconClass(file) {
+            if (file.is_archived) return 'text-amber-500';
             const mime = file.mime_type || '';
             if (mime.startsWith('image/')) return 'text-blue-500';
             if (mime === 'application/pdf') return 'text-red-500';
+            if (mime.startsWith('video/')) return 'text-purple-500';
             if (mime.includes('word') || mime.includes('document')) return 'text-blue-600';
-            if (mime.includes('sheet') || mime.includes('excel')) return 'text-green-600';
+            if (mime.includes('sheet') || mime.includes('excel') || mime === 'text/csv') return 'text-green-600';
             if (mime.includes('presentation')) return 'text-orange-500';
             return 'text-slate-400';
         },

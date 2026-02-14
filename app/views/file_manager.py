@@ -4,6 +4,7 @@
 
 提供文件管理主页面和所有 API 端点。
 """
+import os
 import logging
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
@@ -270,8 +271,13 @@ def get_quota():
 
 
 # ------------------------------------------------------------------
-# 文件下载/预览（代理NAS文件）
+# 文件下载/预览（按 storage_type 路由）
 # ------------------------------------------------------------------
+
+def _read_file_content(lib):
+    """读取文件内容（归档文件自动解压 + 更新访问时间）"""
+    return FileManagerService.read_file_content_auto_decompress(lib)
+
 
 @file_manager_bp.route('/api/files/<int:file_id>/download', methods=['GET'])
 @login_required
@@ -291,24 +297,19 @@ def download_file(file_id):
     if not lib:
         abort(404)
 
-    # 通过存储代理获取文件
     try:
-        from app.utils.smart_storage_manager import SmartStorageManager
-        storage = SmartStorageManager()
-        nas_subdir = storage.bucket_mapping.get('file_library', 'file-library')
-        full_path = f"{nas_subdir}/{lib.storage_path}"
-
-        if storage.nas_enabled and storage.is_nas_available():
-            content = storage.nas_client.download_file(full_path)
-            if content:
-                return Response(
-                    content,
-                    mimetype=lib.mime_type or 'application/octet-stream',
-                    headers={
-                        'Content-Disposition': f'attachment; filename="{ref.display_name}"',
-                        'Content-Length': str(lib.file_size),
-                    }
-                )
+        content = _read_file_content(lib)
+        if content:
+            from urllib.parse import quote
+            encoded_name = quote(ref.display_name)
+            return Response(
+                content,
+                mimetype=lib.mime_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_name}",
+                    'Content-Length': str(len(content)),
+                }
+            )
     except Exception as e:
         logger.error(f"文件下载失败: {e}")
 
@@ -333,22 +334,68 @@ def preview_file(file_id):
         abort(404)
 
     try:
-        from app.utils.smart_storage_manager import SmartStorageManager
-        storage = SmartStorageManager()
-        nas_subdir = storage.bucket_mapping.get('file_library', 'file-library')
-        full_path = f"{nas_subdir}/{lib.storage_path}"
-
-        if storage.nas_enabled and storage.is_nas_available():
-            content = storage.nas_client.download_file(full_path)
-            if content:
-                return Response(
-                    content,
-                    mimetype=lib.mime_type or 'application/octet-stream',
-                    headers={
-                        'Content-Disposition': f'inline; filename="{ref.display_name}"',
-                    }
-                )
+        content = _read_file_content(lib)
+        if content:
+            from urllib.parse import quote
+            encoded_name = quote(ref.display_name)
+            return Response(
+                content,
+                mimetype=lib.mime_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f"inline; filename*=UTF-8''{encoded_name}",
+                }
+            )
     except Exception as e:
         logger.error(f"文件预览失败: {e}")
 
     abort(404)
+
+
+# ------------------------------------------------------------------
+# 管理员 — 归档管理
+# ------------------------------------------------------------------
+
+@file_manager_bp.route('/api/admin/archived', methods=['GET'])
+@login_required
+def admin_list_archived():
+    """列出所有归档文件（管理员）"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    data = FileManagerService.list_archived_files(page, per_page)
+    return jsonify({'success': True, 'data': data})
+
+
+@file_manager_bp.route('/api/admin/archived/<int:lib_id>/restore', methods=['POST'])
+@login_required
+def admin_restore_archived(lib_id):
+    """恢复归档文件（管理员）"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    data = request.get_json(silent=True) or {}
+    target_user_id = data.get('target_user_id')
+    if not target_user_id:
+        return jsonify({'success': False, 'message': '请指定目标用户'}), 400
+
+    ok, result = FileManagerService.admin_restore_archived_file(
+        current_user, lib_id, target_user_id
+    )
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 400
+    return jsonify({'success': True, 'data': result})
+
+
+@file_manager_bp.route('/api/admin/compress-inactive', methods=['POST'])
+@login_required
+def admin_compress_inactive():
+    """手动触发压缩不活跃文件（管理员）"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    data = request.get_json(silent=True) or {}
+    days = data.get('days', 90)
+    count = FileManagerService.archive_inactive_files(days=days)
+    return jsonify({'success': True, 'message': f'已归档 {count} 个不活跃文件'})

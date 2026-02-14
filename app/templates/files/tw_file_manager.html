@@ -21,6 +21,7 @@
     </noscript>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
@@ -43,6 +44,14 @@
     <style>
         .drag-over { border-color: #137fec !important; background-color: rgba(19,127,236,0.05) !important; }
         .dark .drag-over { background-color: rgba(19,127,236,0.1) !important; }
+        [draggable="true"] { user-select: none; }
+        [draggable="true"]:active { opacity: 0.6; }
+        .spreadsheet-preview table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        .spreadsheet-preview th, .spreadsheet-preview td { border: 1px solid #cbd5e1; padding: 0.25rem 0.5rem; text-align: left; }
+        .spreadsheet-preview th { background: #f1f5f9; font-weight: 500; position: sticky; top: 0; }
+        .dark .spreadsheet-preview th, .dark .spreadsheet-preview td { border-color: #475569; }
+        .dark .spreadsheet-preview th { background: #334155; }
+        @keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
     </style>
 </head>
 
@@ -56,8 +65,12 @@
             <div class="p-4 flex flex-col h-full">
                 {# 我的文件 #}
                 <button @click="navigateTo(null); activeView='files'"
-                        :class="activeView==='files' && !currentFolderId ? 'bg-primary/10 text-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
-                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left">
+                        @dragover.prevent="$event.dataTransfer.dropEffect = 'move'; dropTargetFolderId = 'root'"
+                        @dragleave="dropTargetFolderId = null"
+                        @drop="onFolderDrop($event, null)"
+                        :class="[activeView==='files' && !currentFolderId ? 'bg-primary/10 text-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800',
+                                 dropTargetFolderId === 'root' ? 'ring-2 ring-primary/40 bg-primary/10' : '']"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left transition-colors">
                     <span class="material-symbols-outlined text-lg">folder_open</span>
                     {{ _('我的文件') }}
                 </button>
@@ -68,8 +81,12 @@
                         <div>
                             <button @click="navigateTo(folder.id); activeView='files'"
                                     @contextmenu.prevent="showFolderMenu($event, folder)"
-                                    :class="currentFolderId === folder.id ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
-                                    class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm w-full text-left truncate">
+                                    @dragover.prevent="onFolderDragOver($event, folder.id)"
+                                    @dragleave="onFolderDragLeave(folder.id)"
+                                    @drop="onFolderDrop($event, folder.id)"
+                                    :class="[currentFolderId === folder.id ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800',
+                                             dropTargetFolderId === folder.id ? 'ring-2 ring-primary/40 bg-primary/10' : '']"
+                                    class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm w-full text-left truncate transition-colors">
                                 <span class="material-symbols-outlined text-base">folder</span>
                                 <span x-text="folder.name" class="truncate"></span>
                             </button>
@@ -79,8 +96,12 @@
                                     <template x-for="child in folder.children" :key="child.id">
                                         <button @click="navigateTo(child.id); activeView='files'"
                                                 @contextmenu.prevent="showFolderMenu($event, child)"
-                                                :class="currentFolderId === child.id ? 'bg-primary/10 text-primary' : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
-                                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs w-full text-left truncate">
+                                                @dragover.prevent="onFolderDragOver($event, child.id)"
+                                                @dragleave="onFolderDragLeave(child.id)"
+                                                @drop="onFolderDrop($event, child.id)"
+                                                :class="[currentFolderId === child.id ? 'bg-primary/10 text-primary' : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800',
+                                                         dropTargetFolderId === child.id ? 'ring-2 ring-primary/40 bg-primary/10' : '']"
+                                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs w-full text-left truncate transition-colors">
                                             <span class="material-symbols-outlined" style="font-size:14px">folder</span>
                                             <span x-text="child.name" class="truncate"></span>
                                         </button>
@@ -263,9 +284,13 @@
 
                             {# 文件夹 #}
                             <template x-for="folder in folders" :key="'f-' + folder.id">
-                                <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50"
+                                <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50 transition-colors"
+                                     :class="dropTargetFolderId === folder.id ? 'bg-primary/10 ring-2 ring-primary/40' : ''"
                                      @dblclick="navigateTo(folder.id)"
-                                     @contextmenu.prevent="showFolderMenu($event, folder)">
+                                     @contextmenu.prevent="showFolderMenu($event, folder)"
+                                     @dragover.prevent="onFolderDragOver($event, folder.id)"
+                                     @dragleave="onFolderDragLeave(folder.id)"
+                                     @drop="onFolderDrop($event, folder.id)">
                                     <div class="w-4"></div>
                                     <span class="material-symbols-outlined text-lg text-amber-500">folder</span>
                                     <div class="flex-1 text-sm text-slate-900 dark:text-white truncate" x-text="folder.name"></div>
@@ -283,13 +308,22 @@
                             <template x-for="file in files" :key="'r-' + file.id">
                                 <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50"
                                      :class="selectedFiles.includes(file.id) ? 'bg-primary/5' : ''"
+                                     draggable="true"
+                                     @dragstart="onFileDragStart($event, file)"
+                                     @dragend="onFileDragEnd()"
                                      @click="previewFile(file)"
                                      @contextmenu.prevent="showFileMenu($event, file)">
                                     <input type="checkbox" :checked="selectedFiles.includes(file.id)" @click.stop="toggleSelect(file.id)"
                                            class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50 w-4 h-4">
                                     <span class="material-symbols-outlined text-lg" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
-                                    <div class="flex-1 text-sm text-slate-900 dark:text-white truncate" x-text="file.display_name"></div>
-                                    <div class="w-20 text-right text-xs text-slate-400 hidden sm:block" x-text="formatSize(file.file_size)"></div>
+                                    <div class="flex-1 min-w-0 flex items-center gap-2">
+                                        <span class="text-sm text-slate-900 dark:text-white truncate" x-text="file.display_name"></span>
+                                        <span x-show="file.is_archived"
+                                              class="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">
+                                            {{ _('已归档') }}
+                                        </span>
+                                    </div>
+                                    <div class="w-20 text-right text-xs text-slate-400 hidden sm:block" x-text="formatSize(file.is_archived && file.original_size ? file.original_size : file.file_size)"></div>
                                     <div class="w-28 text-right text-xs text-slate-400 hidden md:block" x-text="formatDate(file.created_at)"></div>
                                     <div class="w-20 flex justify-end">
                                         <button @click.stop="showFileMenu($event, file)" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700">
@@ -305,21 +339,32 @@
                             {# 文件夹卡片 #}
                             <template x-for="folder in folders" :key="'gf-' + folder.id">
                                 <div class="flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:shadow-sm cursor-pointer transition-all"
+                                     :class="dropTargetFolderId === folder.id ? 'border-primary bg-primary/10 ring-2 ring-primary/40' : ''"
                                      @dblclick="navigateTo(folder.id)"
-                                     @contextmenu.prevent="showFolderMenu($event, folder)">
+                                     @contextmenu.prevent="showFolderMenu($event, folder)"
+                                     @dragover.prevent="onFolderDragOver($event, folder.id)"
+                                     @dragleave="onFolderDragLeave(folder.id)"
+                                     @drop="onFolderDrop($event, folder.id)">
                                     <span class="material-symbols-outlined text-4xl text-amber-500">folder</span>
                                     <span class="text-xs text-slate-700 dark:text-slate-300 text-center truncate w-full" x-text="folder.name"></span>
                                 </div>
                             </template>
                             {# 文件卡片 #}
                             <template x-for="file in files" :key="'gr-' + file.id">
-                                <div class="flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:shadow-sm cursor-pointer transition-all"
-                                     :class="selectedFiles.includes(file.id) ? 'border-primary bg-primary/5' : ''"
+                                <div class="relative flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:shadow-sm cursor-pointer transition-all"
+                                     :class="[selectedFiles.includes(file.id) ? 'border-primary bg-primary/5' : '', file.is_archived ? 'opacity-75' : '']"
+                                     draggable="true"
+                                     @dragstart="onFileDragStart($event, file)"
+                                     @dragend="onFileDragEnd()"
                                      @click="previewFile(file)"
                                      @contextmenu.prevent="showFileMenu($event, file)">
+                                    <span x-show="file.is_archived"
+                                          class="absolute top-1 right-1 text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
+                                        {{ _('已归档') }}
+                                    </span>
                                     <span class="material-symbols-outlined text-4xl" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
                                     <span class="text-xs text-slate-700 dark:text-slate-300 text-center truncate w-full" x-text="file.display_name"></span>
-                                    <span class="text-[10px] text-slate-400" x-text="formatSize(file.file_size)"></span>
+                                    <span class="text-[10px] text-slate-400" x-text="formatSize(file.is_archived && file.original_size ? file.original_size : file.file_size)"></span>
                                 </div>
                             </template>
                         </div>
@@ -327,9 +372,9 @@
                         {# 拖拽上传区域 #}
                         <div class="mx-4 mb-4 mt-2 p-6 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-center transition-colors"
                              :class="isDragging ? 'drag-over border-primary' : ''"
-                             @dragover.prevent="isDragging = true"
+                             @dragover.prevent="if (!dragFileId) isDragging = true"
                              @dragleave.prevent="isDragging = false"
-                             @drop.prevent="handleDrop($event)">
+                             @drop.prevent="isDragging = false; if (!dragFileId) handleDrop($event)">
                             <span class="material-symbols-outlined text-3xl text-slate-400 mb-2">cloud_upload</span>
                             <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('拖拽文件到此处上传') }}</p>
                             <p class="text-xs text-slate-400 mt-1">{{ _('或点击上方"上传文件"按钮') }}</p>
@@ -471,7 +516,7 @@
 
         {# ============ 文件预览模态框 ============ #}
         <div x-show="previewModal.show" class="fixed inset-0 z-50 flex items-center justify-center" x-cloak>
-            <div class="fixed inset-0 bg-black/70" @click="previewModal.show = false"></div>
+            <div class="fixed inset-0 bg-black/70" @click="previewModal.show = false; spreadsheetHtml = ''"></div>
             <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[90vh] flex flex-col" x-transition>
                 <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
                     <h3 class="text-base font-medium text-slate-900 dark:text-white truncate" x-text="previewModal.file?.display_name"></h3>
@@ -481,20 +526,37 @@
                             <span class="material-symbols-outlined text-base">download</span>
                             {{ _('下载') }}
                         </a>
-                        <button @click="previewModal.show = false" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <button @click="previewModal.show = false; spreadsheetHtml = ''" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
                             <span class="material-symbols-outlined">close</span>
                         </button>
                     </div>
                 </div>
                 <div class="flex-1 overflow-auto p-4 flex items-center justify-center min-h-[300px]">
                     {# 图片预览 #}
-                    <img x-show="previewModal.type === 'image'"
-                         :src="'/files/api/files/' + previewModal.file?.id + '/preview'"
+                    <img x-show="previewModal.type === 'image' && previewModal.file"
+                         :src="previewModal.file ? '/files/api/files/' + previewModal.file.id + '/preview' : ''"
                          class="max-w-full max-h-[70vh] object-contain rounded-lg">
                     {# PDF预览 #}
-                    <iframe x-show="previewModal.type === 'pdf'"
-                            :src="'/files/api/files/' + previewModal.file?.id + '/preview'"
+                    <iframe x-show="previewModal.type === 'pdf' && previewModal.file"
+                            :src="previewModal.file ? '/files/api/files/' + previewModal.file.id + '/preview' : ''"
                             class="w-full h-[70vh] rounded-lg border-0"></iframe>
+                    {# 视频预览 #}
+                    <video x-show="previewModal.type === 'video' && previewModal.file"
+                           :src="previewModal.file ? '/files/api/files/' + previewModal.file.id + '/preview' : ''"
+                           controls class="max-w-full max-h-[70vh] rounded-lg">
+                    </video>
+                    {# 电子表格预览 #}
+                    <div x-show="previewModal.type === 'spreadsheet'" class="w-full h-[70vh] overflow-auto">
+                        <div x-show="!spreadsheetHtml" class="flex items-center justify-center h-full">
+                            <svg class="animate-spin h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                            </svg>
+                            <span class="ml-2 text-sm text-slate-500">{{ _('加载中') }}...</span>
+                        </div>
+                        <div x-show="spreadsheetHtml" x-html="spreadsheetHtml"
+                             class="spreadsheet-preview"></div>
+                    </div>
                     {# 其他类型 #}
                     <div x-show="previewModal.type === 'other'" class="text-center text-slate-500">
                         <span class="material-symbols-outlined text-5xl mb-3">description</span>
@@ -505,6 +567,30 @@
                             {{ _('下载文件') }}
                         </a>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        {# ============ 确认模态框（通用） ============ #}
+        {{ tw_confirm_modal(
+            modal_id='fileConfirmModal',
+            variant='danger',
+            z_index='z-[60]'
+        ) }}
+
+        {# ============ 解压动画模态框 ============ #}
+        <div x-show="decompressModal.show" class="fixed inset-0 z-[60] flex items-center justify-center" x-cloak>
+            <div class="fixed inset-0 bg-black/40"></div>
+            <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-8 text-center max-w-xs" x-transition>
+                <div class="flex items-center justify-center gap-3 mb-4">
+                    <span class="material-symbols-outlined text-4xl text-amber-500 animate-pulse">inventory_2</span>
+                    <span class="material-symbols-outlined text-2xl text-slate-400 animate-bounce">arrow_forward</span>
+                    <span class="material-symbols-outlined text-4xl text-primary">description</span>
+                </div>
+                <p class="text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">{{ _('正在解压文件...') }}</p>
+                <p class="text-xs text-slate-400 truncate" x-text="decompressModal.fileName"></p>
+                <div class="mt-4 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                    <div class="h-full bg-primary rounded-full animate-[indeterminate_1.5s_ease-in-out_infinite]" style="width:30%"></div>
                 </div>
             </div>
         </div>
@@ -543,6 +629,7 @@
 
 {# ============ JavaScript ============ #}
 {{ render_tw_layout_script() }}
+{{ tw_confirm_modal_script() }}
 <script src="{{ url_for('static', filename='js/file-manager.js') }}"></script>
 <script>
     // 传递初始文件夹ID
