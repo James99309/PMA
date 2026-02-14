@@ -267,6 +267,7 @@ def create_app(config_class=Config):
         PerformanceFormulaTemplate, RolePerformanceAccess
     )
     from app.models.data_source_config import DataTableConfig, DataFieldConfig, FormulaTemplate
+    from app.models.chat import ChatConversation, ChatParticipant, ChatMessage, ChatTranslation
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp
