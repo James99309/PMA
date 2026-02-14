@@ -135,6 +135,7 @@ class SupabaseStorageClient:
             'product': 'products',
             'rd_product': 'rd_products',
             'meeting': 'meetings',  # 会议录音存储
+            'file_library': 'file_library',  # 个人文件管理
             'default': 'invoices'
         }
         
@@ -365,24 +366,26 @@ class SupabaseStorageClient:
             # 验证文件类型
             if file_type not in ['image', 'pdf', 'attachment']:
                 raise ValueError("文件类型必须是 'image'、'pdf' 或 'attachment'")
-            
+
             # 验证文件扩展名
             original_filename = secure_filename(filename)
             if not original_filename:
                 raise ValueError("无效的文件名")
-                
+
             file_ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else ''
-            
-            if file_type == 'image':
-                allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif']
-            elif file_type == 'pdf':
-                allowed_extensions = ['pdf']
-            else:  # attachment
-                allowed_extensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 
-                                     'txt', 'zip', 'rar', '7z', 'csv', 'json', 'xml']
-            
-            if file_ext not in allowed_extensions:
-                raise ValueError(f"不支持的文件类型。{file_type}文件支持：{', '.join(allowed_extensions)}")
+
+            # 文件管理器允许所有文件类型，跳过扩展名限制
+            if business_type != 'file_manager':
+                if file_type == 'image':
+                    allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif']
+                elif file_type == 'pdf':
+                    allowed_extensions = ['pdf']
+                else:  # attachment
+                    allowed_extensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+                                         'txt', 'zip', 'rar', '7z', 'csv', 'json', 'xml']
+
+                if file_ext not in allowed_extensions:
+                    raise ValueError(f"不支持的文件类型。{file_type}文件支持：{', '.join(allowed_extensions)}")
             
             # 验证文件大小
             file.seek(0, 2)

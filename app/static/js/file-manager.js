@@ -5,7 +5,7 @@ function fileManager() {
     return {
         // 状态
         loading: false,
-        activeView: 'files',       // files / trash
+        activeView: 'files',       // files / trash / archived
         viewMode: 'list',          // list / grid
         currentFolderId: null,
 
@@ -15,6 +15,7 @@ function fileManager() {
         files: [],
         breadcrumbs: [],
         trashFiles: [],
+        archivedFiles: [],
         quota: { quota: 0, used: 0, remaining: 0, percent: 0 },
 
         // 搜索
@@ -38,6 +39,10 @@ function fileManager() {
 
         // 重命名
         renameModal: { show: false, type: null, item: null, name: '' },
+
+        // 归档恢复
+        restoreModal: { show: false, file: null, filename: '', targetUserId: '' },
+        allUsers: [],
 
         // 预览
         previewModal: { show: false, file: null, type: 'other' },
@@ -238,17 +243,19 @@ function fileManager() {
         },
 
         async downloadFile(file) {
+            const fileName = this._getFileName(file);
+            const downloadUrl = this._getFileUrl(file, 'download');
             if (file.is_archived) {
-                this.decompressModal = { show: true, fileName: file.display_name };
+                this.decompressModal = { show: true, fileName };
                 try {
-                    const resp = await fetch(`/files/api/files/${file.id}/download`);
+                    const resp = await fetch(downloadUrl);
                     this.decompressModal.show = false;
                     if (!resp.ok) throw new Error('下载失败');
                     const blob = await resp.blob();
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = file.display_name;
+                    a.download = fileName;
                     a.click();
                     URL.revokeObjectURL(url);
                 } catch (e) {
@@ -258,8 +265,8 @@ function fileManager() {
                 return;
             }
             const a = document.createElement('a');
-            a.href = `/files/api/files/${file.id}/download`;
-            a.download = file.display_name;
+            a.href = downloadUrl;
+            a.download = fileName;
             a.click();
         },
 
@@ -303,6 +310,64 @@ function fileManager() {
                     }
                 }
             });
+        },
+
+        // ------------------------------------------------------------------
+        // 归档管理（管理员）
+        // ------------------------------------------------------------------
+        async loadArchived() {
+            const data = await this.api('/files/api/admin/archived');
+            if (data.success) {
+                this.archivedFiles = data.data.items || [];
+            }
+        },
+
+        async showRestoreModal(file) {
+            if (this.allUsers.length === 0) {
+                try {
+                    const data = await this.api('/user/api/users/active');
+                    if (data.success) {
+                        this.allUsers = data.data || [];
+                    }
+                } catch (e) {
+                    console.error('加载用户列表失败:', e);
+                }
+            }
+            this.restoreModal = {
+                show: true,
+                file: file,
+                filename: file.original_filename,
+                targetUserId: '',
+            };
+        },
+
+        async restoreArchived() {
+            if (!this.restoreModal.targetUserId) return alert('请选择用户');
+            const data = await this.api(`/files/api/admin/archived/${this.restoreModal.file.id}/restore`, {
+                method: 'POST',
+                body: JSON.stringify({ target_user_id: parseInt(this.restoreModal.targetUserId) }),
+            });
+            if (data.success) {
+                this.restoreModal.show = false;
+                this.loadArchived();
+                this.loadFiles();
+            } else {
+                alert(data.message);
+            }
+        },
+
+        async compressInactive() {
+            if (!confirm('确定要压缩所有不活跃文件吗？')) return;
+            const data = await this.api('/files/api/admin/compress-inactive', {
+                method: 'POST',
+                body: JSON.stringify({ days: 90 }),
+            });
+            if (data.success) {
+                alert(data.message);
+                this.loadArchived();
+            } else {
+                alert(data.message);
+            }
         },
 
         // ------------------------------------------------------------------
@@ -528,9 +593,11 @@ function fileManager() {
                 return;
             }
 
+            const fileName = this._getFileName(file);
+
             // 归档文件 + 电子表格：先显示解压动画，fetch 完成后关闭
             if (file.is_archived && type === 'spreadsheet') {
-                this.decompressModal = { show: true, fileName: file.display_name };
+                this.decompressModal = { show: true, fileName };
             }
 
             this.spreadsheetHtml = '';
@@ -538,7 +605,7 @@ function fileManager() {
 
             // 归档的图片/PDF/视频：显示简短解压提示（浏览器 src 加载自动处理）
             if (file.is_archived && type !== 'spreadsheet') {
-                this.decompressModal = { show: true, fileName: file.display_name };
+                this.decompressModal = { show: true, fileName };
                 setTimeout(() => { this.decompressModal.show = false; }, 1500);
             }
 
@@ -550,7 +617,7 @@ function fileManager() {
 
         async loadSpreadsheet(file) {
             try {
-                const resp = await fetch(`/files/api/files/${file.id}/preview`);
+                const resp = await fetch(this._getFileUrl(file, 'preview'));
                 if (!resp.ok) throw new Error('Failed to fetch');
                 const buf = await resp.arrayBuffer();
                 const wb = XLSX.read(buf, { type: 'array' });
@@ -608,6 +675,22 @@ function fileManager() {
                 return `${month}-${day}`;
             }
             return `${d.getFullYear()}-${month}-${day}`;
+        },
+
+        // 判断是否为归档库文件（非用户引用）
+        _isArchivedLib(file) {
+            return file.archive_reason !== undefined && !file.display_name;
+        },
+
+        _getFileUrl(file, action) {
+            if (this._isArchivedLib(file)) {
+                return `/files/api/admin/archived/${file.id}/${action}`;
+            }
+            return `/files/api/files/${file.id}/${action}`;
+        },
+
+        _getFileName(file) {
+            return file.display_name || file.original_filename || 'file';
         },
 
         _flattenFolders(folders, depth) {

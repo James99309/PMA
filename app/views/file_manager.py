@@ -10,6 +10,7 @@ from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
 
 from app import db
+from app.models.file_manager import FileLibrary
 from app.services.file_manager_service import FileManagerService
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ def index():
         'files/tw_file_manager.html',
         active_page='file_manager',
         initial_folder_id=folder_id,
+        is_admin=current_user.role == 'admin',
     )
 
 
@@ -386,6 +388,67 @@ def admin_restore_archived(lib_id):
     if not ok:
         return jsonify({'success': False, 'message': result}), 400
     return jsonify({'success': True, 'data': result})
+
+
+@file_manager_bp.route('/api/admin/archived/<int:lib_id>/preview', methods=['GET'])
+@login_required
+def admin_preview_archived(lib_id):
+    """预览归档文件（管理员）"""
+    if current_user.role != 'admin':
+        abort(403)
+
+    from flask import Response
+    lib = FileLibrary.query.get(lib_id)
+    if not lib or not lib.is_archived:
+        abort(404)
+
+    try:
+        content = _read_file_content(lib)
+        if content:
+            from urllib.parse import quote
+            encoded_name = quote(lib.original_filename or 'file')
+            return Response(
+                content,
+                mimetype=lib.mime_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f"inline; filename*=UTF-8''{encoded_name}",
+                }
+            )
+    except Exception as e:
+        logger.error(f"归档文件预览失败: {e}")
+
+    abort(404)
+
+
+@file_manager_bp.route('/api/admin/archived/<int:lib_id>/download', methods=['GET'])
+@login_required
+def admin_download_archived(lib_id):
+    """下载归档文件（管理员）"""
+    if current_user.role != 'admin':
+        abort(403)
+
+    from flask import Response
+    lib = FileLibrary.query.get(lib_id)
+    if not lib or not lib.is_archived:
+        abort(404)
+
+    try:
+        content = _read_file_content(lib)
+        if content:
+            from urllib.parse import quote
+            encoded_name = quote(lib.original_filename or 'file')
+            return Response(
+                content,
+                mimetype=lib.mime_type or 'application/octet-stream',
+                headers={
+                    'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_name}",
+                    'Content-Length': str(len(content)),
+                }
+            )
+    except Exception as e:
+        logger.error(f"归档文件下载失败: {e}")
+
+    abort(404)
 
 
 @file_manager_bp.route('/api/admin/compress-inactive', methods=['POST'])
