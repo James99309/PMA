@@ -424,7 +424,7 @@ document.addEventListener('alpine:init', () => {
                     const resp = await fetch('/chat/api/unread-count');
                     const data = await resp.json();
                     if (data.success) {
-                        this.unreadCount = data.data.total || 0;
+                        this.unreadCount = data.data.total_unread || 0;
                     }
                 } catch (e) {
                     console.error('Failed to fetch chat unread count:', e);
@@ -534,16 +534,18 @@ function chatPanel() {
         },
 
         _mapConversation(c) {
+            const lm = c.last_message;
+            const displayName = c.name || '';
             return {
                 id: c.id,
                 type: c.type || 'private',
-                name: c.name || '',
-                avatar: c.avatar || (c.name ? c.name[0] : '?'),
-                lastMsg: c.last_message || '',
-                time: c.last_message_time ? this.formatMsgTime(c.last_message_time) : '',
+                name: displayName,
+                avatar: displayName ? displayName[0] : '?',
+                lastMsg: lm ? lm.content || '' : '',
+                time: lm && lm.created_at ? this.formatMsgTime(lm.created_at) : '',
                 unread: c.unread_count || 0,
-                online: c.is_online || false,
-                memberCount: c.member_count || 0,
+                online: false,
+                memberCount: c.participants ? c.participants.length : 0,
             };
         },
 
