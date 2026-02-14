@@ -802,6 +802,11 @@ def create_app(config_class=Config):
     from app.views.task import task as task_bp
     app.register_blueprint(task_bp)
 
+    # 注册聊天蓝图
+    from app.views.chat import chat as chat_bp
+    app.register_blueprint(chat_bp)
+    csrf.exempt(chat_bp)
+
     # 添加审批相关函数到模板上下文
     from app.context_processors import inject_approval_functions
     app.context_processor(inject_approval_functions)
