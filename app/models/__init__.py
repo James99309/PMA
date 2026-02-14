@@ -51,6 +51,8 @@ from app.models.meeting import (
     MeetingMinutes, MeetingActionItem
 )
 from app.models.user_points_ledger import UserPointsLedger
+# 文件管理模块
+from app.models.file_manager import FileLibrary, UserFolder, UserFileRef
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField',
@@ -83,4 +85,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'MeetingMinutes', 'MeetingActionItem',
            'QuotationConfirmationTask',
            'Task', 'TaskAttachment', 'TaskReply',
-           'UserPointsLedger']
+           'UserPointsLedger',
+           'FileLibrary', 'UserFolder', 'UserFileRef']

@@ -37,6 +37,8 @@ class User(db.Model, UserMixin):
     language_preference = db.Column(db.String(10), default='zh')  # 语言偏好设置，默认简体中文
     settlement_currency = db.Column(db.String(10), default=None)  # 结算货币，NULL则使用系统默认
     linked_company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)  # 关联外部用户到Company表(供应商/代理商/客户)
+    storage_quota = db.Column(db.BigInteger, default=10737418240)  # 存储配额(字节), 默认10GB
+    storage_used = db.Column(db.BigInteger, default=0)  # 已用存储(字节)
     created_at = db.Column(db.Float, default=time.time)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
     last_login = db.Column(db.Float)  # 最后登录时间

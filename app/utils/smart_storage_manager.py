@@ -59,6 +59,7 @@ class SmartStorageManager:
             'rd_product': 'rd_products',
             'meeting': 'meetings',
             'task': 'tasks',
+            'file_library': 'file-library',
         }
 
         self._initialized = True

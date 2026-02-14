@@ -372,6 +372,11 @@ def create_app(config_class=Config):
     app.register_blueprint(worklog)
     csrf.exempt(worklog)  # 豁免工作日历蓝图的CSRF保护
 
+    # 注册文件管理蓝图
+    from app.views.file_manager import file_manager_bp
+    app.register_blueprint(file_manager_bp)
+    csrf.exempt(file_manager_bp)  # 豁免文件管理蓝图的CSRF保护（用于文件上传）
+
     # 注册会议录音纪要蓝图
     from app.views.meeting import meeting
     app.register_blueprint(meeting)

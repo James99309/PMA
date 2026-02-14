@@ -1,0 +1,552 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('文件管理') }} - PMA</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .drag-over { border-color: #137fec !important; background-color: rgba(19,127,236,0.05) !important; }
+        .dark .drag-over { background-color: rgba(19,127,236,0.1) !important; }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+{% call(slot) render_tw_layout(active_page='file_manager', show_search=false) %}
+    {% if slot == 'content' %}
+    <div class="flex h-full" x-data="fileManager()" x-init="init()">
+
+        {# ============ 左侧导航面板 ============ #}
+        <aside class="hidden lg:flex flex-col w-56 xl:w-64 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-y-auto flex-shrink-0">
+            <div class="p-4 flex flex-col h-full">
+                {# 我的文件 #}
+                <button @click="navigateTo(null); activeView='files'"
+                        :class="activeView==='files' && !currentFolderId ? 'bg-primary/10 text-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left">
+                    <span class="material-symbols-outlined text-lg">folder_open</span>
+                    {{ _('我的文件') }}
+                </button>
+
+                {# 文件夹树 #}
+                <div class="ml-4 mt-1 flex flex-col gap-0.5">
+                    <template x-for="folder in folderTree" :key="folder.id">
+                        <div>
+                            <button @click="navigateTo(folder.id); activeView='files'"
+                                    @contextmenu.prevent="showFolderMenu($event, folder)"
+                                    :class="currentFolderId === folder.id ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                                    class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm w-full text-left truncate">
+                                <span class="material-symbols-outlined text-base">folder</span>
+                                <span x-text="folder.name" class="truncate"></span>
+                            </button>
+                            {# 子文件夹 #}
+                            <template x-if="folder.children && folder.children.length > 0">
+                                <div class="ml-4 flex flex-col gap-0.5 mt-0.5">
+                                    <template x-for="child in folder.children" :key="child.id">
+                                        <button @click="navigateTo(child.id); activeView='files'"
+                                                @contextmenu.prevent="showFolderMenu($event, child)"
+                                                :class="currentFolderId === child.id ? 'bg-primary/10 text-primary' : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                                                class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs w-full text-left truncate">
+                                            <span class="material-symbols-outlined" style="font-size:14px">folder</span>
+                                            <span x-text="child.name" class="truncate"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+
+                <hr class="my-3 border-slate-200 dark:border-slate-700">
+
+                {# 回收站 #}
+                <button @click="activeView='trash'; loadTrash()"
+                        :class="activeView==='trash' ? 'bg-primary/10 text-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left">
+                    <span class="material-symbols-outlined text-lg">delete</span>
+                    {{ _('回收站') }}
+                </button>
+
+                {# 配额指示器 #}
+                <div class="mt-auto pt-4">
+                    <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">
+                        {{ _('已用') }} <span x-text="formatSize(quota.used)"></span> / <span x-text="formatSize(quota.quota)"></span>
+                    </div>
+                    <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                        <div class="bg-primary rounded-full h-1.5 transition-all"
+                             :style="`width: ${Math.min(quota.percent, 100)}%`"
+                             :class="quota.percent > 90 ? 'bg-red-500' : quota.percent > 70 ? 'bg-amber-500' : 'bg-primary'">
+                        </div>
+                    </div>
+                    <div class="text-xs text-slate-400 mt-1" x-text="quota.percent + '%'"></div>
+                </div>
+            </div>
+        </aside>
+
+        {# ============ 右侧主内容区 ============ #}
+        <main class="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
+
+            {# 工具栏 #}
+            <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 flex-wrap">
+                {# 移动端文件夹菜单按钮 #}
+                <button @click="showMobileSidebar = !showMobileSidebar"
+                        class="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined">menu</span>
+                </button>
+
+                {# 面包屑 #}
+                <div class="flex items-center gap-1 text-sm overflow-x-auto flex-1 min-w-0" x-show="activeView === 'files'">
+                    <button @click="navigateTo(null)" class="text-slate-500 hover:text-primary whitespace-nowrap">{{ _('全部文件') }}</button>
+                    <template x-for="(crumb, i) in breadcrumbs" :key="crumb.id">
+                        <div class="flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm text-slate-400">chevron_right</span>
+                            <button @click="navigateTo(crumb.id)"
+                                    :class="i === breadcrumbs.length - 1 ? 'text-slate-900 dark:text-white font-medium' : 'text-slate-500 hover:text-primary'"
+                                    class="whitespace-nowrap" x-text="crumb.name"></button>
+                        </div>
+                    </template>
+                </div>
+                <div class="flex-1 text-sm font-medium text-slate-900 dark:text-white" x-show="activeView === 'trash'">{{ _('回收站') }}</div>
+
+                {# 搜索 #}
+                <div class="relative" x-show="activeView === 'files'">
+                    <input type="text" x-model="searchQuery" @keydown.enter="doSearch()"
+                           placeholder="{{ _('搜索文件...') }}"
+                           class="w-40 sm:w-52 h-9 pl-9 pr-3 rounded-lg text-sm border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">search</span>
+                </div>
+
+                {# 视图切换 #}
+                <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5" x-show="activeView === 'files'">
+                    <button @click="viewMode='list'"
+                            :class="viewMode==='list' ? 'bg-white dark:bg-slate-700 shadow-sm' : ''"
+                            class="flex items-center justify-center w-8 h-8 rounded-md transition-all">
+                        <span class="material-symbols-outlined text-sm">view_list</span>
+                    </button>
+                    <button @click="viewMode='grid'"
+                            :class="viewMode==='grid' ? 'bg-white dark:bg-slate-700 shadow-sm' : ''"
+                            class="flex items-center justify-center w-8 h-8 rounded-md transition-all">
+                        <span class="material-symbols-outlined text-sm">grid_view</span>
+                    </button>
+                </div>
+            </div>
+
+            {# 操作按钮栏 #}
+            <div class="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0" x-show="activeView === 'files'">
+                <button @click="showNewFolderInput = true"
+                        class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined text-base">create_new_folder</span>
+                    {{ _('新建文件夹') }}
+                </button>
+                <label class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 cursor-pointer">
+                    <span class="material-symbols-outlined text-base">upload_file</span>
+                    {{ _('上传文件') }}
+                    <input type="file" multiple class="hidden" @change="handleFileUpload($event)">
+                </label>
+
+                {# 批量操作 #}
+                <template x-if="selectedFiles.length > 0">
+                    <div class="flex items-center gap-2 ml-2 pl-2 border-l border-slate-300 dark:border-slate-600">
+                        <span class="text-xs text-slate-500" x-text="'{{ _('已选') }} ' + selectedFiles.length + ' {{ _('项') }}'"></span>
+                        <button @click="batchDelete()"
+                                class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                            <span class="material-symbols-outlined" style="font-size:14px">delete</span>
+                            {{ _('删除') }}
+                        </button>
+                        <button @click="showMoveModal = true"
+                                class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                            <span class="material-symbols-outlined" style="font-size:14px">drive_file_move</span>
+                            {{ _('移动') }}
+                        </button>
+                    </div>
+                </template>
+            </div>
+
+            {# 回收站操作栏 #}
+            <div class="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0" x-show="activeView === 'trash'">
+                <button @click="emptyTrash()"
+                        class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg text-red-600 border border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20">
+                    <span class="material-symbols-outlined text-base">delete_forever</span>
+                    {{ _('清空回收站') }}
+                </button>
+            </div>
+
+            {# ============ 新建文件夹输入 ============ #}
+            <div class="px-4 py-2 border-b border-slate-100 dark:border-slate-800" x-show="showNewFolderInput" x-transition x-cloak>
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-slate-400">create_new_folder</span>
+                    <input type="text" x-model="newFolderName" x-ref="newFolderInput"
+                           @keydown.enter="createFolder()" @keydown.escape="showNewFolderInput = false"
+                           placeholder="{{ _('文件夹名称') }}"
+                           class="h-8 px-3 rounded-lg text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary/50">
+                    <button @click="createFolder()" class="px-3 py-1 text-sm rounded-lg bg-primary text-white hover:bg-primary/90">{{ _('创建') }}</button>
+                    <button @click="showNewFolderInput = false" class="px-3 py-1 text-sm rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">{{ _('取消') }}</button>
+                </div>
+            </div>
+
+            {# ============ 文件列表（列表视图） ============ #}
+            <div class="flex-1 overflow-y-auto" x-show="activeView === 'files'">
+
+                {# 搜索结果 #}
+                <template x-if="searchResults !== null">
+                    <div class="p-4">
+                        <div class="text-sm text-slate-500 mb-3">{{ _('搜索结果') }} (<span x-text="searchResults.length"></span>)</div>
+                        <template x-for="file in searchResults" :key="file.id">
+                            <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                                 @click="previewFile(file)">
+                                <span class="material-symbols-outlined text-lg" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm text-slate-900 dark:text-white truncate" x-text="file.display_name"></div>
+                                    <div class="text-xs text-slate-400" x-text="file.folder_path"></div>
+                                </div>
+                                <span class="text-xs text-slate-400" x-text="formatSize(file.file_size)"></span>
+                            </div>
+                        </template>
+                        <button @click="searchResults = null; searchQuery = ''" class="text-sm text-primary hover:underline mt-2">{{ _('返回文件列表') }}</button>
+                    </div>
+                </template>
+
+                {# 正常文件列表 #}
+                <template x-if="searchResults === null">
+                    <div>
+                        {# 列表视图 #}
+                        <div x-show="viewMode === 'list'">
+                            {# 表头 #}
+                            <div class="flex items-center gap-3 px-4 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
+                                <input type="checkbox" @change="toggleSelectAll($event)" :checked="isAllSelected()" class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50 w-4 h-4">
+                                <div class="flex-1">{{ _('名称') }}</div>
+                                <div class="w-20 text-right hidden sm:block">{{ _('大小') }}</div>
+                                <div class="w-28 text-right hidden md:block">{{ _('修改时间') }}</div>
+                                <div class="w-20 text-right">{{ _('操作') }}</div>
+                            </div>
+
+                            {# 空状态 #}
+                            <div x-show="folders.length === 0 && files.length === 0 && !loading" class="flex flex-col items-center justify-center py-20 text-slate-400">
+                                <span class="material-symbols-outlined text-5xl mb-3">folder_off</span>
+                                <p class="text-sm">{{ _('此文件夹为空') }}</p>
+                                <p class="text-xs mt-1">{{ _('拖拽文件到此处上传，或点击"上传文件"按钮') }}</p>
+                            </div>
+
+                            {# 文件夹 #}
+                            <template x-for="folder in folders" :key="'f-' + folder.id">
+                                <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50"
+                                     @dblclick="navigateTo(folder.id)"
+                                     @contextmenu.prevent="showFolderMenu($event, folder)">
+                                    <div class="w-4"></div>
+                                    <span class="material-symbols-outlined text-lg text-amber-500">folder</span>
+                                    <div class="flex-1 text-sm text-slate-900 dark:text-white truncate" x-text="folder.name"></div>
+                                    <div class="w-20 text-right text-xs text-slate-400 hidden sm:block">—</div>
+                                    <div class="w-28 text-right text-xs text-slate-400 hidden md:block" x-text="formatDate(folder.updated_at)"></div>
+                                    <div class="w-20 flex justify-end">
+                                        <button @click.stop="showFolderMenu($event, folder)" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700">
+                                            <span class="material-symbols-outlined text-sm text-slate-400">more_horiz</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+
+                            {# 文件 #}
+                            <template x-for="file in files" :key="'r-' + file.id">
+                                <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50"
+                                     :class="selectedFiles.includes(file.id) ? 'bg-primary/5' : ''"
+                                     @click="previewFile(file)"
+                                     @contextmenu.prevent="showFileMenu($event, file)">
+                                    <input type="checkbox" :checked="selectedFiles.includes(file.id)" @click.stop="toggleSelect(file.id)"
+                                           class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50 w-4 h-4">
+                                    <span class="material-symbols-outlined text-lg" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
+                                    <div class="flex-1 text-sm text-slate-900 dark:text-white truncate" x-text="file.display_name"></div>
+                                    <div class="w-20 text-right text-xs text-slate-400 hidden sm:block" x-text="formatSize(file.file_size)"></div>
+                                    <div class="w-28 text-right text-xs text-slate-400 hidden md:block" x-text="formatDate(file.created_at)"></div>
+                                    <div class="w-20 flex justify-end">
+                                        <button @click.stop="showFileMenu($event, file)" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700">
+                                            <span class="material-symbols-outlined text-sm text-slate-400">more_horiz</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        {# 网格视图 #}
+                        <div x-show="viewMode === 'grid'" class="p-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                            {# 文件夹卡片 #}
+                            <template x-for="folder in folders" :key="'gf-' + folder.id">
+                                <div class="flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:shadow-sm cursor-pointer transition-all"
+                                     @dblclick="navigateTo(folder.id)"
+                                     @contextmenu.prevent="showFolderMenu($event, folder)">
+                                    <span class="material-symbols-outlined text-4xl text-amber-500">folder</span>
+                                    <span class="text-xs text-slate-700 dark:text-slate-300 text-center truncate w-full" x-text="folder.name"></span>
+                                </div>
+                            </template>
+                            {# 文件卡片 #}
+                            <template x-for="file in files" :key="'gr-' + file.id">
+                                <div class="flex flex-col items-center gap-2 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/50 hover:shadow-sm cursor-pointer transition-all"
+                                     :class="selectedFiles.includes(file.id) ? 'border-primary bg-primary/5' : ''"
+                                     @click="previewFile(file)"
+                                     @contextmenu.prevent="showFileMenu($event, file)">
+                                    <span class="material-symbols-outlined text-4xl" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
+                                    <span class="text-xs text-slate-700 dark:text-slate-300 text-center truncate w-full" x-text="file.display_name"></span>
+                                    <span class="text-[10px] text-slate-400" x-text="formatSize(file.file_size)"></span>
+                                </div>
+                            </template>
+                        </div>
+
+                        {# 拖拽上传区域 #}
+                        <div class="mx-4 mb-4 mt-2 p-6 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-center transition-colors"
+                             :class="isDragging ? 'drag-over border-primary' : ''"
+                             @dragover.prevent="isDragging = true"
+                             @dragleave.prevent="isDragging = false"
+                             @drop.prevent="handleDrop($event)">
+                            <span class="material-symbols-outlined text-3xl text-slate-400 mb-2">cloud_upload</span>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('拖拽文件到此处上传') }}</p>
+                            <p class="text-xs text-slate-400 mt-1">{{ _('或点击上方"上传文件"按钮') }}</p>
+                        </div>
+                    </div>
+                </template>
+
+                {# 上传进度 #}
+                <div x-show="uploadQueue.length > 0" class="fixed bottom-4 right-4 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-4 z-50" x-transition>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-slate-900 dark:text-white">{{ _('上传中') }}</span>
+                        <span class="text-xs text-slate-400" x-text="uploadQueue.length + ' {{ _('个文件') }}'"></span>
+                    </div>
+                    <template x-for="(item, idx) in uploadQueue" :key="idx">
+                        <div class="flex items-center gap-2 py-1">
+                            <span class="material-symbols-outlined text-sm animate-spin text-primary" x-show="item.status === 'uploading'">progress_activity</span>
+                            <span class="material-symbols-outlined text-sm text-green-500" x-show="item.status === 'done'">check_circle</span>
+                            <span class="material-symbols-outlined text-sm text-red-500" x-show="item.status === 'error'">error</span>
+                            <span class="text-xs text-slate-600 dark:text-slate-400 truncate flex-1" x-text="item.name"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            {# ============ 回收站视图 ============ #}
+            <div class="flex-1 overflow-y-auto" x-show="activeView === 'trash'">
+                <div x-show="trashFiles.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <span class="material-symbols-outlined text-5xl mb-3">delete_outline</span>
+                    <p class="text-sm">{{ _('回收站为空') }}</p>
+                </div>
+                <template x-for="file in trashFiles" :key="'t-' + file.id">
+                    <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-50 dark:border-slate-800/50">
+                        <span class="material-symbols-outlined text-lg" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
+                        <div class="flex-1 text-sm text-slate-900 dark:text-white truncate" x-text="file.display_name"></div>
+                        <span class="text-xs text-slate-400" x-text="formatDate(file.deleted_at)"></span>
+                        <button @click="restoreFile(file.id)" class="px-2 py-1 text-xs rounded-md text-primary hover:bg-primary/10">{{ _('恢复') }}</button>
+                        <button @click="permanentDelete(file.id)" class="px-2 py-1 text-xs rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">{{ _('永久删除') }}</button>
+                    </div>
+                </template>
+            </div>
+        </main>
+
+        {# ============ 右键菜单 ============ #}
+        <div x-show="contextMenu.show" x-transition
+             @click.away="contextMenu.show = false"
+             :style="`position: fixed; left: ${contextMenu.x}px; top: ${contextMenu.y}px; z-index: 100;`"
+             class="bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-1 min-w-[160px]" x-cloak>
+
+            {# 文件右键菜单 #}
+            <template x-if="contextMenu.type === 'file'">
+                <div>
+                    <button @click="downloadFile(contextMenu.item); contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span class="material-symbols-outlined text-base">download</span> {{ _('下载') }}
+                    </button>
+                    <button @click="previewFile(contextMenu.item); contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span class="material-symbols-outlined text-base">visibility</span> {{ _('预览') }}
+                    </button>
+                    <hr class="my-1 border-slate-200 dark:border-slate-700">
+                    <button @click="startRename('file', contextMenu.item); contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span class="material-symbols-outlined text-base">edit</span> {{ _('重命名') }}
+                    </button>
+                    <button @click="showMoveModal = true; selectedFiles = [contextMenu.item.id]; contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span class="material-symbols-outlined text-base">drive_file_move</span> {{ _('移动到...') }}
+                    </button>
+                    <hr class="my-1 border-slate-200 dark:border-slate-700">
+                    <button @click="deleteFile(contextMenu.item.id); contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                        <span class="material-symbols-outlined text-base">delete</span> {{ _('删除') }}
+                    </button>
+                </div>
+            </template>
+
+            {# 文件夹右键菜单 #}
+            <template x-if="contextMenu.type === 'folder'">
+                <div>
+                    <button @click="navigateTo(contextMenu.item.id); contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span class="material-symbols-outlined text-base">folder_open</span> {{ _('打开') }}
+                    </button>
+                    <button @click="startRename('folder', contextMenu.item); contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span class="material-symbols-outlined text-base">edit</span> {{ _('重命名') }}
+                    </button>
+                    <hr class="my-1 border-slate-200 dark:border-slate-700">
+                    <button @click="deleteFolder(contextMenu.item.id); contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                        <span class="material-symbols-outlined text-base">delete</span> {{ _('删除') }}
+                    </button>
+                </div>
+            </template>
+        </div>
+
+        {# ============ 重命名模态框 ============ #}
+        <div x-show="renameModal.show" class="fixed inset-0 z-50 flex items-center justify-center" x-cloak>
+            <div class="fixed inset-0 bg-black/50" @click="renameModal.show = false"></div>
+            <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 w-96 max-w-[90vw]" x-transition>
+                <h3 class="text-lg font-medium text-slate-900 dark:text-white mb-4">{{ _('重命名') }}</h3>
+                <input type="text" x-model="renameModal.name" x-ref="renameInput"
+                       @keydown.enter="confirmRename()" @keydown.escape="renameModal.show = false"
+                       class="w-full h-10 px-3 rounded-lg text-sm border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 focus:ring-2 focus:ring-primary/50">
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="renameModal.show = false" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">{{ _('取消') }}</button>
+                    <button @click="confirmRename()" class="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90">{{ _('确定') }}</button>
+                </div>
+            </div>
+        </div>
+
+        {# ============ 移动到模态框 ============ #}
+        <div x-show="showMoveModal" class="fixed inset-0 z-50 flex items-center justify-center" x-cloak>
+            <div class="fixed inset-0 bg-black/50" @click="showMoveModal = false"></div>
+            <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 w-96 max-w-[90vw]" x-transition>
+                <h3 class="text-lg font-medium text-slate-900 dark:text-white mb-4">{{ _('移动到') }}</h3>
+                <div class="max-h-60 overflow-y-auto">
+                    <button @click="moveToFolder(null)"
+                            :class="moveFolderTarget === null ? 'bg-primary/10 text-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-700'"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg">
+                        <span class="material-symbols-outlined text-base">home</span> {{ _('根目录') }}
+                    </button>
+                    <template x-for="folder in allFoldersFlat" :key="folder.id">
+                        <button @click="moveToFolder(folder.id)"
+                                :class="moveFolderTarget === folder.id ? 'bg-primary/10 text-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-700'"
+                                class="flex items-center gap-2 w-full px-3 py-2 text-sm rounded-lg"
+                                :style="`padding-left: ${(folder.depth + 1) * 16}px`">
+                            <span class="material-symbols-outlined text-base">folder</span>
+                            <span x-text="folder.name"></span>
+                        </button>
+                    </template>
+                </div>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button @click="showMoveModal = false" class="px-4 py-2 text-sm rounded-lg text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">{{ _('取消') }}</button>
+                    <button @click="confirmMove()" class="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90">{{ _('移动') }}</button>
+                </div>
+            </div>
+        </div>
+
+        {# ============ 文件预览模态框 ============ #}
+        <div x-show="previewModal.show" class="fixed inset-0 z-50 flex items-center justify-center" x-cloak>
+            <div class="fixed inset-0 bg-black/70" @click="previewModal.show = false"></div>
+            <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[90vh] flex flex-col" x-transition>
+                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                    <h3 class="text-base font-medium text-slate-900 dark:text-white truncate" x-text="previewModal.file?.display_name"></h3>
+                    <div class="flex items-center gap-2">
+                        <a :href="'/files/api/files/' + previewModal.file?.id + '/download'" download
+                           class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                            <span class="material-symbols-outlined text-base">download</span>
+                            {{ _('下载') }}
+                        </a>
+                        <button @click="previewModal.show = false" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+                            <span class="material-symbols-outlined">close</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-auto p-4 flex items-center justify-center min-h-[300px]">
+                    {# 图片预览 #}
+                    <img x-show="previewModal.type === 'image'"
+                         :src="'/files/api/files/' + previewModal.file?.id + '/preview'"
+                         class="max-w-full max-h-[70vh] object-contain rounded-lg">
+                    {# PDF预览 #}
+                    <iframe x-show="previewModal.type === 'pdf'"
+                            :src="'/files/api/files/' + previewModal.file?.id + '/preview'"
+                            class="w-full h-[70vh] rounded-lg border-0"></iframe>
+                    {# 其他类型 #}
+                    <div x-show="previewModal.type === 'other'" class="text-center text-slate-500">
+                        <span class="material-symbols-outlined text-5xl mb-3">description</span>
+                        <p class="text-sm">{{ _('该文件类型不支持预览') }}</p>
+                        <a :href="'/files/api/files/' + previewModal.file?.id + '/download'" download
+                           class="inline-flex items-center gap-1 mt-3 px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90">
+                            <span class="material-symbols-outlined text-base">download</span>
+                            {{ _('下载文件') }}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ============ 移动端侧边栏 ============ #}
+        <div x-show="showMobileSidebar" class="fixed inset-0 z-50 lg:hidden" x-cloak>
+            <div class="fixed inset-0 bg-black/50" @click="showMobileSidebar = false"></div>
+            <aside class="fixed left-0 top-0 bottom-0 w-64 bg-white dark:bg-slate-900 shadow-xl overflow-y-auto p-4" x-transition:enter="transition ease-out duration-300" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0">
+                <div class="flex items-center justify-between mb-4">
+                    <span class="text-sm font-medium text-slate-900 dark:text-white">{{ _('文件管理') }}</span>
+                    <button @click="showMobileSidebar = false"><span class="material-symbols-outlined">close</span></button>
+                </div>
+                {# 复用侧边栏内容（简化版） #}
+                <button @click="navigateTo(null); activeView='files'; showMobileSidebar=false"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full text-left text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined">folder_open</span> {{ _('我的文件') }}
+                </button>
+                <template x-for="folder in folderTree" :key="'m-' + folder.id">
+                    <button @click="navigateTo(folder.id); activeView='files'; showMobileSidebar=false"
+                            class="flex items-center gap-2 px-3 py-2 ml-4 rounded-lg text-sm w-full text-left text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <span class="material-symbols-outlined text-base">folder</span>
+                        <span x-text="folder.name" class="truncate"></span>
+                    </button>
+                </template>
+                <hr class="my-3 border-slate-200 dark:border-slate-700">
+                <button @click="activeView='trash'; loadTrash(); showMobileSidebar=false"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full text-left text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined">delete</span> {{ _('回收站') }}
+                </button>
+            </aside>
+        </div>
+
+    </div>
+    {% endif %}
+{% endcall %}
+
+{# ============ JavaScript ============ #}
+{{ render_tw_layout_script() }}
+<script src="{{ url_for('static', filename='js/file-manager.js') }}"></script>
+<script>
+    // 传递初始文件夹ID
+    window.__fileManagerInitFolderId = {{ initial_folder_id | tojson }};
+</script>
+</body>
+</html>

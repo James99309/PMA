@@ -8387,3 +8387,140 @@ msgstr "Select customer types to export (excluding suppliers):"
 
 msgid "导出CSV"
 msgstr "Export CSV"
+
+# ===== 文件管理模块 =====
+
+msgid "文件管理"
+msgstr "File Manager"
+
+msgid "我的文件"
+msgstr "My Files"
+
+msgid "回收站"
+msgstr "Trash"
+
+msgid "全部文件"
+msgstr "All Files"
+
+msgid "搜索文件..."
+msgstr "Search files..."
+
+msgid "新建文件夹"
+msgstr "New Folder"
+
+msgid "上传文件"
+msgstr "Upload Files"
+
+msgid "已选"
+msgstr "Selected"
+
+msgid "项"
+msgstr "items"
+
+msgid "删除"
+msgstr "Delete"
+
+msgid "移动"
+msgstr "Move"
+
+msgid "清空回收站"
+msgstr "Empty Trash"
+
+msgid "文件夹名称"
+msgstr "Folder name"
+
+msgid "创建"
+msgstr "Create"
+
+msgid "取消"
+msgstr "Cancel"
+
+msgid "名称"
+msgstr "Name"
+
+msgid "大小"
+msgstr "Size"
+
+msgid "修改时间"
+msgstr "Modified"
+
+msgid "操作"
+msgstr "Actions"
+
+msgid "此文件夹为空"
+msgstr "This folder is empty"
+
+msgid "拖拽文件到此处上传，或点击"上传文件"按钮"
+msgstr "Drag files here to upload, or click Upload Files"
+
+msgid "拖拽文件到此处上传"
+msgstr "Drag files here to upload"
+
+msgid "或点击上方"上传文件"按钮"
+msgstr "Or click the Upload Files button above"
+
+msgid "上传中"
+msgstr "Uploading"
+
+msgid "个文件"
+msgstr "files"
+
+msgid "搜索结果"
+msgstr "Search Results"
+
+msgid "返回文件列表"
+msgstr "Back to file list"
+
+msgid "回收站为空"
+msgstr "Trash is empty"
+
+msgid "恢复"
+msgstr "Restore"
+
+msgid "永久删除"
+msgstr "Delete Permanently"
+
+msgid "下载"
+msgstr "Download"
+
+msgid "预览"
+msgstr "Preview"
+
+msgid "重命名"
+msgstr "Rename"
+
+msgid "移动到..."
+msgstr "Move to..."
+
+msgid "打开"
+msgstr "Open"
+
+msgid "确定"
+msgstr "OK"
+
+msgid "移动到"
+msgstr "Move to"
+
+msgid "根目录"
+msgstr "Root"
+
+msgid "该文件类型不支持预览"
+msgstr "Preview is not supported for this file type"
+
+msgid "下载文件"
+msgstr "Download File"
+
+msgid "快速上传文件"
+msgstr "Quick Upload"
+
+msgid "拖拽文件到此处"
+msgstr "Drag files here"
+
+msgid "或点击选择文件"
+msgstr "Or click to choose files"
+
+msgid "查看我的文件"
+msgstr "View My Files"
+
+msgid "已用"
+msgstr "Used"
