@@ -1,0 +1,984 @@
+{#
+=============================================================================
+聊天面板组件
+=============================================================================
+固定在右下角的浮动聊天面板，支持私聊、群聊和 AI 对话。
+
+使用方式：
+{% from 'components/tw_chat_panel.html' import render_chat_button, render_chat_panel, render_chat_panel_script %}
+
+在页面底部调用：
+{{ render_chat_button() }}
+{{ render_chat_panel() }}
+{{ render_chat_panel_script() }}
+=============================================================================
+#}
+
+{# 聊天气泡按钮 #}
+{% macro render_chat_button() %}
+<button @click="$dispatch('toggle-chat-panel')"
+        x-show="!($store.chat && $store.chat.panelOpen)"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="scale-0 opacity-0"
+        x-transition:enter-end="scale-100 opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="scale-100 opacity-100"
+        x-transition:leave-end="scale-0 opacity-0"
+        class="fixed bottom-6 right-6 z-40 w-14 h-14 bg-primary hover:bg-primary-dark rounded-full shadow-lg hover:shadow-xl flex items-center justify-center transition-all duration-200 cursor-pointer group"
+        title="{{ _('聊天') }}">
+    <span class="material-symbols-outlined text-white text-2xl group-hover:scale-110 transition-transform">chat</span>
+    <!-- 未读角标 -->
+    <span x-show="$store.chat && $store.chat.unreadCount > 0"
+          x-text="$store.chat.unreadCount > 99 ? '99+' : $store.chat.unreadCount"
+          x-cloak
+          class="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 text-white text-xs font-semibold rounded-full flex items-center justify-center px-1"
+          style="animation: chatUnreadPulse 2s cubic-bezier(0.4,0,0.6,1) infinite;">
+    </span>
+</button>
+{% endmacro %}
+
+{# 聊天面板 #}
+{% macro render_chat_panel() %}
+<!-- 聊天面板容器 -->
+<div x-data="chatPanel()"
+     x-show="chatOpen"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+     x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+     x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+     @toggle-chat-panel.window="toggle()"
+     @keydown.escape.window="chatOpen && closePanel()"
+     class="fixed bottom-6 right-6 z-50 w-[800px] h-[600px] max-w-[calc(100vw-48px)] max-h-[calc(100vh-100px)] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex overflow-hidden"
+     x-cloak
+     style="display: none;">
+
+    <!-- ====== 左栏：对话列表 ====== -->
+    <div class="w-[260px] border-r border-slate-200 dark:border-slate-700 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0">
+
+        <!-- 左栏头部 -->
+        <div class="h-14 px-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('消息') }}</h3>
+            <button @click="startNewChat()"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 dark:text-slate-400 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                    title="{{ _('新建对话') }}">
+                <span class="material-symbols-outlined text-xl">edit_square</span>
+            </button>
+        </div>
+
+        <!-- 搜索框 -->
+        <div class="px-3 py-2 flex-shrink-0">
+            <div class="relative">
+                <span class="material-symbols-outlined text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-lg">search</span>
+                <input type="text"
+                       x-model="searchQuery"
+                       :placeholder="_chatI18n.searchPlaceholder"
+                       class="w-full h-9 pl-9 pr-3 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors">
+            </div>
+        </div>
+
+        <!-- 对话列表 -->
+        <div class="flex-1 overflow-y-auto chat-panel-scroll">
+            <!-- 加载状态 -->
+            <div x-show="loadingConversations" class="flex items-center justify-center py-8">
+                <div class="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
+            </div>
+
+            <!-- 空状态 -->
+            <div x-show="!loadingConversations && filteredConversations.length === 0"
+                 class="flex flex-col items-center justify-center py-8 text-slate-400">
+                <span class="material-symbols-outlined text-3xl mb-2">forum</span>
+                <span class="text-xs">{{ _('暂无对话') }}</span>
+            </div>
+
+            <!-- 对话项 -->
+            <template x-for="conv in filteredConversations" :key="conv.id">
+                <button @click="selectConversation(conv)"
+                        class="w-full px-3 py-3 flex items-start gap-3 hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+                        :class="{ 'bg-white dark:bg-slate-800 shadow-sm': activeConv && activeConv.id === conv.id }">
+
+                    <!-- 头像 -->
+                    <div class="relative flex-shrink-0">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
+                             :class="conv.type === 'ai' ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white'
+                                    : conv.type === 'group' ? 'bg-gradient-to-br from-blue-500 to-cyan-500 text-white'
+                                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'">
+                            <span x-show="conv.type === 'ai'" class="material-symbols-outlined text-lg">auto_awesome</span>
+                            <span x-show="conv.type === 'group'" class="material-symbols-outlined text-lg">group</span>
+                            <span x-show="conv.type === 'private'" x-text="conv.avatar"></span>
+                        </div>
+                        <!-- 在线状态 -->
+                        <span x-show="conv.online"
+                              class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+                    </div>
+
+                    <!-- 对话信息 -->
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="conv.name"></span>
+                            <span class="text-[11px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-2" x-text="conv.time"></span>
+                        </div>
+                        <div class="flex items-center justify-between mt-0.5">
+                            <p class="text-xs text-slate-500 dark:text-slate-400 truncate" x-text="conv.lastMsg"></p>
+                            <span x-show="conv.unread > 0"
+                                  class="flex-shrink-0 ml-2 min-w-[18px] h-[18px] bg-primary text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1"
+                                  x-text="conv.unread"></span>
+                        </div>
+                    </div>
+                </button>
+            </template>
+        </div>
+    </div>
+
+    <!-- ====== 右栏：聊天区域 ====== -->
+    <div class="flex-1 flex flex-col min-w-0">
+
+        <!-- 右栏头部 -->
+        <div class="h-14 px-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+            <template x-if="activeConv">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-slate-900 dark:text-white" x-text="activeConv.name"></span>
+                    <span x-show="activeConv.type === 'group'"
+                          class="text-xs text-slate-400 dark:text-slate-500"
+                          x-text="activeConv.memberCount + _chatI18n.memberUnit"></span>
+                    <span x-show="activeConv.type === 'ai'"
+                          class="text-[10px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded font-medium">AI</span>
+                </div>
+            </template>
+            <template x-if="isNewChat && !activeConv">
+                <div class="flex-1">
+                    <span class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('新建对话') }}</span>
+                </div>
+            </template>
+            <template x-if="!activeConv && !isNewChat">
+                <div class="flex-1"></div>
+            </template>
+            <div class="flex items-center gap-1">
+                <button x-show="activeConv && activeConv.type === 'group'"
+                        class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="{{ _('群成员') }}">
+                    <span class="material-symbols-outlined text-lg">people</span>
+                </button>
+                <button @click="closePanel()"
+                        class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 新建对话：收件人输入 -->
+        <div x-show="isNewChat"
+             class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex-shrink-0">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{{ _('收件人:') }}</span>
+                <!-- 已选的参与者标签 -->
+                <template x-for="p in newChatParticipants" :key="p.id">
+                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 dark:bg-primary/20 text-primary text-xs font-medium rounded-md">
+                        <span x-text="p.name"></span>
+                        <button @click="removeParticipant(p.id)" class="hover:text-red-500 transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-sm">close</span>
+                        </button>
+                    </span>
+                </template>
+                <!-- 输入框 -->
+                <div class="relative flex-1 min-w-[120px]">
+                    <input x-ref="recipientInput"
+                           x-model="recipientQuery"
+                           @input="onRecipientInput()"
+                           @keydown.backspace="recipientQuery === '' && newChatParticipants.length > 0 && newChatParticipants.pop()"
+                           type="text"
+                           :placeholder="newChatParticipants.length === 0 ? _chatI18n.recipientPlaceholder : _chatI18n.recipientMorePlaceholder"
+                           class="w-full h-7 px-1 text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none">
+
+                    <!-- @ 提及下拉菜单 -->
+                    <div x-show="showMentionDropdown && mentionUsers.length > 0"
+                         class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-10">
+                        <div class="py-1 max-h-48 overflow-y-auto chat-panel-scroll">
+                            <template x-for="user in mentionUsers" :key="user.id">
+                                <button @click="addParticipant(user)"
+                                        class="w-full px-3 py-2 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer">
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                         x-text="user.avatar"></div>
+                                    <div>
+                                        <div class="text-sm text-slate-900 dark:text-white" x-text="user.name"></div>
+                                        <div class="text-[11px] text-slate-400" x-text="user.dept"></div>
+                                    </div>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- 搜索中 -->
+                    <div x-show="showMentionDropdown && mentionUsers.length === 0 && recipientQuery.includes('@')"
+                         class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-10">
+                        <div class="px-3 py-4 text-center text-xs text-slate-400">
+                            {{ _('未找到匹配的用户') }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p x-show="newChatParticipants.length === 0"
+               class="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                {{ _('不 @ 任何人 = 和 AI 助手对话') }}  |  {{ _('@ 一人 = 私聊') }}  |  {{ _('@ 多人 = 群聊') }}
+            </p>
+        </div>
+
+        <!-- 消息区域 -->
+        <div class="flex-1 overflow-y-auto chat-panel-scroll px-4 py-4 space-y-4" x-ref="messageArea">
+
+            <!-- 空状态：无活跃对话 -->
+            <template x-if="!activeConv && !isNewChat">
+                <div class="h-full flex flex-col items-center justify-center text-center">
+                    <div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+                        <span class="material-symbols-outlined text-3xl text-slate-300 dark:text-slate-600">forum</span>
+                    </div>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('选择一个对话开始聊天') }}</p>
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                        {{ _('或点击左上角') }}
+                        <span class="material-symbols-outlined text-xs align-text-bottom">edit_square</span>
+                        {{ _('新建对话') }}
+                    </p>
+                </div>
+            </template>
+
+            <!-- 空状态：新对话 -->
+            <template x-if="isNewChat && messages.length === 0">
+                <div class="h-full flex flex-col items-center justify-center text-center">
+                    <div class="w-16 h-16 bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/30 dark:to-purple-900/30 rounded-2xl flex items-center justify-center mb-4">
+                        <span class="material-symbols-outlined text-3xl text-violet-500">auto_awesome</span>
+                    </div>
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('开始新对话') }}</p>
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-[240px]">
+                        {{ _('输入 @ 选择同事发起聊天，或直接输入问题与 AI 助手交流') }}
+                    </p>
+                </div>
+            </template>
+
+            <!-- 消息列表 -->
+            <template x-for="(msg, index) in messages" :key="msg.id || index">
+                <div class="chat-msg-appear" :class="msg.is_mine ? 'flex justify-end' : 'flex justify-start'">
+                    <div class="max-w-[75%]" :class="msg.is_mine ? 'items-end' : 'items-start'">
+
+                        <!-- 发送者名称（对方消息显示） -->
+                        <div x-show="!msg.is_mine && msg.sender_name" class="flex items-center gap-1.5 mb-1">
+                            <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400" x-text="msg.sender_name"></span>
+                            <span x-show="msg.is_ai"
+                                  class="text-[9px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1 py-0.5 rounded font-medium">AI</span>
+                        </div>
+
+                        <!-- 消息气泡 -->
+                        <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                             :class="msg.is_mine
+                                ? 'bg-primary text-white rounded-br-md'
+                                : msg.is_ai
+                                    ? 'bg-violet-50 dark:bg-violet-900/20 text-slate-800 dark:text-slate-200 rounded-bl-md border border-violet-200 dark:border-violet-800'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-md'">
+                            <p class="whitespace-pre-wrap" x-text="msg.content"></p>
+
+                            <!-- 翻译区域 -->
+                            <div x-show="msg.translation"
+                                 class="mt-2 pt-2 text-xs opacity-80"
+                                 :class="msg.is_mine ? 'border-t border-white/20' : 'border-t border-slate-200 dark:border-slate-700'">
+                                <div class="flex items-center gap-1 mb-0.5">
+                                    <span class="material-symbols-outlined text-[12px]">translate</span>
+                                    <span x-text="msg.translation_label || _chatI18n.translation"></span>
+                                </div>
+                                <p class="whitespace-pre-wrap" x-text="msg.translation"></p>
+                            </div>
+                        </div>
+
+                        <!-- 时间 -->
+                        <div class="mt-1 text-[10px] text-slate-400 dark:text-slate-500"
+                             :class="msg.is_mine ? 'text-right' : 'text-left'"
+                             x-text="formatMsgTime(msg.created_at)"></div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- AI 正在输入动画 -->
+            <div x-show="aiTyping" class="flex justify-start chat-msg-appear">
+                <div class="max-w-[75%]">
+                    <div class="flex items-center gap-1.5 mb-1">
+                        <span class="text-[11px] font-medium text-violet-500">{{ _('AI 助手') }}</span>
+                        <span class="text-[9px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1 py-0.5 rounded font-medium">AI</span>
+                    </div>
+                    <div class="bg-violet-50 dark:bg-violet-900/20 rounded-2xl rounded-bl-md px-4 py-3 border border-violet-200 dark:border-violet-800">
+                        <div class="flex items-center gap-1.5">
+                            <div class="chat-typing-dot w-2 h-2 bg-violet-400 rounded-full"></div>
+                            <div class="chat-typing-dot w-2 h-2 bg-violet-400 rounded-full"></div>
+                            <div class="chat-typing-dot w-2 h-2 bg-violet-400 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI 正在流式输出 -->
+            <div x-show="aiStreamingMsg" class="flex justify-start chat-msg-appear">
+                <div class="max-w-[75%]">
+                    <div class="flex items-center gap-1.5 mb-1">
+                        <span class="text-[11px] font-medium text-violet-500">{{ _('AI 助手') }}</span>
+                        <span class="text-[9px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1 py-0.5 rounded font-medium">AI</span>
+                    </div>
+                    <div class="bg-violet-50 dark:bg-violet-900/20 rounded-2xl rounded-bl-md px-4 py-2.5 text-sm leading-relaxed border border-violet-200 dark:border-violet-800">
+                        <p class="whitespace-pre-wrap text-slate-800 dark:text-slate-200" x-text="aiStreamingMsg"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 群聊中 @AI 提示 -->
+        <div x-show="activeConv && activeConv.type === 'group'"
+             class="px-4 py-2 bg-violet-50 dark:bg-violet-900/20 border-t border-violet-200 dark:border-violet-800 flex-shrink-0">
+            <div class="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-400">
+                <span class="material-symbols-outlined text-sm">info</span>
+                <span>{{ _('输入') }} <kbd class="px-1 py-0.5 bg-violet-100 dark:bg-violet-800 rounded text-[10px] font-mono">@AI</kbd> {{ _('可以让 AI 助手加入对话') }}</span>
+            </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex-shrink-0"
+             x-show="activeConv || isNewChat">
+            <div class="flex items-end gap-2">
+                <div class="flex-1 relative">
+                    <textarea x-ref="chatInput"
+                              x-model="inputText"
+                              @keydown.enter.prevent="!$event.shiftKey && sendMessage()"
+                              @input="onInputChange()"
+                              rows="1"
+                              :placeholder="_chatI18n.inputPlaceholder"
+                              class="w-full resize-none px-4 py-2.5 text-sm bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 border border-transparent focus:border-primary/30 transition-all max-h-[120px]"
+                              style="field-sizing: content;"></textarea>
+
+                    <!-- @AI 快捷选项 -->
+                    <div x-show="showAIMention"
+                         class="absolute left-0 bottom-full mb-1 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-10">
+                        <button @click="insertAIMention()"
+                                class="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors cursor-pointer">
+                            <div class="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
+                                <span class="material-symbols-outlined text-white text-sm">auto_awesome</span>
+                            </div>
+                            <div class="text-left">
+                                <div class="text-sm font-medium text-slate-900 dark:text-white">{{ _('AI 助手') }}</div>
+                                <div class="text-[11px] text-slate-400">{{ _('向 AI 提问') }}</div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                <button @click="sendMessage()"
+                        class="w-10 h-10 flex-shrink-0 bg-primary hover:bg-primary-dark text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                        :class="{ 'opacity-50 cursor-not-allowed': !inputText.trim() || sending }"
+                        :disabled="!inputText.trim() || sending">
+                    <span class="material-symbols-outlined text-lg">send</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 聊天面板自定义样式 -->
+<style>
+    /* 聊天面板滚动条 */
+    .chat-panel-scroll::-webkit-scrollbar { width: 4px; }
+    .chat-panel-scroll::-webkit-scrollbar-track { background: transparent; }
+    .chat-panel-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+    .dark .chat-panel-scroll::-webkit-scrollbar-thumb { background: #475569; }
+
+    /* 消息出现动画 */
+    .chat-msg-appear { animation: chatMsgSlide 0.2s ease-out; }
+    @keyframes chatMsgSlide {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* AI 输入动画 */
+    .chat-typing-dot { animation: chatTypingBounce 1.4s infinite ease-in-out; }
+    .chat-typing-dot:nth-child(1) { animation-delay: 0s; }
+    .chat-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .chat-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes chatTypingBounce {
+        0%, 60%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-4px); }
+    }
+
+    /* 未读脉冲 */
+    @keyframes chatUnreadPulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+</style>
+{% endmacro %}
+
+{# 聊天面板 JavaScript #}
+{% macro render_chat_panel_script() %}
+<script>
+// Alpine.js Store - 聊天全局状态
+document.addEventListener('alpine:init', () => {
+    if (!Alpine.store('chat')) {
+        Alpine.store('chat', {
+            unreadCount: 0,
+            panelOpen: false,
+
+            async fetchUnreadCount() {
+                try {
+                    const resp = await fetch('/chat/api/unread-count');
+                    const data = await resp.json();
+                    if (data.success) {
+                        this.unreadCount = data.data.total || 0;
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch chat unread count:', e);
+                }
+            }
+        });
+
+        // 初始拉取未读数
+        Alpine.store('chat').fetchUnreadCount();
+    }
+});
+
+// 聊天面板 Alpine.js 组件
+function chatPanel() {
+    return {
+        // ----- 状态 -----
+        chatOpen: false,
+        activeConv: null,
+        isNewChat: false,
+        messages: [],
+        conversations: [],
+        inputText: '',
+        recipientQuery: '',
+        newChatParticipants: [],
+        mentionUsers: [],
+        showMentionDropdown: false,
+        showAIMention: false,
+        aiTyping: false,
+        aiStreamingMsg: '',
+        sending: false,
+        searchQuery: '',
+        loadingConversations: false,
+        loadingMessages: false,
+        pollTimer: null,
+        unreadPollTimer: null,
+        lastMessageTimestamp: null,
+        _searchDebounce: null,
+
+        // i18n 字符串
+        _chatI18n: {
+            searchPlaceholder: '{{ _("搜索对话...") }}',
+            memberUnit: '{{ _("人") }}',
+            recipientPlaceholder: '{{ _("输入 @ 搜索用户，或直接输入和 AI 对话") }}',
+            recipientMorePlaceholder: '{{ _("继续 @ 添加更多成员...") }}',
+            inputPlaceholder: '{{ _("输入消息... (Enter 发送)") }}',
+            translation: '{{ _("翻译") }}',
+            justNow: '{{ _("刚刚") }}',
+            minutesAgo: '{{ _("分钟前") }}',
+            hoursAgo: '{{ _("小时前") }}',
+            daysAgo: '{{ _("天前") }}',
+            yesterday: '{{ _("昨天") }}',
+        },
+
+        // ----- 初始化 -----
+        init() {
+            this.$watch('chatOpen', (val) => {
+                if (Alpine.store('chat')) {
+                    Alpine.store('chat').panelOpen = val;
+                }
+            });
+        },
+
+        // ----- 面板操作 -----
+        toggle() {
+            if (this.chatOpen) {
+                this.closePanel();
+            } else {
+                this.openPanel();
+            }
+        },
+
+        async openPanel() {
+            this.chatOpen = true;
+            await this.loadConversations();
+            this.startUnreadPolling();
+        },
+
+        closePanel() {
+            this.chatOpen = false;
+            this.stopPolling();
+            this.stopUnreadPolling();
+        },
+
+        // ----- 对话列表 -----
+        get filteredConversations() {
+            if (!this.searchQuery.trim()) return this.conversations;
+            const q = this.searchQuery.toLowerCase();
+            return this.conversations.filter(c =>
+                c.name.toLowerCase().includes(q) ||
+                (c.lastMsg && c.lastMsg.toLowerCase().includes(q))
+            );
+        },
+
+        async loadConversations() {
+            this.loadingConversations = true;
+            try {
+                const resp = await fetch('/chat/api/conversations');
+                const data = await resp.json();
+                if (data.success) {
+                    this.conversations = (data.data || []).map(c => this._mapConversation(c));
+                }
+            } catch (e) {
+                console.error('Failed to load conversations:', e);
+            } finally {
+                this.loadingConversations = false;
+            }
+        },
+
+        _mapConversation(c) {
+            return {
+                id: c.id,
+                type: c.type || 'private',
+                name: c.name || '',
+                avatar: c.avatar || (c.name ? c.name[0] : '?'),
+                lastMsg: c.last_message || '',
+                time: c.last_message_time ? this.formatMsgTime(c.last_message_time) : '',
+                unread: c.unread_count || 0,
+                online: c.is_online || false,
+                memberCount: c.member_count || 0,
+            };
+        },
+
+        // ----- 选择对话 -----
+        async selectConversation(conv) {
+            this.activeConv = conv;
+            this.isNewChat = false;
+            this.aiStreamingMsg = '';
+            this.aiTyping = false;
+            await this.loadMessages(conv.id);
+            this.markAsRead(conv.id);
+            if (conv.unread > 0) {
+                conv.unread = 0;
+                this._updateGlobalUnread();
+            }
+            this.startPolling();
+            this.$nextTick(() => {
+                this.scrollToBottom();
+                if (this.$refs.chatInput) this.$refs.chatInput.focus();
+            });
+        },
+
+        // ----- 新建对话 -----
+        startNewChat() {
+            this.isNewChat = true;
+            this.activeConv = null;
+            this.messages = [];
+            this.newChatParticipants = [];
+            this.recipientQuery = '';
+            this.showMentionDropdown = false;
+            this.aiStreamingMsg = '';
+            this.aiTyping = false;
+            this.stopPolling();
+            this.$nextTick(() => {
+                if (this.$refs.recipientInput) this.$refs.recipientInput.focus();
+            });
+        },
+
+        // ----- 收件人操作 -----
+        onRecipientInput() {
+            const q = this.recipientQuery;
+            if (q.includes('@')) {
+                const search = q.split('@').pop();
+                if (search.length > 0) {
+                    this._searchUsers(search);
+                } else {
+                    this.mentionUsers = [];
+                    this.showMentionDropdown = false;
+                }
+            } else {
+                this.showMentionDropdown = false;
+            }
+        },
+
+        async _searchUsers(query) {
+            try {
+                const resp = await fetch(`/chat/api/users/search?q=${encodeURIComponent(query)}`);
+                const data = await resp.json();
+                if (data.success) {
+                    // 排除已选的参与者
+                    const selectedIds = new Set(this.newChatParticipants.map(p => p.id));
+                    this.mentionUsers = (data.data || []).filter(u => !selectedIds.has(u.id));
+                    this.showMentionDropdown = true;
+                }
+            } catch (e) {
+                console.error('Failed to search users:', e);
+            }
+        },
+
+        addParticipant(user) {
+            this.newChatParticipants.push(user);
+            this.recipientQuery = '';
+            this.showMentionDropdown = false;
+            this.mentionUsers = [];
+            this.$nextTick(() => {
+                if (this.$refs.recipientInput) this.$refs.recipientInput.focus();
+            });
+        },
+
+        removeParticipant(id) {
+            this.newChatParticipants = this.newChatParticipants.filter(p => p.id !== id);
+        },
+
+        // ----- 消息加载 -----
+        async loadMessages(convId) {
+            this.loadingMessages = true;
+            try {
+                const resp = await fetch(`/chat/api/conversations/${convId}/messages`);
+                const data = await resp.json();
+                if (data.success) {
+                    this.messages = data.data || [];
+                    if (this.messages.length > 0) {
+                        this.lastMessageTimestamp = this.messages[this.messages.length - 1].created_at;
+                    } else {
+                        this.lastMessageTimestamp = null;
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to load messages:', e);
+            } finally {
+                this.loadingMessages = false;
+            }
+        },
+
+        // ----- 发送消息 -----
+        async sendMessage() {
+            const text = this.inputText.trim();
+            if (!text || this.sending) return;
+
+            this.sending = true;
+            this.inputText = '';
+            this.showAIMention = false;
+
+            try {
+                // 判断是否是 AI 对话模式
+                const isAIMode = (this.isNewChat && this.newChatParticipants.length === 0)
+                    || (this.activeConv && this.activeConv.type === 'ai');
+                const hasAIMention = text.includes('@AI');
+
+                if (isAIMode || (hasAIMention && this.activeConv)) {
+                    // AI 对话：走 SSE 流
+                    await this._sendAIMessage(text);
+                } else if (this.isNewChat) {
+                    // 新建对话
+                    await this._createConversationAndSend(text);
+                } else if (this.activeConv) {
+                    // 普通对话
+                    await this._sendNormalMessage(text);
+                }
+            } catch (e) {
+                console.error('Failed to send message:', e);
+            } finally {
+                this.sending = false;
+            }
+        },
+
+        async _sendNormalMessage(text) {
+            const resp = await fetch(`/chat/api/conversations/${this.activeConv.id}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '',
+                },
+                body: JSON.stringify({ content: text }),
+            });
+            const data = await resp.json();
+            if (data.success && data.data) {
+                this.messages.push(data.data);
+                this.lastMessageTimestamp = data.data.created_at;
+                this._updateConvLastMsg(this.activeConv.id, text);
+                this.scrollToBottom();
+            }
+        },
+
+        async _createConversationAndSend(text) {
+            const participantIds = this.newChatParticipants.map(p => p.id);
+            const convType = participantIds.length === 0 ? 'ai'
+                           : participantIds.length === 1 ? 'private'
+                           : 'group';
+
+            const resp = await fetch('/chat/api/conversations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '',
+                },
+                body: JSON.stringify({
+                    participant_ids: participantIds,
+                    type: convType,
+                }),
+            });
+            const data = await resp.json();
+            if (data.success && data.data) {
+                const newConv = this._mapConversation(data.data);
+                this.conversations.unshift(newConv);
+                this.activeConv = newConv;
+                this.isNewChat = false;
+
+                if (convType === 'ai') {
+                    // AI 模式走 SSE
+                    await this._sendAIMessage(text);
+                } else {
+                    // 发送首条消息
+                    await this._sendNormalMessage(text);
+                }
+                this.startPolling();
+            }
+        },
+
+        async _sendAIMessage(text) {
+            // 先创建 AI 对话（如果需要）
+            let convId = this.activeConv ? this.activeConv.id : null;
+
+            // 添加用户消息到界面
+            const userMsg = {
+                id: 'temp_' + Date.now(),
+                content: text,
+                is_mine: true,
+                is_ai: false,
+                sender_name: null,
+                created_at: new Date().toISOString(),
+                translation: null,
+            };
+            this.messages.push(userMsg);
+            this.scrollToBottom();
+
+            // 开始 AI 流式响应
+            this.aiTyping = true;
+            this.aiStreamingMsg = '';
+            this.scrollToBottom();
+
+            try {
+                const resp = await fetch('/chat/api/ai/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '',
+                    },
+                    body: JSON.stringify({
+                        content: text,
+                        conversation_id: convId,
+                    }),
+                });
+
+                if (!resp.ok) {
+                    throw new Error(`AI stream failed: ${resp.status}`);
+                }
+
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder();
+                this.aiTyping = false;
+                let buffer = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue;
+                        try {
+                            const payload = JSON.parse(line.slice(6));
+                            if (payload.type === 'content') {
+                                this.aiStreamingMsg += payload.text;
+                                this.scrollToBottom();
+                            } else if (payload.type === 'done') {
+                                // 流结束：将 streaming msg 转为正式消息
+                                if (this.aiStreamingMsg) {
+                                    this.messages.push({
+                                        id: payload.message_id || ('ai_' + Date.now()),
+                                        content: this.aiStreamingMsg,
+                                        is_mine: false,
+                                        is_ai: true,
+                                        sender_name: '{{ _("AI 助手") }}',
+                                        created_at: new Date().toISOString(),
+                                        translation: null,
+                                    });
+                                }
+                                this.aiStreamingMsg = '';
+                                this.scrollToBottom();
+
+                                // 如果没有 activeConv（新建的 AI 对话），刷新列表
+                                if (!this.activeConv || !convId) {
+                                    await this.loadConversations();
+                                    if (this.conversations.length > 0) {
+                                        const aiConv = this.conversations.find(c => c.type === 'ai');
+                                        if (aiConv) {
+                                            this.activeConv = aiConv;
+                                            this.isNewChat = false;
+                                        }
+                                    }
+                                }
+                            } else if (payload.type === 'error') {
+                                console.error('AI stream error:', payload.message);
+                                this.aiStreamingMsg = '';
+                                this.aiTyping = false;
+                            }
+                        } catch (pe) {
+                            // 非 JSON 行，跳过
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('AI stream request failed:', e);
+                this.aiStreamingMsg = '';
+            } finally {
+                this.aiTyping = false;
+                if (this.aiStreamingMsg) {
+                    // 若流中断但有内容，将其作为消息显示
+                    this.messages.push({
+                        id: 'ai_partial_' + Date.now(),
+                        content: this.aiStreamingMsg,
+                        is_mine: false,
+                        is_ai: true,
+                        sender_name: '{{ _("AI 助手") }}',
+                        created_at: new Date().toISOString(),
+                        translation: null,
+                    });
+                    this.aiStreamingMsg = '';
+                    this.scrollToBottom();
+                }
+            }
+        },
+
+        // ----- 输入区域 -----
+        onInputChange() {
+            const text = this.inputText;
+            if (text.endsWith('@') || text.endsWith('@A') || text.endsWith('@AI')) {
+                this.showAIMention = true;
+            } else {
+                this.showAIMention = false;
+            }
+        },
+
+        insertAIMention() {
+            this.inputText = this.inputText.replace(/@A?I?$/, '@AI ');
+            this.showAIMention = false;
+            this.$nextTick(() => {
+                if (this.$refs.chatInput) this.$refs.chatInput.focus();
+            });
+        },
+
+        // ----- 标记已读 -----
+        async markAsRead(convId) {
+            try {
+                await fetch(`/chat/api/conversations/${convId}/read`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '',
+                    },
+                });
+            } catch (e) {
+                console.error('Failed to mark as read:', e);
+            }
+        },
+
+        // ----- 轮询 -----
+        startPolling() {
+            this.stopPolling();
+            this.pollTimer = setInterval(() => {
+                if (this.chatOpen && this.activeConv) {
+                    this._pollNewMessages();
+                }
+            }, 3000);
+        },
+
+        stopPolling() {
+            if (this.pollTimer) {
+                clearInterval(this.pollTimer);
+                this.pollTimer = null;
+            }
+        },
+
+        startUnreadPolling() {
+            this.stopUnreadPolling();
+            this.unreadPollTimer = setInterval(() => {
+                if (this.chatOpen && Alpine.store('chat')) {
+                    Alpine.store('chat').fetchUnreadCount();
+                }
+            }, 10000);
+        },
+
+        stopUnreadPolling() {
+            if (this.unreadPollTimer) {
+                clearInterval(this.unreadPollTimer);
+                this.unreadPollTimer = null;
+            }
+        },
+
+        async _pollNewMessages() {
+            if (!this.activeConv) return;
+            try {
+                let url = `/chat/api/conversations/${this.activeConv.id}/messages`;
+                if (this.lastMessageTimestamp) {
+                    url += `?since=${encodeURIComponent(this.lastMessageTimestamp)}`;
+                }
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (data.success && data.data && data.data.length > 0) {
+                    // 追加新消息（去重）
+                    const existingIds = new Set(this.messages.map(m => m.id));
+                    for (const msg of data.data) {
+                        if (!existingIds.has(msg.id)) {
+                            this.messages.push(msg);
+                        }
+                    }
+                    this.lastMessageTimestamp = data.data[data.data.length - 1].created_at;
+                    this.scrollToBottom();
+                    this.markAsRead(this.activeConv.id);
+                }
+            } catch (e) {
+                console.error('Polling failed:', e);
+            }
+        },
+
+        // ----- 辅助方法 -----
+        _updateConvLastMsg(convId, text) {
+            const conv = this.conversations.find(c => c.id === convId);
+            if (conv) {
+                conv.lastMsg = text.length > 30 ? text.substring(0, 30) + '...' : text;
+                conv.time = this._chatI18n.justNow;
+            }
+        },
+
+        _updateGlobalUnread() {
+            const total = this.conversations.reduce((sum, c) => sum + (c.unread || 0), 0);
+            if (Alpine.store('chat')) {
+                Alpine.store('chat').unreadCount = total;
+            }
+        },
+
+        scrollToBottom() {
+            this.$nextTick(() => {
+                if (this.$refs.messageArea) {
+                    this.$refs.messageArea.scrollTop = this.$refs.messageArea.scrollHeight;
+                }
+            });
+        },
+
+        formatMsgTime(isoString) {
+            if (!isoString) return '';
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+
+            if (diff < 60000) return this._chatI18n.justNow;
+            if (diff < 3600000) return Math.floor(diff / 60000) + this._chatI18n.minutesAgo;
+            if (diff < 86400000) return Math.floor(diff / 3600000) + this._chatI18n.hoursAgo;
+            if (diff < 604800000) return Math.floor(diff / 86400000) + this._chatI18n.daysAgo;
+            return date.toLocaleDateString();
+        },
+    };
+}
+</script>
+{% endmacro %}
