@@ -16,8 +16,18 @@ depends_on = None
 
 
 def upgrade():
-    # 启用 pgvector 扩展（容错）
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # 尝试启用 pgvector 扩展（NAS 环境可能没有安装）
+    try:
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        has_vector = True
+    except Exception:
+        has_vector = False
+        # 需要在新事务中继续
+        from alembic import context
+        if not context.is_offline_mode():
+            connection = op.get_bind()
+            connection.execute(sa.text("ROLLBACK"))
+            connection.execute(sa.text("BEGIN"))
 
     # 删除旧 Phase 1 表（如果存在）
     op.execute("DROP TABLE IF EXISTS knowledge_chat_messages CASCADE")
@@ -86,8 +96,9 @@ def upgrade():
     )
     op.create_index('ix_knowledge_chunks_doc_idx', 'knowledge_chunks', ['document_id', 'chunk_index'])
 
-    # 添加 pgvector embedding 列（原生 SQL）
-    op.execute("ALTER TABLE knowledge_chunks ADD COLUMN embedding vector(1024)")
+    # 添加 pgvector embedding 列（仅在 pgvector 可用时）
+    if has_vector:
+        op.execute("ALTER TABLE knowledge_chunks ADD COLUMN embedding vector(1024)")
 
 
 def downgrade():
