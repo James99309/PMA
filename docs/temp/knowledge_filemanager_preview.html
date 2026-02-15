@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMA 知识库 - 文件管理器集成 预览</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#137fec',
+            'background-light': '#faf8f6',
+            'background-dark': '#1a1816',
+          },
+          fontFamily: {
+            display: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+    [x-cloak] { display: none !important; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+    /* 滚动条美化 */
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .dark .custom-scroll::-webkit-scrollbar-thumb { background: #475569; }
+
+    /* 向量化进度动画 */
+    @keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+    /* 右键菜单子面板 */
+    .submenu-enter { animation: submenu-in 0.15s ease-out; }
+    @keyframes submenu-in { from { opacity:0; transform: translateX(-4px); } to { opacity:1; transform: translateX(0); } }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white"
+      x-data="kbFileManager()" x-cloak>
+
+  <!-- ========== 顶部导航栏 ========== -->
+  <header class="fixed top-0 left-0 right-0 h-14 bg-background-light dark:bg-black border-b border-slate-200 dark:border-slate-800 z-30 flex items-center px-4 lg:px-6">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+        <span class="material-symbols-outlined fill text-white text-base">check</span>
+      </div>
+      <span class="font-semibold text-sm hidden sm:inline">PMA</span>
+      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300">CN</span>
+    </div>
+    <div class="flex-1"></div>
+    <button @click="document.documentElement.classList.toggle('dark')"
+            class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+      <span class="material-symbols-outlined text-xl text-slate-600 dark:text-slate-300">dark_mode</span>
+    </button>
+    <div class="ml-3 w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+      <span class="text-xs font-medium text-primary">张</span>
+    </div>
+  </header>
+
+  <div class="flex h-screen pt-14">
+
+    <!-- ========== 左侧模拟侧边栏 ========== -->
+    <aside class="hidden lg:flex flex-col w-56 bg-slate-50 dark:bg-zinc-900 border-r border-slate-200 dark:border-slate-800 flex-shrink-0">
+      <nav class="flex-1 overflow-y-auto py-4 px-3 custom-scroll">
+        <div class="space-y-1">
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <span class="material-symbols-outlined text-lg">dashboard</span>仪表盘
+          </a>
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm bg-primary/10 dark:bg-primary/20 text-primary font-medium">
+            <span class="material-symbols-outlined fill text-lg text-primary">folder_open</span>文件管理
+          </a>
+        </div>
+        <div class="mt-4 mb-2 px-3">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">业务管理</span>
+        </div>
+        <div class="space-y-1">
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <span class="material-symbols-outlined text-lg">business</span>客户
+          </a>
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <span class="material-symbols-outlined text-lg">work</span>项目
+          </a>
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <span class="material-symbols-outlined text-lg">request_quote</span>报价
+          </a>
+        </div>
+        <div class="mt-6 mb-2 px-3">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">系统管理</span>
+        </div>
+        <div class="space-y-1">
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <span class="material-symbols-outlined text-lg">settings</span>设置
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- ========== 文件管理器主区域 ========== -->
+    <div class="flex-1 flex overflow-hidden">
+
+      <!-- ====== 左侧文件夹树面板 ====== -->
+      <aside class="hidden lg:flex flex-col w-56 xl:w-64 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-y-auto flex-shrink-0 custom-scroll">
+        <div class="p-4 flex flex-col h-full">
+          <!-- 我的文件 -->
+          <button @click="activeView = 'files'; currentFolder = null"
+                  :class="activeView === 'files' && !currentFolder ? 'bg-primary/10 text-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                  class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left transition-colors">
+            <span class="material-symbols-outlined text-lg">folder_open</span>
+            我的文件
+          </button>
+
+          <!-- 文件夹树 -->
+          <div class="ml-4 mt-1 flex flex-col gap-0.5">
+            <template x-for="folder in folderTree" :key="folder.id">
+              <div>
+                <button @click="activeView = 'files'; currentFolder = folder.id"
+                        :class="activeView === 'files' && currentFolder === folder.id ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                        class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm w-full text-left truncate transition-colors">
+                  <span class="material-symbols-outlined text-base">folder</span>
+                  <span x-text="folder.name" class="truncate"></span>
+                </button>
+                <!-- 子文件夹 -->
+                <template x-if="folder.children && folder.children.length > 0">
+                  <div class="ml-4 flex flex-col gap-0.5 mt-0.5">
+                    <template x-for="child in folder.children" :key="child.id">
+                      <button @click="activeView = 'files'; currentFolder = child.id"
+                              :class="activeView === 'files' && currentFolder === child.id ? 'bg-primary/10 text-primary' : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                              class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs w-full text-left truncate transition-colors">
+                        <span class="material-symbols-outlined" style="font-size:14px">folder</span>
+                        <span x-text="child.name" class="truncate"></span>
+                      </button>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+
+          <hr class="my-3 border-slate-200 dark:border-slate-700">
+
+          <!-- 回收站 -->
+          <button @click="activeView = 'trash'"
+                  :class="activeView === 'trash' ? 'bg-primary/10 text-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                  class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left">
+            <span class="material-symbols-outlined text-lg">delete</span>
+            回收站
+          </button>
+
+          <hr class="my-3 border-slate-200 dark:border-slate-700">
+
+          <!-- ★ 知识库虚拟目录入口 ★ -->
+          <button @click="activeView = 'knowledge'"
+                  :class="activeView === 'knowledge' ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                  class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left transition-colors">
+            <span class="material-symbols-outlined text-lg" :class="activeView === 'knowledge' ? 'text-violet-600 dark:text-violet-400' : ''">auto_stories</span>
+            知识库
+            <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-semibold"
+                  x-text="kbFiles.length"></span>
+          </button>
+
+          <!-- 配额指示器 -->
+          <div class="mt-auto pt-4">
+            <div class="text-xs text-slate-500 dark:text-slate-400 mb-1">
+              已用 1.2 GB / 5.0 GB
+            </div>
+            <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+              <div class="bg-primary rounded-full h-1.5 transition-all" style="width: 24%"></div>
+            </div>
+            <div class="text-xs text-slate-400 mt-1">24%</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ====== 右侧主内容区 ====== -->
+      <main class="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
+
+        <!-- ===== 普通文件视图工具栏 ===== -->
+        <template x-if="activeView === 'files'">
+          <div>
+            <!-- 工具栏 -->
+            <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 flex-wrap">
+              <!-- 面包屑 -->
+              <div class="flex items-center gap-1 text-sm overflow-x-auto flex-1 min-w-0">
+                <button @click="currentFolder = null" class="text-slate-500 hover:text-primary whitespace-nowrap">全部文件</button>
+                <template x-if="currentFolder">
+                  <div class="flex items-center gap-1">
+                    <span class="material-symbols-outlined text-sm text-slate-400">chevron_right</span>
+                    <span class="text-slate-900 dark:text-white font-medium" x-text="getFolderName(currentFolder)"></span>
+                  </div>
+                </template>
+              </div>
+              <!-- 搜索 -->
+              <div class="relative">
+                <input type="text" placeholder="搜索文件..."
+                       class="w-40 sm:w-52 h-9 pl-9 pr-3 rounded-lg text-sm border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">search</span>
+              </div>
+            </div>
+
+            <!-- 操作按钮栏 -->
+            <div class="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+              <button class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-base">create_new_folder</span>
+                新建文件夹
+              </button>
+              <label class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 cursor-pointer">
+                <span class="material-symbols-outlined text-base">upload_file</span>
+                上传文件
+              </label>
+
+              <!-- 批量操作 -->
+              <template x-if="selectedFiles.length > 0">
+                <div class="flex items-center gap-2 ml-2 pl-2 border-l border-slate-300 dark:border-slate-600">
+                  <span class="text-xs text-slate-500">已选 <span x-text="selectedFiles.length" class="font-semibold text-primary"></span> 项</span>
+                  <button @click="showBatchKbModal = true"
+                          class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 font-medium">
+                    <span class="material-symbols-outlined" style="font-size:14px">auto_stories</span>
+                    加入知识库
+                  </button>
+                  <button class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+                    <span class="material-symbols-outlined" style="font-size:14px">delete</span>
+                    删除
+                  </button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <!-- ===== 知识库视图工具栏 ===== -->
+        <template x-if="activeView === 'knowledge'">
+          <div>
+            <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0 flex-wrap">
+              <div class="flex items-center gap-2 flex-1">
+                <span class="material-symbols-outlined text-xl text-violet-600 dark:text-violet-400">auto_stories</span>
+                <h2 class="text-sm font-semibold">知识库</h2>
+                <span class="text-xs text-slate-400" x-text="'(' + filteredKbFiles.length + ' 个文件)'"></span>
+              </div>
+              <!-- 搜索 -->
+              <div class="relative">
+                <input type="text" x-model="kbSearch" placeholder="搜索知识库..."
+                       class="w-40 sm:w-52 h-9 pl-9 pr-3 rounded-lg text-sm border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">search</span>
+              </div>
+              <!-- 管理员：标签管理 -->
+              <button @click="showTagManageModal = true"
+                      class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      title="管理标签">
+                <span class="material-symbols-outlined text-base">settings</span>
+                标签管理
+              </button>
+            </div>
+
+            <!-- 标签筛选栏 -->
+            <div class="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0 overflow-x-auto">
+              <span class="text-xs text-slate-400 flex-shrink-0">标签:</span>
+              <button @click="kbFilterTag = null"
+                      :class="!kbFilterTag ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border-violet-300 dark:border-violet-700' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-300'"
+                      class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors whitespace-nowrap flex-shrink-0">
+                全部
+              </button>
+              <template x-for="tag in kbTags" :key="tag.id">
+                <button @click="kbFilterTag = kbFilterTag === tag.id ? null : tag.id"
+                        :class="kbFilterTag === tag.id
+                          ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border-violet-300 dark:border-violet-700'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-300'"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors whitespace-nowrap flex-shrink-0">
+                  <span x-text="tag.name"></span>
+                  <span class="text-[10px] opacity-60" x-text="'(' + getTagCount(tag.id) + ')'"></span>
+                </button>
+              </template>
+
+              <div class="flex-1"></div>
+
+              <!-- 状态筛选 -->
+              <div class="flex items-center gap-1.5 flex-shrink-0">
+                <span class="text-xs text-slate-400">状态:</span>
+                <select x-model="kbFilterStatus"
+                        class="text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary">
+                  <option value="">全部</option>
+                  <option value="ready">就绪</option>
+                  <option value="processing">处理中</option>
+                  <option value="queued">队列中</option>
+                  <option value="error">失败</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- ===== 回收站视图工具栏 ===== -->
+        <template x-if="activeView === 'trash'">
+          <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+            <span class="material-symbols-outlined text-lg text-slate-400">delete</span>
+            <h2 class="text-sm font-semibold flex-1">回收站</h2>
+            <button class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg text-red-600 border border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20">
+              <span class="material-symbols-outlined text-base">delete_forever</span>
+              清空回收站
+            </button>
+          </div>
+        </template>
+
+        <!-- ===== 文件列表（普通视图） ===== -->
+        <div class="flex-1 overflow-y-auto custom-scroll" x-show="activeView === 'files'">
+          <!-- 表头 -->
+          <div class="flex items-center gap-3 px-4 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+            <input type="checkbox" @change="toggleSelectAll($event)" class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50 w-4 h-4">
+            <div class="flex-1">名称</div>
+            <div class="w-20 text-right hidden sm:block">大小</div>
+            <div class="w-28 text-right hidden md:block">修改时间</div>
+            <div class="w-20 text-right">操作</div>
+          </div>
+
+          <!-- 文件夹 -->
+          <template x-for="folder in currentFolders" :key="'f-' + folder.id">
+            <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50 transition-colors"
+                 @dblclick="currentFolder = folder.id">
+              <div class="w-4"></div>
+              <span class="material-symbols-outlined text-lg text-amber-500">folder</span>
+              <div class="flex-1 text-sm text-slate-900 dark:text-white truncate" x-text="folder.name"></div>
+              <div class="w-20 text-right text-xs text-slate-400 hidden sm:block">—</div>
+              <div class="w-28 text-right text-xs text-slate-400 hidden md:block" x-text="folder.date"></div>
+              <div class="w-20 flex justify-end">
+                <button class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700">
+                  <span class="material-symbols-outlined text-sm text-slate-400">more_horiz</span>
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <!-- 文件 -->
+          <template x-for="file in currentFiles" :key="'r-' + file.id">
+            <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50 transition-colors"
+                 :class="selectedFiles.includes(file.id) ? 'bg-primary/5' : ''"
+                 @contextmenu.prevent="showContextMenu($event, file)">
+              <input type="checkbox" :checked="selectedFiles.includes(file.id)" @click.stop="toggleSelect(file.id)"
+                     class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50 w-4 h-4">
+              <span class="material-symbols-outlined text-lg" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
+              <div class="flex-1 min-w-0 flex items-center gap-2">
+                <span class="text-sm text-slate-900 dark:text-white truncate" x-text="file.name"></span>
+                <!-- ★ 知识库徽章 ★ -->
+                <template x-if="file.kb_tags && file.kb_tags.length > 0">
+                  <div class="flex items-center gap-1 flex-shrink-0">
+                    <span class="material-symbols-outlined text-xs text-violet-500" style="font-size:14px">auto_stories</span>
+                    <template x-for="tagId in file.kb_tags.slice(0, 2)" :key="tagId">
+                      <span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 font-medium"
+                            x-text="getTagName(tagId)"></span>
+                    </template>
+                    <span x-show="file.kb_tags.length > 2"
+                          class="text-[10px] text-violet-400" x-text="'+' + (file.kb_tags.length - 2)"></span>
+                  </div>
+                </template>
+                <!-- 存储类型指示 -->
+                <span class="flex-shrink-0" title="NAS 云端存储">
+                  <span class="material-symbols-outlined text-xs text-emerald-500">cloud_done</span>
+                </span>
+              </div>
+              <div class="w-20 text-right text-xs text-slate-400 hidden sm:block" x-text="file.size"></div>
+              <div class="w-28 text-right text-xs text-slate-400 hidden md:block" x-text="file.date"></div>
+              <div class="w-20 flex justify-end">
+                <button @click.stop="showContextMenu($event, file)" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700">
+                  <span class="material-symbols-outlined text-sm text-slate-400">more_horiz</span>
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <!-- 空状态 -->
+          <div x-show="currentFolders.length === 0 && currentFiles.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-400">
+            <span class="material-symbols-outlined text-5xl mb-3">folder_off</span>
+            <p class="text-sm">此文件夹为空</p>
+          </div>
+        </div>
+
+        <!-- ===== 知识库文件列表 ===== -->
+        <div class="flex-1 overflow-y-auto custom-scroll" x-show="activeView === 'knowledge'">
+
+          <!-- 统计概览 -->
+          <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div class="bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5 text-center">
+                <p class="text-lg font-bold text-slate-900 dark:text-white" x-text="kbFiles.length"></p>
+                <p class="text-[10px] text-slate-500">总文档</p>
+              </div>
+              <div class="bg-green-50 dark:bg-green-900/20 rounded-xl px-3 py-2.5 text-center">
+                <p class="text-lg font-bold text-green-600 dark:text-green-400" x-text="kbFiles.filter(f => f.kb_status === 'ready').length"></p>
+                <p class="text-[10px] text-green-600 dark:text-green-400">就绪</p>
+              </div>
+              <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2.5 text-center">
+                <p class="text-lg font-bold text-blue-600 dark:text-blue-400" x-text="kbFiles.filter(f => f.kb_status === 'processing').length"></p>
+                <p class="text-[10px] text-blue-600 dark:text-blue-400">处理中</p>
+              </div>
+              <div class="bg-red-50 dark:bg-red-900/20 rounded-xl px-3 py-2.5 text-center">
+                <p class="text-lg font-bold text-red-600 dark:text-red-400" x-text="kbFiles.filter(f => f.kb_status === 'error').length"></p>
+                <p class="text-[10px] text-red-600 dark:text-red-400">失败</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 表头 -->
+          <div class="flex items-center gap-3 px-4 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+            <input type="checkbox" @change="toggleSelectAllKb($event)" class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50 w-4 h-4">
+            <div class="flex-1">文件名</div>
+            <div class="w-24 hidden sm:block">标签</div>
+            <div class="w-20 text-center">状态</div>
+            <div class="w-16 text-center hidden md:block">分块</div>
+            <div class="w-24 text-right hidden md:block">加入时间</div>
+            <div class="w-16 text-right">操作</div>
+          </div>
+
+          <!-- 知识库文件列表 -->
+          <template x-for="file in filteredKbFiles" :key="'kb-' + file.id">
+            <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50 transition-colors"
+                 :class="selectedKbFiles.includes(file.id) ? 'bg-violet-50 dark:bg-violet-900/10' : ''"
+                 @click="openKbDetail(file)">
+              <input type="checkbox" :checked="selectedKbFiles.includes(file.id)" @click.stop="toggleSelectKb(file.id)"
+                     class="rounded border-slate-300 dark:border-slate-600 text-violet-500 focus:ring-violet-500/50 w-4 h-4">
+
+              <!-- 文件图标 -->
+              <span class="material-symbols-outlined text-lg" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
+
+              <!-- 文件名 + 路径 -->
+              <div class="flex-1 min-w-0">
+                <div class="text-sm text-slate-900 dark:text-white truncate" x-text="file.name"></div>
+                <div class="text-[10px] text-slate-400 truncate" x-text="file.folder_path"></div>
+              </div>
+
+              <!-- 标签 -->
+              <div class="w-24 hidden sm:flex flex-wrap gap-1">
+                <template x-for="tagId in file.kb_tags" :key="tagId">
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 font-medium"
+                        x-text="getTagName(tagId)"></span>
+                </template>
+              </div>
+
+              <!-- 状态 -->
+              <div class="w-20 flex justify-center">
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                      :class="file.kb_status === 'ready' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' :
+                              file.kb_status === 'processing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' :
+                              file.kb_status === 'queued' ? 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400' :
+                              'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300'">
+                  <span class="w-1.5 h-1.5 rounded-full"
+                        :class="file.kb_status === 'ready' ? 'bg-green-500' :
+                                file.kb_status === 'processing' ? 'bg-blue-500 pulse-dot' :
+                                file.kb_status === 'queued' ? 'bg-slate-400' :
+                                'bg-red-500'"></span>
+                  <span x-text="file.kb_status === 'ready' ? '就绪' :
+                                file.kb_status === 'processing' ? '处理中' :
+                                file.kb_status === 'queued' ? '队列中' : '失败'"></span>
+                </span>
+              </div>
+
+              <!-- 分块数 -->
+              <div class="w-16 text-center text-xs text-slate-400 hidden md:block"
+                   x-text="file.chunks || '—'"></div>
+
+              <!-- 加入时间 -->
+              <div class="w-24 text-right text-xs text-slate-400 hidden md:block"
+                   x-text="file.kb_added_at"></div>
+
+              <!-- 操作 -->
+              <div class="w-16 flex justify-end gap-1">
+                <button @click.stop="openKbDetail(file)" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" title="查看详情">
+                  <span class="material-symbols-outlined text-sm text-slate-400">info</span>
+                </button>
+                <button @click.stop class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20" title="移除">
+                  <span class="material-symbols-outlined text-sm text-red-400">close</span>
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <!-- 空状态 -->
+          <div x-show="filteredKbFiles.length === 0" class="flex flex-col items-center justify-center py-20 text-slate-400">
+            <span class="material-symbols-outlined text-5xl mb-3">auto_stories</span>
+            <p class="text-sm">暂无知识库文件</p>
+            <p class="text-xs mt-1">在文件列表中右键文件，选择"加入知识库"</p>
+          </div>
+
+          <!-- 批量操作栏 -->
+          <div x-show="selectedKbFiles.length > 0"
+               class="sticky bottom-0 border-t border-slate-200 dark:border-slate-700 bg-violet-50 dark:bg-violet-900/10 px-4 py-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-slate-600 dark:text-slate-400">
+                已选择 <span class="font-semibold text-violet-600" x-text="selectedKbFiles.length"></span> 项
+              </span>
+              <div class="flex items-center gap-2">
+                <button class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                  <span class="material-symbols-outlined text-sm">refresh</span>重新处理
+                </button>
+                <button class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                  <span class="material-symbols-outlined text-sm">delete</span>从知识库移除
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 回收站视图 ===== -->
+        <div class="flex-1 overflow-y-auto custom-scroll" x-show="activeView === 'trash'">
+          <div class="flex flex-col items-center justify-center py-20 text-slate-400">
+            <span class="material-symbols-outlined text-5xl mb-3">delete_outline</span>
+            <p class="text-sm">回收站为空</p>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- ========== 右键菜单 ========== -->
+  <div x-show="contextMenu.show" x-transition
+       @click.away="contextMenu.show = false; contextMenu.showKbSub = false"
+       :style="`position:fixed; left:${contextMenu.x}px; top:${contextMenu.y}px; z-index:100;`"
+       class="bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-1 min-w-[180px]" x-cloak>
+
+    <button @click="contextMenu.show = false"
+            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+      <span class="material-symbols-outlined text-base">download</span> 下载
+    </button>
+    <button @click="contextMenu.show = false"
+            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+      <span class="material-symbols-outlined text-base">visibility</span> 预览
+    </button>
+
+    <hr class="my-1 border-slate-200 dark:border-slate-700">
+
+    <button @click="contextMenu.show = false"
+            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+      <span class="material-symbols-outlined text-base">edit</span> 重命名
+    </button>
+    <button @click="contextMenu.show = false"
+            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+      <span class="material-symbols-outlined text-base">drive_file_move</span> 移动到...
+    </button>
+
+    <hr class="my-1 border-slate-200 dark:border-slate-700">
+
+    <!-- ★ 加入知识库（带标签选择子面板） ★ -->
+    <div class="relative">
+      <button @click="contextMenu.showKbSub = !contextMenu.showKbSub"
+              class="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20">
+        <span class="material-symbols-outlined text-base">auto_stories</span>
+        加入知识库
+        <span class="material-symbols-outlined text-sm ml-auto">chevron_right</span>
+      </button>
+
+      <!-- 标签选择子面板 -->
+      <div x-show="contextMenu.showKbSub" x-transition
+           class="absolute left-full top-0 ml-1 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-2 w-56 submenu-enter">
+        <div class="px-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+          <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">选择标签</p>
+        </div>
+        <div class="py-1 max-h-48 overflow-y-auto custom-scroll">
+          <template x-for="tag in kbTags" :key="tag.id">
+            <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
+              <input type="checkbox" :checked="contextMenu.selectedTags.includes(tag.id)"
+                     @change="toggleContextTag(tag.id)"
+                     class="w-3.5 h-3.5 rounded border-slate-300 text-violet-500 focus:ring-violet-500">
+              <span class="text-sm text-slate-700 dark:text-slate-300" x-text="tag.name"></span>
+            </label>
+          </template>
+        </div>
+        <div class="px-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+          <button @click="contextMenu.showKbSub = false; contextMenu.show = false"
+                  class="px-2.5 py-1 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">
+            取消
+          </button>
+          <button @click="addToKb(); contextMenu.show = false; contextMenu.showKbSub = false"
+                  :disabled="contextMenu.selectedTags.length === 0"
+                  :class="contextMenu.selectedTags.length > 0 ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                  class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors">
+            确定加入
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 如果已在知识库中，显示移除选项 -->
+    <template x-if="contextMenu.file && contextMenu.file.kb_tags && contextMenu.file.kb_tags.length > 0">
+      <button @click="removeFromKb(contextMenu.file); contextMenu.show = false"
+              class="flex items-center gap-2 w-full px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20">
+        <span class="material-symbols-outlined text-base">bookmark_remove</span> 从知识库移除
+      </button>
+    </template>
+
+    <hr class="my-1 border-slate-200 dark:border-slate-700">
+
+    <button @click="contextMenu.show = false"
+            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
+      <span class="material-symbols-outlined text-base">delete</span> 删除
+    </button>
+  </div>
+
+  <!-- ========== 文档详情侧滑面板 ========== -->
+  <div x-show="kbDetailFile !== null" class="fixed inset-0 z-40" x-cloak>
+    <div x-show="kbDetailFile !== null"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="absolute inset-0 bg-black/30" @click="kbDetailFile = null"></div>
+
+    <div x-show="kbDetailFile !== null"
+         x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+         class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-slate-900 shadow-2xl overflow-y-auto custom-scroll">
+
+      <template x-if="kbDetailFile !== null">
+        <div>
+          <!-- 面板头部 -->
+          <div class="sticky top-0 bg-white dark:bg-slate-900 z-10 px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+            <div class="flex items-start justify-between">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-violet-50 dark:bg-violet-900/20">
+                  <span class="material-symbols-outlined text-xl text-violet-500">auto_stories</span>
+                </div>
+                <div class="min-w-0">
+                  <h3 class="text-sm font-semibold truncate" x-text="kbDetailFile.name"></h3>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                          :class="kbDetailFile.kb_status === 'ready' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' :
+                                  kbDetailFile.kb_status === 'processing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' :
+                                  kbDetailFile.kb_status === 'error' ? 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300' :
+                                  'bg-slate-100 text-slate-500'">
+                      <span class="w-1.5 h-1.5 rounded-full"
+                            :class="kbDetailFile.kb_status === 'ready' ? 'bg-green-500' :
+                                    kbDetailFile.kb_status === 'processing' ? 'bg-blue-500 pulse-dot' :
+                                    kbDetailFile.kb_status === 'error' ? 'bg-red-500' : 'bg-slate-400'"></span>
+                      <span x-text="kbDetailFile.kb_status === 'ready' ? '就绪' :
+                                    kbDetailFile.kb_status === 'processing' ? '处理中' :
+                                    kbDetailFile.kb_status === 'error' ? '失败' : '队列中'"></span>
+                    </span>
+                    <span class="text-[10px] text-slate-400" x-text="kbDetailFile.folder_path"></span>
+                  </div>
+                </div>
+              </div>
+              <button @click="kbDetailFile = null" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-lg text-slate-400">close</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 面板内容 -->
+          <div class="px-5 py-4 space-y-5">
+
+            <!-- 基本信息 -->
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
+                <p class="text-[10px] text-slate-400 mb-0.5">文件大小</p>
+                <p class="text-sm font-semibold" x-text="kbDetailFile.size"></p>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
+                <p class="text-[10px] text-slate-400 mb-0.5">分块数</p>
+                <p class="text-sm font-semibold" x-text="kbDetailFile.chunks || '—'"></p>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
+                <p class="text-[10px] text-slate-400 mb-0.5">加入时间</p>
+                <p class="text-sm font-semibold" x-text="kbDetailFile.kb_added_at"></p>
+              </div>
+              <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
+                <p class="text-[10px] text-slate-400 mb-0.5">添加人</p>
+                <p class="text-sm font-semibold" x-text="kbDetailFile.owner || '张三'"></p>
+              </div>
+            </div>
+
+            <!-- 标签 -->
+            <div>
+              <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">知识库标签</label>
+              <div class="flex flex-wrap gap-1.5">
+                <template x-for="tagId in kbDetailFile.kb_tags" :key="tagId">
+                  <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs font-medium">
+                    <span x-text="getTagName(tagId)"></span>
+                    <button class="hover:text-violet-800 dark:hover:text-violet-200" @click.stop>
+                      <span class="material-symbols-outlined" style="font-size:12px">close</span>
+                    </button>
+                  </span>
+                </template>
+                <button class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-dashed border-slate-300 dark:border-slate-600 text-xs text-slate-500 hover:border-violet-400 hover:text-violet-500 transition-colors">
+                  <span class="material-symbols-outlined" style="font-size:12px">add</span>
+                  添加标签
+                </button>
+              </div>
+            </div>
+
+            <!-- 处理中进度 -->
+            <template x-if="kbDetailFile.kb_status === 'processing'">
+              <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl px-4 py-3">
+                <div class="flex items-center gap-2 mb-2">
+                  <span class="material-symbols-outlined text-blue-500 text-base pulse-dot">sync</span>
+                  <span class="text-sm font-medium text-blue-700 dark:text-blue-300">正在处理...</span>
+                  <span class="text-xs text-blue-500 ml-auto" x-text="(kbDetailFile.progress || 0) + '%'"></span>
+                </div>
+                <div class="h-1.5 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-blue-500 rounded-full transition-all" :style="'width:' + (kbDetailFile.progress || 0) + '%'"></div>
+                </div>
+                <p class="text-[10px] text-blue-500 mt-1.5">步骤：文本提取 → 分块 → 向量化嵌入 → 索引构建</p>
+              </div>
+            </template>
+
+            <!-- 失败信息 -->
+            <template x-if="kbDetailFile.kb_status === 'error'">
+              <div class="bg-red-50 dark:bg-red-900/20 rounded-xl px-4 py-3">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="material-symbols-outlined text-red-500 text-base">error</span>
+                  <span class="text-sm font-medium text-red-700 dark:text-red-300">处理失败</span>
+                </div>
+                <p class="text-xs text-red-600 dark:text-red-400" x-text="kbDetailFile.error_msg || '未知错误'"></p>
+                <button class="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 text-xs font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+                  <span class="material-symbols-outlined text-sm">refresh</span>重新处理
+                </button>
+              </div>
+            </template>
+
+            <div class="border-t border-slate-100 dark:border-slate-800"></div>
+
+            <!-- 分块预览 (就绪状态) -->
+            <template x-if="kbDetailFile.kb_status === 'ready'">
+              <div>
+                <h4 class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">分块预览</h4>
+                <div class="space-y-2">
+                  <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                    <div class="bg-slate-50 dark:bg-slate-800 px-3 py-1.5 flex items-center justify-between">
+                      <span class="text-[10px] font-medium text-slate-500">块 #1</span>
+                      <span class="text-[10px] text-slate-400">page 1 · 156 tokens</span>
+                    </div>
+                    <div class="px-3 py-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      本手册适用于XX产品 v3.0及以上版本的安装与配置。请在安装前仔细阅读本手册，确保您了解所有安全注意事项...
+                    </div>
+                  </div>
+                  <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                    <div class="bg-slate-50 dark:bg-slate-800 px-3 py-1.5 flex items-center justify-between">
+                      <span class="text-[10px] font-medium text-slate-500">块 #2</span>
+                      <span class="text-[10px] text-slate-400">page 2 · 203 tokens</span>
+                    </div>
+                    <div class="px-3 py-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      安装环境要求：温度 0°C ~ 45°C，湿度 10% ~ 90% (无凝露)，电源 AC 220V ± 10%, 50Hz...
+                    </div>
+                  </div>
+                  <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                    <div class="bg-slate-50 dark:bg-slate-800 px-3 py-1.5 flex items-center justify-between">
+                      <span class="text-[10px] font-medium text-slate-500">块 #3</span>
+                      <span class="text-[10px] text-slate-400">page 3 · 189 tokens</span>
+                    </div>
+                    <div class="px-3 py-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      第二章 安装步骤。2.1 开箱检查：确认包装完好，核对配件清单。2.2 安装位置选择...
+                    </div>
+                  </div>
+                  <button class="w-full text-center text-xs text-primary hover:underline py-1.5">
+                    展开更多 (共 <span x-text="kbDetailFile.chunks"></span> 块) ...
+                  </button>
+                </div>
+              </div>
+            </template>
+
+            <div class="border-t border-slate-100 dark:border-slate-800"></div>
+
+            <!-- 操作按钮 -->
+            <div class="flex items-center gap-2">
+              <button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <span class="material-symbols-outlined text-sm">open_in_new</span>查看原文件
+              </button>
+              <button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <span class="material-symbols-outlined text-sm">refresh</span>重新处理
+              </button>
+              <div class="flex-1"></div>
+              <button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 dark:border-red-800 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                <span class="material-symbols-outlined text-sm">delete</span>从知识库移除
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- ========== 管理员标签管理弹窗 ========== -->
+  <div x-show="showTagManageModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" x-cloak>
+    <div x-show="showTagManageModal"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="absolute inset-0 bg-black/40" @click="showTagManageModal = false"></div>
+
+    <div x-show="showTagManageModal"
+         x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+         class="relative z-10 w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl">
+
+      <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <h3 class="text-base font-semibold flex items-center gap-2">
+          <span class="material-symbols-outlined text-violet-500">sell</span>
+          标签管理
+        </h3>
+        <button @click="showTagManageModal = false" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+          <span class="material-symbols-outlined text-lg text-slate-400">close</span>
+        </button>
+      </div>
+
+      <div class="px-6 py-4">
+        <p class="text-xs text-slate-500 mb-3">管理员预定义标签，用于文件加入知识库时分类。</p>
+
+        <!-- 已有标签列表 -->
+        <div class="space-y-2 mb-4">
+          <template x-for="tag in kbTags" :key="tag.id">
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 group">
+              <span class="material-symbols-outlined text-base text-violet-500">sell</span>
+              <span class="text-sm flex-1" x-text="tag.name"></span>
+              <span class="text-[10px] text-slate-400" x-text="getTagCount(tag.id) + ' 个文件'"></span>
+              <button class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-opacity" title="编辑">
+                <span class="material-symbols-outlined text-sm text-slate-400">edit</span>
+              </button>
+              <button class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-opacity" title="删除">
+                <span class="material-symbols-outlined text-sm text-red-400">delete</span>
+              </button>
+            </div>
+          </template>
+        </div>
+
+        <!-- 新增标签 -->
+        <div class="flex items-center gap-2">
+          <input type="text" x-model="newTagName" placeholder="输入新标签名称..."
+                 @keydown.enter="addTag()"
+                 class="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500">
+          <button @click="addTag()"
+                  :disabled="!newTagName.trim()"
+                  :class="newTagName.trim() ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                  class="px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+            添加
+          </button>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end">
+        <button @click="showTagManageModal = false"
+                class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">
+          完成
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 批量加入知识库弹窗 ========== -->
+  <div x-show="showBatchKbModal" class="fixed inset-0 z-50 flex items-center justify-center p-4" x-cloak>
+    <div x-show="showBatchKbModal"
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="absolute inset-0 bg-black/40" @click="showBatchKbModal = false"></div>
+
+    <div x-show="showBatchKbModal"
+         x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+         class="relative z-10 w-full max-w-sm bg-white dark:bg-slate-800 rounded-2xl shadow-2xl">
+
+      <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+        <h3 class="text-base font-semibold flex items-center gap-2">
+          <span class="material-symbols-outlined text-violet-500">auto_stories</span>
+          批量加入知识库
+        </h3>
+        <p class="text-xs text-slate-500 mt-1">
+          已选择 <span class="font-semibold text-violet-600" x-text="selectedFiles.length"></span> 个文件
+        </p>
+      </div>
+
+      <div class="px-6 py-4">
+        <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">选择标签 <span class="text-red-500">*</span></label>
+        <div class="space-y-1.5">
+          <template x-for="tag in kbTags" :key="tag.id">
+            <label class="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                   :class="batchSelectedTags.includes(tag.id) ? 'border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/20' : ''">
+              <input type="checkbox" :checked="batchSelectedTags.includes(tag.id)"
+                     @change="toggleBatchTag(tag.id)"
+                     class="w-4 h-4 rounded border-slate-300 text-violet-500 focus:ring-violet-500">
+              <span class="text-sm" x-text="tag.name"></span>
+            </label>
+          </template>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
+        <button @click="showBatchKbModal = false"
+                class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+          取消
+        </button>
+        <button @click="batchAddToKb(); showBatchKbModal = false"
+                :disabled="batchSelectedTags.length === 0"
+                :class="batchSelectedTags.length > 0 ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+          加入知识库
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Toast 通知 ========== -->
+  <div x-show="toast.show"
+       x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+       x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-2"
+       class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2"
+       :class="toast.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300' :
+               'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'"
+       x-cloak>
+    <span class="material-symbols-outlined text-base"
+          x-text="toast.type === 'success' ? 'check_circle' : 'error'"></span>
+    <span x-text="toast.message"></span>
+  </div>
+
+  <script>
+    function kbFileManager() {
+      return {
+        // ===== 视图状态 =====
+        activeView: 'files', // 'files' | 'knowledge' | 'trash'
+        currentFolder: null,
+        selectedFiles: [],
+        selectedKbFiles: [],
+
+        // ===== 知识库状态 =====
+        kbSearch: '',
+        kbFilterTag: null,
+        kbFilterStatus: '',
+        kbDetailFile: null,
+
+        // ===== 弹窗状态 =====
+        showTagManageModal: false,
+        showBatchKbModal: false,
+        batchSelectedTags: [],
+        newTagName: '',
+
+        // ===== 右键菜单 =====
+        contextMenu: {
+          show: false,
+          x: 0,
+          y: 0,
+          file: null,
+          showKbSub: false,
+          selectedTags: [],
+        },
+
+        // ===== Toast =====
+        toast: { show: false, message: '', type: 'success' },
+
+        // ===== 管理员标签（预定义） =====
+        kbTags: [
+          { id: 1, name: '产品技术' },
+          { id: 2, name: '公司制度' },
+          { id: 3, name: '项目案例' },
+          { id: 4, name: '培训材料' },
+          { id: 5, name: '销售工具' },
+        ],
+
+        // ===== 文件夹树 =====
+        folderTree: [
+          { id: 'tech', name: '技术文档', children: [
+            { id: 'tech-install', name: '安装手册' },
+            { id: 'tech-spec', name: '技术规格' },
+          ]},
+          { id: 'sales', name: '销售资料', children: [] },
+          { id: 'admin-docs', name: '行政制度', children: [] },
+          { id: 'meetings', name: '会议纪要', children: [] },
+        ],
+
+        // ===== 模拟文件数据 =====
+        allFiles: [
+          // 根目录文件
+          { id: 1, name: 'XX产品安装手册 v3.2.pdf', folder: null, type: 'pdf', size: '1.2 MB', date: '2026-02-10',
+            kb_tags: [1], kb_status: 'ready', kb_added_at: '2026-02-10', chunks: 12, folder_path: '我的文件/' },
+          { id: 2, name: 'XX产品技术规格书.docx', folder: null, type: 'docx', size: '856 KB', date: '2026-02-08',
+            kb_tags: [1], kb_status: 'ready', kb_added_at: '2026-02-08', chunks: 8, folder_path: '我的文件/' },
+          { id: 3, name: '差旅报销管理办法 v2.1.pdf', folder: null, type: 'pdf', size: '320 KB', date: '2026-01-15',
+            kb_tags: [2], kb_status: 'ready', kb_added_at: '2026-01-20', chunks: 6, folder_path: '我的文件/' },
+          { id: 4, name: '季度工作总结.docx', folder: null, type: 'docx', size: '45 KB', date: '2026-02-12',
+            kb_tags: [], kb_status: null, kb_added_at: null, chunks: null, folder_path: '我的文件/' },
+          { id: 5, name: '产品FAQ汇总.xlsx', folder: null, type: 'xlsx', size: '234 KB', date: '2026-02-12',
+            kb_tags: [1, 5], kb_status: 'processing', kb_added_at: '2026-02-12', chunks: null, progress: 65, folder_path: '我的文件/' },
+          { id: 6, name: '公司制度汇编2025.pdf', folder: null, type: 'pdf', size: '2.1 MB', date: '2025-12-01',
+            kb_tags: [2], kb_status: 'ready', kb_added_at: '2025-12-05', chunks: 28, folder_path: '我的文件/' },
+          { id: 7, name: '个人笔记.txt', folder: null, type: 'txt', size: '3 KB', date: '2026-02-14',
+            kb_tags: [], kb_status: null, kb_added_at: null, chunks: null, folder_path: '我的文件/' },
+
+          // 技术文档文件夹
+          { id: 8, name: '安装培训PPT.pptx', folder: 'tech', type: 'pptx', size: '5.6 MB', date: '2026-02-07',
+            kb_tags: [1, 4], kb_status: 'error', kb_added_at: '2026-02-07', chunks: null, error_msg: '文件格式暂不支持向量化', folder_path: '技术文档/' },
+          { id: 9, name: '产品对比分析报告.docx', folder: 'tech', type: 'docx', size: '180 KB', date: '2026-02-05',
+            kb_tags: [1, 3], kb_status: 'ready', kb_added_at: '2026-02-06', chunks: 6, folder_path: '技术文档/' },
+
+          // 销售资料文件夹
+          { id: 10, name: '报价政策说明 v4.pdf', folder: 'sales', type: 'pdf', size: '890 KB', date: '2026-01-28',
+            kb_tags: [5], kb_status: 'queued', kb_added_at: '2026-02-14', chunks: null, folder_path: '销售资料/' },
+          { id: 11, name: '客户案例-A公司.docx', folder: 'sales', type: 'docx', size: '1.5 MB', date: '2026-02-01',
+            kb_tags: [3, 5], kb_status: 'ready', kb_added_at: '2026-02-02', chunks: 15, folder_path: '销售资料/' },
+
+          // 行政制度文件夹
+          { id: 12, name: '员工手册2026.pdf', folder: 'admin-docs', type: 'pdf', size: '3.2 MB', date: '2026-01-01',
+            kb_tags: [2], kb_status: 'ready', kb_added_at: '2026-01-05', chunks: 42, folder_path: '行政制度/' },
+        ],
+
+        // ===== 计算属性 =====
+        get currentFolders() {
+          if (this.currentFolder) return [];
+          return this.folderTree;
+        },
+
+        get currentFiles() {
+          return this.allFiles.filter(f => f.folder === this.currentFolder);
+        },
+
+        get kbFiles() {
+          return this.allFiles.filter(f => f.kb_tags && f.kb_tags.length > 0);
+        },
+
+        get filteredKbFiles() {
+          let files = this.kbFiles;
+          if (this.kbFilterTag) {
+            files = files.filter(f => f.kb_tags.includes(this.kbFilterTag));
+          }
+          if (this.kbFilterStatus) {
+            files = files.filter(f => f.kb_status === this.kbFilterStatus);
+          }
+          if (this.kbSearch.trim()) {
+            const q = this.kbSearch.trim().toLowerCase();
+            files = files.filter(f => f.name.toLowerCase().includes(q));
+          }
+          return files;
+        },
+
+        // ===== 方法 =====
+        getFolderName(id) {
+          for (const f of this.folderTree) {
+            if (f.id === id) return f.name;
+            if (f.children) {
+              for (const c of f.children) {
+                if (c.id === id) return c.name;
+              }
+            }
+          }
+          return '';
+        },
+
+        getTagName(id) {
+          const tag = this.kbTags.find(t => t.id === id);
+          return tag ? tag.name : '';
+        },
+
+        getTagCount(tagId) {
+          return this.allFiles.filter(f => f.kb_tags && f.kb_tags.includes(tagId)).length;
+        },
+
+        getFileIcon(file) {
+          const t = file.type;
+          if (t === 'pdf') return 'picture_as_pdf';
+          if (t === 'docx' || t === 'doc') return 'description';
+          if (t === 'xlsx' || t === 'xls') return 'table_chart';
+          if (t === 'pptx' || t === 'ppt') return 'slideshow';
+          if (t === 'txt' || t === 'md') return 'article';
+          return 'draft';
+        },
+
+        getFileIconClass(file) {
+          const t = file.type;
+          if (t === 'pdf') return 'text-red-500';
+          if (t === 'docx' || t === 'doc') return 'text-blue-500';
+          if (t === 'xlsx' || t === 'xls') return 'text-green-500';
+          if (t === 'pptx' || t === 'ppt') return 'text-orange-500';
+          return 'text-slate-400';
+        },
+
+        toggleSelect(fileId) {
+          const idx = this.selectedFiles.indexOf(fileId);
+          if (idx >= 0) this.selectedFiles.splice(idx, 1);
+          else this.selectedFiles.push(fileId);
+        },
+
+        toggleSelectAll(e) {
+          if (e.target.checked) {
+            this.selectedFiles = this.currentFiles.map(f => f.id);
+          } else {
+            this.selectedFiles = [];
+          }
+        },
+
+        toggleSelectKb(fileId) {
+          const idx = this.selectedKbFiles.indexOf(fileId);
+          if (idx >= 0) this.selectedKbFiles.splice(idx, 1);
+          else this.selectedKbFiles.push(fileId);
+        },
+
+        toggleSelectAllKb(e) {
+          if (e.target.checked) {
+            this.selectedKbFiles = this.filteredKbFiles.map(f => f.id);
+          } else {
+            this.selectedKbFiles = [];
+          }
+        },
+
+        // 右键菜单
+        showContextMenu(e, file) {
+          this.contextMenu.show = true;
+          this.contextMenu.x = Math.min(e.clientX, window.innerWidth - 200);
+          this.contextMenu.y = Math.min(e.clientY, window.innerHeight - 300);
+          this.contextMenu.file = file;
+          this.contextMenu.showKbSub = false;
+          this.contextMenu.selectedTags = file.kb_tags ? [...file.kb_tags] : [];
+        },
+
+        toggleContextTag(tagId) {
+          const idx = this.contextMenu.selectedTags.indexOf(tagId);
+          if (idx >= 0) this.contextMenu.selectedTags.splice(idx, 1);
+          else this.contextMenu.selectedTags.push(tagId);
+        },
+
+        // 加入知识库
+        addToKb() {
+          if (!this.contextMenu.file || this.contextMenu.selectedTags.length === 0) return;
+          const file = this.contextMenu.file;
+          file.kb_tags = [...this.contextMenu.selectedTags];
+          if (!file.kb_status) {
+            file.kb_status = 'queued';
+            file.kb_added_at = new Date().toISOString().split('T')[0];
+          }
+          this.showToast('success', `"${file.name}" 已加入知识库`);
+        },
+
+        removeFromKb(file) {
+          file.kb_tags = [];
+          file.kb_status = null;
+          file.kb_added_at = null;
+          file.chunks = null;
+          this.showToast('success', `"${file.name}" 已从知识库移除`);
+        },
+
+        // 批量加入
+        toggleBatchTag(tagId) {
+          const idx = this.batchSelectedTags.indexOf(tagId);
+          if (idx >= 0) this.batchSelectedTags.splice(idx, 1);
+          else this.batchSelectedTags.push(tagId);
+        },
+
+        batchAddToKb() {
+          const count = this.selectedFiles.length;
+          this.selectedFiles.forEach(fileId => {
+            const file = this.allFiles.find(f => f.id === fileId);
+            if (file) {
+              this.batchSelectedTags.forEach(tagId => {
+                if (!file.kb_tags.includes(tagId)) file.kb_tags.push(tagId);
+              });
+              if (!file.kb_status) {
+                file.kb_status = 'queued';
+                file.kb_added_at = new Date().toISOString().split('T')[0];
+              }
+            }
+          });
+          this.selectedFiles = [];
+          this.batchSelectedTags = [];
+          this.showToast('success', `${count} 个文件已加入知识库`);
+        },
+
+        // 知识库详情
+        openKbDetail(file) {
+          this.kbDetailFile = file;
+        },
+
+        // 标签管理
+        addTag() {
+          const name = this.newTagName.trim();
+          if (!name) return;
+          const maxId = Math.max(...this.kbTags.map(t => t.id), 0);
+          this.kbTags.push({ id: maxId + 1, name });
+          this.newTagName = '';
+          this.showToast('success', `标签"${name}"已创建`);
+        },
+
+        // Toast
+        showToast(type, message) {
+          this.toast = { show: true, type, message };
+          setTimeout(() => { this.toast.show = false; }, 2500);
+        },
+      };
+    }
+  </script>
+</body>
+</html>

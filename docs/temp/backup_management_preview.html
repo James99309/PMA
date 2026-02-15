@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMA 数据库备份管理 预览</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#137fec',
+            'background-light': '#faf8f6',
+            'background-dark': '#1a1816',
+          },
+          fontFamily: {
+            display: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+    [x-cloak] { display: none !important; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+    .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+    /* 固定头部布局 */
+    main.flex-1.overflow-y-auto { overflow-y: hidden !important; }
+
+    /* 滚动条美化 */
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .dark .custom-scroll::-webkit-scrollbar-thumb { background: #475569; }
+
+    /* 进度条动画 */
+    @keyframes progress-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+    .progress-pulse { animation: progress-pulse 1.5s ease-in-out infinite; }
+
+    /* 备份行悬停 */
+    .backup-row { transition: background-color 0.15s ease; }
+  </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white"
+      x-data="backupManager()" x-cloak>
+
+  <!-- ========== 顶部导航栏 ========== -->
+  <header class="fixed top-0 left-0 right-0 h-14 bg-background-light dark:bg-black border-b border-slate-200 dark:border-slate-800 z-30 flex items-center px-4 lg:px-6">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+        <span class="material-symbols-outlined fill text-white text-base">check</span>
+      </div>
+      <span class="font-semibold text-sm hidden sm:inline">PMA</span>
+      <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-600 dark:bg-red-900/50 dark:text-red-300">CN</span>
+    </div>
+    <div class="flex-1"></div>
+    <!-- 暗色模式切换 -->
+    <button @click="document.documentElement.classList.toggle('dark')"
+            class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+      <span class="material-symbols-outlined text-xl text-slate-600 dark:text-slate-300">dark_mode</span>
+    </button>
+    <div class="ml-3 w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+      <span class="text-xs font-medium text-primary">张</span>
+    </div>
+  </header>
+
+  <div class="flex h-screen pt-14">
+
+    <!-- ========== 左侧侧边栏 ========== -->
+    <aside class="hidden lg:flex flex-col w-56 bg-slate-50 dark:bg-zinc-900 border-r border-slate-200 dark:border-slate-800 flex-shrink-0">
+      <nav class="flex-1 overflow-y-auto py-4 px-3 custom-scroll">
+        <div class="space-y-1">
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <span class="material-symbols-outlined text-lg">dashboard</span>
+            仪表盘
+          </a>
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <span class="material-symbols-outlined text-lg">folder_open</span>
+            文件管理
+          </a>
+        </div>
+
+        <!-- 业务管理组 -->
+        <div class="mt-4 mb-2 px-3">
+          <span class="text-[10px] font-semibold tracking-wider text-slate-400 dark:text-slate-500 uppercase">业务管理</span>
+        </div>
+        <div class="space-y-1">
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <span class="material-symbols-outlined text-lg">business</span>
+            客户管理
+          </a>
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <span class="material-symbols-outlined text-lg">request_quote</span>
+            报价管理
+          </a>
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <span class="material-symbols-outlined text-lg">assignment</span>
+            项目管理
+          </a>
+        </div>
+
+        <!-- 系统管理组 -->
+        <div class="mt-4 mb-2 px-3">
+          <span class="text-[10px] font-semibold tracking-wider text-slate-400 dark:text-slate-500 uppercase">系统管理</span>
+        </div>
+        <div class="space-y-1">
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm bg-primary/10 text-primary font-medium">
+            <span class="material-symbols-outlined text-lg">backup</span>
+            数据库备份
+          </a>
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <span class="material-symbols-outlined text-lg">group</span>
+            用户管理
+          </a>
+          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <span class="material-symbols-outlined text-lg">settings</span>
+            系统设置
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- ========== 主内容区 ========== -->
+    <main class="flex-1 overflow-y-auto flex flex-col h-full overflow-hidden">
+
+      <!-- 固定头部 -->
+      <div class="flex-shrink-0 px-6 lg:px-8 pt-6 lg:pt-8 pb-4 bg-background-light dark:bg-black">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h1 class="text-2xl font-bold text-slate-900 dark:text-white">数据库备份管理</h1>
+          <div class="flex flex-wrap items-center gap-2">
+            <button @click="createBackup()"
+                    :disabled="isBackingUp"
+                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              <span class="material-symbols-outlined text-lg">backup</span>
+              立即备份
+            </button>
+            <button @click="showCleanupConfirm = true"
+                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors">
+              <span class="material-symbols-outlined text-lg">auto_delete</span>
+              清理旧备份
+            </button>
+            <button @click="location.reload()"
+                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium transition-colors">
+              <span class="material-symbols-outlined text-lg">refresh</span>
+              刷新
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 可滚动内容区 -->
+      <div class="flex-1 overflow-y-auto px-6 lg:px-8 pb-8 custom-scroll">
+
+        <!-- ====== 统计卡片 ====== -->
+        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4 mt-2 mb-4 sm:mb-6">
+          <!-- 备份总数 -->
+          <div class="p-3 sm:p-5 rounded-xl shadow-sm border bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+            <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <span class="material-symbols-outlined text-lg sm:text-2xl text-primary">backup</span>
+              </div>
+              <h3 class="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 line-clamp-1">备份总数</h3>
+            </div>
+            <p class="text-xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+              <span x-text="backups.length">42</span>
+              <span class="text-xs sm:text-base font-normal text-slate-500 dark:text-slate-400 ml-1">个</span>
+            </p>
+          </div>
+
+          <!-- 最后备份 -->
+          <div class="p-3 sm:p-5 rounded-xl shadow-sm border bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800">
+            <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/50">
+                <span class="material-symbols-outlined text-lg sm:text-2xl text-sky-600 dark:text-sky-400">schedule</span>
+              </div>
+              <h3 class="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 line-clamp-1">最后备份</h3>
+            </div>
+            <p class="text-xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+              2小时前
+            </p>
+          </div>
+
+          <!-- 存储使用 -->
+          <div class="p-3 sm:p-5 rounded-xl shadow-sm border bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
+            <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
+                <span class="material-symbols-outlined text-lg sm:text-2xl text-amber-600 dark:text-amber-400">hard_drive_2</span>
+              </div>
+              <h3 class="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 line-clamp-1">存储使用</h3>
+            </div>
+            <p class="text-xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+              349
+              <span class="text-xs sm:text-base font-normal text-slate-500 dark:text-slate-400 ml-1">MB</span>
+            </p>
+          </div>
+
+          <!-- 下次备份 -->
+          <div class="p-3 sm:p-5 rounded-xl shadow-sm border bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
+            <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50">
+                <span class="material-symbols-outlined text-lg sm:text-2xl text-emerald-600 dark:text-emerald-400">event</span>
+              </div>
+              <h3 class="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 line-clamp-1">下次备份</h3>
+            </div>
+            <p class="text-xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+              03:00
+              <span class="text-xs sm:text-base font-normal text-slate-500 dark:text-slate-400 ml-1">明日</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- ====== 备份配置信息卡片 ====== -->
+        <div class="p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 mb-4 sm:mb-6">
+          <div class="flex items-center justify-between mb-3 sm:mb-4">
+            <h3 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">备份配置</h3>
+            <!-- 健康状态指示 -->
+            <div class="flex items-center gap-1.5">
+              <span class="relative flex h-2.5 w-2.5">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span class="text-sm text-emerald-600 dark:text-emerald-400 font-medium">健康</span>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+            <!-- 左列 -->
+            <div class="flex items-start gap-3">
+              <span class="material-symbols-outlined text-base text-slate-500 dark:text-slate-400 mt-0.5">database</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-slate-500 dark:text-slate-400 text-sm">数据库类型</p>
+                <p class="text-slate-800 dark:text-slate-200 font-medium">SP8D (pma_synology)</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="material-symbols-outlined text-base text-slate-500 dark:text-slate-400 mt-0.5">folder</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-slate-500 dark:text-slate-400 text-sm">存储位置</p>
+                <p class="text-slate-800 dark:text-slate-200 font-medium">NAS 本地 (cloud_db_backups/)</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="material-symbols-outlined text-base text-slate-500 dark:text-slate-400 mt-0.5">timer</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-slate-500 dark:text-slate-400 text-sm">保留策略</p>
+                <p class="text-slate-800 dark:text-slate-200 font-medium">30 天</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <span class="material-symbols-outlined text-base text-slate-500 dark:text-slate-400 mt-0.5">update</span>
+              <div class="flex-1 min-w-0">
+                <p class="text-slate-500 dark:text-slate-400 text-sm">自动备份</p>
+                <div class="flex items-center gap-2 mt-0.5">
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">已启用</span>
+                  <span class="text-slate-500 dark:text-slate-400 text-sm">每日 03:00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ====== 备份文件列表 ====== -->
+        <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+          <!-- 表头 -->
+          <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <h3 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <span class="material-symbols-outlined text-lg text-slate-500">description</span>
+              备份文件列表
+            </h3>
+            <span class="text-sm text-slate-500 dark:text-slate-400" x-text="backups.length + ' 个文件'">42 个文件</span>
+          </div>
+
+          <!-- 表格 -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                  <th class="text-left px-4 sm:px-6 py-3 font-medium text-slate-600 dark:text-slate-400">文件名</th>
+                  <th class="text-left px-3 py-3 font-medium text-slate-600 dark:text-slate-400 hidden md:table-cell">数据库</th>
+                  <th class="text-right px-3 py-3 font-medium text-slate-600 dark:text-slate-400">大小</th>
+                  <th class="text-left px-3 py-3 font-medium text-slate-600 dark:text-slate-400 hidden sm:table-cell">备份时间</th>
+                  <th class="text-left px-3 py-3 font-medium text-slate-600 dark:text-slate-400 hidden lg:table-cell">年龄</th>
+                  <th class="text-center px-4 sm:px-6 py-3 font-medium text-slate-600 dark:text-slate-400">操作</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                <template x-for="(backup, index) in backups" :key="backup.filename">
+                  <tr class="backup-row hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                    <!-- 文件名 -->
+                    <td class="px-4 sm:px-6 py-3">
+                      <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-base text-slate-400" x-text="backup.isAuto ? 'schedule' : 'touch_app'"
+                              :title="backup.isAuto ? '自动备份' : '手动备份'"></span>
+                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-xs" x-text="backup.filename"></span>
+                      </div>
+                    </td>
+                    <!-- 数据库类型徽章 -->
+                    <td class="px-3 py-3 hidden md:table-cell">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                            :class="backup.dbType === 'SP8D' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' : backup.dbType === 'OVS' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'"
+                            x-text="backup.dbType"></span>
+                    </td>
+                    <!-- 大小 -->
+                    <td class="px-3 py-3 text-right">
+                      <span class="text-slate-600 dark:text-slate-400 tabular-nums" x-text="formatSize(backup.size)"></span>
+                    </td>
+                    <!-- 备份时间 -->
+                    <td class="px-3 py-3 hidden sm:table-cell">
+                      <span class="text-slate-600 dark:text-slate-400" x-text="backup.time"></span>
+                    </td>
+                    <!-- 年龄 -->
+                    <td class="px-3 py-3 hidden lg:table-cell">
+                      <span class="text-slate-500 dark:text-slate-400" x-text="backup.age"></span>
+                    </td>
+                    <!-- 操作 -->
+                    <td class="px-4 sm:px-6 py-3">
+                      <div class="flex items-center justify-center gap-1">
+                        <button @click="downloadBackup(backup)"
+                                class="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition-colors"
+                                title="下载">
+                          <span class="material-symbols-outlined text-lg">download</span>
+                        </button>
+                        <button @click="confirmDelete(backup)"
+                                class="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                title="删除">
+                          <span class="material-symbols-outlined text-lg">delete</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- end scrollable -->
+    </main>
+  </div>
+
+  <!-- ========== 备份进度遮罩 ========== -->
+  <div x-show="isBackingUp" x-transition.opacity
+       class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8 w-full max-w-sm mx-4">
+      <div class="flex flex-col items-center text-center">
+        <!-- 旋转图标 -->
+        <div class="relative mb-5">
+          <div class="w-16 h-16 rounded-full border-4 border-slate-200 dark:border-slate-700"></div>
+          <div class="absolute inset-0 w-16 h-16 rounded-full border-4 border-transparent border-t-primary animate-spin"></div>
+          <span class="material-symbols-outlined text-2xl text-primary absolute inset-0 flex items-center justify-center">backup</span>
+        </div>
+        <!-- 标题 -->
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">正在创建备份</h3>
+        <!-- 进度条 -->
+        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-3 overflow-hidden">
+          <div class="bg-primary h-full rounded-full transition-all duration-500 ease-out progress-pulse"
+               :style="'width: ' + progress + '%'"></div>
+        </div>
+        <!-- 状态文字 -->
+        <p class="text-sm text-slate-500 dark:text-slate-400" x-text="progressMessage">正在连接数据库...</p>
+        <!-- 百分比 -->
+        <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 tabular-nums" x-text="progress + '%'">0%</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 删除确认弹窗 ========== -->
+  <div x-show="showDeleteConfirm" x-transition.opacity
+       class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+       @click.self="showDeleteConfirm = false">
+    <div x-show="showDeleteConfirm" x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+         class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 w-full max-w-sm mx-4">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50">
+          <span class="material-symbols-outlined text-xl text-red-600 dark:text-red-400">warning</span>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">确认删除</h3>
+      </div>
+      <p class="text-sm text-slate-600 dark:text-slate-400 mb-1">您确定要删除备份文件吗？</p>
+      <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mb-4 break-all" x-text="deleteTarget?.filename"></p>
+      <p class="text-xs text-red-500 mb-6">此操作不可恢复。</p>
+      <div class="flex gap-3 justify-end">
+        <button @click="showDeleteConfirm = false"
+                class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium transition-colors">
+          取消
+        </button>
+        <button @click="executeDelete()"
+                class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors">
+          删除
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 清理确认弹窗 ========== -->
+  <div x-show="showCleanupConfirm" x-transition.opacity
+       class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+       @click.self="showCleanupConfirm = false">
+    <div x-show="showCleanupConfirm" x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+         class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 w-full max-w-sm mx-4">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
+          <span class="material-symbols-outlined text-xl text-amber-600 dark:text-amber-400">auto_delete</span>
+        </div>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">清理旧备份</h3>
+      </div>
+      <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">确定要清理超过 <strong class="text-slate-800 dark:text-slate-200">30天</strong> 的旧备份吗？此操作不可恢复。</p>
+      <div class="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 mb-6">
+        <div class="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300">
+          <span class="material-symbols-outlined text-base">info</span>
+          <span>预计将删除 <strong x-text="oldBackupCount">12</strong> 个过期备份文件</span>
+        </div>
+      </div>
+      <div class="flex gap-3 justify-end">
+        <button @click="showCleanupConfirm = false"
+                class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium transition-colors">
+          取消
+        </button>
+        <button @click="executeCleanup()"
+                class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors">
+          确认清理
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 顶部通知 Toast ========== -->
+  <div x-show="showToast" x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0 -translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-4"
+       class="fixed top-20 left-1/2 -translate-x-1/2 z-[60]">
+    <div class="flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg border"
+         :class="toastType === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/80 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-900/80 border-red-200 dark:border-red-700 text-red-700 dark:text-red-300'">
+      <span class="material-symbols-outlined text-lg"
+            x-text="toastType === 'success' ? 'check_circle' : 'error'"></span>
+      <span class="text-sm font-medium" x-text="toastMessage"></span>
+    </div>
+  </div>
+
+  <!-- ========== Alpine.js 脚本 ========== -->
+  <script>
+    function backupManager() {
+      return {
+        // 状态
+        isBackingUp: false,
+        progress: 0,
+        progressMessage: '',
+        showDeleteConfirm: false,
+        showCleanupConfirm: false,
+        deleteTarget: null,
+        oldBackupCount: 12,
+
+        // Toast
+        showToast: false,
+        toastMessage: '',
+        toastType: 'success',
+
+        // 模拟数据
+        backups: [
+          { filename: 'pma_synology_20260215_030000.sql', dbType: 'SP8D', size: 8942156, time: '2026-02-15 03:00', age: '2小时前', isAuto: true },
+          { filename: 'pma_synology_20260214_153022.sql', dbType: 'SP8D', size: 8938420, time: '2026-02-14 15:30', age: '14小时前', isAuto: false },
+          { filename: 'pma_synology_20260214_030000.sql', dbType: 'SP8D', size: 8935102, time: '2026-02-14 03:00', age: '1天前', isAuto: true },
+          { filename: 'pma_synology_20260213_030000.sql', dbType: 'SP8D', size: 8930218, time: '2026-02-13 03:00', age: '2天前', isAuto: true },
+          { filename: 'pma_synology_20260212_162105.sql', dbType: 'SP8D', size: 8928544, time: '2026-02-12 16:21', age: '3天前', isAuto: false },
+          { filename: 'pma_synology_20260212_030000.sql', dbType: 'SP8D', size: 8925710, time: '2026-02-12 03:00', age: '3天前', isAuto: true },
+          { filename: 'pma_synology_20260211_030000.sql', dbType: 'SP8D', size: 8920338, time: '2026-02-11 03:00', age: '4天前', isAuto: true },
+          { filename: 'pma_synology_20260210_030000.sql', dbType: 'SP8D', size: 8916040, time: '2026-02-10 03:00', age: '5天前', isAuto: true },
+          { filename: 'pma_synology_20260209_030000.sql', dbType: 'SP8D', size: 8912884, time: '2026-02-09 03:00', age: '6天前', isAuto: true },
+          { filename: 'pma_synology_20260208_030000.sql', dbType: 'SP8D', size: 8908630, time: '2026-02-08 03:00', age: '7天前', isAuto: true },
+          { filename: 'pma_synology_20260207_142530.sql', dbType: 'SP8D', size: 8905200, time: '2026-02-07 14:25', age: '8天前', isAuto: false },
+          { filename: 'pma_synology_20260207_030000.sql', dbType: 'SP8D', size: 8901088, time: '2026-02-07 03:00', age: '8天前', isAuto: true },
+        ],
+
+        // 格式化文件大小
+        formatSize(bytes) {
+          if (bytes < 1024) return bytes + ' B';
+          if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+          return (bytes / 1048576).toFixed(1) + ' MB';
+        },
+
+        // 显示 Toast
+        toast(message, type = 'success') {
+          this.toastMessage = message;
+          this.toastType = type;
+          this.showToast = true;
+          setTimeout(() => { this.showToast = false; }, 3000);
+        },
+
+        // 模拟创建备份
+        createBackup() {
+          this.isBackingUp = true;
+          this.progress = 0;
+          this.progressMessage = '正在连接数据库...';
+
+          const steps = [
+            { p: 10, msg: '正在连接数据库...' },
+            { p: 25, msg: '正在执行 pg_dump...' },
+            { p: 50, msg: '正在导出表数据...' },
+            { p: 70, msg: '正在导出索引和约束...' },
+            { p: 85, msg: '正在写入文件...' },
+            { p: 95, msg: '正在验证备份完整性...' },
+            { p: 100, msg: '备份完成！' },
+          ];
+
+          let i = 0;
+          const interval = setInterval(() => {
+            if (i < steps.length) {
+              this.progress = steps[i].p;
+              this.progressMessage = steps[i].msg;
+              i++;
+            } else {
+              clearInterval(interval);
+              setTimeout(() => {
+                this.isBackingUp = false;
+                // 添加新备份到列表顶部
+                const now = new Date();
+                const ts = now.getFullYear() +
+                  String(now.getMonth() + 1).padStart(2, '0') +
+                  String(now.getDate()).padStart(2, '0') + '_' +
+                  String(now.getHours()).padStart(2, '0') +
+                  String(now.getMinutes()).padStart(2, '0') +
+                  String(now.getSeconds()).padStart(2, '0');
+                this.backups.unshift({
+                  filename: `pma_synology_${ts}.sql`,
+                  dbType: 'SP8D',
+                  size: 8945000 + Math.floor(Math.random() * 10000),
+                  time: now.toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-'),
+                  age: '刚刚',
+                  isAuto: false,
+                });
+                this.toast('备份创建成功！');
+              }, 500);
+            }
+          }, 800);
+        },
+
+        // 下载备份
+        downloadBackup(backup) {
+          this.toast('开始下载 ' + backup.filename);
+        },
+
+        // 确认删除
+        confirmDelete(backup) {
+          this.deleteTarget = backup;
+          this.showDeleteConfirm = true;
+        },
+
+        // 执行删除
+        executeDelete() {
+          if (this.deleteTarget) {
+            const idx = this.backups.indexOf(this.deleteTarget);
+            if (idx > -1) this.backups.splice(idx, 1);
+            this.toast('已删除 ' + this.deleteTarget.filename);
+          }
+          this.showDeleteConfirm = false;
+          this.deleteTarget = null;
+        },
+
+        // 执行清理
+        executeCleanup() {
+          this.showCleanupConfirm = false;
+          this.toast('已清理 ' + this.oldBackupCount + ' 个过期备份文件');
+        },
+      }
+    }
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,487 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+{% from 'components/tw_info_card.html' import tw_info_card with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('数据库备份管理') }}</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+
+        @keyframes progress-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .progress-pulse { animation: progress-pulse 1.5s ease-in-out infinite; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark" x-data="backupManager()" x-cloak>
+    {% call(slot) render_tw_layout(active_page='backup') %}
+    {% if slot == 'content' %}
+        {% call(page_slot) render_tw_fixed_page() %}
+        {% if page_slot == 'header' %}
+            <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('数据库备份管理') }}</h1>
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" @click="createBackup()" :disabled="isBackingUp"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">backup</span>
+                    <span>{{ _('立即备份') }}</span>
+                </button>
+                <button type="button" @click="showCleanupConfirm = true"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">auto_delete</span>
+                    <span>{{ _('清理旧备份') }}</span>
+                </button>
+                <button type="button" onclick="location.reload()"
+                   class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">refresh</span>
+                    <span class="hidden sm:inline">{{ _('刷新') }}</span>
+                </button>
+            </div>
+        {% elif page_slot == 'content' %}
+
+            {% if error is defined and error %}
+            <div class="mb-4 p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+                <div class="flex items-center gap-2 font-medium mb-1">
+                    <span class="material-symbols-outlined text-base">error</span>
+                    {{ _('加载失败') }}
+                </div>
+                <p>{{ error }}</p>
+            </div>
+            {% endif %}
+
+            <!-- 统计卡片 -->
+            {% call tw_stat_cards_grid(cols=4) %}
+                {{ tw_stat_card(
+                    title=_('备份总数'),
+                    value=stats.total_count,
+                    unit=_('个'),
+                    icon='backup',
+                    variant='default'
+                ) }}
+                {{ tw_stat_card(
+                    title=_('最后备份'),
+                    value=health.message if health.last_backup_time else _('从未备份'),
+                    icon='schedule',
+                    variant='info'
+                ) }}
+                {{ tw_stat_card(
+                    title=_('存储使用'),
+                    value=stats.total_size_mb|round(1),
+                    unit='MB',
+                    icon='hard_drive_2',
+                    variant='warning'
+                ) }}
+                {{ tw_stat_card(
+                    title=_('下次备份'),
+                    value=next_backup,
+                    icon='event',
+                    variant='success'
+                ) }}
+            {% endcall %}
+
+            <!-- 备份配置信息 -->
+            {% set health_badge %}
+                {% if health.is_healthy %}
+                <div class="flex items-center gap-1.5">
+                    <span class="relative flex h-2.5 w-2.5">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span class="text-sm text-emerald-600 dark:text-emerald-400 font-medium">{{ _('健康') }}</span>
+                </div>
+                {% else %}
+                <div class="flex items-center gap-1.5">
+                    <span class="relative flex h-2.5 w-2.5">
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                    </span>
+                    <span class="text-sm text-amber-600 dark:text-amber-400 font-medium">{{ health.message }}</span>
+                </div>
+                {% endif %}
+            {% endset %}
+
+            {% set auto_badge %}
+                {% if settings.auto_backup_enabled %}
+                <div class="flex items-center gap-2 mt-0.5">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">{{ _('已启用') }}</span>
+                    <span class="text-slate-500 dark:text-slate-400 text-sm">{{ _('每日') }} {{ settings.auto_backup_time }}</span>
+                </div>
+                {% else %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">{{ _('未启用') }}</span>
+                {% endif %}
+            {% endset %}
+
+            {{ tw_info_card(
+                title=_('备份配置'),
+                columns=2,
+                items=[
+                    {'icon': 'database', 'label': _('数据库类型'), 'value': settings.db_type|upper ~ ' (' ~ db_display ~ ')'},
+                    {'icon': 'folder', 'label': _('存储位置'), 'value': storage_display if storage_display else (_('NAS 本地') if not is_local else _('本地文件系统'))},
+                    {'icon': 'timer', 'label': _('保留策略'), 'value': settings.retention_days|string ~ ' ' ~ _('天')},
+                    {'icon': 'update', 'label': _('自动备份'), 'badge': auto_badge},
+                ],
+                action_btn={'label': health_badge, 'onclick': ''}
+            ) }}
+
+            <!-- 备份文件列表 -->
+            <div class="mt-4 sm:mt-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+                <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <h3 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-lg text-slate-500">description</span>
+                        {{ _('备份文件列表') }}
+                    </h3>
+                    <span class="text-sm text-slate-500 dark:text-slate-400">{{ backups|length }} {{ _('个文件') }}</span>
+                </div>
+
+                {% if backups|length > 0 %}
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                                <th class="text-left px-4 sm:px-6 py-3 font-medium text-slate-600 dark:text-slate-400">{{ _('文件名') }}</th>
+                                <th class="text-left px-3 py-3 font-medium text-slate-600 dark:text-slate-400 hidden md:table-cell">{{ _('数据库') }}</th>
+                                <th class="text-right px-3 py-3 font-medium text-slate-600 dark:text-slate-400">{{ _('大小') }}</th>
+                                <th class="text-left px-3 py-3 font-medium text-slate-600 dark:text-slate-400 hidden sm:table-cell">{{ _('备份时间') }}</th>
+                                <th class="text-left px-3 py-3 font-medium text-slate-600 dark:text-slate-400 hidden lg:table-cell">{{ _('年龄') }}</th>
+                                <th class="text-center px-4 sm:px-6 py-3 font-medium text-slate-600 dark:text-slate-400">{{ _('操作') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            {% for backup in backups %}
+                            <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                <td class="px-4 sm:px-6 py-3">
+                                    <div class="flex items-center gap-2">
+                                        <span class="material-symbols-outlined text-base text-slate-400">
+                                            {% if 'auto' in backup.filename or backup.filename.endswith('030000.sql.gz') %}schedule{% else %}touch_app{% endif %}
+                                        </span>
+                                        <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[200px] sm:max-w-xs" title="{{ backup.filename }}">{{ backup.filename }}</span>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-3 hidden md:table-cell">
+                                    {% if backup.db_type == 'sp8d' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">SP8D</span>
+                                    {% elif backup.db_type == 'ovs' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">OVS</span>
+                                    {% elif backup.db_type == 'local' %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">LOCAL</span>
+                                    {% else %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400">{{ backup.db_type|upper }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-3 text-right">
+                                    <span class="text-slate-600 dark:text-slate-400 tabular-nums">{{ backup.size_display }}</span>
+                                </td>
+                                <td class="px-3 py-3 hidden sm:table-cell">
+                                    <span class="text-slate-600 dark:text-slate-400">{{ backup.created_display }}</span>
+                                </td>
+                                <td class="px-3 py-3 hidden lg:table-cell">
+                                    <span class="text-slate-500 dark:text-slate-400">{{ backup.age }}</span>
+                                </td>
+                                <td class="px-4 sm:px-6 py-3">
+                                    <div class="flex items-center justify-center gap-1">
+                                        <a href="{{ url_for('backup.download_backup', filename=backup.filename) }}"
+                                           class="p-1.5 rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition-colors"
+                                           title="{{ _('下载') }}">
+                                            <span class="material-symbols-outlined text-lg">download</span>
+                                        </a>
+                                        <button type="button" @click="confirmDelete('{{ backup.filename }}')"
+                                                class="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                title="{{ _('删除') }}">
+                                            <span class="material-symbols-outlined text-lg">delete</span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="px-6 py-12 text-center">
+                    <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-3">cloud_off</span>
+                    <p class="text-slate-500 dark:text-slate-400">{{ _('暂无备份文件') }}</p>
+                    <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">{{ _('点击"立即备份"按钮创建第一个备份') }}</p>
+                </div>
+                {% endif %}
+            </div>
+
+        {% endif %}
+        {% endcall %}
+    {% endif %}
+    {% endcall %}
+
+    <!-- 备份进度遮罩 -->
+    <div x-show="isBackingUp" x-transition.opacity x-cloak
+         class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-8 w-full max-w-sm mx-4">
+            <div class="flex flex-col items-center text-center">
+                <div class="relative mb-5">
+                    <div class="w-16 h-16 rounded-full border-4 border-slate-200 dark:border-slate-700"></div>
+                    <div class="absolute inset-0 w-16 h-16 rounded-full border-4 border-transparent border-t-primary animate-spin"></div>
+                    <span class="material-symbols-outlined text-2xl text-primary absolute inset-0 flex items-center justify-center">backup</span>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">{{ _('正在创建备份') }}</h3>
+                <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 mb-3 overflow-hidden">
+                    <div class="bg-primary h-full rounded-full transition-all duration-500 ease-out progress-pulse"
+                         :style="'width: ' + progress + '%'"></div>
+                </div>
+                <p class="text-sm text-slate-500 dark:text-slate-400" x-text="progressMessage"></p>
+                <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 tabular-nums" x-text="progress + '%'"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div x-show="showDeleteConfirm" x-transition.opacity x-cloak
+         class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+         @click.self="showDeleteConfirm = false">
+        <div x-show="showDeleteConfirm"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+             class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 w-full max-w-sm mx-4">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/50">
+                    <span class="material-symbols-outlined text-xl text-red-600 dark:text-red-400">warning</span>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('确认删除') }}</h3>
+            </div>
+            <p class="text-sm text-slate-600 dark:text-slate-400 mb-1">{{ _('确定要删除备份文件吗？') }}</p>
+            <p class="text-sm font-medium text-slate-800 dark:text-slate-200 mb-4 break-all" x-text="deleteTarget"></p>
+            <p class="text-xs text-red-500 mb-6">{{ _('此操作不可恢复。') }}</p>
+            <div class="flex gap-3 justify-end">
+                <button type="button" @click="showDeleteConfirm = false"
+                        class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button type="button" @click="executeDelete()"
+                        class="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors">
+                    {{ _('删除') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 清理确认弹窗 -->
+    <div x-show="showCleanupConfirm" x-transition.opacity x-cloak
+         class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
+         @click.self="showCleanupConfirm = false">
+        <div x-show="showCleanupConfirm"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+             class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 w-full max-w-sm mx-4">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
+                    <span class="material-symbols-outlined text-xl text-amber-600 dark:text-amber-400">auto_delete</span>
+                </div>
+                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('清理旧备份') }}</h3>
+            </div>
+            <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                {{ _('确定要清理超过') }} <strong class="text-slate-800 dark:text-slate-200">{{ settings.retention_days }} {{ _('天') }}</strong> {{ _('的旧备份吗？此操作不可恢复。') }}
+            </p>
+            <div class="flex gap-3 justify-end">
+                <button type="button" @click="showCleanupConfirm = false"
+                        class="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button type="button" @click="executeCleanup()"
+                        class="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium transition-colors">
+                    {{ _('确认清理') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 顶部通知 Toast -->
+    <div x-show="showToast" x-cloak
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 -translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-4"
+         class="fixed top-20 left-1/2 -translate-x-1/2 z-[60]">
+        <div class="flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg border"
+             :class="toastType === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/80 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-900/80 border-red-200 dark:border-red-700 text-red-700 dark:text-red-300'">
+            <span class="material-symbols-outlined text-lg" x-text="toastType === 'success' ? 'check_circle' : 'error'"></span>
+            <span class="text-sm font-medium" x-text="toastMessage"></span>
+        </div>
+    </div>
+
+    <!-- 布局脚本 -->
+    {{ render_tw_layout_script() }}
+
+    <script>
+    function backupManager() {
+        return {
+            isBackingUp: false,
+            progress: 0,
+            progressMessage: '',
+            taskId: null,
+            pollInterval: null,
+
+            showDeleteConfirm: false,
+            showCleanupConfirm: false,
+            deleteTarget: '',
+
+            showToast: false,
+            toastMessage: '',
+            toastType: 'success',
+
+            toast(message, type = 'success') {
+                this.toastMessage = message;
+                this.toastType = type;
+                this.showToast = true;
+                setTimeout(() => { this.showToast = false; }, 3000);
+            },
+
+            createBackup() {
+                this.isBackingUp = true;
+                this.progress = 0;
+                this.progressMessage = '{{ _("正在启动备份任务...") }}';
+
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+                fetch('{{ url_for("backup.create_backup_now") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({ db_type: 'both' })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        this.taskId = data.task_id;
+                        this.pollStatus();
+                    } else {
+                        this.isBackingUp = false;
+                        this.toast(data.message || '{{ _("备份失败") }}', 'error');
+                    }
+                })
+                .catch(err => {
+                    this.isBackingUp = false;
+                    this.toast('{{ _("网络错误") }}: ' + err.message, 'error');
+                });
+            },
+
+            pollStatus() {
+                if (!this.taskId) { this.isBackingUp = false; return; }
+
+                this.pollInterval = setInterval(() => {
+                    fetch('{{ url_for("backup.get_task_status", task_id="__TASK__") }}'.replace('__TASK__', this.taskId))
+                    .then(r => r.json())
+                    .then(data => {
+                        this.progress = data.progress || 0;
+                        this.progressMessage = data.message || '{{ _("处理中...") }}';
+
+                        if (data.status === 'completed') {
+                            clearInterval(this.pollInterval);
+                            this.isBackingUp = false;
+
+                            if (!data.results || data.results.length === 0) {
+                                this.toast('{{ _("备份失败：未生成备份文件") }}', 'error');
+                                return;
+                            }
+                            this.toast('{{ _("备份完成！") }}');
+                            setTimeout(() => location.reload(), 1000);
+                        } else if (data.status === 'failed') {
+                            clearInterval(this.pollInterval);
+                            this.isBackingUp = false;
+                            this.toast(data.message || '{{ _("备份失败") }}', 'error');
+                        }
+                    })
+                    .catch(() => {});
+                }, 2000);
+            },
+
+            confirmDelete(filename) {
+                this.deleteTarget = filename;
+                this.showDeleteConfirm = true;
+            },
+
+            executeDelete() {
+                this.showDeleteConfirm = false;
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                const url = '{{ url_for("backup.delete_backup", filename="__FILE__") }}'.replace('__FILE__', encodeURIComponent(this.deleteTarget));
+
+                fetch(url, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        this.toast('{{ _("删除成功") }}');
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        this.toast(data.message || '{{ _("删除失败") }}', 'error');
+                    }
+                })
+                .catch(err => this.toast('{{ _("网络错误") }}: ' + err.message, 'error'));
+            },
+
+            executeCleanup() {
+                this.showCleanupConfirm = false;
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+                fetch('{{ url_for("backup.cleanup_old_backups") }}', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({ days: {{ settings.retention_days }} })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        this.toast(data.message);
+                        setTimeout(() => location.reload(), 1000);
+                    } else {
+                        this.toast(data.message || '{{ _("清理失败") }}', 'error');
+                    }
+                })
+                .catch(err => this.toast('{{ _("网络错误") }}: ' + err.message, 'error'));
+            }
+        }
+    }
+    </script>
+</body>
+</html>

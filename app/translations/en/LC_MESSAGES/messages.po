@@ -4329,6 +4329,8 @@ msgid "更新确认徽章状态"
 msgstr "Update confirmation badge status"
 msgid "最后备份"
 msgstr "Last backup"
+msgid "下次备份"
+msgstr "Next Backup"
 msgid "最大"
 msgstr "Maximum"
 msgid "最新"
@@ -8548,3 +8550,51 @@ msgstr "Restore File"
 
 msgid "压缩不活跃文件"
 msgstr "Compress Inactive Files"
+
+msgid "备份配置"
+msgstr "Backup Configuration"
+
+msgid "保留策略"
+msgstr "Retention Policy"
+
+msgid "NAS 本地"
+msgstr "NAS Local"
+
+msgid "本地文件系统"
+msgstr "Local Filesystem"
+
+msgid "每日"
+msgstr "Daily"
+
+msgid "确定要删除备份文件吗？"
+msgstr "Are you sure you want to delete this backup file?"
+
+msgid "确认清理"
+msgstr "Confirm Cleanup"
+
+msgid "正在创建备份"
+msgstr "Creating Backup"
+
+msgid "暂无备份文件"
+msgstr "No backup files"
+
+msgid "的旧备份吗？此操作不可恢复。"
+msgstr " old backups? This action cannot be undone."
+
+msgid "确定要清理超过"
+msgstr "Are you sure you want to clean up backups older than"
+
+msgid "从未备份"
+msgstr "Never backed up"
+
+msgid "点击\"立即备份\"按钮创建第一个备份"
+msgstr "Click the \"Backup Now\" button to create your first backup"
+
+msgid "年龄"
+msgstr "Age"
+
+msgid "自动备份"
+msgstr "Auto Backup"
+
+msgid "健康"
+msgstr "Healthy"
