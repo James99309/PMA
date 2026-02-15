@@ -8387,3 +8387,224 @@ msgstr "Select customer types to export (excluding suppliers):"
 
 msgid "导出CSV"
 msgstr "Export CSV"
+
+#: Chat panel - UI labels
+msgid "聊天"
+msgstr "Chat"
+
+msgid "消息"
+msgstr "Messages"
+
+msgid "新建对话"
+msgstr "New Chat"
+
+msgid "暂无对话"
+msgstr "No conversations"
+
+msgid "群成员"
+msgstr "Members"
+
+msgid "添加成员"
+msgstr "Add Member"
+
+msgid "收件人:"
+msgstr "To:"
+
+msgid "未找到匹配的用户"
+msgstr "No matching users found"
+
+msgid "不 @ 任何人 = 和 AI 助手对话"
+msgstr "No @ = Chat with AI"
+
+msgid "@ 一人 = 私聊"
+msgstr "@ one = Direct message"
+
+msgid "@ 多人 = 群聊"
+msgstr "@ many = Group chat"
+
+msgid "松开以添加文件"
+msgstr "Release to add file"
+
+msgid "选择一个对话开始聊天"
+msgstr "Select a conversation to start chatting"
+
+msgid "或点击左上角"
+msgstr "or click the"
+
+msgid "开始新对话"
+msgstr "Start a new conversation"
+
+msgid "输入 @ 选择同事发起聊天，输入 # 引用客户/项目，或直接输入问题与 AI 助手交流"
+msgstr "Type @ to select colleagues, # to reference clients/projects, or ask AI directly"
+
+msgid "AI 助手"
+msgstr "AI Assistant"
+
+msgid "停止生成"
+msgstr "Stop generating"
+
+msgid "输入"
+msgstr "Type"
+
+msgid "可以让 AI 助手加入对话，输入"
+msgstr "to invite AI Assistant, type"
+
+msgid "引用客户/项目"
+msgstr "to reference clients/projects"
+
+msgid "视频"
+msgstr "Video"
+
+msgid "向 AI 提问"
+msgstr "Ask AI"
+
+msgid "成员"
+msgstr "Members"
+
+msgid "输入姓名搜索..."
+msgstr "Search by name..."
+
+msgid "群主"
+msgstr "Owner"
+
+msgid "最近聊天"
+msgstr "Recent Chats"
+
+msgid "联系人"
+msgstr "Contacts"
+
+msgid "群聊"
+msgstr "Group"
+
+msgid "输入姓名搜索联系人"
+msgstr "Search contacts by name"
+
+msgid "未找到匹配的联系人"
+msgstr "No matching contacts"
+
+msgid "已选择"
+msgstr "Selected"
+
+msgid "请在左侧选择对话"
+msgstr "Select a conversation on the left"
+
+#: Chat panel - i18n JS strings
+msgid "搜索对话..."
+msgstr "Search chats..."
+
+msgid "输入 @ 搜索用户，或直接输入和 AI 对话"
+msgstr "Type @ to search users, or chat with AI directly"
+
+msgid "继续 @ 添加更多成员..."
+msgstr "Continue @ to add more members..."
+
+msgid "输入消息... (# 引用客户/项目, Enter 发送)"
+msgstr "Type a message... (# reference, Enter to send)"
+
+msgid "翻译"
+msgstr "Translation"
+
+msgid "原文"
+msgstr "Original"
+
+msgid "昨天"
+msgstr "Yesterday"
+
+msgid "删除对话"
+msgstr "Delete Chat"
+
+msgid "确定删除此对话？"
+msgstr "Delete this conversation?"
+
+msgid "撤回"
+msgstr "Recall"
+
+msgid "撤回了一条消息"
+msgstr "recalled a message"
+
+msgid "你撤回了一条消息"
+msgstr "You recalled a message"
+
+msgid "撤回失败"
+msgstr "Recall failed"
+
+msgid "已复制"
+msgstr "Copied"
+
+msgid "转发"
+msgstr "Forward"
+
+msgid "转发消息"
+msgstr "Forward Message"
+
+msgid "留言..."
+msgstr "Add a note..."
+
+msgid "转发成功"
+msgstr "Forwarded"
+
+msgid "转发失败"
+msgstr "Forward failed"
+
+msgid "搜索联系人..."
+msgstr "Search contacts..."
+
+msgid "[图片]"
+msgstr "[Image]"
+
+msgid "[视频]"
+msgstr "[Video]"
+
+msgid "[文件]"
+msgstr "[File]"
+
+msgid "引用业务数据"
+msgstr "Reference Business Data"
+
+msgid "搜索客户公司..."
+msgstr "Search companies..."
+
+msgid "搜索项目名称..."
+msgstr "Search projects..."
+
+msgid "← 请先选择客户公司"
+msgstr "← Select a company first"
+
+msgid "← 请先选择项目"
+msgstr "← Select a project first"
+
+msgid "选择联系人发送卡片"
+msgstr "Select contact to send card"
+
+msgid "选择报价单或直接发送项目卡片"
+msgstr "Select quotation or send project card"
+
+msgid "仅发送项目信息"
+msgstr "Send project info only"
+
+msgid "该公司暂无联系人"
+msgstr "No contacts for this company"
+
+msgid "暂无报价单"
+msgstr "No quotations"
+
+msgid "未找到匹配客户"
+msgstr "No matching clients"
+
+msgid "未找到匹配项目"
+msgstr "No matching projects"
+
+msgid "暂无可查看的客户"
+msgstr "No viewable clients"
+
+msgid "暂无可查看的项目"
+msgstr "No viewable projects"
+
+msgid "不包含报价单"
+msgstr "No quotations included"
+
+msgid "[客户卡片]"
+msgstr "[Client Card]"
+
+msgid "[项目卡片]"
+msgstr "[Project Card]"

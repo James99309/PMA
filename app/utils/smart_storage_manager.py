@@ -59,6 +59,7 @@ class SmartStorageManager:
             'rd_product': 'rd_products',
             'meeting': 'meetings',
             'task': 'tasks',
+            'chat': 'chat_files',
         }
 
         self._initialized = True
@@ -261,6 +262,11 @@ class SmartStorageManager:
             'mp3': 'audio/mpeg',
             'm4a': 'audio/mp4',
             'wav': 'audio/wav',
+            'mp4': 'video/mp4',
+            'mov': 'video/quicktime',
+            'avi': 'video/x-msvideo',
+            'webm': 'video/webm',
+            'mkv': 'video/x-matroska',
         }
 
         return content_types.get(ext, 'application/octet-stream')

@@ -72,9 +72,21 @@ class ChatConversation(db.Model):
             ChatMessage.is_deleted == False
         ).order_by(ChatMessage.created_at.desc()).first()
         if last_message:
+            # 附件消息显示类型标签
+            lm_content = last_message.content[:50] if last_message.content else ''
+            if not lm_content and last_message.message_type == 'image':
+                lm_content = '[图片]'
+            elif not lm_content and last_message.message_type == 'video':
+                lm_content = '[视频]'
+            elif not lm_content and last_message.message_type == 'file':
+                lm_content = f'[文件] {last_message.file_name or ""}'
+            elif last_message.message_type == 'customer_card':
+                lm_content = '[客户卡片]'
+            elif last_message.message_type == 'project_card':
+                lm_content = '[项目卡片]'
             result['last_message'] = {
                 'id': last_message.id,
-                'content': last_message.content[:50] if last_message.content else '',
+                'content': lm_content,
                 'sender_id': last_message.sender_id,
                 'created_at': last_message.created_at.isoformat() if last_message.created_at else None,
             }
@@ -119,7 +131,11 @@ class ChatMessage(db.Model):
     id = Column(Integer, primary_key=True)
     conversation_id = Column(Integer, ForeignKey('chat_conversations.id'), nullable=False)
     sender_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # NULL 表示 AI 消息
-    content = Column(Text, nullable=False)
+    content = Column(Text, nullable=True)  # 附件消息时可为空
+    message_type = Column(String(20), default='text')  # text / image / video / file
+    file_url = Column(String(500), nullable=True)       # NAS 存储路径
+    file_name = Column(String(255), nullable=True)      # 原始文件名
+    file_size = Column(Integer, nullable=True)           # 文件大小(bytes)
     source_language = Column(String(10), default='zh')  # 消息原始语言
     is_ai_response = Column(Boolean, default=False)
     ai_model = Column(String(50), nullable=True)  # AI 模型名称
@@ -149,6 +165,10 @@ class ChatMessage(db.Model):
             'sender_id': self.sender_id,
             'sender_name': self.sender.real_name or self.sender.username if self.sender else 'AI',
             'content': self.content,
+            'message_type': self.message_type or 'text',
+            'file_url': self.file_url,
+            'file_name': self.file_name,
+            'file_size': self.file_size,
             'source_language': self.source_language,
             'is_ai_response': self.is_ai_response,
             'ai_model': self.ai_model,
@@ -161,8 +181,26 @@ class ChatMessage(db.Model):
         if viewer_language and viewer_language != self.source_language:
             translation = self.translations.filter_by(target_language=viewer_language).first()
             if translation:
-                result['translated_content'] = translation.translated_content
-                result['translation_language'] = viewer_language
+                result['translation'] = translation.translated_content
+                result['translation_label'] = 'Original (English)' if self.source_language == 'en' else '原文（中文）'
+
+        # 卡片消息解析
+        if self.message_type in ('customer_card', 'project_card'):
+            try:
+                import json
+                result['card_data'] = json.loads(self.content) if self.content else {}
+            except (json.JSONDecodeError, TypeError):
+                result['card_data'] = {}
+            # 项目卡片：翻译阶段 key → 中文标签（兼容旧快照中存储的英文 key）
+            if self.message_type == 'project_card' and result['card_data'].get('current_stage'):
+                try:
+                    from app.utils.dictionary_helpers import project_stage_label
+                    stage = result['card_data']['current_stage']
+                    translated = project_stage_label(stage)
+                    if translated != stage:  # 如果翻译成功（不等于原值），使用翻译结果
+                        result['card_data']['current_stage'] = translated
+                except Exception:
+                    pass
 
         # 回复消息预览
         if self.reply_to_id and self.reply_to:
@@ -171,6 +209,9 @@ class ChatMessage(db.Model):
                 'content': self.reply_to.content[:50] if self.reply_to.content else '',
                 'sender_name': (self.reply_to.sender.real_name or self.reply_to.sender.username
                                 if self.reply_to.sender else 'AI'),
+                'message_type': self.reply_to.message_type or 'text',
+                'file_name': self.reply_to.file_name,
+                'file_url': self.reply_to.file_url,
             }
 
         return result

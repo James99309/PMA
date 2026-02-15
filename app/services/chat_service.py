@@ -67,7 +67,7 @@ def detect_language(text):
 # 2. 获取用户的对话列表
 # ---------------------------------------------------------------------------
 
-def get_user_conversations(user_id):
+def get_user_conversations(user_id, viewer_language=None):
     """
     获取用户的所有对话，按最后活动时间倒序排列。
 
@@ -76,6 +76,7 @@ def get_user_conversations(user_id):
 
     Args:
         user_id: 当前用户 ID
+        viewer_language: 查看者语言偏好，用于最后消息显示翻译
 
     Returns:
         dict: {'success': True, 'data': [...]}
@@ -122,9 +123,37 @@ def get_user_conversations(user_id):
             )
             last_message = None
             if last_msg:
+                # 卡片消息显示类型标签而非 JSON 内容
+                msg_type = last_msg.message_type or 'text'
+                if msg_type == 'customer_card':
+                    lm_content = '[客户卡片]'
+                elif msg_type == 'project_card':
+                    lm_content = '[项目卡片]'
+                elif msg_type == 'image':
+                    lm_content = '[图片]'
+                elif msg_type == 'video':
+                    lm_content = '[视频]'
+                elif msg_type == 'file':
+                    lm_content = f'[文件] {last_msg.file_name or ""}'
+                else:
+                    lm_content = last_msg.content[:50] if last_msg.content else ''
+
+                # 如果查看者语言与消息源语言不同，尝试用翻译内容作为预览
+                display_content = lm_content
+                if (viewer_language and msg_type == 'text'
+                        and last_msg.source_language
+                        and viewer_language != last_msg.source_language):
+                    trans = ChatTranslation.query.filter_by(
+                        message_id=last_msg.id,
+                        target_language=viewer_language
+                    ).first()
+                    if trans and trans.translated_content:
+                        display_content = trans.translated_content[:50]
+
                 last_message = {
                     'id': last_msg.id,
-                    'content': last_msg.content[:50] if last_msg.content else '',
+                    'content': display_content,
+                    'message_type': msg_type,
                     'sender_id': last_msg.sender_id,
                     'sender_name': (
                         last_msg.sender.real_name or last_msg.sender.username
@@ -266,13 +295,34 @@ def create_conversation(creator_id, participant_ids, conv_type=None, name=None):
 
         db.session.commit()
 
+        # 构建参与者列表 & 显示名称（与 get_user_conversations 逻辑一致）
+        all_user_ids = [creator_id] + list(other_ids)
+        participants = []
+        for uid in all_user_ids:
+            u = User.query.get(uid)
+            participants.append({
+                'user_id': uid,
+                'role': 'owner' if uid == creator_id else 'member',
+                'user_name': (u.real_name or u.username) if u else None,
+                'department': u.department if u else None,
+            })
+
+        if conv_type == 'ai':
+            display_name = 'AI 助手'
+        elif conv_type == 'private':
+            other = [p for p in participants if p['user_id'] != creator_id]
+            display_name = other[0]['user_name'] if other else conv.name or '私聊'
+        else:
+            display_name = conv.name or '群聊'
+
         logger.info(f"创建对话成功: id={conv.id}, type={conv_type}, creator={creator_id}")
         return {
             'success': True,
             'data': {
                 'id': conv.id,
                 'type': conv.type,
-                'name': conv.name,
+                'name': display_name,
+                'participants': participants,
                 'created_at': conv.created_at.isoformat() if conv.created_at else None,
             },
             'message': '对话创建成功',
@@ -365,6 +415,7 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
         )
 
         # 增量拉取：只获取 since 时间之后的消息
+        since_dt = None
         if since:
             if isinstance(since, str):
                 since_dt = datetime.fromisoformat(since.replace('Z', '+00:00'))
@@ -383,9 +434,25 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
         data = []
         for msg in messages_list:
             msg_dict = msg.to_dict(viewer_language=viewer_lang)
+            msg_dict['is_mine'] = (msg.sender_id == user_id)
             data.append(msg_dict)
 
-        return {'success': True, 'data': data}
+        # 查询 since 之后被撤回的消息（用于轮询同步）
+        recalled_ids = []
+        if since_dt:
+            recalled = (
+                ChatMessage.query.filter(
+                    ChatMessage.conversation_id == conversation_id,
+                    ChatMessage.is_deleted == True,
+                    ChatMessage.deleted_at != None,
+                    ChatMessage.deleted_at > since_dt,
+                )
+                .with_entities(ChatMessage.id, ChatMessage.sender_id)
+                .all()
+            )
+            recalled_ids = [{'id': r.id, 'sender_id': r.sender_id} for r in recalled]
+
+        return {'success': True, 'data': data, 'recalled_ids': recalled_ids}
 
     except Exception as e:
         logger.error(f"获取消息失败: {e}", exc_info=True)
@@ -396,7 +463,7 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
 # 6. 发送消息
 # ---------------------------------------------------------------------------
 
-def send_message(conversation_id, sender_id, content):
+def send_message(conversation_id, sender_id, content, reply_to_id=None):
     """
     发送消息到对话。
 
@@ -412,6 +479,7 @@ def send_message(conversation_id, sender_id, content):
         conversation_id: 对话 ID
         sender_id: 发送者用户 ID
         content: 消息文本内容
+        reply_to_id: 回复的消息 ID（可选）
 
     Returns:
         dict: {'success': True, 'data': {...}} 或错误信息
@@ -437,6 +505,7 @@ def send_message(conversation_id, sender_id, content):
             sender_id=sender_id,
             content=content.strip(),
             source_language=source_lang,
+            reply_to_id=reply_to_id,
         )
         db.session.add(message)
 
@@ -464,17 +533,30 @@ def send_message(conversation_id, sender_id, content):
 
         # 返回消息数据
         sender = User.query.get(sender_id)
+        data = {
+            'id': message.id,
+            'conversation_id': conversation_id,
+            'sender_id': sender_id,
+            'sender_name': (sender.real_name or sender.username) if sender else None,
+            'content': message.content,
+            'source_language': source_lang,
+            'created_at': message.created_at.isoformat() if message.created_at else None,
+        }
+        # 如果是回复消息，附带被引用消息的预览
+        if reply_to_id and message.reply_to:
+            rt = message.reply_to
+            rt_sender = User.query.get(rt.sender_id)
+            data['reply_to'] = {
+                'id': rt.id,
+                'sender_name': (rt_sender.real_name or rt_sender.username) if rt_sender else None,
+                'content': (rt.content or '')[:50],
+                'message_type': rt.message_type or 'text',
+                'file_name': rt.file_name,
+                'file_url': rt.file_url,
+            }
         return {
             'success': True,
-            'data': {
-                'id': message.id,
-                'conversation_id': conversation_id,
-                'sender_id': sender_id,
-                'sender_name': (sender.real_name or sender.username) if sender else None,
-                'content': message.content,
-                'source_language': source_lang,
-                'created_at': message.created_at.isoformat() if message.created_at else None,
-            },
+            'data': data,
             'message': '消息发送成功',
         }
 
@@ -646,7 +728,11 @@ def get_total_unread_count(user_id):
 
 def add_participants(conversation_id, user_ids, current_user_id):
     """
-    向群聊中添加新成员。
+    向对话中添加新成员。
+
+    - 群聊：直接添加
+    - 私聊：自动升级为群聊后添加
+    - AI 对话：不允许添加
 
     已有成员会自动跳过，不会重复添加。
 
@@ -656,7 +742,7 @@ def add_participants(conversation_id, user_ids, current_user_id):
         current_user_id: 操作者用户 ID
 
     Returns:
-        dict: {'success': True, 'data': {'added': [...], 'skipped': [...]}}
+        dict: {'success': True, 'data': {'added': [...], 'skipped': [...], 'upgraded': bool, 'conv_type': str, 'conv_name': str, 'participants': [...]}}
     """
     try:
         conv = ChatConversation.query.get(conversation_id)
@@ -666,8 +752,8 @@ def add_participants(conversation_id, user_ids, current_user_id):
         if conv.is_deleted:
             return {'success': False, 'message': '对话已被删除'}
 
-        if conv.type != 'group':
-            return {'success': False, 'message': '只能向群聊中添加成员'}
+        if conv.type == 'ai':
+            return {'success': False, 'message': 'AI 对话不能添加成员'}
 
         # 验证操作者是参与者
         operator = ChatParticipant.query.filter_by(
@@ -677,6 +763,7 @@ def add_participants(conversation_id, user_ids, current_user_id):
         if not operator:
             return {'success': False, 'message': '您不是该对话的参与者'}
 
+        upgraded = False
         added = []
         skipped = []
 
@@ -705,13 +792,50 @@ def add_participants(conversation_id, user_ids, current_user_id):
             added.append(uid)
 
         if added:
+            # 私聊自动升级为群聊
+            if conv.type == 'private':
+                conv.type = 'group'
+                upgraded = True
+                # flush 使新成员可查询
+                db.session.flush()
+                # 生成群名：所有成员名字拼接
+                all_members = ChatParticipant.query.filter_by(
+                    conversation_id=conversation_id).all()
+                names = []
+                for m in all_members:
+                    u = User.query.get(m.user_id)
+                    if u:
+                        names.append(u.real_name or u.username)
+                conv.name = '、'.join(names)
+
             conv.updated_at = datetime.now(timezone.utc)
             db.session.commit()
-            logger.info(f"群聊 {conversation_id} 添加成员: {added}")
+            logger.info(f"对话 {conversation_id} 添加成员: {added}" +
+                        (f" (私聊→群聊升级)" if upgraded else ""))
+
+        # 返回最新参与者列表
+        all_members = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id).all()
+        participants = []
+        for m in all_members:
+            u = User.query.get(m.user_id)
+            participants.append({
+                'user_id': m.user_id,
+                'role': m.role,
+                'user_name': (u.real_name or u.username) if u else None,
+                'department': u.department if u else None,
+            })
 
         return {
             'success': True,
-            'data': {'added': added, 'skipped': skipped},
+            'data': {
+                'added': added,
+                'skipped': skipped,
+                'upgraded': upgraded,
+                'conv_type': conv.type,
+                'conv_name': conv.name,
+                'participants': participants,
+            },
             'message': f'成功添加 {len(added)} 名成员',
         }
 
@@ -774,3 +898,263 @@ def ensure_ai_conversation(user_id):
     except Exception as e:
         logger.error(f"确保 AI 对话失败: {e}", exc_info=True)
         return {'success': False, 'message': f'创建 AI 对话失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
+# 12. 删除对话
+# ---------------------------------------------------------------------------
+
+def delete_conversation(conversation_id, user_id):
+    """
+    软删除对话（对所有参与者不可见）。
+
+    Args:
+        conversation_id: 对话 ID
+        user_id: 操作者用户 ID
+
+    Returns:
+        dict: {'success': True/False, 'message': ...}
+    """
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv:
+            return {'success': False, 'message': '对话不存在'}
+
+        # 验证操作者是参与者
+        participant = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, user_id=user_id
+        ).first()
+        if not participant:
+            return {'success': False, 'message': '您不是该对话的参与者'}
+
+        conv.is_deleted = True
+        db.session.commit()
+
+        logger.info(f"对话 {conversation_id} 已被用户 {user_id} 删除")
+        return {'success': True, 'message': '对话已删除'}
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除对话失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'删除对话失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
+# 13. 撤回消息
+# ---------------------------------------------------------------------------
+
+RECALL_TIME_LIMIT = 120  # 秒
+
+
+def recall_message(message_id, user_id):
+    """
+    撤回消息（仅发送者，2 分钟内）。
+
+    设置 is_deleted=True、deleted_at=now()，清空 content 和 file_url。
+
+    Args:
+        message_id: 消息 ID
+        user_id: 操作者用户 ID
+
+    Returns:
+        dict: {'success': True/False, ...}
+    """
+    try:
+        msg = ChatMessage.query.get(message_id)
+        if not msg:
+            return {'success': False, 'message': '消息不存在'}
+        if msg.sender_id != user_id:
+            return {'success': False, 'message': '只能撤回自己发送的消息'}
+        if msg.is_deleted:
+            return {'success': False, 'message': '消息已被撤回'}
+
+        # 时间限制检查
+        now = datetime.now(timezone.utc)
+        created = msg.created_at
+        # 确保时区一致
+        if created.tzinfo is None:
+            from datetime import timezone as tz
+            created = created.replace(tzinfo=tz.utc)
+        elapsed = (now - created).total_seconds()
+        if elapsed > RECALL_TIME_LIMIT:
+            return {'success': False, 'message': '超过 2 分钟，无法撤回'}
+
+        msg.is_deleted = True
+        msg.deleted_at = now
+        msg.content = ''
+        msg.file_url = None
+        db.session.commit()
+
+        logger.info(f"消息 {message_id} 已被用户 {user_id} 撤回")
+        return {'success': True, 'message': '消息已撤回', 'data': {'id': message_id}}
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"撤回消息失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'撤回消息失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
+# 14. 转发消息
+# ---------------------------------------------------------------------------
+
+def forward_message(message_id, sender_id, target_conversation_ids, note=None):
+    """
+    将消息转发到一个或多个对话。
+
+    复制原消息的内容（文本、附件信息）到目标对话。
+    如果有留言(note)，会在转发消息后追加一条文本消息。
+
+    Args:
+        message_id: 要转发的消息 ID
+        sender_id: 转发操作者的用户 ID
+        target_conversation_ids: 目标对话 ID 列表
+        note: 可选的留言文本
+
+    Returns:
+        dict: {'success': True, 'data': {'forwarded_count': N, 'conversation_ids': [...]}}
+    """
+    try:
+        # 验证原消息存在
+        original_msg = ChatMessage.query.get(message_id)
+        if not original_msg:
+            return {'success': False, 'message': '消息不存在'}
+        if original_msg.is_deleted:
+            return {'success': False, 'message': '消息已被撤回，无法转发'}
+
+        # 验证操作者有权查看原消息（是原对话的参与者）
+        src_participant = ChatParticipant.query.filter_by(
+            conversation_id=original_msg.conversation_id,
+            user_id=sender_id,
+        ).first()
+        if not src_participant:
+            return {'success': False, 'message': '您无权转发此消息'}
+
+        forwarded_ids = []
+
+        for conv_id in target_conversation_ids:
+            # 验证操作者是目标对话的参与者
+            participant = ChatParticipant.query.filter_by(
+                conversation_id=conv_id,
+                user_id=sender_id,
+            ).first()
+            if not participant:
+                continue
+
+            # 创建转发消息（复制原消息内容）
+            fwd_msg = ChatMessage(
+                conversation_id=conv_id,
+                sender_id=sender_id,
+                content=original_msg.content,
+                message_type=original_msg.message_type or 'text',
+                file_url=original_msg.file_url,
+                file_name=original_msg.file_name,
+                file_size=original_msg.file_size,
+                source_language=original_msg.source_language or 'zh',
+            )
+            db.session.add(fwd_msg)
+
+            # 如果有留言，追加一条文本消息
+            if note and note.strip():
+                note_msg = ChatMessage(
+                    conversation_id=conv_id,
+                    sender_id=sender_id,
+                    content=note.strip(),
+                    source_language=detect_language(note),
+                )
+                db.session.add(note_msg)
+
+            # 更新目标对话 updated_at 和发送者 last_read_at
+            conv = ChatConversation.query.get(conv_id)
+            if conv:
+                conv.updated_at = datetime.now(timezone.utc)
+            participant.last_read_at = datetime.now(timezone.utc)
+
+            forwarded_ids.append(conv_id)
+
+        db.session.commit()
+
+        logger.info(
+            f"消息 {message_id} 已被用户 {sender_id} 转发到 {len(forwarded_ids)} 个对话: {forwarded_ids}"
+        )
+
+        return {
+            'success': True,
+            'data': {
+                'forwarded_count': len(forwarded_ids),
+                'conversation_ids': forwarded_ids,
+            },
+            'message': f'成功转发到 {len(forwarded_ids)} 个对话',
+        }
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"转发消息失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'转发消息失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
+# 15. 发送卡片消息
+# ---------------------------------------------------------------------------
+
+def send_card_message(conversation_id, sender_id, message_type, card_data):
+    """
+    发送业务实体卡片消息。
+
+    Args:
+        conversation_id: 对话 ID
+        sender_id: 发送者 ID
+        message_type: 'customer_card' 或 'project_card'
+        card_data: dict, 卡片数据（将序列化为 JSON 存入 content）
+
+    Returns:
+        dict: {'success': True, 'data': {...}}
+    """
+    import json
+
+    try:
+        # 验证参与者身份
+        participant = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id,
+            user_id=sender_id,
+        ).first()
+        if not participant:
+            return {'success': False, 'message': '您不是该对话的参与者'}
+
+        # 创建卡片消息
+        message = ChatMessage(
+            conversation_id=conversation_id,
+            sender_id=sender_id,
+            content=json.dumps(card_data, ensure_ascii=False),
+            message_type=message_type,
+            source_language='zh',
+        )
+        db.session.add(message)
+
+        # 更新对话时间戳 + 已读时间
+        conv = ChatConversation.query.get(conversation_id)
+        if conv:
+            conv.updated_at = datetime.now(timezone.utc)
+        participant.last_read_at = datetime.now(timezone.utc)
+
+        db.session.commit()
+
+        # 返回消息数据
+        sender = User.query.get(sender_id)
+        return {
+            'success': True,
+            'data': {
+                'id': message.id,
+                'conversation_id': conversation_id,
+                'sender_id': sender_id,
+                'sender_name': (sender.real_name or sender.username) if sender else None,
+                'content': message.content,
+                'message_type': message_type,
+                'created_at': message.created_at.isoformat() if message.created_at else None,
+            },
+        }
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"发送卡片消息失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'发送卡片消息失败: {str(e)}'}

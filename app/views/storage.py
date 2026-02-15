@@ -25,6 +25,7 @@ BUCKET_MAPPING = {
     'product': 'product-images',
     'rd_product': 'rd-product-images',
     'meeting': 'meeting-recordings',
+    'chat': 'chat-files',
 }
 
 
@@ -56,7 +57,7 @@ def _get_file_with_fallback(file_path: str, bucket_type: str):
         except Exception as e:
             logger.warning(f"NAS 获取文件失败: {file_path}, 错误: {e}")
 
-    # 2. NAS 失败，回退到 Supabase
+    # 2. NAS 失败，回退到 Supabase（仅非本地存储模式）
     if file_content is None:
         try:
             from app.utils.supabase_client import SupabaseStorageClient
@@ -80,6 +81,19 @@ def _get_file_with_fallback(file_path: str, bucket_type: str):
                     logger.info(f"从 Supabase 回退获取文件: {bucket_name}/{supabase_path}")
         except Exception as e:
             logger.warning(f"Supabase 获取文件也失败: {file_path}, 错误: {e}")
+
+    # 3. 本地文件存储回退（supabase_client 本地模式上传的文件）
+    if file_content is None:
+        try:
+            local_root = os.getenv('LOCAL_STORAGE_ROOT', './storage')
+            local_path = os.path.join(local_root, file_path)
+            if os.path.exists(local_path):
+                with open(local_path, 'rb') as f:
+                    file_content = f.read()
+                source = 'local'
+                logger.debug(f"从本地存储读取: {local_path}")
+        except Exception as e:
+            logger.warning(f"本地文件读取失败: {file_path}, 错误: {e}")
 
     return file_content, source
 
@@ -105,8 +119,8 @@ def proxy_nas_file(bucket_type: str):
     # URL 解码
     file_path = unquote(file_path)
 
-    # 安全检查 - 防止路径遍历
-    if '..' in file_path or file_path.startswith('/'):
+    # 安全检查 - 防止路径遍历（检查 ../ 或 /.. 而非单纯 .. ，避免文件名含多点号误判）
+    if '/../' in file_path or file_path.startswith('../') or file_path.endswith('/..') or file_path.startswith('/'):
         abort(400, description="无效的文件路径")
 
     # 智能获取文件（NAS 优先，Supabase 回退）
@@ -118,15 +132,17 @@ def proxy_nas_file(bucket_type: str):
     # 确定 Content-Type
     content_type = _get_content_type(file_path)
 
-    # 获取文件名
+    # 获取文件名（RFC 5987 编码处理中文文件名）
     filename = file_path.split('/')[-1]
+    from urllib.parse import quote
+    encoded_filename = quote(filename)
 
     # 返回文件
     return Response(
         file_content,
         mimetype=content_type,
         headers={
-            'Content-Disposition': f'inline; filename="{filename}"',
+            'Content-Disposition': f"inline; filename*=UTF-8''{encoded_filename}",
             'Cache-Control': 'private, max-age=3600',
             'X-Storage-Source': source or 'unknown'
         }
@@ -147,7 +163,7 @@ def download_nas_file(bucket_type: str):
 
     file_path = unquote(file_path)
 
-    if '..' in file_path or file_path.startswith('/'):
+    if '/../' in file_path or file_path.startswith('../') or file_path.endswith('/..') or file_path.startswith('/'):
         abort(400, description="无效的文件路径")
 
     # 智能获取文件
@@ -158,12 +174,14 @@ def download_nas_file(bucket_type: str):
 
     content_type = _get_content_type(file_path)
     filename = file_path.split('/')[-1]
+    from urllib.parse import quote
+    encoded_filename = quote(filename)
 
     return Response(
         file_content,
         mimetype=content_type,
         headers={
-            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}",
             'Cache-Control': 'no-cache',
             'X-Storage-Source': source or 'unknown'
         }
@@ -220,6 +238,14 @@ def _get_content_type(file_path: str) -> str:
         'm4a': 'audio/mp4',
         'wav': 'audio/wav',
         'ogg': 'audio/ogg',
+        # 视频
+        'mp4': 'video/mp4',
+        'mov': 'video/quicktime',
+        'avi': 'video/x-msvideo',
+        'webm': 'video/webm',
+        'mkv': 'video/x-matroska',
+        'wmv': 'video/x-ms-wmv',
+        'flv': 'video/x-flv',
     }
 
     return content_types.get(ext, 'application/octet-stream')
