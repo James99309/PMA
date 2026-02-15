@@ -36,6 +36,7 @@ Tailwind 统一布局组件
 {% from 'components/tw_message_panel.html' import render_message_button, render_message_panel, render_message_panel_script %}
 {% from 'components/tw_task_modal.html' import render_task_create_button, render_task_create_modal, render_task_detail_modal, render_task_modal_script %}
 {% from 'components/tw_onboarding.html' import render_onboarding_resources, render_onboarding_script %}
+{% from 'components/tw_chat_panel.html' import render_chat_button, render_chat_panel, render_chat_panel_script %}
 
 {% macro render_tw_layout(active_page='dashboard', show_search=true, search_value='', search_placeholder=none) %}
 {# 获取待审批数量 #}
@@ -299,6 +300,10 @@ Tailwind 统一布局组件
     <!-- 消息通知面板 -->
     {{ render_message_panel() }}
 
+    <!-- 聊天面板 -->
+    {{ render_chat_button() }}
+    {{ render_chat_panel() }}
+
     <!-- 任务模态框 -->
     {{ render_task_create_modal() }}
     {{ render_task_detail_modal() }}
@@ -312,6 +317,8 @@ Tailwind 统一布局组件
 <script src="{{ url_for('static', filename='js/common/tw-notification.js') }}"></script>
 {# 消息通知面板脚本 #}
 {{ render_message_panel_script() }}
+{# 聊天面板脚本 #}
+{{ render_chat_panel_script() }}
 {# 任务模态框脚本 #}
 {{ render_task_modal_script(current_user.id) }}
 {# 新手引导资源 #}

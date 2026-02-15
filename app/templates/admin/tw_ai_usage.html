@@ -1,0 +1,517 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('AI 使用量') }} - PMA</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>[x-cloak] { display: none !important; }</style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark font-display text-gray-800 dark:text-gray-200 antialiased">
+
+{% call(slot) render_tw_layout(active_page='ai_usage') %}
+{% if slot == 'content' %}
+
+<div x-data="aiUsageDashboard()" x-init="init()" x-cloak class="p-4 lg:p-6 space-y-6">
+
+    {# ===== 页头 ===== #}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">monitoring</span>
+                {{ _('AI 使用量') }}
+            </h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{{ _('监控 AI 对话的 Token 消耗与费用') }}</p>
+        </div>
+
+        <div class="flex items-center gap-3">
+            {# 月份选择器 #}
+            <select x-model="selectedPeriod" @change="onFilterChange()"
+                class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 text-sm focus:ring-primary focus:border-primary">
+                <template x-for="p in periods" :key="p.value">
+                    <option :value="p.value" x-text="p.label"></option>
+                </template>
+            </select>
+
+            {# 用户选择器 #}
+            <select x-model="selectedUserId" @change="onFilterChange()"
+                class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 text-sm focus:ring-primary focus:border-primary">
+                <option value="">{{ _('全部用户') }}</option>
+                {% for u in users %}
+                <option value="{{ u.id }}">{{ u.real_name or u.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    {# ===== 4 个统计卡片 ===== #}
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {# 总请求数 #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+            <div class="flex items-center gap-3">
+                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 text-xl">forum</span>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ _('总请求数') }}</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white" x-text="formatNumber(summary.total_requests)">-</p>
+                </div>
+            </div>
+        </div>
+
+        {# 总 Token 数 #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+            <div class="flex items-center gap-3">
+                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 text-xl">token</span>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ _('总 Token 数') }}</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white" x-text="formatTokens(summary.total_tokens)">-</p>
+                </div>
+            </div>
+        </div>
+
+        {# 预估费用 #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+            <div class="flex items-center gap-3">
+                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-green-50 dark:bg-green-900/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-xl">payments</span>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ _('预估费用') }}</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white">
+                        $<span x-text="formatCost(summary.estimated_cost)">-</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        {# 活跃用户 #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+            <div class="flex items-center gap-3">
+                <div class="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-xl">group</span>
+                </div>
+                <div class="min-w-0">
+                    <p class="text-xs text-gray-500 dark:text-gray-400 truncate">{{ _('活跃用户') }}</p>
+                    <p class="text-lg font-bold text-gray-900 dark:text-white" x-text="summary.active_users || 0">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ===== 加载状态 ===== #}
+    <template x-if="loading">
+        <div class="flex items-center justify-center py-20">
+            <div class="flex items-center gap-3 text-gray-500 dark:text-gray-400">
+                <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                <span>{{ _('加载中...') }}</span>
+            </div>
+        </div>
+    </template>
+
+    <template x-if="!loading">
+    <div class="space-y-6">
+
+        {# ===== 主图表：每日使用量（堆叠柱状图 + 费用折线） ===== #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">{{ _('每日使用量') }}</h2>
+            <div id="chartDaily" style="height: 320px;"></div>
+        </div>
+
+        {# ===== 两列图表 ===== #}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {# API 请求数趋势 #}
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">{{ _('API 请求数趋势') }}</h2>
+                <div id="chartRequests" style="height: 260px;"></div>
+            </div>
+
+            {# Token 使用分布（按模型） #}
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">{{ _('Token 使用分布（按模型）') }}</h2>
+                <div id="chartModels" style="height: 260px;"></div>
+            </div>
+        </div>
+
+        {# ===== 模型明细表 ===== #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+            <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ _('模型明细') }}</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 dark:bg-gray-700/50">
+                        <tr>
+                            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('模型') }}</th>
+                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('请求数') }}</th>
+                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Prompt Tokens</th>
+                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Completion Tokens</th>
+                            <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('费用') }} (USD)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <template x-if="modelBreakdown.length === 0">
+                            <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ _('暂无数据') }}</td></tr>
+                        </template>
+                        <template x-for="m in modelBreakdown" :key="m.model">
+                            <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white">
+                                    <span class="inline-flex items-center gap-1.5">
+                                        <span class="w-2 h-2 rounded-full bg-primary"></span>
+                                        <span x-text="m.model"></span>
+                                    </span>
+                                </td>
+                                <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-300" x-text="formatNumber(m.request_count)"></td>
+                                <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-300" x-text="formatNumber(m.prompt_tokens)"></td>
+                                <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-300" x-text="formatNumber(m.completion_tokens)"></td>
+                                <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">$<span x-text="formatCost(m.estimated_cost)"></span></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        {# ===== 用户明细表（仅"全部用户"视图） ===== #}
+        <template x-if="!selectedUserId">
+            <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ _('用户明细') }}</h2>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-50 dark:bg-gray-700/50">
+                            <tr>
+                                <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('用户') }}</th>
+                                <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('请求数') }}</th>
+                                <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('总 Token 数') }}</th>
+                                <th class="px-4 py-2.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ _('费用') }} (USD)</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+                            <template x-if="userBreakdown.length === 0">
+                                <tr><td colspan="4" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">{{ _('暂无数据') }}</td></tr>
+                            </template>
+                            <template x-for="u in userBreakdown" :key="u.user_id">
+                                <tr class="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                    <td class="px-4 py-2.5 font-medium text-gray-900 dark:text-white">
+                                        <span class="inline-flex items-center gap-1.5">
+                                            <span class="w-6 h-6 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-xs font-semibold text-primary" x-text="(u.user_name || '?')[0]"></span>
+                                            <span x-text="u.user_name"></span>
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-300" x-text="formatNumber(u.request_count)"></td>
+                                    <td class="px-4 py-2.5 text-right text-gray-600 dark:text-gray-300" x-text="formatTokens(u.total_tokens)"></td>
+                                    <td class="px-4 py-2.5 text-right font-medium text-gray-900 dark:text-white">$<span x-text="formatCost(u.estimated_cost)"></span></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </template>
+
+    </div>
+    </template>
+</div>
+
+{% endif %}
+{% endcall %}
+
+{{ render_tw_layout_script() }}
+
+<script>
+function aiUsageDashboard() {
+    // 生成最近 12 个月选项
+    const now = new Date();
+    const periods = [];
+    for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const y = d.getFullYear();
+        const m = d.getMonth() + 1;
+        periods.push({
+            value: y + '-' + String(m).padStart(2, '0'),
+            label: y + '-' + String(m).padStart(2, '0'),
+            year: y,
+            month: m,
+        });
+    }
+
+    return {
+        loading: true,
+        periods,
+        selectedPeriod: periods[0].value,
+        selectedUserId: '',
+        summary: {},
+        dailyUsage: [],
+        modelBreakdown: [],
+        userBreakdown: [],
+        charts: {},
+
+        async init() {
+            await this.loadData();
+        },
+
+        async loadData() {
+            this.loading = true;
+            try {
+                const p = this.periods.find(x => x.value === this.selectedPeriod) || this.periods[0];
+                let url = `/admin/api/ai-usage-stats?year=${p.year}&month=${p.month}`;
+                if (this.selectedUserId) url += `&user_id=${this.selectedUserId}`;
+
+                const resp = await fetch(url);
+                const json = await resp.json();
+                if (json.success && json.data) {
+                    this.summary = json.data.summary || {};
+                    this.dailyUsage = json.data.daily_usage || [];
+                    this.modelBreakdown = json.data.model_breakdown || [];
+                    this.userBreakdown = json.data.user_breakdown || [];
+                }
+            } catch (e) {
+                console.error('Failed to load AI usage stats:', e);
+            } finally {
+                this.loading = false;
+                this.$nextTick(() => this.initCharts());
+            }
+        },
+
+        onFilterChange() {
+            this.loadData();
+        },
+
+        // ===== 图表 =====
+        initCharts() {
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#9ca3af' : '#6b7280';
+            const gridLineColor = isDark ? 'rgba(75,85,99,0.3)' : 'rgba(229,231,235,0.8)';
+
+            this._initDailyChart(isDark, textColor, gridLineColor);
+            this._initRequestsChart(isDark, textColor, gridLineColor);
+            this._initModelsChart(isDark, textColor);
+        },
+
+        _getChart(id) {
+            const dom = document.getElementById(id);
+            if (!dom) return null;
+            if (this.charts[id]) {
+                this.charts[id].dispose();
+            }
+            const chart = echarts.init(dom, null, { renderer: 'canvas' });
+            this.charts[id] = chart;
+            return chart;
+        },
+
+        _initDailyChart(isDark, textColor, gridLineColor) {
+            const chart = this._getChart('chartDaily');
+            if (!chart) return;
+
+            const days = this.dailyUsage.map(d => d.day.slice(5));  // MM-DD
+            const promptTokens = this.dailyUsage.map(d => d.prompt_tokens);
+            const completionTokens = this.dailyUsage.map(d => d.completion_tokens);
+            const costs = this.dailyUsage.map(d => d.estimated_cost);
+
+            chart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                    formatter(params) {
+                        let tip = params[0].axisValue + '<br/>';
+                        params.forEach(p => {
+                            const val = p.seriesName.includes('费用')
+                                ? '$' + (p.value || 0).toFixed(4)
+                                : (p.value || 0).toLocaleString();
+                            tip += `${p.marker} ${p.seriesName}: ${val}<br/>`;
+                        });
+                        return tip;
+                    }
+                },
+                legend: { top: 0, textStyle: { color: textColor, fontSize: 11 } },
+                grid: { top: 35, right: 60, bottom: 25, left: 60, containLabel: true },
+                xAxis: {
+                    type: 'category',
+                    data: days,
+                    axisLabel: { color: textColor, fontSize: 11 },
+                    axisLine: { lineStyle: { color: gridLineColor } },
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: 'Tokens',
+                        nameTextStyle: { color: textColor, fontSize: 11 },
+                        axisLabel: {
+                            color: textColor, fontSize: 11,
+                            formatter(v) { return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v; }
+                        },
+                        splitLine: { lineStyle: { color: gridLineColor } },
+                    },
+                    {
+                        type: 'value',
+                        name: '费用 (USD)',
+                        nameTextStyle: { color: textColor, fontSize: 11 },
+                        axisLabel: { color: textColor, fontSize: 11, formatter: '${value}' },
+                        splitLine: { show: false },
+                    }
+                ],
+                series: [
+                    {
+                        name: 'Prompt Tokens',
+                        type: 'bar',
+                        stack: 'tokens',
+                        data: promptTokens,
+                        itemStyle: { color: '#3b82f6', borderRadius: [0, 0, 0, 0] },
+                        barMaxWidth: 28,
+                    },
+                    {
+                        name: 'Completion Tokens',
+                        type: 'bar',
+                        stack: 'tokens',
+                        data: completionTokens,
+                        itemStyle: { color: '#06b6d4', borderRadius: [3, 3, 0, 0] },
+                        barMaxWidth: 28,
+                    },
+                    {
+                        name: '预估费用',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: costs,
+                        smooth: true,
+                        symbol: 'circle',
+                        symbolSize: 5,
+                        lineStyle: { color: '#10b981', width: 2 },
+                        itemStyle: { color: '#10b981' },
+                    }
+                ]
+            });
+            window.addEventListener('resize', () => chart.resize());
+        },
+
+        _initRequestsChart(isDark, textColor, gridLineColor) {
+            const chart = this._getChart('chartRequests');
+            if (!chart) return;
+
+            const days = this.dailyUsage.map(d => d.day.slice(5));
+            const counts = this.dailyUsage.map(d => d.request_count);
+
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                grid: { top: 15, right: 15, bottom: 25, left: 45, containLabel: false },
+                xAxis: {
+                    type: 'category',
+                    data: days,
+                    axisLabel: { color: textColor, fontSize: 11 },
+                    axisLine: { lineStyle: { color: gridLineColor } },
+                },
+                yAxis: {
+                    type: 'value',
+                    minInterval: 1,
+                    axisLabel: { color: textColor, fontSize: 11 },
+                    splitLine: { lineStyle: { color: gridLineColor } },
+                },
+                series: [{
+                    type: 'bar',
+                    data: counts,
+                    itemStyle: { color: '#8b5cf6', borderRadius: [3, 3, 0, 0] },
+                    barMaxWidth: 24,
+                }]
+            });
+            window.addEventListener('resize', () => chart.resize());
+        },
+
+        _initModelsChart(isDark, textColor) {
+            const chart = this._getChart('chartModels');
+            if (!chart) return;
+
+            const colors = ['#3b82f6', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+            const data = this.modelBreakdown.map((m, i) => ({
+                name: m.model,
+                value: m.prompt_tokens + m.completion_tokens,
+                itemStyle: { color: colors[i % colors.length] },
+            }));
+
+            chart.setOption({
+                tooltip: {
+                    trigger: 'item',
+                    formatter(p) {
+                        const tokens = (p.value || 0).toLocaleString();
+                        return `${p.marker} ${p.name}<br/>Tokens: ${tokens} (${p.percent}%)`;
+                    }
+                },
+                series: [{
+                    type: 'pie',
+                    radius: ['42%', '70%'],
+                    center: ['50%', '55%'],
+                    avoidLabelOverlap: true,
+                    label: {
+                        color: textColor,
+                        fontSize: 11,
+                        formatter: '{b}\n{d}%',
+                    },
+                    emphasis: {
+                        label: { fontSize: 13, fontWeight: 'bold' },
+                        itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.2)' },
+                    },
+                    data: data.length ? data : [{ name: '暂无数据', value: 1, itemStyle: { color: isDark ? '#374151' : '#e5e7eb' }, label: { color: textColor } }],
+                }]
+            });
+            window.addEventListener('resize', () => chart.resize());
+        },
+
+        // ===== 格式化 =====
+        formatNumber(n) {
+            return (n || 0).toLocaleString();
+        },
+        formatTokens(n) {
+            if (!n) return '0';
+            if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+            if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+            return n.toLocaleString();
+        },
+        formatCost(n) {
+            if (!n) return '0.00';
+            return Number(n).toFixed(4);
+        },
+    };
+}
+</script>
+
+</body>
+</html>

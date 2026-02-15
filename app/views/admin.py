@@ -128,6 +128,31 @@ def refresh_project_activity():
 
     return redirect(url_for('admin.system_settings'))
 
+@admin_bp.route('/ai-usage')
+@login_required
+@admin_required
+def ai_usage_dashboard():
+    """AI 使用量监控仪表板"""
+    from app.models.user import User
+    users = User.query.filter(User._is_active == True).order_by(User.real_name).all()
+    now = datetime.now()
+    return render_template('admin/tw_ai_usage.html', users=users,
+                           current_year=now.year, current_month=now.month)
+
+
+@admin_bp.route('/api/ai-usage-stats')
+@login_required
+@admin_required
+def ai_usage_stats_api():
+    """AI 使用量统计数据 API"""
+    from app.services.ai_usage_stats_service import get_ai_usage_stats
+    year = request.args.get('year', datetime.now().year, type=int)
+    month = request.args.get('month', datetime.now().month, type=int)
+    user_id = request.args.get('user_id', type=int)
+    result = get_ai_usage_stats(year, month, user_id)
+    return jsonify(result)
+
+
 @admin_bp.route('/')
 @admin_required
 def index():

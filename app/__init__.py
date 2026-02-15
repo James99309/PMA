@@ -267,6 +267,7 @@ def create_app(config_class=Config):
         PerformanceFormulaTemplate, RolePerformanceAccess
     )
     from app.models.data_source_config import DataTableConfig, DataFieldConfig, FormulaTemplate
+    from app.models.chat import ChatConversation, ChatParticipant, ChatMessage, ChatTranslation
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp
@@ -805,6 +806,11 @@ def create_app(config_class=Config):
     # 注册任务蓝图
     from app.views.task import task as task_bp
     app.register_blueprint(task_bp)
+
+    # 注册聊天蓝图
+    from app.views.chat import chat as chat_bp
+    app.register_blueprint(chat_bp)
+    csrf.exempt(chat_bp)
 
     # 添加审批相关函数到模板上下文
     from app.context_processors import inject_approval_functions

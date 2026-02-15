@@ -278,6 +278,10 @@ Tailwind 共享导航菜单组件
             <span class="material-symbols-outlined text-base {% if active_page == 'admin' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">settings_applications</span>
             <span class="{% if active_page == 'admin' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('系统参数设置') }}</span>
         </a>
+        <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'ai_usage' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('admin.ai_usage_dashboard') }}">
+            <span class="material-symbols-outlined text-base {% if active_page == 'ai_usage' %}fill text-primary{% else %}text-slate-500 dark:text-slate-400{% endif %}">monitoring</span>
+            <span class="{% if active_page == 'ai_usage' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm">{{ _('AI 使用量') }}</span>
+        </a>
         {% endif %}
         {% if has_permission('version_management', 'view') %}
         <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'version' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('version_management.index') }}">
