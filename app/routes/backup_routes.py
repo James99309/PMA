@@ -6,6 +6,7 @@
 """
 
 from flask import Blueprint, render_template, request, jsonify, send_file, current_app, url_for
+from io import BytesIO
 from flask_login import login_required, current_user
 from app.permissions import permission_required
 from datetime import datetime, timedelta
@@ -95,9 +96,12 @@ def index():
             except:
                 db_display = '未知数据库'
 
+        # 存储位置显示
+        storage_display = storage_info.get('location', '本地文件系统')
+
         env_info = {
             'environment': '本地开发' if Config.IS_LOCAL_ENV else '云端生产',
-            'storage_location': '本地文件系统',
+            'storage_location': storage_display,
             'database': db_display
         }
 
@@ -342,22 +346,35 @@ def get_task_status(task_id):
 @login_required
 @permission_required('user', 'view')
 def download_backup(filename):
-    """下载备份文件（支持包含子目录的路径）"""
+    """下载备份文件（支持本地和 NAS WebDAV）"""
     try:
         from app.services.supabase_backup_service import get_backup_service
 
         backup_service = get_backup_service()
 
-        # 从本地文件系统下载
-        filepath = os.path.join(backup_service.backup_dir, filename)
-        if not os.path.exists(filepath):
-            return jsonify({'success': False, 'message': '文件不存在'}), 404
+        if backup_service.use_nas_storage:
+            # NAS 模式：从 WebDAV 下载到内存，再返回给客户端
+            content = backup_service.download_backup_content(filename)
+            if content is None:
+                return jsonify({'success': False, 'message': '文件不存在或下载失败'}), 404
 
-        return send_file(
-            filepath,
-            as_attachment=True,
-            download_name=filename
-        )
+            return send_file(
+                BytesIO(content),
+                as_attachment=True,
+                download_name=os.path.basename(filename),
+                mimetype='application/gzip'
+            )
+        else:
+            # 本地模式：直接从文件系统下载
+            filepath = os.path.join(backup_service.backup_dir, filename)
+            if not os.path.exists(filepath):
+                return jsonify({'success': False, 'message': '文件不存在'}), 404
+
+            return send_file(
+                filepath,
+                as_attachment=True,
+                download_name=filename
+            )
 
     except Exception as e:
         logger.error(f"下载备份失败: {str(e)}")
@@ -368,20 +385,12 @@ def download_backup(filename):
 @login_required
 @permission_required('user', 'view')
 def delete_backup(filename):
-    """删除备份文件（支持包含子目录的路径）"""
+    """删除备份文件（支持本地和 NAS WebDAV）"""
     try:
         from app.services.supabase_backup_service import get_backup_service
 
-        # 🔍 调试：记录接收到的文件名
-        logger.info(f"🔍 删除路由接收到的 filename: {filename}")
-        logger.info(f"🔍 URL编码后的值: {repr(filename)}")
-
         backup_service = get_backup_service()
-
-        # 🔍 调试：准备调用删除服务
-        logger.info(f"🔍 准备调用 delete_backup({filename})")
         success = backup_service.delete_backup(filename)
-        logger.info(f"🔍 delete_backup 返回结果: {success}")
 
         if success:
             return jsonify({
