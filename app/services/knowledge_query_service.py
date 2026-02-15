@@ -6,15 +6,14 @@
 """
 import os
 import logging
-from typing import List, Generator
+from typing import List, Generator, Optional
 
-from flask_login import current_user
 from sqlalchemy import text as sa_text
 
 from app import db
 from app.models.knowledge import (
-    KnowledgeSpace, KnowledgeDocument, KnowledgeChunk,
-    KnowledgeChatSession, KnowledgeChatMessage
+    KnowledgeTag, KnowledgeDocument, KnowledgeChunk,
+    knowledge_document_tags
 )
 from app.services.knowledge_ai_service import generate_embeddings, chat_completion_stream, chat_completion
 
@@ -32,55 +31,47 @@ SYSTEM_PROMPT = """你是公司内部知识助手。请严格基于下方提供�
 5. 如果多个文档有相关信息，综合后回答并分别引用"""
 
 
-def get_accessible_space_ids(user) -> List[int]:
-    """获取用户可访问的知识空间 ID 列表"""
-    spaces = KnowledgeSpace.query.filter_by(is_active=True).all()
-    accessible = []
+def get_accessible_document_ids(user) -> List[int]:
+    """获取用户可访问的知识文档 ID 列表
 
-    for space in spaces:
-        if space.access_level == 'all':
-            accessible.append(space.id)
-        elif space.access_level == 'admin_only':
-            if getattr(user, 'role', '') in ('admin', 'ceo'):
-                accessible.append(space.id)
-        elif space.access_level == 'role':
-            allowed = space.allowed_roles or []
-            if getattr(user, 'role', '') in allowed:
-                accessible.append(space.id)
-        elif space.access_level == 'department':
-            allowed = space.allowed_departments or []
-            user_dept = getattr(user, 'department', '')
-            if user_dept in allowed:
-                accessible.append(space.id)
+    - admin/ceo: 可访问所有 status='ready' 且未过期的文档
+    - 其他用户: 仅可访问自己添加的 status='ready' 且未过期的文档
+    """
+    query = KnowledgeDocument.query.filter(
+        KnowledgeDocument.status == 'ready',
+        KnowledgeDocument.expired_at.is_(None),
+    )
 
-    return accessible
+    role = getattr(user, 'role', '')
+    if role not in ('admin', 'ceo'):
+        query = query.filter(KnowledgeDocument.added_by == user.id)
+
+    return [doc.id for doc in query.with_entities(KnowledgeDocument.id).all()]
 
 
-def semantic_search(query: str, space_ids: List[int] = None,
+def semantic_search(query: str, tag_ids: Optional[List[int]] = None,
                     user=None, top_k: int = None) -> List[dict]:
     """
     语义搜索：生成问题向量 → pgvector 余弦相似度搜索
 
     Args:
         query: 用户问题
-        space_ids: 限定的知识空间（None=用户可访问的全部）
+        tag_ids: 限定的标签 ID 列表（None=不按标签过滤）
         user: 当前用户（权限过滤）
         top_k: 返回条数
 
     Returns:
-        [{"chunk_id", "content", "score", "doc_id", "doc_title", "space_name", ...}]
+        [{"chunk_id", "content", "score", "doc_id", "doc_title", ...}]
     """
     top_k = top_k or MAX_CONTEXT_CHUNKS
 
-    # 1. 确定可搜索的空间
+    # 1. 确定用户可访问的文档
     if user:
-        accessible = get_accessible_space_ids(user)
-        if space_ids:
-            space_ids = [s for s in space_ids if s in accessible]
-        else:
-            space_ids = accessible
+        accessible_doc_ids = get_accessible_document_ids(user)
+    else:
+        accessible_doc_ids = []
 
-    if not space_ids:
+    if not accessible_doc_ids:
         return []
 
     # 2. 生成问题向量
@@ -94,33 +85,35 @@ def semantic_search(query: str, space_ids: List[int] = None,
         return []
 
     # 3. pgvector 余弦相似度搜索
-    # 使用原生 SQL（pgvector 操作符 <=>）
-    space_ids_str = ','.join(str(s) for s in space_ids)
+    doc_ids_str = ','.join(str(d) for d in accessible_doc_ids)
+
+    # 构建可选的标签过滤
+    tag_join = ''
+    tag_filter = ''
+    if tag_ids:
+        tag_ids_str = ','.join(str(t) for t in tag_ids)
+        tag_join = f'JOIN knowledge_document_tags kdt ON kdt.document_id = kd.id'
+        tag_filter = f'AND kdt.tag_id IN ({tag_ids_str})'
 
     sql = sa_text(f"""
-        SELECT
+        SELECT DISTINCT
             kc.id AS chunk_id,
             kc.content,
             kc.metadata,
             kc.chunk_index,
             kd.id AS doc_id,
             kd.title AS doc_title,
-            kd.is_authoritative,
-            kd.priority_weight,
             kd.file_library_id,
-            ks.name AS space_name,
             1 - (kc.embedding <=> :query_vec) AS similarity
         FROM knowledge_chunks kc
         JOIN knowledge_documents kd ON kd.id = kc.document_id
-        JOIN knowledge_spaces ks ON ks.id = kd.space_id
-        WHERE kd.space_id IN ({space_ids_str})
+        {tag_join}
+        WHERE kd.id IN ({doc_ids_str})
           AND kd.status = 'ready'
           AND kd.expired_at IS NULL
+          {tag_filter}
         ORDER BY
-            (1 - (kc.embedding <=> :query_vec))
-            * kd.priority_weight
-            * CASE WHEN kd.is_authoritative THEN 2.0 ELSE 1.0 END
-            DESC
+            (1 - (kc.embedding <=> :query_vec)) DESC
         LIMIT :top_k
     """)
 
@@ -153,9 +146,7 @@ def semantic_search(query: str, space_ids: List[int] = None,
             'chunk_index': row.chunk_index,
             'doc_id': row.doc_id,
             'doc_title': row.doc_title,
-            'is_authoritative': row.is_authoritative,
             'file_library_id': row.file_library_id,
-            'space_name': row.space_name,
             'score': round(float(row.similarity), 4),
         })
 
@@ -173,8 +164,6 @@ def build_rag_prompt(question: str, chunks: List[dict]) -> list:
     context_parts = []
     for i, chunk in enumerate(chunks, 1):
         source_info = f"[来源{i}: {chunk['doc_title']}]"
-        if chunk.get('space_name'):
-            source_info += f" (知识空间: {chunk['space_name']})"
         context_parts.append(f"{source_info}\n{chunk['content']}")
 
     context = '\n\n---\n\n'.join(context_parts)
@@ -187,10 +176,15 @@ def build_rag_prompt(question: str, chunks: List[dict]) -> list:
     return messages
 
 
-def ask_stream(question: str, user=None, space_ids: List[int] = None,
-               session_id: int = None) -> Generator[str, None, None]:
+def ask_stream(question: str, user=None,
+               tag_ids: Optional[List[int]] = None) -> Generator[str, None, None]:
     """
     流式问答 — SSE 使用
+
+    Args:
+        question: 用户问题
+        user: 当前用户
+        tag_ids: 可选标签过滤
 
     Yields:
         SSE data 格式的 JSON 字符串
@@ -198,7 +192,7 @@ def ask_stream(question: str, user=None, space_ids: List[int] = None,
     import json
 
     # 1. 搜索相关文档
-    chunks = semantic_search(question, space_ids=space_ids, user=user)
+    chunks = semantic_search(question, tag_ids=tag_ids, user=user)
 
     if not chunks:
         yield f"data: {json.dumps({'type': 'content', 'text': '根据现有知识库文档，未找到与您问题相关的信息。请尝试其他关键词或扩大搜索范围。'}, ensure_ascii=False)}\n\n"
@@ -214,7 +208,6 @@ def ask_stream(question: str, user=None, space_ids: List[int] = None,
             'doc_id': c['doc_id'],
             'title': c['doc_title'],
             'score': c['score'],
-            'space_name': c.get('space_name', ''),
             'file_library_id': c.get('file_library_id'),
         }
         for c in chunks
@@ -227,27 +220,26 @@ def ask_stream(question: str, user=None, space_ids: List[int] = None,
             seen.add(s['doc_id'])
             unique_sources.append(s)
 
-    full_answer = ''
     for token in chat_completion_stream(messages):
-        full_answer += token
         yield f"data: {json.dumps({'type': 'content', 'text': token}, ensure_ascii=False)}\n\n"
 
     yield f"data: {json.dumps({'type': 'done', 'sources': unique_sources}, ensure_ascii=False)}\n\n"
 
-    # 4. 保存到会话历史
-    if user and session_id:
-        _save_message(session_id, user.id, question, full_answer, unique_sources)
 
-
-def ask(question: str, user=None, space_ids: List[int] = None,
-        session_id: int = None) -> dict:
+def ask(question: str, user=None,
+        tag_ids: Optional[List[int]] = None) -> dict:
     """
     非流式问答
+
+    Args:
+        question: 用户问题
+        user: 当前用户
+        tag_ids: 可选标签过滤
 
     Returns:
         {"answer": str, "sources": [...], "tokens_used": int}
     """
-    chunks = semantic_search(question, space_ids=space_ids, user=user)
+    chunks = semantic_search(question, tag_ids=tag_ids, user=user)
 
     if not chunks:
         return {
@@ -268,50 +260,11 @@ def ask(question: str, user=None, space_ids: List[int] = None,
                 'doc_id': c['doc_id'],
                 'title': c['doc_title'],
                 'score': c['score'],
-                'space_name': c.get('space_name', ''),
                 'file_library_id': c.get('file_library_id'),
             })
-
-    if user and session_id:
-        _save_message(session_id, user.id, question, answer, sources)
 
     return {
         'answer': answer,
         'sources': sources,
         'tokens_used': tokens_used,
     }
-
-
-def _save_message(session_id: int, user_id: int, question: str,
-                  answer: str, sources: list):
-    """保存问答消息到会话"""
-    try:
-        session = KnowledgeChatSession.query.get(session_id)
-        if not session or session.user_id != user_id:
-            return
-
-        # 用户消息
-        user_msg = KnowledgeChatMessage(
-            session_id=session_id,
-            role='user',
-            content=question,
-        )
-        db.session.add(user_msg)
-
-        # AI 回答
-        ai_msg = KnowledgeChatMessage(
-            session_id=session_id,
-            role='assistant',
-            content=answer,
-            sources=sources,
-        )
-        db.session.add(ai_msg)
-
-        # 更新会话标题（首次提问时）
-        if not session.title:
-            session.title = question[:50] + ('...' if len(question) > 50 else '')
-
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"保存消息失败: {e}")

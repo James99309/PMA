@@ -442,6 +442,11 @@ def create_app(config_class=Config):
     from app.views.version_management import version_management_bp
     app.register_blueprint(version_management_bp)
     
+    # 注册知识库API蓝图
+    from app.views.knowledge import knowledge_bp
+    app.register_blueprint(knowledge_bp)
+    csrf.exempt(knowledge_bp)
+
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
     app.register_blueprint(backup_bp)

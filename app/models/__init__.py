@@ -53,6 +53,8 @@ from app.models.meeting import (
 from app.models.user_points_ledger import UserPointsLedger
 # 文件管理模块
 from app.models.file_manager import FileLibrary, UserFolder, UserFileRef
+# 知识库模块
+from app.models.knowledge import KnowledgeTag, KnowledgeDocument, KnowledgeChunk
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField',
@@ -86,4 +88,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'QuotationConfirmationTask',
            'Task', 'TaskAttachment', 'TaskReply',
            'UserPointsLedger',
-           'FileLibrary', 'UserFolder', 'UserFileRef']
+           'FileLibrary', 'UserFolder', 'UserFileRef',
+           'KnowledgeTag', 'KnowledgeDocument', 'KnowledgeChunk']

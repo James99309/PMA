@@ -52,6 +52,10 @@
         .dark .spreadsheet-preview th, .dark .spreadsheet-preview td { border-color: #475569; }
         .dark .spreadsheet-preview th { background: #334155; }
         @keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(400%); } }
+        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+        .submenu-enter { animation: submenu-in 0.15s ease-out; }
+        @keyframes submenu-in { from { opacity:0; transform: translateX(-4px); } to { opacity:1; transform: translateX(0); } }
     </style>
 </head>
 
@@ -122,6 +126,16 @@
                     {{ _('回收站') }}
                 </button>
 
+                {# 知识库 #}
+                <button @click="openKbView()"
+                        :class="activeView==='knowledge' ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left transition-colors">
+                    <span class="material-symbols-outlined text-lg">auto_stories</span>
+                    {{ _('知识库') }}
+                    <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-semibold"
+                          x-show="kbStats.total > 0" x-text="kbStats.total"></span>
+                </button>
+
                 {# 归档管理（管理员） #}
                 {% if is_admin %}
                 <button @click="activeView='archived'; loadArchived()"
@@ -173,6 +187,11 @@
                 </div>
                 <div class="flex-1 text-sm font-medium text-slate-900 dark:text-white" x-show="activeView === 'trash'">{{ _('回收站') }}</div>
                 <div class="flex-1 text-sm font-medium text-slate-900 dark:text-white" x-show="activeView === 'archived'">{{ _('归档管理') }}</div>
+                <div class="flex items-center gap-2 flex-1" x-show="activeView === 'knowledge'">
+                    <span class="material-symbols-outlined text-xl text-violet-600 dark:text-violet-400">auto_stories</span>
+                    <span class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('知识库') }}</span>
+                    <span class="text-xs text-slate-400" x-text="'(' + filteredKbFiles.length + ' {{ _('个文件') }})'"></span>
+                </div>
 
                 {# 搜索 #}
                 <div class="relative" x-show="activeView === 'files'">
@@ -181,6 +200,21 @@
                            class="w-40 sm:w-52 h-9 pl-9 pr-3 rounded-lg text-sm border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
                     <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">search</span>
                 </div>
+
+                {# 知识库搜索 #}
+                <div class="relative" x-show="activeView === 'knowledge'">
+                    <input type="text" x-model="kbSearch" placeholder="{{ _('搜索知识库...') }}"
+                           class="w-40 sm:w-52 h-9 pl-9 pr-3 rounded-lg text-sm border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">search</span>
+                </div>
+                {# 知识库标签管理按钮（管理员） #}
+                {% if is_admin %}
+                <button x-show="activeView === 'knowledge'" @click="showTagManageModal = true"
+                        class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined text-base">settings</span>
+                    {{ _('标签管理') }}
+                </button>
+                {% endif %}
 
                 {# 视图切换 #}
                 <div class="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5" x-show="activeView === 'files'">
@@ -247,6 +281,53 @@
                     <span class="material-symbols-outlined text-sm">compress</span>
                     {{ _('压缩不活跃文件') }}
                 </button>
+            </div>
+
+            {# 知识库标签筛选栏 #}
+            <div class="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0 overflow-x-auto"
+                 x-show="activeView === 'knowledge'">
+                <span class="text-xs text-slate-400 flex-shrink-0">{{ _('标签') }}:</span>
+                <button @click="kbFilterTag = null; loadKbFiles()"
+                        :class="!kbFilterTag ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border-violet-300 dark:border-violet-700' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-300'"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors whitespace-nowrap flex-shrink-0">
+                    {{ _('全部') }}
+                </button>
+                <template x-for="tag in kbTags" :key="'kbft-' + tag.id">
+                    <button @click="kbFilterTag = kbFilterTag === tag.id ? null : tag.id; loadKbFiles()"
+                            :class="kbFilterTag === tag.id
+                              ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400 border-violet-300 dark:border-violet-700'
+                              : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-violet-300'"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors whitespace-nowrap flex-shrink-0">
+                        <span x-text="tag.name"></span>
+                        <span class="text-[10px] opacity-60" x-text="'(' + getTagCount(tag.id) + ')'"></span>
+                    </button>
+                </template>
+                <div class="flex-1"></div>
+                {# 状态筛选 #}
+                <div class="flex items-center gap-1.5 flex-shrink-0">
+                    <span class="text-xs text-slate-400">{{ _('状态') }}:</span>
+                    <select x-model="kbFilterStatus" @change="loadKbFiles()"
+                            class="text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary">
+                        <option value="">{{ _('全部') }}</option>
+                        <option value="ready">{{ _('就绪') }}</option>
+                        <option value="processing">{{ _('处理中') }}</option>
+                        <option value="pending">{{ _('队列中') }}</option>
+                        <option value="error">{{ _('失败') }}</option>
+                    </select>
+                </div>
+            </div>
+
+            {# 知识库批量操作栏（文件视图） #}
+            <div class="flex items-center gap-2 px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex-shrink-0"
+                 x-show="activeView === 'files' && selectedFiles.length > 0">
+                <div class="flex items-center gap-2 ml-0 pl-0">
+                    <span class="text-xs text-slate-500" x-text="'{{ _('已选') }} ' + selectedFiles.length + ' {{ _('项') }}'"></span>
+                    <button @click="showBatchKbModal = true"
+                            class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 font-medium">
+                        <span class="material-symbols-outlined" style="font-size:14px">auto_stories</span>
+                        {{ _('加入知识库') }}
+                    </button>
+                </div>
             </div>
 
             {# ============ 新建文件夹输入 ============ #}
@@ -345,6 +426,18 @@
                                               class="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">
                                             {{ _('已归档') }}
                                         </span>
+                                        {# 知识库徽章 #}
+                                        <template x-if="getKbStatusForFile(file.id).in_knowledge_base">
+                                            <div class="flex items-center gap-1 flex-shrink-0">
+                                                <span class="material-symbols-outlined text-xs text-violet-500" style="font-size:14px">auto_stories</span>
+                                                <template x-for="tag in (getKbStatusForFile(file.id).tags || []).slice(0, 2)" :key="'kbt-' + tag.id">
+                                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 font-medium"
+                                                          x-text="tag.name"></span>
+                                                </template>
+                                                <span x-show="(getKbStatusForFile(file.id).tags || []).length > 2"
+                                                      class="text-[10px] text-violet-400" x-text="'+' + ((getKbStatusForFile(file.id).tags || []).length - 2)"></span>
+                                            </div>
+                                        </template>
                                         <span class="flex-shrink-0" :title="file.storage_type === 'nas' ? '{{ _('NAS 云端存储') }}' : '{{ _('本地存储') }}'">
                                             <span class="material-symbols-outlined text-xs"
                                                   :class="file.storage_type === 'nas' ? 'text-emerald-500' : 'text-slate-400'"
@@ -489,6 +582,102 @@
                     </div>
                 </template>
             </div>
+
+            {# ============ 知识库视图 ============ #}
+            <div class="flex-1 overflow-y-auto" x-show="activeView === 'knowledge'">
+                {# 统计概览 #}
+                <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <div class="bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5 text-center">
+                            <p class="text-lg font-bold text-slate-900 dark:text-white" x-text="kbStats.total"></p>
+                            <p class="text-[10px] text-slate-500">{{ _('总文档') }}</p>
+                        </div>
+                        <div class="bg-green-50 dark:bg-green-900/20 rounded-xl px-3 py-2.5 text-center">
+                            <p class="text-lg font-bold text-green-600 dark:text-green-400" x-text="kbStats.ready"></p>
+                            <p class="text-[10px] text-green-600 dark:text-green-400">{{ _('就绪') }}</p>
+                        </div>
+                        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl px-3 py-2.5 text-center">
+                            <p class="text-lg font-bold text-blue-600 dark:text-blue-400" x-text="kbStats.processing + (kbStats.pending || 0)"></p>
+                            <p class="text-[10px] text-blue-600 dark:text-blue-400">{{ _('处理中') }}</p>
+                        </div>
+                        <div class="bg-red-50 dark:bg-red-900/20 rounded-xl px-3 py-2.5 text-center">
+                            <p class="text-lg font-bold text-red-600 dark:text-red-400" x-text="kbStats.error"></p>
+                            <p class="text-[10px] text-red-600 dark:text-red-400">{{ _('失败') }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                {# 表头 #}
+                <div class="flex items-center gap-3 px-4 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                    <input type="checkbox" @change="toggleSelectAllKb($event)" class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50 w-4 h-4">
+                    <div class="flex-1">{{ _('文件名') }}</div>
+                    <div class="w-24 hidden sm:block">{{ _('标签') }}</div>
+                    <div class="w-20 text-center">{{ _('状态') }}</div>
+                    <div class="w-16 text-center hidden md:block">{{ _('分块') }}</div>
+                    <div class="w-24 text-right hidden md:block">{{ _('加入时间') }}</div>
+                    <div class="w-16 text-right">{{ _('操作') }}</div>
+                </div>
+
+                {# 知识库文件列表 #}
+                <template x-for="doc in filteredKbFiles" :key="'kb-' + doc.id">
+                    <div class="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer border-b border-slate-50 dark:border-slate-800/50 transition-colors"
+                         :class="selectedKbFiles.includes(doc.id) ? 'bg-violet-50 dark:bg-violet-900/10' : ''"
+                         @click="openKbDetail(doc)">
+                        <input type="checkbox" :checked="selectedKbFiles.includes(doc.id)" @click.stop="toggleSelectKb(doc.id)"
+                               class="rounded border-slate-300 dark:border-slate-600 text-violet-500 focus:ring-violet-500/50 w-4 h-4">
+                        <span class="material-symbols-outlined text-lg text-violet-500">auto_stories</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm text-slate-900 dark:text-white truncate" x-text="doc.title"></div>
+                        </div>
+                        <div class="w-24 hidden sm:flex flex-wrap gap-1">
+                            <template x-for="tag in (doc.tags || []).slice(0, 2)" :key="'kbdt-' + tag.id">
+                                <span class="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 font-medium"
+                                      x-text="tag.name"></span>
+                            </template>
+                        </div>
+                        <div class="w-20 flex justify-center">
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                                  :class="getKbStatusClass(doc.status)">
+                                <span class="w-1.5 h-1.5 rounded-full" :class="getKbDotClass(doc.status)"></span>
+                                <span x-text="getKbStatusLabel(doc.status)"></span>
+                            </span>
+                        </div>
+                        <div class="w-16 text-center text-xs text-slate-400 hidden md:block" x-text="doc.chunk_count || '—'"></div>
+                        <div class="w-24 text-right text-xs text-slate-400 hidden md:block" x-text="formatDate(doc.created_at)"></div>
+                        <div class="w-16 flex justify-end gap-1">
+                            <button @click.stop="openKbDetail(doc)" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" title="{{ _('查看详情') }}">
+                                <span class="material-symbols-outlined text-sm text-slate-400">info</span>
+                            </button>
+                            <button @click.stop="removeFromKb(doc.id)" class="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20" title="{{ _('移除') }}">
+                                <span class="material-symbols-outlined text-sm text-red-400">close</span>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                {# 空状态 #}
+                <div x-show="filteredKbFiles.length === 0 && !loading" class="flex flex-col items-center justify-center py-20 text-slate-400">
+                    <span class="material-symbols-outlined text-5xl mb-3">auto_stories</span>
+                    <p class="text-sm">{{ _('暂无知识库文件') }}</p>
+                    <p class="text-xs mt-1">{{ _('在文件列表中右键文件，选择"加入知识库"') }}</p>
+                </div>
+
+                {# KB批量操作栏 #}
+                <div x-show="selectedKbFiles.length > 0"
+                     class="sticky bottom-0 border-t border-slate-200 dark:border-slate-700 bg-violet-50 dark:bg-violet-900/10 px-4 py-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-slate-600 dark:text-slate-400">
+                            {{ _('已选择') }} <span class="font-semibold text-violet-600" x-text="selectedKbFiles.length"></span> {{ _('项') }}
+                        </span>
+                        <div class="flex items-center gap-2">
+                            <button @click="batchRemoveFromKb()"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                <span class="material-symbols-outlined text-sm">delete</span>{{ _('从知识库移除') }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
 
         {# ============ 右键菜单 ============ #}
@@ -516,6 +705,49 @@
                     <button @click="showMoveModal = true; selectedFiles = [contextMenu.item.id]; contextMenu.show = false"
                             class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
                         <span class="material-symbols-outlined text-base">drive_file_move</span> {{ _('移动到...') }}
+                    </button>
+                    <hr class="my-1 border-slate-200 dark:border-slate-700">
+                    {# 加入知识库 #}
+                    <div class="relative" x-show="!contextMenu.inKb">
+                        <button @click="contextMenu.showKbSub = !contextMenu.showKbSub"
+                                class="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20">
+                            <span class="material-symbols-outlined text-base">auto_stories</span> {{ _('加入知识库') }}
+                            <span class="material-symbols-outlined text-sm ml-auto">chevron_right</span>
+                        </button>
+                        {# 标签选择子面板 #}
+                        <div x-show="contextMenu.showKbSub" x-transition
+                             class="absolute left-full top-0 ml-1 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-2 w-56 submenu-enter" x-cloak>
+                            <div class="px-3 pb-2 border-b border-slate-100 dark:border-slate-800">
+                                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ _('选择标签') }}</p>
+                            </div>
+                            <div class="py-1 max-h-48 overflow-y-auto">
+                                <template x-for="tag in kbTags" :key="'ctx-' + tag.id">
+                                    <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
+                                        <input type="checkbox" :checked="contextMenu.selectedTags.includes(tag.id)"
+                                               @change="toggleContextTag(tag.id)"
+                                               class="w-3.5 h-3.5 rounded border-slate-300 text-violet-500 focus:ring-violet-500">
+                                        <span class="text-sm text-slate-700 dark:text-slate-300" x-text="tag.name"></span>
+                                    </label>
+                                </template>
+                            </div>
+                            <div class="px-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+                                <button @click="contextMenu.showKbSub = false; contextMenu.show = false"
+                                        class="px-2.5 py-1 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">
+                                    {{ _('取消') }}
+                                </button>
+                                <button @click="addContextFileToKb(); contextMenu.show = false; contextMenu.showKbSub = false"
+                                        :disabled="contextMenu.selectedTags.length === 0"
+                                        :class="contextMenu.selectedTags.length > 0 ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                                        class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors">
+                                    {{ _('确定加入') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {# 从知识库移除（已在知识库中时显示） #}
+                    <button x-show="contextMenu.inKb" @click="removeFromKb(contextMenu.kbDocId); contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20">
+                        <span class="material-symbols-outlined text-base">bookmark_remove</span> {{ _('从知识库移除') }}
                     </button>
                     <hr class="my-1 border-slate-200 dark:border-slate-700">
                     <button @click="deleteFile(contextMenu.item.id); contextMenu.show = false"
@@ -690,6 +922,208 @@
             </div>
         </div>
 
+        {# ============ 知识库文档详情侧滑面板 ============ #}
+        <div x-show="kbDetailFile !== null" class="fixed inset-0 z-50" x-cloak>
+            <div x-show="kbDetailFile !== null"
+                 x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                 x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                 class="absolute inset-0 bg-black/30" @click="kbDetailFile = null"></div>
+            <div x-show="kbDetailFile !== null"
+                 x-transition:enter="transition ease-out duration-300" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+                 x-transition:leave="transition ease-in duration-200" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+                 class="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white dark:bg-slate-900 shadow-2xl overflow-y-auto">
+                <template x-if="kbDetailFile !== null">
+                    <div>
+                        <div class="sticky top-0 bg-white dark:bg-slate-900 z-10 px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                            <div class="flex items-start justify-between">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-violet-50 dark:bg-violet-900/20">
+                                        <span class="material-symbols-outlined text-xl text-violet-500">auto_stories</span>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <h3 class="text-sm font-semibold truncate" x-text="kbDetailFile.title"></h3>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                                                  :class="getKbStatusClass(kbDetailFile.status)">
+                                                <span class="w-1.5 h-1.5 rounded-full" :class="getKbDotClass(kbDetailFile.status)"></span>
+                                                <span x-text="getKbStatusLabel(kbDetailFile.status)"></span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button @click="kbDetailFile = null" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+                                    <span class="material-symbols-outlined text-lg text-slate-400">close</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="px-5 py-4 space-y-5">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
+                                    <p class="text-[10px] text-slate-400 mb-0.5">{{ _('分块数') }}</p>
+                                    <p class="text-sm font-semibold" x-text="kbDetailFile.chunk_count || '—'"></p>
+                                </div>
+                                <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
+                                    <p class="text-[10px] text-slate-400 mb-0.5">{{ _('加入时间') }}</p>
+                                    <p class="text-sm font-semibold" x-text="formatDate(kbDetailFile.created_at)"></p>
+                                </div>
+                            </div>
+                            {# 标签 #}
+                            <div>
+                                <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('知识库标签') }}</label>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <template x-for="tag in (kbDetailFile.tags || [])" :key="'kbdet-' + tag.id">
+                                        <span class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 text-xs font-medium"
+                                              x-text="tag.name"></span>
+                                    </template>
+                                </div>
+                            </div>
+                            {# 处理失败信息 #}
+                            <template x-if="kbDetailFile.status === 'error'">
+                                <div class="bg-red-50 dark:bg-red-900/20 rounded-xl px-4 py-3">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="material-symbols-outlined text-red-500 text-base">error</span>
+                                        <span class="text-sm font-medium text-red-700 dark:text-red-300">{{ _('处理失败') }}</span>
+                                    </div>
+                                    <p class="text-xs text-red-600 dark:text-red-400" x-text="kbDetailFile.processing_error || '{{ _('未知错误') }}'"></p>
+                                    <button @click="reprocessDocument(kbDetailFile.id)"
+                                            class="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 text-xs font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">
+                                        <span class="material-symbols-outlined text-sm">refresh</span>{{ _('重新处理') }}
+                                    </button>
+                                </div>
+                            </template>
+                            {# 处理中 #}
+                            <template x-if="kbDetailFile.status === 'processing' || kbDetailFile.status === 'pending'">
+                                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-xl px-4 py-3">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="material-symbols-outlined text-blue-500 text-base pulse-dot">sync</span>
+                                        <span class="text-sm font-medium text-blue-700 dark:text-blue-300">{{ _('正在处理...') }}</span>
+                                    </div>
+                                    <div class="h-1.5 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
+                                        <div class="h-full bg-blue-500 rounded-full animate-[indeterminate_1.5s_ease-in-out_infinite]" style="width:30%"></div>
+                                    </div>
+                                </div>
+                            </template>
+                            <div class="border-t border-slate-100 dark:border-slate-800"></div>
+                            {# 操作按钮 #}
+                            <div class="flex items-center gap-2">
+                                <button @click="reprocessDocument(kbDetailFile.id)"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                                    <span class="material-symbols-outlined text-sm">refresh</span>{{ _('重新处理') }}
+                                </button>
+                                <div class="flex-1"></div>
+                                <button @click="removeFromKb(kbDetailFile.id); kbDetailFile = null"
+                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 dark:border-red-800 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                                    <span class="material-symbols-outlined text-sm">delete</span>{{ _('从知识库移除') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        {# ============ 标签管理模态框 ============ #}
+        <div x-show="showTagManageModal" class="fixed inset-0 z-[60] flex items-center justify-center" x-cloak>
+            <div class="fixed inset-0 bg-black/40" @click="showTagManageModal = false"></div>
+            <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md mx-4" x-transition>
+                <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <h3 class="text-base font-semibold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-violet-500">sell</span>
+                        {{ _('标签管理') }}
+                    </h3>
+                    <button @click="showTagManageModal = false" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span class="material-symbols-outlined text-lg text-slate-400">close</span>
+                    </button>
+                </div>
+                <div class="px-6 py-4">
+                    <p class="text-xs text-slate-500 mb-3">{{ _('管理员预定义标签，用于文件加入知识库时分类。') }}</p>
+                    <div class="space-y-2 mb-4 max-h-60 overflow-y-auto">
+                        <template x-for="tag in kbTags" :key="'tgm-' + tag.id">
+                            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 group">
+                                <span class="material-symbols-outlined text-base text-violet-500">sell</span>
+                                <span class="text-sm flex-1" x-text="tag.name"></span>
+                                <span class="text-[10px] text-slate-400" x-text="getTagCount(tag.id) + ' {{ _('个文件') }}'"></span>
+                                <button @click="deleteTag(tag.id)" class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 transition-opacity" title="{{ _('删除') }}">
+                                    <span class="material-symbols-outlined text-sm text-red-400">delete</span>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="text" x-model="newTagName" @keydown.enter="createTag()" placeholder="{{ _('输入新标签名称...') }}"
+                               class="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500">
+                        <button @click="createTag()"
+                                :disabled="!newTagName.trim()"
+                                :class="newTagName.trim() ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                                class="px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                            {{ _('添加') }}
+                        </button>
+                    </div>
+                </div>
+                <div class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end">
+                    <button @click="showTagManageModal = false"
+                            class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">
+                        {{ _('完成') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {# ============ 批量加入知识库模态框 ============ #}
+        <div x-show="showBatchKbModal" class="fixed inset-0 z-[60] flex items-center justify-center" x-cloak>
+            <div class="fixed inset-0 bg-black/40" @click="showBatchKbModal = false"></div>
+            <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4" x-transition>
+                <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-base font-semibold flex items-center gap-2">
+                        <span class="material-symbols-outlined text-violet-500">auto_stories</span>
+                        {{ _('批量加入知识库') }}
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-1">
+                        {{ _('已选择') }} <span class="font-semibold text-violet-600" x-text="selectedFiles.length"></span> {{ _('个文件') }}
+                    </p>
+                </div>
+                <div class="px-6 py-4">
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">{{ _('选择标签') }} <span class="text-red-500">*</span></label>
+                    <div class="space-y-1.5">
+                        <template x-for="tag in kbTags" :key="'btag-' + tag.id">
+                            <label class="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                                   :class="batchSelectedTags.includes(tag.id) ? 'border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/20' : ''">
+                                <input type="checkbox" :checked="batchSelectedTags.includes(tag.id)"
+                                       @change="toggleBatchTag(tag.id)"
+                                       class="w-4 h-4 rounded border-slate-300 text-violet-500 focus:ring-violet-500">
+                                <span class="text-sm" x-text="tag.name"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+                <div class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
+                    <button @click="showBatchKbModal = false"
+                            class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        {{ _('取消') }}
+                    </button>
+                    <button @click="confirmBatchKb()"
+                            :disabled="batchSelectedTags.length === 0"
+                            :class="batchSelectedTags.length > 0 ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                            class="px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                        {{ _('加入知识库') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        {# ============ Toast 通知 ============ #}
+        <div x-show="toast.show"
+             x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0"
+             x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 translate-y-2"
+             class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-xl shadow-lg border text-sm font-medium flex items-center gap-2"
+             :class="toast.type === 'success' ? 'bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300' :
+                     'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'"
+             x-cloak>
+            <span class="material-symbols-outlined text-base"
+                  x-text="toast.type === 'success' ? 'check_circle' : 'error'"></span>
+            <span x-text="toast.message"></span>
+        </div>
+
         {# ============ 移动端侧边栏 ============ #}
         <div x-show="showMobileSidebar" class="fixed inset-0 z-50 lg:hidden" x-cloak>
             <div class="fixed inset-0 bg-black/50" @click="showMobileSidebar = false"></div>
@@ -714,6 +1148,10 @@
                 <button @click="activeView='trash'; loadTrash(); showMobileSidebar=false"
                         class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full text-left text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
                     <span class="material-symbols-outlined">delete</span> {{ _('回收站') }}
+                </button>
+                <button @click="openKbView(); showMobileSidebar=false"
+                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full text-left text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined">auto_stories</span> {{ _('知识库') }}
                 </button>
                 {% if is_admin %}
                 <button @click="activeView='archived'; loadArchived(); showMobileSidebar=false"

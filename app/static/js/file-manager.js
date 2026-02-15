@@ -51,6 +51,22 @@ function fileManager() {
         // 解压动画
         decompressModal: { show: false, fileName: '' },
 
+        // 知识库
+        kbTags: [],
+        kbFiles: [],
+        kbStats: { total: 0, ready: 0, processing: 0, error: 0 },
+        kbFilterTag: null,
+        kbFilterStatus: '',
+        kbSearch: '',
+        selectedKbFiles: [],
+        kbDetailFile: null,
+        showTagManageModal: false,
+        showBatchKbModal: false,
+        batchSelectedTags: [],
+        newTagName: '',
+        kbFileStatus: {},  // maps user_file_ref_id -> {in_knowledge_base, document_id, status, tags}
+        toast: { show: false, message: '', type: 'success' },
+
         // 扁平化文件夹列表（用于移动对话框）
         allFoldersFlat: [],
 
@@ -62,6 +78,7 @@ function fileManager() {
             this.currentFolderId = window.__fileManagerInitFolderId || null;
             this.loadFolderTree();
             this.loadFiles();
+            this.loadKbTags();
         },
 
         // ------------------------------------------------------------------
@@ -95,6 +112,8 @@ function fileManager() {
                 this.files = data.data.files;
                 this.breadcrumbs = data.breadcrumbs;
                 this.quota = data.quota;
+                // 加载文件的知识库状态
+                await this._loadKbStatusForFiles();
             }
             this.loading = false;
         },
@@ -427,12 +446,17 @@ function fileManager() {
         // 右键菜单
         // ------------------------------------------------------------------
         showFileMenu(event, file) {
+            const kbStatus = this.kbFileStatus[file.id] || {};
             this.contextMenu = {
                 show: true,
                 x: Math.min(event.clientX, window.innerWidth - 200),
-                y: Math.min(event.clientY, window.innerHeight - 250),
+                y: Math.min(event.clientY, window.innerHeight - 300),
                 type: 'file',
                 item: file,
+                showKbSub: false,
+                selectedTags: kbStatus.tags ? kbStatus.tags.map(t => t.id) : [],
+                inKb: kbStatus.in_knowledge_base || false,
+                kbDocId: kbStatus.document_id || null,
             };
         },
 
@@ -642,6 +666,283 @@ function fileManager() {
                 console.error('Spreadsheet preview error:', e);
                 this.spreadsheetHtml = '<p class="text-center text-slate-500 py-8">无法预览该文件</p>';
             }
+        },
+
+        // ------------------------------------------------------------------
+        // 知识库
+        // ------------------------------------------------------------------
+        async loadKbTags() {
+            const data = await this.api('/api/knowledge/tags');
+            if (data.success) {
+                this.kbTags = data.data;
+            }
+        },
+
+        async loadKbFiles() {
+            const params = new URLSearchParams();
+            if (this.kbFilterTag) params.set('tag_id', this.kbFilterTag);
+            if (this.kbFilterStatus) params.set('status', this.kbFilterStatus);
+            params.set('per_page', '100');
+            const data = await this.api(`/api/knowledge/documents?${params}`);
+            if (data.success) {
+                this.kbFiles = data.data;
+            }
+        },
+
+        async loadKbStats() {
+            const data = await this.api('/api/knowledge/stats');
+            if (data.success) {
+                this.kbStats = {
+                    total: data.data.total_documents,
+                    ready: data.data.status_counts.ready,
+                    processing: data.data.status_counts.processing,
+                    error: data.data.status_counts.error,
+                    pending: data.data.status_counts.pending,
+                };
+            }
+        },
+
+        async openKbView() {
+            this.activeView = 'knowledge';
+            await Promise.all([this.loadKbFiles(), this.loadKbStats()]);
+        },
+
+        get filteredKbFiles() {
+            let files = this.kbFiles;
+            if (this.kbSearch.trim()) {
+                const q = this.kbSearch.trim().toLowerCase();
+                files = files.filter(f => (f.title || '').toLowerCase().includes(q));
+            }
+            return files;
+        },
+
+        async _loadKbStatusForFiles() {
+            const fileRefIds = this.files.map(f => f.id);
+            if (!fileRefIds.length) return;
+            const data = await this.api('/api/knowledge/documents/file-status', {
+                method: 'POST',
+                body: JSON.stringify({ file_ref_ids: fileRefIds }),
+            });
+            if (data.success) {
+                this.kbFileStatus = data.data;
+            }
+        },
+
+        getKbStatusForFile(fileId) {
+            return this.kbFileStatus[fileId] || { in_knowledge_base: false };
+        },
+
+        async addFilesToKb(fileRefIds, tagIds) {
+            if (!fileRefIds.length || !tagIds.length) return;
+            const data = await this.api('/api/knowledge/documents/add', {
+                method: 'POST',
+                body: JSON.stringify({ file_ref_ids: fileRefIds, tag_ids: tagIds }),
+            });
+            if (data.success) {
+                this.showToast('success', `${data.data.length} 个文件已加入知识库`);
+                await this._loadKbStatusForFiles();
+                if (this.activeView === 'knowledge') {
+                    await this.loadKbFiles();
+                    await this.loadKbStats();
+                }
+            } else {
+                this.showToast('error', data.message || '操作失败');
+            }
+            if (data.warnings && data.warnings.length) {
+                console.warn('知识库添加警告:', data.warnings);
+            }
+            return data;
+        },
+
+        async removeFromKb(docId) {
+            const data = await this.api(`/api/knowledge/documents/${docId}/remove`, {
+                method: 'POST',
+            });
+            if (data.success) {
+                this.showToast('success', data.message);
+                await this._loadKbStatusForFiles();
+                if (this.activeView === 'knowledge') {
+                    await this.loadKbFiles();
+                    await this.loadKbStats();
+                }
+            } else {
+                this.showToast('error', data.message || '操作失败');
+            }
+        },
+
+        async batchRemoveFromKb() {
+            if (!this.selectedKbFiles.length) return;
+            const data = await this.api('/api/knowledge/documents/batch-remove', {
+                method: 'POST',
+                body: JSON.stringify({ document_ids: this.selectedKbFiles }),
+            });
+            if (data.success) {
+                this.showToast('success', data.message);
+                this.selectedKbFiles = [];
+                await Promise.all([this.loadKbFiles(), this.loadKbStats()]);
+            } else {
+                this.showToast('error', data.message || '操作失败');
+            }
+        },
+
+        async reprocessDocument(docId) {
+            const data = await this.api(`/api/knowledge/documents/${docId}/reprocess`, {
+                method: 'POST',
+            });
+            if (data.success) {
+                this.showToast('success', '已提交重新处理');
+                if (this.kbDetailFile && this.kbDetailFile.id === docId) {
+                    this.kbDetailFile = data.data;
+                }
+                await this.loadKbFiles();
+                await this.loadKbStats();
+            } else {
+                this.showToast('error', data.message || '操作失败');
+            }
+        },
+
+        async openKbDetail(file) {
+            const data = await this.api(`/api/knowledge/documents/${file.id}`);
+            if (data.success) {
+                this.kbDetailFile = data.data;
+            }
+        },
+
+        // 右键菜单: 加入知识库
+        addContextFileToKb() {
+            const file = this.contextMenu.item;
+            const tagIds = this.contextMenu.selectedTags;
+            if (!file || !tagIds.length) return;
+            this.addFilesToKb([file.id], tagIds);
+        },
+
+        toggleContextTag(tagId) {
+            const idx = this.contextMenu.selectedTags.indexOf(tagId);
+            if (idx >= 0) {
+                this.contextMenu.selectedTags.splice(idx, 1);
+            } else {
+                this.contextMenu.selectedTags.push(tagId);
+            }
+        },
+
+        // 批量加入知识库
+        toggleBatchTag(tagId) {
+            const idx = this.batchSelectedTags.indexOf(tagId);
+            if (idx >= 0) {
+                this.batchSelectedTags.splice(idx, 1);
+            } else {
+                this.batchSelectedTags.push(tagId);
+            }
+        },
+
+        async confirmBatchKb() {
+            if (!this.selectedFiles.length || !this.batchSelectedTags.length) return;
+            await this.addFilesToKb(this.selectedFiles, this.batchSelectedTags);
+            this.showBatchKbModal = false;
+            this.selectedFiles = [];
+            this.batchSelectedTags = [];
+        },
+
+        // KB 选择
+        toggleSelectKb(fileId) {
+            const idx = this.selectedKbFiles.indexOf(fileId);
+            if (idx >= 0) {
+                this.selectedKbFiles.splice(idx, 1);
+            } else {
+                this.selectedKbFiles.push(fileId);
+            }
+        },
+
+        toggleSelectAllKb(event) {
+            if (event.target.checked) {
+                this.selectedKbFiles = this.filteredKbFiles.map(f => f.id);
+            } else {
+                this.selectedKbFiles = [];
+            }
+        },
+
+        // 标签管理
+        async createTag() {
+            if (!this.newTagName.trim()) return;
+            const data = await this.api('/api/knowledge/tags', {
+                method: 'POST',
+                body: JSON.stringify({ name: this.newTagName.trim() }),
+            });
+            if (data.success) {
+                this.kbTags.push(data.data);
+                this.newTagName = '';
+                this.showToast('success', '标签已创建');
+            } else {
+                this.showToast('error', data.message || '创建失败');
+            }
+        },
+
+        async updateTag(tagId, newName) {
+            const data = await this.api(`/api/knowledge/tags/${tagId}`, {
+                method: 'PUT',
+                body: JSON.stringify({ name: newName }),
+            });
+            if (data.success) {
+                const idx = this.kbTags.findIndex(t => t.id === tagId);
+                if (idx >= 0) this.kbTags[idx] = data.data;
+                this.showToast('success', '标签已更新');
+            } else {
+                this.showToast('error', data.message || '更新失败');
+            }
+        },
+
+        async deleteTag(tagId) {
+            const data = await this.api(`/api/knowledge/tags/${tagId}`, {
+                method: 'DELETE',
+            });
+            if (data.success) {
+                this.kbTags = this.kbTags.filter(t => t.id !== tagId);
+                this.showToast('success', '标签已删除');
+            } else {
+                this.showToast('error', data.message || '删除失败');
+            }
+        },
+
+        getTagName(tagId) {
+            const tag = this.kbTags.find(t => t.id === tagId);
+            return tag ? tag.name : '';
+        },
+
+        getTagCount(tagId) {
+            return this.kbFiles.filter(f =>
+                f.tags && f.tags.some(t => t.id === tagId)
+            ).length;
+        },
+
+        getKbStatusLabel(status) {
+            const labels = { ready: '就绪', processing: '处理中', pending: '队列中', error: '失败' };
+            return labels[status] || status;
+        },
+
+        getKbStatusClass(status) {
+            const classes = {
+                ready: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
+                processing: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
+                pending: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',
+                error: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300',
+            };
+            return classes[status] || '';
+        },
+
+        getKbDotClass(status) {
+            const classes = {
+                ready: 'bg-green-500',
+                processing: 'bg-blue-500 pulse-dot',
+                pending: 'bg-slate-400',
+                error: 'bg-red-500',
+            };
+            return classes[status] || 'bg-slate-400';
+        },
+
+        // Toast
+        showToast(type, message) {
+            this.toast = { show: true, type, message };
+            setTimeout(() => { this.toast.show = false; }, 2500);
         },
 
         // ------------------------------------------------------------------
