@@ -171,6 +171,12 @@ closeConfirmModal('deleteModal');
                 const callbacks = window._confirmModalCallbacks[modalId];
                 const data = window._confirmModalData[modalId];
                 if (typeof callbacks?.onConfirm === 'function') {
+                    // 禁用按钮 + 显示 loading
+                    const originalHTML = newBtn.innerHTML;
+                    newBtn.disabled = true;
+                    newBtn.classList.add('opacity-75', 'cursor-not-allowed');
+                    newBtn.innerHTML = '<span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span>' + originalHTML;
+
                     try {
                         await callbacks.onConfirm(data);
                         if (callbacks.autoClose) {
@@ -179,6 +185,11 @@ closeConfirmModal('deleteModal');
                     } catch (error) {
                         // 回调抛出异常时不关闭，显示错误
                         showConfirmModalError(modalId, error.message || '{{ _("操作失败") }}');
+                    } finally {
+                        // 恢复按钮状态
+                        newBtn.disabled = false;
+                        newBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                        newBtn.innerHTML = originalHTML;
                     }
                 } else if (callbacks?.autoClose) {
                     closeConfirmModal(modalId);

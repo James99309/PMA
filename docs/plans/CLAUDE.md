@@ -5,5 +5,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #3334 | 12:27 PM | 🟣 | Frontend Indicator Editing Logic with Sync Detection | ~443 |
+| #3430 | 4:07 PM | 🔵 | 消息与聊天系统架构全面调研完成 | ~284 |
 </claude-mem-context>

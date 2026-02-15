@@ -821,11 +821,11 @@ def update_spec_option(option_id):
 
         data = request.get_json()
 
-        # 如果被使用，限制修改范围
-        if is_used and ('value' in data or 'code' in data):
+        # 如果被使用，编码不可修改（value 允许修改，配合同步功能）
+        if is_used and 'code' in data:
             return jsonify({
                 'success': False,
-                'message': '此指标已被产品使用，无法修改指标值和编码'
+                'message': '此指标已被产品使用，编码不可修改'
             }), 400
 
         # 更新指标值

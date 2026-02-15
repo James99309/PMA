@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMA 聊天功能 - 交互预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563EB',
+                        'primary-hover': '#1D4ED8',
+                        'bg-light': '#F8FAFC',
+                        'bg-dark': '#0F172A',
+                        'surface-light': '#FFFFFF',
+                        'surface-dark': '#1E293B',
+                        'border-light': '#E2E8F0',
+                        'border-dark': '#334155',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        [x-cloak] { display: none !important; }
+
+        /* Smooth transitions */
+        .chat-panel-enter { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Typing indicator */
+        .typing-dot { animation: typingBounce 1.4s infinite ease-in-out; }
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-4px); }
+        }
+
+        /* Scrollbar */
+        .chat-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+        .dark .chat-scroll::-webkit-scrollbar-thumb { background: #475569; }
+
+        /* Message bubble animation */
+        .msg-appear { animation: msgSlide 0.2s ease-out; }
+        @keyframes msgSlide {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Unread pulse */
+        .unread-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        /* @ mention dropdown */
+        .mention-item:hover { background: #EFF6FF; }
+        .dark .mention-item:hover { background: #1E3A5F; }
+    </style>
+</head>
+
+<body class="bg-bg-light dark:bg-bg-dark min-h-screen transition-colors duration-200">
+
+    <!-- ========== 模拟 PMA 主页面背景 ========== -->
+    <div class="p-6 max-w-6xl mx-auto" x-data="pmaChat()" x-cloak>
+
+        <!-- 模拟 PMA Header -->
+        <header class="fixed top-0 left-0 right-0 h-16 flex items-center px-6 bg-white dark:bg-black z-30 border-b border-border-light dark:border-border-dark">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <h1 class="text-slate-900 dark:text-white text-base font-medium">PMA System</h1>
+            </div>
+            <div class="flex-1"></div>
+            <div class="flex items-center gap-3">
+                <!-- Dark mode toggle -->
+                <button @click="toggleDark()"
+                        class="w-10 h-10 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    <span class="material-symbols-outlined text-xl" x-text="isDark ? 'light_mode' : 'dark_mode'"></span>
+                </button>
+                <div class="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center text-primary text-sm font-medium">张</div>
+            </div>
+        </header>
+
+        <!-- 模拟页面内容 -->
+        <div class="mt-20 space-y-6">
+            <div class="bg-white dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-6">
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">仪表盘</h2>
+                <p class="text-slate-500 dark:text-slate-400 text-sm">这是模拟的 PMA 主页面内容。右下角的聊天气泡是新功能入口。</p>
+                <div class="mt-4 grid grid-cols-3 gap-4">
+                    <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">156</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">本月报价</div>
+                    </div>
+                    <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-green-600 dark:text-green-400">89</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">活跃客户</div>
+                    </div>
+                    <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                        <div class="text-2xl font-bold text-orange-600 dark:text-orange-400">23</div>
+                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">待处理</div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-6 h-[300px] flex items-center justify-center">
+                <p class="text-slate-400 dark:text-slate-500 text-sm">页面内容区域...</p>
+            </div>
+        </div>
+
+        <!-- ========== 聊天气泡按钮（入口） ========== -->
+        <button @click="toggleChat()"
+                class="fixed bottom-6 right-6 z-40 w-14 h-14 bg-primary hover:bg-primary-hover rounded-full shadow-lg hover:shadow-xl flex items-center justify-center transition-all duration-200 group"
+                :class="{ 'scale-0 opacity-0': chatOpen, 'scale-100 opacity-100': !chatOpen }">
+            <span class="material-symbols-outlined text-white text-2xl group-hover:scale-110 transition-transform">chat</span>
+            <!-- 未读角标 -->
+            <span x-show="totalUnread > 0"
+                  class="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 text-white text-xs font-semibold rounded-full flex items-center justify-center px-1 unread-pulse"
+                  x-text="totalUnread > 99 ? '99+' : totalUnread"></span>
+        </button>
+
+        <!-- ========== 聊天主面板 ========== -->
+        <div x-show="chatOpen" x-transition:enter="chat-panel-enter"
+             class="fixed bottom-6 right-6 z-50 w-[800px] h-[600px] max-w-[calc(100vw-48px)] max-h-[calc(100vh-100px)] bg-white dark:bg-surface-dark rounded-2xl shadow-2xl border border-border-light dark:border-border-dark flex overflow-hidden">
+
+            <!-- ====== 左栏：对话列表 ====== -->
+            <div class="w-[260px] border-r border-border-light dark:border-border-dark flex flex-col bg-slate-50/50 dark:bg-slate-900/50">
+
+                <!-- 左栏头部 -->
+                <div class="h-14 px-4 flex items-center justify-between border-b border-border-light dark:border-border-dark flex-shrink-0">
+                    <h3 class="text-sm font-semibold text-slate-900 dark:text-white">消息</h3>
+                    <button @click="startNewChat()"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
+                            title="新建对话">
+                        <span class="material-symbols-outlined text-xl">edit_square</span>
+                    </button>
+                </div>
+
+                <!-- 搜索框 -->
+                <div class="px-3 py-2 flex-shrink-0">
+                    <div class="relative">
+                        <span class="material-symbols-outlined text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-lg">search</span>
+                        <input type="text" placeholder="搜索对话..."
+                               class="w-full h-9 pl-9 pr-3 text-sm bg-white dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors">
+                    </div>
+                </div>
+
+                <!-- 对话列表 -->
+                <div class="flex-1 overflow-y-auto chat-scroll">
+                    <template x-for="conv in conversations" :key="conv.id">
+                        <button @click="selectConversation(conv)"
+                                class="w-full px-3 py-3 flex items-start gap-3 hover:bg-white dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+                                :class="{ 'bg-white dark:bg-slate-800 shadow-sm': activeConv?.id === conv.id }">
+
+                            <!-- 头像 -->
+                            <div class="relative flex-shrink-0">
+                                <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
+                                     :class="conv.type === 'ai' ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white' : conv.type === 'group' ? 'bg-gradient-to-br from-blue-500 to-cyan-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'">
+                                    <span x-show="conv.type === 'ai'" class="material-symbols-outlined text-lg">auto_awesome</span>
+                                    <span x-show="conv.type === 'group'" class="material-symbols-outlined text-lg">group</span>
+                                    <span x-show="conv.type === 'private'" x-text="conv.avatar"></span>
+                                </div>
+                                <!-- 在线状态 -->
+                                <span x-show="conv.online" class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-surface-dark"></span>
+                            </div>
+
+                            <!-- 对话信息 -->
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="conv.name"></span>
+                                    <span class="text-[11px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-2" x-text="conv.time"></span>
+                                </div>
+                                <div class="flex items-center justify-between mt-0.5">
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 truncate" x-text="conv.lastMsg"></p>
+                                    <span x-show="conv.unread > 0"
+                                          class="flex-shrink-0 ml-2 min-w-[18px] h-[18px] bg-primary text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1"
+                                          x-text="conv.unread"></span>
+                                </div>
+                            </div>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <!-- ====== 右栏：聊天区域 ====== -->
+            <div class="flex-1 flex flex-col">
+
+                <!-- 右栏头部 -->
+                <div class="h-14 px-4 flex items-center justify-between border-b border-border-light dark:border-border-dark flex-shrink-0">
+                    <template x-if="activeConv">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold text-slate-900 dark:text-white" x-text="activeConv.name"></span>
+                            <span x-show="activeConv.type === 'group'" class="text-xs text-slate-400 dark:text-slate-500" x-text="activeConv.memberCount + '人'"></span>
+                            <span x-show="activeConv.type === 'ai'" class="text-[10px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded font-medium">AI</span>
+                        </div>
+                    </template>
+                    <template x-if="isNewChat">
+                        <div class="flex-1">
+                            <span class="text-sm font-semibold text-slate-900 dark:text-white">新建对话</span>
+                        </div>
+                    </template>
+                    <div class="flex items-center gap-1">
+                        <button x-show="activeConv?.type === 'group'"
+                                class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                title="群成员">
+                            <span class="material-symbols-outlined text-lg">people</span>
+                        </button>
+                        <button @click="chatOpen = false"
+                                class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                            <span class="material-symbols-outlined text-lg">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 新建对话：收件人输入 -->
+                <div x-show="isNewChat" class="px-4 py-3 border-b border-border-light dark:border-border-dark bg-slate-50/50 dark:bg-slate-900/30 flex-shrink-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">收件人:</span>
+                        <!-- 已选的参与者标签 -->
+                        <template x-for="p in newChatParticipants" :key="p.id">
+                            <span class="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 dark:bg-primary/20 text-primary text-xs font-medium rounded-md">
+                                <span x-text="p.name"></span>
+                                <button @click="removeParticipant(p.id)" class="hover:text-red-500 transition-colors">
+                                    <span class="material-symbols-outlined text-sm">close</span>
+                                </button>
+                            </span>
+                        </template>
+                        <!-- 输入框 -->
+                        <div class="relative flex-1 min-w-[120px]">
+                            <input x-ref="recipientInput"
+                                   x-model="recipientQuery"
+                                   @input="onRecipientInput()"
+                                   @keydown.backspace="onBackspace($event)"
+                                   type="text"
+                                   :placeholder="newChatParticipants.length === 0 ? '输入 @ 搜索用户，或直接输入和 AI 对话' : '继续 @ 添加更多成员...'"
+                                   class="w-full h-7 px-1 text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none">
+
+                            <!-- @ 提及下拉菜单 -->
+                            <div x-show="showMentionDropdown"
+                                 class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg shadow-lg overflow-hidden z-10">
+                                <div class="py-1 max-h-48 overflow-y-auto chat-scroll">
+                                    <template x-for="user in filteredUsers" :key="user.id">
+                                        <button @click="addParticipant(user)"
+                                                class="mention-item w-full px-3 py-2 flex items-center gap-3 text-left transition-colors cursor-pointer">
+                                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                                 x-text="user.avatar"></div>
+                                            <div>
+                                                <div class="text-sm text-slate-900 dark:text-white" x-text="user.name"></div>
+                                                <div class="text-[11px] text-slate-400" x-text="user.dept"></div>
+                                            </div>
+                                        </button>
+                                    </template>
+                                    <div x-show="filteredUsers.length === 0" class="px-3 py-4 text-center text-xs text-slate-400">
+                                        未找到匹配的用户
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <p x-show="newChatParticipants.length === 0" class="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+                        不 @ 任何人 = 和 AI 助手对话  |  @ 一人 = 私聊  |  @ 多人 = 群聊
+                    </p>
+                </div>
+
+                <!-- 消息区域 -->
+                <div class="flex-1 overflow-y-auto chat-scroll px-4 py-4 space-y-4" x-ref="messageArea">
+
+                    <!-- 空状态 -->
+                    <template x-if="!activeConv && !isNewChat">
+                        <div class="h-full flex flex-col items-center justify-center text-center">
+                            <div class="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+                                <span class="material-symbols-outlined text-3xl text-slate-300 dark:text-slate-600">forum</span>
+                            </div>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">选择一个对话开始聊天</p>
+                            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">或点击左上角
+                                <span class="material-symbols-outlined text-xs align-text-bottom">edit_square</span>
+                                新建对话
+                            </p>
+                        </div>
+                    </template>
+
+                    <!-- 新对话空状态 -->
+                    <template x-if="isNewChat && messages.length === 0">
+                        <div class="h-full flex flex-col items-center justify-center text-center">
+                            <div class="w-16 h-16 bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/30 dark:to-purple-900/30 rounded-2xl flex items-center justify-center mb-4">
+                                <span class="material-symbols-outlined text-3xl text-violet-500">auto_awesome</span>
+                            </div>
+                            <p class="text-sm font-medium text-slate-700 dark:text-slate-300">开始新对话</p>
+                            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-[240px]">输入 @ 选择同事发起聊天，或直接输入问题与 AI 助手交流</p>
+                        </div>
+                    </template>
+
+                    <!-- 消息列表 -->
+                    <template x-for="(msg, index) in messages" :key="index">
+                        <div class="msg-appear" :class="msg.sender === 'me' ? 'flex justify-end' : 'flex justify-start'">
+                            <div class="max-w-[75%]" :class="msg.sender === 'me' ? 'items-end' : 'items-start'">
+
+                                <!-- 发送者名称（群聊中对方消息显示） -->
+                                <div x-show="msg.sender !== 'me' && msg.senderName" class="flex items-center gap-1.5 mb-1">
+                                    <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400" x-text="msg.senderName"></span>
+                                    <span x-show="msg.isAI" class="text-[9px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1 py-0.5 rounded font-medium">AI</span>
+                                </div>
+
+                                <!-- 消息气泡 -->
+                                <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                                     :class="msg.sender === 'me'
+                                        ? 'bg-primary text-white rounded-br-md'
+                                        : msg.isAI
+                                            ? 'bg-violet-50 dark:bg-violet-900/20 text-slate-800 dark:text-slate-200 rounded-bl-md border border-violet-200 dark:border-violet-800'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-md'">
+                                    <p x-text="msg.content"></p>
+
+                                    <!-- 翻译区域 -->
+                                    <div x-show="msg.translation"
+                                         class="mt-2 pt-2 text-xs opacity-80"
+                                         :class="msg.sender === 'me' ? 'border-t border-white/20' : 'border-t border-slate-200 dark:border-slate-700'">
+                                        <div class="flex items-center gap-1 mb-0.5">
+                                            <span class="material-symbols-outlined text-[12px]">translate</span>
+                                            <span x-text="msg.translationLabel"></span>
+                                        </div>
+                                        <p x-text="msg.translation"></p>
+                                    </div>
+                                </div>
+
+                                <!-- 时间 -->
+                                <div class="mt-1 text-[10px] text-slate-400 dark:text-slate-500"
+                                     :class="msg.sender === 'me' ? 'text-right' : 'text-left'"
+                                     x-text="msg.time"></div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- AI 正在输入动画 -->
+                    <div x-show="aiTyping" class="flex justify-start msg-appear">
+                        <div class="max-w-[75%]">
+                            <div class="flex items-center gap-1.5 mb-1">
+                                <span class="text-[11px] font-medium text-violet-500">AI 助手</span>
+                                <span class="text-[9px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1 py-0.5 rounded font-medium">AI</span>
+                            </div>
+                            <div class="bg-violet-50 dark:bg-violet-900/20 rounded-2xl rounded-bl-md px-4 py-3 border border-violet-200 dark:border-violet-800">
+                                <div class="flex items-center gap-1.5">
+                                    <div class="typing-dot w-2 h-2 bg-violet-400 rounded-full"></div>
+                                    <div class="typing-dot w-2 h-2 bg-violet-400 rounded-full"></div>
+                                    <div class="typing-dot w-2 h-2 bg-violet-400 rounded-full"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 群聊中 @AI 提示 -->
+                <div x-show="showAIHint" class="px-4 py-2 bg-violet-50 dark:bg-violet-900/20 border-t border-violet-200 dark:border-violet-800 flex-shrink-0">
+                    <div class="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-400">
+                        <span class="material-symbols-outlined text-sm">info</span>
+                        <span>输入 <kbd class="px-1 py-0.5 bg-violet-100 dark:bg-violet-800 rounded text-[10px] font-mono">@AI</kbd> 可以让 AI 助手加入对话</span>
+                    </div>
+                </div>
+
+                <!-- 输入区域 -->
+                <div class="px-4 py-3 border-t border-border-light dark:border-border-dark flex-shrink-0"
+                     x-show="activeConv || isNewChat">
+                    <div class="flex items-end gap-2">
+                        <div class="flex-1 relative">
+                            <textarea x-ref="chatInput"
+                                      x-model="inputText"
+                                      @keydown.enter.prevent="sendMessage()"
+                                      @input="onInputChange()"
+                                      rows="1"
+                                      placeholder="输入消息... (Enter 发送)"
+                                      class="w-full resize-none px-4 py-2.5 text-sm bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 border border-transparent focus:border-primary/30 transition-all max-h-[120px]"
+                                      style="field-sizing: content;"></textarea>
+
+                            <!-- @AI 快捷选项 -->
+                            <div x-show="showAIMention"
+                                 class="absolute left-0 bottom-full mb-1 w-56 bg-white dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg shadow-lg overflow-hidden z-10">
+                                <button @click="insertAIMention()"
+                                        class="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors cursor-pointer">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-full flex items-center justify-center">
+                                        <span class="material-symbols-outlined text-white text-sm">auto_awesome</span>
+                                    </div>
+                                    <div class="text-left">
+                                        <div class="text-sm font-medium text-slate-900 dark:text-white">AI 助手</div>
+                                        <div class="text-[11px] text-slate-400">向 AI 提问</div>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                        <button @click="sendMessage()"
+                                class="w-10 h-10 flex-shrink-0 bg-primary hover:bg-primary-hover text-white rounded-xl flex items-center justify-center transition-colors"
+                                :class="{ 'opacity-50 cursor-not-allowed': !inputText.trim() }"
+                                :disabled="!inputText.trim()">
+                            <span class="material-symbols-outlined text-lg">send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== Alpine.js ========== -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script>
+    function pmaChat() {
+        return {
+            chatOpen: false,
+            isDark: false,
+            activeConv: null,
+            isNewChat: false,
+            inputText: '',
+            recipientQuery: '',
+            showMentionDropdown: false,
+            showAIMention: false,
+            showAIHint: false,
+            aiTyping: false,
+            newChatParticipants: [],
+            totalUnread: 5,
+
+            // 模拟用户列表
+            allUsers: [
+                { id: 1, name: 'Bob Smith', avatar: 'B', dept: '海外销售部', lang: 'en' },
+                { id: 2, name: '李明', avatar: '李', dept: '技术部', lang: 'zh' },
+                { id: 3, name: '王芳', avatar: '王', dept: '商务部', lang: 'zh' },
+                { id: 4, name: 'Ahmad Hassan', avatar: 'A', dept: '海外技术部', lang: 'en' },
+                { id: 5, name: '张工', avatar: '张', dept: '技术部', lang: 'zh' },
+                { id: 6, name: 'Sarah Lee', avatar: 'S', dept: '新加坡办事处', lang: 'en' },
+            ],
+            filteredUsers: [],
+
+            // 模拟对话列表
+            conversations: [
+                { id: 'ai', type: 'ai', name: 'AI 助手', avatar: '', lastMsg: '有什么我可以帮助你的吗？', time: '刚刚', unread: 0, online: true, memberCount: 0 },
+                { id: 'g1', type: 'group', name: '700MHz 项目讨论', avatar: '', lastMsg: 'Bob: I\'ll check the specs', time: '10:32', unread: 3, online: false, memberCount: 5 },
+                { id: 'p1', type: 'private', name: 'Bob Smith', avatar: 'B', lastMsg: 'Got it, thanks!', time: '09:45', unread: 2, online: true, memberCount: 0 },
+                { id: 'g2', type: 'group', name: '技术交流', avatar: '', lastMsg: '张工: 方案已更新', time: '昨天', unread: 0, online: false, memberCount: 8 },
+                { id: 'p2', type: 'private', name: '李明', avatar: '李', lastMsg: '报价单已发送', time: '昨天', unread: 0, online: false, memberCount: 0 },
+            ],
+
+            // 预设的演示消息
+            demoMessages: {
+                'ai': [
+                    { sender: 'other', senderName: 'AI 助手', isAI: true, content: '你好！我是 PMA AI 助手。我可以帮你查询产品信息、报价历史，或回答业务相关问题。有什么我可以帮助你的吗？', time: '14:00', translation: null },
+                ],
+                'g1': [
+                    { sender: 'other', senderName: '张工', isAI: false, content: '这个频段需要加滤波器，700MHz 的带外抑制不够', time: '10:28', translation: 'A filter needs to be added for this band. The out-of-band rejection for 700MHz is insufficient.', translationLabel: 'Translation' },
+                    { sender: 'other', senderName: 'Bob Smith', isAI: false, content: 'Got it. What about the output power? The customer needs at least 20W.', time: '10:30', translation: '收到。输出功率呢？客户需要至少20W。', translationLabel: '翻译' },
+                    { sender: 'me', senderName: null, isAI: false, content: '20W 没问题，我看一下这个型号的规格', time: '10:31', translation: '20W is fine, let me check the specs for this model.', translationLabel: 'Translation' },
+                    { sender: 'other', senderName: 'Bob Smith', isAI: false, content: "I'll check the specs and get back to you.", time: '10:32', translation: '我去查一下规格，回头告诉你。', translationLabel: '翻译' },
+                ],
+                'p1': [
+                    { sender: 'other', senderName: 'Bob Smith', isAI: false, content: 'Hi, about the quotation for the Philippine project...', time: '09:40', translation: '你好，关于菲律宾项目的报价...', translationLabel: '翻译' },
+                    { sender: 'me', senderName: null, isAI: false, content: '报价单已经发到你邮箱了，请查收', time: '09:42', translation: 'The quotation has been sent to your email, please check.', translationLabel: 'Translation' },
+                    { sender: 'other', senderName: 'Bob Smith', isAI: false, content: 'Got it, thanks!', time: '09:45', translation: '收到，谢谢！', translationLabel: '翻译' },
+                ],
+                'g2': [
+                    { sender: 'other', senderName: '张工', isAI: false, content: '新方案已经上传到项目文档里了，大家看一下', time: '昨天 16:00', translation: null },
+                    { sender: 'other', senderName: '李明', isAI: false, content: '好的，我下午看', time: '昨天 16:05', translation: null },
+                ],
+                'p2': [
+                    { sender: 'other', senderName: '李明', isAI: false, content: '报价单已发送给客户了', time: '昨天 15:30', translation: null },
+                    { sender: 'me', senderName: null, isAI: false, content: '好的，跟进一下客户反馈', time: '昨天 15:35', translation: null },
+                ],
+            },
+            messages: [],
+
+            // AI 演示回复
+            aiResponses: {
+                'default': '我理解你的问题。让我在 PMA 系统中查询一下相关信息...',
+                '700': '根据 PMA 产品库数据，支持 700MHz 频段的直放站型号有：\n\n• RF-700-20W（输出功率 20W）\n• RF-700-40W（输出功率 40W）\n• FO-700-R（光纤远端机）\n\n需要我查询具体的报价信息吗？',
+                '报价': '好的，让我查询最近的报价记录。\n\n找到 3 条相关报价：\n• Q-2026-0156 菲律宾电信项目 ¥85.6万\n• Q-2026-0149 马来西亚 700MHz ¥62.3万\n• Q-2026-0141 印尼基站项目 ¥120万\n\n需要查看某条报价的详情吗？',
+            },
+
+            toggleChat() {
+                this.chatOpen = !this.chatOpen;
+                if (this.chatOpen && !this.activeConv) {
+                    // 默认不选中任何对话
+                }
+            },
+
+            toggleDark() {
+                this.isDark = !this.isDark;
+                document.documentElement.classList.toggle('dark', this.isDark);
+            },
+
+            selectConversation(conv) {
+                this.activeConv = conv;
+                this.isNewChat = false;
+                this.messages = this.demoMessages[conv.id] || [];
+                if (conv.unread > 0) {
+                    this.totalUnread -= conv.unread;
+                    conv.unread = 0;
+                }
+                this.showAIHint = conv.type === 'group';
+                this.$nextTick(() => {
+                    if (this.$refs.messageArea) {
+                        this.$refs.messageArea.scrollTop = this.$refs.messageArea.scrollHeight;
+                    }
+                    if (this.$refs.chatInput) {
+                        this.$refs.chatInput.focus();
+                    }
+                });
+            },
+
+            startNewChat() {
+                this.isNewChat = true;
+                this.activeConv = null;
+                this.messages = [];
+                this.newChatParticipants = [];
+                this.recipientQuery = '';
+                this.showMentionDropdown = false;
+                this.showAIHint = false;
+                this.$nextTick(() => {
+                    if (this.$refs.recipientInput) {
+                        this.$refs.recipientInput.focus();
+                    }
+                });
+            },
+
+            onRecipientInput() {
+                const q = this.recipientQuery;
+                if (q.includes('@')) {
+                    const search = q.split('@').pop().toLowerCase();
+                    this.filteredUsers = this.allUsers.filter(u =>
+                        !this.newChatParticipants.find(p => p.id === u.id) &&
+                        (u.name.toLowerCase().includes(search) || u.dept.includes(search))
+                    );
+                    this.showMentionDropdown = true;
+                } else {
+                    this.showMentionDropdown = false;
+                }
+            },
+
+            onBackspace(e) {
+                if (this.recipientQuery === '' && this.newChatParticipants.length > 0) {
+                    this.newChatParticipants.pop();
+                }
+            },
+
+            addParticipant(user) {
+                this.newChatParticipants.push(user);
+                this.recipientQuery = '';
+                this.showMentionDropdown = false;
+                this.$refs.recipientInput.focus();
+            },
+
+            removeParticipant(id) {
+                this.newChatParticipants = this.newChatParticipants.filter(p => p.id !== id);
+            },
+
+            onInputChange() {
+                const text = this.inputText;
+                if (text.endsWith('@') || text.endsWith('@A') || text.endsWith('@AI')) {
+                    this.showAIMention = true;
+                } else {
+                    this.showAIMention = false;
+                }
+            },
+
+            insertAIMention() {
+                this.inputText = this.inputText.replace(/@A?I?$/, '@AI ');
+                this.showAIMention = false;
+                this.$refs.chatInput.focus();
+            },
+
+            sendMessage() {
+                if (!this.inputText.trim()) return;
+                const text = this.inputText.trim();
+                this.inputText = '';
+                this.showAIMention = false;
+
+                // 检测输入语言
+                const isChinese = /[\u4e00-\u9fff]/.test(text) &&
+                    (text.match(/[\u4e00-\u9fff]/g) || []).length / text.length > 0.1;
+                const sourceLang = isChinese ? 'zh' : 'en';
+
+                // 生成翻译（模拟）
+                let translation = null;
+                let translationLabel = null;
+                if (this.activeConv?.type === 'group' || this.activeConv?.type === 'private') {
+                    if (sourceLang === 'zh') {
+                        translation = '[English translation will appear here]';
+                        translationLabel = 'Translation';
+                    } else {
+                        translation = '[中文翻译将显示在此处]';
+                        translationLabel = '翻译';
+                    }
+                }
+
+                // 添加我的消息
+                this.messages.push({
+                    sender: 'me',
+                    senderName: null,
+                    isAI: false,
+                    content: text,
+                    time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+                    translation: translation,
+                    translationLabel: translationLabel,
+                });
+
+                this.scrollToBottom();
+
+                // 判断是否是新对话的 AI 模式
+                const isAIConv = this.activeConv?.type === 'ai' ||
+                                 (this.isNewChat && this.newChatParticipants.length === 0);
+                const hasAIMention = text.includes('@AI');
+
+                if (isAIConv || hasAIMention) {
+                    this.simulateAIResponse(text);
+                }
+
+                // 新对话时自动切换
+                if (this.isNewChat && this.newChatParticipants.length === 0) {
+                    this.activeConv = this.conversations[0]; // AI
+                    this.isNewChat = false;
+                    this.showAIHint = false;
+                }
+            },
+
+            simulateAIResponse(text) {
+                this.aiTyping = true;
+                this.scrollToBottom();
+
+                let response = this.aiResponses.default;
+                if (text.includes('700') || text.includes('频段')) {
+                    response = this.aiResponses['700'];
+                } else if (text.includes('报价') || text.includes('quotation')) {
+                    response = this.aiResponses['报价'];
+                }
+
+                setTimeout(() => {
+                    this.aiTyping = false;
+                    this.messages.push({
+                        sender: 'other',
+                        senderName: 'AI 助手',
+                        isAI: true,
+                        content: response,
+                        time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+                        translation: null,
+                    });
+                    this.scrollToBottom();
+                }, 1500 + Math.random() * 1000);
+            },
+
+            scrollToBottom() {
+                this.$nextTick(() => {
+                    if (this.$refs.messageArea) {
+                        this.$refs.messageArea.scrollTop = this.$refs.messageArea.scrollHeight;
+                    }
+                });
+            },
+        }
+    }
+    </script>
+</body>
+</html>

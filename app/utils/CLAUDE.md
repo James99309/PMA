@@ -14,4 +14,11 @@
 |----|------|---|-------|------|
 | #3105 | 6:00 PM | 🟣 | Added empty field value filtering in product snapshot generation | ~316 |
 | #3098 | 5:58 PM | 🔵 | Product code generation uses hierarchical spec sorting | ~358 |
+
+### Feb 14, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #3230 | 7:35 AM | 🔵 | Synology WebDAV Client Supports Internal/External Network Auto-Switching | ~491 |
+| #3229 | " | 🔵 | Smart Storage Manager Implements NAS-First Hybrid Strategy | ~448 |
 </claude-mem-context>

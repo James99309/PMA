@@ -511,13 +511,13 @@ class FileManagerService:
         return True, f'已清空回收站，释放 {FileManagerService.format_size(total_freed)}'
 
     @staticmethod
-    def _delete_from_storage(storage_path):
-        """从存储删除物理文件（NAS 或本地）"""
+    def _delete_from_storage(storage_path, storage_type='nas'):
+        """从存储删除物理文件（根据 storage_type 决定 NAS 或本地）"""
         try:
-            from app.utils.smart_storage_manager import SmartStorageManager
             import os
-            storage = SmartStorageManager()
-            if storage.nas_enabled and storage.is_nas_available():
+            if storage_type == 'nas':
+                from app.utils.smart_storage_manager import SmartStorageManager
+                storage = SmartStorageManager()
                 nas_subdir = storage.bucket_mapping.get('file_library', 'file-library')
                 full_path = f"{nas_subdir}/{storage_path}"
                 storage.nas_client.delete_file(full_path)
@@ -566,7 +566,7 @@ class FileManagerService:
             db.session.flush()
 
             # 删除原始文件（非关键操作，失败不影响归档状态）
-            FileManagerService._delete_from_storage(old_path)
+            FileManagerService._delete_from_storage(old_path, lib.storage_type)
             return True
         except Exception as e:
             db.session.rollback()

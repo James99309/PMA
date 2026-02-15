@@ -136,6 +136,8 @@ class SupabaseStorageClient:
             'rd_product': 'rd_products',
             'meeting': 'meetings',  # 会议录音存储
             'file_library': 'file_library',  # 个人文件管理
+            'chat': 'chat_files',   # 聊天附件存储
+            'task': 'tasks',        # 任务附件存储
             'default': 'invoices'
         }
         
@@ -161,6 +163,8 @@ class SupabaseStorageClient:
             'product': os.getenv('SUPABASE_BUCKET_PRODUCT', 'product-images'),
             'rd_product': os.getenv('SUPABASE_BUCKET_RD_PRODUCT', 'rd-product-images'),
             'meeting': os.getenv('SUPABASE_BUCKET_MEETING', 'meeting-recordings'),  # 会议录音
+            'chat': os.getenv('SUPABASE_BUCKET_CHAT', 'chat-files'),        # 聊天附件
+            'task': os.getenv('SUPABASE_BUCKET_TASK', 'tasks'),              # 任务附件
             'default': os.getenv('SUPABASE_BUCKET', 'invoice-images')
         }
         
@@ -364,8 +368,8 @@ class SupabaseStorageClient:
         """
         try:
             # 验证文件类型
-            if file_type not in ['image', 'pdf', 'attachment']:
-                raise ValueError("文件类型必须是 'image'、'pdf' 或 'attachment'")
+            if file_type not in ['image', 'pdf', 'attachment', 'video']:
+                raise ValueError("文件类型必须是 'image'、'pdf'、'attachment' 或 'video'")
 
             # 验证文件扩展名
             original_filename = secure_filename(filename)
@@ -380,6 +384,8 @@ class SupabaseStorageClient:
                     allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif']
                 elif file_type == 'pdf':
                     allowed_extensions = ['pdf']
+                elif file_type == 'video':
+                    allowed_extensions = ['mp4', 'mov', 'avi', 'webm', 'mkv', 'flv', 'wmv']
                 else:  # attachment
                     allowed_extensions = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
                                          'txt', 'zip', 'rar', '7z', 'csv', 'json', 'xml']
@@ -806,7 +812,7 @@ class SupabaseStorageClient:
         if file_type == 'image':
             content_types = {
                 'jpg': 'image/jpeg',
-                'jpeg': 'image/jpeg', 
+                'jpeg': 'image/jpeg',
                 'png': 'image/png',
                 'gif': 'image/gif',
                 'heic': 'image/heic',
@@ -817,6 +823,17 @@ class SupabaseStorageClient:
             return content_types.get(file_ext, 'image/jpeg')
         elif file_type == 'pdf':
             return 'application/pdf'
+        elif file_type == 'video':
+            content_types = {
+                'mp4': 'video/mp4',
+                'mov': 'video/quicktime',
+                'avi': 'video/x-msvideo',
+                'webm': 'video/webm',
+                'mkv': 'video/x-matroska',
+                'flv': 'video/x-flv',
+                'wmv': 'video/x-ms-wmv',
+            }
+            return content_types.get(file_ext, 'video/mp4')
         else:  # attachment
             # 根据扩展名返回对应的 Content-Type
             content_types = {
@@ -832,7 +849,7 @@ class SupabaseStorageClient:
                 '7z': 'application/x-7z-compressed',
                 'csv': 'text/csv',
                 'json': 'application/json',
-                'xml': 'text/xml'
+                'xml': 'application/xml'
             }
             return content_types.get(file_ext, 'application/octet-stream')
     

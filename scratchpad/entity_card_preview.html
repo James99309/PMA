@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天 # 实体卡片 - 前端预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: '#3B82F6', dark: '#2563EB', light: '#60A5FA' },
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        .chat-panel-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-panel-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-panel-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+        .chat-msg-appear { animation: chatMsgSlide 0.2s ease-out; }
+        @keyframes chatMsgSlide {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen p-6">
+
+<div class="max-w-4xl mx-auto space-y-8" x-data="preview()">
+
+    <!-- 标题 -->
+    <div class="text-center">
+        <h1 class="text-2xl font-bold text-slate-900">聊天 # 实体卡片 - 前端预览</h1>
+        <p class="text-sm text-slate-500 mt-1">输入 # 触发实体选择器，发送客户/项目卡片消息</p>
+    </div>
+
+    <!-- ===== 预览1：聊天面板中的卡片消息气泡 ===== -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 bg-slate-50">
+            <h2 class="text-sm font-semibold text-slate-700">预览 1：卡片消息气泡</h2>
+        </div>
+        <div class="p-6 bg-slate-50/50 space-y-4" style="min-height: 420px;">
+
+            <!-- 自己发送的客户卡片 -->
+            <div class="flex justify-start chat-msg-appear">
+                <div class="max-w-[75%]">
+                    <div class="mb-1 text-[10px] text-slate-400 text-left">今天 14:30</div>
+                    <div class="rounded-2xl px-4 py-3 min-w-[220px] max-w-[280px] cursor-pointer transition-shadow hover:shadow-md bg-primary text-white rounded-bl-md">
+                        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-white/70">
+                            <span class="material-symbols-outlined text-[14px]">apartment</span>
+                            <span>客户</span>
+                        </div>
+                        <div class="text-sm font-semibold truncate">深圳华为技术有限公司</div>
+                        <div class="flex items-center gap-1.5 mt-1.5">
+                            <span class="material-symbols-outlined text-[14px] text-white/60">person</span>
+                            <span class="text-xs">张明</span>
+                            <span class="text-[10px] text-white/50">技术总监</span>
+                        </div>
+                        <div class="flex items-center justify-end mt-2 text-[10px] text-white/40">
+                            <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+                            查看详情
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 对方发送的客户卡片 -->
+            <div class="flex justify-end chat-msg-appear">
+                <div class="max-w-[75%]">
+                    <div class="flex items-center justify-end gap-1.5 mb-1">
+                        <span class="text-[11px] font-medium text-slate-500">李经理</span>
+                    </div>
+                    <div class="rounded-2xl px-4 py-3 min-w-[220px] max-w-[280px] cursor-pointer transition-shadow hover:shadow-md bg-white text-slate-800 rounded-br-md border border-slate-200">
+                        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-blue-500">
+                            <span class="material-symbols-outlined text-[14px]">apartment</span>
+                            <span>客户</span>
+                        </div>
+                        <div class="text-sm font-semibold truncate">中兴通讯股份有限公司</div>
+                        <div class="flex items-center gap-1.5 mt-1.5">
+                            <span class="material-symbols-outlined text-[14px] text-slate-400">person</span>
+                            <span class="text-xs">王芳</span>
+                            <span class="text-[10px] text-slate-400">采购经理</span>
+                        </div>
+                        <div class="flex items-center justify-end mt-2 text-[10px] text-slate-300">
+                            <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+                            查看详情
+                        </div>
+                    </div>
+                    <div class="mt-1 text-[10px] text-slate-400 text-right">今天 14:32</div>
+                </div>
+            </div>
+
+            <!-- 自己发送的项目卡片（含报价单） -->
+            <div class="flex justify-start chat-msg-appear">
+                <div class="max-w-[75%]">
+                    <div class="mb-1 text-[10px] text-slate-400 text-left">今天 14:35</div>
+                    <div class="rounded-2xl px-4 py-3 min-w-[220px] max-w-[280px] cursor-pointer transition-shadow hover:shadow-md bg-primary text-white rounded-bl-md">
+                        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-white/70">
+                            <span class="material-symbols-outlined text-[14px]">folder_open</span>
+                            <span>项目</span>
+                        </div>
+                        <div class="text-sm font-semibold truncate">XX基站天线项目</div>
+                        <div class="flex items-center gap-1.5 mt-1.5">
+                            <span class="material-symbols-outlined text-[14px] text-white/60">flag</span>
+                            <span class="text-xs">品牌植入</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 mt-1">
+                            <span class="material-symbols-outlined text-[14px] text-white/60">receipt_long</span>
+                            <span class="text-xs">Q-20260201-001</span>
+                            <span class="text-xs font-medium">¥125,000</span>
+                        </div>
+                        <div class="flex items-center justify-end mt-2 text-[10px] text-white/40">
+                            <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+                            查看详情
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 对方发送的项目卡片（无报价单） -->
+            <div class="flex justify-end chat-msg-appear">
+                <div class="max-w-[75%]">
+                    <div class="flex items-center justify-end gap-1.5 mb-1">
+                        <span class="text-[11px] font-medium text-slate-500">王工</span>
+                    </div>
+                    <div class="rounded-2xl px-4 py-3 min-w-[220px] max-w-[280px] cursor-pointer transition-shadow hover:shadow-md bg-white text-slate-800 rounded-br-md border border-slate-200">
+                        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-emerald-500">
+                            <span class="material-symbols-outlined text-[14px]">folder_open</span>
+                            <span>项目</span>
+                        </div>
+                        <div class="text-sm font-semibold truncate">YY室分覆盖工程</div>
+                        <div class="flex items-center gap-1.5 mt-1.5">
+                            <span class="material-symbols-outlined text-[14px] text-slate-400">flag</span>
+                            <span class="text-xs">招标中</span>
+                        </div>
+                        <div class="flex items-center justify-end mt-2 text-[10px] text-slate-300">
+                            <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+                            查看详情
+                        </div>
+                    </div>
+                    <div class="mt-1 text-[10px] text-slate-400 text-right">今天 14:38</div>
+                </div>
+            </div>
+
+            <!-- 普通文本消息穿插 -->
+            <div class="flex justify-start chat-msg-appear">
+                <div class="max-w-[75%]">
+                    <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed bg-primary text-white rounded-bl-md">
+                        <p>这个客户上次说要下单了，你跟进一下</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 预览2：实体选择器模态框 ===== -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-slate-700">预览 2：实体选择器模态框</h2>
+            <div class="flex gap-2">
+                <button @click="entityTab = 'customer'; entitySelectedCompany = mockCompanies[0]; entityContacts = mockContacts"
+                        class="px-3 py-1 text-xs rounded-lg border cursor-pointer"
+                        :class="entityTab === 'customer' ? 'bg-primary text-white' : 'border-slate-300 text-slate-600'">
+                    客户视图
+                </button>
+                <button @click="entityTab = 'project'; entitySelectedProject = mockProjects[0]; entityQuotations = mockQuotations"
+                        class="px-3 py-1 text-xs rounded-lg border cursor-pointer"
+                        :class="entityTab === 'project' ? 'bg-primary text-white' : 'border-slate-300 text-slate-600'">
+                    项目视图
+                </button>
+            </div>
+        </div>
+        <div class="flex items-center justify-center p-8 bg-slate-100/50" style="min-height: 520px;">
+
+            <!-- 模态框本体 -->
+            <div class="relative bg-white rounded-2xl shadow-2xl flex overflow-hidden"
+                 style="width: 580px; height: 460px;">
+
+                <!-- 左栏：搜索 + 列表 -->
+                <div class="w-[300px] border-r border-slate-200 flex flex-col">
+                    <div class="px-4 pt-4 pb-2">
+                        <h3 class="text-sm font-semibold text-slate-900">引用业务数据</h3>
+                    </div>
+                    <!-- Tab -->
+                    <div class="flex px-4 gap-4 border-b border-slate-100">
+                        <button @click="entityTab = 'customer'; entitySelectedCompany = mockCompanies[0]; entityContacts = mockContacts"
+                                class="pb-2 text-[12px] font-medium border-b-2 transition-colors cursor-pointer"
+                                :class="entityTab === 'customer' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'">
+                            客户
+                        </button>
+                        <button @click="entityTab = 'project'; entitySelectedProject = mockProjects[0]; entityQuotations = mockQuotations"
+                                class="pb-2 text-[12px] font-medium border-b-2 transition-colors cursor-pointer"
+                                :class="entityTab === 'project' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600'">
+                            项目
+                        </button>
+                    </div>
+                    <!-- 搜索框 -->
+                    <div class="px-4 py-2">
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">search</span>
+                            <input :placeholder="entityTab === 'customer' ? '搜索客户公司...' : '搜索项目名称...'"
+                                   :value="entityTab === 'customer' ? '华为' : 'XX基站'"
+                                   class="w-full text-sm pl-8 pr-3 py-2 rounded-lg bg-slate-100 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 text-slate-900 placeholder:text-slate-400">
+                        </div>
+                    </div>
+
+                    <!-- 客户列表 -->
+                    <div x-show="entityTab === 'customer'" class="flex-1 overflow-y-auto px-2 pb-2 chat-panel-scroll">
+                        <template x-for="(company, idx) in mockCompanies" :key="'mc_' + idx">
+                            <button @click="entitySelectedCompany = company; entityContacts = idx === 0 ? mockContacts : mockContacts2"
+                                    class="w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors cursor-pointer text-left"
+                                    :class="entitySelectedCompany?.name === company.name ? 'bg-primary/10' : 'hover:bg-slate-50'">
+                                <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                    <span class="material-symbols-outlined text-blue-600 text-lg">apartment</span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm text-slate-900 truncate" x-text="company.name"></div>
+                                    <div class="text-[10px] text-slate-400 truncate" x-text="company.location"></div>
+                                </div>
+                            </button>
+                        </template>
+                    </div>
+
+                    <!-- 项目列表 -->
+                    <div x-show="entityTab === 'project'" class="flex-1 overflow-y-auto px-2 pb-2 chat-panel-scroll">
+                        <template x-for="(proj, idx) in mockProjects" :key="'mp_' + idx">
+                            <button @click="entitySelectedProject = proj; entityQuotations = idx === 0 ? mockQuotations : []"
+                                    class="w-full px-3 py-2.5 flex items-center gap-3 rounded-lg transition-colors cursor-pointer text-left"
+                                    :class="entitySelectedProject?.name === proj.name ? 'bg-primary/10' : 'hover:bg-slate-50'">
+                                <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                    <span class="material-symbols-outlined text-emerald-600 text-lg">folder_open</span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm text-slate-900 truncate" x-text="proj.name"></div>
+                                    <div class="text-[10px] text-slate-400" x-text="proj.stage"></div>
+                                </div>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- 右栏：联系人 / 报价单 -->
+                <div class="flex-1 flex flex-col">
+                    <!-- 客户 → 联系人 -->
+                    <template x-if="entityTab === 'customer'">
+                    <div class="flex-1 flex flex-col">
+                        <div class="p-4 pb-2" x-show="entitySelectedCompany">
+                            <div class="text-sm font-semibold text-slate-900 truncate" x-text="entitySelectedCompany?.name"></div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">选择联系人发送卡片</div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto px-4 chat-panel-scroll">
+                            <template x-for="(ct, idx) in entityContacts" :key="'ct_' + idx">
+                                <button class="w-full px-3 py-3 flex items-center gap-3 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer text-left">
+                                    <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                        <span class="material-symbols-outlined text-blue-500 text-base">person</span>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm text-slate-900" x-text="ct.name"></div>
+                                        <div x-show="ct.position" class="text-[10px] text-slate-400" x-text="ct.position"></div>
+                                    </div>
+                                    <span class="material-symbols-outlined text-slate-300 text-base">send</span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    </template>
+
+                    <!-- 项目 → 报价单 -->
+                    <template x-if="entityTab === 'project'">
+                    <div class="flex-1 flex flex-col">
+                        <div class="p-4 pb-2" x-show="entitySelectedProject">
+                            <div class="text-sm font-semibold text-slate-900 truncate" x-text="entitySelectedProject?.name"></div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">选择报价单或直接发送项目卡片</div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto px-4 chat-panel-scroll" x-show="entitySelectedProject">
+                            <!-- 仅发送项目 -->
+                            <button class="w-full px-3 py-3 flex items-center gap-3 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer text-left border border-dashed border-slate-200 mb-2">
+                                <div class="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                                    <span class="material-symbols-outlined text-emerald-500 text-base">folder_open</span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm text-slate-700">仅发送项目信息</div>
+                                    <div class="text-[10px] text-slate-400">不包含报价单</div>
+                                </div>
+                                <span class="material-symbols-outlined text-slate-300 text-base">send</span>
+                            </button>
+                            <!-- 报价单列表 -->
+                            <template x-for="(qt, idx) in entityQuotations" :key="'qt_' + idx">
+                                <button class="w-full px-3 py-3 flex items-center gap-3 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer text-left">
+                                    <div class="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
+                                        <span class="material-symbols-outlined text-amber-500 text-base">receipt_long</span>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm text-slate-900" x-text="qt.number"></div>
+                                        <div class="text-[10px] text-slate-400" x-text="'¥' + qt.amount.toLocaleString()"></div>
+                                    </div>
+                                    <span class="material-symbols-outlined text-slate-300 text-base">send</span>
+                                </button>
+                            </template>
+                            <div x-show="entityQuotations.length === 0"
+                                 class="text-[11px] text-slate-400 py-2 text-center">暂无报价单</div>
+                        </div>
+                    </div>
+                    </template>
+                </div>
+
+                <!-- 关闭按钮 -->
+                <button class="absolute top-3 right-3 text-slate-400 hover:text-slate-600 cursor-pointer">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 预览3：# 触发示意 ===== -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 bg-slate-50">
+            <h2 class="text-sm font-semibold text-slate-700">预览 3：# 触发输入交互</h2>
+        </div>
+        <div class="p-6 flex justify-center">
+            <div class="w-[500px] border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                <!-- 模拟聊天窗口输入区 -->
+                <div class="px-4 py-3 border-b border-slate-100 bg-slate-50/50 text-xs text-slate-500 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm text-slate-400">info</span>
+                    输入 <kbd class="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono shadow-sm">#</kbd> 引用客户或项目
+                    &nbsp;|&nbsp;
+                    输入 <kbd class="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-mono shadow-sm">@</kbd> 提及用户或 AI
+                </div>
+                <div class="px-4 py-3 flex items-end gap-2">
+                    <button class="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer flex-shrink-0">
+                        <span class="material-symbols-outlined text-xl">add</span>
+                    </button>
+                    <div class="flex-1 relative">
+                        <textarea rows="1" placeholder="输入消息... (Enter 发送)"
+                                  class="w-full resize-none px-4 py-2.5 text-sm bg-slate-100 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 border border-transparent focus:border-primary/30 transition-all"></textarea>
+                    </div>
+                    <button class="w-10 h-10 flex-shrink-0 bg-primary hover:bg-primary-dark text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-lg">send</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 预览4：对话列表中的卡片消息预览文本 ===== -->
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-200 bg-slate-50">
+            <h2 class="text-sm font-semibold text-slate-700">预览 4：左侧对话列表 - 最后消息预览</h2>
+        </div>
+        <div class="p-6 flex justify-center">
+            <div class="w-[260px] border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
+                <!-- 对话项1 -->
+                <div class="px-3 py-3 hover:bg-white/80 transition-colors cursor-pointer bg-primary/5 border-b border-slate-100">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-sm font-medium text-slate-600 flex-shrink-0">李</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-slate-900 truncate">李经理</span>
+                                <span class="text-[10px] text-slate-400">14:30</span>
+                            </div>
+                            <div class="text-xs text-slate-400 truncate mt-0.5">[客户卡片] 深圳华为技术有限公司</div>
+                        </div>
+                    </div>
+                </div>
+                <!-- 对话项2 -->
+                <div class="px-3 py-3 hover:bg-white/80 transition-colors cursor-pointer border-b border-slate-100">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-sm font-medium text-blue-600 flex-shrink-0">技</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-slate-900 truncate">技术支持群</span>
+                                <span class="text-[10px] text-slate-400">14:35</span>
+                            </div>
+                            <div class="text-xs text-slate-400 truncate mt-0.5">[项目卡片] XX基站天线项目</div>
+                        </div>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 flex-shrink-0 font-medium">群聊</span>
+                    </div>
+                </div>
+                <!-- 对话项3 -->
+                <div class="px-3 py-3 hover:bg-white/80 transition-colors cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-sm font-medium text-slate-600 flex-shrink-0">王</div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-slate-900 truncate">王工</span>
+                                <span class="text-[10px] text-slate-400">昨天</span>
+                            </div>
+                            <div class="text-xs text-slate-400 truncate mt-0.5">好的，我看一下报价单</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function preview() {
+    return {
+        entityTab: 'customer',
+        entitySelectedCompany: { name: '深圳华为技术有限公司', location: '中国 深圳' },
+        entitySelectedProject: null,
+        entityContacts: [
+            { name: '张明', position: '技术总监' },
+            { name: '李华', position: '采购经理' },
+            { name: '王芳', position: '项目经理' },
+        ],
+        entityQuotations: [],
+        mockCompanies: [
+            { name: '深圳华为技术有限公司', location: '中国 深圳' },
+            { name: '华为海洋网络有限公司', location: '中国 天津' },
+            { name: '华为技术(新加坡)有限公司', location: '新加坡' },
+        ],
+        mockProjects: [
+            { name: 'XX基站天线项目', stage: '品牌植入' },
+            { name: 'YY室分覆盖工程', stage: '招标中' },
+            { name: 'ZZ 5G基站改造', stage: '发现' },
+        ],
+        mockContacts: [
+            { name: '张明', position: '技术总监' },
+            { name: '李华', position: '采购经理' },
+            { name: '王芳', position: '项目经理' },
+        ],
+        mockContacts2: [
+            { name: '刘强', position: '总工程师' },
+            { name: '赵琳', position: '商务部长' },
+        ],
+        mockQuotations: [
+            { number: 'Q-20260201-001', amount: 125000 },
+            { number: 'Q-20260115-003', amount: 89500 },
+        ],
+    };
+}
+</script>
+
+</body>
+</html>

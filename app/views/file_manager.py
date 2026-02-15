@@ -451,6 +451,37 @@ def admin_download_archived(lib_id):
     abort(404)
 
 
+@file_manager_bp.route('/api/admin/archived/<int:lib_id>', methods=['DELETE'])
+@login_required
+def admin_permanent_delete_archived(lib_id):
+    """彻底删除归档文件（管理员）— 删除物理文件和数据库记录"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    lib = FileLibrary.query.get(lib_id)
+    if not lib or not lib.is_archived:
+        return jsonify({'success': False, 'message': '归档文件不存在'}), 404
+
+    try:
+        # 删除物理文件
+        FileManagerService._delete_from_storage(lib.storage_path, lib.storage_type)
+
+        # 删除关联的用户引用（如有残留）
+        from app.models.file_manager import UserFileRef
+        UserFileRef.query.filter_by(file_library_id=lib.id).delete()
+
+        # 删除数据库记录
+        db.session.delete(lib)
+        db.session.commit()
+
+        logger.info(f"管理员 {current_user.username} 彻底删除归档文件: {lib.original_filename} (ID={lib_id})")
+        return jsonify({'success': True, 'message': '已彻底删除'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"彻底删除归档文件失败: {e}")
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'}), 500
+
+
 @file_manager_bp.route('/api/admin/compress-inactive', methods=['POST'])
 @login_required
 def admin_compress_inactive():

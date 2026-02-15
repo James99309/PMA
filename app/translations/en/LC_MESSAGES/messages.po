@@ -8528,6 +8528,15 @@ msgstr "Used"
 msgid "已归档"
 msgstr "Archived"
 
+msgid "NAS 云端存储"
+msgstr "NAS Cloud Storage"
+
+msgid "本地存储"
+msgstr "Local Storage"
+
+msgid "彻底删除"
+msgstr "Permanent Delete"
+
 msgid "正在解压文件..."
 msgstr "Decompressing file..."
 

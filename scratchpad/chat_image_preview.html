@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天附件发送预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { primary: { DEFAULT: '#6366f1', dark: '#4f46e5' } } } }
+        }
+    </script>
+    <style>
+        .chat-panel-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-panel-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-panel-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-8">
+
+<div x-data="{
+    messages: [
+        { id: 1, content: '你好，这是新的产品规格图', is_mine: false, sender_name: '张瑛', created_at: '12:10', message_type: 'text' },
+        { id: 2, is_mine: false, sender_name: '张瑛', created_at: '12:10', message_type: 'image',
+          file_url: 'https://picsum.photos/400/300?random=1', file_name: '产品规格图.png', file_size: '1.2 MB' },
+        { id: 3, content: '收到，我看看', is_mine: true, created_at: '12:11', message_type: 'text' },
+        { id: 4, is_mine: true, created_at: '12:12', message_type: 'image',
+          file_url: 'https://picsum.photos/350/250?random=2', file_name: '报价单截图.jpg', file_size: '856 KB' },
+        { id: 5, is_mine: false, sender_name: '张瑛', created_at: '12:14', message_type: 'file',
+          file_url: '#', file_name: '2026年Q1报价单.xlsx', file_size: '2.3 MB', file_ext: 'xlsx' },
+        { id: 6, is_mine: true, created_at: '12:15', message_type: 'video',
+          file_url: '#', file_name: '产品演示.mp4', file_size: '8.5 MB', file_ext: 'mp4',
+          thumbnail_url: 'https://picsum.photos/400/225?random=3' },
+        { id: 7, content: '文件都收到了', is_mine: false, sender_name: '张瑛', created_at: '12:16', message_type: 'text' },
+    ],
+    inputText: '',
+    pendingFiles: [],
+    showAttachMenu: false,
+    previewUrl: null,
+
+    fileTypeIcons: {
+        pdf: { icon: 'picture_as_pdf', color: 'text-red-500 bg-red-50' },
+        xlsx: { icon: 'table_chart', color: 'text-green-600 bg-green-50' },
+        xls: { icon: 'table_chart', color: 'text-green-600 bg-green-50' },
+        doc: { icon: 'description', color: 'text-blue-500 bg-blue-50' },
+        docx: { icon: 'description', color: 'text-blue-500 bg-blue-50' },
+        ppt: { icon: 'slideshow', color: 'text-orange-500 bg-orange-50' },
+        pptx: { icon: 'slideshow', color: 'text-orange-500 bg-orange-50' },
+        zip: { icon: 'folder_zip', color: 'text-amber-600 bg-amber-50' },
+        rar: { icon: 'folder_zip', color: 'text-amber-600 bg-amber-50' },
+        mp4: { icon: 'movie', color: 'text-purple-500 bg-purple-50' },
+        mov: { icon: 'movie', color: 'text-purple-500 bg-purple-50' },
+        default: { icon: 'draft', color: 'text-slate-500 bg-slate-100' },
+    },
+
+    getFileIcon(ext) {
+        return this.fileTypeIcons[ext?.toLowerCase()] || this.fileTypeIcons.default;
+    },
+
+    getExt(name) {
+        return name?.split('.').pop()?.toLowerCase() || '';
+    },
+
+    isImage(name) {
+        return ['jpg','jpeg','png','gif','webp','bmp','svg'].includes(this.getExt(name));
+    },
+
+    isVideo(name) {
+        return ['mp4','mov','avi','mkv','webm'].includes(this.getExt(name));
+    },
+
+    formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+        return (bytes/(1024*1024)).toFixed(1) + ' MB';
+    },
+
+    // 附件菜单选择
+    selectAttachment(type) {
+        this.showAttachMenu = false;
+        const input = this.$refs.fileInput;
+        if (type === 'image') input.accept = 'image/*';
+        else if (type === 'video') input.accept = 'video/*';
+        else input.accept = '*/*';
+        input.click();
+    },
+
+    handleFileSelect(e) {
+        const files = Array.from(e.target.files);
+        for (const file of files) {
+            if (file.size > 50 * 1024 * 1024) { alert('文件不超过 50MB'); continue; }
+            const url = URL.createObjectURL(file);
+            const ext = this.getExt(file.name);
+            let fileType = 'file';
+            if (this.isImage(file.name)) fileType = 'image';
+            else if (this.isVideo(file.name)) fileType = 'video';
+            this.pendingFiles.push({ file, url, name: file.name, size: file.size, type: fileType, ext });
+        }
+        e.target.value = '';
+    },
+
+    removePendingFile(index) {
+        URL.revokeObjectURL(this.pendingFiles[index].url);
+        this.pendingFiles.splice(index, 1);
+    },
+
+    sendMessage() {
+        const text = this.inputText.trim();
+        const files = [...this.pendingFiles];
+        if (!text && files.length === 0) return;
+
+        if (text) {
+            this.messages.push({
+                id: Date.now(), content: text, is_mine: true, message_type: 'text',
+                created_at: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}),
+            });
+        }
+        for (const f of files) {
+            this.messages.push({
+                id: Date.now() + Math.random(), is_mine: true, message_type: f.type,
+                file_url: f.url, file_name: f.name, file_size: this.formatSize(f.size), file_ext: f.ext,
+                thumbnail_url: f.type === 'video' ? f.url : undefined,
+                created_at: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}),
+            });
+        }
+        this.inputText = '';
+        this.pendingFiles = [];
+        this.$nextTick(() => { this.$refs.messageArea.scrollTop = this.$refs.messageArea.scrollHeight; });
+    },
+
+    handlePaste(e) {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                const url = URL.createObjectURL(file);
+                this.pendingFiles.push({ file, url, name: 'clipboard_' + Date.now() + '.png', size: file.size, type: 'image', ext: 'png' });
+            }
+        }
+    },
+
+    handleDrop(e) {
+        e.preventDefault();
+        this.dragOver = false;
+        for (const file of Array.from(e.dataTransfer.files)) {
+            if (file.size > 50 * 1024 * 1024) continue;
+            const url = URL.createObjectURL(file);
+            const ext = this.getExt(file.name);
+            let fileType = 'file';
+            if (this.isImage(file.name)) fileType = 'image';
+            else if (this.isVideo(file.name)) fileType = 'video';
+            this.pendingFiles.push({ file, url, name: file.name, size: file.size, type: fileType, ext });
+        }
+    },
+    dragOver: false,
+}" class="w-[800px] h-[640px] bg-white rounded-2xl shadow-2xl border border-slate-200 flex overflow-hidden relative">
+
+    <!-- ====== 左栏 ====== -->
+    <div class="w-[260px] border-r border-slate-200 flex flex-col bg-slate-50/50 flex-shrink-0">
+        <div class="h-14 px-4 flex items-center justify-between border-b border-slate-200 flex-shrink-0">
+            <h3 class="text-sm font-semibold text-slate-900">消息</h3>
+            <button class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer">
+                <span class="material-symbols-outlined text-xl">edit_square</span>
+            </button>
+        </div>
+        <div class="px-3 py-2 flex-shrink-0">
+            <div class="relative">
+                <span class="material-symbols-outlined text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-lg">search</span>
+                <input type="text" placeholder="搜索对话..." class="w-full h-9 pl-9 pr-3 text-sm bg-white border border-slate-200 rounded-lg placeholder:text-slate-400 focus:outline-none">
+            </div>
+        </div>
+        <div class="flex-1 overflow-y-auto">
+            <button class="w-full px-3 py-3 flex items-start gap-3 bg-white shadow-sm cursor-pointer text-left">
+                <div class="w-10 h-10 rounded-full bg-slate-200 text-slate-600 flex items-center justify-center text-sm font-medium flex-shrink-0">张</div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-slate-900">张瑛</span>
+                        <span class="text-[11px] text-slate-400">12:16</span>
+                    </div>
+                    <p class="text-xs text-slate-500 truncate mt-0.5">文件都收到了</p>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    <!-- ====== 右栏 ====== -->
+    <div class="flex-1 flex flex-col min-w-0">
+        <div class="h-14 px-4 flex items-center justify-between border-b border-slate-200 flex-shrink-0">
+            <span class="text-sm font-semibold text-slate-900">张瑛</span>
+            <div class="flex items-center gap-1">
+                <button class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-lg">person_add</span>
+                </button>
+                <button class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 消息区域 -->
+        <div class="flex-1 overflow-y-auto chat-panel-scroll px-4 py-4 space-y-4"
+             x-ref="messageArea"
+             @dragover.prevent="dragOver = true"
+             @dragleave.prevent="dragOver = false"
+             @drop="handleDrop($event)">
+
+            <!-- 拖拽遮罩 -->
+            <div x-show="dragOver" class="absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-2xl z-30 flex items-center justify-center">
+                <div class="bg-white rounded-xl px-6 py-4 shadow-lg text-center">
+                    <span class="material-symbols-outlined text-3xl text-primary mb-2">upload</span>
+                    <p class="text-sm font-medium text-slate-700">拖放文件到此处发送</p>
+                </div>
+            </div>
+
+            <template x-for="msg in messages" :key="msg.id">
+                <div :class="msg.is_mine ? 'flex justify-end' : 'flex justify-start'">
+                    <div class="max-w-[75%]">
+                        <div x-show="!msg.is_mine && msg.sender_name" class="flex items-center gap-1.5 mb-1">
+                            <span class="text-[11px] font-medium text-slate-500" x-text="msg.sender_name"></span>
+                        </div>
+
+                        <!-- 文字消息 -->
+                        <template x-if="msg.message_type === 'text'">
+                            <div>
+                                <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                                     :class="msg.is_mine ? 'bg-primary text-white rounded-br-md' : 'bg-slate-100 text-slate-900 rounded-bl-md'">
+                                    <p class="whitespace-pre-wrap" x-text="msg.content"></p>
+                                </div>
+                                <div class="mt-1 text-[10px] text-slate-400" :class="msg.is_mine ? 'text-right' : ''" x-text="msg.created_at"></div>
+                            </div>
+                        </template>
+
+                        <!-- 图片消息 -->
+                        <template x-if="msg.message_type === 'image'">
+                            <div>
+                                <div class="rounded-2xl overflow-hidden cursor-pointer group"
+                                     :class="msg.is_mine ? 'rounded-br-md' : 'rounded-bl-md'"
+                                     @click="previewUrl = msg.file_url">
+                                    <img :src="msg.file_url" :alt="msg.file_name" loading="lazy"
+                                         class="max-w-[280px] max-h-[200px] object-cover rounded-2xl border border-slate-200 group-hover:brightness-95 transition-all"
+                                         :class="msg.is_mine ? 'rounded-br-md' : 'rounded-bl-md'">
+                                </div>
+                                <div class="mt-1 flex items-center gap-1.5" :class="msg.is_mine ? 'justify-end' : ''">
+                                    <span class="text-[10px] text-slate-400" x-text="msg.file_name"></span>
+                                    <span class="text-[10px] text-slate-300">·</span>
+                                    <span class="text-[10px] text-slate-400" x-text="msg.created_at"></span>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- 视频消息 -->
+                        <template x-if="msg.message_type === 'video'">
+                            <div>
+                                <div class="rounded-2xl overflow-hidden relative cursor-pointer group"
+                                     :class="msg.is_mine ? 'rounded-br-md' : 'rounded-bl-md'">
+                                    <img :src="msg.thumbnail_url || 'https://picsum.photos/400/225?grayscale'" :alt="msg.file_name" loading="lazy"
+                                         class="max-w-[280px] max-h-[180px] object-cover rounded-2xl border border-slate-200 group-hover:brightness-90 transition-all"
+                                         :class="msg.is_mine ? 'rounded-br-md' : 'rounded-bl-md'">
+                                    <!-- 播放按钮 -->
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <div class="w-12 h-12 bg-black/50 group-hover:bg-black/60 rounded-full flex items-center justify-center transition-colors">
+                                            <span class="material-symbols-outlined text-white text-2xl ml-0.5">play_arrow</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-1 flex items-center gap-1.5" :class="msg.is_mine ? 'justify-end' : ''">
+                                    <span class="material-symbols-outlined text-[11px] text-slate-400">movie</span>
+                                    <span class="text-[10px] text-slate-400" x-text="msg.file_name"></span>
+                                    <span class="text-[10px] text-slate-300">·</span>
+                                    <span class="text-[10px] text-slate-400" x-text="msg.file_size"></span>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- 文件消息 -->
+                        <template x-if="msg.message_type === 'file'">
+                            <div>
+                                <a :href="msg.file_url" target="_blank"
+                                   class="flex items-center gap-3 px-4 py-3 rounded-2xl border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all bg-white cursor-pointer max-w-[280px]"
+                                   :class="msg.is_mine ? 'rounded-br-md' : 'rounded-bl-md'">
+                                    <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                         :class="getFileIcon(msg.file_ext).color">
+                                        <span class="material-symbols-outlined text-xl" x-text="getFileIcon(msg.file_ext).icon"></span>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="text-sm font-medium text-slate-900 truncate" x-text="msg.file_name"></p>
+                                        <p class="text-[11px] text-slate-400 mt-0.5" x-text="msg.file_size"></p>
+                                    </div>
+                                    <span class="material-symbols-outlined text-slate-300 text-lg flex-shrink-0">download</span>
+                                </a>
+                                <div class="mt-1 text-[10px] text-slate-400" :class="msg.is_mine ? 'text-right' : ''" x-text="msg.created_at"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <!-- 待发送文件预览条 -->
+        <div x-show="pendingFiles.length > 0" x-transition
+             class="px-4 py-2 border-t border-slate-100 bg-slate-50/50 flex-shrink-0">
+            <div class="flex items-center gap-2 overflow-x-auto chat-panel-scroll pb-1">
+                <template x-for="(f, index) in pendingFiles" :key="index">
+                    <div class="relative flex-shrink-0 group">
+                        <!-- 图片/视频缩略图 -->
+                        <template x-if="f.type === 'image'">
+                            <img :src="f.url" class="w-16 h-16 object-cover rounded-lg border border-slate-200">
+                        </template>
+                        <template x-if="f.type === 'video'">
+                            <div class="w-16 h-16 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center relative overflow-hidden">
+                                <span class="material-symbols-outlined text-2xl text-purple-400">movie</span>
+                            </div>
+                        </template>
+                        <!-- 文件图标 -->
+                        <template x-if="f.type === 'file'">
+                            <div class="w-16 h-16 rounded-lg border border-slate-200 flex flex-col items-center justify-center"
+                                 :class="getFileIcon(f.ext).color">
+                                <span class="material-symbols-outlined text-xl" x-text="getFileIcon(f.ext).icon"></span>
+                                <span class="text-[8px] font-medium mt-0.5 uppercase" x-text="f.ext"></span>
+                            </div>
+                        </template>
+                        <!-- 删除按钮 -->
+                        <button @click="removePendingFile(index)"
+                                class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm">
+                            <span class="material-symbols-outlined text-xs">close</span>
+                        </button>
+                        <!-- 文件名 -->
+                        <div class="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[8px] px-1 py-0.5 rounded-b-lg truncate" x-text="f.name"></div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="px-4 py-3 border-t border-slate-200 flex-shrink-0">
+            <div class="flex items-end gap-2">
+                <!-- + 按钮 -->
+                <div class="relative">
+                    <button @click="showAttachMenu = !showAttachMenu"
+                            class="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-xl transition-all cursor-pointer"
+                            :class="showAttachMenu
+                                ? 'bg-primary text-white rotate-45'
+                                : 'text-slate-400 hover:text-primary hover:bg-primary/10'">
+                        <span class="material-symbols-outlined text-2xl">add</span>
+                    </button>
+                    <input type="file" x-ref="fileInput" multiple class="hidden" @change="handleFileSelect($event)">
+
+                    <!-- 附件菜单 -->
+                    <div x-show="showAttachMenu"
+                         @click.outside="showAttachMenu = false"
+                         x-transition:enter="transition ease-out duration-150"
+                         x-transition:enter-start="opacity-0 scale-95 translate-y-2"
+                         x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-100"
+                         x-transition:leave-start="opacity-100 scale-100"
+                         x-transition:leave-end="opacity-0 scale-95"
+                         class="absolute left-0 bottom-full mb-2 w-44 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-20">
+                        <button @click="selectAttachment('image')"
+                                class="w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-slate-50 transition-colors cursor-pointer">
+                            <div class="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-lg">image</span>
+                            </div>
+                            <span class="text-sm text-slate-700">图片</span>
+                        </button>
+                        <button @click="selectAttachment('video')"
+                                class="w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-slate-50 transition-colors cursor-pointer">
+                            <div class="w-8 h-8 rounded-lg bg-purple-50 text-purple-500 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-lg">videocam</span>
+                            </div>
+                            <span class="text-sm text-slate-700">视频</span>
+                        </button>
+                        <button @click="selectAttachment('file')"
+                                class="w-full px-3 py-2.5 flex items-center gap-3 text-left hover:bg-slate-50 transition-colors cursor-pointer">
+                            <div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-lg">attach_file</span>
+                            </div>
+                            <span class="text-sm text-slate-700">文件</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 输入框 -->
+                <div class="flex-1 relative">
+                    <textarea x-model="inputText"
+                              @keydown.enter.prevent="!$event.shiftKey && sendMessage()"
+                              @paste="handlePaste($event)"
+                              rows="1"
+                              placeholder="输入消息... (Enter 发送)"
+                              class="w-full resize-none px-4 py-2.5 text-sm bg-slate-100 border border-transparent rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 transition-all max-h-[120px]"
+                              style="field-sizing: content;"></textarea>
+                </div>
+
+                <!-- 发送 -->
+                <button @click="sendMessage()"
+                        class="w-10 h-10 flex-shrink-0 bg-primary hover:bg-primary-dark text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer"
+                        :class="{ 'opacity-50 cursor-not-allowed': !inputText.trim() && pendingFiles.length === 0 }"
+                        :disabled="!inputText.trim() && pendingFiles.length === 0">
+                    <span class="material-symbols-outlined text-lg">send</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 大图预览 -->
+    <div x-show="previewUrl" x-transition @click="previewUrl = null"
+         class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center cursor-pointer rounded-2xl">
+        <button @click.stop="previewUrl = null"
+                class="absolute top-3 right-3 w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-colors cursor-pointer">
+            <span class="material-symbols-outlined">close</span>
+        </button>
+        <img :src="previewUrl" @click.stop class="max-w-[90%] max-h-[90%] object-contain rounded-lg shadow-2xl cursor-default">
+    </div>
+</div>
+
+<!-- 说明 -->
+<div class="fixed top-4 left-4 bg-white rounded-lg shadow-lg p-4 max-w-xs border border-slate-200">
+    <h3 class="text-sm font-bold text-slate-900 mb-2">附件发送预览</h3>
+    <ul class="text-xs text-slate-600 space-y-1.5">
+        <li>1. 点击 <b>+</b> 按钮（旋转动画）→ 选择图片/视频/文件</li>
+        <li>2. 选择后显示预览条，hover 可删除</li>
+        <li>3. 可同时发送文字 + 多个附件</li>
+        <li>4. 支持 <b>Ctrl+V 粘贴</b>截图</li>
+        <li>5. 支持<b>拖拽</b>文件到聊天区域</li>
+        <li>6. 图片消息：缩略图，点击大图预览</li>
+        <li>7. 视频消息：缩略图 + 播放按钮</li>
+        <li>8. 文件消息：图标卡片 + 下载按钮</li>
+    </ul>
+</div>
+
+</body>
+</html>

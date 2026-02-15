@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指标管理 - 编辑 + 同步 Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { primary: '#6366f1' } } }
+        }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: rgba(0,0,0,0.35); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .step-badge {
+            position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 999;
+            padding: 10px 28px; border-radius: 14px; font-size: 14px; font-weight: 600;
+            background: #6366f1; color: white; box-shadow: 0 4px 16px rgba(99,102,241,0.4);
+            white-space: nowrap;
+        }
+        .step-nav {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 999;
+            display: flex; gap: 10px; background: white; padding: 8px; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        .step-nav button {
+            padding: 10px 22px; border-radius: 10px; font-size: 14px; font-weight: 600;
+            border: none; cursor: pointer; transition: all 0.15s;
+        }
+        .step-nav .prev { background: #f1f5f9; color: #475569; }
+        .step-nav .prev:hover { background: #e2e8f0; }
+        .step-nav .next { background: #6366f1; color: white; }
+        .step-nav .next:hover { background: #4f46e5; }
+        .step-nav .disabled { opacity: 0.35; pointer-events: none; }
+        .fade-in { animation: fadeIn 0.25s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse-amber { 0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); } 50% { box-shadow: 0 0 0 3px rgba(245,158,11,0.2); } }
+        .pulse-amber { animation: pulse-amber 1.5s ease infinite; }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+<!-- Step Badge -->
+<div class="step-badge" id="stepBadge">Step 1/4: 当前状态 — 已引用指标 🔒 锁定，无法编辑</div>
+
+<!-- Step Nav -->
+<div class="step-nav">
+    <button class="prev disabled" id="prevBtn" onclick="prevStep()">← 上一步</button>
+    <span style="display:flex;align-items:center;gap:6px;padding:0 8px;font-size:13px;color:#94a3b8;">
+        <span id="dotNav"></span>
+    </span>
+    <button class="next" id="nextBtn" onclick="nextStep()">下一步 →</button>
+</div>
+
+<!-- ============================================ -->
+<!-- MODAL: 指标管理                              -->
+<!-- ============================================ -->
+<div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[82vh] flex flex-col overflow-hidden" style="margin-top: 30px; margin-bottom: 70px;">
+
+    <!-- 头部 -->
+    <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <span class="material-symbols-outlined text-primary" style="font-size: 20px;">list_alt</span>
+            </div>
+            <div>
+                <h3 class="text-base font-semibold text-slate-900">指标管理</h3>
+                <p class="text-xs text-slate-500">工作频率 (MHz)</p>
+            </div>
+        </div>
+        <button class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 inline-flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
+        </button>
+    </div>
+
+    <!-- 指标列表 -->
+    <div class="flex-1 overflow-y-auto">
+        <!-- 表头 -->
+        <div class="grid grid-cols-12 gap-3 px-6 py-2.5 bg-slate-50 border-b border-slate-200 sticky top-0">
+            <div class="col-span-1 text-xs font-semibold text-slate-500 uppercase">#</div>
+            <div class="col-span-5 text-xs font-semibold text-slate-500 uppercase">指标值</div>
+            <div class="col-span-2 text-xs font-semibold text-slate-500 uppercase">编码</div>
+            <div class="col-span-4 text-xs font-semibold text-slate-500 uppercase text-right">操作</div>
+        </div>
+
+        <!-- 数据行 -->
+        <div id="rowsContainer"></div>
+    </div>
+
+    <!-- 同步提示条 -->
+    <div id="syncBar" class="hidden px-6 py-3 bg-amber-50 border-t border-amber-200 flex items-center justify-between flex-shrink-0 fade-in">
+        <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-amber-500" style="font-size: 18px;">sync</span>
+            <span class="text-sm text-amber-700">
+                <strong id="syncCount">5</strong> 个产品需要同步更新
+            </span>
+        </div>
+        <div class="flex gap-2">
+            <button onclick="skipSync()" class="h-8 px-3 rounded-lg text-xs font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors">暂不同步</button>
+            <button onclick="nextStep()" class="h-8 px-3 rounded-lg text-xs font-medium text-white bg-primary hover:bg-primary/90 transition-colors flex items-center gap-1">
+                <span class="material-symbols-outlined" style="font-size: 14px;">sync</span>
+                立即同步
+            </button>
+        </div>
+    </div>
+
+    <!-- 同步完成提示条 -->
+    <div id="syncDoneBar" class="hidden px-6 py-3 bg-green-50 border-t border-green-200 flex items-center justify-between flex-shrink-0 fade-in">
+        <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-green-500" style="font-size: 18px;">check_circle</span>
+            <span class="text-sm text-green-700">同步完成：更新了 <strong>5</strong> 条规格记录，<strong>5</strong> 个产品 MN 已重新生成</span>
+        </div>
+        <button onclick="document.getElementById('syncDoneBar').classList.add('hidden')" class="text-green-400 hover:text-green-600">
+            <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+        </button>
+    </div>
+
+    <!-- 底部添加区域 -->
+    <div class="px-6 py-4 border-t border-slate-200 bg-slate-50/50 flex-shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="flex-1">
+                <input type="text" placeholder="输入指标值..."
+                       class="w-full h-9 px-3 rounded-lg border border-slate-300 bg-white text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+            </div>
+            <div class="w-20">
+                <div class="h-9 px-3 rounded-lg border border-slate-200 bg-slate-100 text-sm text-slate-500 flex items-center justify-center font-mono">自动</div>
+            </div>
+            <button class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors">
+                <span class="material-symbols-outlined" style="font-size: 16px;">add</span>
+                添加
+            </button>
+        </div>
+        <p class="mt-2 text-xs text-slate-400 flex items-center gap-1">
+            <span class="material-symbols-outlined" style="font-size: 14px;">info</span>
+            编码根据输入值智能生成
+        </p>
+    </div>
+</div>
+
+<script>
+const indicators = [
+    { id: 1, value: '800-870',                        code: '9', is_used: true },
+    { id: 2, value: '350-470MHz',                     code: '6', is_used: false },
+    { id: 3, value: '350-470',                        code: '7', is_used: true },
+    { id: 4, value: 'TX: 361-366 / RX: 351-356',     code: 'P', is_used: true },
+    { id: 5, value: '87-108',                         code: 'G', is_used: false },
+    { id: 6, value: 'TX: 851-866 / RX: 806-821',     code: '8', is_used: true },
+    { id: 7, value: '350-400',                        code: 'T', is_used: false },
+    { id: 8, value: '400-470',                        code: 'W', is_used: false },
+    { id: 9, value: '136-174',                        code: 'C', is_used: false },
+];
+
+let currentStep = 1;
+const totalSteps = 4;
+const steps = {
+    1: 'Step 1/4: 当前状态 — 已引用指标 🔒 锁定，无法编辑',
+    2: 'Step 2/4: 新功能 — 点击编辑，行内修改指标值和编码',
+    3: 'Step 3/4: 保存后 — 底部出现同步提示条',
+    4: 'Step 4/4: 同步完成 — 产品数据已更新 ✅'
+};
+
+// 高亮目标行 (id=1, "800-870")
+const TARGET_ID = 1;
+const NEW_VALUE = '800-960';
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function renderRows(step) {
+    const container = document.getElementById('rowsContainer');
+    let html = '';
+
+    indicators.forEach((ind, idx) => {
+        const isTarget = ind.id === TARGET_ID;
+        const isEditing = step === 2 && isTarget;
+        const isUpdated = (step === 3 || step === 4) && isTarget;
+        const displayValue = isUpdated ? NEW_VALUE : ind.value;
+
+        const rowBg = isEditing ? 'bg-primary/5' : isUpdated ? 'bg-green-50' : 'hover:bg-slate-50/50';
+
+        html += `<div class="grid grid-cols-12 gap-3 px-6 py-3 border-b border-slate-100 items-center transition-colors ${rowBg}">`;
+
+        // # column
+        html += `<div class="col-span-1 text-sm text-slate-400">${idx + 1}</div>`;
+
+        if (isEditing) {
+            // EDIT MODE: value input
+            html += `<div class="col-span-5">
+                <input type="text" value="${esc(NEW_VALUE)}"
+                       class="w-full h-8 px-2 text-sm rounded border-2 border-primary bg-white text-slate-900 font-medium focus:outline-none"
+                       autofocus>
+            </div>`;
+            // EDIT MODE: code (read-only, not editable)
+            html += `<div class="col-span-2">
+                <span class="inline-flex px-2.5 py-0.5 text-xs font-mono bg-slate-100 text-slate-600 rounded">${esc(ind.code)}</span>
+            </div>`;
+            // EDIT MODE: save/cancel
+            html += `<div class="col-span-4 flex items-center justify-end gap-1">
+                <button onclick="nextStep()" class="h-7 px-3 rounded-lg text-xs font-medium text-white bg-primary hover:bg-primary/90 inline-flex items-center gap-1 transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">check</span>保存
+                </button>
+                <button class="h-7 px-2 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 inline-flex items-center transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">close</span>
+                </button>
+            </div>`;
+        } else {
+            // DISPLAY MODE: value
+            html += `<div class="col-span-5 text-sm font-medium text-slate-800">${esc(displayValue)}</div>`;
+            // DISPLAY MODE: code
+            html += `<div class="col-span-2">
+                <span class="inline-flex px-2.5 py-0.5 text-xs font-mono bg-slate-100 text-slate-600 rounded">${esc(ind.code)}</span>
+            </div>`;
+            // DISPLAY MODE: actions
+            html += `<div class="col-span-4 flex items-center justify-end gap-1">`;
+            html += renderActions(step, ind, isTarget, isUpdated);
+            html += `</div>`;
+        }
+
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function renderActions(step, ind, isTarget, isUpdated) {
+    if (step === 1) {
+        // CURRENT: lock or delete only
+        if (ind.is_used) {
+            return `<span class="w-7 h-7 rounded-lg text-slate-300 inline-flex items-center justify-center cursor-not-allowed" title="已被使用，无法删除">
+                <span class="material-symbols-outlined" style="font-size: 16px;">lock</span>
+            </span>`;
+        } else {
+            return `<button class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 inline-flex items-center justify-center transition-colors" title="删除">
+                <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+            </button>`;
+        }
+    } else {
+        // NEW: edit + delete/lock
+        let actions = '';
+
+        // Edit button
+        const editClick = (isTarget && step < 3) ? 'onclick="renderStep(2)"' : '';
+        const editClass = isTarget && (step === 3 || step === 4)
+            ? 'text-green-500 hover:bg-green-50'
+            : ind.is_used ? 'text-amber-500 hover:bg-amber-50' : 'text-primary hover:bg-primary/10';
+        const editIcon = ind.is_used ? 'edit_note' : 'edit';
+        const editTitle = ind.is_used ? '编辑（已引用，修改后可同步）' : '编辑';
+
+        actions += `<button ${editClick} class="w-7 h-7 rounded-lg ${editClass} inline-flex items-center justify-center transition-colors ${isTarget && step >= 2 ? 'pulse-amber' : ''}" title="${editTitle}">
+            <span class="material-symbols-outlined" style="font-size: 16px;">${editIcon}</span>
+        </button>`;
+
+        // Delete or Lock
+        if (ind.is_used) {
+            actions += `<span class="w-7 h-7 rounded-lg text-slate-300 inline-flex items-center justify-center cursor-not-allowed" title="已引用，无法删除">
+                <span class="material-symbols-outlined" style="font-size: 16px;">lock</span>
+            </span>`;
+        } else {
+            actions += `<button class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 inline-flex items-center justify-center transition-colors" title="删除">
+                <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+            </button>`;
+        }
+
+        return actions;
+    }
+}
+
+function renderStep(step) {
+    currentStep = step;
+    document.getElementById('stepBadge').textContent = steps[step];
+    document.getElementById('prevBtn').classList.toggle('disabled', step === 1);
+    document.getElementById('nextBtn').textContent = step === totalSteps ? '回到开头 ↺' : '下一步 →';
+
+    // Dots
+    document.getElementById('dotNav').innerHTML = [1,2,3,4].map(i =>
+        `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${i===step?'#6366f1':'#cbd5e1'};transition:background 0.2s;"></span>`
+    ).join('');
+
+    // Hide sync bars
+    document.getElementById('syncBar').classList.add('hidden');
+    document.getElementById('syncDoneBar').classList.add('hidden');
+
+    renderRows(step);
+
+    if (step === 3) {
+        document.getElementById('syncBar').classList.remove('hidden');
+    }
+    if (step === 4) {
+        document.getElementById('syncDoneBar').classList.remove('hidden');
+    }
+}
+
+function nextStep() {
+    if (currentStep >= totalSteps) { renderStep(1); }
+    else { renderStep(currentStep + 1); }
+}
+function prevStep() {
+    if (currentStep > 1) renderStep(currentStep - 1);
+}
+function skipSync() {
+    document.getElementById('syncBar').classList.add('hidden');
+    document.getElementById('stepBadge').textContent = '已跳过同步 — 字典已更新，产品保持旧值';
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextStep(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
+});
+
+renderStep(1);
+</script>
+</body>
+</html>

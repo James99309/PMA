@@ -356,6 +356,21 @@ function fileManager() {
             }
         },
 
+        permanentDeleteArchived(file) {
+            openConfirmModal('fileConfirmModal', {
+                title: '彻底删除',
+                message: `确定要彻底删除「${file.original_filename}」吗？此操作不可恢复，物理文件将被永久删除。`,
+                onConfirm: async () => {
+                    const data = await this.api(`/files/api/admin/archived/${file.id}`, { method: 'DELETE' });
+                    if (data.success) {
+                        this.loadArchived();
+                    } else {
+                        throw new Error(data.message);
+                    }
+                }
+            });
+        },
+
         async compressInactive() {
             if (!confirm('确定要压缩所有不活跃文件吗？')) return;
             const data = await this.api('/files/api/admin/compress-inactive', {

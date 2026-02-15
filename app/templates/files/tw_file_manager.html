@@ -345,6 +345,11 @@
                                               class="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">
                                             {{ _('已归档') }}
                                         </span>
+                                        <span class="flex-shrink-0" :title="file.storage_type === 'nas' ? '{{ _('NAS 云端存储') }}' : '{{ _('本地存储') }}'">
+                                            <span class="material-symbols-outlined text-xs"
+                                                  :class="file.storage_type === 'nas' ? 'text-emerald-500' : 'text-slate-400'"
+                                                  x-text="file.storage_type === 'nas' ? 'cloud_done' : 'hard_drive'"></span>
+                                        </span>
                                     </div>
                                     <div class="w-20 text-right text-xs text-slate-400 hidden sm:block" x-text="formatSize(file.is_archived && file.original_size ? file.original_size : file.file_size)"></div>
                                     <div class="w-28 text-right text-xs text-slate-400 hidden md:block" x-text="formatDate(file.created_at)"></div>
@@ -384,6 +389,11 @@
                                     <span x-show="file.is_archived"
                                           class="absolute top-1 right-1 text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
                                         {{ _('已归档') }}
+                                    </span>
+                                    <span class="absolute top-1 left-1" :title="file.storage_type === 'nas' ? '{{ _('NAS 云端存储') }}' : '{{ _('本地存储') }}'">
+                                        <span class="material-symbols-outlined text-xs"
+                                              :class="file.storage_type === 'nas' ? 'text-emerald-500' : 'text-slate-400'"
+                                              x-text="file.storage_type === 'nas' ? 'cloud_done' : 'hard_drive'"></span>
                                     </span>
                                     <span class="material-symbols-outlined text-4xl" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
                                     <span class="text-xs text-slate-700 dark:text-slate-300 text-center truncate w-full" x-text="file.display_name"></span>
@@ -470,6 +480,11 @@
                         <button @click="showRestoreModal(file)"
                                 class="px-2 py-1 text-xs rounded-md text-primary hover:bg-primary/10">
                             {{ _('恢复') }}
+                        </button>
+                        <button @click="permanentDeleteArchived(file)"
+                                class="px-2 py-1 text-xs rounded-md text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                :title="'{{ _('彻底删除') }}'">
+                            <span class="material-symbols-outlined" style="font-size:14px">delete_forever</span>
                         </button>
                     </div>
                 </template>

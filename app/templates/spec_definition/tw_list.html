@@ -370,24 +370,81 @@
                                     <template x-for="(ind, idx) in indicatorItems" :key="ind.id">
                                         <div class="grid grid-cols-12 gap-3 px-6 py-3 border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/30 items-center transition-colors">
                                             <div class="col-span-1 text-sm text-slate-400 dark:text-slate-500" x-text="idx + 1"></div>
-                                            <div class="col-span-6 text-sm font-medium text-slate-800 dark:text-slate-200" x-text="ind.value"></div>
+                                            <!-- 指标值列：编辑态/显示态 -->
+                                            <div class="col-span-6">
+                                                <template x-if="editingIndicatorId === ind.id">
+                                                    <input type="text" x-model="editingValue"
+                                                           @keydown.enter="saveEditIndicator(ind)"
+                                                           @keydown.escape="cancelEditIndicator()"
+                                                           x-ref="editInput"
+                                                           class="w-full h-8 px-2.5 rounded border border-primary/40 bg-white dark:bg-slate-800 text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                                                </template>
+                                                <template x-if="editingIndicatorId !== ind.id">
+                                                    <span class="text-sm font-medium text-slate-800 dark:text-slate-200" x-text="ind.value"></span>
+                                                </template>
+                                            </div>
+                                            <!-- 编码列：始终只读 -->
                                             <div class="col-span-3">
                                                 <span class="inline-flex px-2.5 py-0.5 text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded" x-text="ind.code"></span>
                                             </div>
-                                            <div class="col-span-2 text-right">
+                                            <!-- 操作列 -->
+                                            <div class="col-span-2 text-right flex items-center justify-end gap-1">
                                                 {% if has_permission('product_code', 'edit') %}
-                                                <template x-if="ind.is_used">
-                                                    <span class="w-7 h-7 rounded-lg text-slate-300 dark:text-slate-600 inline-flex items-center justify-center cursor-not-allowed"
-                                                          :title="'{{ _('已被使用，无法删除') }}'">
-                                                        <span class="material-symbols-outlined" style="font-size: 16px;">lock</span>
-                                                    </span>
+                                                <!-- 编辑态：保存/取消 -->
+                                                <template x-if="editingIndicatorId === ind.id">
+                                                    <div class="flex items-center gap-1">
+                                                        <button @click="saveEditIndicator(ind)"
+                                                                :disabled="indicatorSaving"
+                                                                class="w-7 h-7 rounded-lg text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 inline-flex items-center justify-center transition-colors"
+                                                                title="{{ _('保存') }}">
+                                                            <span class="material-symbols-outlined" style="font-size: 16px;" x-show="!indicatorSaving">check</span>
+                                                            <svg x-show="indicatorSaving" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                            </svg>
+                                                        </button>
+                                                        <button @click="cancelEditIndicator()"
+                                                                :disabled="indicatorSaving"
+                                                                class="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 inline-flex items-center justify-center transition-colors"
+                                                                title="{{ _('取消') }}">
+                                                            <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                                                        </button>
+                                                    </div>
                                                 </template>
-                                                <template x-if="!ind.is_used">
-                                                    <button @click="deleteIndicator(ind.id, ind.value)"
-                                                            class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 inline-flex items-center justify-center transition-colors"
-                                                            title="{{ _('删除') }}">
-                                                        <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
-                                                    </button>
+                                                <!-- 显示态 -->
+                                                <template x-if="editingIndicatorId !== ind.id">
+                                                    <div class="flex items-center gap-1">
+                                                        <!-- 编辑按钮（所有指标都可编辑） -->
+                                                        <button @click="startEditIndicator(ind)"
+                                                                class="w-7 h-7 rounded-lg inline-flex items-center justify-center transition-colors"
+                                                                :class="ind.is_used ? 'text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20' : 'text-slate-400 hover:text-primary hover:bg-primary/5'"
+                                                                title="{{ _('编辑') }}">
+                                                            <span class="material-symbols-outlined" style="font-size: 16px;" x-text="ind.is_used ? 'edit_note' : 'edit'"></span>
+                                                        </button>
+                                                        <!-- 待同步：橘色同步按钮 -->
+                                                        <template x-if="pendingSyncMap[ind.id]">
+                                                            <button @click="syncSingleIndicator(ind)"
+                                                                    class="w-7 h-7 rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 inline-flex items-center justify-center transition-colors"
+                                                                    :title="'同步到 ' + pendingSyncMap[ind.id].count + ' 个产品'">
+                                                                <span class="material-symbols-outlined" style="font-size: 16px;">sync</span>
+                                                            </button>
+                                                        </template>
+                                                        <!-- 已引用：锁图标 -->
+                                                        <template x-if="ind.is_used">
+                                                            <span class="w-7 h-7 rounded-lg text-slate-300 dark:text-slate-600 inline-flex items-center justify-center cursor-not-allowed"
+                                                                  :title="'{{ _('已被使用，无法删除') }}'">
+                                                                <span class="material-symbols-outlined" style="font-size: 16px;">lock</span>
+                                                            </span>
+                                                        </template>
+                                                        <!-- 未引用：删除按钮 -->
+                                                        <template x-if="!ind.is_used">
+                                                            <button @click="deleteIndicator(ind.id, ind.value)"
+                                                                    class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 inline-flex items-center justify-center transition-colors"
+                                                                    title="{{ _('删除') }}">
+                                                                <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                                                            </button>
+                                                        </template>
+                                                    </div>
                                                 </template>
                                                 {% endif %}
                                             </div>
@@ -403,6 +460,34 @@
                                 </div>
                             </template>
                         </div>
+                        <!-- 同步提示条 -->
+                        <template x-if="syncPending">
+                            <div class="px-6 py-3 bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-700/50 flex items-center justify-between flex-shrink-0">
+                                <div class="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+                                    <span class="material-symbols-outlined" style="font-size: 18px;">sync</span>
+                                    <span>
+                                        <strong x-text="syncPending.count"></strong> {{ _('个产品规格需要同步更新') }}
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <button @click="skipSync()"
+                                            :disabled="syncRunning"
+                                            class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                        {{ _('暂不同步') }}
+                                    </button>
+                                    <button @click="syncToProducts()"
+                                            :disabled="syncRunning"
+                                            class="px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors inline-flex items-center gap-1.5">
+                                        <svg x-show="syncRunning" class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span class="material-symbols-outlined" style="font-size: 14px;" x-show="!syncRunning">sync</span>
+                                        {{ _('立即同步') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
                         <!-- 底部添加区域 -->
                         {% if has_permission('product_code', 'create') %}
                         <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex-shrink-0">
@@ -435,6 +520,102 @@
                             </p>
                         </div>
                         {% endif %}
+                    </div>
+                </div>
+
+                <!-- 同步确认预览弹窗 -->
+                <div x-show="syncPreviewOpen" x-cloak
+                     class="fixed inset-0 z-[55] flex items-center justify-center p-4"
+                     @keydown.escape.window="if(syncPreviewOpen && !syncRunning) syncPreviewOpen = false">
+                    <!-- 遮罩层 -->
+                    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                         @click="if(!syncRunning) syncPreviewOpen = false"
+                         x-show="syncPreviewOpen"
+                         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+                    <!-- 弹窗内容 -->
+                    <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[70vh] flex flex-col overflow-hidden"
+                         x-show="syncPreviewOpen"
+                         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95">
+                        <!-- 头部 -->
+                        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between flex-shrink-0">
+                            <div class="flex items-center gap-3">
+                                <div class="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400" style="font-size: 20px;">sync</span>
+                                </div>
+                                <div>
+                                    <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('确认同步到产品') }}</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                                        {{ _('以下产品的规格将被更新') }}
+                                    </p>
+                                </div>
+                            </div>
+                            <button @click="if(!syncRunning) syncPreviewOpen = false"
+                                    :disabled="syncRunning"
+                                    class="w-8 h-8 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 inline-flex items-center justify-center transition-colors">
+                                <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
+                            </button>
+                        </div>
+                        <!-- 产品列表 -->
+                        <div class="flex-1 overflow-y-auto">
+                            <!-- 加载状态 -->
+                            <div x-show="syncPreviewLoading" class="px-6 py-10 text-center">
+                                <svg class="animate-spin h-8 w-8 text-amber-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </div>
+                            <!-- 产品表格 -->
+                            <template x-if="!syncPreviewLoading && syncPreviewProducts.length > 0">
+                                <div>
+                                    <div class="grid grid-cols-12 gap-2 px-6 py-2.5 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 sticky top-0">
+                                        <div class="col-span-5 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('产品名称') }}</div>
+                                        <div class="col-span-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('型号') }}</div>
+                                        <div class="col-span-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('当前值') }}</div>
+                                    </div>
+                                    <template x-for="(p, idx) in syncPreviewProducts" :key="idx">
+                                        <div class="grid grid-cols-12 gap-2 px-6 py-2.5 border-b border-slate-100 dark:border-slate-700/50 items-center">
+                                            <div class="col-span-5 text-sm text-slate-800 dark:text-slate-200 truncate" x-text="p.product_name || '-'"></div>
+                                            <div class="col-span-4 text-sm text-slate-600 dark:text-slate-400 truncate font-mono" x-text="p.model || '-'"></div>
+                                            <div class="col-span-3">
+                                                <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400" x-text="p.old_value"></span>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                            <!-- 空状态 -->
+                            <template x-if="!syncPreviewLoading && syncPreviewProducts.length === 0">
+                                <div class="px-6 py-10 text-center">
+                                    <span class="material-symbols-outlined text-slate-300 dark:text-slate-600" style="font-size: 40px;">check_circle</span>
+                                    <p class="text-sm text-slate-400 dark:text-slate-500 mt-2">{{ _('没有需要同步的产品') }}</p>
+                                </div>
+                            </template>
+                        </div>
+                        <!-- 底部按钮 -->
+                        <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between flex-shrink-0 bg-slate-50/50 dark:bg-slate-900/30">
+                            <div class="text-sm text-slate-500 dark:text-slate-400">
+                                {{ _('共') }} <strong x-text="syncPreviewProducts.length" class="text-slate-700 dark:text-slate-300"></strong> {{ _('个产品') }}
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <button @click="syncPreviewOpen = false"
+                                        :disabled="syncRunning"
+                                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                                    {{ _('取消') }}
+                                </button>
+                                <button @click="confirmSync()"
+                                        :disabled="syncRunning || syncPreviewProducts.length === 0"
+                                        class="px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors inline-flex items-center gap-2">
+                                    <svg x-show="syncRunning" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span class="material-symbols-outlined" style="font-size: 16px;" x-show="!syncRunning">sync</span>
+                                    {{ _('确认同步') }}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -592,6 +773,20 @@
             indicatorNewValue: '',
             indicatorLoading: false,
             indicatorAdding: false,
+
+            // 指标编辑状态
+            editingIndicatorId: null,
+            editingValue: '',
+            indicatorSaving: false,
+            syncPending: null,   // { optionId, oldValue, count }
+            syncRunning: false,
+            pendingSyncMap: {},  // { [indicatorId]: { oldValue, count } }
+
+            // 同步预览弹窗
+            syncPreviewOpen: false,
+            syncPreviewProducts: [],
+            syncPreviewLoading: false,
+            syncPreviewTarget: null,  // { optionId, oldValue }
 
             // 搜索状态
             searchQuery: '',
@@ -973,6 +1168,9 @@
                 this.indicatorModalDef = def;
                 this.indicatorNewValue = '';
                 this.indicatorItems = [];
+                this.editingIndicatorId = null;
+                this.editingValue = '';
+                this.syncPending = null;
                 this.indicatorModalOpen = true;
                 this.indicatorLoading = true;
 
@@ -991,6 +1189,18 @@
                     const result = await response.json();
                     if (result.success) {
                         this.indicatorItems = result.data || [];
+                        // 从后端数据重建 pendingSyncMap（持久化：基于实际数据推导）
+                        const newMap = {};
+                        for (const ind of this.indicatorItems) {
+                            if (ind.sync_pending && ind.sync_old_values) {
+                                // 取第一个 old_value（最常见场景是单次编辑未同步）
+                                newMap[ind.id] = {
+                                    oldValue: ind.sync_old_values[0].old_value,
+                                    count: ind.sync_affected_count
+                                };
+                            }
+                        }
+                        this.pendingSyncMap = newMap;
                     } else {
                         this.showToast(result.message || '{{ _("加载失败") }}', 'error');
                     }
@@ -1000,6 +1210,145 @@
                 } finally {
                     this.indicatorLoading = false;
                 }
+            },
+
+            // 开始编辑指标
+            startEditIndicator(ind) {
+                this.editingIndicatorId = ind.id;
+                this.editingValue = ind.value;
+                this.$nextTick(() => {
+                    const input = this.$refs.editInput;
+                    if (input) {
+                        input.focus();
+                        input.select();
+                    }
+                });
+            },
+
+            // 取消编辑
+            cancelEditIndicator() {
+                this.editingIndicatorId = null;
+                this.editingValue = '';
+            },
+
+            // 保存编辑
+            async saveEditIndicator(ind) {
+                const newValue = this.editingValue.trim();
+                if (!newValue) {
+                    this.showToast('{{ _("指标值不能为空") }}', 'error');
+                    return;
+                }
+                if (newValue === ind.value) {
+                    this.cancelEditIndicator();
+                    return;
+                }
+
+                this.indicatorSaving = true;
+                try {
+                    const response = await fetch(`${this.API_BASE}/indicators/${ind.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: newValue })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        this.showToast(result.message || '{{ _("更新成功") }}');
+                        this.editingIndicatorId = null;
+                        // 检查是否需要同步
+                        if (result.data && result.data.sync_needed && result.data.affected_count > 0) {
+                            this.syncPending = {
+                                optionId: ind.id,
+                                oldValue: result.data.old_value,
+                                count: result.data.affected_count
+                            };
+                            this.pendingSyncMap[ind.id] = {
+                                oldValue: result.data.old_value,
+                                count: result.data.affected_count
+                            };
+                        }
+                        await this.loadIndicators(this.indicatorModalDef.id);
+                    } else {
+                        this.showToast(result.message || '{{ _("更新失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error saving indicator:', error);
+                    this.showToast('{{ _("更新失败") }}', 'error');
+                } finally {
+                    this.indicatorSaving = false;
+                }
+            },
+
+            // 打开同步预览弹窗
+            async openSyncPreview(optionId, oldValue) {
+                this.syncPreviewTarget = { optionId, oldValue };
+                this.syncPreviewProducts = [];
+                this.syncPreviewLoading = true;
+                this.syncPreviewOpen = true;
+
+                try {
+                    const response = await fetch(`${this.API_BASE}/indicators/${optionId}/sync-preview?old_value=${encodeURIComponent(oldValue)}`);
+                    const result = await response.json();
+                    if (result.success) {
+                        this.syncPreviewProducts = result.data || [];
+                    } else {
+                        this.showToast(result.message || '{{ _("获取预览失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error fetching sync preview:', error);
+                    this.showToast('{{ _("获取预览失败") }}', 'error');
+                } finally {
+                    this.syncPreviewLoading = false;
+                }
+            },
+
+            // 确认同步（从预览弹窗点击确认）
+            async confirmSync() {
+                if (!this.syncPreviewTarget) return;
+                const { optionId, oldValue } = this.syncPreviewTarget;
+                this.syncRunning = true;
+                try {
+                    const response = await fetch(`${this.API_BASE}/indicators/${optionId}/sync-products`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ old_value: oldValue })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        this.showToast(result.message || '{{ _("同步完成") }}');
+                        delete this.pendingSyncMap[optionId];
+                        if (this.syncPending && this.syncPending.optionId === optionId) {
+                            this.syncPending = null;
+                        }
+                        this.syncPreviewOpen = false;
+                        this.syncPreviewTarget = null;
+                    } else {
+                        this.showToast(result.message || '{{ _("同步失败") }}', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error syncing to products:', error);
+                    this.showToast('{{ _("同步失败") }}', 'error');
+                } finally {
+                    this.syncRunning = false;
+                }
+            },
+
+            // 从 amber bar 点击"立即同步"
+            syncToProducts() {
+                if (!this.syncPending) return;
+                this.openSyncPreview(this.syncPending.optionId, this.syncPending.oldValue);
+            },
+
+            // 跳过同步
+            skipSync() {
+                this.syncPending = null;
+                // pendingSyncMap 保留，指标行仍显示橘色同步按钮
+            },
+
+            // 单指标同步（行内橘色按钮）
+            syncSingleIndicator(ind) {
+                const info = this.pendingSyncMap[ind.id];
+                if (!info) return;
+                this.openSyncPreview(ind.id, info.oldValue);
             },
 
             // 添加指标

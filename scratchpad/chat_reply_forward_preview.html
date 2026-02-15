@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天消息回复与转发 - UI Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: '#3B82F6', dark: '#2563EB' },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .chat-panel-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-panel-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .chat-panel-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-8">
+
+<div x-data="chatPreview()" class="w-[440px] bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col" style="height: 620px;">
+
+    <!-- 聊天头部 -->
+    <div class="px-4 py-3 border-b border-slate-200 flex items-center gap-3">
+        <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 text-sm font-medium">技</div>
+        <div>
+            <div class="text-sm font-semibold text-slate-900">技术讨论群</div>
+            <div class="text-[10px] text-slate-400">5人</div>
+        </div>
+    </div>
+
+    <!-- 消息列表 -->
+    <div class="flex-1 overflow-y-auto p-4 space-y-4 chat-panel-scroll">
+
+        <!-- 对方消息（带回复引用） -->
+        <div class="flex justify-end">
+            <div class="max-w-[75%] group">
+                <div class="flex items-center justify-end gap-1.5 mb-1">
+                    <span class="text-[11px] font-medium text-slate-500">张三</span>
+                </div>
+                <div class="flex items-end gap-1 flex-row-reverse">
+                    <div class="min-w-0">
+                        <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed bg-slate-100 text-slate-800 rounded-br-md">
+                            <p class="whitespace-pre-wrap">大家好，今天下午3点开会讨论新功能需求</p>
+                        </div>
+                    </div>
+                    <!-- hover 操作按钮 -->
+                    <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mb-1 flex-shrink-0">
+                        <button @click="setReplyTo({id:1, content:'大家好，今天下午3点开会讨论新功能需求', sender_name:'张三', message_type:'text'})"
+                                title="回复"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">reply</span>
+                        </button>
+                        <button @click="openForwardModal({id:1, content:'大家好，今天下午3点开会讨论新功能需求', sender_name:'张三', message_type:'text'})"
+                                title="转发"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">forward</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-1 text-[10px] text-slate-400 text-right">14:30</div>
+            </div>
+        </div>
+
+        <!-- 自己的消息（带回复引用） -->
+        <div class="flex justify-start">
+            <div class="max-w-[75%] group">
+                <div class="flex items-end gap-1">
+                    <div class="min-w-0">
+                        <!-- 回复引用条 -->
+                        <div class="mb-1 px-3 py-1.5 rounded-lg text-[11px] bg-black/5 border-l-2 border-slate-300 cursor-pointer hover:bg-black/10 transition-colors">
+                            <div class="font-medium text-slate-500">张三</div>
+                            <div class="text-slate-400 truncate">大家好，今天下午3点开会讨论新功能需求</div>
+                        </div>
+                        <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed bg-primary text-white rounded-bl-md">
+                            <p class="whitespace-pre-wrap">好的，我准备下相关材料</p>
+                        </div>
+                    </div>
+                    <!-- hover 操作按钮 -->
+                    <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mb-1 flex-shrink-0">
+                        <button @click="setReplyTo({id:2, content:'好的，我准备下相关材料', sender_name:'我', message_type:'text'})"
+                                title="回复"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">reply</span>
+                        </button>
+                        <button @click="openForwardModal({id:2, content:'好的，我准备下相关材料', sender_name:'我', message_type:'text'})"
+                                title="转发"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">forward</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-1 text-[10px] text-slate-400 text-left">14:31</div>
+            </div>
+        </div>
+
+        <!-- 对方图片消息 -->
+        <div class="flex justify-end">
+            <div class="max-w-[75%] group">
+                <div class="flex items-center justify-end gap-1.5 mb-1">
+                    <span class="text-[11px] font-medium text-slate-500">李四</span>
+                </div>
+                <div class="flex items-end gap-1 flex-row-reverse">
+                    <div class="min-w-0">
+                        <div class="rounded-2xl overflow-hidden rounded-br-md">
+                            <div class="w-[200px] h-[120px] bg-gradient-to-br from-blue-200 to-purple-200 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-4xl text-white/60">image</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mb-1 flex-shrink-0">
+                        <button @click="setReplyTo({id:3, content:'', sender_name:'李四', message_type:'image', file_name:'设计图.png'})"
+                                title="回复"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">reply</span>
+                        </button>
+                        <button @click="openForwardModal({id:3, content:'', sender_name:'李四', message_type:'image', file_name:'设计图.png'})"
+                                title="转发"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">forward</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-1 text-[10px] text-slate-400 text-right">14:35</div>
+            </div>
+        </div>
+
+        <!-- 对方文件消息 -->
+        <div class="flex justify-end">
+            <div class="max-w-[75%] group">
+                <div class="flex items-center justify-end gap-1.5 mb-1">
+                    <span class="text-[11px] font-medium text-slate-500">王五</span>
+                </div>
+                <div class="flex items-end gap-1 flex-row-reverse">
+                    <div class="min-w-0">
+                        <div class="rounded-2xl px-4 py-3 min-w-[200px] bg-slate-100 text-slate-800 rounded-br-md">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-red-100">
+                                    <span class="material-symbols-outlined text-lg text-red-500">description</span>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium truncate">需求文档v2.pdf</div>
+                                    <div class="text-xs mt-0.5 text-slate-400">2.3 MB</div>
+                                </div>
+                                <div class="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-slate-200 text-slate-500 cursor-pointer">
+                                    <span class="material-symbols-outlined text-lg">download</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mb-1 flex-shrink-0">
+                        <button @click="setReplyTo({id:4, content:'', sender_name:'王五', message_type:'file', file_name:'需求文档v2.pdf'})"
+                                title="回复"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">reply</span>
+                        </button>
+                        <button @click="openForwardModal({id:4, content:'', sender_name:'王五', message_type:'file', file_name:'需求文档v2.pdf'})"
+                                title="转发"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">forward</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-1 text-[10px] text-slate-400 text-right">14:38</div>
+            </div>
+        </div>
+
+        <!-- 自己的普通消息 -->
+        <div class="flex justify-start">
+            <div class="max-w-[75%] group">
+                <div class="flex items-end gap-1">
+                    <div class="min-w-0">
+                        <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed bg-primary text-white rounded-bl-md">
+                            <p class="whitespace-pre-wrap">收到文档了，我先看看</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity mb-1 flex-shrink-0">
+                        <button @click="setReplyTo({id:5, content:'收到文档了，我先看看', sender_name:'我', message_type:'text'})"
+                                title="回复"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">reply</span>
+                        </button>
+                        <button @click="openForwardModal({id:5, content:'收到文档了，我先看看', sender_name:'我', message_type:'text'})"
+                                title="转发"
+                                class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600 cursor-pointer">
+                            <span class="material-symbols-outlined text-[16px]">forward</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="mt-1 text-[10px] text-slate-400 text-left">14:40</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 输入区域 -->
+    <div class="border-t border-slate-200 flex-shrink-0">
+
+        <!-- 回复预览条 -->
+        <div x-show="replyToMsg" x-transition class="px-4 pt-2 pb-1">
+            <div class="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-lg border-l-2 border-primary">
+                <div class="flex-1 min-w-0">
+                    <div class="text-[11px] text-primary font-medium" x-text="replyToMsg?.sender_name"></div>
+                    <div class="text-xs text-slate-500 truncate"
+                         x-text="getReplyPreviewText(replyToMsg)"></div>
+                </div>
+                <button @click="replyToMsg = null"
+                        class="text-slate-400 hover:text-slate-600 flex-shrink-0 cursor-pointer">
+                    <span class="material-symbols-outlined text-sm">close</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="px-4 py-3">
+            <div class="flex items-end gap-2">
+                <div class="relative flex-shrink-0">
+                    <button class="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-xl">add</span>
+                    </button>
+                </div>
+                <div class="flex-1">
+                    <textarea rows="1"
+                              placeholder="输入消息... (Enter 发送)"
+                              class="w-full resize-none px-4 py-2.5 text-sm bg-slate-100 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 border border-transparent focus:border-primary/30 transition-all"
+                              style="field-sizing: content;"></textarea>
+                </div>
+                <button class="w-10 h-10 flex-shrink-0 bg-primary hover:bg-blue-600 text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-lg">send</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 转发模态框 ===== -->
+    <div x-show="showForwardModal" x-transition.opacity
+         class="fixed inset-0 z-[60] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/30" @click="showForwardModal = false"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl flex overflow-hidden"
+             style="width: 580px; height: 460px;"
+             @click.stop>
+
+            <!-- ===== 左栏：对话选择 ===== -->
+            <div class="w-[310px] border-r border-slate-200 flex flex-col">
+                <!-- 标题 + 搜索 -->
+                <div class="p-4 pb-2">
+                    <h3 class="text-sm font-semibold text-slate-900">转发消息</h3>
+                    <div class="mt-2 relative">
+                        <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">search</span>
+                        <input x-model="forwardSearch"
+                               placeholder="搜索"
+                               class="w-full text-sm pl-8 pr-3 py-2 rounded-lg bg-slate-100 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30">
+                    </div>
+                </div>
+                <!-- 最近聊天标签 -->
+                <div class="px-4 py-1.5 text-[11px] text-slate-400 font-medium">最近聊天</div>
+                <!-- 对话列表 -->
+                <div class="flex-1 overflow-y-auto px-2 pb-2 chat-panel-scroll">
+                    <template x-for="conv in mockConversations.filter(c => !forwardSearch || c.name.includes(forwardSearch))" :key="conv.id">
+                        <label class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                            <input type="checkbox"
+                                   @change="toggleForwardTarget(conv)"
+                                   :checked="forwardSelected.some(s => s.id === conv.id)"
+                                   class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/30 cursor-pointer">
+                            <!-- 头像 -->
+                            <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium"
+                                 :class="conv.type === 'ai'
+                                     ? 'bg-violet-100 text-violet-600'
+                                     : conv.type === 'group'
+                                         ? 'bg-blue-100 text-blue-600'
+                                         : 'bg-slate-200 text-slate-600'"
+                                 x-text="conv.avatar || conv.name.charAt(0)"></div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm text-slate-900 truncate" x-text="conv.name"></div>
+                                <div x-show="conv.memberCount" class="text-[10px] text-slate-400"
+                                     x-text="conv.memberCount + '人'"></div>
+                            </div>
+                            <!-- 类型徽章 -->
+                            <span x-show="conv.type === 'group'"
+                                  class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 flex-shrink-0 font-medium">群聊</span>
+                            <span x-show="conv.type === 'ai'"
+                                  class="text-[10px] px-1.5 py-0.5 rounded bg-violet-50 text-violet-500 flex-shrink-0 font-medium">AI</span>
+                        </label>
+                    </template>
+                </div>
+            </div>
+
+            <!-- ===== 右栏：已选 + 留言 ===== -->
+            <div class="flex-1 flex flex-col">
+                <!-- 已选标题 -->
+                <div class="p-4 pb-2">
+                    <span class="text-sm font-semibold text-slate-900">
+                        已选择（<span x-text="forwardSelected.length"></span>）
+                    </span>
+                </div>
+                <!-- 已选列表 -->
+                <div class="flex-1 overflow-y-auto px-4 chat-panel-scroll">
+                    <template x-for="sel in forwardSelected" :key="sel.id">
+                        <div class="flex items-center gap-2 py-1.5 group/sel">
+                            <div class="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600"
+                                 x-text="sel.name.charAt(0)"></div>
+                            <span class="text-sm text-slate-700 truncate flex-1" x-text="sel.name"></span>
+                            <button @click="removeForwardTarget(sel.id)"
+                                    class="text-slate-300 hover:text-red-500 cursor-pointer opacity-0 group-hover/sel:opacity-100 transition-opacity flex-shrink-0">
+                                <span class="material-symbols-outlined text-[16px]">close</span>
+                            </button>
+                        </div>
+                    </template>
+                    <div x-show="forwardSelected.length === 0"
+                         class="text-sm text-slate-400 py-12 text-center">
+                        请在左侧选择对话
+                    </div>
+                </div>
+                <!-- 留言 + 按钮 -->
+                <div class="p-3 border-t border-slate-200">
+                    <textarea x-model="forwardNote"
+                              placeholder="留言..."
+                              rows="2"
+                              class="w-full text-sm px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 resize-none focus:outline-none focus:ring-1 focus:ring-primary/30 mb-2 placeholder:text-slate-400"></textarea>
+                    <div class="flex justify-end gap-2">
+                        <button @click="showForwardModal = false"
+                                class="px-5 py-1.5 text-sm rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors">
+                            取消
+                        </button>
+                        <button @click="showForwardModal = false"
+                                :disabled="forwardSelected.length === 0"
+                                class="px-5 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
+                            确定
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关闭 X -->
+            <button @click="showForwardModal = false"
+                    class="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors">
+                <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<!-- 操作提示 -->
+<div class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur rounded-xl shadow-lg px-5 py-3 text-sm text-slate-600 flex items-center gap-4">
+    <span class="material-symbols-outlined text-primary text-lg">info</span>
+    <span>Hover 消息查看操作按钮 | 点击 <strong>回复</strong> 引用消息 | 点击 <strong>转发</strong> 分享到其他对话</span>
+</div>
+
+<script>
+function chatPreview() {
+    return {
+        replyToMsg: null,
+        showForwardModal: false,
+        forwardMsg: null,
+        forwardSearch: '',
+        forwardSelected: [],
+        forwardNote: '',
+
+        mockConversations: [
+            { id: 1, name: '倪捷', type: 'private', avatar: '倪', memberCount: 0 },
+            { id: 2, name: '事业部管理群', type: 'group', avatar: '事', memberCount: 5 },
+            { id: 3, name: '徐昊,倪捷,张瑛', type: 'group', avatar: '徐', memberCount: 3 },
+            { id: 4, name: 'AI 助手', type: 'ai', avatar: 'AI', memberCount: 0 },
+            { id: 5, name: '产品开发群', type: 'group', avatar: '产', memberCount: 8 },
+            { id: 6, name: '刘倩', type: 'private', avatar: '刘', memberCount: 0 },
+            { id: 7, name: '施裕廖', type: 'private', avatar: '施', memberCount: 0 },
+            { id: 8, name: '梅黎Lilian', type: 'private', avatar: '梅', memberCount: 0 },
+            { id: 9, name: '销售部周会群', type: 'group', avatar: '销', memberCount: 12 },
+            { id: 10, name: '张伟', type: 'private', avatar: '张', memberCount: 0 },
+        ],
+
+        setReplyTo(msg) {
+            this.replyToMsg = {
+                id: msg.id,
+                content: msg.content?.substring(0, 50) || '',
+                sender_name: msg.sender_name || '',
+                message_type: msg.message_type || 'text',
+                file_name: msg.file_name || '',
+            };
+        },
+
+        getReplyPreviewText(msg) {
+            if (!msg) return '';
+            if (msg.message_type === 'image') return '[图片]';
+            if (msg.message_type === 'video') return '[视频]';
+            if (msg.message_type === 'file') return '[文件] ' + (msg.file_name || '');
+            return msg.content || '';
+        },
+
+        openForwardModal(msg) {
+            this.forwardMsg = msg;
+            this.forwardSelected = [];
+            this.forwardSearch = '';
+            this.forwardNote = '';
+            this.showForwardModal = true;
+        },
+
+        toggleForwardTarget(conv) {
+            const idx = this.forwardSelected.findIndex(s => s.id === conv.id);
+            if (idx >= 0) {
+                this.forwardSelected.splice(idx, 1);
+            } else {
+                this.forwardSelected.push({ id: conv.id, name: conv.name, type: conv.type });
+            }
+        },
+
+        removeForwardTarget(convId) {
+            this.forwardSelected = this.forwardSelected.filter(s => s.id !== convId);
+        },
+    };
+}
+</script>
+
+</body>
+</html>

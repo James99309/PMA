@@ -4,6 +4,7 @@
 提供全局规格字典（SpecDefinition）的CRUD操作，
 以及测试方法和测试条件字典的管理。
 """
+import logging
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
 from flask_login import login_required, current_user
 from flask_babel import _
@@ -12,9 +13,10 @@ from app.models.spec_template import (
     SpecCategory, SpecDefinition, TestMethodDictionary, TestConditionDictionary,
     SPEC_CATEGORIES
 )
-from app.models.product_code import SpecificationDictionary, SpecificationOption
+from app.models.product_code import SpecificationDictionary, SpecificationOption, ProductCodeFieldOption
+from app.models.product_spec import ProductSpec
 from app.decorators import permission_required
-from app.routes.spec_dictionary import _batch_check_snapshot_usage, _is_option_used_in_snapshot
+from app.routes.spec_dictionary import _is_option_used_in_snapshot
 
 spec_definition_bp = Blueprint('spec_definition', __name__, url_prefix='/admin/spec-definitions')
 
@@ -674,10 +676,6 @@ def api_list_indicators(definition_id):
         spec_id=spec_dict.id
     ).order_by(SpecificationOption.position, SpecificationOption.id).all()
 
-    # 批量检查 snapshot 引用
-    all_values = [opt.value for opt in options]
-    snapshot_used_values = _batch_check_snapshot_usage(all_values)
-
     # 批量检查 ProductCodeFieldOption 引用
     from app.models.product_code import ProductCodeFieldOption
     field_option_refs = db.session.query(ProductCodeFieldOption.spec_option_id).filter(
@@ -685,10 +683,46 @@ def api_list_indicators(definition_id):
     ).distinct().all()
     field_option_used_ids = {r[0] for r in field_option_refs}
 
+    # 批量检查 ProductSpec.field_code 引用（code 编辑值时不变，比 value 更可靠）
+    # 同时检测待同步状态：field_code 匹配但 field_value 不等于当前 option.value
+    option_codes = [opt.code for opt in options if opt.code]
+    product_spec_used_codes = set()
+    # { code: [{old_value, count}] } — 记录需要同步的旧值
+    pending_sync_by_code = {}
+    if option_codes:
+        # 构建 code→current_value 映射
+        code_to_value = {opt.code: opt.value for opt in options if opt.code}
+
+        ps_rows = db.session.query(
+            ProductSpec.field_code,
+            ProductSpec.field_value,
+            db.func.count(ProductSpec.id)
+        ).filter(
+            ProductSpec.field_name == definition.name,
+            ProductSpec.field_code.in_(option_codes)
+        ).group_by(ProductSpec.field_code, ProductSpec.field_value).all()
+
+        for code, value, cnt in ps_rows:
+            product_spec_used_codes.add(code)
+            # field_value 与当前 option.value 不一致 → 待同步
+            if code in code_to_value and value != code_to_value[code]:
+                pending_sync_by_code.setdefault(code, []).append({
+                    'old_value': value,
+                    'count': cnt
+                })
+
     data = []
     for opt in options:
         d = opt.to_dict()
-        d['is_used'] = opt.id in field_option_used_ids or opt.value in snapshot_used_values
+        d['is_used'] = (opt.id in field_option_used_ids
+                        or opt.code in product_spec_used_codes)
+        # 附加待同步信息
+        sync_info = pending_sync_by_code.get(opt.code)
+        if sync_info:
+            total = sum(item['count'] for item in sync_info)
+            d['sync_pending'] = True
+            d['sync_old_values'] = sync_info
+            d['sync_affected_count'] = total
         data.append(d)
 
     return jsonify({
@@ -774,4 +808,177 @@ def api_delete_indicator(option_id):
     return jsonify({
         'success': True,
         'message': _('指标删除成功')
+    })
+
+
+def _check_indicator_is_used(option):
+    """检查指标是否被产品或快照引用"""
+    ref = ProductCodeFieldOption.query.filter_by(spec_option_id=option.id).first()
+    if ref:
+        return True
+    return _is_option_used_in_snapshot(option.value)
+
+
+@spec_definition_bp.route('/api/indicators/<int:option_id>', methods=['PUT'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_update_indicator(option_id):
+    """API: 编辑指标值（编码不可修改）"""
+    option = SpecificationOption.query.get_or_404(option_id)
+    data = request.get_json()
+
+    old_value = option.value
+
+    # 更新 value
+    new_value = (data.get('value') or '').strip()
+    if not new_value:
+        return jsonify({'success': False, 'message': _('指标值不能为空')}), 400
+
+    if new_value == old_value:
+        return jsonify({'success': True, 'message': _('未做修改'), 'data': option.to_dict()})
+
+    # 检查重复
+    existing = SpecificationOption.query.filter(
+        SpecificationOption.spec_id == option.spec_id,
+        SpecificationOption.value == new_value,
+        SpecificationOption.id != option_id
+    ).first()
+    if existing:
+        return jsonify({'success': False, 'message': _('指标值已存在')}), 400
+
+    option.value = new_value
+    db.session.commit()
+
+    response_data = option.to_dict()
+
+    # 直接检查 ProductSpec 是否有需要同步的记录（不依赖 is_used 判断）
+    # 修复：二次编辑后 option.value 已变，_check_indicator_is_used 按新值查快照会失败
+    spec_name = option.spec.name
+    affected_count = ProductSpec.query.filter(
+        ProductSpec.field_name == spec_name,
+        ProductSpec.field_value == old_value
+    ).count()
+    if affected_count > 0:
+        response_data['sync_needed'] = True
+        response_data['old_value'] = old_value
+        response_data['affected_count'] = affected_count
+
+    return jsonify({
+        'success': True,
+        'message': _('指标更新成功'),
+        'data': response_data
+    })
+
+
+@spec_definition_bp.route('/api/indicators/<int:option_id>/sync-preview', methods=['GET'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_sync_preview(option_id):
+    """API: 预览同步将影响的产品列表"""
+    from app.models.product import Product
+
+    option = SpecificationOption.query.get_or_404(option_id)
+    old_value = request.args.get('old_value', '').strip()
+    if not old_value:
+        return jsonify({'success': False, 'message': _('缺少原始值参数')}), 400
+
+    spec_name = option.spec.name
+
+    affected = db.session.query(
+        Product.product_name,
+        Product.model,
+        ProductSpec.field_value
+    ).join(Product, ProductSpec.product_id == Product.id).filter(
+        ProductSpec.field_name == spec_name,
+        ProductSpec.field_value == old_value
+    ).all()
+
+    products = [
+        {
+            'product_name': row.product_name or '',
+            'model': row.model or '',
+            'old_value': row.field_value
+        }
+        for row in affected
+    ]
+
+    return jsonify({
+        'success': True,
+        'data': products,
+        'total': len(products)
+    })
+
+
+@spec_definition_bp.route('/api/indicators/<int:option_id>/sync-products', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_sync_indicator_to_products(option_id):
+    """API: 将指标值变更同步到所有引用的产品规格"""
+    from app.utils.product_helpers import generate_spec_mn, generate_product_snapshot
+
+    option = SpecificationOption.query.get_or_404(option_id)
+    data = request.get_json()
+
+    old_value = (data.get('old_value') or '').strip()
+    if not old_value:
+        return jsonify({'success': False, 'message': _('缺少原始值参数')}), 400
+
+    spec_name = option.spec.name
+    new_value = option.value
+
+    # 查找需要同步的 ProductSpec
+    affected_specs = ProductSpec.query.filter(
+        ProductSpec.field_name == spec_name,
+        ProductSpec.field_value == old_value
+    ).all()
+
+    if not affected_specs:
+        return jsonify({
+            'success': True,
+            'message': _('没有需要同步的产品'),
+            'data': {'synced_specs': 0, 'synced_products': 0}
+        })
+
+    # 更新 field_value（field_code 不变）
+    synced_product_ids = set()
+    for spec in affected_specs:
+        spec.field_value = new_value
+        synced_product_ids.add(spec.product_id)
+
+    db.session.flush()
+
+    # 重新生成每个受影响产品的 MN 和 snapshot
+    from app.models.product import Product
+    mn_errors = []
+    for product_id in synced_product_ids:
+        product = Product.query.get(product_id)
+        if not product:
+            continue
+        try:
+            new_mn = generate_spec_mn(product)
+            if new_mn:
+                product.spec_mn = new_mn
+        except Exception as e:
+            mn_errors.append(f'产品{product_id}: MN生成失败 - {str(e)}')
+            logging.getLogger(__name__).warning(f'产品{product_id} MN重新生成失败: {e}')
+        try:
+            generate_product_snapshot(product, source='sync')
+        except Exception as e:
+            logging.getLogger(__name__).warning(f'产品{product_id} 快照重新生成失败: {e}')
+
+    db.session.commit()
+
+    message = _('同步完成：%(specs)s 条规格，%(products)s 个产品',
+                specs=len(affected_specs), products=len(synced_product_ids))
+    if mn_errors:
+        message += f' ({len(mn_errors)} 个MN生成警告)'
+
+    return jsonify({
+        'success': True,
+        'message': message,
+        'data': {
+            'synced_specs': len(affected_specs),
+            'synced_products': len(synced_product_ids),
+            'warnings': mn_errors if mn_errors else None
+        }
     })

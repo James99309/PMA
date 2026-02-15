@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMA 文件管理系统 - UI 预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        'background-light': '#f8fafc',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .material-symbols-outlined.fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .drag-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; }
+        .drag-zone:hover, .drag-zone.active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.05); }
+        .context-menu { animation: fadeIn 0.15s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .progress-bar { transition: width 0.3s ease; }
+        /* 隐藏滚动条但保留滚动功能 */
+        .scroll-hidden::-webkit-scrollbar { display: none; }
+        .scroll-hidden { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 overflow-hidden">
+
+<!-- ==================== 整体布局 ==================== -->
+<div class="flex h-screen">
+
+    <!-- ==================== 模拟 PMA 侧边栏 ==================== -->
+    <aside class="w-64 h-full flex flex-col bg-background-light border-r border-slate-200 flex-shrink-0">
+        <!-- Logo 区域 -->
+        <div class="h-16 flex items-center px-4 border-b border-slate-200">
+            <span class="text-lg font-bold text-primary">PMA</span>
+            <span class="text-sm text-slate-400 ml-2">管理系统</span>
+        </div>
+
+        <!-- 导航菜单 -->
+        <nav class="flex-1 overflow-y-auto scroll-hidden px-3 py-4 flex flex-col gap-1">
+            <!-- 仪表盘 -->
+            <a class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 cursor-pointer">
+                <span class="material-symbols-outlined text-slate-600">dashboard</span>
+                <span class="text-slate-600 text-sm font-medium">仪表盘</span>
+            </a>
+
+            <!-- ★ 新增：文件管理（独立顶级项）★ -->
+            <a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/20 cursor-pointer" id="nav-files">
+                <span class="material-symbols-outlined fill text-primary">folder_open</span>
+                <span class="text-primary text-sm font-medium">文件管理</span>
+            </a>
+
+            <div class="my-2 mx-1 h-px bg-slate-200"></div>
+
+            <!-- 业务管理（折叠） -->
+            <button class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-slate-600">work</span>
+                    <span class="text-slate-600 text-sm font-medium">业务管理</span>
+                </div>
+                <span class="material-symbols-outlined text-slate-400 text-base">expand_more</span>
+            </button>
+
+            <!-- 订单中心（折叠） -->
+            <button class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-slate-600">receipt_long</span>
+                    <span class="text-slate-600 text-sm font-medium">订单中心</span>
+                </div>
+                <span class="material-symbols-outlined text-slate-400 text-base">expand_more</span>
+            </button>
+
+            <!-- 产品管理（折叠） -->
+            <button class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-slate-600">inventory_2</span>
+                    <span class="text-slate-600 text-sm font-medium">产品管理</span>
+                </div>
+                <span class="material-symbols-outlined text-slate-400 text-base">expand_more</span>
+            </button>
+
+            <!-- 更多菜单... -->
+            <button class="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-slate-100">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-slate-600">settings</span>
+                    <span class="text-slate-600 text-sm font-medium">系统管理</span>
+                </div>
+                <span class="material-symbols-outlined text-slate-400 text-base">expand_more</span>
+            </button>
+        </nav>
+
+        <!-- 底部用户信息 -->
+        <div class="border-t border-slate-200 p-3">
+            <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-slate-100 cursor-pointer">
+                <div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+                    <span class="text-primary text-sm font-medium">张</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-slate-700 truncate">张三</div>
+                    <div class="text-xs text-slate-400">技术部</div>
+                </div>
+                <span class="material-symbols-outlined text-slate-400 text-base">expand_more</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ==================== 主内容区 ==================== -->
+    <div class="flex-1 flex flex-col min-w-0">
+
+        <!-- ==================== 顶部工具栏 ==================== -->
+        <header class="h-16 flex items-center justify-between px-4 border-b border-slate-200 bg-white flex-shrink-0">
+            <!-- 左侧：菜单按钮 -->
+            <button class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors">
+                <span class="material-symbols-outlined">menu</span>
+            </button>
+
+            <!-- 右侧：工具按钮组 -->
+            <div class="flex items-center gap-1">
+                <!-- 语言 -->
+                <button class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors" title="语言切换">
+                    <span class="material-symbols-outlined">language</span>
+                </button>
+                <!-- 帮助 -->
+                <button class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors" title="帮助">
+                    <span class="material-symbols-outlined">help_outline</span>
+                </button>
+                <!-- 日历 -->
+                <a class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors" title="工作日历">
+                    <span class="material-symbols-outlined">calendar_today</span>
+                    <span class="absolute bottom-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                </a>
+
+                <!-- ★ 新增：快捷上传按钮 ★ -->
+                <button onclick="document.getElementById('quickUploadModal').classList.toggle('hidden')"
+                        class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                        title="快速上传文件">
+                    <span class="material-symbols-outlined">upload_file</span>
+                </button>
+
+                <!-- 新建任务 -->
+                <button class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors" title="新建任务">
+                    <span class="material-symbols-outlined">add_task</span>
+                </button>
+                <!-- 消息通知 -->
+                <button class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors" title="消息通知">
+                    <span class="material-symbols-outlined">notifications</span>
+                    <span class="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center">3</span>
+                </button>
+                <!-- 暗色模式 -->
+                <button class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors" title="暗色模式">
+                    <span class="material-symbols-outlined">dark_mode</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- ==================== 文件管理主内容 ==================== -->
+        <div class="flex-1 flex overflow-hidden">
+
+            <!-- 文件管理左侧导航 -->
+            <div class="w-52 border-r border-slate-200 bg-white flex flex-col flex-shrink-0">
+                <div class="p-4 flex flex-col gap-1">
+                    <!-- 页面标题 -->
+                    <h2 class="text-base font-semibold text-slate-800 mb-3">文件管理</h2>
+
+                    <!-- 我的文件 -->
+                    <div>
+                        <button onclick="switchView('my-files')" class="flex items-center gap-2 w-full px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium" id="btn-my-files">
+                            <span class="material-symbols-outlined text-base fill">folder</span>
+                            我的文件
+                        </button>
+                        <!-- 子文件夹树 -->
+                        <div class="ml-4 mt-1 flex flex-col gap-0.5" id="folder-tree">
+                            <button onclick="navigateFolder('contracts')" class="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-slate-600 hover:bg-slate-100">
+                                <span class="material-symbols-outlined text-base">folder</span>
+                                合同文档
+                                <span class="text-xs text-slate-400 ml-auto">3</span>
+                            </button>
+                            <button onclick="navigateFolder('tech')" class="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-primary bg-primary/10 font-medium">
+                                <span class="material-symbols-outlined text-base fill">folder_open</span>
+                                技术资料
+                                <span class="text-xs text-primary/70 ml-auto">12</span>
+                            </button>
+                            <button onclick="navigateFolder('quotes')" class="flex items-center gap-2 w-full px-2 py-1.5 rounded text-sm text-slate-600 hover:bg-slate-100">
+                                <span class="material-symbols-outlined text-base">folder</span>
+                                客户报价
+                                <span class="text-xs text-slate-400 ml-auto">5</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="my-2 h-px bg-slate-200"></div>
+
+                    <!-- 共享给我 -->
+                    <button onclick="switchView('shared')" class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm font-medium" id="btn-shared">
+                        <span class="material-symbols-outlined text-base">folder_shared</span>
+                        共享给我
+                        <span class="ml-auto bg-primary/10 text-primary text-xs px-1.5 py-0.5 rounded-full">2</span>
+                    </button>
+
+                    <!-- 公司文件 -->
+                    <button onclick="switchView('company')" class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm font-medium" id="btn-company">
+                        <span class="material-symbols-outlined text-base">business</span>
+                        公司文件库
+                    </button>
+
+                    <!-- 回收站 -->
+                    <button onclick="switchView('trash')" class="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm font-medium" id="btn-trash">
+                        <span class="material-symbols-outlined text-base">delete</span>
+                        回收站
+                    </button>
+                </div>
+
+                <!-- 底部配额 -->
+                <div class="mt-auto p-4 border-t border-slate-200">
+                    <div class="text-xs text-slate-500 mb-1.5">存储空间</div>
+                    <div class="w-full bg-slate-200 rounded-full h-1.5 mb-1.5">
+                        <div class="bg-primary rounded-full h-1.5 progress-bar" style="width: 12%"></div>
+                    </div>
+                    <div class="text-xs text-slate-500">已用 <span class="font-medium text-slate-700">1.2 GB</span> / 10 GB</div>
+                </div>
+            </div>
+
+            <!-- 文件管理右侧内容区 -->
+            <div class="flex-1 flex flex-col bg-white min-w-0">
+
+                <!-- 工具栏 -->
+                <div class="flex items-center justify-between px-6 py-3 border-b border-slate-200">
+                    <!-- 面包屑 -->
+                    <div class="flex items-center gap-1.5 text-sm">
+                        <button class="text-slate-500 hover:text-primary">全部文件</button>
+                        <span class="material-symbols-outlined text-slate-400 text-base">chevron_right</span>
+                        <span class="text-slate-800 font-medium">技术资料</span>
+                    </div>
+
+                    <!-- 操作按钮 -->
+                    <div class="flex items-center gap-2">
+                        <!-- 搜索 -->
+                        <div class="relative">
+                            <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-base">search</span>
+                            <input type="text" placeholder="搜索文件..." class="w-48 pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30">
+                        </div>
+
+                        <!-- 视图切换 -->
+                        <div class="flex border border-slate-200 rounded-lg overflow-hidden">
+                            <button class="px-2 py-1.5 bg-primary/10 text-primary" title="列表视图">
+                                <span class="material-symbols-outlined text-base">view_list</span>
+                            </button>
+                            <button class="px-2 py-1.5 text-slate-400 hover:text-slate-600" title="网格视图">
+                                <span class="material-symbols-outlined text-base">grid_view</span>
+                            </button>
+                        </div>
+
+                        <div class="w-px h-6 bg-slate-200"></div>
+
+                        <!-- 新建文件夹 -->
+                        <button class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+                            <span class="material-symbols-outlined text-base">create_new_folder</span>
+                            新建文件夹
+                        </button>
+
+                        <!-- 上传文件 -->
+                        <button class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-primary rounded-lg hover:bg-blue-600 transition-colors">
+                            <span class="material-symbols-outlined text-base">upload</span>
+                            上传文件
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 文件列表 -->
+                <div class="flex-1 overflow-y-auto">
+                    <table class="w-full">
+                        <thead class="sticky top-0 bg-slate-50 border-b border-slate-200">
+                            <tr class="text-xs text-slate-500 uppercase">
+                                <th class="w-10 py-2.5 pl-6"><input type="checkbox" class="rounded border-slate-300"></th>
+                                <th class="py-2.5 text-left font-medium">名称</th>
+                                <th class="py-2.5 text-left font-medium w-24">大小</th>
+                                <th class="py-2.5 text-left font-medium w-32">修改时间</th>
+                                <th class="py-2.5 text-center font-medium w-24">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm">
+                            <!-- 子文件夹 -->
+                            <tr class="border-b border-slate-100 hover:bg-slate-50 cursor-pointer group">
+                                <td class="pl-6 py-2.5"><input type="checkbox" class="rounded border-slate-300"></td>
+                                <td class="py-2.5">
+                                    <div class="flex items-center gap-2.5">
+                                        <span class="material-symbols-outlined text-amber-400 text-xl">folder</span>
+                                        <span class="text-slate-800 font-medium group-hover:text-primary">700MHz 产品规格</span>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 text-slate-500">6 个文件</td>
+                                <td class="py-2.5 text-slate-500">2026-02-14</td>
+                                <td class="py-2.5 text-center">
+                                    <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition-opacity">
+                                        <span class="material-symbols-outlined text-base">more_horiz</span>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- PDF 文件 -->
+                            <tr class="border-b border-slate-100 hover:bg-slate-50 cursor-pointer group">
+                                <td class="pl-6 py-2.5"><input type="checkbox" class="rounded border-slate-300"></td>
+                                <td class="py-2.5">
+                                    <div class="flex items-center gap-2.5">
+                                        <span class="material-symbols-outlined text-red-400 text-xl">picture_as_pdf</span>
+                                        <span class="text-slate-800 group-hover:text-primary">光分路器技术规格书 v3.pdf</span>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 text-slate-500">2.3 MB</td>
+                                <td class="py-2.5 text-slate-500">2026-02-13</td>
+                                <td class="py-2.5 text-center">
+                                    <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition-opacity">
+                                        <span class="material-symbols-outlined text-base">more_horiz</span>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- Excel 文件 -->
+                            <tr class="border-b border-slate-100 hover:bg-slate-50 cursor-pointer group">
+                                <td class="pl-6 py-2.5"><input type="checkbox" class="rounded border-slate-300"></td>
+                                <td class="py-2.5">
+                                    <div class="flex items-center gap-2.5">
+                                        <span class="material-symbols-outlined text-green-500 text-xl">table_chart</span>
+                                        <span class="text-slate-800 group-hover:text-primary">产品对比分析表.xlsx</span>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 text-slate-500">1.1 MB</td>
+                                <td class="py-2.5 text-slate-500">2026-02-12</td>
+                                <td class="py-2.5 text-center">
+                                    <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition-opacity">
+                                        <span class="material-symbols-outlined text-base">more_horiz</span>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- 图片文件 -->
+                            <tr class="border-b border-slate-100 hover:bg-slate-50 cursor-pointer group">
+                                <td class="pl-6 py-2.5"><input type="checkbox" class="rounded border-slate-300"></td>
+                                <td class="py-2.5">
+                                    <div class="flex items-center gap-2.5">
+                                        <span class="material-symbols-outlined text-blue-400 text-xl">image</span>
+                                        <span class="text-slate-800 group-hover:text-primary">产品实拍照片.jpg</span>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 text-slate-500">3.8 MB</td>
+                                <td class="py-2.5 text-slate-500">2026-02-10</td>
+                                <td class="py-2.5 text-center">
+                                    <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition-opacity">
+                                        <span class="material-symbols-outlined text-base">more_horiz</span>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- Word 文件 -->
+                            <tr class="border-b border-slate-100 hover:bg-slate-50 cursor-pointer group">
+                                <td class="pl-6 py-2.5"><input type="checkbox" class="rounded border-slate-300"></td>
+                                <td class="py-2.5">
+                                    <div class="flex items-center gap-2.5">
+                                        <span class="material-symbols-outlined text-blue-600 text-xl">description</span>
+                                        <span class="text-slate-800 group-hover:text-primary">FTTH 解决方案.docx</span>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 text-slate-500">856 KB</td>
+                                <td class="py-2.5 text-slate-500">2026-02-08</td>
+                                <td class="py-2.5 text-center">
+                                    <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition-opacity">
+                                        <span class="material-symbols-outlined text-base">more_horiz</span>
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- 共享标记的文件 -->
+                            <tr class="border-b border-slate-100 hover:bg-slate-50 cursor-pointer group">
+                                <td class="pl-6 py-2.5"><input type="checkbox" class="rounded border-slate-300"></td>
+                                <td class="py-2.5">
+                                    <div class="flex items-center gap-2.5">
+                                        <span class="material-symbols-outlined text-red-400 text-xl">picture_as_pdf</span>
+                                        <div>
+                                            <span class="text-slate-800 group-hover:text-primary">WDM 产品手册.pdf</span>
+                                            <span class="ml-2 inline-flex items-center gap-0.5 text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">
+                                                <span class="material-symbols-outlined" style="font-size: 12px;">share</span>
+                                                已分享
+                                            </span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-2.5 text-slate-500">5.2 MB</td>
+                                <td class="py-2.5 text-slate-500">2026-02-05</td>
+                                <td class="py-2.5 text-center">
+                                    <button class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600 transition-opacity">
+                                        <span class="material-symbols-outlined text-base">more_horiz</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- 底部拖拽上传区域 -->
+                    <div class="px-6 py-4">
+                        <div class="drag-zone rounded-xl py-8 flex flex-col items-center justify-center text-slate-400 hover:text-primary cursor-pointer" id="dropZone">
+                            <span class="material-symbols-outlined text-3xl mb-2">cloud_upload</span>
+                            <p class="text-sm">拖拽文件到此处上传，或<button class="text-primary hover:underline">点击选择文件</button></p>
+                            <p class="text-xs mt-1 text-slate-400">支持图片、PDF、Office 文档、压缩包，单文件最大 50MB</p>
+                        </div>
+                    </div>
+
+                    <!-- 底部统计 -->
+                    <div class="px-6 pb-4 text-xs text-slate-400">
+                        共 6 个项目（1 个文件夹，5 个文件），合计 13.3 MB
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 右键菜单（模拟） ==================== -->
+<div id="contextMenu" class="context-menu hidden fixed bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 w-48 z-50" style="top: 320px; left: 680px;">
+    <button class="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+        <span class="material-symbols-outlined text-base text-slate-400">visibility</span>
+        预览
+    </button>
+    <button class="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+        <span class="material-symbols-outlined text-base text-slate-400">download</span>
+        下载
+    </button>
+    <div class="my-1 mx-3 h-px bg-slate-100"></div>
+    <button class="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+        <span class="material-symbols-outlined text-base text-slate-400">edit</span>
+        重命名
+    </button>
+    <button class="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+        <span class="material-symbols-outlined text-base text-slate-400">drive_file_move</span>
+        移动到...
+    </button>
+    <button class="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+        <span class="material-symbols-outlined text-base text-slate-400">share</span>
+        分享
+    </button>
+    <div class="my-1 mx-3 h-px bg-slate-100"></div>
+    <button class="flex items-center gap-2.5 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-50">
+        <span class="material-symbols-outlined text-base">delete</span>
+        删除
+    </button>
+</div>
+
+<!-- ==================== 快捷上传弹窗 ==================== -->
+<div id="quickUploadModal" class="hidden fixed inset-0 z-50 flex items-start justify-end pt-16 pr-4">
+    <!-- 背景遮罩 -->
+    <div class="absolute inset-0" onclick="document.getElementById('quickUploadModal').classList.add('hidden')"></div>
+
+    <!-- 弹窗内容 -->
+    <div class="relative bg-white rounded-xl shadow-2xl border border-slate-200 w-80 overflow-hidden" style="animation: fadeIn 0.2s ease-out;">
+        <!-- 头部 -->
+        <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+            <h3 class="text-sm font-semibold text-slate-800">快速上传文件</h3>
+            <button onclick="document.getElementById('quickUploadModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                <span class="material-symbols-outlined text-base">close</span>
+            </button>
+        </div>
+
+        <!-- 上传区域 -->
+        <div class="p-4">
+            <div class="drag-zone rounded-lg py-6 flex flex-col items-center justify-center text-slate-400">
+                <span class="material-symbols-outlined text-2xl mb-1.5">cloud_upload</span>
+                <p class="text-sm">拖拽文件或<button class="text-primary hover:underline">点击选择</button></p>
+            </div>
+
+            <!-- 目标文件夹 -->
+            <div class="flex items-center gap-2 mt-3 text-sm text-slate-600">
+                <span>上传到:</span>
+                <button class="flex items-center gap-1 px-2 py-1 bg-slate-100 rounded-lg hover:bg-slate-200 text-slate-700">
+                    <span class="material-symbols-outlined text-sm">folder</span>
+                    全部文件
+                    <span class="material-symbols-outlined text-sm">expand_more</span>
+                </button>
+            </div>
+
+            <!-- 上传进度列表 -->
+            <div class="mt-3 space-y-2">
+                <!-- 已完成 -->
+                <div class="flex items-center gap-2 p-2 bg-green-50 rounded-lg">
+                    <span class="material-symbols-outlined text-green-500 text-base">check_circle</span>
+                    <span class="text-sm text-slate-700 truncate flex-1">合同扫描件.pdf</span>
+                    <span class="text-xs text-slate-400">2.3 MB</span>
+                </div>
+                <!-- 上传中 -->
+                <div class="p-2 bg-slate-50 rounded-lg">
+                    <div class="flex items-center gap-2 mb-1.5">
+                        <span class="material-symbols-outlined text-primary text-base animate-spin">progress_activity</span>
+                        <span class="text-sm text-slate-700 truncate flex-1">产品报价单.xlsx</span>
+                        <span class="text-xs text-slate-400">60%</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-1">
+                        <div class="bg-primary rounded-full h-1 progress-bar" style="width: 60%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部 -->
+        <div class="px-4 py-3 border-t border-slate-200 bg-slate-50">
+            <a class="text-sm text-primary hover:underline flex items-center gap-1" href="#">
+                <span class="material-symbols-outlined text-sm">folder_open</span>
+                打开文件管理
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 分享弹窗 ==================== -->
+<div id="shareModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+    <div class="bg-white rounded-2xl shadow-2xl w-[420px] overflow-hidden" style="animation: fadeIn 0.2s ease-out;">
+        <!-- 头部 -->
+        <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+            <div>
+                <h3 class="text-base font-semibold text-slate-800">分享文件</h3>
+                <p class="text-xs text-slate-400 mt-0.5">光分路器技术规格书 v3.pdf</p>
+            </div>
+            <button onclick="document.getElementById('shareModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <div class="p-5">
+            <!-- 搜索 -->
+            <div class="relative mb-3">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">search</span>
+                <input type="text" placeholder="搜索用户或部门..." class="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30">
+            </div>
+
+            <!-- 用户/部门树 -->
+            <div class="border border-slate-200 rounded-lg max-h-52 overflow-y-auto p-2">
+                <!-- 公司 -->
+                <div class="mb-1">
+                    <div class="flex items-center gap-2 px-2 py-1.5 text-sm font-medium text-slate-700">
+                        <span class="material-symbols-outlined text-base text-slate-400">business</span>
+                        上海公司
+                    </div>
+                    <!-- 部门 -->
+                    <div class="ml-4">
+                        <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer">
+                            <input type="checkbox" class="rounded border-slate-300 text-primary">
+                            <span class="material-symbols-outlined text-base text-amber-400">folder_shared</span>
+                            <span class="text-sm text-slate-600">技术部 (整个部门)</span>
+                        </label>
+                        <!-- 人员 -->
+                        <div class="ml-6">
+                            <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" checked class="rounded border-slate-300 text-primary">
+                                <div class="w-5 h-5 rounded-full bg-green-100 flex items-center justify-center text-[10px] text-green-700 font-medium">李</div>
+                                <span class="text-sm text-slate-700">李四</span>
+                            </label>
+                            <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer">
+                                <input type="checkbox" class="rounded border-slate-300 text-primary">
+                                <div class="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-[10px] text-blue-700 font-medium">王</div>
+                                <span class="text-sm text-slate-700">王五</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="ml-4">
+                        <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer">
+                            <input type="checkbox" checked class="rounded border-slate-300 text-primary">
+                            <span class="material-symbols-outlined text-base text-amber-400">folder_shared</span>
+                            <span class="text-sm text-slate-700">销售部 (整个部门)</span>
+                            <span class="text-xs text-slate-400 ml-auto">5人</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 权限选择 -->
+            <div class="flex items-center gap-4 mt-4">
+                <span class="text-sm text-slate-600">权限:</span>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="permission" checked class="text-primary">
+                    <span class="text-sm text-slate-700">只读</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="permission" class="text-primary">
+                    <span class="text-sm text-slate-700">可编辑</span>
+                </label>
+            </div>
+
+            <!-- 已选标签 -->
+            <div class="flex items-center gap-2 mt-3 flex-wrap">
+                <span class="text-xs text-slate-500">已选:</span>
+                <span class="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    李四
+                    <button class="hover:text-red-500"><span class="material-symbols-outlined" style="font-size: 12px;">close</span></button>
+                </span>
+                <span class="inline-flex items-center gap-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    销售部 (5人)
+                    <button class="hover:text-red-500"><span class="material-symbols-outlined" style="font-size: 12px;">close</span></button>
+                </span>
+            </div>
+        </div>
+
+        <!-- 底部按钮 -->
+        <div class="flex items-center justify-end gap-2 px-5 py-4 border-t border-slate-200 bg-slate-50">
+            <button onclick="document.getElementById('shareModal').classList.add('hidden')" class="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100">取消</button>
+            <button class="px-4 py-2 text-sm text-white bg-primary rounded-lg hover:bg-blue-600">确认分享</button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 交互脚本 ==================== -->
+<script>
+    // 右键菜单
+    document.querySelectorAll('tbody tr').forEach(row => {
+        row.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            const menu = document.getElementById('contextMenu');
+            menu.classList.remove('hidden');
+            menu.style.top = e.clientY + 'px';
+            menu.style.left = e.clientX + 'px';
+        });
+    });
+
+    document.addEventListener('click', () => {
+        document.getElementById('contextMenu').classList.add('hidden');
+    });
+
+    // 分享按钮触发
+    document.querySelectorAll('#contextMenu button').forEach(btn => {
+        if (btn.textContent.includes('分享')) {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('contextMenu').classList.add('hidden');
+                document.getElementById('shareModal').classList.remove('hidden');
+            });
+        }
+    });
+
+    // 拖拽上传效果
+    const dropZone = document.getElementById('dropZone');
+    ['dragenter', 'dragover'].forEach(event => {
+        dropZone.addEventListener(event, (e) => {
+            e.preventDefault();
+            dropZone.classList.add('active');
+        });
+    });
+    ['dragleave', 'drop'].forEach(event => {
+        dropZone.addEventListener(event, (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('active');
+        });
+    });
+
+    function switchView(view) {
+        // 简化的视图切换演示
+        console.log('切换到:', view);
+    }
+
+    function navigateFolder(folder) {
+        console.log('打开文件夹:', folder);
+    }
+</script>
+
+</body>
+</html>
