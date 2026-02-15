@@ -7,6 +7,7 @@
 默认每日凌晨1点执行客户活跃度批量更新。
 """
 
+import os
 import schedule
 import time
 import threading
@@ -129,6 +130,82 @@ def run_monthly_activity_snapshot():
         logger.error(traceback.format_exc())
 
 
+def run_daily_backup():
+    """
+    执行每日数据库备份
+
+    在每日 03:00 执行自动备份。
+    仅在失败时推送内部消息通知管理员，成功时静默。
+    """
+    from flask import current_app
+    from app import create_app
+
+    logger.info(f"[{datetime.now()}] 开始执行每日数据库备份...")
+
+    try:
+        try:
+            app = current_app._get_current_object()
+        except RuntimeError:
+            app = create_app()
+
+        with app.app_context():
+            from app.services.supabase_backup_service import get_backup_service
+
+            backup_service = get_backup_service()
+            results = backup_service.create_backup()
+
+            if results:
+                logger.info(f"[{datetime.now()}] 每日备份完成: {results[0]['filename']} ({results[0]['size'] / 1024 / 1024:.1f} MB)")
+            else:
+                raise Exception("备份未生成文件")
+
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] 每日备份失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+        # 失败时推送通知
+        try:
+            try:
+                app = current_app._get_current_object()
+            except RuntimeError:
+                app = create_app()
+
+            with app.app_context():
+                from app.services.supabase_backup_service import get_backup_service
+                get_backup_service()._send_backup_notification(False, error_message=str(e))
+        except Exception as notify_err:
+            logger.warning(f"发送备份失败通知也失败: {notify_err}")
+
+
+def run_weekly_backup_cleanup():
+    """
+    每周日 04:00 清理超期备份文件
+    """
+    from flask import current_app
+    from app import create_app
+
+    logger.info(f"[{datetime.now()}] 开始执行每周备份清理...")
+
+    try:
+        try:
+            app = current_app._get_current_object()
+        except RuntimeError:
+            app = create_app()
+
+        with app.app_context():
+            from app.services.supabase_backup_service import get_backup_service
+
+            backup_service = get_backup_service()
+            deleted_count = backup_service.cleanup_old_backups()
+            logger.info(f"[{datetime.now()}] 每周备份清理完成: 删除了 {deleted_count} 个过期备份")
+
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] 每周备份清理失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+
 def _run_schedule():
     """
     调度器主循环
@@ -152,6 +229,13 @@ def start_scheduler(run_time="01:00"):
     Args:
         run_time: 每日执行时间，格式为 "HH:MM"，默认凌晨1点
 
+    时间表:
+        01:00 → 客户活跃度修正
+        01:30 → 项目活跃度修正
+        02:00 → 月度活跃度快照
+        03:00 → 每日数据库备份 (新增)
+        04:00 → 每周备份清理 (新增, 仅周日)
+
     调度器会在后台线程中运行，不阻塞主程序。
     """
     global _scheduler_running, _scheduler_thread
@@ -160,10 +244,17 @@ def start_scheduler(run_time="01:00"):
         logger.warning("调度器已在运行中，跳过重复启动")
         return
 
-    # 设置每日定时任务
+    # 活跃度相关任务
     schedule.every().day.at(run_time).do(run_activity_correction)
     schedule.every().day.at("01:30").do(run_project_activity_correction)
     schedule.every().day.at("02:00").do(run_monthly_activity_snapshot)
+
+    # 备份相关任务
+    backup_time = os.getenv('BACKUP_AUTO_TIME', '03:00')
+    if os.getenv('BACKUP_AUTO_ENABLED', 'true').lower() == 'true':
+        schedule.every().day.at(backup_time).do(run_daily_backup)
+        schedule.every().sunday.at("04:00").do(run_weekly_backup_cleanup)
+        logger.info(f"备份任务已注册: 每日 {backup_time} 自动备份, 每周日 04:00 清理")
 
     _scheduler_running = True
 
@@ -171,7 +262,7 @@ def start_scheduler(run_time="01:00"):
     _scheduler_thread = threading.Thread(target=_run_schedule, daemon=True)
     _scheduler_thread.start()
 
-    logger.info(f"定时任务调度器已启动，每日 {run_time} 客户活跃度修正，01:30 项目活跃度修正，02:00 活跃度快照")
+    logger.info(f"定时任务调度器已启动: {run_time} 客户活跃度, 01:30 项目活跃度, 02:00 快照, {backup_time} 备份")
 
 
 def stop_scheduler():

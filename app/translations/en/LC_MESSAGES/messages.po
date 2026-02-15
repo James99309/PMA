@@ -4329,6 +4329,8 @@ msgid "更新确认徽章状态"
 msgstr "Update confirmation badge status"
 msgid "最后备份"
 msgstr "Last backup"
+msgid "下次备份"
+msgstr "Next Backup"
 msgid "最大"
 msgstr "Maximum"
 msgid "最新"
@@ -8769,3 +8771,211 @@ msgstr "[Client Card]"
 
 msgid "[项目卡片]"
 msgstr "[Project Card]"
+
+# ── 备份管理 (Backup) ──
+
+msgid "备份配置"
+msgstr "Backup Configuration"
+
+msgid "保留策略"
+msgstr "Retention Policy"
+
+msgid "NAS 本地"
+msgstr "NAS Local"
+
+msgid "本地文件系统"
+msgstr "Local Filesystem"
+
+msgid "每日"
+msgstr "Daily"
+
+msgid "确定要删除备份文件吗？"
+msgstr "Are you sure you want to delete this backup file?"
+
+msgid "确认清理"
+msgstr "Confirm Cleanup"
+
+msgid "正在创建备份"
+msgstr "Creating Backup"
+
+msgid "暂无备份文件"
+msgstr "No backup files"
+
+msgid "的旧备份吗？此操作不可恢复。"
+msgstr " old backups? This action cannot be undone."
+
+msgid "确定要清理超过"
+msgstr "Are you sure you want to clean up backups older than"
+
+msgid "从未备份"
+msgstr "Never backed up"
+
+msgid "点击\"立即备份\"按钮创建第一个备份"
+msgstr "Click the \"Backup Now\" button to create your first backup"
+
+msgid "年龄"
+msgstr "Age"
+
+msgid "自动备份"
+msgstr "Auto Backup"
+
+msgid "健康"
+msgstr "Healthy"
+
+# ── 知识库 (Knowledge Base) ──
+
+msgid "知识库"
+msgstr "Knowledge Base"
+
+msgid "加入知识库"
+msgstr "Add to Knowledge Base"
+
+msgid "从知识库移除"
+msgstr "Remove from Knowledge Base"
+
+msgid "知识库标签"
+msgstr "KB Tags"
+
+msgid "标签管理"
+msgstr "Tag Management"
+
+msgid "创建标签"
+msgstr "Create Tag"
+
+msgid "编辑标签"
+msgstr "Edit Tag"
+
+msgid "删除标签"
+msgstr "Delete Tag"
+
+msgid "标签名称"
+msgstr "Tag Name"
+
+msgid "标签颜色"
+msgstr "Tag Color"
+
+msgid "标签描述"
+msgstr "Tag Description"
+
+msgid "选择标签"
+msgstr "Select Tags"
+
+msgid "全部标签"
+msgstr "All Tags"
+
+msgid "全部状态"
+msgstr "All Status"
+
+msgid "已加入知识库"
+msgstr "In Knowledge Base"
+
+msgid "未加入知识库"
+msgstr "Not in Knowledge Base"
+
+msgid "向量化中"
+msgstr "Vectorizing"
+
+msgid "向量化完成"
+msgstr "Vectorized"
+
+msgid "向量化失败"
+msgstr "Vectorization Failed"
+
+msgid "等待处理"
+msgstr "Pending"
+
+msgid "重新处理"
+msgstr "Reprocess"
+
+msgid "批量加入知识库"
+msgstr "Batch Add to Knowledge Base"
+
+msgid "批量移除"
+msgstr "Batch Remove"
+
+msgid "知识库统计"
+msgstr "KB Statistics"
+
+msgid "总文档数"
+msgstr "Total Documents"
+
+msgid "已就绪"
+msgstr "Ready"
+
+msgid "处理中"
+msgstr "Processing"
+
+msgid "总分块数"
+msgstr "Total Chunks"
+
+msgid "知识库文件"
+msgstr "KB Files"
+
+msgid "请选择要加入知识库的标签"
+msgstr "Please select tags for knowledge base"
+
+msgid "确认移除"
+msgstr "Confirm Remove"
+
+msgid "确定要从知识库中移除该文件吗？"
+msgstr "Are you sure you want to remove this file from the knowledge base?"
+
+msgid "移除后向量数据将被清除"
+msgstr "Vector data will be cleared after removal"
+
+msgid "加入成功"
+msgstr "Added successfully"
+
+msgid "移除成功"
+msgstr "Removed successfully"
+
+msgid "重新处理已触发"
+msgstr "Reprocessing triggered"
+
+msgid "文档详情"
+msgstr "Document Details"
+
+msgid "向量化状态"
+msgstr "Vectorization Status"
+
+msgid "分块数量"
+msgstr "Chunk Count"
+
+msgid "处理时间"
+msgstr "Processing Time"
+
+msgid "添加人"
+msgstr "Added By"
+
+msgid "添加时间"
+msgstr "Added Time"
+
+msgid "错误信息"
+msgstr "Error Message"
+
+msgid "就绪"
+msgstr "Ready"
+
+msgid "暂无知识库文件"
+msgstr "No knowledge base files"
+
+msgid "在文件列表中右键文件，选择"加入知识库""
+msgstr "Right-click files and select \"Add to Knowledge Base\""
+
+msgid "确定加入"
+msgstr "Confirm"
+
+msgid "处理失败"
+msgstr "Processing Failed"
+
+msgid "输入新标签名称..."
+msgstr "Enter new tag name..."
+
+msgid "管理员预定义标签，用于文件加入知识库时分类。"
+msgstr "Admin-predefined tags for classifying files in the knowledge base."
+
+msgid "标签"
+msgstr "Tags"
+
+msgid "已选"
+msgstr "Selected"

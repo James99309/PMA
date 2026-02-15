@@ -53,6 +53,7 @@
 - Approval（审批中心）
 - Pricing Order（列表 + 详情）
 - Product Analysis（分析仪表板）
+- Backup（备份管理）
 
 ### **仍为 Bootstrap 的页面（C类 - 暂无 tw_ 版本）**
 以下页面仍使用 Bootstrap，属于正常状态（未迁移），不需要归档：
@@ -327,8 +328,8 @@ total_amount = order.total_amount / 10000  # 转换为万元
 ```
 
 ### **备份工具**
-- **SP8D数据库**: `python3 backup_cloud_pma_db.py`
-- **OVS数据库**: `python3 simple_ovs_backup.py`
+- **通用备份**: `python3 backup_current_database.py` (独立 CLI，从 DATABASE_URL 读取配置)
+- **Web 管理**: `/backup/` 页面 (Tailwind 版，含自动备份 + 清理 + 通知)
 
 ### **迁移升级工具**
 - **SP8D标准升级**: `python3 standard_migration_upgrade.py`
@@ -450,8 +451,7 @@ python run.py
 
 #### 3. **核心Python文件**
 - `run.py`, `config.py`, `wsgi.py` - 应用核心文件
-- `backup_cloud_pma_db.py` - SP8D数据库备份工具
-- `simple_ovs_backup.py` - OVS数据库备份工具
+- `backup_current_database.py` - 通用数据库备份工具（从DATABASE_URL读取配置）
 - `standard_migration_upgrade.py` - SP8D迁移升级工具
 - `standard_migration_upgrade_ovs.py` - OVS迁移升级工具
 
@@ -587,8 +587,7 @@ PMA/
 ├── run.py                    # ✅ 应用启动文件
 ├── config.py                 # ✅ 配置文件
 ├── wsgi.py                   # ✅ WSGI入口
-├── backup_cloud_pma_db.py    # ✅ SP8D备份工具
-├── simple_ovs_backup.py      # ✅ OVS备份工具
+├── backup_current_database.py # ✅ 通用数据库备份工具
 ├── standard_migration_upgrade.py      # ✅ SP8D迁移工具
 ├── standard_migration_upgrade_ovs.py  # ✅ OVS迁移工具
 ├── start.sh                  # ✅ 统一启动脚本
@@ -935,8 +934,7 @@ pybabel compile -d app/translations
 python run.py                         # 快速启动（默认配置）
 
 # 数据库备份
-python3 backup_cloud_pma_db.py        # SP8D
-python3 simple_ovs_backup.py          # OVS
+python3 backup_current_database.py    # 通用备份（从 DATABASE_URL 读取配置）
 
 # 数据库迁移升级
 python3 standard_migration_upgrade.py     # SP8D标准升级

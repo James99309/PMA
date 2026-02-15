@@ -31,7 +31,7 @@ def index():
         'files/tw_file_manager.html',
         active_page='file_manager',
         initial_folder_id=folder_id,
-        is_admin=current_user.role == 'admin',
+        is_admin=current_user.role in ('admin', 'ceo'),
     )
 
 

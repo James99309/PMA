@@ -2,11 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 数据库备份管理路由
-提供Web界面管理 Supabase 自动备份功能
+提供 Web 界面和 API 管理数据库备份
 """
 
-from flask import Blueprint, render_template, request, jsonify, send_file, current_app, url_for
-from io import BytesIO
+from flask import Blueprint, render_template, request, jsonify, send_file, current_app, url_for, Response
 from flask_login import login_required, current_user
 from app.permissions import permission_required
 from datetime import datetime, timedelta
@@ -17,11 +16,12 @@ logger = logging.getLogger(__name__)
 
 backup_bp = Blueprint('backup', __name__, url_prefix='/backup')
 
+
 @backup_bp.route('/')
 @login_required
-@permission_required('user', 'view')  # 使用用户管理权限作为系统管理权限
+@permission_required('user', 'view')
 def index():
-    """备份管理主页"""
+    """备份管理主页 — Tailwind 版"""
     try:
         from app.services.supabase_backup_service import get_backup_service
         from flask_babel import gettext as _
@@ -31,260 +31,137 @@ def index():
         # 获取备份列表
         backups = backup_service.list_backups()
 
-        # 获取存储使用情况
-        storage_info = backup_service.get_storage_usage()
+        # 统计
+        stats = backup_service.get_backup_statistics()
+        settings = backup_service.get_backup_settings()
+        health = backup_service.get_health_status()
 
-        # 准备显示数据并转换为字典对象（供通用组件使用）
-        backup_objects = []
-        sp8d_count = 0
-        ovs_count = 0
-        local_count = 0
-
+        # 为每个备份添加显示属性
         for backup in backups:
-            # 计算文件年龄
-            created_at = datetime.fromisoformat(backup['created_at'].replace('Z', '+00:00'))
-            age_days = (datetime.now() - created_at.replace(tzinfo=None)).days
+            created_at = datetime.fromisoformat(backup['created_at'].replace('Z', '').replace('+00:00', ''))
+            age_delta = datetime.now() - created_at
+            age_days = age_delta.days
+            age_hours = int(age_delta.total_seconds() / 3600)
 
-            # 格式化大小
-            size_mb = backup['size'] / 1024 / 1024
-            size_display = f"{size_mb:.1f} MB" if size_mb >= 1 else f"{backup['size'] / 1024:.1f} KB"
+            backup['created_display'] = created_at.strftime('%Y-%m-%d %H:%M')
+            backup['size_display'] = _format_size(backup['size'])
 
-            # 数据库类型统计
-            db_type = backup.get('db_type', 'unknown')
-            if db_type == 'sp8d':
-                sp8d_count += 1
-            elif db_type == 'ovs':
-                ovs_count += 1
-            elif db_type == 'local':
-                local_count += 1
+            if age_days > 0:
+                backup['age'] = f"{age_days}" + _('天前')
+            elif age_hours > 0:
+                backup['age'] = f"{age_hours}" + _('小时前')
+            else:
+                backup['age'] = _("刚刚")
 
-            # 创建备份对象（添加__class__属性以供通用组件识别）
-            class BackupFile:
-                def __init__(self, data):
-                    self.filename = data['filename']
-                    self.db_type = db_type
-                    self.size = data['size']
-                    self.size_display = size_display
-                    self.created_at = created_at
-                    self.created_display = created_at.strftime('%Y-%m-%d %H:%M:%S')
-                    self.age = f"{age_days}天前" if age_days > 0 else "今天"
-                    self.path = data.get('storage_path', data['filename'])  # 使用 storage_path 获取完整路径
+        # 计算下次备份时间
+        next_backup = _get_next_backup_time(settings)
 
-            backup_objects.append(BackupFile(backup))
-
-        # 获取最后备份时间
-        last_backup_time = backup_objects[0].created_display if backup_objects else '从未备份'
-        last_backup_age = backup_objects[0].age if backup_objects else ''
-
-        # 环境信息 - 动态读取当前数据库配置
+        # 环境信息
         from config import Config
         db_url = Config.SQLALCHEMY_DATABASE_URI
 
-        # 识别数据库类型并格式化显示
         if 'localhost' in db_url or '127.0.0.1' in db_url:
             db_display = 'pma_local@localhost'
         elif 'sqlite' in db_url:
-            db_display = 'SQLite 本地数据库'
-        elif 'iqcyimnjtnmomvfuwjzw' in db_url:
-            db_display = 'SP8D@Supabase'
-        elif 'pqzviljbpfoqvyfulakl' in db_url:
-            db_display = 'OVS@Supabase'
+            db_display = 'SQLite'
         else:
-            # 提取主机信息
             try:
-                db_display = db_url.split('@')[1].split('/')[0] if '@' in db_url else '未知数据库'
-            except:
-                db_display = '未知数据库'
+                db_display = db_url.split('@')[1].split('/')[0] if '@' in db_url else '未知'
+            except Exception:
+                db_display = '未知'
 
         # 存储位置显示
-        storage_display = storage_info.get('location', '本地文件系统')
-
-        env_info = {
-            'environment': '本地开发' if Config.IS_LOCAL_ENV else '云端生产',
-            'storage_location': storage_display,
-            'database': db_display
-        }
-
-        # 计算总存储使用
-        total_storage_mb = storage_info.get('total_size', 0) / 1024 / 1024
-
-        # 准备通用列表配置
-        list_config = {
-            'module_name': 'backup',
-            'title': _('数据库备份管理'),
-            'ajax_mode': False,  # 不使用AJAX模式，直接渲染
-
-            # 统计卡片配置
-            'stats': {
-                'cards': [
-                    {
-                        'id': 'total',
-                        'title': _('备份总数'),
-                        'icon': 'fas fa-database',
-                        'value': len(backup_objects),
-                        'unit': _('个'),
-                        'color': 'primary',
-                        'data_key': 'total'
-                    },
-                    {
-                        'id': 'sp8d',
-                        'title': 'SP8D ' + _('备份'),
-                        'icon': 'fas fa-server',
-                        'value': sp8d_count,
-                        'unit': _('个'),
-                        'color': 'info',
-                        'data_key': 'sp8d'
-                    },
-                    {
-                        'id': 'ovs',
-                        'title': 'OVS ' + _('备份'),
-                        'icon': 'fas fa-server',
-                        'value': ovs_count,
-                        'unit': _('个'),
-                        'color': 'success',
-                        'data_key': 'ovs'
-                    },
-                    {
-                        'id': 'storage',
-                        'title': _('存储使用'),
-                        'icon': 'fas fa-hard-drive',
-                        'value': f"{total_storage_mb:.1f}",
-                        'unit': 'MB',
-                        'color': 'warning',
-                        'data_key': 'storage'
-                    }
-                ]
-            },
-
-            # 筛选配置
-            'filter': {
-                'action_url': url_for('backup.index'),
-                'form_id': 'backupFilterForm',
-                'reset_url': url_for('backup.index'),
-                'search_field': {
-                    'name': 'search',
-                    'label': _('搜索'),
-                    'placeholder': _('备份文件名'),
-                    'value': request.args.get('search', ''),
-                    'col_width': 4
-                },
-                'filter_fields': [
-                    {
-                        'name': 'db_type',
-                        'label': _('数据库类型'),
-                        'type': 'select',
-                        'col_width': 2,
-                        'options': [
-                            {'value': '', 'label': _('全部')},
-                            {'value': 'sp8d', 'label': 'SP8D'},
-                            {'value': 'ovs', 'label': 'OVS'},
-                            {'value': 'local', 'label': _('本地')}
-                        ],
-                        'value': request.args.get('db_type', '')
-                    }
-                ],
-                'search_button_text': _('搜索'),
-                'reset_button_text': _('重置')
-            },
-
-            # 表格配置
-            'table': {
-                'title': _('备份文件列表'),
-                'icon': 'fas fa-table',
-                'show_header': True,
-                'columns': [
-                    {
-                        'key': 'filename',
-                        'label': _('文件名'),
-                        'type': 'text',
-                        'width': '35%',
-                        'sort_type': 'string'
-                    },
-                    {
-                        'key': 'db_type',
-                        'label': _('数据库'),
-                        'type': 'badge',
-                        'render': 'render_backup_db_type_badge',
-                        'width': '10%'
-                    },
-                    {
-                        'key': 'size_display',
-                        'label': _('文件大小'),
-                        'type': 'text',
-                        'width': '12%',
-                        'align': 'right'
-                    },
-                    {
-                        'key': 'created_display',
-                        'label': _('备份时间'),
-                        'type': 'text',
-                        'width': '18%'
-                    },
-                    {
-                        'key': 'age',
-                        'label': _('备份年龄'),
-                        'type': 'text',
-                        'width': '10%'
-                    },
-                    {
-                        'key': 'actions',
-                        'label': _('操作'),
-                        'type': 'actions',
-                        'width': '15%',
-                        'align': 'center'
-                    }
-                ],
-                'empty_message': _('暂无备份文件，请点击"立即备份"按钮创建备份。')
-            }
-        }
+        if backup_service.use_nas_storage:
+            storage_display = f'NAS WebDAV ({backup_service.nas_backup_path})'
+        else:
+            storage_display = None  # 模板中按 is_local 判断
 
         return render_template(
-            'backup/index.html',
-            list_config=list_config,
-            backups=backup_objects,
-            storage_info=storage_info,
-            env_info=env_info,
-            last_backup_time=last_backup_time,
-            last_backup_age=last_backup_age
+            'backup/tw_index.html',
+            backups=backups,
+            stats=stats,
+            settings=settings,
+            health=health,
+            db_display=db_display,
+            next_backup=next_backup,
+            is_local=Config.IS_LOCAL_ENV,
+            storage_display=storage_display,
         )
 
     except Exception as e:
         import traceback
         logger.error(f"获取备份信息失败: {str(e)}")
-        logger.error(f"完整错误堆栈:\n{traceback.format_exc()}")
-
-        # 错误情况下的配置
-        error_list_config = {
-            'module_name': 'backup',
-            'title': _('数据库备份管理'),
-            'ajax_mode': False,
-            'stats': {'cards': []},
-            'filter': {
-                'action_url': url_for('backup.index'),
-                'form_id': 'backupFilterForm',
-                'search_field': {
-                    'name': 'search',
-                    'label': _('搜索'),
-                    'placeholder': _('备份文件名'),
-                    'value': ''
-                },
-                'filter_fields': []
-            },
-            'table': {
-                'columns': [],
-                'empty_message': _('加载备份列表失败：') + str(e)
-            }
-        }
+        logger.error(traceback.format_exc())
 
         return render_template(
-            'backup/index.html',
-            list_config=error_list_config,
+            'backup/tw_index.html',
             backups=[],
-            storage_info={},
-            env_info={},
-            error=str(e)
+            stats={'total_count': 0, 'total_size_mb': 0, 'sp8d_count': 0, 'ovs_count': 0, 'local_count': 0, 'latest_backup': None},
+            settings={'retention_days': 30, 'auto_backup_enabled': False, 'auto_backup_time': '03:00', 'notify_enabled': True, 'db_type': 'unknown', 'backup_dir': ''},
+            health={'is_healthy': False, 'last_backup_time': None, 'last_backup_age_hours': None, 'message': '加载失败'},
+            db_display='错误',
+            next_backup='未知',
+            is_local=True,
+            storage_display=None,
+            error=str(e),
         )
 
+
+# ==================== API 端点 ====================
+
+@backup_bp.route('/api/statistics')
+@login_required
+@permission_required('user', 'view')
+def api_statistics():
+    """备份统计 API"""
+    try:
+        from app.services.supabase_backup_service import get_backup_service
+        stats = get_backup_service().get_backup_statistics()
+        return jsonify({'success': True, **stats})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@backup_bp.route('/api/settings')
+@login_required
+@permission_required('user', 'view')
+def api_settings():
+    """备份配置 API"""
+    try:
+        from app.services.supabase_backup_service import get_backup_service
+        settings = get_backup_service().get_backup_settings()
+        return jsonify({'success': True, **settings})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@backup_bp.route('/api/health')
+@login_required
+@permission_required('user', 'view')
+def api_health():
+    """健康检查 API"""
+    try:
+        from app.services.supabase_backup_service import get_backup_service
+        health = get_backup_service().get_health_status()
+        return jsonify({'success': True, **health})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@backup_bp.route('/api/scheduler-status')
+@login_required
+@permission_required('user', 'view')
+def api_scheduler_status():
+    """调度器状态 API"""
+    try:
+        from app.utils.scheduled_tasks import get_scheduler_status
+        status = get_scheduler_status()
+        return jsonify({'success': True, **status})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== 操作端点 ====================
 
 @backup_bp.route('/create-now', methods=['POST'])
 @login_required
@@ -295,16 +172,9 @@ def create_backup_now():
         from app.services.supabase_backup_service import get_backup_service
 
         backup_service = get_backup_service()
+        data = request.get_json() or {}
+        db_type = data.get('db_type', 'both')
 
-        # 安全获取JSON数据
-        data = request.get_json()
-
-        if data is None:
-            data = {}
-
-        db_type = data.get('db_type', 'both')  # both, sp8d, ovs
-
-        # 启动异步备份任务
         task_id = backup_service.create_backup_async(db_type)
 
         return jsonify({
@@ -315,10 +185,7 @@ def create_backup_now():
 
     except Exception as e:
         logger.error(f"创建备份失败: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': f'备份失败: {str(e)}'
-        }), 500
+        return jsonify({'success': False, 'message': f'备份失败: {str(e)}'}), 500
 
 
 @backup_bp.route('/task-status/<task_id>')
@@ -328,53 +195,39 @@ def get_task_status(task_id):
     """获取备份任务状态"""
     try:
         from app.services.supabase_backup_service import get_backup_service
-
-        backup_service = get_backup_service()
-        status = backup_service.get_task_status(task_id)
-
+        status = get_backup_service().get_task_status(task_id)
         return jsonify(status)
-
     except Exception as e:
-        logger.error(f"获取任务状态失败: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 @backup_bp.route('/download/<path:filename>')
 @login_required
 @permission_required('user', 'view')
 def download_backup(filename):
-    """下载备份文件（支持本地和 NAS WebDAV）"""
+    """下载备份文件"""
     try:
         from app.services.supabase_backup_service import get_backup_service
+        from io import BytesIO
 
         backup_service = get_backup_service()
 
         if backup_service.use_nas_storage:
-            # NAS 模式：从 WebDAV 下载到内存，再返回给客户端
+            # NAS 模式：从 WebDAV 下载内容后返回
             content = backup_service.download_backup_content(filename)
-            if content is None:
-                return jsonify({'success': False, 'message': '文件不存在或下载失败'}), 404
-
+            if not content:
+                return jsonify({'success': False, 'message': '文件不存在'}), 404
             return send_file(
                 BytesIO(content),
                 as_attachment=True,
-                download_name=os.path.basename(filename),
-                mimetype='application/gzip'
+                download_name=os.path.basename(filename)
             )
         else:
-            # 本地模式：直接从文件系统下载
-            filepath = os.path.join(backup_service.backup_dir, filename)
+            # 本地模式
+            filepath = _validate_backup_path(backup_service.backup_dir, filename)
             if not os.path.exists(filepath):
                 return jsonify({'success': False, 'message': '文件不存在'}), 404
-
-            return send_file(
-                filepath,
-                as_attachment=True,
-                download_name=filename
-            )
+            return send_file(filepath, as_attachment=True, download_name=os.path.basename(filename))
 
     except Exception as e:
         logger.error(f"下载备份失败: {str(e)}")
@@ -385,30 +238,26 @@ def download_backup(filename):
 @login_required
 @permission_required('user', 'view')
 def delete_backup(filename):
-    """删除备份文件（支持本地和 NAS WebDAV）"""
+    """删除备份文件"""
     try:
         from app.services.supabase_backup_service import get_backup_service
 
         backup_service = get_backup_service()
+
+        if not backup_service.use_nas_storage:
+            # 本地模式：验证路径防止 path traversal
+            _validate_backup_path(backup_service.backup_dir, filename)
+
         success = backup_service.delete_backup(filename)
 
         if success:
-            return jsonify({
-                'success': True,
-                'message': '备份已删除'
-            })
+            return jsonify({'success': True, 'message': '备份已删除'})
         else:
-            return jsonify({
-                'success': False,
-                'message': '删除失败'
-            }), 500
+            return jsonify({'success': False, 'message': '删除失败'}), 500
 
     except Exception as e:
         logger.error(f"删除备份失败: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @backup_bp.route('/cleanup', methods=['POST'])
@@ -420,7 +269,8 @@ def cleanup_old_backups():
         from app.services.supabase_backup_service import get_backup_service
 
         backup_service = get_backup_service()
-        days = request.json.get('days', backup_service.retention_days)
+        data = request.get_json() or {}
+        days = data.get('days', backup_service.retention_days)
 
         deleted_count = backup_service.cleanup_old_backups(days)
 
@@ -432,10 +282,7 @@ def cleanup_old_backups():
 
     except Exception as e:
         logger.error(f"清理备份失败: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @backup_bp.route('/storage-usage')
@@ -445,18 +292,52 @@ def get_storage_usage():
     """获取存储使用情况"""
     try:
         from app.services.supabase_backup_service import get_backup_service
-
-        backup_service = get_backup_service()
-        usage = backup_service.get_storage_usage()
-
-        return jsonify({
-            'success': True,
-            'usage': usage
-        })
-
+        usage = get_backup_service().get_storage_usage()
+        return jsonify({'success': True, 'usage': usage})
     except Exception as e:
-        logger.error(f"获取存储使用情况失败: {str(e)}")
-        return jsonify({
-            'success': False,
-            'message': str(e)
-        }), 500
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ==================== 辅助函数 ====================
+
+def _validate_backup_path(backup_dir: str, filename: str) -> str:
+    """验证备份文件路径，防止 path traversal 攻击"""
+    filepath = os.path.realpath(os.path.join(backup_dir, filename))
+    if not filepath.startswith(os.path.realpath(backup_dir)):
+        raise ValueError('非法文件路径')
+    return filepath
+
+
+def _format_size(size_bytes: int) -> str:
+    """格式化文件大小"""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1048576:
+        return f"{size_bytes / 1024:.1f} KB"
+    else:
+        return f"{size_bytes / 1048576:.1f} MB"
+
+
+def _get_next_backup_time(settings: dict) -> str:
+    """计算下次备份时间"""
+    if not settings.get('auto_backup_enabled'):
+        return '未启用'
+
+    backup_time = settings.get('auto_backup_time', '03:00')
+    try:
+        hour, minute = map(int, backup_time.split(':'))
+        now = datetime.now()
+        next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+
+        delta = next_run - now
+        hours = int(delta.total_seconds() / 3600)
+        if hours < 1:
+            return f"{backup_time} (不到1小时)"
+        elif hours < 24:
+            return f"{backup_time} ({hours}小时后)"
+        else:
+            return f"{backup_time} (明日)"
+    except Exception:
+        return backup_time

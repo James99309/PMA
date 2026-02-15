@@ -840,3 +840,39 @@ class FileManagerService:
             parts.insert(0, current.name)
             current = current.parent if current.parent_id else None
         return '/' + '/'.join(parts) if parts else '/'
+
+    # ------------------------------------------------------------------
+    # 知识库状态查询
+    # ------------------------------------------------------------------
+    @staticmethod
+    def get_kb_status_for_files(file_ref_ids, user=None):
+        """
+        批量查询文件的知识库状态。
+
+        Returns:
+            {file_ref_id: {'in_kb': True, 'doc_id': int, 'status': str, 'tags': [...]}}
+        """
+        if not file_ref_ids:
+            return {}
+
+        from app.models.knowledge import KnowledgeDocument
+
+        query = KnowledgeDocument.query.filter(
+            KnowledgeDocument.user_file_ref_id.in_(file_ref_ids)
+        )
+        # 非管理员只看自己的
+        if user and user.role not in ('admin', 'ceo'):
+            query = query.filter(KnowledgeDocument.added_by == user.id)
+
+        docs = query.all()
+
+        result = {}
+        for doc in docs:
+            result[doc.user_file_ref_id] = {
+                'in_kb': True,
+                'doc_id': doc.id,
+                'status': doc.status,
+                'tags': [{'id': t.id, 'name': t.name, 'color': t.color} for t in doc.tags],
+            }
+
+        return result
