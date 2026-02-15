@@ -84,16 +84,19 @@ def semantic_search(query: str, tag_ids: Optional[List[int]] = None,
         logger.error(f"生成问题向量失败: {e}")
         return []
 
-    # 3. pgvector 余弦相似度搜索
-    doc_ids_str = ','.join(str(d) for d in accessible_doc_ids)
-
+    # 3. pgvector 余弦相似度搜索（参数化查询防注入）
     # 构建可选的标签过滤
     tag_join = ''
     tag_filter = ''
+    params = {
+        'query_vec': str(query_embedding),
+        'top_k': top_k * 2,
+        'doc_ids': tuple(accessible_doc_ids),
+    }
     if tag_ids:
-        tag_ids_str = ','.join(str(t) for t in tag_ids)
-        tag_join = f'JOIN knowledge_document_tags kdt ON kdt.document_id = kd.id'
-        tag_filter = f'AND kdt.tag_id IN ({tag_ids_str})'
+        tag_join = 'JOIN knowledge_document_tags kdt ON kdt.document_id = kd.id'
+        tag_filter = 'AND kdt.tag_id = ANY(:tag_ids)'
+        params['tag_ids'] = list(tag_ids)
 
     sql = sa_text(f"""
         SELECT DISTINCT
@@ -108,7 +111,7 @@ def semantic_search(query: str, tag_ids: Optional[List[int]] = None,
         FROM knowledge_chunks kc
         JOIN knowledge_documents kd ON kd.id = kc.document_id
         {tag_join}
-        WHERE kd.id IN ({doc_ids_str})
+        WHERE kd.id = ANY(:doc_ids)
           AND kd.status = 'ready'
           AND kd.expired_at IS NULL
           {tag_filter}
@@ -118,10 +121,7 @@ def semantic_search(query: str, tag_ids: Optional[List[int]] = None,
     """)
 
     try:
-        results = db.session.execute(sql, {
-            'query_vec': str(query_embedding),
-            'top_k': top_k * 2,  # 多取一些用于去重
-        }).fetchall()
+        results = db.session.execute(sql, params).fetchall()
     except Exception as e:
         logger.error(f"pgvector 搜索失败: {e}")
         return []

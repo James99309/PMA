@@ -8729,3 +8729,30 @@ msgstr "Added Time"
 
 msgid "错误信息"
 msgstr "Error Message"
+
+msgid "就绪"
+msgstr "Ready"
+
+msgid "暂无知识库文件"
+msgstr "No knowledge base files"
+
+msgid "在文件列表中右键文件，选择"加入知识库""
+msgstr "Right-click files and select \"Add to Knowledge Base\""
+
+msgid "确定加入"
+msgstr "Confirm"
+
+msgid "处理失败"
+msgstr "Processing Failed"
+
+msgid "输入新标签名称..."
+msgstr "Enter new tag name..."
+
+msgid "管理员预定义标签，用于文件加入知识库时分类。"
+msgstr "Admin-predefined tags for classifying files in the knowledge base."
+
+msgid "标签"
+msgstr "Tags"
+
+msgid "已选"
+msgstr "Selected"

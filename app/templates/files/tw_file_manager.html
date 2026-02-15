@@ -311,7 +311,7 @@
                         <option value="">{{ _('全部') }}</option>
                         <option value="ready">{{ _('就绪') }}</option>
                         <option value="processing">{{ _('处理中') }}</option>
-                        <option value="pending">{{ _('队列中') }}</option>
+                        <option value="pending">{{ _('等待处理') }}</option>
                         <option value="error">{{ _('失败') }}</option>
                     </select>
                 </div>
@@ -590,7 +590,7 @@
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div class="bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2.5 text-center">
                             <p class="text-lg font-bold text-slate-900 dark:text-white" x-text="kbStats.total"></p>
-                            <p class="text-[10px] text-slate-500">{{ _('总文档') }}</p>
+                            <p class="text-[10px] text-slate-500">{{ _('总文档数') }}</p>
                         </div>
                         <div class="bg-green-50 dark:bg-green-900/20 rounded-xl px-3 py-2.5 text-center">
                             <p class="text-lg font-bold text-green-600 dark:text-green-400" x-text="kbStats.ready"></p>
@@ -613,8 +613,8 @@
                     <div class="flex-1">{{ _('文件名') }}</div>
                     <div class="w-24 hidden sm:block">{{ _('标签') }}</div>
                     <div class="w-20 text-center">{{ _('状态') }}</div>
-                    <div class="w-16 text-center hidden md:block">{{ _('分块') }}</div>
-                    <div class="w-24 text-right hidden md:block">{{ _('加入时间') }}</div>
+                    <div class="w-16 text-center hidden md:block">{{ _('分块数量') }}</div>
+                    <div class="w-24 text-right hidden md:block">{{ _('添加时间') }}</div>
                     <div class="w-16 text-right">{{ _('操作') }}</div>
                 </div>
 
@@ -959,11 +959,11 @@
                         <div class="px-5 py-4 space-y-5">
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
-                                    <p class="text-[10px] text-slate-400 mb-0.5">{{ _('分块数') }}</p>
+                                    <p class="text-[10px] text-slate-400 mb-0.5">{{ _('分块数量') }}</p>
                                     <p class="text-sm font-semibold" x-text="kbDetailFile.chunk_count || '—'"></p>
                                 </div>
                                 <div class="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2">
-                                    <p class="text-[10px] text-slate-400 mb-0.5">{{ _('加入时间') }}</p>
+                                    <p class="text-[10px] text-slate-400 mb-0.5">{{ _('添加时间') }}</p>
                                     <p class="text-sm font-semibold" x-text="formatDate(kbDetailFile.created_at)"></p>
                                 </div>
                             </div>

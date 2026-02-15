@@ -60,7 +60,7 @@ class KnowledgeTag(db.Model):
             'creator_name': (self.creator.real_name or self.creator.username) if self.creator else None,
             'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'document_count': self.documents.count() if self.documents else 0,
+            'document_count': 0,  # 由 API 端点计算，避免 N+1
         }
 
 

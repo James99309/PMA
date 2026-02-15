@@ -31,7 +31,26 @@ def _is_admin():
 def list_tags():
     """获取所有活跃标签（所有登录用户可见）"""
     tags = KnowledgeTag.query.filter_by(is_active=True).order_by(KnowledgeTag.name).all()
-    return jsonify({'success': True, 'data': [t.to_dict() for t in tags]})
+
+    # 批量查询标签文档计数，避免 N+1
+    tag_ids = [t.id for t in tags]
+    count_map = {}
+    if tag_ids:
+        counts = db.session.query(
+            knowledge_document_tags.c.tag_id,
+            db.func.count(knowledge_document_tags.c.document_id)
+        ).filter(
+            knowledge_document_tags.c.tag_id.in_(tag_ids)
+        ).group_by(knowledge_document_tags.c.tag_id).all()
+        count_map = dict(counts)
+
+    result = []
+    for t in tags:
+        d = t.to_dict()
+        d['document_count'] = count_map.get(t.id, 0)
+        result.append(d)
+
+    return jsonify({'success': True, 'data': result})
 
 
 @knowledge_bp.route('/tags', methods=['POST'])
@@ -358,32 +377,29 @@ def get_document(doc_id):
 @knowledge_bp.route('/stats', methods=['GET'])
 @login_required
 def get_stats():
-    """获取知识库统计数据"""
+    """获取知识库统计数据（单次条件聚合查询）"""
     query = _base_document_query()
 
-    total = query.count()
-    pending = query.filter(KnowledgeDocument.status == 'pending').count()
-    processing = query.filter(KnowledgeDocument.status == 'processing').count()
-    ready = query.filter(KnowledgeDocument.status == 'ready').count()
-    error = query.filter(KnowledgeDocument.status == 'error').count()
-
-    # 统计分块总数
-    chunk_query = db.session.query(db.func.sum(KnowledgeDocument.chunk_count)).filter(
-        KnowledgeDocument.id.in_(query.with_entities(KnowledgeDocument.id))
-    )
-    total_chunks = chunk_query.scalar() or 0
+    stats = query.with_entities(
+        db.func.count().label('total'),
+        db.func.sum(db.case((KnowledgeDocument.status == 'pending', 1), else_=0)).label('pending'),
+        db.func.sum(db.case((KnowledgeDocument.status == 'processing', 1), else_=0)).label('processing'),
+        db.func.sum(db.case((KnowledgeDocument.status == 'ready', 1), else_=0)).label('ready'),
+        db.func.sum(db.case((KnowledgeDocument.status == 'error', 1), else_=0)).label('error'),
+        db.func.coalesce(db.func.sum(KnowledgeDocument.chunk_count), 0).label('total_chunks'),
+    ).first()
 
     return jsonify({
         'success': True,
         'data': {
-            'total_documents': total,
+            'total_documents': stats.total or 0,
             'status_counts': {
-                'pending': pending,
-                'processing': processing,
-                'ready': ready,
-                'error': error,
+                'pending': int(stats.pending or 0),
+                'processing': int(stats.processing or 0),
+                'ready': int(stats.ready or 0),
+                'error': int(stats.error or 0),
             },
-            'total_chunks': total_chunks,
+            'total_chunks': int(stats.total_chunks),
         },
     })
 
