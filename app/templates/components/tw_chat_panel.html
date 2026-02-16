@@ -51,8 +51,7 @@
      @toggle-chat-panel.window="toggle()"
      @keydown.escape.window="chatOpen && closePanel()"
     @click.outside="chatOpen && closePanel()"
-     :style="mobileVpHeight ? 'height:' + mobileVpHeight + 'px' : ''"
-     class="fixed inset-x-0 top-0 z-50 h-full md:inset-auto md:top-0 md:right-0 md:w-[70vw] md:h-full md:max-w-[calc(100vw-48px)] bg-white dark:bg-slate-900 md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
+     class="fixed inset-0 z-50 md:inset-auto md:top-0 md:right-0 md:w-[70vw] md:h-full md:max-w-[calc(100vw-48px)] bg-white dark:bg-slate-900 md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
      x-cloak
      style="display: none;">
 
@@ -1349,8 +1348,6 @@ function chatPanel() {
         // ----- 状态 -----
         chatOpen: false,
         mobileView: 'list',  // 移动端视图: 'list' = 对话列表, 'chat' = 聊天窗口
-        mobileVpHeight: 0,  // 手机键盘弹出时视口高度（0=不限制，用CSS默认）
-        _vvHandler: null,  // visualViewport resize handler ref
         activeConv: null,
         isNewChat: false,
         messages: [],
@@ -1527,35 +1524,12 @@ function chatPanel() {
             this.mobileView = 'list';
             await this.loadConversations();
             this.startUnreadPolling();
-            this._setupMobileKeyboard();
         },
 
         closePanel() {
             this.chatOpen = false;
             this.stopPolling();
             this.stopUnreadPolling();
-            this._teardownMobileKeyboard();
-        },
-
-        // 手机端键盘弹出适配：动态调整面板高度 = visualViewport.height
-        _setupMobileKeyboard() {
-            if (window.visualViewport && window.innerWidth < 768) {
-                this._vvHandler = () => {
-                    // 键盘弹出时 visualViewport.height 变小，面板跟着缩小
-                    this.mobileVpHeight = window.visualViewport.height;
-                };
-                window.visualViewport.addEventListener('resize', this._vvHandler);
-                window.visualViewport.addEventListener('scroll', this._vvHandler);
-            }
-        },
-
-        _teardownMobileKeyboard() {
-            if (this._vvHandler && window.visualViewport) {
-                window.visualViewport.removeEventListener('resize', this._vvHandler);
-                window.visualViewport.removeEventListener('scroll', this._vvHandler);
-                this._vvHandler = null;
-            }
-            this.mobileVpHeight = 0;
         },
 
         // ----- 对话列表 -----
