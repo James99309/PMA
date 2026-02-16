@@ -51,7 +51,7 @@
      @toggle-chat-panel.window="toggle()"
      @keydown.escape.window="chatOpen && closePanel()"
     @click.outside="chatOpen && closePanel()"
-     class="fixed inset-0 z-50 md:inset-auto md:top-0 md:right-0 md:w-[70vw] md:h-full md:max-w-[calc(100vw-48px)] bg-white dark:bg-slate-900 md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
+     class="fixed top-0 left-0 right-0 h-[100dvh] z-50 md:inset-auto md:top-0 md:right-0 md:w-[70vw] md:h-full md:max-w-[calc(100vw-48px)] bg-white dark:bg-slate-900 md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
      x-cloak
      style="display: none;">
 
@@ -349,9 +349,13 @@
                         </div>
 
                         <!-- 气泡 + hover 操作栏容器 -->
-                        <div class="flex items-end gap-1"
+                        <div class="chat-msg-bubble-wrap flex items-end gap-1"
      @mouseenter="$el.querySelector('.chat-msg-actions').style.opacity='1';$el.querySelector('.chat-msg-actions').style.pointerEvents='auto'"
      @mouseleave="$el.querySelector('.chat-msg-actions').style.opacity='0';$el.querySelector('.chat-msg-actions').style.pointerEvents='none'"
+     @touchstart.passive="onMsgTouchStart($event, msg)"
+     @touchend="onMsgTouchEnd()"
+     @touchmove.passive="onMsgTouchEnd()"
+     @contextmenu.prevent=""
      :class="msg.is_mine ? '' : 'flex-row-reverse'">
                         <!-- 气泡内容列 -->
                         <div class="min-w-0">
@@ -550,7 +554,7 @@
                         </div><!-- /气泡内容列 -->
 
                         <!-- hover 操作按钮（复制 + 回复 + 转发） -->
-                        <div class="chat-msg-actions flex gap-0.5 mb-1 flex-shrink-0"
+                        <div class="chat-msg-actions hidden md:flex gap-0.5 mb-1 flex-shrink-0"
      style="opacity:0; pointer-events:none; transition:opacity 150ms;">
                             <button x-show="msg.message_type === 'text' || !msg.message_type || msg.is_ai || msg.is_ai_response"
                                     @click="copyMessageContent(msg)"
@@ -724,10 +728,11 @@
                     <textarea x-ref="chatInput"
                               x-model="inputText"
                               @input="onInputChange()"
+                              @blur="onInputBlur()"
                               @paste="handlePaste($event)"
                               rows="1"
                               :placeholder="_chatI18n.inputPlaceholder"
-                              class="w-full resize-none px-4 pt-3 pb-1 text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-0 focus:border-transparent max-h-[120px] border-none"
+                              class="w-full resize-none px-4 pt-3 pb-1 text-base md:text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-0 focus:border-transparent max-h-[120px] border-none"
                               style="field-sizing: content;"></textarea>
 
                     <!-- @AI 快捷选项 -->
@@ -826,6 +831,8 @@
             </div>
         </div>
 
+        <!-- iOS 键盘占位 -->
+        <div class="flex-shrink-0 md:hidden" :style="`height:${_kbHeight}px`"></div>
         </div><!-- /消息+输入列 -->
 
         <!-- ====== 成员面板（右侧抽屉） ====== -->
@@ -922,16 +929,62 @@
         </button>
     </div>
 
+    <!-- 消息长按操作菜单（仅移动端） -->
+    <div x-show="msgActionSheet.show" class="fixed inset-0 z-[70] md:hidden"
+         x-cloak x-transition.opacity @click="closeMsgActionSheet()">
+        <div class="absolute inset-0 bg-black/30"></div>
+        <div class="absolute bottom-0 left-0 right-0 bg-white dark:bg-slate-800 rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
+             @click.stop
+             x-show="msgActionSheet.show"
+             x-transition:enter="transition ease-out duration-200"
+             x-transition:enter-start="translate-y-full" x-transition:enter-end="translate-y-0"
+             x-transition:leave="transition ease-in duration-150"
+             x-transition:leave-start="translate-y-0" x-transition:leave-end="translate-y-full">
+            <!-- 拖拽条 -->
+            <div class="flex justify-center pt-3 pb-2">
+                <div class="w-10 h-1 bg-slate-300 dark:bg-slate-600 rounded-full"></div>
+            </div>
+            <!-- 操作项 -->
+            <div class="grid grid-cols-4 gap-2 px-6 pb-6">
+                <!-- 复制（仅文本消息） -->
+                <button x-show="!msgActionSheet.msg?.message_type || msgActionSheet.msg?.message_type === 'text' || msgActionSheet.msg?.is_ai || msgActionSheet.msg?.is_ai_response"
+                        @click="copyMessageContent(msgActionSheet.msg); closeMsgActionSheet()"
+                        class="flex flex-col items-center gap-2 py-3 rounded-xl active:bg-slate-100 dark:active:bg-slate-700">
+                    <span class="material-symbols-outlined text-xl text-slate-600 dark:text-slate-300">content_copy</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400" x-text="_chatI18n.copy"></span>
+                </button>
+                <!-- 回复 -->
+                <button @click="setReplyTo(msgActionSheet.msg); closeMsgActionSheet()"
+                        class="flex flex-col items-center gap-2 py-3 rounded-xl active:bg-slate-100 dark:active:bg-slate-700">
+                    <span class="material-symbols-outlined text-xl text-slate-600 dark:text-slate-300">reply</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400" x-text="_chatI18n.reply"></span>
+                </button>
+                <!-- 转发 -->
+                <button @click="let m = msgActionSheet.msg; closeMsgActionSheet(); $nextTick(() => openForwardModal(m))"
+                        class="flex flex-col items-center gap-2 py-3 rounded-xl active:bg-slate-100 dark:active:bg-slate-700">
+                    <span class="material-symbols-outlined text-xl text-slate-600 dark:text-slate-300">forward</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400" x-text="_chatI18n.forward"></span>
+                </button>
+                <!-- 撤回（仅自己消息 + 2分钟内） -->
+                <button x-show="msgActionSheet.msg?.is_mine && canRecall(msgActionSheet.msg)"
+                        @click="recallMessage(msgActionSheet.msg); closeMsgActionSheet()"
+                        class="flex flex-col items-center gap-2 py-3 rounded-xl active:bg-slate-100 dark:active:bg-slate-700">
+                    <span class="material-symbols-outlined text-xl text-slate-600 dark:text-slate-300">undo</span>
+                    <span class="text-xs text-slate-500 dark:text-slate-400" x-text="_chatI18n.recall"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 转发模态框 -->
     <div x-show="showForwardModal" x-transition.opacity
          class="fixed inset-0 z-[60] flex items-center justify-center">
         <div class="absolute inset-0 bg-black/30" @click="showForwardModal = false"></div>
-        <div class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex overflow-hidden"
-             style="width: 560px; height: 440px;"
+        <div class="relative bg-white dark:bg-slate-900 rounded-none md:rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden w-full h-full md:w-[560px] md:h-[440px]"
              @click.stop>
 
             <!-- 左栏：对话/联系人选择 -->
-            <div class="w-[300px] border-r border-slate-200 dark:border-slate-700 flex flex-col">
+            <div class="w-full md:w-[300px] flex-1 md:flex-none border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 flex flex-col">
                 <div class="p-4 pb-2">
                     <h3 class="text-sm font-semibold text-slate-900 dark:text-white" x-text="_chatI18n.forwardTitle"></h3>
                     <div class="mt-2 relative">
@@ -1009,7 +1062,7 @@
             </div>
 
             <!-- 右栏：已选 + 留言 -->
-            <div class="flex-1 flex flex-col">
+            <div class="flex-shrink-0 md:flex-1 flex flex-col max-h-[40%] md:max-h-none">
                 <div class="p-4 pb-2">
                     <span class="text-sm font-semibold text-slate-900 dark:text-white">
                         {{ _('已选择') }}（<span x-text="forwardSelected.length"></span>）
@@ -1063,11 +1116,12 @@
     <div x-show="showEntitySelector" x-transition.opacity
          class="fixed inset-0 z-[60] flex items-center justify-center">
         <div class="absolute inset-0 bg-black/30" @click="showEntitySelector = false"></div>
-        <div class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex overflow-hidden"
-             style="width: 580px; height: 460px;" @click.stop>
+        <div class="relative bg-white dark:bg-slate-900 rounded-none md:rounded-2xl shadow-2xl flex overflow-hidden w-full h-full md:w-[580px] md:h-[460px]"
+             @click.stop>
 
             <!-- 左栏：搜索 + 列表 -->
-            <div class="w-[300px] border-r border-slate-200 dark:border-slate-700 flex flex-col">
+            <div class="w-full md:w-[300px] border-r border-slate-200 dark:border-slate-700 flex flex-col"
+                 :class="{ 'hidden md:flex': entityMobileView !== 'list' }">
                 <div class="px-4 pt-4 pb-2">
                     <h3 class="text-sm font-semibold text-slate-900 dark:text-white" x-text="_chatI18n.entityTitle"></h3>
                 </div>
@@ -1143,14 +1197,21 @@
             </div>
 
             <!-- 右栏：子项选择（联系人 / 报价单） -->
-            <div class="flex-1 flex flex-col">
+            <div class="flex-1 flex flex-col w-full"
+                 :class="{ 'hidden md:flex': entityMobileView !== 'detail' }">
                 <!-- 客户 → 联系人列表 -->
                 <template x-if="entityTab === 'customer'">
                 <div class="flex-1 flex flex-col">
-                    <div class="p-4 pb-2" x-show="entitySelectedCompany">
-                        <div class="text-sm font-semibold text-slate-900 dark:text-white truncate"
-                             x-text="entitySelectedCompany?.company_name"></div>
-                        <div class="text-[11px] text-slate-400 mt-0.5" x-text="_chatI18n.entitySelectContact"></div>
+                    <div class="p-4 pb-2 flex items-center" x-show="entitySelectedCompany">
+                        <button @click="entityMobileView = 'list'; entitySelectedCompany = null"
+                                class="md:hidden mr-2 w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 flex-shrink-0">
+                            <span class="material-symbols-outlined text-lg">arrow_back</span>
+                        </button>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-semibold text-slate-900 dark:text-white truncate"
+                                 x-text="entitySelectedCompany?.company_name"></div>
+                            <div class="text-[11px] text-slate-400 mt-0.5" x-text="_chatI18n.entitySelectContact"></div>
+                        </div>
                     </div>
                     <div class="flex-1 overflow-y-auto px-4 chat-panel-scroll" x-show="entitySelectedCompany">
                         <template x-for="ct in entityContacts" :key="'ct_' + ct.id">
@@ -1178,10 +1239,16 @@
                 <!-- 项目 → 报价单列表 -->
                 <template x-if="entityTab === 'project'">
                 <div class="flex-1 flex flex-col">
-                    <div class="p-4 pb-2" x-show="entitySelectedProject">
-                        <div class="text-sm font-semibold text-slate-900 dark:text-white truncate"
-                             x-text="entitySelectedProject?.project_name"></div>
-                        <div class="text-[11px] text-slate-400 mt-0.5" x-text="_chatI18n.entitySelectQuotation"></div>
+                    <div class="p-4 pb-2 flex items-center" x-show="entitySelectedProject">
+                        <button @click="entityMobileView = 'list'; entitySelectedProject = null"
+                                class="md:hidden mr-2 w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 flex-shrink-0">
+                            <span class="material-symbols-outlined text-lg">arrow_back</span>
+                        </button>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-sm font-semibold text-slate-900 dark:text-white truncate"
+                                 x-text="entitySelectedProject?.project_name"></div>
+                            <div class="text-[11px] text-slate-400 mt-0.5" x-text="_chatI18n.entitySelectQuotation"></div>
+                        </div>
                     </div>
                     <div class="flex-1 overflow-y-auto px-4 chat-panel-scroll" x-show="entitySelectedProject">
                         <!-- 不选报价单，直接发送项目卡片 -->
@@ -1310,6 +1377,15 @@
     .dark .prose code:not(pre code) { background: rgb(30 41 59); }
     .prose p:first-child { margin-top: 0; }
     .prose p:last-child { margin-bottom: 0; }
+
+    /* 移动端禁止消息气泡文字选中，阻止 iOS 原生菜单 */
+    @media (max-width: 767px) {
+        .chat-msg-bubble-wrap {
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+    }
 </style>
 
 {% endmacro %}
@@ -1415,6 +1491,13 @@ function chatPanel() {
         convContextMenu: { show: false, x: 0, y: 0, conv: null },
         showAITip: false,
         _aiTipTimer: null,
+        // 消息长按菜单（移动端）
+        msgActionSheet: { show: false, msg: null },
+        _longPressTimer: null,
+        // 实体选择器移动端视图
+        entityMobileView: 'list',
+        // iOS 键盘高度
+        _kbHeight: 0,
 
         // i18n 字符串
         _chatI18n: {
@@ -1479,7 +1562,38 @@ function chatPanel() {
                 if (Alpine.store('chat')) {
                     Alpine.store('chat').panelOpen = val;
                 }
+                // 移动端：聊天面板打开时锁定 body 滚动，防止 iOS fixed 元素触摸坐标错位
+                if (window.innerWidth < 768) {
+                    document.body.style.overflow = val ? 'hidden' : '';
+                    if (!val) window.scrollTo(0, 0);
+                }
             });
+            // iOS 键盘处理：监听 visualViewport 变化计算键盘高度
+            if (window.visualViewport) {
+                const onVP = () => {
+                    const kb = Math.max(0, window.innerHeight - window.visualViewport.height - window.visualViewport.offsetTop);
+                    const wasOpen = this._kbHeight > 0;
+                    this._kbHeight = kb > 100 ? kb : 0;
+                    if (this._kbHeight > 0) {
+                        this.$nextTick(() => this.scrollToBottom());
+                    } else if (wasOpen) {
+                        // 键盘刚关闭：延迟重置，等 iOS 布局重排完成后再修正触摸偏移
+                        requestAnimationFrame(() => {
+                            setTimeout(() => {
+                                window.scrollTo(0, 0);
+                                document.documentElement.scrollTop = 0;
+                                // 强制 fixed 容器重新计算布局
+                                if (this.$el) {
+                                    this.$el.style.transform = 'translateZ(0)';
+                                    requestAnimationFrame(() => { this.$el.style.transform = ''; });
+                                }
+                            }, 80);
+                        });
+                    }
+                };
+                window.visualViewport.addEventListener('resize', onVP);
+                window.visualViewport.addEventListener('scroll', onVP);
+            }
         },
 
         // ----- Markdown 渲染 -----
@@ -2171,6 +2285,15 @@ function chatPanel() {
         },
 
         // ----- 输入区域 -----
+        onInputBlur() {
+            // iOS Safari: 键盘收起后强制视口重置，防止 fixed 元素触摸偏移
+            if (window.innerWidth < 768 && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                setTimeout(() => {
+                    window.scrollTo(0, 0);
+                }, 120);
+            }
+        },
+
         onInputChange() {
             const text = this.inputText;
             if (text.endsWith('@') || text.endsWith('@A') || text.endsWith('@AI')) {
@@ -2206,6 +2329,7 @@ function chatPanel() {
             this.entityQuotations = [];
             this.entitySelectedCompany = null;
             this.entitySelectedProject = null;
+            this.entityMobileView = 'list';
             // 打开时加载初始列表
             this._loadEntityList('customer');
             this._loadEntityList('project');
@@ -2241,6 +2365,7 @@ function chatPanel() {
         async selectEntityCompany(company) {
             this.entitySelectedCompany = company;
             this.entityContacts = [];
+            this.entityMobileView = 'detail';
             const resp = await fetch(`/chat/api/entity/companies/${company.id}/contacts`);
             const data = await resp.json();
             if (data.success) this.entityContacts = data.data || [];
@@ -2249,6 +2374,7 @@ function chatPanel() {
         async selectEntityProject(project) {
             this.entitySelectedProject = project;
             this.entityQuotations = [];
+            this.entityMobileView = 'detail';
             const resp = await fetch(`/chat/api/entity/projects/${project.id}/quotations`);
             const data = await resp.json();
             if (data.success) this.entityQuotations = data.data || [];
@@ -2559,6 +2685,20 @@ function chatPanel() {
                     console.error('Delete conversation failed:', e);
                 }
             });
+        },
+
+        // ----- 消息长按菜单（移动端） -----
+        onMsgTouchStart(e, msg) {
+            this._longPressTimer = setTimeout(() => {
+                this.msgActionSheet = { show: true, msg };
+                if (navigator.vibrate) navigator.vibrate(30);
+            }, 500);
+        },
+        onMsgTouchEnd() {
+            clearTimeout(this._longPressTimer);
+        },
+        closeMsgActionSheet() {
+            this.msgActionSheet = { show: false, msg: null };
         },
 
         // ----- 消息撤回 -----
