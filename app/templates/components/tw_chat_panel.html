@@ -60,7 +60,7 @@
          :class="{ 'hidden md:flex': mobileView !== 'list' }">
 
         <!-- 左栏头部 -->
-        <div class="h-14 px-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+        <div class="h-14 px-4 flex items-center justify-between flex-shrink-0">
             <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('消息') }}</h3>
             <div class="flex items-center gap-1">
                 <button @click="startNewChat()"
@@ -207,57 +207,58 @@
 
         <!-- 新建对话：收件人输入 -->
         <div x-show="isNewChat"
-             class="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30 flex-shrink-0">
-            <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-xs text-slate-500 dark:text-slate-400 flex-shrink-0">{{ _('收件人:') }}</span>
-                <!-- 已选的参与者标签 -->
-                <template x-for="p in newChatParticipants" :key="p.id">
-                    <span class="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 dark:bg-primary/20 text-primary text-xs font-medium rounded-md">
-                        <span x-text="p.name"></span>
-                        <button @click="removeParticipant(p.id)" class="hover:text-red-500 transition-colors cursor-pointer">
-                            <span class="material-symbols-outlined text-sm">close</span>
-                        </button>
-                    </span>
-                </template>
-                <!-- 输入框 -->
-                <div class="relative flex-1 min-w-[120px]">
+             class="px-3 py-2 flex-shrink-0">
+            <div class="relative">
+                <div class="flex items-center flex-wrap gap-1 w-full min-h-[36px] pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100">
+                    <!-- 搜索图标 -->
+                    <span class="material-symbols-outlined text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-lg">search</span>
+                    <!-- 已选参与者徽章 -->
+                    <template x-for="p in newChatParticipants" :key="p.id">
+                        <span class="inline-flex items-center gap-0.5 px-2 py-0.5 bg-primary/10 dark:bg-primary/20 text-primary text-xs font-medium rounded-md flex-shrink-0">
+                            <span x-text="p.name"></span>
+                            <button @click="removeParticipant(p.id)" class="hover:text-red-500 transition-colors cursor-pointer">
+                                <span class="material-symbols-outlined text-xs">close</span>
+                            </button>
+                        </span>
+                    </template>
+                    <!-- 输入框 -->
                     <input x-ref="recipientInput"
                            x-model="recipientQuery"
                            @input="onRecipientInput()"
                            @keydown.backspace="recipientQuery === '' && newChatParticipants.length > 0 && newChatParticipants.pop()"
                            type="text"
-                           :placeholder="newChatParticipants.length === 0 ? _chatI18n.recipientPlaceholder : _chatI18n.recipientMorePlaceholder"
-                           class="w-full h-7 px-1 text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none">
+                           :placeholder="newChatParticipants.length === 0 ? _chatI18n.recipientPlaceholder : ''"
+                           class="flex-1 min-w-[80px] h-6 bg-transparent placeholder:text-slate-400 focus:outline-none focus:ring-0 border-none text-sm">
+                </div>
 
-                    <!-- @ 提及下拉菜单 -->
-                    <div x-show="showMentionDropdown && mentionUsers.length > 0"
-                         class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-10">
-                        <div class="py-1 max-h-48 overflow-y-auto chat-panel-scroll">
-                            <template x-for="user in mentionUsers" :key="user.id">
-                                <button @click="addParticipant(user)"
-                                        class="w-full px-3 py-2 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer">
-                                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                                         x-text="user.avatar"></div>
-                                    <div>
-                                        <div class="text-sm text-slate-900 dark:text-white" x-text="user.name"></div>
-                                        <div class="text-[11px] text-slate-400" x-text="user.dept"></div>
-                                    </div>
-                                </button>
-                            </template>
-                        </div>
+                <!-- @ 提及下拉菜单 -->
+                <div x-show="showMentionDropdown && mentionUsers.length > 0"
+                     class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-10">
+                    <div class="py-1 max-h-48 overflow-y-auto chat-panel-scroll">
+                        <template x-for="user in mentionUsers" :key="user.id">
+                            <button @click="addParticipant(user)"
+                                    class="w-full px-3 py-2 flex items-center gap-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer">
+                                <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                     x-text="user.avatar"></div>
+                                <div>
+                                    <div class="text-sm text-slate-900 dark:text-white" x-text="user.name"></div>
+                                    <div class="text-[11px] text-slate-400" x-text="user.dept"></div>
+                                </div>
+                            </button>
+                        </template>
                     </div>
+                </div>
 
-                    <!-- 搜索中 -->
-                    <div x-show="showMentionDropdown && mentionUsers.length === 0 && recipientQuery.includes('@')"
-                         class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-10">
-                        <div class="px-3 py-4 text-center text-xs text-slate-400">
-                            {{ _('未找到匹配的用户') }}
-                        </div>
+                <!-- 未找到用户 -->
+                <div x-show="showMentionDropdown && mentionUsers.length === 0 && recipientQuery.includes('@')"
+                     class="absolute left-0 top-full mt-1 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden z-10">
+                    <div class="px-3 py-4 text-center text-xs text-slate-400">
+                        {{ _('未找到匹配的用户') }}
                     </div>
                 </div>
             </div>
             <p x-show="newChatParticipants.length === 0"
-               class="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+               class="mt-2 text-[11px] text-slate-400 dark:text-slate-500 pl-9">
                 {{ _('不 @ 任何人 = 和 AI 助手对话') }}  |  {{ _('@ 一人 = 私聊') }}  |  {{ _('@ 多人 = 群聊') }}
             </p>
         </div>
@@ -719,7 +720,7 @@
             </div>
 
             <div class="px-4 py-3">
-            <div class="bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 focus-within:ring-0 focus-within:border-slate-200 dark:focus-within:border-slate-700 outline-none">
+            <div class="bg-slate-100 dark:bg-slate-800 rounded-2xl">
                 <!-- Row 1: 文本输入 -->
                 <div class="relative">
                     <textarea x-ref="chatInput"
@@ -728,7 +729,7 @@
                               @paste="handlePaste($event)"
                               rows="1"
                               :placeholder="_chatI18n.inputPlaceholder"
-                              class="w-full resize-none px-4 pt-3 pb-1 text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-0 focus:border-transparent max-h-[120px]"
+                              class="w-full resize-none px-4 pt-3 pb-1 text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-0 focus:border-transparent max-h-[120px] border-none"
                               style="field-sizing: content;"></textarea>
 
                     <!-- @AI 快捷选项 -->
@@ -747,12 +748,12 @@
                     </div>
                 </div>
 
-                <!-- Row 2: 工具栏 [+ 附件] [模型选择器] ............ [↑ 发送] -->
+                <!-- Row 2: 工具栏 [+ 附件] ............ [模型选择器] [↑ 发送] -->
                 <div class="flex items-center justify-between px-2 pb-2 pt-0">
-                    <!-- 左侧：+ 附件按钮 + AI 模型选择器 -->
-                    <div class="flex items-center gap-1">
-                        <!-- + 附件按钮（非AI对话时显示） -->
-                        <div class="relative" x-show="activeConv && activeConv.type !== 'ai'">
+                    <!-- 左侧：+ 附件按钮 -->
+                    <div class="flex items-center">
+                        <!-- + 附件按钮（非AI对话 或 新建对话时显示） -->
+                        <div class="relative" x-show="!activeConv || activeConv.type !== 'ai'">
                             <button @click="showAttachMenu = !showAttachMenu"
                                     class="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-primary hover:bg-white/60 dark:hover:bg-slate-700 dark:hover:text-blue-400 transition-colors cursor-pointer"
                                     :class="showAttachMenu ? 'text-primary bg-white/60 dark:bg-slate-700' : ''">
@@ -786,7 +787,10 @@
                             <!-- 隐藏的 file input -->
                             <input type="file" x-ref="fileInput" class="hidden" @change="handleFilePick($event)">
                         </div>
+                    </div>
 
+                    <!-- 右侧：[模型选择器] + [↑ 发送按钮] -->
+                    <div class="flex items-center gap-2">
                         <!-- AI 模型选择器（AI对话或新建AI对话时显示） -->
                         <div x-show="(activeConv && activeConv.type === 'ai') || (isNewChat && newChatParticipants.length === 0)"
                              class="flex items-center">
@@ -795,33 +799,30 @@
                                 <div class="flex items-center">
                                     <select x-model="aiProvider"
                                             @change="startNewAIChat()"
-                                            class="text-[11px] pl-2 pr-5 py-0.5 bg-transparent text-slate-500 dark:text-slate-400 focus:outline-none cursor-pointer appearance-none"
-                                            style="background-image: url('data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%2394a3b8%22 d=%22M7 10l5 5 5-5z%22/%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: right 2px center;">
+                                            class="text-xs pl-2 pr-5 py-1 bg-slate-200/70 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg focus:outline-none focus:ring-0 cursor-pointer appearance-none border-none"
+                                            style="background-image: url('data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%2394a3b8%22 d=%22M7 10l5 5 5-5z%22/%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: right 4px center;">
                                         <option value="deepseek">DeepSeek</option>
                                         <option value="openclaw">OpenClaw</option>
                                     </select>
-                                    <span x-show="aiProvider === 'openclaw'" class="text-[10px] text-violet-500 dark:text-violet-400 ml-0.5">
-                                        <span class="material-symbols-outlined text-[12px] align-middle">auto_awesome</span>
-                                    </span>
                                 </div>
                             </template>
                             <!-- 非管理员：只读显示当前模型 -->
                             <template x-if="!_isAdmin">
-                                <span class="text-[11px] text-slate-400 dark:text-slate-500 px-2"
+                                <span class="text-xs text-slate-500 dark:text-slate-400 px-2 py-1 bg-slate-200/70 dark:bg-slate-700 rounded-lg"
                                       x-text="aiProvider === 'openclaw' ? 'OpenClaw' : 'DeepSeek'"></span>
                             </template>
                         </div>
-                    </div>
 
-                    <!-- 右侧：发送按钮（向上箭头圆圈） -->
-                    <button @click="sendMessage()"
-                            :disabled="!inputText.trim() && pendingFiles.length === 0"
-                            class="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 cursor-pointer"
-                            :class="(inputText.trim() || pendingFiles.length > 0)
-                                ? 'bg-primary text-white hover:bg-primary-dark shadow-sm'
-                                : 'bg-slate-300 dark:bg-slate-600 text-white cursor-not-allowed'">
-                        <span class="material-symbols-outlined text-lg">arrow_upward</span>
-                    </button>
+                        <!-- 发送按钮（向上箭头圆圈） -->
+                        <button @click="sendMessage()"
+                                :disabled="!inputText.trim() && pendingFiles.length === 0"
+                                class="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 cursor-pointer flex-shrink-0"
+                                :class="(inputText.trim() || pendingFiles.length > 0)
+                                    ? 'bg-primary text-white hover:bg-primary-dark shadow-sm'
+                                    : 'bg-slate-300 dark:bg-slate-600 text-white cursor-not-allowed'">
+                            <span class="material-symbols-outlined text-lg">arrow_upward</span>
+                        </button>
+                    </div>
                 </div>
             </div>
             </div>
