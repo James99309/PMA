@@ -146,7 +146,7 @@ def _build_system_prompt_with_schema(user):
     db_schema = get_db_schema()
 
     return (
-        '你是 PMA（项目管理助手）系统的 AI 业务助手。\n\n'
+        '你是 PMA（项目管理助手）系统的 AI 业务助手，由 DeepSeek 大模型驱动。\n\n'
         '你的能力：\n'
         '1. 查询 PMA 数据库回答业务问题（客户、项目、报价、产品、报销等）\n'
         '2. 帮助用户进行中英文翻译\n'
@@ -170,13 +170,16 @@ def _build_system_prompt_with_schema(user):
 # 主入口：流式 AI 响应
 # ---------------------------------------------------------------------------
 
-def get_ai_response_stream(message, user, conversation_history=None):
-    """获取 AI 流式响应的生成器（DeepSeek + function calling）
+def get_ai_response_stream(message, user, conversation_history=None, provider='deepseek',
+                           session_id=None):
+    """获取 AI 流式响应的生成器
 
     Args:
         message: 用户发送的消息文本
         user: 当前用户对象
         conversation_history: 对话历史 [{role, content}, ...]
+        provider: AI 提供商，'deepseek'（默认）或 'openclaw'
+        session_id: OpenClaw session ID（仅 provider='openclaw' 时使用）
 
     Yields:
         dict: 包含以下类型之一：
@@ -184,6 +187,16 @@ def get_ai_response_stream(message, user, conversation_history=None):
             - {'type': 'tool_call', 'name': '...', 'explanation': '...'} 工具调用通知
             - {'type': 'done', 'model': '...', 'prompt_tokens': N, 'completion_tokens': N}
     """
+    if provider == 'openclaw':
+        try:
+            from app.services.openclaw_provider import get_openclaw_response_stream
+            yield from get_openclaw_response_stream(message, conversation_history, session_id, user=user)
+        except Exception as e:
+            logger.error(f'OpenClaw 流式响应异常: {e}', exc_info=True)
+            yield {'type': 'content', 'text': '抱歉，OpenClaw 服务暂时不可用，请稍后重试。'}
+            yield {'type': 'done', 'model': 'openclaw/error', 'prompt_tokens': 0, 'completion_tokens': 0}
+        return
+
     api_key = os.environ.get('DEEPSEEK_API_KEY')
     if not api_key:
         logger.warning('未配置 DEEPSEEK_API_KEY')
@@ -412,3 +425,61 @@ def _stream_deepseek_with_tools(message, user, api_key, conversation_history=Non
         'prompt_tokens': total_prompt_tokens,
         'completion_tokens': total_completion_tokens,
     }
+
+
+# ---------------------------------------------------------------------------
+# 话题标题生成
+# ---------------------------------------------------------------------------
+
+def generate_conversation_topic(user_message, ai_response):
+    """用第一轮对话生成 3-8 字的话题标题
+
+    Args:
+        user_message: 用户的第一条消息
+        ai_response: AI 的第一条回复（截取前 200 字）
+
+    Returns:
+        str 或 None: 生成的话题标题，失败返回 None
+    """
+    api_key = os.environ.get('DEEPSEEK_API_KEY')
+    if not api_key:
+        return None
+
+    model = os.environ.get('DEEPSEEK_CHAT_MODEL', 'deepseek-chat')
+    base_url = os.environ.get('DEEPSEEK_API_BASE', 'https://api.deepseek.com/v1').rstrip('/')
+
+    prompt = (
+        '根据以下对话的第一轮内容，生成一个简短的话题标题（3-8个字，不带标点）。\n'
+        f'用户：{user_message[:200]}\n'
+        f'AI：{ai_response[:200]}\n'
+        '只输出标题本身。'
+    )
+
+    headers = {
+        'Authorization': f'Bearer {api_key}',
+        'Content-Type': 'application/json',
+    }
+    body = {
+        'model': model,
+        'messages': [{'role': 'user', 'content': prompt}],
+        'max_tokens': 30,
+        'temperature': 0.3,
+        'stream': False,
+    }
+
+    try:
+        with httpx.Client(timeout=15.0) as client:
+            resp = client.post(f'{base_url}/chat/completions', headers=headers, json=body)
+            resp.raise_for_status()
+            data = resp.json()
+            topic = data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+            # 清理：去除引号、标点，截断到 100 字符
+            topic = topic.strip('"\'""''「」【】')
+            if topic and len(topic) <= 100:
+                return topic
+            elif topic:
+                return topic[:100]
+    except Exception as e:
+        logger.warning(f'生成话题标题失败: {e}')
+
+    return None

@@ -93,3 +93,6 @@ anthropic>=0.18.0
 pypinyin
 pgvector>=0.3.0
 tiktoken>=0.7.0
+
+# OpenClaw Gateway WebSocket 直连
+websockets>=12.0

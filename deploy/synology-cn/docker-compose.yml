@@ -94,6 +94,14 @@ services:
       # AI 服务（会议纪要功能 - 中国网络可能需要代理）
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # DeepSeek AI 聊天服务
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+
+      # OpenClaw 集成
+      OPENCLAW_GATEWAY_URL: ${OPENCLAW_GATEWAY_URL:-}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      PMA_AI_QUERY_TOKEN: ${PMA_AI_QUERY_TOKEN:-}
+      PMA_API_BASE_URL: ${PMA_API_BASE_URL:-}
 
       # 跨系统API密钥（OVS调用SP8D时验证）
       CROSS_SYSTEM_API_KEY: ${CROSS_SYSTEM_API_KEY}

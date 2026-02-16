@@ -10,19 +10,45 @@
 """
 import json
 import logging
+import os
 import uuid
+from functools import wraps
 
 from flask import Blueprint, jsonify, request, Response, stream_with_context
 from flask_login import login_required, current_user
 
 from app import db
 from app.models.user import User
-from app.models.chat import ChatMessage, ChatParticipant
+from app.models.chat import ChatConversation, ChatMessage, ChatParticipant
 from app.services import chat_service
 
 logger = logging.getLogger(__name__)
 
 chat = Blueprint('chat', __name__, url_prefix='/chat')
+
+
+# ---------------------------------------------------------------------------
+# Bearer token 认证装饰器（供 AI 外部调用 API 使用）
+# ---------------------------------------------------------------------------
+
+def _require_ai_token(f):
+    """验证 Authorization: Bearer <PMA_AI_QUERY_TOKEN>"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        expected = os.environ.get('PMA_AI_QUERY_TOKEN', '')
+        if not expected:
+            return jsonify({'success': False, 'message': 'PMA_AI_QUERY_TOKEN 未配置'}), 500
+
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'success': False, 'message': '缺少 Authorization 头'}), 401
+
+        token = auth_header[7:]
+        if token != expected:
+            return jsonify({'success': False, 'message': '无效的 token'}), 401
+
+        return f(*args, **kwargs)
+    return decorated
 
 
 # ---------------------------------------------------------------------------
@@ -423,13 +449,18 @@ def ai_stream():
         data = request.get_json() or {}
         content = data.get('content', '').strip()
         conversation_id = data.get('conversation_id')
+        provider = data.get('provider', 'deepseek')
+
+        # 权限检查：非管理员强制使用 deepseek
+        if provider == 'openclaw' and getattr(current_user, 'role', '') not in ('admin', 'ceo'):
+            provider = 'deepseek'
 
         if not content:
             return jsonify({'success': False, 'message': '消息内容不能为空'}), 400
 
         if not conversation_id:
-            # 自动创建或获取 AI 对话
-            ai_conv = chat_service.ensure_ai_conversation(current_user.id)
+            # 创建新的 AI 对话
+            ai_conv = chat_service.create_ai_conversation(current_user.id)
             if not ai_conv.get('success'):
                 return jsonify(ai_conv), 500
             conversation_id = ai_conv['data']['id']
@@ -472,7 +503,11 @@ def ai_stream():
             try:
                 from app.services.chat_ai_service import get_ai_response_stream
 
-                for chunk in get_ai_response_stream(content, current_user, conversation_history):
+                # OpenClaw 使用 conversation_id 作为 session_id 保持上下文
+                oc_session_id = f'pma-conv-{conversation_id}' if provider == 'openclaw' else None
+
+                for chunk in get_ai_response_stream(content, current_user, conversation_history,
+                                                    provider=provider, session_id=oc_session_id):
                     chunk_type = chunk.get('type')
                     if chunk_type == 'content':
                         full_response += chunk.get('text', '')
@@ -521,12 +556,32 @@ def ai_stream():
                         'type': 'done',
                         'message_id': ai_msg.id,
                         'user_message_id': user_msg_id,
+                        'conversation_id': conversation_id,
                     }, ensure_ascii=False)
                     yield f'data: {done_data}\n\n'
+
+                    # 自动生成话题标题（仅首次，done 之后发送以确保前端对话对象已创建）
+                    try:
+                        conv_obj = ChatConversation.query.get(conversation_id)
+                        if conv_obj and conv_obj.type == 'ai' and not conv_obj.topic:
+                            from app.services.chat_ai_service import generate_conversation_topic
+                            topic = generate_conversation_topic(content, full_response)
+                            if topic:
+                                conv_obj.topic = topic
+                                db.session.commit()
+                                topic_event = json.dumps({
+                                    'type': 'topic_update',
+                                    'topic': topic,
+                                    'conversation_id': conversation_id,
+                                }, ensure_ascii=False)
+                                yield f'data: {topic_event}\n\n'
+                    except Exception as te:
+                        logger.warning(f"生成话题标题失败: {te}")
                 else:
                     done_data = json.dumps({
                         'type': 'done',
                         'user_message_id': user_msg_id,
+                        'conversation_id': conversation_id,
                     }, ensure_ascii=False)
                     yield f'data: {done_data}\n\n'
 
@@ -551,7 +606,7 @@ def ai_stream():
             headers={
                 'Cache-Control': 'no-cache',
                 'X-Accel-Buffering': 'no',
-                'Connection': 'keep-alive',
+                'Connection': 'close',
             },
         )
 
@@ -696,3 +751,68 @@ def send_card_message_api(conv_id):
     except Exception as e:
         logger.error(f"发送卡片消息失败: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 15. AI 外部查询 API（供 OpenClaw 等外部 AI 调用）
+# ---------------------------------------------------------------------------
+
+@chat.route('/api/ai/db-query', methods=['POST'])
+@_require_ai_token
+def ai_db_query():
+    """供 OpenClaw 调用的数据库查询 API（token 认证）
+
+    请求体: {"sql": "SELECT ...", "user_id": 5}
+    响应: execute_safe_query() 的返回格式
+    """
+    try:
+        data = request.get_json() or {}
+        sql = data.get('sql', '').strip()
+        user_id = data.get('user_id')
+
+        if not sql:
+            return jsonify({'success': False, 'error': 'sql 不能为空'}), 400
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id 不能为空'}), 400
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': f'用户 {user_id} 不存在'}), 404
+
+        from app.services.chat_db_query import execute_safe_query
+        result = execute_safe_query(sql, user)
+        status = 200 if result.get('success') else 400
+        return jsonify(result), status
+
+    except Exception as e:
+        logger.error(f"AI DB Query API 异常: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@chat.route('/api/ai/db-schema', methods=['GET'])
+@_require_ai_token
+def ai_db_schema():
+    """返回数据库 schema 和用户权限上下文
+
+    查询参数: ?user_id=5
+    响应: {"success": true, "schema": "...", "permission_context": "..."}
+    """
+    try:
+        user_id = request.args.get('user_id', type=int)
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id 不能为空'}), 400
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': f'用户 {user_id} 不存在'}), 404
+
+        from app.services.chat_db_query import get_db_schema, get_permission_context
+        return jsonify({
+            'success': True,
+            'schema': get_db_schema(),
+            'permission_context': get_permission_context(user),
+        })
+
+    except Exception as e:
+        logger.error(f"AI DB Schema API 异常: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500

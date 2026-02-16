@@ -20,6 +20,7 @@ class ChatConversation(db.Model):
     id = Column(Integer, primary_key=True)
     type = Column(String(20), nullable=False, default='private')  # 'private', 'group', 'ai'
     name = Column(String(100), nullable=True)  # 群组名称，私聊时为空
+    topic = Column(String(100), nullable=True)  # AI 自动生成的话题标题
     created_by = Column(Integer, ForeignKey('users.id'), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
@@ -44,6 +45,7 @@ class ChatConversation(db.Model):
             'id': self.id,
             'type': self.type,
             'name': self.name,
+            'topic': self.topic,
             'created_by': self.created_by,
             'creator_name': self.creator.real_name or self.creator.username if self.creator else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,

@@ -318,6 +318,7 @@ Tailwind 统一布局组件
 {# 消息通知面板脚本 #}
 {{ render_message_panel_script() }}
 {# 聊天面板脚本 #}
+<script>window.__chatUserIsAdmin = {{ 'true' if current_user.role in ['admin', 'ceo'] else 'false' }};</script>
 {{ render_chat_panel_script() }}
 {# 任务模态框脚本 #}
 {{ render_task_modal_script(current_user.id) }}

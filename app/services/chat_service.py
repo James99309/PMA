@@ -176,7 +176,7 @@ def get_user_conversations(user_id, viewer_language=None):
 
             # --- 显示名称 ---
             if conv.type == 'ai':
-                display_name = 'AI 助手'
+                display_name = conv.topic or 'AI 助手'
             elif conv.type == 'private':
                 # 私聊：显示对方名称
                 other = [p for p in participants if p['user_id'] != user_id]
@@ -188,6 +188,7 @@ def get_user_conversations(user_id, viewer_language=None):
                 'id': conv.id,
                 'type': conv.type,
                 'name': display_name,
+                'topic': conv.topic,
                 'unread_count': unread_count,
                 'last_message': last_message,
                 'participants': participants,
@@ -846,14 +847,14 @@ def add_participants(conversation_id, user_ids, current_user_id):
 
 
 # ---------------------------------------------------------------------------
-# 11. 确保 AI 对话存在
+# 11. 创建 AI 对话
 # ---------------------------------------------------------------------------
 
-def ensure_ai_conversation(user_id):
+def create_ai_conversation(user_id):
     """
-    查找或创建用户的 AI 对话。
+    为用户创建一个新的 AI 对话。
 
-    每个用户只有一个 AI 对话。如果已存在则直接返回，否则创建新的。
+    每次调用都会创建新的对话，支持多个 AI 对话并存。
 
     Args:
         user_id: 用户 ID
@@ -862,32 +863,6 @@ def ensure_ai_conversation(user_id):
         dict: {'success': True, 'data': {'id': ..., 'type': 'ai', ...}}
     """
     try:
-        # 查找已有的 AI 对话
-        existing = (
-            ChatParticipant.query
-            .join(ChatConversation, ChatParticipant.conversation_id == ChatConversation.id)
-            .filter(
-                ChatParticipant.user_id == user_id,
-                ChatConversation.type == 'ai',
-                ChatConversation.is_deleted == False,
-            )
-            .first()
-        )
-
-        if existing:
-            conv = ChatConversation.query.get(existing.conversation_id)
-            return {
-                'success': True,
-                'data': {
-                    'id': conv.id,
-                    'type': conv.type,
-                    'name': 'AI 助手',
-                    'created_at': conv.created_at.isoformat() if conv.created_at else None,
-                },
-                'message': '已存在的 AI 对话',
-            }
-
-        # 创建新的 AI 对话
         return create_conversation(
             creator_id=user_id,
             participant_ids=[],
@@ -896,7 +871,7 @@ def ensure_ai_conversation(user_id):
         )
 
     except Exception as e:
-        logger.error(f"确保 AI 对话失败: {e}", exc_info=True)
+        logger.error(f"创建 AI 对话失败: {e}", exc_info=True)
         return {'success': False, 'message': f'创建 AI 对话失败: {str(e)}'}
 
 

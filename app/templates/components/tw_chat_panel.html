@@ -313,8 +313,12 @@
                         <div>
                         <!-- 发送者名称（对方消息显示） -->
                         <div x-show="!msg.is_mine && msg.sender_name" class="flex items-center justify-end gap-1.5 mb-1">
-                            <span x-show="msg.is_ai"
-                                  class="text-[9px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1 py-0.5 rounded font-medium">AI</span>
+                            <span x-show="msg.is_ai || msg.is_ai_response"
+                                  class="text-[9px] px-1 py-0.5 rounded font-medium"
+                                  :class="(msg.ai_provider === 'openclaw' || (msg.ai_model && msg.ai_model.startsWith('openclaw')))
+                                      ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400'
+                                      : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'"
+                                  x-text="(msg.ai_provider === 'openclaw' || (msg.ai_model && msg.ai_model.startsWith('openclaw'))) ? 'OpenClaw' : 'DeepSeek'"></span>
                             <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400" x-text="msg.sender_name"></span>
                         </div>
 
@@ -371,13 +375,13 @@
                         <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
                              :class="msg.is_mine
                                 ? 'bg-primary text-white rounded-bl-md'
-                                : msg.is_ai
+                                : (msg.is_ai || msg.is_ai_response)
                                     ? 'bg-violet-50 dark:bg-violet-900/20 text-slate-800 dark:text-slate-200 rounded-br-md border border-violet-200 dark:border-violet-800'
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-br-md'">
-                            <template x-if="msg.is_ai">
+                            <template x-if="msg.is_ai || msg.is_ai_response">
                                 <div class="prose prose-sm prose-slate dark:prose-invert max-w-none" x-html="renderMarkdown(msg.content)"></div>
                             </template>
-                            <template x-if="!msg.is_ai">
+                            <template x-if="!(msg.is_ai || msg.is_ai_response)">
                                 <div>
                                     <!-- 有翻译时：翻译在上（主要），原文在下（次要） -->
                                     <template x-if="msg.translation">
@@ -532,7 +536,7 @@
                         <!-- hover 操作按钮（复制 + 回复 + 转发） -->
                         <div class="chat-msg-actions flex gap-0.5 mb-1 flex-shrink-0"
      style="opacity:0; pointer-events:none; transition:opacity 150ms;">
-                            <button x-show="msg.message_type === 'text' || !msg.message_type || msg.is_ai"
+                            <button x-show="msg.message_type === 'text' || !msg.message_type || msg.is_ai || msg.is_ai_response"
                                     @click="copyMessageContent(msg)"
                                     :title="_chatI18n.copy"
                                     class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">
@@ -694,6 +698,24 @@
             <div x-show="uploadingFile" class="px-4 py-1">
                 <div class="h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                     <div class="h-full bg-primary rounded-full animate-pulse" style="width: 60%"></div>
+                </div>
+            </div>
+
+            <!-- AI 模型选择器（仅管理员在 AI 对话中可见） -->
+            <div x-show="((activeConv && activeConv.type === 'ai') || (isNewChat && newChatParticipants.length === 0)) && _isAdmin"
+                 class="px-4 pt-2 pb-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-[11px] text-slate-400">{{ _('AI 模型') }}:</span>
+                    <select x-model="aiProvider"
+                            @change="startNewAIChat()"
+                            class="text-[11px] px-2 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-slate-600 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer">
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="openclaw">OpenClaw</option>
+                    </select>
+                    <span x-show="aiProvider === 'openclaw'" class="text-[10px] text-violet-500 dark:text-violet-400">
+                        <span class="material-symbols-outlined text-[12px] align-middle">auto_awesome</span>
+                        {{ _('智能体模式') }}
+                    </span>
                 </div>
             </div>
 
@@ -1305,6 +1327,9 @@ function chatPanel() {
         aiTyping: false,
         aiStreamingMsg: '',
         aiToolCalls: [],
+        aiProvider: localStorage.getItem('pma_ai_provider') || 'deepseek',
+        _skipProviderChange: false,
+        _isAdmin: window.__chatUserIsAdmin || false,
         _aiAbortController: null,
         sending: false,
         searchQuery: '',
@@ -1483,23 +1508,38 @@ function chatPanel() {
         },
 
         async loadConversations() {
+            console.log('[AI-DEBUG] loadConversations START');
             this.loadingConversations = true;
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 5000);
             try {
-                const resp = await fetch('/chat/api/conversations');
+                console.log('[AI-DEBUG] loadConversations fetch starting...');
+                const resp = await fetch('/chat/api/conversations', { signal: ctrl.signal });
+                console.log('[AI-DEBUG] loadConversations fetch completed, status=', resp.status);
                 const data = await resp.json();
                 if (data.success) {
                     this.conversations = (data.data || []).map(c => this._mapConversation(c));
                 }
             } catch (e) {
-                console.error('loadConversations failed:', e);
+                if (e.name === 'AbortError') {
+                    console.warn('[AI-DEBUG] loadConversations timed out');
+                } else {
+                    console.error('[AI-DEBUG] loadConversations error:', e);
+                }
             } finally {
+                clearTimeout(timer);
                 this.loadingConversations = false;
+                console.log('[AI-DEBUG] loadConversations END');
             }
         },
 
         _mapConversation(c) {
             const lm = c.last_message;
             let displayName = c.name || '';
+            // AI 对话优先使用 topic 作为名称
+            if (c.type === 'ai' && c.topic) {
+                displayName = c.topic;
+            }
             // 私聊时如果 name 为空，尝试从 participants 获取对方名字
             if (!displayName && c.type === 'private' && c.participants) {
                 const other = c.participants.find(p => p.role === 'member');
@@ -1510,6 +1550,7 @@ function chatPanel() {
                 id: c.id,
                 type: c.type || 'private',
                 name: displayName,
+                topic: c.topic || null,
                 avatar: displayName ? displayName[0] : '?',
                 lastMsg: lm ? (lm.message_type === 'customer_card' ? this._chatI18n.customerCardLabel
                     : lm.message_type === 'project_card' ? this._chatI18n.projectCardLabel
@@ -1540,6 +1581,17 @@ function chatPanel() {
                 this.showAITip = false;
             }
             await this.loadMessages(conv.id);
+            // AI 对话：从最后一条 AI 消息推断 provider
+            if (conv.type === 'ai' && this.messages.length > 0) {
+                const lastAiMsg = [...this.messages].reverse().find(m => m.is_ai || m.is_ai_response);
+                if (lastAiMsg) {
+                    this._skipProviderChange = true;
+                    const isOpenClaw = (lastAiMsg.ai_model && lastAiMsg.ai_model.startsWith('openclaw'))
+                        || lastAiMsg.ai_provider === 'openclaw';
+                    this.aiProvider = isOpenClaw ? 'openclaw' : 'deepseek';
+                    this.$nextTick(() => { this._skipProviderChange = false; });
+                }
+            }
             this.markAsRead(conv.id);
             if (conv.unread > 0) {
                 conv.unread = 0;
@@ -1567,6 +1619,19 @@ function chatPanel() {
             this.$nextTick(() => {
                 if (this.$refs.recipientInput) this.$refs.recipientInput.focus();
             });
+        },
+
+        startNewAIChat() {
+            if (this._skipProviderChange) return;
+            // 切换模型 → 开启全新 AI 对话（不带历史上下文）
+            localStorage.setItem('pma_ai_provider', this.aiProvider);
+            this.activeConv = null;
+            this.isNewChat = true;
+            this.messages = [];
+            this.newChatParticipants = [];
+            this.aiStreamingMsg = '';
+            this.aiTyping = false;
+            this.stopPolling();
         },
 
         // ----- 收件人操作 -----
@@ -1688,7 +1753,10 @@ function chatPanel() {
                 const resp = await fetch(`/chat/api/conversations/${convId}/messages`);
                 const data = await resp.json();
                 if (data.success) {
-                    this.messages = data.data || [];
+                    this.messages = (data.data || []).map(m => ({
+                        ...m,
+                        is_ai: m.is_ai || m.is_ai_response || false,
+                    }));
                     if (this.messages.length > 0) {
                         this.lastMessageTimestamp = this.messages[this.messages.length - 1].created_at;
                     } else {
@@ -1866,6 +1934,8 @@ function chatPanel() {
             this.scrollToBottom();
 
             let needRefreshConversations = false;
+            let newConvId = null;
+            let sseReader = null;
             try {
                 this._aiAbortController = new AbortController();
 
@@ -1878,6 +1948,7 @@ function chatPanel() {
                     body: JSON.stringify({
                         content: text,
                         conversation_id: convId,
+                        provider: this.aiProvider,
                     }),
                     signal: this._aiAbortController.signal,
                 });
@@ -1886,7 +1957,8 @@ function chatPanel() {
                     throw new Error(`AI stream failed: ${resp.status}`);
                 }
 
-                const reader = resp.body.getReader();
+                sseReader = resp.body.getReader();
+                const reader = sseReader;
                 const decoder = new TextDecoder();
                 this.aiTyping = false;
                 let buffer = '';
@@ -1925,6 +1997,7 @@ function chatPanel() {
                                         content: this.aiStreamingMsg,
                                         is_mine: false,
                                         is_ai: true,
+                                        ai_provider: this.aiProvider,
                                         sender_name: '{{ _("AI 助手") }}',
                                         created_at: new Date().toISOString(),
                                         translation: null,
@@ -1938,12 +2011,44 @@ function chatPanel() {
                                 this.aiStreamingMsg = '';
                                 this.scrollToBottom();
 
-                                // 如果没有 activeConv（新建的 AI 对话），标记需要刷新列表
-                                // 注意：不能在 SSE 循环内调用 loadConversations()，否则 fetch 会被阻塞
+                                // 如果没有 activeConv（新建的 AI 对话），立即构建本地对话对象
                                 if (!this.activeConv || !convId) {
                                     needRefreshConversations = true;
+                                    newConvId = payload.conversation_id || null;
+                                    // 立即构建本地对话对象，不等 loadConversations
+                                    if (newConvId) {
+                                        const lastMsgContent = this.messages.length > 0 ? (this.messages[this.messages.length - 1].content || '').substring(0, 50) : '';
+                                        const newAiConv = {
+                                            id: newConvId,
+                                            type: 'ai',
+                                            name: 'AI 助手',
+                                            topic: null,
+                                            avatar: 'A',
+                                            lastMsg: lastMsgContent,
+                                            time: this.formatMsgTime(new Date().toISOString()),
+                                            unread: 0,
+                                            online: false,
+                                            memberCount: 1,
+                                            participants: [],
+                                        };
+                                        this.conversations.unshift(newAiConv);
+                                        this.activeConv = newAiConv;
+                                        this.isNewChat = false;
+                                    }
                                 }
                                 streamDone = true;
+                            } else if (payload.type === 'topic_update') {
+                                // 更新侧边栏对话名称（AI 自动生成话题标题）
+                                const targetConvId = payload.conversation_id || convId;
+                                const conv = this.conversations.find(c => c.id === targetConvId);
+                                if (conv) {
+                                    conv.name = payload.topic;
+                                    conv.topic = payload.topic;
+                                }
+                                if (this.activeConv && this.activeConv.id === targetConvId) {
+                                    this.activeConv.name = payload.topic;
+                                    this.activeConv.topic = payload.topic;
+                                }
                             } else if (payload.type === 'error') {
                                 console.error('AI stream error:', payload.message);
                                 this.aiToolCalls = [];
@@ -1958,8 +2063,9 @@ function chatPanel() {
                             // 非 JSON 行，跳过
                         }
                     }
-                    if (streamDone) break;
+                    // 不在此处 break，让 stream 自然关闭（服务端可能在 done 之后还有 topic_update 事件）
                 }
+                console.log('[AI-DEBUG] while loop exited, streamDone=', streamDone);
             } catch (e) {
                 if (e.name === 'AbortError') {
                     // 用户点击了停止生成
@@ -1971,12 +2077,21 @@ function chatPanel() {
                         content: '⚠️ AI 响应失败，请重试。',
                         is_mine: false,
                         is_ai: true,
+                        ai_provider: this.aiProvider,
                         sender_name: '{{ _("AI 助手") }}',
                         created_at: new Date().toISOString(),
                     });
                 }
                 this.aiToolCalls = [];
             } finally {
+                console.log('[AI-DEBUG] finally block entered');
+                // 先 abort 关闭底层连接，再 cancel reader
+                if (this._aiAbortController) {
+                    try { this._aiAbortController.abort(); } catch (_) {}
+                }
+                console.log('[AI-DEBUG] before sseReader.cancel()');
+                if (sseReader) { try { await sseReader.cancel(); } catch (e) { console.error('[AI-DEBUG] sseReader.cancel error:', e); } }
+                console.log('[AI-DEBUG] after sseReader.cancel()');
                 this._aiAbortController = null;
                 this.aiTyping = false;
                 if (this.aiStreamingMsg) {
@@ -1986,6 +2101,7 @@ function chatPanel() {
                         content: this.aiStreamingMsg,
                         is_mine: false,
                         is_ai: true,
+                        ai_provider: this.aiProvider,
                         sender_name: '{{ _("AI 助手") }}',
                         created_at: new Date().toISOString(),
                         translation: null,
@@ -1994,19 +2110,26 @@ function chatPanel() {
                     this.scrollToBottom();
                 }
                 // AI 流结束，恢复轮询
+                console.log('[AI-DEBUG] before startPolling()');
                 this.startPolling();
+                console.log('[AI-DEBUG] after startPolling()');
 
                 // SSE 连接已关闭，现在可以安全地刷新对话列表
+                console.log('[AI-DEBUG] needRefreshConversations=', needRefreshConversations, 'newConvId=', newConvId);
                 if (needRefreshConversations) {
-                    await this.loadConversations();
-                    if (this.conversations.length > 0) {
-                        const aiConv = this.conversations.find(c => c.type === 'ai');
-                        if (aiConv) {
-                            this.activeConv = aiConv;
-                            this.isNewChat = false;
+                    // 非阻塞刷新，UI 已在 done handler 中恢复
+                    this.loadConversations().then(() => {
+                        console.log('[AI-DEBUG] background loadConversations completed');
+                        // 用服务器返回的完整数据替换本地临时对象
+                        if (newConvId) {
+                            const freshConv = this.conversations.find(c => c.id === newConvId);
+                            if (freshConv && this.activeConv && this.activeConv.id === newConvId) {
+                                this.activeConv = freshConv;
+                            }
                         }
-                    }
+                    }).catch(() => {});
                 }
+                console.log('[AI-DEBUG] _sendAIMessage completed');
             }
         },
 
@@ -2318,6 +2441,7 @@ function chatPanel() {
                         const existingIds = new Set(this.messages.map(m => m.id));
                         for (const msg of data.data) {
                             if (!existingIds.has(msg.id)) {
+                                msg.is_ai = msg.is_ai || msg.is_ai_response || false;
                                 this.messages.push(msg);
                             }
                         }

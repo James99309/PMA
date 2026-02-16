@@ -84,6 +84,14 @@ services:
       # AI 服务（会议纪要功能）
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # DeepSeek AI 聊天服务
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+
+      # OpenClaw 集成
+      OPENCLAW_GATEWAY_URL: ${OPENCLAW_GATEWAY_URL:-}
+      OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
+      PMA_AI_QUERY_TOKEN: ${PMA_AI_QUERY_TOKEN:-}
+      PMA_API_BASE_URL: ${PMA_API_BASE_URL:-}
 
       # SP8D 远程API配置（产品模板引入）
       SP8D_API_BASE_URL: ${SP8D_API_BASE_URL:-https://pma.jamesgpone.win/api/v1}
