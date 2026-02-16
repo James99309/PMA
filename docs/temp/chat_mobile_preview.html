@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMA 聊天 - 手机端全屏预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { DEFAULT: '#2563EB', dark: '#1D4ED8', light: '#60A5FA' },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+        /* 聊天面板滚动条 */
+        .chat-panel-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-panel-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-panel-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+        /* 消息出现动画 */
+        .chat-msg-appear { animation: chatMsgSlide 0.2s ease-out; }
+        @keyframes chatMsgSlide {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* 移动端视图切换动画 */
+        .mobile-slide-enter { animation: mobileSlideIn 0.25s ease-out; }
+        @keyframes mobileSlideIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .mobile-slide-back { animation: mobileSlideBack 0.25s ease-out; }
+        @keyframes mobileSlideBack {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+
+<!-- ========== 说明横幅 ========== -->
+<div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-3 text-center text-sm">
+    <strong>PMA 聊天 - 手机端全屏交互预览</strong>
+    <span class="hidden md:inline ml-2">| 缩小浏览器窗口到 &lt;768px 或用 DevTools 模拟手机查看效果</span>
+</div>
+
+<!-- ========== 模拟背景页面 ========== -->
+<div class="max-w-4xl mx-auto px-4 py-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-4">
+        <h1 class="text-lg font-bold text-slate-800">PMA 仪表板（模拟背景页面）</h1>
+        <p class="text-sm text-slate-500 mt-2">这是模拟的 PMA 系统页面。点击右下角聊天按钮体验手机端全屏聊天。</p>
+        <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-blue-50 rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold text-blue-600">128</div>
+                <div class="text-xs text-slate-500 mt-1">客户数</div>
+            </div>
+            <div class="bg-green-50 rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold text-green-600">45</div>
+                <div class="text-xs text-slate-500 mt-1">进行中项目</div>
+            </div>
+            <div class="bg-amber-50 rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold text-amber-600">12</div>
+                <div class="text-xs text-slate-500 mt-1">待审批</div>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4 text-center">
+                <div class="text-2xl font-bold text-purple-600">3</div>
+                <div class="text-xs text-slate-500 mt-1">新消息</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作说明 -->
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+        <div class="font-semibold mb-2 flex items-center gap-1">
+            <span class="material-symbols-outlined text-base">info</span>
+            交互流程说明
+        </div>
+        <ol class="list-decimal list-inside space-y-1 text-xs">
+            <li><strong>点击右下角聊天图标</strong> → 手机端全屏打开，显示对话列表</li>
+            <li><strong>点击某个对话</strong> → 列表收起，聊天窗口最大化</li>
+            <li><strong>点击左上角汉堡菜单</strong> → 回到对话列表</li>
+            <li><strong>点击右上角 ✕</strong> → 关闭聊天面板</li>
+        </ol>
+        <div class="mt-2 text-xs text-amber-600">
+            提示：使用浏览器 DevTools（F12）切换到手机模式（iPhone 12/13 等）查看最佳效果
+        </div>
+    </div>
+</div>
+
+<!-- ========== Alpine.js 聊天组件 ========== -->
+<div x-data="chatPreview()" x-cloak>
+
+    <!-- 聊天气泡按钮 -->
+    <button @click="chatOpen = true; mobileView = 'list'"
+            x-show="!chatOpen"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="scale-0 opacity-0"
+            x-transition:enter-end="scale-100 opacity-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="scale-100 opacity-100"
+            x-transition:leave-end="scale-0 opacity-0"
+            class="fixed bottom-6 right-6 z-40 w-14 h-14 bg-primary hover:bg-primary-dark rounded-full shadow-lg hover:shadow-xl flex items-center justify-center transition-all duration-200 cursor-pointer group">
+        <span class="material-symbols-outlined text-white text-2xl group-hover:scale-110 transition-transform">chat</span>
+        <!-- 未读角标 -->
+        <span class="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 text-white text-xs font-semibold rounded-full flex items-center justify-center px-1">3</span>
+    </button>
+
+    <!-- ========== 聊天面板 ========== -->
+    <div x-show="chatOpen"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 translate-y-4 scale-95"
+         x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+         x-transition:leave-end="opacity-0 translate-y-4 scale-95"
+         class="fixed inset-0 z-50 md:inset-auto md:top-0 md:right-0 md:w-[70vw] md:h-full md:max-w-[calc(100vw-48px)] bg-white shadow-2xl md:rounded-l-2xl md:border md:border-r-0 border-slate-200 flex overflow-hidden">
+
+        <!-- ====== 左栏：对话列表 ====== -->
+        <div class="border-r border-slate-200 flex flex-col bg-slate-50/50 flex-shrink-0 w-full md:w-[260px]"
+             :class="{ 'hidden md:flex': mobileView !== 'list' }"
+             x-show="mobileView === 'list' || isDesktop"
+             :key="'list-' + mobileView">
+
+            <!-- 左栏头部 -->
+            <div class="h-14 px-4 flex items-center justify-between border-b border-slate-200 flex-shrink-0">
+                <h3 class="text-sm font-semibold text-slate-900">消息</h3>
+                <div class="flex items-center gap-1">
+                    <button @click="mobileView = 'chat'; activeConv = null; isNewChat = true"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                            title="新建对话">
+                        <span class="material-symbols-outlined text-xl">edit_square</span>
+                    </button>
+                    <!-- 手机端关闭按钮 -->
+                    <button @click="chatOpen = false"
+                            class="md:hidden w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 搜索框 -->
+            <div class="px-3 py-2 flex-shrink-0">
+                <div class="relative">
+                    <span class="material-symbols-outlined text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-lg">search</span>
+                    <input type="text" placeholder="搜索对话..."
+                           class="w-full h-9 pl-9 pr-3 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary transition-colors">
+                </div>
+            </div>
+
+            <!-- 对话列表 -->
+            <div class="flex-1 overflow-y-auto chat-panel-scroll">
+                <template x-for="conv in conversations" :key="conv.id">
+                    <button @click="selectConversation(conv)"
+                            class="w-full px-3 py-3 flex items-start gap-3 hover:bg-white transition-colors cursor-pointer text-left"
+                            :class="{ 'bg-white shadow-sm': activeConv && activeConv.id === conv.id }">
+                        <!-- 头像 -->
+                        <div class="relative flex-shrink-0">
+                            <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
+                                 :class="conv.type === 'ai' ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white'
+                                        : conv.type === 'group' ? 'bg-gradient-to-br from-blue-500 to-cyan-500 text-white'
+                                        : 'bg-slate-200 text-slate-600'">
+                                <span x-show="conv.type === 'ai'" class="material-symbols-outlined text-lg">auto_awesome</span>
+                                <span x-show="conv.type === 'group'" class="material-symbols-outlined text-lg">group</span>
+                                <span x-show="conv.type === 'private'" x-text="conv.avatar"></span>
+                            </div>
+                            <span x-show="conv.online"
+                                  class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
+                        </div>
+                        <!-- 对话信息 -->
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium text-slate-900 truncate" x-text="conv.name"></span>
+                                <span class="text-[11px] text-slate-400 flex-shrink-0 ml-2" x-text="conv.time"></span>
+                            </div>
+                            <div class="flex items-center justify-between mt-0.5">
+                                <p class="text-xs text-slate-500 truncate" x-text="conv.lastMsg"></p>
+                                <span x-show="conv.unread > 0"
+                                      class="flex-shrink-0 ml-2 min-w-[18px] h-[18px] bg-primary text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1"
+                                      x-text="conv.unread"></span>
+                            </div>
+                        </div>
+                    </button>
+                </template>
+            </div>
+        </div>
+
+        <!-- ====== 右栏：聊天区域 ====== -->
+        <div class="flex-1 flex-col min-w-0"
+             :class="mobileView === 'list' ? 'hidden md:flex' : 'flex mobile-slide-enter'">
+
+            <!-- 右栏头部 -->
+            <div class="h-14 px-4 flex items-center justify-between border-b border-slate-200 flex-shrink-0">
+                <!-- 移动端汉堡菜单/返回按钮 -->
+                <button @click="mobileView = 'list'"
+                        class="md:hidden w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer mr-1 flex-shrink-0">
+                    <span class="material-symbols-outlined text-lg">menu</span>
+                </button>
+
+                <template x-if="activeConv">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <span class="text-sm font-semibold text-slate-900 truncate" x-text="activeConv.name"></span>
+                        <span x-show="activeConv.type === 'group'"
+                              class="text-xs text-slate-400 flex-shrink-0"
+                              x-text="activeConv.memberCount + '人'"></span>
+                        <span x-show="activeConv.type === 'ai'"
+                              class="text-[10px] bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded font-medium flex-shrink-0">AI</span>
+                    </div>
+                </template>
+                <template x-if="isNewChat && !activeConv">
+                    <div class="flex-1">
+                        <span class="text-sm font-semibold text-slate-900">新建对话</span>
+                    </div>
+                </template>
+                <template x-if="!activeConv && !isNewChat">
+                    <div class="flex-1"></div>
+                </template>
+
+                <div class="flex items-center gap-1">
+                    <button x-show="activeConv && activeConv.type !== 'ai'"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-lg">people</span>
+                    </button>
+                    <button @click="chatOpen = false"
+                            class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 新建对话：收件人输入 -->
+            <div x-show="isNewChat"
+                 class="px-4 py-3 border-b border-slate-200 bg-slate-50/50 flex-shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-500 flex-shrink-0">收件人:</span>
+                    <input type="text" placeholder="输入 @ 搜索用户，或直接输入和 AI 对话"
+                           class="flex-1 h-7 px-1 text-sm bg-transparent text-slate-900 placeholder:text-slate-400 focus:outline-none">
+                </div>
+                <p class="mt-2 text-[11px] text-slate-400">
+                    不 @ 任何人 = 和 AI 助手对话 | @ 一人 = 私聊 | @ 多人 = 群聊
+                </p>
+            </div>
+
+            <!-- 消息区域 -->
+            <div class="flex-1 overflow-y-auto chat-panel-scroll px-4 py-4 space-y-4">
+
+                <!-- 空状态：无活跃对话 -->
+                <template x-if="!activeConv && !isNewChat">
+                    <div class="h-full flex flex-col items-center justify-center text-center">
+                        <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4">
+                            <span class="material-symbols-outlined text-3xl text-slate-300">forum</span>
+                        </div>
+                        <p class="text-sm text-slate-500">选择一个对话开始聊天</p>
+                        <p class="text-xs text-slate-400 mt-1">
+                            或点击左上角
+                            <span class="material-symbols-outlined text-xs align-text-bottom">edit_square</span>
+                            新建对话
+                        </p>
+                    </div>
+                </template>
+
+                <!-- 新建对话空状态 -->
+                <template x-if="isNewChat && !activeConv">
+                    <div class="h-full flex flex-col items-center justify-center text-center">
+                        <div class="w-16 h-16 bg-gradient-to-br from-violet-100 to-purple-100 rounded-2xl flex items-center justify-center mb-4">
+                            <span class="material-symbols-outlined text-3xl text-violet-500">auto_awesome</span>
+                        </div>
+                        <p class="text-sm font-medium text-slate-700">开始新对话</p>
+                        <p class="text-xs text-slate-400 mt-1 max-w-[240px]">
+                            输入 @ 选择同事发起聊天，或直接输入问题与 AI 助手交流
+                        </p>
+                    </div>
+                </template>
+
+                <!-- 消息列表（模拟） -->
+                <template x-if="activeConv">
+                    <div class="space-y-4">
+                        <template x-for="(msg, idx) in activeConv.messages" :key="idx">
+                            <div class="chat-msg-appear" :class="msg.mine ? 'flex justify-start' : 'flex justify-end'">
+                                <div class="max-w-[75%]" :class="msg.mine ? 'items-start' : 'items-end'">
+                                    <!-- 发送者名称 -->
+                                    <div x-show="!msg.mine" class="flex items-center justify-end gap-1.5 mb-1">
+                                        <span x-show="msg.isAI"
+                                              class="text-[9px] px-1 py-0.5 rounded font-medium bg-violet-100 text-violet-600">AI</span>
+                                        <span class="text-[11px] font-medium text-slate-500" x-text="msg.sender"></span>
+                                    </div>
+                                    <!-- 气泡 -->
+                                    <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                                         :class="msg.mine
+                                            ? 'bg-primary text-white rounded-bl-md'
+                                            : msg.isAI
+                                                ? 'bg-violet-50 text-slate-800 rounded-br-md border border-violet-200'
+                                                : 'bg-slate-100 text-slate-800 rounded-br-md'">
+                                        <p class="whitespace-pre-wrap" x-text="msg.content"></p>
+                                    </div>
+                                    <!-- 时间 -->
+                                    <div class="mt-1 text-[10px] text-slate-400"
+                                         :class="msg.mine ? 'text-left' : 'text-right'"
+                                         x-text="msg.time"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="border-t border-slate-200 flex-shrink-0" x-show="activeConv || isNewChat">
+                <div class="px-4 py-3">
+                    <div class="flex items-end gap-2">
+                        <!-- + 附件按钮 -->
+                        <button x-show="activeConv && activeConv.type !== 'ai'"
+                                class="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer flex-shrink-0">
+                            <span class="material-symbols-outlined text-xl">add</span>
+                        </button>
+                        <!-- 输入框 -->
+                        <div class="flex-1 relative">
+                            <textarea rows="1"
+                                      placeholder="输入消息... (# 引用客户/项目, Enter 发送)"
+                                      class="w-full resize-none px-4 py-2.5 text-sm bg-slate-100 text-slate-900 placeholder:text-slate-400 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 border border-transparent focus:border-primary/30 transition-all max-h-[120px]"></textarea>
+                        </div>
+                        <!-- 发送按钮 -->
+                        <button class="w-10 h-10 flex-shrink-0 bg-primary hover:bg-primary-dark text-white rounded-xl flex items-center justify-center transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-lg">send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ========== 屏幕尺寸指示器 ========== -->
+<div class="fixed top-12 left-3 z-[100] bg-black/70 text-white text-[10px] px-2 py-1 rounded-full font-mono">
+    <span class="md:hidden">MOBILE (&lt;768px)</span>
+    <span class="hidden md:inline">DESKTOP (&ge;768px)</span>
+    <span class="ml-1" x-data x-text="'| ' + window.innerWidth + 'px'" @resize.window="$el.textContent = '| ' + window.innerWidth + 'px'"></span>
+</div>
+
+<script>
+function chatPreview() {
+    return {
+        chatOpen: false,
+        mobileView: 'list', // 'list' | 'chat'
+        activeConv: null,
+        isNewChat: false,
+
+        get isDesktop() {
+            return window.innerWidth >= 768;
+        },
+
+        conversations: [
+            {
+                id: 1, type: 'ai', name: 'AI 助手 - 产品分析报告',
+                avatar: 'A', lastMsg: '已为您生成产品分析报告，包含市场趋势...', time: '刚刚',
+                unread: 1, online: false, memberCount: 0,
+                messages: [
+                    { mine: true, content: '帮我分析一下Q4的产品销售数据', time: '14:30', sender: '我' },
+                    { mine: false, content: '好的，我来为您分析Q4的产品销售数据。\n\n根据系统数据，Q4总销售额为 ¥2,456,000，环比增长12.3%。\n\n主要增长品类：\n1. 密封件系列 +18%\n2. 阀门配件 +15%\n3. 管道连接件 +8%\n\n需要我进一步分析某个品类的详细数据吗？', time: '14:31', sender: 'AI 助手', isAI: true },
+                    { mine: true, content: '密封件系列的客户分布情况如何？', time: '14:32', sender: '我' },
+                    { mine: false, content: '密封件系列客户分布分析：\n\n按区域划分：\n- 华东地区：占比42%，主要客户：上海XX机械\n- 华南地区：占比28%，主要客户：广州YY工程\n- 华北地区：占比18%\n- 其他地区：占比12%\n\n按客户类型：\n- 直接客户：65%\n- 经销商：35%\n\n建议重点关注华南地区增长潜力。', time: '14:33', sender: 'AI 助手', isAI: true },
+                ]
+            },
+            {
+                id: 2, type: 'group', name: '华东销售团队',
+                avatar: '华', lastMsg: '刘伟: 上海XX项目报价已提交', time: '10分钟前',
+                unread: 2, online: false, memberCount: 6,
+                messages: [
+                    { mine: false, content: '各位，上海XX机械的新项目大家看一下', time: '14:10', sender: '张经理' },
+                    { mine: false, content: '这个项目规模不小，预估300万左右', time: '14:12', sender: '刘伟' },
+                    { mine: true, content: '我来对接技术方案，明天出初稿', time: '14:15', sender: '我' },
+                    { mine: false, content: '好的，报价我这边准备', time: '14:16', sender: '刘伟' },
+                    { mine: false, content: '上海XX项目报价已提交，总额 ¥2,860,000', time: '14:20', sender: '刘伟' },
+                ]
+            },
+            {
+                id: 3, type: 'private', name: '李明',
+                avatar: '李', lastMsg: '好的，明天见', time: '1小时前',
+                unread: 0, online: true, memberCount: 2,
+                messages: [
+                    { mine: false, content: '明天下午客户来访，你那边准备好了吗？', time: '13:00', sender: '李明' },
+                    { mine: true, content: '样品和技术资料都准备好了', time: '13:05', sender: '我' },
+                    { mine: false, content: '会议室订了3号，下午2点开始', time: '13:06', sender: '李明' },
+                    { mine: true, content: '收到，我提前半小时到', time: '13:08', sender: '我' },
+                    { mine: false, content: '好的，明天见', time: '13:10', sender: '李明' },
+                ]
+            },
+            {
+                id: 4, type: 'private', name: '王芳',
+                avatar: '王', lastMsg: '报销单已提交，请审批', time: '2小时前',
+                unread: 0, online: false, memberCount: 2,
+                messages: [
+                    { mine: false, content: '张总，我的Q3差旅报销单已提交系统，麻烦审批一下', time: '11:30', sender: '王芳' },
+                    { mine: true, content: '好的，我看一下', time: '11:45', sender: '我' },
+                    { mine: true, content: '已审批通过', time: '11:50', sender: '我' },
+                    { mine: false, content: '收到，谢谢！', time: '11:51', sender: '王芳' },
+                ]
+            },
+            {
+                id: 5, type: 'ai', name: 'AI 助手 - 竞品对比',
+                avatar: 'A', lastMsg: '竞品分析报告已生成...', time: '昨天',
+                unread: 0, online: false, memberCount: 0,
+                messages: [
+                    { mine: true, content: '帮我分析一下XX公司的密封件产品', time: '昨天 16:00', sender: '我' },
+                    { mine: false, content: '关于XX公司密封件产品线分析：\n\n产品优势：材料品质较高，品牌知名度好\n产品劣势：价格偏高，交期较长\n\n与我方产品对比：\n- 价格：我方低15-20%\n- 品质：基本持平\n- 交期：我方快3-5天', time: '昨天 16:02', sender: 'AI 助手', isAI: true },
+                ]
+            },
+            {
+                id: 6, type: 'group', name: '技术支持群',
+                avatar: '技', lastMsg: '陈工: 图纸已更新到V3版本', time: '昨天',
+                unread: 0, online: false, memberCount: 8,
+                messages: [
+                    { mine: false, content: '新版图纸已上传，大家注意查收', time: '昨天 15:00', sender: '陈工' },
+                    { mine: true, content: '收到，我检查一下尺寸参数', time: '昨天 15:10', sender: '我' },
+                ]
+            },
+        ],
+
+        selectConversation(conv) {
+            this.activeConv = conv;
+            this.isNewChat = false;
+            this.mobileView = 'chat';
+        },
+    }
+}
+</script>
+
+</body>
+</html>

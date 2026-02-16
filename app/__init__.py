@@ -572,7 +572,9 @@ def create_app(config_class=Config):
             '/language/current', '/language/switch', '/storage',
             '/p/',  # 产品公开信息页面（二维码扫描）
             '/api/v1/',  # API v1端点（有自己的认证机制）
-            '/api/external/'  # 外部API端点（供Stargirl等系统调用，使用API Key认证）
+            '/api/external/',  # 外部API端点（供Stargirl等系统调用，使用API Key认证）
+            '/chat/api/ai/db-query',  # OpenClaw AI 数据库查询（token 认证）
+            '/chat/api/ai/db-schema',  # OpenClaw AI 数据库 schema（token 认证）
         ]
         
         # 检查当前路径是否需要登录
