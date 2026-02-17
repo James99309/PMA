@@ -448,7 +448,7 @@
                             <div class="mt-1 flex items-center justify-between px-1">
                                 <span class="text-[10px] text-slate-400 truncate" x-text="msg.file_name"></span>
                                 <a :href="getFileAccessUrl(msg.file_url)"
-                                   target="_blank" download
+                                   :download="msg.file_name"
                                    class="text-slate-400 hover:text-primary transition-colors flex-shrink-0"
                                    @click.stop>
                                     <span class="material-symbols-outlined text-sm">download</span>
@@ -477,7 +477,7 @@
                                          x-text="formatFileSize(msg.file_size)"></div>
                                 </div>
                                 <a :href="getFileAccessUrl(msg.file_url)"
-                                   target="_blank" download
+                                   :download="msg.file_name"
                                    class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
                                    :class="msg.is_mine ? 'hover:bg-white/20 text-white' : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500'"
                                    @click.stop>
