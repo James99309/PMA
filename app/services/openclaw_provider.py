@@ -434,15 +434,55 @@ async def _ws_chat(url, token, message, session_key, q):
                     break
 
             elif event_name == 'agent':
-                # Agent lifecycle/tool events — optionally surface tool calls
+                # Agent lifecycle/tool/thinking events
                 stream_type = payload.get('stream', '')
                 data = payload.get('data', {})
-                if stream_type == 'tool' and data.get('name'):
-                    q.put({
-                        'type': 'tool_call',
-                        'name': data['name'],
-                        'explanation': data.get('description', ''),
-                    })
+                logger.info(f'[OpenClaw-Agent] stream={stream_type} data_keys={list(data.keys()) if isinstance(data, dict) else type(data).__name__}')
+
+                if stream_type == 'tool' and isinstance(data, dict):
+                    if data.get('name'):
+                        # Tool call start — surface tool name
+                        q.put({
+                            'type': 'tool_call',
+                            'name': data['name'],
+                            'explanation': data.get('description', ''),
+                        })
+                    elif data.get('content') or data.get('output') or data.get('result'):
+                        # Tool execution result
+                        result_text = data.get('content') or data.get('output') or data.get('result') or ''
+                        if isinstance(result_text, (dict, list)):
+                            result_text = json.dumps(result_text, ensure_ascii=False)[:200]
+                        else:
+                            result_text = str(result_text)[:200]
+                        q.put({
+                            'type': 'tool_status',
+                            'content': result_text,
+                            'status': 'done',
+                        })
+
+                elif stream_type in ('thinking', 'reasoning'):
+                    # AI thinking/reasoning process
+                    text = ''
+                    if isinstance(data, dict):
+                        text = data.get('text', '') or data.get('content', '') or data.get('thinking', '')
+                    elif isinstance(data, str):
+                        text = data
+                    if text:
+                        q.put({'type': 'thinking', 'text': text})
+
+                elif stream_type == 'status':
+                    # General agent status message
+                    message = ''
+                    if isinstance(data, dict):
+                        message = data.get('message', '') or data.get('text', '') or data.get('status', '')
+                    elif isinstance(data, str):
+                        message = data
+                    if message:
+                        q.put({'type': 'agent_status', 'message': message})
+
+                elif stream_type:
+                    # Unknown stream type — log for future discovery
+                    logger.info(f'[OpenClaw-Agent] unhandled stream={stream_type} data={json.dumps(data, ensure_ascii=False)[:300] if isinstance(data, dict) else str(data)[:300]}')
 
         q.put({
             'type': 'done',
