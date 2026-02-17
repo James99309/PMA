@@ -742,6 +742,7 @@
                 <div class="relative">
                     <textarea x-ref="chatInput"
                               x-model="inputText"
+                              @keydown.enter="if($event.altKey||$event.metaKey){$event.preventDefault();const t=$event.target,s=t.selectionStart;inputText=inputText.slice(0,s)+'\n'+inputText.slice(t.selectionEnd);$nextTick(()=>{t.selectionStart=t.selectionEnd=s+1})}else{$event.preventDefault();sendMessage()}"
                               @input="onInputChange()"
                               @blur="onInputBlur()"
                               @paste="handlePaste($event)"
@@ -1522,7 +1523,7 @@ function chatPanel() {
             memberUnit: '{{ _("人") }}',
             recipientPlaceholder: '{{ _("输入 @ 搜索用户，或直接输入和 AI 对话") }}',
             recipientMorePlaceholder: '{{ _("继续 @ 添加更多成员...") }}',
-            inputPlaceholder: '{{ _("输入消息... (# 引用客户/项目, Enter 发送)") }}',
+            inputPlaceholder: '{{ _("输入消息... (# 引用客户/项目, Enter 发送, ") }}' + (/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Alt') + '+Enter {{ _("换行") }})',
             translation: '{{ _("翻译") }}',
             originalText: '{{ _("原文") }}',
             justNow: '{{ _("刚刚") }}',
