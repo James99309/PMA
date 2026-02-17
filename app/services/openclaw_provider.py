@@ -153,8 +153,8 @@ def _build_device_auth(identity, client_id, client_mode, role, scopes, token, no
 
 # ── Main entry point ─────────────────────────────────────────────────
 
-def _build_db_tool_prompt(user):
-    """构建数据库查询工具说明，注入到发送给 OpenClaw 的消息中"""
+def _build_db_tool_prompt(user, conversation_id=None):
+    """构建数据库查询工具和文件上传工具说明，注入到发送给 OpenClaw 的消息中"""
     try:
         from app.services.chat_db_query import get_db_schema, get_permission_context
 
@@ -162,14 +162,14 @@ def _build_db_tool_prompt(user):
         ai_token = os.environ.get('PMA_AI_QUERY_TOKEN', '')
 
         if not pma_base_url or not ai_token:
-            logger.warning('PMA_API_BASE_URL 或 PMA_AI_QUERY_TOKEN 未配置，跳过 DB 工具注入')
+            logger.warning('PMA_API_BASE_URL 或 PMA_AI_QUERY_TOKEN 未配置，跳过工具注入')
             return ''
 
         db_schema = get_db_schema()
         permission_context = get_permission_context(user)
         user_id = user.id
 
-        return (
+        prompt = (
             '[系统提示] 你可以通过 HTTP 工具查询 PMA 数据库来回答数据相关问题。\n'
             f'API: POST {pma_base_url}/chat/api/ai/db-query\n'
             f'Header: Authorization: Bearer {ai_token}\n'
@@ -185,12 +185,34 @@ def _build_db_tool_prompt(user):
             f'\n'
             f'重要：只允许 SELECT 查询，系统会自动按用户权限过滤数据。\n'
         )
+
+        # 文件上传工具说明
+        if conversation_id:
+            prompt += (
+                f'\n[文件分享工具] 当你生成了文件（Excel、CSV、PDF、图片等）需要分享给用户下载时，'
+                f'请使用以下 API 上传文件到聊天对话中，用户即可在聊天界面直接点击下载。\n'
+                f'API: POST {pma_base_url}/chat/api/ai/upload-file\n'
+                f'Header: Authorization: Bearer {ai_token}\n'
+                f'Content-Type: multipart/form-data\n'
+                f'curl 示例:\n'
+                f'curl -X POST {pma_base_url}/chat/api/ai/upload-file \\\n'
+                f'  -H "Authorization: Bearer {ai_token}" \\\n'
+                f'  -F "file=@/path/to/generated_file.xlsx" \\\n'
+                f'  -F "conversation_id={conversation_id}" \\\n'
+                f'  -F "user_id={user_id}"\n'
+                f'\n'
+                f'上传成功后文件会自动出现在聊天对话中，请在回复中告知用户"文件已上传到对话中，可直接下载"。\n'
+                f'重要：请务必在生成文件后主动调用此 API 上传，不要告诉用户"无法提供下载链接"。\n'
+            )
+
+        return prompt
     except Exception as e:
-        logger.warning(f'构建 DB 工具提示失败: {e}')
+        logger.warning(f'构建工具提示失败: {e}')
         return ''
 
 
-def get_openclaw_response_stream(message, conversation_history=None, session_id=None, user=None):
+def get_openclaw_response_stream(message, conversation_history=None, session_id=None,
+                                 user=None, conversation_id=None):
     """获取 OpenClaw 流式响应的生成器
 
     通过 WebSocket 直连 OpenClaw Gateway，发送用户消息并流式接收响应。
@@ -201,6 +223,7 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
         conversation_history: 对话历史（OpenClaw 自行管理 session，此参数仅供参考）
         session_id: OpenClaw session ID，用于保持对话上下文
         user: 当前用户对象（用于注入 DB 查询工具说明）
+        conversation_id: 当前对话 ID（用于注入文件上传工具说明）
 
     Yields:
         dict: 与 DeepSeek 格式一致：
@@ -218,9 +241,9 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
     if not session_id:
         session_id = f'pma-{uuid.uuid4().hex[:8]}'
 
-    # 注入 DB 查询工具说明到消息前
+    # 注入 DB 查询工具和文件上传工具说明到消息前
     if user:
-        db_prompt = _build_db_tool_prompt(user)
+        db_prompt = _build_db_tool_prompt(user, conversation_id=conversation_id)
         if db_prompt:
             message = f'{db_prompt}\n[用户消息] {message}'
 

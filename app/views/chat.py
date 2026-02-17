@@ -507,7 +507,8 @@ def ai_stream():
                 oc_session_id = f'pma-conv-{conversation_id}' if provider == 'openclaw' else None
 
                 for chunk in get_ai_response_stream(content, current_user, conversation_history,
-                                                    provider=provider, session_id=oc_session_id):
+                                                    provider=provider, session_id=oc_session_id,
+                                                    conversation_id=conversation_id):
                     chunk_type = chunk.get('type')
                     if chunk_type == 'content':
                         full_response += chunk.get('text', '')
@@ -815,4 +816,146 @@ def ai_db_schema():
 
     except Exception as e:
         logger.error(f"AI DB Schema API 异常: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 17. AI 文件上传 API（供 OpenClaw 等外部 AI 上传生成的文件到聊天）
+# ---------------------------------------------------------------------------
+
+@chat.route('/api/ai/upload-file', methods=['POST'])
+@_require_ai_token
+def ai_upload_file():
+    """供 OpenClaw 调用的文件上传 API（token 认证）
+
+    AI 生成文件后，通过此接口上传到对应聊天对话，用户即可直接下载。
+
+    请求: multipart/form-data
+        - file: 文件
+        - conversation_id: 对话 ID
+        - user_id: 发起请求的用户 ID
+    """
+    try:
+        conversation_id = request.form.get('conversation_id', type=int)
+        user_id = request.form.get('user_id', type=int)
+
+        if not conversation_id:
+            return jsonify({'success': False, 'error': 'conversation_id 不能为空'}), 400
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id 不能为空'}), 400
+
+        file = request.files.get('file')
+        if not file or not file.filename:
+            return jsonify({'success': False, 'error': '请提供文件'}), 400
+
+        # 验证用户存在
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': f'用户 {user_id} 不存在'}), 404
+
+        # 验证对话存在
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv:
+            return jsonify({'success': False, 'error': f'对话 {conversation_id} 不存在'}), 404
+
+        # 验证用户是对话参与者
+        participant = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, user_id=user_id
+        ).first()
+        if not participant:
+            return jsonify({'success': False, 'error': '用户不是该对话的参与者'}), 403
+
+        # 文件大小检查 (50MB)
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+        if file_size > 50 * 1024 * 1024:
+            return jsonify({'success': False, 'error': '文件大小不能超过 50MB'}), 400
+
+        # 检测文件类型
+        filename = file.filename
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        image_exts = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'}
+        video_exts = {'mp4', 'mov', 'avi', 'webm', 'mkv'}
+        if ext in image_exts:
+            message_type = 'image'
+            storage_file_type = 'image'
+        elif ext in video_exts:
+            message_type = 'video'
+            storage_file_type = 'video'
+        else:
+            message_type = 'file'
+            storage_file_type = 'attachment'
+
+        # 生成唯一文件名
+        unique_name = f"{uuid.uuid4().hex[:8]}_{filename}"
+
+        # 上传到 NAS
+        file_url = None
+        try:
+            from app.utils.smart_storage_manager import get_smart_storage
+            smart_storage = get_smart_storage()
+            result = smart_storage.upload_file(
+                object_id=conversation_id,
+                file=file,
+                filename=unique_name,
+                file_type=storage_file_type,
+                bucket_type='chat',
+                business_type='chat'
+            )
+            if result:
+                file_url = result.get('storage_path', '')
+        except Exception as ue:
+            logger.warning(f"AI 文件上传 SmartStorage 失败，尝试本地回退: {ue}")
+
+        # 本地回退
+        if not file_url:
+            local_dir = os.path.join('.', 'storage', 'chat_files', str(conversation_id))
+            os.makedirs(local_dir, exist_ok=True)
+            local_path = os.path.join(local_dir, unique_name)
+            file.seek(0)
+            with open(local_path, 'wb') as f:
+                f.write(file.read())
+            file_url = f"chat_files/{conversation_id}/{unique_name}"
+            logger.info(f"AI 文件本地保存: {local_path}")
+
+        # 创建 AI 文件消息（sender_id=None 表示 AI 发送）
+        from datetime import datetime, timezone
+        msg = ChatMessage(
+            conversation_id=conversation_id,
+            sender_id=None,
+            content=None,
+            message_type=message_type,
+            file_url=file_url,
+            file_name=filename,
+            file_size=file_size,
+            is_ai_response=True,
+            source_language=chat_service.detect_language(filename),
+        )
+        db.session.add(msg)
+
+        # 更新对话 updated_at
+        conv.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        # 构建下载 URL
+        external_url = os.environ.get('EXTERNAL_URL', '').rstrip('/')
+        download_url = f"{external_url}/storage/chat/{file_url}" if external_url else ''
+
+        logger.info(f"AI 文件上传成功: {filename} -> 对话 {conversation_id}")
+        return jsonify({
+            'success': True,
+            'data': {
+                'message_id': msg.id,
+                'file_name': filename,
+                'file_size': file_size,
+                'file_url': file_url,
+                'download_url': download_url,
+                'message_type': message_type,
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"AI 文件上传异常: {e}", exc_info=True)
+        db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -171,7 +171,7 @@ def _build_system_prompt_with_schema(user):
 # ---------------------------------------------------------------------------
 
 def get_ai_response_stream(message, user, conversation_history=None, provider='deepseek',
-                           session_id=None):
+                           session_id=None, conversation_id=None):
     """获取 AI 流式响应的生成器
 
     Args:
@@ -180,6 +180,7 @@ def get_ai_response_stream(message, user, conversation_history=None, provider='d
         conversation_history: 对话历史 [{role, content}, ...]
         provider: AI 提供商，'deepseek'（默认）或 'openclaw'
         session_id: OpenClaw session ID（仅 provider='openclaw' 时使用）
+        conversation_id: 当前对话 ID（供 OpenClaw 文件上传工具使用）
 
     Yields:
         dict: 包含以下类型之一：
@@ -190,7 +191,9 @@ def get_ai_response_stream(message, user, conversation_history=None, provider='d
     if provider == 'openclaw':
         try:
             from app.services.openclaw_provider import get_openclaw_response_stream
-            yield from get_openclaw_response_stream(message, conversation_history, session_id, user=user)
+            yield from get_openclaw_response_stream(
+                message, conversation_history, session_id,
+                user=user, conversation_id=conversation_id)
         except Exception as e:
             logger.error(f'OpenClaw 流式响应异常: {e}', exc_info=True)
             yield {'type': 'content', 'text': '抱歉，OpenClaw 服务暂时不可用，请稍后重试。'}
