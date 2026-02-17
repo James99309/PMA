@@ -51,10 +51,19 @@ def _get_file_with_fallback(file_path: str, bucket_type: str):
         try:
             client = get_synology_webdav_client()
             if client.is_configured:
-                file_content = client.download_file(file_path)
+                # NAS 路径需要包含子目录前缀（如 chat_files/、invoices/）
+                # chat 模块存的 storage_path 不含前缀，需要补全
+                from app.utils.smart_storage_manager import get_smart_storage
+                nas_subdir = get_smart_storage().bucket_mapping.get(bucket_type, bucket_type)
+                nas_prefix = nas_subdir + '/'
+                if file_path.startswith(nas_prefix):
+                    nas_download_path = file_path
+                else:
+                    nas_download_path = nas_prefix + file_path
+                file_content = client.download_file(nas_download_path)
                 if file_content:
                     source = 'nas'
-                    logger.debug(f"从 NAS 获取文件: {file_path}")
+                    logger.debug(f"从 NAS 获取文件: {nas_download_path}")
         except Exception as e:
             logger.warning(f"NAS 获取文件失败: {file_path}, 错误: {e}")
 
