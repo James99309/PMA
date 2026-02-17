@@ -8606,6 +8606,9 @@ msgstr "AI Assistant"
 msgid "停止生成"
 msgstr "Stop generating"
 
+msgid "思考过程"
+msgstr "Thinking"
+
 msgid "输入"
 msgstr "Type"
 

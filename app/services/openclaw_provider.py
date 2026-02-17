@@ -31,6 +31,22 @@ logger = logging.getLogger(__name__)
 # Default timeout for the entire chat exchange (seconds)
 _CHAT_TIMEOUT = 120
 
+# ── Tool name → friendly status mapping ─────────────────────────────
+_TOOL_FRIENDLY_NAMES = {
+    'query_database': '正在查询数据库...',
+    'read_file': '正在读取文件...',
+    'write_file': '正在写入文件...',
+    'web_search': '正在搜索...',
+    'execute_code': '正在执行代码...',
+}
+
+
+def _tool_friendly_name(tool_name):
+    """将工具名转换为用户友好的自然语言状态"""
+    if tool_name in _TOOL_FRIENDLY_NAMES:
+        return _TOOL_FRIENDLY_NAMES[tool_name]
+    return f'正在执行 {tool_name}...'
+
 # Device identity file path
 _IDENTITY_PATH = os.path.join(os.path.expanduser('~'), '.openclaw', 'pma-device-identity.json')
 
@@ -434,54 +450,48 @@ async def _ws_chat(url, token, message, session_key, q):
                     break
 
             elif event_name == 'agent':
-                # Agent lifecycle/tool/thinking events
+                # Agent lifecycle/tool/thinking events — mapped from OpenClaw Gateway protocol
                 stream_type = payload.get('stream', '')
                 data = payload.get('data', {})
                 logger.info(f'[OpenClaw-Agent] stream={stream_type} data_keys={list(data.keys()) if isinstance(data, dict) else type(data).__name__}')
 
-                if stream_type == 'tool' and isinstance(data, dict):
-                    if data.get('name'):
-                        # Tool call start — surface tool name
-                        q.put({
-                            'type': 'tool_call',
-                            'name': data['name'],
-                            'explanation': data.get('description', ''),
-                        })
-                    elif data.get('content') or data.get('output') or data.get('result'):
-                        # Tool execution result
-                        result_text = data.get('content') or data.get('output') or data.get('result') or ''
-                        if isinstance(result_text, (dict, list)):
-                            result_text = json.dumps(result_text, ensure_ascii=False)[:200]
+                if stream_type == 'thinking':
+                    # Use delta (incremental), NOT text (accumulated full text)
+                    delta = data.get('delta', '') if isinstance(data, dict) else ''
+                    if delta:
+                        q.put({'type': 'thinking', 'text': delta})
+
+                elif stream_type == 'tool' and isinstance(data, dict):
+                    phase = data.get('phase', '')
+
+                    if phase == 'start' and data.get('name'):
+                        # Tool start → natural language status
+                        friendly = _tool_friendly_name(data['name'])
+                        q.put({'type': 'agent_status', 'message': friendly})
+                    elif phase == 'result':
+                        if data.get('isError'):
+                            result_text = data.get('result', '')
+                            if isinstance(result_text, (dict, list)):
+                                result_text = json.dumps(result_text, ensure_ascii=False)[:100]
+                            else:
+                                result_text = str(result_text)[:100] if result_text else ''
+                            q.put({'type': 'agent_status', 'message': f'⚠️ 工具执行出错: {result_text}'})
                         else:
-                            result_text = str(result_text)[:200]
-                        q.put({
-                            'type': 'tool_status',
-                            'content': result_text,
-                            'status': 'done',
-                        })
+                            # Success → clear status (will be replaced by next event)
+                            q.put({'type': 'agent_status', 'message': ''})
+                    # phase='update' partialResult — not forwarded
 
-                elif stream_type in ('thinking', 'reasoning'):
-                    # AI thinking/reasoning process
-                    text = ''
-                    if isinstance(data, dict):
-                        text = data.get('text', '') or data.get('content', '') or data.get('thinking', '')
-                    elif isinstance(data, str):
-                        text = data
-                    if text:
-                        q.put({'type': 'thinking', 'text': text})
+                elif stream_type == 'lifecycle' and isinstance(data, dict):
+                    phase = data.get('phase', '')
+                    if phase == 'start':
+                        q.put({'type': 'agent_status', 'message': '正在思考...'})
+                    elif phase == 'error':
+                        error_msg = data.get('error', '')
+                        if error_msg:
+                            q.put({'type': 'agent_status', 'message': f'错误: {error_msg}'})
+                    # phase='end' — handled by chat final event
 
-                elif stream_type == 'status':
-                    # General agent status message
-                    message = ''
-                    if isinstance(data, dict):
-                        message = data.get('message', '') or data.get('text', '') or data.get('status', '')
-                    elif isinstance(data, str):
-                        message = data
-                    if message:
-                        q.put({'type': 'agent_status', 'message': message})
-
-                elif stream_type:
-                    # Unknown stream type — log for future discovery
+                elif stream_type not in ('assistant', 'compaction', 'error', ''):
                     logger.info(f'[OpenClaw-Agent] unhandled stream={stream_type} data={json.dumps(data, ensure_ascii=False)[:300] if isinstance(data, dict) else str(data)[:300]}')
 
         q.put({

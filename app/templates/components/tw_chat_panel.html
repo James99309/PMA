@@ -586,7 +586,7 @@
             </template>
 
             <!-- AI 正在输入动画 -->
-            <div x-show="aiTyping && !aiThinkingText && !aiToolCalls.length" class="flex justify-end chat-msg-appear">
+            <div x-show="aiTyping && !aiThinkingText" class="flex justify-end chat-msg-appear">
                 <div class="max-w-[75%]">
                     <div class="flex items-center gap-1.5 mb-1">
                         <span class="text-[11px] font-medium text-violet-500">{{ _('AI 助手') }}</span>
@@ -635,30 +635,6 @@
                 </div>
             </div>
 
-            <!-- AI 工具调用状态 -->
-            <template x-for="(tc, idx) in aiToolCalls" :key="idx">
-                <div class="flex justify-end mb-2 chat-msg-appear">
-                    <div class="max-w-[75%]">
-                        <div class="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-xl"
-                             :class="tc.status === 'running'
-                                 ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
-                                 : 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'">
-                            <template x-if="tc.status === 'running'">
-                                <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>
-                            </template>
-                            <template x-if="tc.status === 'done'">
-                                <span class="material-symbols-outlined text-sm">check_circle</span>
-                            </template>
-                            <span x-text="tc.explanation"></span>
-                        </div>
-                        <!-- 工具执行结果预览 -->
-                        <div x-show="tc.result" class="mt-1 px-3 py-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                            <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[300px]" x-text="tc.result"></div>
-                        </div>
-                    </div>
-                </div>
-            </template>
-
             <!-- AI 正在流式输出 -->
             <div x-show="aiStreamingMsg" class="flex justify-end chat-msg-appear">
                 <div class="max-w-[75%]">
@@ -674,7 +650,7 @@
             </div>
 
             <!-- 停止生成按钮 -->
-            <div x-show="aiStreamingMsg || aiTyping || aiThinkingText || aiToolCalls.length" class="flex justify-center mt-2">
+            <div x-show="aiStreamingMsg || aiTyping || aiThinkingText || aiStatusMsg" class="flex justify-center mt-2">
                 <button @click="stopAIGeneration()"
                         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-full hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm cursor-pointer">
                     <span class="material-symbols-outlined text-sm">stop_circle</span>
@@ -1475,7 +1451,6 @@ function chatPanel() {
         showAIMention: false,
         aiTyping: false,
         aiStreamingMsg: '',
-        aiToolCalls: [],
         aiThinkingText: '',
         aiThinkingCollapsed: true,
         aiStatusMsg: '',
@@ -1663,7 +1638,6 @@ function chatPanel() {
             }
             this.aiTyping = false;
             this.aiStreamingMsg = '';
-            this.aiToolCalls = [];
             this.aiThinkingText = '';
             this.aiThinkingCollapsed = true;
             this.aiStatusMsg = '';
@@ -2139,7 +2113,6 @@ function chatPanel() {
             this.aiThinkingText = '';
             this.aiThinkingCollapsed = true;
             this.aiStatusMsg = '';
-            this.aiToolCalls = [];
             this.scrollToBottom();
 
             let needRefreshConversations = false;
@@ -2193,32 +2166,14 @@ function chatPanel() {
                                 // 通用状态消息
                                 this.aiStatusMsg = payload.message;
                                 this.scrollToBottom();
-                            } else if (payload.type === 'tool_call') {
-                                this.aiToolCalls.push({
-                                    name: payload.name,
-                                    explanation: payload.explanation || '正在查询数据库...',
-                                    status: 'running',
-                                    result: '',
-                                });
-                                this.scrollToBottom();
-                            } else if (payload.type === 'tool_status') {
-                                // 更新最近的 running tool 的结果
-                                const lastRunning = [...this.aiToolCalls].reverse().find(tc => tc.status === 'running');
-                                if (lastRunning) {
-                                    lastRunning.result = payload.content || '';
-                                    if (payload.status === 'done') lastRunning.status = 'done';
-                                }
-                                this.scrollToBottom();
                             } else if (payload.type === 'content') {
-                                // 内容到达：折叠思考、清除状态、标记工具完成
+                                // 内容到达：折叠思考、清除状态
                                 this.aiThinkingCollapsed = true;
                                 this.aiStatusMsg = '';
-                                this.aiToolCalls.forEach(tc => { if (tc.status === 'running') tc.status = 'done'; });
                                 this.aiStreamingMsg += payload.text;
                                 this.scrollToBottom();
                             } else if (payload.type === 'done') {
                                 // 流结束：将 streaming msg 转为正式消息
-                                this.aiToolCalls = [];
                                 this.aiThinkingText = '';
                                 this.aiThinkingCollapsed = true;
                                 this.aiStatusMsg = '';
@@ -2282,7 +2237,6 @@ function chatPanel() {
                                 }
                             } else if (payload.type === 'error') {
                                 console.error('AI stream error:', payload.message);
-                                this.aiToolCalls = [];
                                 if (this.aiStreamingMsg) {
                                     this.aiStreamingMsg += '\n\n⚠️ ' + (payload.message || '处理过程中出错');
                                 } else {
@@ -2313,7 +2267,6 @@ function chatPanel() {
                         created_at: new Date().toISOString(),
                     });
                 }
-                this.aiToolCalls = [];
                 this.aiThinkingText = '';
                 this.aiThinkingCollapsed = true;
                 this.aiStatusMsg = '';
