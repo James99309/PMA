@@ -84,7 +84,8 @@ class SpecCategory(db.Model):
 
     # 关联关系
     definitions = relationship("SpecDefinition", back_populates="category", cascade="all, delete-orphan")
-    spec_dicts = relationship("SpecificationDictionary", foreign_keys="SpecificationDictionary.category_id")
+    spec_dicts = relationship("SpecificationDictionary", foreign_keys="SpecificationDictionary.category_id",
+                              overlaps="category")
 
     def __repr__(self):
         return f"<SpecCategory {self.code}: {self.name}>"
