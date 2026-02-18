@@ -535,15 +535,16 @@ class SpecService:
                 - name_en: 分类英文名称
                 - specs: 该分类下的规格列表
         """
-        from app.models.spec_template import SpecDefinition, SpecCategory
+        from app.models.product_code import SpecificationDictionary
+        from app.models.spec_template import SpecCategory
 
         # 获取所有分类（按 display_order 排序）
         all_categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
         category_map = {cat.id: cat for cat in all_categories}
 
-        # 通过 field_name 匹配 SpecDefinition 获取分类信息、英文名称和排序
+        # 通过 field_name 匹配 SpecificationDictionary 获取分类信息、英文名称和排序
         spec_names = [s.get('field_name') or s.get('name', '') for s in specs if s.get('field_name') or s.get('name')]
-        definitions = SpecDefinition.query.filter(SpecDefinition.name.in_(spec_names)).all()
+        definitions = SpecificationDictionary.query.filter(SpecificationDictionary.name.in_(spec_names)).all()
         name_to_category = {d.name: d.category_id for d in definitions}
         name_to_name_en = {d.name: d.name_en for d in definitions}
         name_to_display_order = {d.name: d.display_order for d in definitions}
@@ -559,7 +560,7 @@ class SpecService:
             if not field_value:
                 continue
 
-            # 添加英文名称到规格：优先使用已存储的值，回退到 SpecDefinition 查询
+            # 添加英文名称到规格：优先使用已存储的值，回退到 SpecificationDictionary
             spec_with_en = dict(spec)
             if not spec_with_en.get('field_name_en'):
                 spec_with_en['field_name_en'] = name_to_name_en.get(field_name, '')
@@ -572,7 +573,7 @@ class SpecService:
             else:
                 uncategorized_specs.append(spec_with_en)
 
-        # 构建按 display_order 排序的分类列表，分类内规格按 SpecDefinition.display_order 排序
+        # 构建按 display_order 排序的分类列表
         spec_categories = []
         for cat in all_categories:
             if cat.id in specs_by_category:

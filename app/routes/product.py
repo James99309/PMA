@@ -3172,7 +3172,8 @@ def view_product_detail(id):
         )
 
         # 将规格按分类分组（与配置矩阵保持一致）
-        from app.models.spec_template import SpecDefinition, SpecCategory
+        from app.models.product_code import SpecificationDictionary
+        from app.models.spec_template import SpecCategory
         specs_by_category = {}
         spec_categories = []  # 按 display_order 排序的分类列表
 
@@ -3180,9 +3181,9 @@ def view_product_detail(id):
         all_categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
         category_map = {cat.id: cat for cat in all_categories}
 
-        # 通过 field_name 匹配 SpecDefinition 获取分类信息、英文名称和排序
+        # 通过 field_name 匹配 SpecificationDictionary 获取分类信息、英文名称和排序
         spec_names = [s['field_name'] for s in product_specs]
-        definitions = SpecDefinition.query.filter(SpecDefinition.name.in_(spec_names)).all()
+        definitions = SpecificationDictionary.query.filter(SpecificationDictionary.name.in_(spec_names)).all()
         name_to_category = {d.name: d.category_id for d in definitions}
         name_to_name_en = {d.name: d.name_en for d in definitions}
         name_to_display_order = {d.name: d.display_order for d in definitions}
@@ -3190,7 +3191,7 @@ def view_product_detail(id):
         # 未分类的规格放入 category_id=0
         uncategorized_specs = []
         for spec in product_specs:
-            # 添加英文名称：优先使用存储的英文名称，回退到 SpecDefinition 查询
+            # 添加英文名称：优先使用存储的英文名称，回退到 SpecificationDictionary
             if not spec.get('field_name_en'):
                 spec['field_name_en'] = name_to_name_en.get(spec['field_name'], '')
             cat_id = name_to_category.get(spec['field_name'])
@@ -3201,7 +3202,7 @@ def view_product_detail(id):
             else:
                 uncategorized_specs.append(spec)
 
-        # 构建按 display_order 排序的分类列表，分类内规格按 SpecDefinition.display_order 排序
+        # 构建按 display_order 排序的分类列表
         for cat in all_categories:
             if cat.id in specs_by_category:
                 sorted_specs = sorted(

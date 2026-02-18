@@ -100,9 +100,7 @@ def check_field_used_in_subcategory(field_name, subcategory_id, field_id=None):
 
 def get_field_unit(field_name):
     """
-    通过规格名称获取单位
-
-    优先从 SpecDefinition（规格模板字典）获取，如果没有再从 SpecificationDictionary（旧版字典）获取
+    通过规格名称获取单位（统一从 SpecificationDictionary 查询）
 
     Args:
         field_name (str): 规格字段名称
@@ -110,13 +108,6 @@ def get_field_unit(field_name):
     Returns:
         str: 单位字符串，如果找不到则返回None
     """
-    # 优先从 SpecDefinition 获取（规格模板系统）
-    from app.models.spec_template import SpecDefinition
-    spec_def = SpecDefinition.query.filter_by(name=field_name).first()
-    if spec_def and spec_def.unit:
-        return spec_def.unit
-
-    # 回退到 SpecificationDictionary（旧版字典）
     spec = SpecificationDictionary.query.filter_by(name=field_name).first()
     return spec.unit if spec else None
 
@@ -1411,11 +1402,10 @@ def api_subcategory_spec_fields(id):
                 is_active=True
             ).order_by(ProductCodeFieldOption.position).all()
 
-        # 获取单位（从关联的 SpecificationDefinition）
+        # 获取单位（从统一主表）
         unit = ''
         if field.name:
-            from app.models.spec_template import SpecDefinition
-            spec_def = SpecDefinition.query.filter_by(name=field.name).first()
+            spec_def = SpecificationDictionary.query.filter_by(name=field.name).first()
             if spec_def:
                 unit = spec_def.unit or ''
 

@@ -84,6 +84,7 @@ class SpecCategory(db.Model):
 
     # 关联关系
     definitions = relationship("SpecDefinition", back_populates="category", cascade="all, delete-orphan")
+    spec_dicts = relationship("SpecificationDictionary", foreign_keys="SpecificationDictionary.category_id")
 
     def __repr__(self):
         return f"<SpecCategory {self.code}: {self.name}>"
@@ -210,7 +211,8 @@ class SpecTemplate(db.Model):
         """按分类获取模板规格项"""
         items_by_category = {}
         for item in self.items:
-            category = item.definition.category if item.definition else None
+            src = item.spec_dict or item.definition
+            category = src.category if src else None
             if category:
                 if category.id not in items_by_category:
                     items_by_category[category.id] = {
@@ -227,7 +229,8 @@ class SpecTemplateItem(db.Model):
 
     id = Column(Integer, primary_key=True)
     template_id = Column(Integer, ForeignKey('spec_templates.id', ondelete='CASCADE'))
-    definition_id = Column(Integer, ForeignKey('spec_definitions.id'))  # 引用全局规格字典
+    definition_id = Column(Integer, ForeignKey('spec_definitions.id'))  # 旧FK，保留兼容
+    spec_dict_id = Column(Integer, ForeignKey('specification_dictionary.id'))  # 新FK → 统一主表
     general_value = Column(String(255))  # 该型号的通用规格值（General）
     test_condition_id = Column(Integer, ForeignKey('test_condition_dictionary.id'))
     test_condition_text = Column(String(200))  # 自由输入的测试条件
@@ -246,6 +249,8 @@ class SpecTemplateItem(db.Model):
     # 关联关系
     template = relationship("SpecTemplate", back_populates="items")
     definition = relationship("SpecDefinition", back_populates="template_items")
+    spec_dict = relationship("SpecificationDictionary", back_populates="template_items",
+                             foreign_keys=[spec_dict_id])
     test_condition = relationship("TestConditionDictionary", foreign_keys=[test_condition_id])
     test_method = relationship("TestMethodDictionary", foreign_keys=[test_method_id])
     # 不使用 delete-orphan：删除规格项时保留配置值（用于锁定配置的历史值）
@@ -254,7 +259,8 @@ class SpecTemplateItem(db.Model):
                                foreign_keys="SpecAttachment.template_item_id")
 
     def __repr__(self):
-        return f"<SpecTemplateItem {self.definition.name if self.definition else 'N/A'}>"
+        src = self.spec_dict or self.definition
+        return f"<SpecTemplateItem {src.name if src else 'N/A'}>"
 
     def get_test_condition_display(self):
         """获取测试条件显示文本"""
@@ -269,15 +275,20 @@ class SpecTemplateItem(db.Model):
         return self.test_method_text or ''
 
     def to_dict(self):
+        # 优先使用 spec_dict（合并后主表），回退到 definition（旧FK）
+        sd = self.spec_dict
+        defn = self.definition
+        src = sd or defn  # 数据源
         return {
             'id': self.id,
             'template_id': self.template_id,
             'definition_id': self.definition_id,
-            'definition_name': self.definition.name if self.definition else None,
-            'definition_name_en': self.definition.name_en if self.definition else None,
-            'unit': self.definition.unit if self.definition else None,
-            'category_id': self.definition.category_id if self.definition else None,
-            'category_name': self.definition.category.name if self.definition and self.definition.category else None,
+            'spec_dict_id': self.spec_dict_id,
+            'definition_name': src.name if src else None,
+            'definition_name_en': src.name_en if src else None,
+            'unit': src.unit if src else None,
+            'category_id': src.category_id if src else None,
+            'category_name': src.category.name if src and src.category else None,
             'general_value': self.general_value,
             'test_condition': self.get_test_condition_display(),
             'test_method': self.get_test_method_display(),

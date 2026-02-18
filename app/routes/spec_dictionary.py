@@ -1256,7 +1256,7 @@ def get_spec_tree():
             ]
         }
     """
-    from app.models.spec_template import SpecCategory, SpecDefinition
+    from app.models.spec_template import SpecCategory
 
     try:
         subcategory_id = request.args.get('subcategory_id', type=int)
@@ -1266,9 +1266,9 @@ def get_spec_tree():
         # 1. 查询所有活跃分类
         categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
 
-        # 2. 查询所有活跃规格定义
-        definitions = SpecDefinition.query.filter_by(is_active=True).order_by(
-            SpecDefinition.category_id, SpecDefinition.display_order
+        # 2. 查询所有活跃规格定义（统一主表）
+        definitions = SpecificationDictionary.query.filter_by(is_active=True).order_by(
+            SpecificationDictionary.category_id, SpecificationDictionary.display_order
         ).all()
 
         # 3. 如有 subcategory_id，构建 {name: field_id} 映射

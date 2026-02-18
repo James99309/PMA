@@ -208,7 +208,8 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
     """
     try:
         from app.models.product_spec import ProductSpec
-        from app.models.spec_template import SpecDefinition, SpecCategory
+        from app.models.product_code import SpecificationDictionary
+        from app.models.spec_template import SpecCategory
 
         # 构建快照基础结构
         # 注意: full_code 字段已废弃，保留仅为兼容旧代码
@@ -240,10 +241,10 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
             product_id=product.id
         ).all()
 
-        # 批量查询所有 SpecDefinition（含 category 关联），按 field_name 建索引
+        # 批量查询所有 SpecificationDictionary（含 category 关联），按 field_name 建索引
         spec_names = [s.field_name for s in specs if s.field_name]
-        definitions = SpecDefinition.query.filter(
-            SpecDefinition.name.in_(spec_names)
+        definitions = SpecificationDictionary.query.filter(
+            SpecificationDictionary.name.in_(spec_names)
         ).all() if spec_names else []
         name_to_def = {d.name: d for d in definitions}
 
@@ -254,7 +255,7 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
         ).all() if cat_ids else []
         cat_order_map = {c.id: c.display_order for c in categories}
 
-        # 按 SpecCategory.display_order → SpecDefinition.display_order 排序
+        # 按 SpecCategory.display_order → SpecificationDictionary.display_order 排序
         def sort_key(spec):
             defn = name_to_def.get(spec.field_name)
             if defn:

@@ -1,8 +1,11 @@
 """
 规格字典管理路由
 
-提供全局规格字典（SpecDefinition）的CRUD操作，
+提供统一规格字典（SpecificationDictionary）的CRUD操作，
 以及测试方法和测试条件字典的管理。
+
+注意：SpecDefinition 已合并到 SpecificationDictionary，
+此文件中的 CRUD 操作已统一使用 SpecificationDictionary。
 """
 import logging
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash
@@ -25,7 +28,7 @@ spec_definition_bp = Blueprint('spec_definition', __name__, url_prefix='/admin/s
 @login_required
 @permission_required('product_code', 'view')
 def list_definitions():
-    """规格字典列表页"""
+    """规格字典列表页（使用统一主表 SpecificationDictionary）"""
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
 
     # 获取当前选中的分类
@@ -38,10 +41,10 @@ def list_definitions():
     current_category = None
     if category_id:
         current_category = SpecCategory.query.get(category_id)
-        definitions = SpecDefinition.query.filter_by(
+        definitions = SpecificationDictionary.query.filter_by(
             category_id=category_id,
             is_active=True
-        ).order_by(SpecDefinition.display_order).all()
+        ).order_by(SpecificationDictionary.display_order).all()
 
     # 获取测试方法和测试条件字典（用于下拉选择）
     test_methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
@@ -64,11 +67,11 @@ def api_list_definitions():
     """API: 获取规格字典列表"""
     category_id = request.args.get('category_id', type=int)
 
-    query = SpecDefinition.query.filter_by(is_active=True)
+    query = SpecificationDictionary.query.filter_by(is_active=True)
     if category_id:
         query = query.filter_by(category_id=category_id)
 
-    definitions = query.order_by(SpecDefinition.display_order).all()
+    definitions = query.order_by(SpecificationDictionary.display_order).all()
 
     return jsonify({
         'success': True,
@@ -80,7 +83,7 @@ def api_list_definitions():
 @login_required
 @permission_required('product_code', 'create')
 def api_create_definition():
-    """API: 创建规格项"""
+    """API: 创建规格项（写入统一主表 SpecificationDictionary）"""
     data = request.get_json()
 
     # 验证必填字段
@@ -89,20 +92,19 @@ def api_create_definition():
     if not data.get('category_id'):
         return jsonify({'success': False, 'message': _('请选择规格分类')}), 400
 
-    # 检查名称是否重复
-    existing = SpecDefinition.query.filter_by(
-        category_id=data['category_id'],
+    # 检查名称是否重复（全局唯一）
+    existing = SpecificationDictionary.query.filter_by(
         name=data['name']
     ).first()
     if existing:
-        return jsonify({'success': False, 'message': _('该分类下已存在同名规格项')}), 400
+        return jsonify({'success': False, 'message': _('已存在同名规格项')}), 400
 
     # 获取最大排序号
-    max_order = db.session.query(db.func.max(SpecDefinition.display_order)).filter_by(
-        category_id=data['category_id']
+    max_order = db.session.query(db.func.max(SpecificationDictionary.display_order)).filter(
+        SpecificationDictionary.category_id == data['category_id']
     ).scalar() or 0
 
-    definition = SpecDefinition(
+    definition = SpecificationDictionary(
         category_id=data['category_id'],
         name=data['name'],
         name_en=data.get('name_en'),
@@ -130,7 +132,7 @@ def api_create_definition():
 @permission_required('product_code', 'view')
 def api_get_definition(definition_id):
     """API: 获取规格项详情"""
-    definition = SpecDefinition.query.get_or_404(definition_id)
+    definition = SpecificationDictionary.query.get_or_404(definition_id)
     return jsonify({
         'success': True,
         'data': definition.to_dict()
@@ -142,21 +144,20 @@ def api_get_definition(definition_id):
 @permission_required('product_code', 'edit')
 def api_update_definition(definition_id):
     """API: 更新规格项"""
-    definition = SpecDefinition.query.get_or_404(definition_id)
+    definition = SpecificationDictionary.query.get_or_404(definition_id)
     data = request.get_json()
 
     # 验证必填字段
     if not data.get('name'):
         return jsonify({'success': False, 'message': _('规格名称不能为空')}), 400
 
-    # 检查名称是否重复（排除自己）
-    existing = SpecDefinition.query.filter(
-        SpecDefinition.category_id == definition.category_id,
-        SpecDefinition.name == data['name'],
-        SpecDefinition.id != definition_id
+    # 检查名称是否重复（排除自己，全局唯一）
+    existing = SpecificationDictionary.query.filter(
+        SpecificationDictionary.name == data['name'],
+        SpecificationDictionary.id != definition_id
     ).first()
     if existing:
-        return jsonify({'success': False, 'message': _('该分类下已存在同名规格项')}), 400
+        return jsonify({'success': False, 'message': _('已存在同名规格项')}), 400
 
     # 更新字段
     definition.name = data['name']
@@ -182,13 +183,23 @@ def api_update_definition(definition_id):
 @permission_required('product_code', 'delete')
 def api_delete_definition(definition_id):
     """API: 删除规格项（软删除）"""
-    definition = SpecDefinition.query.get_or_404(definition_id)
+    definition = SpecificationDictionary.query.get_or_404(definition_id)
 
-    # 检查是否有模板在使用
-    if definition.template_items:
+    # 检查是否有模板在使用（通过 spec_dict_id 或旧的 name 桥接）
+    from app.models.spec_template import SpecTemplateItem
+    template_usage = SpecTemplateItem.query.filter_by(spec_dict_id=definition_id).first()
+    if template_usage:
         return jsonify({
             'success': False,
             'message': _('该规格项已被模板使用，无法删除')
+        }), 400
+
+    # 也检查是否有选项被使用
+    options = definition.options.all()
+    if options:
+        return jsonify({
+            'success': False,
+            'message': _('该规格项下有指标选项，请先删除指标')
         }), 400
 
     definition.is_active = False
@@ -205,7 +216,7 @@ def api_delete_definition(definition_id):
 @permission_required('product_code', 'edit')
 def api_toggle_definition(definition_id):
     """API: 切换规格项启用/禁用状态"""
-    definition = SpecDefinition.query.get_or_404(definition_id)
+    definition = SpecificationDictionary.query.get_or_404(definition_id)
 
     # 切换状态
     definition.is_active = not definition.is_active
@@ -227,11 +238,11 @@ def api_list_disabled_definitions():
     """API: 获取已禁用的规格项列表"""
     category_id = request.args.get('category_id', type=int)
 
-    query = SpecDefinition.query.filter_by(is_active=False)
+    query = SpecificationDictionary.query.filter_by(is_active=False)
     if category_id:
         query = query.filter_by(category_id=category_id)
 
-    definitions = query.order_by(SpecDefinition.display_order).all()
+    definitions = query.order_by(SpecificationDictionary.display_order).all()
 
     return jsonify({
         'success': True,
@@ -247,21 +258,14 @@ def api_reorder_definitions():
     data = request.get_json()
     items = data.get('items', [])  # [{'id': 1, 'order': 0}, ...]
 
-    print(f"[DEBUG] api_reorder_definitions called with items: {items}")
-
     updated_count = 0
     for item in items:
-        definition = SpecDefinition.query.get(item['id'])
+        definition = SpecificationDictionary.query.get(item['id'])
         if definition:
-            old_order = definition.display_order
             definition.display_order = item['order']
-            print(f"[DEBUG] Definition {definition.id} ({definition.name}): {old_order} -> {item['order']}")
             updated_count += 1
-        else:
-            print(f"[DEBUG] Definition {item['id']} not found!")
 
     db.session.commit()
-    print(f"[DEBUG] Committed {updated_count} definition updates")
 
     return jsonify({
         'success': True,
@@ -368,8 +372,8 @@ def api_delete_category(category_id):
     """API: 删除规格分类（软删除）"""
     category = SpecCategory.query.get_or_404(category_id)
 
-    # 检查是否有规格定义在使用
-    definition_count = SpecDefinition.query.filter_by(
+    # 检查是否有规格定义在使用（统一主表）
+    definition_count = SpecificationDictionary.query.filter_by(
         category_id=category_id,
         is_active=True
     ).count()
@@ -641,36 +645,15 @@ def api_delete_test_condition(condition_id):
     })
 
 
-# ==================== 规格指标管理（桥接到 SpecificationDictionary/SpecificationOption） ====================
-
-def _get_or_create_spec_dict(definition):
-    """通过 SpecDefinition.name 查找或创建 SpecificationDictionary 记录"""
-    spec_dict = SpecificationDictionary.query.filter_by(name=definition.name).first()
-    if not spec_dict:
-        spec_dict = SpecificationDictionary(
-            name=definition.name,
-            unit=definition.unit,
-            is_active=True
-        )
-        db.session.add(spec_dict)
-        db.session.flush()
-    return spec_dict
+# ==================== 规格指标管理（直接使用 SpecificationDictionary） ====================
 
 
 @spec_definition_bp.route('/api/<int:definition_id>/indicators', methods=['GET'])
 @login_required
 @permission_required('product_code', 'view')
 def api_list_indicators(definition_id):
-    """API: 获取规格定义的指标列表（通过 name 桥接到 SpecificationOption）"""
-    definition = SpecDefinition.query.get_or_404(definition_id)
-
-    spec_dict = SpecificationDictionary.query.filter_by(name=definition.name).first()
-    if not spec_dict:
-        return jsonify({
-            'success': True,
-            'data': [],
-            'spec_dict_id': None
-        })
+    """API: 获取规格定义的指标列表"""
+    spec_dict = SpecificationDictionary.query.get_or_404(definition_id)
 
     options = SpecificationOption.query.filter_by(
         spec_id=spec_dict.id
@@ -683,14 +666,11 @@ def api_list_indicators(definition_id):
     ).distinct().all()
     field_option_used_ids = {r[0] for r in field_option_refs}
 
-    # 批量检查 ProductSpec.field_code 引用（code 编辑值时不变，比 value 更可靠）
-    # 同时检测待同步状态：field_code 匹配但 field_value 不等于当前 option.value
+    # 批量检查 ProductSpec.field_code 引用
     option_codes = [opt.code for opt in options if opt.code]
     product_spec_used_codes = set()
-    # { code: [{old_value, count}] } — 记录需要同步的旧值
     pending_sync_by_code = {}
     if option_codes:
-        # 构建 code→current_value 映射
         code_to_value = {opt.code: opt.value for opt in options if opt.code}
 
         ps_rows = db.session.query(
@@ -698,13 +678,12 @@ def api_list_indicators(definition_id):
             ProductSpec.field_value,
             db.func.count(ProductSpec.id)
         ).filter(
-            ProductSpec.field_name == definition.name,
+            ProductSpec.field_name == spec_dict.name,
             ProductSpec.field_code.in_(option_codes)
         ).group_by(ProductSpec.field_code, ProductSpec.field_value).all()
 
         for code, value, cnt in ps_rows:
             product_spec_used_codes.add(code)
-            # field_value 与当前 option.value 不一致 → 待同步
             if code in code_to_value and value != code_to_value[code]:
                 pending_sync_by_code.setdefault(code, []).append({
                     'old_value': value,
@@ -716,7 +695,6 @@ def api_list_indicators(definition_id):
         d = opt.to_dict()
         d['is_used'] = (opt.id in field_option_used_ids
                         or opt.code in product_spec_used_codes)
-        # 附加待同步信息
         sync_info = pending_sync_by_code.get(opt.code)
         if sync_info:
             total = sum(item['count'] for item in sync_info)
@@ -736,18 +714,15 @@ def api_list_indicators(definition_id):
 @login_required
 @permission_required('product_code', 'create')
 def api_create_indicator(definition_id):
-    """API: 创建指标（通过 name 桥接，自动创建 SpecificationDictionary）"""
+    """API: 创建指标"""
     from app.views.spec_template import allocate_code_for_value
 
-    definition = SpecDefinition.query.get_or_404(definition_id)
+    spec_dict = SpecificationDictionary.query.get_or_404(definition_id)
     data = request.get_json()
 
     value = (data.get('value') or '').strip()
     if not value:
         return jsonify({'success': False, 'message': _('指标值不能为空')}), 400
-
-    # 查找或创建 SpecificationDictionary
-    spec_dict = _get_or_create_spec_dict(definition)
 
     # 检查重复
     existing = SpecificationOption.query.filter_by(

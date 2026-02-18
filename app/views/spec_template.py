@@ -319,8 +319,8 @@ def detect_structural_changes(template, new_items_data, new_category_id=None, ne
     # 检查新增的参与编码规格项
     for def_id, new_info in new_code_items.items():
         if def_id not in old_code_items:
-            # 获取规格项名称
-            definition = SpecDefinition.query.get(def_id)
+            # 获取规格项名称（从统一主表）
+            definition = SpecificationDictionary.query.get(def_id)
             name = definition.name if definition else str(def_id)
             changes.append({
                 'type': 'add_code_item',
@@ -366,17 +366,11 @@ def detect_structural_changes(template, new_items_data, new_category_id=None, ne
 
 
 def _load_definition_indicators(definitions):
-    """批量加载每个 SpecDefinition 对应的 SpecificationOption 列表（通过 name 桥接）"""
-    def_names = [d.name for d in definitions]
-    if not def_names:
-        return {}
+    """批量加载每个 SpecificationDictionary 对应的 SpecificationOption 列表
 
-    spec_dicts = SpecificationDictionary.query.filter(
-        SpecificationDictionary.name.in_(def_names)
-    ).all()
-    spec_dict_map = {sd.name: sd for sd in spec_dicts}
-
-    spec_dict_ids = [sd.id for sd in spec_dicts]
+    现在 definitions 就是 SpecificationDictionary 对象列表，直接用 id 即可。
+    """
+    spec_dict_ids = [d.id for d in definitions]
     if not spec_dict_ids:
         return {}
 
@@ -391,13 +385,11 @@ def _load_definition_indicators(definitions):
 
     definition_indicators = {}
     for d in definitions:
-        sd = spec_dict_map.get(d.name)
-        if sd:
-            opts = options_by_spec_id.get(sd.id, [])
-            if opts:
-                definition_indicators[d.id] = [
-                    {'value': o.value, 'code': o.code} for o in opts
-                ]
+        opts = options_by_spec_id.get(d.id, [])
+        if opts:
+            definition_indicators[d.id] = [
+                {'value': o.value, 'code': o.code} for o in opts
+            ]
     return definition_indicators
 
 
@@ -423,8 +415,8 @@ def list_templates():
 def create_template_page():
     """创建规格模板页面"""
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
-    definitions = SpecDefinition.query.filter_by(is_active=True).order_by(
-        SpecDefinition.category_id, SpecDefinition.display_order
+    definitions = SpecificationDictionary.query.filter_by(is_active=True).order_by(
+        SpecificationDictionary.category_id, SpecificationDictionary.display_order
     ).all()
     test_methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
     test_conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(TestConditionDictionary.display_order).all()
@@ -482,11 +474,12 @@ def view_template(template_id):
     template = SpecTemplate.query.get_or_404(template_id)
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
 
-    # 获取模板中的规格项，按分类组织
+    # 获取模板中的规格项，按分类组织（优先 spec_dict，回退 definition）
     items_by_category = {}
     for item in template.items:
-        if item.definition and item.definition.category_id:
-            cat_id = item.definition.category_id
+        src = item.spec_dict or item.definition
+        if src and src.category_id:
+            cat_id = src.category_id
             if cat_id not in items_by_category:
                 items_by_category[cat_id] = []
             items_by_category[cat_id].append(item)
@@ -506,8 +499,8 @@ def edit_template_page(template_id):
     """编辑规格模板页面"""
     template = SpecTemplate.query.get_or_404(template_id)
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
-    definitions = SpecDefinition.query.filter_by(is_active=True).order_by(
-        SpecDefinition.category_id, SpecDefinition.display_order
+    definitions = SpecificationDictionary.query.filter_by(is_active=True).order_by(
+        SpecificationDictionary.category_id, SpecificationDictionary.display_order
     ).all()
     test_methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
     test_conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(TestConditionDictionary.display_order).all()
@@ -519,12 +512,13 @@ def edit_template_page(template_id):
             definitions_by_category[definition.category_id] = []
         definitions_by_category[definition.category_id].append(definition)
 
-    # 获取模板中已选择的规格项ID和设置
+    # 获取模板中已选择的规格项ID和设置（优先 spec_dict_id，回退 definition_id）
     selected_items = {}
     for item in template.items:
-        selected_items[item.definition_id] = {
+        key = item.spec_dict_id or item.definition_id
+        selected_items[key] = {
             'id': item.id,
-            'definition_id': item.definition_id,  # 必须包含，前端保存时需要
+            'definition_id': key,  # 前端保存时需要
             'general_value': item.general_value,
             'test_condition_id': item.test_condition_id,
             'test_condition_text': item.test_condition_text,
@@ -635,9 +629,11 @@ def api_create_template():
         if use_in_code and general_value:
             options = ensure_code_for_value(options, general_value)
 
+        dict_id = item_data['definition_id']
         item = SpecTemplateItem(
             template_id=template.id,
-            definition_id=item_data['definition_id'],
+            spec_dict_id=dict_id,
+            definition_id=dict_id,  # 保持旧FK兼容
             general_value=item_data.get('general_value'),
             test_condition_id=item_data.get('test_condition_id'),
             test_condition_text=item_data.get('test_condition_text'),
@@ -759,25 +755,29 @@ def api_update_template(template_id):
         if not item_data.get('definition_id'):
             continue
 
-        # 获取规格定义
-        definition = SpecDefinition.query.get(item_data['definition_id'])
+        dict_id = item_data['definition_id']
 
         # 如果参与编码且有通用值，确保有编码映射
         use_in_code = item_data.get('use_in_code', False)
         general_value = item_data.get('general_value')
         options = item_data.get('options') or {}
         if use_in_code and general_value:
-            # 为通用值确保有编码
             options = ensure_code_for_value(options, general_value)
 
-        # 查找已存在的规格项
+        # 查找已存在的规格项（优先 spec_dict_id，回退 definition_id）
         existing_item = SpecTemplateItem.query.filter_by(
             template_id=template.id,
-            definition_id=item_data['definition_id']
+            spec_dict_id=dict_id
         ).first()
+        if not existing_item:
+            existing_item = SpecTemplateItem.query.filter_by(
+                template_id=template.id,
+                definition_id=dict_id
+            ).first()
 
         if existing_item:
             # 更新
+            existing_item.spec_dict_id = dict_id  # 确保新FK已设置
             existing_item.general_value = item_data.get('general_value')
             existing_item.test_condition_id = item_data.get('test_condition_id')
             existing_item.test_condition_text = item_data.get('test_condition_text')
@@ -792,7 +792,8 @@ def api_update_template(template_id):
             # 新增
             new_item = SpecTemplateItem(
                 template_id=template.id,
-                definition_id=item_data['definition_id'],
+                spec_dict_id=dict_id,
+                definition_id=dict_id,  # 保持旧FK兼容
                 general_value=item_data.get('general_value'),
                 test_condition_id=item_data.get('test_condition_id'),
                 test_condition_text=item_data.get('test_condition_text'),
@@ -893,6 +894,7 @@ def api_copy_template(template_id):
     for item in template.items:
         new_item = SpecTemplateItem(
             template_id=new_template.id,
+            spec_dict_id=item.spec_dict_id,
             definition_id=item.definition_id,
             general_value=item.general_value,
             test_condition_id=item.test_condition_id,
@@ -922,8 +924,8 @@ def api_copy_template(template_id):
 def api_definitions_by_category():
     """API: 获取按分类组织的规格定义"""
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
-    definitions = SpecDefinition.query.filter_by(is_active=True).order_by(
-        SpecDefinition.category_id, SpecDefinition.display_order
+    definitions = SpecificationDictionary.query.filter_by(is_active=True).order_by(
+        SpecificationDictionary.category_id, SpecificationDictionary.display_order
     ).all()
 
     result = []

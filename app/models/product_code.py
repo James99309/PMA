@@ -376,26 +376,54 @@ class ProductCodeFieldValue(db.Model):
         return f'<ProductCodeFieldValue {self.field.name}: {self.option.value if self.option else self.custom_value}>'
 
 class SpecificationDictionary(db.Model):
-    """规格字典 - 存储标准化的规格名称"""
+    """规格字典 - 统一主表（合并原 spec_definitions 字段）
+
+    合并前: specification_dictionary(编码层) + spec_definitions(定义层) 靠 name 桥接
+    合并后: specification_dictionary 为唯一主表，包含定义层字段
+    """
     __tablename__ = 'specification_dictionary'
 
     id = Column(Integer, primary_key=True)
     name = Column(String(100), nullable=False, unique=True)  # 规格名称，如"频率范围"
+    name_en = Column(String(100), nullable=True)  # 英文名称（原 spec_definitions.name_en）
     unit = Column(String(20), nullable=True)  # 单位，如"MHz", "dBm"
+    category_id = Column(Integer, ForeignKey('spec_categories.id'), nullable=True)  # 规格分类
+    description = Column(Text, nullable=True)  # 规格说明
+    value_type = Column(String(20), default='text')  # 值类型：text/number/select/boolean
+    allow_attachment = Column(Boolean, default=False)  # 是否允许上传附件
+    default_test_condition_id = Column(Integer, ForeignKey('test_condition_dictionary.id'), nullable=True)
+    default_test_method_id = Column(Integer, ForeignKey('test_method_dictionary.id'), nullable=True)
     is_active = Column(Boolean, default=True)  # 是否活跃（可停用不常用的规格）
     display_order = Column(Integer, nullable=False, default=0, index=True)  # 显示排序（用于拖拽排序）
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # 关系：规格下的指标选项
+    # 关联关系
+    category = db.relationship('SpecCategory', foreign_keys=[category_id])
+    default_test_condition = db.relationship('TestConditionDictionary', foreign_keys=[default_test_condition_id])
+    default_test_method = db.relationship('TestMethodDictionary', foreign_keys=[default_test_method_id])
     options = db.relationship('SpecificationOption', backref='spec', lazy='dynamic', cascade="all, delete-orphan")
+    template_items = db.relationship('SpecTemplateItem', back_populates='spec_dict',
+                                     foreign_keys='SpecTemplateItem.spec_dict_id')
 
     def to_dict(self):
         """转换为字典格式"""
         return {
             'id': self.id,
             'name': self.name,
+            'name_en': self.name_en,
             'unit': self.unit,
+            'category_id': self.category_id,
+            'category_name': self.category.name if self.category else None,
+            'description': self.description,
+            'value_type': self.value_type,
+            'allow_attachment': self.allow_attachment,
+            'display_order': self.display_order,
             'is_active': self.is_active,
+            'default_test_condition_id': self.default_test_condition_id,
+            'default_test_condition': self.default_test_condition.name if self.default_test_condition else None,
+            'default_test_method_id': self.default_test_method_id,
+            'default_test_method': self.default_test_method.name if self.default_test_method else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

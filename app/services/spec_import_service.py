@@ -202,10 +202,11 @@ class SpecImportService:
         # ========== Sheet 2: 规格项选择 ==========
         ws2 = wb.create_sheet(title="规格项选择")
 
-        # 获取所有规格分类和定义
+        # 获取所有规格分类和定义（统一主表）
+        from app.models.product_code import SpecificationDictionary
         spec_categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
-        spec_definitions = SpecDefinition.query.filter_by(is_active=True).order_by(
-            SpecDefinition.category_id, SpecDefinition.display_order
+        spec_definitions = SpecificationDictionary.query.filter_by(is_active=True).order_by(
+            SpecificationDictionary.category_id, SpecificationDictionary.display_order
         ).all()
 
         # 构建分类名称映射
@@ -410,9 +411,11 @@ class SpecImportService:
 
             # 创建规格项
             for idx, item in enumerate(selected_items):
+                dict_id = item['definition_id']
                 template_item = SpecTemplateItem(
                     template_id=template.id,
-                    definition_id=item['definition_id'],
+                    spec_dict_id=dict_id,
+                    definition_id=dict_id,  # 保持旧FK兼容
                     general_value=item.get('general_value'),
                     is_required=item.get('is_required', False),
                     display_order=idx,
@@ -501,9 +504,10 @@ class SpecImportService:
                 errors.append(_('第%(row)d行: 规格ID为空', row=row_idx))
                 continue
 
-            # 查找规格定义
+            # 查找规格定义（统一主表）
+            from app.models.product_code import SpecificationDictionary
             try:
-                definition = SpecDefinition.query.get(int(spec_id))
+                definition = SpecificationDictionary.query.get(int(spec_id))
             except (ValueError, TypeError):
                 errors.append(_('第%(row)d行: 规格ID格式错误', row=row_idx))
                 continue
