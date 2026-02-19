@@ -449,11 +449,6 @@ def ai_stream():
         data = request.get_json() or {}
         content = data.get('content', '').strip()
         conversation_id = data.get('conversation_id')
-        provider = data.get('provider', 'deepseek')
-
-        # 权限检查：非管理员强制使用 deepseek
-        if provider == 'openclaw' and getattr(current_user, 'role', '') not in ('admin', 'ceo'):
-            provider = 'deepseek'
 
         if not content:
             return jsonify({'success': False, 'message': '消息内容不能为空'}), 400
@@ -503,11 +498,10 @@ def ai_stream():
             try:
                 from app.services.chat_ai_service import get_ai_response_stream
 
-                # OpenClaw 使用 conversation_id 作为 session_id 保持上下文
-                oc_session_id = f'pma-conv-{conversation_id}' if provider == 'openclaw' else None
+                oc_session_id = f'pma-conv-{conversation_id}'
 
                 for chunk in get_ai_response_stream(content, current_user, conversation_history,
-                                                    provider=provider, session_id=oc_session_id,
+                                                    session_id=oc_session_id,
                                                     conversation_id=conversation_id):
                     chunk_type = chunk.get('type')
                     if chunk_type == 'content':

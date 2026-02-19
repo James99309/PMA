@@ -249,7 +249,7 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
     gateway_url = os.environ.get('OPENCLAW_GATEWAY_URL', '')
     if not gateway_url:
         logger.warning('未配置 OPENCLAW_GATEWAY_URL')
-        yield {'type': 'content', 'text': '⚠️ OpenClaw 未配置。请联系管理员设置 OPENCLAW_GATEWAY_URL。'}
+        yield {'type': 'content', 'text': '⚠️ AI 服务未配置。请联系管理员设置 OPENCLAW_GATEWAY_URL。'}
         yield {'type': 'done', 'model': 'none', 'prompt_tokens': 0, 'completion_tokens': 0}
         return
 
@@ -257,11 +257,17 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
     if not session_id:
         session_id = f'pma-{uuid.uuid4().hex[:8]}'
 
+    # ① 准备阶段
+    yield {'type': 'status', 'message': '正在理解您的问题...'}
+
     # 注入 DB 查询工具和文件上传工具说明到消息前
     if user:
         db_prompt = _build_db_tool_prompt(user, conversation_id=conversation_id)
         if db_prompt:
             message = f'{db_prompt}\n[用户消息] {message}'
+
+    # ② 连接阶段
+    yield {'type': 'status', 'message': '正在连接 AI 服务...'}
 
     # Use a thread + queue to bridge async websockets → sync generator
     result_queue = queue.Queue()
@@ -271,7 +277,7 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
             asyncio.run(_ws_chat(gateway_url, token, message, session_id, result_queue))
         except Exception as e:
             logger.error(f'OpenClaw WebSocket 线程异常: {e}', exc_info=True)
-            result_queue.put({'type': 'content', 'text': f'⚠️ OpenClaw 服务异常：{e}'})
+            result_queue.put({'type': 'content', 'text': f'⚠️ AI 服务异常：{e}'})
             result_queue.put({'type': 'done', 'model': 'openclaw', 'prompt_tokens': 0, 'completion_tokens': 0})
         finally:
             result_queue.put(None)  # sentinel
@@ -279,16 +285,29 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
     t = threading.Thread(target=_run, daemon=True)
     t.start()
 
+    # 分段超时：每秒检查一次，支持慢速提醒
+    start_time = time.time()
+    slow_warned = False
+
     while True:
         try:
-            item = result_queue.get(timeout=_CHAT_TIMEOUT)
+            item = result_queue.get(timeout=1.0)
         except queue.Empty:
-            logger.error('OpenClaw WebSocket 响应超时')
-            yield {'type': 'content', 'text': '⚠️ OpenClaw 响应超时，请稍后重试。'}
-            yield {'type': 'done', 'model': 'openclaw', 'prompt_tokens': 0, 'completion_tokens': 0}
-            return
+            elapsed = time.time() - start_time
+            if elapsed > 15 and not slow_warned:
+                slow_warned = True
+                yield {'type': 'status', 'message': f'AI 思考时间较长（已等待 {int(elapsed)} 秒），请耐心等待...'}
+            elif elapsed > _CHAT_TIMEOUT:
+                logger.error('OpenClaw WebSocket 响应超时')
+                yield {'type': 'content', 'text': '⚠️ AI 响应超时，请稍后重试。'}
+                yield {'type': 'done', 'model': 'openclaw', 'prompt_tokens': 0, 'completion_tokens': 0}
+                return
+            continue
         if item is None:
             return
+        # 收到消息后重置计时器
+        start_time = time.time()
+        slow_warned = False
         yield item
 
 
@@ -353,9 +372,12 @@ async def _ws_chat(url, token, message, session_key, q):
         if not connect_res.get('ok'):
             error = connect_res.get('error', {})
             msg = error.get('message', '认证失败') if isinstance(error, dict) else str(error)
-            q.put({'type': 'content', 'text': f'⚠️ OpenClaw 连接失败：{msg}'})
+            q.put({'type': 'content', 'text': f'⚠️ AI 连接失败：{msg}'})
             q.put({'type': 'done', 'model': 'openclaw', 'prompt_tokens': 0, 'completion_tokens': 0})
             return
+
+        # 连接成功
+        q.put({'type': 'status', 'message': '正在分析问题...'})
 
         # ------ Step 3: Send chat.send request ------
         chat_id = _req_id()
@@ -376,11 +398,14 @@ async def _ws_chat(url, token, message, session_key, q):
         if not chat_ack.get('ok'):
             error = chat_ack.get('error', {})
             msg = error.get('message', '发送失败') if isinstance(error, dict) else str(error)
-            q.put({'type': 'content', 'text': f'⚠️ OpenClaw 发送消息失败：{msg}'})
+            q.put({'type': 'content', 'text': f'⚠️ AI 发送消息失败：{msg}'})
             q.put({'type': 'done', 'model': 'openclaw', 'prompt_tokens': 0, 'completion_tokens': 0})
             return
 
         run_id = chat_ack.get('payload', {}).get('runId', '')
+
+        # chat.send 已接受，AI 正在思考
+        q.put({'type': 'status', 'message': '正在思考...'})
 
         # ------ Step 4: Stream chat events ------
         model_name = 'openclaw'

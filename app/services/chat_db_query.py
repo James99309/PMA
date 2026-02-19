@@ -504,6 +504,8 @@ def execute_safe_query(sql, user):
 def get_permission_context(user):
     """生成用户权限描述文本，嵌入 system prompt
 
+    包含完整的用户身份和权限摘要，让 AI 能在查询前判断是否越权。
+
     Args:
         user: 当前用户对象
 
@@ -511,14 +513,55 @@ def get_permission_context(user):
         str: 权限描述文本
     """
     username = getattr(user, 'username', '')
+    real_name = getattr(user, 'real_name', '') or username
+    role = getattr(user, 'role', 'user')
+    department = getattr(user, 'department', '') or '未分配'
+
+    # 构建各模块权限级别摘要
+    permission_lines = []
+    if role == 'admin':
+        permission_lines.append('角色: 管理员 — 拥有所有模块的 system 级权限，可查看全部数据')
+    else:
+        modules = ['customer', 'project', 'quotation', 'expense', 'product', 'order']
+        module_names = {
+            'customer': '客户', 'project': '项目', 'quotation': '报价',
+            'expense': '报销单', 'product': '产品', 'order': '订单',
+        }
+        for mod in modules:
+            level = user.get_permission_level(mod)
+            can_view = user.has_permission(mod, 'view')
+            if not can_view:
+                permission_lines.append(f'  {module_names.get(mod, mod)}: 无权访问')
+            else:
+                scope_desc = {
+                    'system': '全部数据',
+                    'company': '同公司数据',
+                    'department': '同部门数据',
+                    'personal': '仅自己的数据+共享数据',
+                }.get(level, level)
+                permission_lines.append(f'  {module_names.get(mod, mod)}: {scope_desc}')
+
+        # 报销单特殊说明
+        expense_level = user.get_permission_level('expense')
+        if expense_level == 'personal':
+            permission_lines.append('  ⚠️ 报销单为个人隐私数据，仅可查看自己和直属下属的')
+
+    permissions_block = '\n'.join(permission_lines)
+
     return (
-        '数据访问限制：\n'
-        '- 系统会自动注入当前用户的权限过滤条件\n'
-        '- 重要：对 companies/projects/quotations/expenses 表进行聚合查询（COUNT/SUM/AVG等）时，'
-        '你必须在 WHERE 中包含 owner_id 条件\n'
+        f'当前用户信息：\n'
+        f'- 姓名: {real_name} (username: {username})\n'
+        f'- 角色: {role}\n'
+        f'- 部门: {department}\n'
+        f'\n'
+        f'数据权限摘要：\n'
+        f'{permissions_block}\n'
+        f'\n'
+        f'权限规则：\n'
+        f'- 如果用户请求的数据超出上述权限范围，直接告知无权访问，不要执行查询\n'
+        f'- 对 companies/projects/quotations/expenses 表的查询必须包含 owner_id 过滤\n'
         f'- 查询自己的数据：WHERE owner_id = (SELECT id FROM users WHERE username=\'{username}\')\n'
-        '- 查询其他用户的数据：先 SELECT id FROM users WHERE real_name=\'目标用户名\'，再用 owner_id 过滤\n'
-        '- products 表无访问限制\n'
-        '- users 表仅允许查询 id, username, real_name, department, role 字段\n'
-        '- 所有支持 is_deleted 的表必须添加 AND is_deleted = FALSE'
+        f'- products 表无访问限制\n'
+        f'- users 表仅允许查询 id, username, real_name, department, role 字段\n'
+        f'- 所有支持 is_deleted 的表必须添加 AND is_deleted = FALSE'
     )

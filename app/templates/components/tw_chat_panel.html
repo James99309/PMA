@@ -330,11 +330,7 @@
                         <!-- 发送者名称（对方消息显示） -->
                         <div x-show="!msg.is_mine && msg.sender_name" class="flex items-center justify-end gap-1.5 mb-1">
                             <span x-show="msg.is_ai || msg.is_ai_response"
-                                  class="text-[9px] px-1 py-0.5 rounded font-medium"
-                                  :class="(msg.ai_provider === 'openclaw' || (msg.ai_model && msg.ai_model.startsWith('openclaw')))
-                                      ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400'
-                                      : 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400'"
-                                  x-text="(msg.ai_provider === 'openclaw' || (msg.ai_model && msg.ai_model.startsWith('openclaw'))) ? 'OpenClaw' : 'DeepSeek'"></span>
+                                  class="text-[9px] px-1 py-0.5 rounded font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400">AI</span>
                             <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400" x-text="msg.sender_name"></span>
                         </div>
 
@@ -632,6 +628,8 @@
                 <div class="inline-flex items-center gap-2 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400">
                     <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>
                     <span x-text="aiStatusMsg"></span>
+                    <span x-show="aiStatusElapsed >= 10" x-cloak
+                          class="text-amber-500 dark:text-amber-400">(<span x-text="aiStatusElapsed"></span>s)</span>
                 </div>
             </div>
 
@@ -808,30 +806,8 @@
                         </div>
                     </div>
 
-                    <!-- 右侧：[模型选择器] + [↑ 发送按钮] -->
+                    <!-- 右侧：[↑ 发送按钮] -->
                     <div class="flex items-center gap-2">
-                        <!-- AI 模型选择器（AI对话或新建AI对话时显示） -->
-                        <div x-show="(activeConv && activeConv.type === 'ai') || (isNewChat && newChatParticipants.length === 0)"
-                             class="flex items-center">
-                            <!-- 管理员：可切换模型 -->
-                            <template x-if="_isAdmin">
-                                <div class="flex items-center">
-                                    <select x-model="aiProvider"
-                                            @change="startNewAIChat()"
-                                            class="text-xs pl-2 pr-5 py-1 bg-slate-200/70 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg focus:outline-none focus:ring-0 cursor-pointer appearance-none border-none"
-                                            style="background-image: url('data:image/svg+xml;charset=UTF-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22%3E%3Cpath fill=%22%2394a3b8%22 d=%22M7 10l5 5 5-5z%22/%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: right 4px center;">
-                                        <option value="deepseek">DeepSeek</option>
-                                        <option value="openclaw">OpenClaw</option>
-                                    </select>
-                                </div>
-                            </template>
-                            <!-- 非管理员：只读显示当前模型 -->
-                            <template x-if="!_isAdmin">
-                                <span class="text-xs text-slate-500 dark:text-slate-400 px-2 py-1 bg-slate-200/70 dark:bg-slate-700 rounded-lg"
-                                      x-text="aiProvider === 'openclaw' ? 'OpenClaw' : 'DeepSeek'"></span>
-                            </template>
-                        </div>
-
                         <!-- 发送按钮（向上箭头圆圈） -->
                         <button @click="sendMessage()"
                                 :disabled="!inputText.trim() && pendingFiles.length === 0"
@@ -1380,9 +1356,35 @@
         font-weight: normal;
     }
 
-    /* AI markdown 样式覆盖 */
-    .prose table { font-size: 12px; }
-    .prose th, .prose td { padding: 4px 8px; }
+    /* AI markdown 表格样式 */
+    .prose table {
+        font-size: 12px;
+        border-collapse: collapse;
+        width: 100%;
+        overflow-x: auto;
+        display: block;
+        max-width: fit-content;
+    }
+    .prose thead { background: rgb(248 250 252); position: sticky; top: 0; }
+    .dark .prose thead { background: rgb(30 41 59); }
+    .prose th {
+        padding: 6px 10px;
+        font-weight: 600;
+        text-align: left;
+        white-space: nowrap;
+        border-bottom: 2px solid rgb(203 213 225);
+    }
+    .dark .prose th { border-bottom-color: rgb(71 85 105); }
+    .prose td {
+        padding: 5px 10px;
+        border-bottom: 1px solid rgb(226 232 240);
+        white-space: nowrap;
+    }
+    .dark .prose td { border-bottom-color: rgb(51 65 85); }
+    .prose tbody tr:hover { background: rgb(248 250 252); }
+    .dark .prose tbody tr:hover { background: rgb(30 41 59); }
+    .prose tbody tr:nth-child(even) { background: rgb(249 250 251); }
+    .dark .prose tbody tr:nth-child(even) { background: rgba(30, 41, 59, 0.5); }
     .prose pre { font-size: 12px; border-radius: 8px; }
     .prose code:not(pre code) {
         background: rgb(241 245 249);
@@ -1455,9 +1457,9 @@ function chatPanel() {
         aiThinkingText: '',
         aiThinkingCollapsed: true,
         aiStatusMsg: '',
-        aiProvider: localStorage.getItem('pma_ai_provider') || 'deepseek',
-        _skipProviderChange: false,
-        _isAdmin: window.__chatUserIsAdmin || false,
+        aiStatusElapsed: 0,
+        _slowTimerInterval: null,
+        _slowTimerStart: 0,
         _aiAbortController: null,
         sending: false,
         searchQuery: '',
@@ -1631,6 +1633,29 @@ function chatPanel() {
             return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         },
 
+        // ----- 慢速计时器 -----
+        _resetSlowTimer() {
+            if (this._slowTimerInterval) clearInterval(this._slowTimerInterval);
+            this.aiStatusElapsed = 0;
+            this._slowTimerStart = Date.now();
+            this._slowTimerInterval = setInterval(() => {
+                if (!this.aiStatusMsg) {
+                    clearInterval(this._slowTimerInterval);
+                    this._slowTimerInterval = null;
+                    this.aiStatusElapsed = 0;
+                    return;
+                }
+                this.aiStatusElapsed = Math.round((Date.now() - this._slowTimerStart) / 1000);
+            }, 1000);
+        },
+        _clearSlowTimer() {
+            if (this._slowTimerInterval) {
+                clearInterval(this._slowTimerInterval);
+                this._slowTimerInterval = null;
+            }
+            this.aiStatusElapsed = 0;
+        },
+
         // ----- 停止 AI 生成 -----
         stopAIGeneration() {
             if (this._aiAbortController) {
@@ -1642,6 +1667,7 @@ function chatPanel() {
             this.aiThinkingText = '';
             this.aiThinkingCollapsed = true;
             this.aiStatusMsg = '';
+            this._clearSlowTimer();
         },
 
         // ----- 面板操作 -----
@@ -1742,6 +1768,7 @@ function chatPanel() {
             this.aiThinkingText = '';
             this.aiThinkingCollapsed = true;
             this.aiStatusMsg = '';
+            this._clearSlowTimer();
             this.showMemberPanel = false;
             this.addMemberQuery = '';
             this.addMemberResults = [];
@@ -1754,17 +1781,6 @@ function chatPanel() {
                 this.showAITip = false;
             }
             await this.loadMessages(conv.id);
-            // AI 对话：从最后一条 AI 消息推断 provider
-            if (conv.type === 'ai' && this.messages.length > 0) {
-                const lastAiMsg = [...this.messages].reverse().find(m => m.is_ai || m.is_ai_response);
-                if (lastAiMsg) {
-                    this._skipProviderChange = true;
-                    const isOpenClaw = (lastAiMsg.ai_model && lastAiMsg.ai_model.startsWith('openclaw'))
-                        || lastAiMsg.ai_provider === 'openclaw';
-                    this.aiProvider = isOpenClaw ? 'openclaw' : 'deepseek';
-                    this.$nextTick(() => { this._skipProviderChange = false; });
-                }
-            }
             this.markAsRead(conv.id);
             if (conv.unread > 0) {
                 conv.unread = 0;
@@ -1791,6 +1807,7 @@ function chatPanel() {
             this.aiThinkingText = '';
             this.aiThinkingCollapsed = true;
             this.aiStatusMsg = '';
+            this._clearSlowTimer();
             this.showMemberPanel = false;
             this.stopPolling();
             this.$nextTick(() => {
@@ -1799,9 +1816,6 @@ function chatPanel() {
         },
 
         startNewAIChat() {
-            if (this._skipProviderChange) return;
-            // 切换模型 → 开启全新 AI 对话（不带历史上下文）
-            localStorage.setItem('pma_ai_provider', this.aiProvider);
             this.activeConv = null;
             this.isNewChat = true;
             this.messages = [];
@@ -1811,6 +1825,7 @@ function chatPanel() {
             this.aiThinkingText = '';
             this.aiThinkingCollapsed = true;
             this.aiStatusMsg = '';
+            this._clearSlowTimer();
             this.stopPolling();
         },
 
@@ -2131,7 +2146,6 @@ function chatPanel() {
                     body: JSON.stringify({
                         content: text,
                         conversation_id: convId,
-                        provider: this.aiProvider,
                     }),
                     signal: this._aiAbortController.signal,
                 });
@@ -2159,18 +2173,26 @@ function chatPanel() {
                         if (!line.startsWith('data: ')) continue;
                         try {
                             const payload = JSON.parse(line.slice(6));
-                            if (payload.type === 'thinking') {
+                            if (payload.type === 'status') {
+                                // AI 处理阶段状态
+                                this.aiStatusMsg = payload.message;
+                                this.aiTyping = false;
+                                this._resetSlowTimer();
+                                this.scrollToBottom();
+                            } else if (payload.type === 'thinking') {
                                 // AI 思考过程
                                 this.aiThinkingText += payload.text;
                                 this.scrollToBottom();
                             } else if (payload.type === 'agent_status') {
-                                // 通用状态消息
+                                // 工具执行状态
                                 this.aiStatusMsg = payload.message;
+                                this._resetSlowTimer();
                                 this.scrollToBottom();
                             } else if (payload.type === 'content') {
                                 // 内容到达：折叠思考、清除状态
                                 this.aiThinkingCollapsed = true;
                                 this.aiStatusMsg = '';
+                                this._clearSlowTimer();
                                 this.aiStreamingMsg += payload.text;
                                 this.scrollToBottom();
                             } else if (payload.type === 'done') {
@@ -2178,13 +2200,13 @@ function chatPanel() {
                                 this.aiThinkingText = '';
                                 this.aiThinkingCollapsed = true;
                                 this.aiStatusMsg = '';
+                                this._clearSlowTimer();
                                 if (this.aiStreamingMsg) {
                                     this.messages.push({
                                         id: payload.message_id || ('ai_' + Date.now()),
                                         content: this.aiStreamingMsg,
                                         is_mine: false,
                                         is_ai: true,
-                                        ai_provider: this.aiProvider,
                                         sender_name: '{{ _("AI 助手") }}',
                                         created_at: new Date().toISOString(),
                                         translation: null,
@@ -2263,7 +2285,6 @@ function chatPanel() {
                         content: '⚠️ AI 响应失败，请重试。',
                         is_mine: false,
                         is_ai: true,
-                        ai_provider: this.aiProvider,
                         sender_name: '{{ _("AI 助手") }}',
                         created_at: new Date().toISOString(),
                     });
@@ -2271,6 +2292,7 @@ function chatPanel() {
                 this.aiThinkingText = '';
                 this.aiThinkingCollapsed = true;
                 this.aiStatusMsg = '';
+                this._clearSlowTimer();
             } finally {
                 console.log('[AI-DEBUG] finally block entered');
                 // 先 abort 关闭底层连接，再 cancel reader
@@ -2285,6 +2307,7 @@ function chatPanel() {
                 this.aiThinkingText = '';
                 this.aiThinkingCollapsed = true;
                 this.aiStatusMsg = '';
+                this._clearSlowTimer();
                 if (this.aiStreamingMsg) {
                     // 若流中断但有内容，将其作为消息显示
                     this.messages.push({
@@ -2292,7 +2315,6 @@ function chatPanel() {
                         content: this.aiStreamingMsg,
                         is_mine: false,
                         is_ai: true,
-                        ai_provider: this.aiProvider,
                         sender_name: '{{ _("AI 助手") }}',
                         created_at: new Date().toISOString(),
                         translation: null,
