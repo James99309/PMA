@@ -10,7 +10,7 @@
   1. test_condition_dictionary    (无 FK)
   2. test_method_dictionary       (无 FK)
   3. spec_categories              (无 FK)
-  4. specification_dictionary     (无 FK)
+  4. specification_dictionary     (→ spec_categories, test_condition/method)
   5. specification_options        (→ specification_dictionary)
   6. spec_definitions             (→ spec_categories, test_condition/method)
   7. product_subcategories        (→ product_categories)
@@ -45,7 +45,7 @@ SYNC_STATE_FILE = Path(__file__).parent / '.sync_spec_last_run'
 
 # NAS 连接配置
 CN_NAS = {
-    'lan': {'ssh': 'ssh -p 72 -o ConnectTimeout=5 -o BatchMode=yes james.sh@192.168.2.107'},
+    'lan': {'ssh': 'ssh -p 72 -o ConnectTimeout=5 -o BatchMode=yes james.sh@100.118.231.15'},
     'wan': {
         'tunnel': 'cloudflared access tcp --hostname ssh.jamesgpone.win --url localhost:2222',
         'ssh': 'ssh -p 2222 -o ConnectTimeout=10 james.sh@localhost',
@@ -59,7 +59,7 @@ CN_NAS = {
 }
 
 SG_NAS = {
-    'lan': {'ssh': 'ssh -o ConnectTimeout=5 -o BatchMode=yes admin@192.168.1.2'},
+    'lan': {'ssh': 'ssh -o ConnectTimeout=5 -o BatchMode=yes admin@100.87.155.40'},
     'wan': {
         'tunnel': 'cloudflared access tcp --hostname sg-ssh.jamesgpone.win --url localhost:2223',
         'ssh': 'ssh -p 2223 -o ConnectTimeout=10 admin@localhost',
@@ -98,9 +98,14 @@ TABLES = [
     },
     {
         'name': 'specification_dictionary',
-        'columns': ['id', 'name', 'unit', 'is_active', 'display_order', 'created_at'],
-        'update_cols': ['name', 'unit', 'is_active', 'display_order'],
-        'has_updated_at': False,
+        'columns': ['id', 'name', 'name_en', 'unit', 'category_id', 'description',
+                     'value_type', 'allow_attachment', 'default_test_condition_id',
+                     'default_test_method_id', 'is_active', 'display_order',
+                     'created_at', 'updated_at'],
+        'update_cols': ['name', 'name_en', 'unit', 'category_id', 'description',
+                        'value_type', 'allow_attachment', 'default_test_condition_id',
+                        'default_test_method_id', 'is_active', 'display_order', 'updated_at'],
+        'has_updated_at': True,
     },
     {
         'name': 'specification_options',
@@ -161,11 +166,12 @@ TABLES = [
         'columns': ['id', 'template_id', 'definition_id', 'general_value',
                      'test_condition_id', 'test_condition_text', 'test_method_id',
                      'test_method_text', 'display_order', 'is_required', 'options',
-                     'created_at', 'updated_at', 'use_in_code', 'code_length'],
+                     'created_at', 'updated_at', 'use_in_code', 'code_length',
+                     'spec_dict_id'],
         'update_cols': ['template_id', 'definition_id', 'general_value',
                         'test_condition_id', 'test_condition_text', 'test_method_id',
                         'test_method_text', 'display_order', 'is_required', 'options',
-                        'updated_at', 'use_in_code', 'code_length'],
+                        'updated_at', 'use_in_code', 'code_length', 'spec_dict_id'],
         'has_updated_at': True,
     },
 ]
@@ -493,6 +499,10 @@ def verify_fk_integrity(sg: NASConnection):
          "SELECT COUNT(*) FROM spec_template_items sti "
          "WHERE sti.definition_id IS NOT NULL AND "
          "NOT EXISTS (SELECT 1 FROM spec_definitions sd WHERE sd.id = sti.definition_id)"),
+        ("spec_template_items → specification_dictionary",
+         "SELECT COUNT(*) FROM spec_template_items sti "
+         "WHERE sti.spec_dict_id IS NOT NULL AND "
+         "NOT EXISTS (SELECT 1 FROM specification_dictionary sd WHERE sd.id = sti.spec_dict_id)"),
     ]
 
     all_ok = True
