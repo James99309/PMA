@@ -150,12 +150,25 @@ class SpecService:
             db.session.flush()
 
             # 3. 生成产品描述（只包含 include_in_description=True 的规格）
-            # 按 display_order 排序，确保描述顺序与用户定义的顺序一致
+            # 按分类排序（SpecCategory.display_order → SpecificationDictionary.display_order）
             filter_kwargs = {id_field: product_id}
-            if hasattr(SpecModel, 'display_order'):
-                all_specs = SpecModel.query.filter_by(**filter_kwargs).order_by(SpecModel.display_order).all()
-            else:
-                all_specs = SpecModel.query.filter_by(**filter_kwargs).order_by(SpecModel.id).all()
+            all_specs = SpecModel.query.filter_by(**filter_kwargs).all()
+
+            # 查询排序依据：按分类→字典排序，与规格面板一致
+            from app.models.product_code import SpecificationDictionary
+            from app.models.spec_template import SpecCategory
+            spec_names = [s.field_name for s in all_specs]
+            dict_map = {d.name: d for d in SpecificationDictionary.query.filter(
+                SpecificationDictionary.name.in_(spec_names)).all()} if spec_names else {}
+            cat_order = {c.id: c.display_order for c in SpecCategory.query.all()}
+
+            def _desc_sort_key(spec):
+                d = dict_map.get(spec.field_name)
+                if d and d.category_id:
+                    return (cat_order.get(d.category_id, 9999), d.display_order or 9999)
+                return (9999, getattr(spec, 'display_order', 9999))
+
+            all_specs.sort(key=_desc_sort_key)
 
             # 检查是否为OVS系统，决定描述使用的语言
             is_ovs = current_app.config.get('IS_OVS', False)
@@ -222,8 +235,7 @@ class SpecService:
                     from app.utils.product_helpers import generate_product_snapshot
                     snapshot = generate_product_snapshot(product, source="manual_update")
                     if snapshot:
-                        import json
-                        product.code_definition_snapshot = json.dumps(snapshot, ensure_ascii=False)
+                        product.code_definition_snapshot = snapshot
                         db.session.commit()
                         logger.info(f"产品 {product_id} 快照已重建")
                 except Exception as e:

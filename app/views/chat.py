@@ -552,6 +552,7 @@ def ai_stream():
                         'message_id': ai_msg.id,
                         'user_message_id': user_msg_id,
                         'conversation_id': conversation_id,
+                        'ai_model': ai_model,
                     }, ensure_ascii=False)
                     yield f'data: {done_data}\n\n'
 

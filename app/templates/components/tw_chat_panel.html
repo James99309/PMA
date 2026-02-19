@@ -314,7 +314,63 @@
 
             <!-- 消息列表 -->
             <template x-for="(msg, index) in messages" :key="msg.id || index">
-                <div class="chat-msg-appear" :class="msg.is_mine ? 'flex justify-start' : 'flex justify-end'">
+                <div class="chat-msg-appear">
+
+                    <!-- ====== AI 消息：Claude 风格 ====== -->
+                    <template x-if="msg.is_ai || msg.is_ai_response">
+                    <div class="group py-1"
+                         @touchstart.passive="onMsgTouchStart($event, msg)"
+                         @touchend="onMsgTouchEnd()"
+                         @touchmove.passive="onMsgTouchEnd()">
+                        <!-- 已撤回 -->
+                        <template x-if="msg.is_deleted">
+                            <div class="text-xs text-slate-400 dark:text-slate-500 italic py-1">{{ _('AI 助手') }} {{ _('已撤回消息') }}</div>
+                        </template>
+                        <!-- 正常 AI 消息 -->
+                        <template x-if="!msg.is_deleted">
+                        <div>
+                            <!-- 头部：名称 + 模型 + 时间 -->
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400"
+                                      x-text="msg.sender_name || '{{ _('AI 助手') }}'"></span>
+                                <span x-show="msg.ai_model" x-text="msg.ai_model"
+                                      class="text-[10px] text-slate-400 dark:text-slate-500 font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded"></span>
+                                <span class="text-[10px] text-slate-400 dark:text-slate-500 ml-auto"
+                                      x-text="formatMsgTime(msg.created_at)"></span>
+                            </div>
+                            <!-- 引用条 -->
+                            <template x-if="msg.reply_to">
+                                <div class="mb-2 px-3 py-1.5 rounded-lg text-[11px] bg-slate-100 dark:bg-slate-700 border-l-2 border-slate-400 dark:border-slate-500">
+                                    <div class="font-medium text-slate-600 dark:text-slate-300" x-text="msg.reply_to?.sender_name"></div>
+                                    <div class="truncate text-slate-500 dark:text-slate-400" x-text="msg.reply_to?.content || ''"></div>
+                                </div>
+                            </template>
+                            <!-- Markdown 内容（无气泡） -->
+                            <div class="prose prose-sm prose-slate dark:prose-invert max-w-none text-sm leading-relaxed"
+                                 x-html="renderMarkdown(msg.content)"></div>
+                            <!-- 底部操作：复制 + 引用 + 转发（hover 显示） -->
+                            <div class="flex items-center gap-0.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                                <button @click="copyMessageContent(msg)" :title="_chatI18n.copy"
+                                        class="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                                    <span class="material-symbols-outlined text-[16px]">content_copy</span>
+                                </button>
+                                <button @click="setReplyTo(msg)" :title="_chatI18n.reply"
+                                        class="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                                    <span class="material-symbols-outlined text-[16px]">reply</span>
+                                </button>
+                                <button @click="openForwardModal(msg)" :title="_chatI18n.forward"
+                                        class="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+                                    <span class="material-symbols-outlined text-[16px]">forward</span>
+                                </button>
+                            </div>
+                        </div>
+                        </template>
+                    </div>
+                    </template>
+
+                    <!-- ====== 普通消息：气泡样式 ====== -->
+                    <template x-if="!(msg.is_ai || msg.is_ai_response)">
+                    <div :class="msg.is_mine ? 'flex justify-start' : 'flex justify-end'">
                     <div class="max-w-[75%]" :class="msg.is_mine ? 'items-start' : 'items-end'">
 
                         <!-- 已撤回消息 -->
@@ -329,8 +385,6 @@
                         <div>
                         <!-- 发送者名称（对方消息显示） -->
                         <div x-show="!msg.is_mine && msg.sender_name" class="flex items-center justify-end gap-1.5 mb-1">
-                            <span x-show="msg.is_ai || msg.is_ai_response"
-                                  class="text-[9px] px-1 py-0.5 rounded font-medium bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400">AI</span>
                             <span class="text-[11px] font-medium text-slate-500 dark:text-slate-400" x-text="msg.sender_name"></span>
                         </div>
 
@@ -391,29 +445,22 @@
                         <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
                              :class="msg.is_mine
                                 ? 'bg-primary text-white rounded-bl-md'
-                                : (msg.is_ai || msg.is_ai_response)
-                                    ? 'bg-violet-50 dark:bg-violet-900/20 text-slate-800 dark:text-slate-200 rounded-br-md border border-violet-200 dark:border-violet-800'
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-br-md'">
-                            <template x-if="msg.is_ai || msg.is_ai_response">
-                                <div class="prose prose-sm prose-slate dark:prose-invert max-w-none" x-html="renderMarkdown(msg.content)"></div>
-                            </template>
-                            <template x-if="!(msg.is_ai || msg.is_ai_response)">
-                                <div>
-                                    <!-- 有翻译时：翻译在上（主要），原文在下（次要） -->
-                                    <template x-if="msg.translation">
-                                        <div>
-                                            <p class="whitespace-pre-wrap" x-text="msg.translation"></p>
-                                            <p class="mt-1.5 pt-1.5 text-xs opacity-50 whitespace-pre-wrap"
-                                               :class="msg.is_mine ? 'border-t border-white/20' : 'border-t border-slate-200 dark:border-slate-700'"
-                                               x-text="msg.content"></p>
-                                        </div>
-                                    </template>
-                                    <!-- 无翻译时：正常显示原文 -->
-                                    <template x-if="!msg.translation">
-                                        <p class="whitespace-pre-wrap" x-text="msg.content"></p>
-                                    </template>
-                                </div>
-                            </template>
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-br-md'">
+                            <div>
+                                <!-- 有翻译时：翻译在上（主要），原文在下（次要） -->
+                                <template x-if="msg.translation">
+                                    <div>
+                                        <p class="whitespace-pre-wrap" x-text="msg.translation"></p>
+                                        <p class="mt-1.5 pt-1.5 text-xs opacity-50 whitespace-pre-wrap"
+                                           :class="msg.is_mine ? 'border-t border-white/20' : 'border-t border-slate-200 dark:border-slate-700'"
+                                           x-text="msg.content"></p>
+                                    </div>
+                                </template>
+                                <!-- 无翻译时：正常显示原文 -->
+                                <template x-if="!msg.translation">
+                                    <p class="whitespace-pre-wrap" x-text="msg.content"></p>
+                                </template>
+                            </div>
                         </div>
                         </template>
 
@@ -552,7 +599,7 @@
                         <!-- hover 操作按钮（复制 + 回复 + 转发） -->
                         <div class="chat-msg-actions hidden md:flex gap-0.5 mb-1 flex-shrink-0"
      style="opacity:0; pointer-events:none; transition:opacity 150ms;">
-                            <button x-show="msg.message_type === 'text' || !msg.message_type || msg.is_ai || msg.is_ai_response"
+                            <button x-show="msg.message_type === 'text' || !msg.message_type"
                                     @click="copyMessageContent(msg)"
                                     :title="_chatI18n.copy"
                                     class="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 cursor-pointer">
@@ -577,30 +624,28 @@
                              x-text="formatMsgTime(msg.created_at)"></div>
                         </div>
                         </template>
-                    </div>
-                </div>
+                    </div><!-- /max-w-[75%] -->
+                    </div><!-- /普通消息 flex 容器 -->
+                    </template><!-- /普通消息 x-if -->
+
+                </div><!-- /chat-msg-appear -->
             </template>
 
-            <!-- AI 正在输入动画 -->
-            <div x-show="aiTyping && !aiThinkingText" class="flex justify-end chat-msg-appear">
-                <div class="max-w-[75%]">
-                    <div class="flex items-center gap-1.5 mb-1">
-                        <span class="text-[11px] font-medium text-violet-500">{{ _('AI 助手') }}</span>
-                        <span class="text-[9px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1 py-0.5 rounded font-medium">AI</span>
-                    </div>
-                    <div class="bg-violet-50 dark:bg-violet-900/20 rounded-2xl rounded-br-md px-4 py-3 border border-violet-200 dark:border-violet-800">
-                        <div class="flex items-center gap-1.5">
-                            <div class="chat-typing-dot w-2 h-2 bg-violet-400 rounded-full"></div>
-                            <div class="chat-typing-dot w-2 h-2 bg-violet-400 rounded-full"></div>
-                            <div class="chat-typing-dot w-2 h-2 bg-violet-400 rounded-full"></div>
-                        </div>
-                    </div>
+            <!-- AI 正在输入动画（Claude 风格） -->
+            <div x-show="aiTyping && !aiThinkingText" class="chat-msg-appear py-1">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400">{{ _('AI 助手') }}</span>
+                </div>
+                <div class="flex items-center gap-1.5 py-1">
+                    <div class="chat-typing-dot w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full"></div>
+                    <div class="chat-typing-dot w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full"></div>
+                    <div class="chat-typing-dot w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full"></div>
                 </div>
             </div>
 
             <!-- AI 思考过程（可折叠） -->
-            <div x-show="aiThinkingText" class="flex justify-end mb-2 chat-msg-appear">
-                <div class="max-w-[75%]">
+            <div x-show="aiThinkingText" class="mb-2 chat-msg-appear">
+                <div>
                     <button @click="aiThinkingCollapsed = !aiThinkingCollapsed"
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors cursor-pointer"
                             :class="aiThinkingCollapsed
@@ -624,7 +669,7 @@
             </div>
 
             <!-- AI 状态消息 -->
-            <div x-show="aiStatusMsg" class="flex justify-end mb-2 chat-msg-appear">
+            <div x-show="aiStatusMsg" class="mb-2 chat-msg-appear">
                 <div class="inline-flex items-center gap-2 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400">
                     <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>
                     <span x-text="aiStatusMsg"></span>
@@ -633,18 +678,13 @@
                 </div>
             </div>
 
-            <!-- AI 正在流式输出 -->
-            <div x-show="aiStreamingMsg" class="flex justify-end chat-msg-appear">
-                <div class="max-w-[75%]">
-                    <div class="flex items-center gap-1.5 mb-1">
-                        <span class="text-[11px] font-medium text-violet-500">{{ _('AI 助手') }}</span>
-                        <span class="text-[9px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1 py-0.5 rounded font-medium">AI</span>
-                    </div>
-                    <div class="bg-violet-50 dark:bg-violet-900/20 rounded-2xl rounded-br-md px-4 py-2.5 text-sm leading-relaxed border border-violet-200 dark:border-violet-800">
-                        <div class="prose prose-sm prose-slate dark:prose-invert max-w-none" x-html="renderMarkdown(aiStreamingMsg)"></div>
-                        <span class="chat-streaming-cursor text-violet-500 text-lg leading-none">▌</span>
-                    </div>
+            <!-- AI 正在流式输出（Claude 风格） -->
+            <div x-show="aiStreamingMsg" class="chat-msg-appear py-1">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400">{{ _('AI 助手') }}</span>
                 </div>
+                <div class="prose prose-sm prose-slate dark:prose-invert max-w-none text-sm leading-relaxed" x-html="renderMarkdown(aiStreamingMsg)"></div>
+                <span class="chat-streaming-cursor text-slate-400 dark:text-slate-500 text-lg leading-none">▌</span>
             </div>
 
             <!-- 停止生成按钮 -->
@@ -939,7 +979,7 @@
             <!-- 操作项 -->
             <div class="grid grid-cols-4 gap-2 px-6 pb-6">
                 <!-- 复制（仅文本消息） -->
-                <button x-show="!msgActionSheet.msg?.message_type || msgActionSheet.msg?.message_type === 'text' || msgActionSheet.msg?.is_ai || msgActionSheet.msg?.is_ai_response"
+                <button x-show="!msgActionSheet.msg?.message_type || msgActionSheet.msg?.message_type === 'text'"
                         @click="copyMessageContent(msgActionSheet.msg); closeMsgActionSheet()"
                         class="flex flex-col items-center gap-2 py-3 rounded-xl active:bg-slate-100 dark:active:bg-slate-700">
                     <span class="material-symbols-outlined text-xl text-slate-600 dark:text-slate-300">content_copy</span>
@@ -2210,6 +2250,7 @@ function chatPanel() {
                                         sender_name: '{{ _("AI 助手") }}',
                                         created_at: new Date().toISOString(),
                                         translation: null,
+                                        ai_model: payload.ai_model || null,
                                     });
                                 }
                                 // 用真实 DB ID 替换临时 user message ID，确保轮询去重生效
