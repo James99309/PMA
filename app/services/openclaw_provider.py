@@ -427,6 +427,11 @@ async def _ws_chat(url, token, message, session_key, q):
             if payload.get('runId') and payload['runId'] != run_id:
                 continue
 
+            # DEBUG: log every event for model-name investigation
+            logger.info(f'[OpenClaw-DEBUG] event={event_name} payload_keys={list(payload.keys())} state={payload.get("state","")} model={payload.get("model","")}')
+            if event_name == 'chat' and payload.get('state') == 'final':
+                logger.info(f'[OpenClaw-DEBUG-FINAL] full_payload={json.dumps(payload, ensure_ascii=False)[:1000]}')
+
             if event_name == 'chat':
                 state = payload.get('state', '')
                 msg_obj = payload.get('message')

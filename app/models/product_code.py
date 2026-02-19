@@ -65,41 +65,6 @@ class ProductSubcategory(db.Model):
     def __repr__(self):
         return f'<ProductSubcategory {self.name} ({self.code_letter})>'
 
-class ProductRegion(db.Model):
-    """
-    ⚠️ DEPRECATED - 此表已废弃
-
-    此表为历史遗留，现已被 ProductCodeField (field_type='origin_location') 替代。
-
-    废弃原因：
-    - 系统已统一使用 product_code_fields 表管理销售区域
-    - 保留此类仅用于兼容历史数据和数据库表定义
-
-    新功能请使用：
-        ProductCodeField.query.filter_by(field_type='origin_location')
-
-    管理页面：/origin-fields（区域信息管理）
-
-    废弃日期：2025-11-20
-    """
-    __tablename__ = 'product_regions'
-
-    id = Column(Integer, primary_key=True)
-    name = Column(String(100), nullable=False)
-    code_letter = Column(String(1), nullable=False)
-    description = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'code_letter': self.code_letter
-        }
-    
-    def __repr__(self):
-        return f'<ProductRegion {self.name} ({self.code_letter})>'
-
 class ProductCodeField(db.Model):
     """产品编码字段模型
 

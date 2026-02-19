@@ -23,7 +23,6 @@ BUSINESS_TABLES = {
     'products': '产品',
     'product_categories': '产品类别',
     'product_subcategories': '产品子类别',
-    'product_regions': '产品区域',
     'inventory': '库存',
     'inventory_transactions': '库存流水',
 }

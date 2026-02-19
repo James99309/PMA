@@ -4,7 +4,7 @@ from app.models.customer import Company, Contact
 from .quotation import Quotation
 from app.models.product import Product
 from app.models.product_spec import ProductSpec
-from app.models.product_code import ProductCategory, ProductSubcategory, ProductRegion, ProductCodeField, ProductCodeFieldOption, ProductCode, ProductCodeFieldValue, SpecificationDictionary
+from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, ProductCode, ProductCodeFieldValue, SpecificationDictionary
 from app.models.product_relation import ProductRelation
 # DEPRECATED - 研发库模型，仅用于访问历史数据 (2025-12-26)
 from app.models.dev_product import DevProduct, DevProductSpec
@@ -57,7 +57,7 @@ from app.models.file_manager import FileLibrary, UserFolder, UserFileRef
 from app.models.knowledge import KnowledgeTag, KnowledgeDocument, KnowledgeChunk
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
-           'ProductCategory', 'ProductSubcategory', 'ProductRegion', 'ProductCodeField',
+           'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
            'ProductCodeFieldOption', 'ProductCode', 'ProductCodeFieldValue', 'SpecificationDictionary',
            'ProductRelation', 'DevProduct', 'DevProductSpec', 'DevProductMilestone', 'StageDependency',
            'StageAttachment', 'StageReview',
