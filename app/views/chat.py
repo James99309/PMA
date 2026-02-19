@@ -498,7 +498,7 @@ def ai_stream():
             try:
                 from app.services.chat_ai_service import get_ai_response_stream
 
-                oc_session_id = f'pma-conv-{conversation_id}'
+                oc_session_id = f'pma-u{current_user.id}-conv-{conversation_id}'
 
                 for chunk in get_ai_response_stream(content, current_user, conversation_history,
                                                     session_id=oc_session_id,

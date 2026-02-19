@@ -333,7 +333,7 @@
                             <div class="flex items-center gap-2 mb-2">
                                 <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400"
                                       x-text="msg.sender_name || '{{ _('AI 助手') }}'"></span>
-                                <span x-show="msg.ai_model" x-text="msg.ai_model"
+                                <span x-show="msg.ai_model && _modelDisplayName(msg.ai_model)" x-text="_modelDisplayName(msg.ai_model)"
                                       class="text-[10px] text-slate-400 dark:text-slate-500 font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded"></span>
                                 <span class="text-[10px] text-slate-400 dark:text-slate-500 ml-auto"
                                       x-text="formatMsgTime(msg.created_at)"></span>
@@ -2977,6 +2977,21 @@ function chatPanel() {
                     this.$refs.messageArea.scrollTop = this.$refs.messageArea.scrollHeight;
                 }
             });
+        },
+
+        _modelDisplayName(raw) {
+            if (!raw) return '';
+            const map = {
+                'deepseek/deepseek-chat': 'DeepSeek V3',
+                'deepseek/deepseek-reasoner': 'DeepSeek R1',
+                'anthropic/claude-opus-4-6': 'Claude Opus',
+                'anthropic/claude-sonnet-4-5-20250929': 'Claude Sonnet',
+                'anthropic/claude-haiku-4-5-20251001': 'Claude Haiku',
+            };
+            if (map[raw]) return map[raw];
+            if (raw === 'openclaw' || raw === 'openclaw/openclaw') return '';
+            const slash = raw.indexOf('/');
+            return slash > 0 ? raw.substring(slash + 1) : raw;
         },
 
         formatMsgTime(isoString) {

@@ -228,7 +228,8 @@ def _build_db_tool_prompt(user, conversation_id=None):
 
 
 def get_openclaw_response_stream(message, conversation_history=None, session_id=None,
-                                 user=None, conversation_id=None):
+                                 user=None, conversation_id=None, user_id=None,
+                                 user_name=None):
     """获取 OpenClaw 流式响应的生成器
 
     通过 WebSocket 直连 OpenClaw Gateway，发送用户消息并流式接收响应。
@@ -260,6 +261,12 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
     # ① 准备阶段
     yield {'type': 'status', 'message': '正在理解您的问题...'}
 
+    # 注入用户身份上下文
+    if user:
+        user_display = user.real_name or user.username or f'User#{user.id}'
+        user_ctx = f'[系统] 当前用户: {user_display} (ID:{user.id})'
+        message = f'{user_ctx}\n{message}'
+
     # 注入 DB 查询工具和文件上传工具说明到消息前
     if user:
         db_prompt = _build_db_tool_prompt(user, conversation_id=conversation_id)
@@ -274,7 +281,8 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
 
     def _run():
         try:
-            asyncio.run(_ws_chat(gateway_url, token, message, session_id, result_queue))
+            asyncio.run(_ws_chat(gateway_url, token, message, session_id, result_queue,
+                                 user_id=user_id, user_name=user_name))
         except Exception as e:
             logger.error(f'OpenClaw WebSocket 线程异常: {e}', exc_info=True)
             result_queue.put({'type': 'content', 'text': f'⚠️ AI 服务异常：{e}'})
@@ -311,7 +319,7 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
         yield item
 
 
-async def _ws_chat(url, token, message, session_key, q):
+async def _ws_chat(url, token, message, session_key, q, user_id=None, user_name=None):
     """Async WebSocket chat session with OpenClaw Gateway.
 
     Connects, authenticates (with device signing), sends a chat message,
@@ -381,15 +389,22 @@ async def _ws_chat(url, token, message, session_key, q):
 
         # ------ Step 3: Send chat.send request ------
         chat_id = _req_id()
+        chat_params = {
+            'sessionKey': session_key,
+            'message': message,
+            'idempotencyKey': uuid.uuid4().hex,
+        }
+        if user_id:
+            chat_params['metadata'] = {
+                'userId': user_id,
+                'userName': user_name or '',
+                'source': 'pma',
+            }
         chat_req = {
             'type': 'req',
             'id': chat_id,
             'method': 'chat.send',
-            'params': {
-                'sessionKey': session_key,
-                'message': message,
-                'idempotencyKey': uuid.uuid4().hex,
-            },
+            'params': chat_params,
         }
         await ws.send(json.dumps(chat_req))
 
@@ -524,9 +539,43 @@ async def _ws_chat(url, token, message, session_key, q):
                 elif stream_type not in ('assistant', 'compaction', 'error', ''):
                     logger.info(f'[OpenClaw-Agent] unhandled stream={stream_type} data={json.dumps(data, ensure_ascii=False)[:300] if isinstance(data, dict) else str(data)[:300]}')
 
+        # ------ Step 5: Retrieve per-response model info via sessions.get RPC ------
+        # WebSocket chat events don't include model/usage; session data does.
+        if model_name == 'openclaw':
+            try:
+                sess_rpc_id = _req_id()
+                await ws.send(json.dumps({
+                    'type': 'req',
+                    'id': sess_rpc_id,
+                    'method': 'sessions.get',
+                    'params': {'sessionKey': session_key},
+                }))
+                sess_rpc_res = await asyncio.wait_for(_recv_response(ws, sess_rpc_id), timeout=5)
+                if sess_rpc_res.get('ok'):
+                    sess_data = sess_rpc_res.get('payload', {})
+                    logger.info(f'[OpenClaw-SessionsGet] ok, payload_keys={list(sess_data.keys())[:10]}')
+                    messages = sess_data.get('messages', [])
+                    for msg in reversed(messages):
+                        if isinstance(msg, dict) and msg.get('role') == 'assistant' and msg.get('model'):
+                            model_name = msg['model']
+                            provider = msg.get('provider', '')
+                            if provider and '/' not in model_name:
+                                model_name = f'{provider}/{model_name}'
+                            msg_usage = msg.get('usage', {})
+                            if isinstance(msg_usage, dict):
+                                prompt_tokens = msg_usage.get('input', msg_usage.get('input_tokens', 0))
+                                completion_tokens = msg_usage.get('output', msg_usage.get('output_tokens', 0))
+                            break
+                else:
+                    logger.warning(f'[OpenClaw-SessionsGet] error: {json.dumps(sess_rpc_res.get("error", {}), ensure_ascii=False)[:200]}')
+            except Exception as e:
+                logger.warning(f'[OpenClaw-SessionsGet] failed: {e}')
+
+        final_model = f'openclaw/{model_name}' if '/' not in model_name else model_name
+        logger.info(f'[OpenClaw-Done] final_model={final_model} tokens={prompt_tokens}/{completion_tokens}')
         q.put({
             'type': 'done',
-            'model': f'openclaw/{model_name}' if '/' not in model_name else model_name,
+            'model': final_model,
             'prompt_tokens': prompt_tokens,
             'completion_tokens': completion_tokens,
         })

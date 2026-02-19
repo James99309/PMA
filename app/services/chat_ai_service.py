@@ -67,7 +67,9 @@ def get_ai_response_stream(message, user, conversation_history=None,
         from app.services.openclaw_provider import get_openclaw_response_stream
         yield from get_openclaw_response_stream(
             message, conversation_history, session_id,
-            user=user, conversation_id=conversation_id)
+            user=user, conversation_id=conversation_id,
+            user_id=user.id if user else None,
+            user_name=(user.real_name or user.username) if user else None)
     except Exception as e:
         logger.error(f'AI 流式响应异常: {e}', exc_info=True)
         yield {'type': 'content', 'text': '抱歉，AI 服务暂时不可用，请稍后重试。'}
