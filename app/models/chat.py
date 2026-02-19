@@ -86,6 +86,13 @@ class ChatConversation(db.Model):
                 lm_content = '[客户卡片]'
             elif last_message.message_type == 'project_card':
                 lm_content = '[项目卡片]'
+            elif last_message.message_type == 'form_result_card':
+                try:
+                    import json
+                    card = json.loads(last_message.content or '{}')
+                    lm_content = f'[已创建: {card.get("entity_name", "记录")}]'
+                except (json.JSONDecodeError, TypeError):
+                    lm_content = '[表单操作]'
             result['last_message'] = {
                 'id': last_message.id,
                 'content': lm_content,
@@ -187,7 +194,7 @@ class ChatMessage(db.Model):
                 result['translation_label'] = 'Original (English)' if self.source_language == 'en' else '原文（中文）'
 
         # 卡片消息解析
-        if self.message_type in ('customer_card', 'project_card'):
+        if self.message_type in ('customer_card', 'project_card', 'form_result_card'):
             try:
                 import json
                 result['card_data'] = json.loads(self.content) if self.content else {}

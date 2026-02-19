@@ -316,8 +316,107 @@
             <template x-for="(msg, index) in messages" :key="msg.id || index">
                 <div class="chat-msg-appear">
 
+                    <!-- ====== 交互式表单卡片（active_form） ====== -->
+                    <template x-if="msg.message_type === 'active_form'">
+                    <div class="py-2">
+                        <div class="max-w-[400px]">
+                            <!-- 表单标题栏 -->
+                            <div class="rounded-t-xl px-4 py-2.5 flex items-center gap-2"
+                                 :class="msg._formSchema?.action === 'edit' ? 'bg-blue-500' : 'bg-violet-500'">
+                                <span class="material-symbols-outlined text-white text-lg"
+                                      x-text="msg._formSchema?.action === 'edit' ? 'edit' : msg._formSchema?.entity_type === 'contact' ? 'person_add' : 'add_business'"></span>
+                                <span class="text-sm font-medium text-white" x-text="msg._formSchema?.title || ''"></span>
+                            </div>
+                            <!-- 表单内容 -->
+                            <div class="bg-white dark:bg-slate-800 border border-t-0 border-slate-200 dark:border-slate-700 rounded-b-xl px-4 py-3">
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-3" x-text="msg._formSchema?.context || ''"></p>
+                                <template x-for="field in (msg._formSchema?.fields || []).filter(f => f.type !== 'hidden')" :key="field.name">
+                                    <div class="mb-3">
+                                        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                            <span x-text="field.label"></span>
+                                            <span x-show="field.required" class="text-red-500 ml-0.5">*</span>
+                                        </label>
+                                        <!-- text input -->
+                                        <template x-if="field.type === 'text'">
+                                            <input type="text"
+                                                   x-model="msg._formValues[field.name]"
+                                                   @input="if(msg._formErrors) delete msg._formErrors[field.name]"
+                                                   class="w-full text-sm px-3 py-2 rounded-lg border transition-colors focus:outline-none focus:ring-1"
+                                                   :class="msg._formErrors?.[field.name]
+                                                       ? 'border-red-300 dark:border-red-600 focus:ring-red-300 focus:border-red-300'
+                                                       : 'border-slate-200 dark:border-slate-600 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white'">
+                                        </template>
+                                        <!-- select -->
+                                        <template x-if="field.type === 'select'">
+                                            <select x-model="msg._formValues[field.name]"
+                                                    @change="if(msg._formErrors) delete msg._formErrors[field.name]"
+                                                    class="w-full text-sm px-3 py-2 rounded-lg border transition-colors focus:outline-none focus:ring-1"
+                                                    :class="msg._formErrors?.[field.name]
+                                                        ? 'border-red-300 dark:border-red-600 focus:ring-red-300 focus:border-red-300'
+                                                        : 'border-slate-200 dark:border-slate-600 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white'">
+                                                <option value="">--</option>
+                                                <template x-for="opt in getFormFieldOptions(field.options_key)" :key="opt.value">
+                                                    <option :value="opt.value" x-text="opt.label"></option>
+                                                </template>
+                                            </select>
+                                        </template>
+                                        <!-- textarea -->
+                                        <template x-if="field.type === 'textarea'">
+                                            <textarea x-model="msg._formValues[field.name]"
+                                                      rows="2"
+                                                      class="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white resize-none"></textarea>
+                                        </template>
+                                        <!-- 错误提示 -->
+                                        <p x-show="msg._formErrors?.[field.name]"
+                                           class="text-[11px] text-red-500 mt-0.5"
+                                           x-text="msg._formErrors?.[field.name]"></p>
+                                    </div>
+                                </template>
+                                <!-- 按钮 -->
+                                <div class="flex justify-end gap-2 mt-4">
+                                    <button @click="cancelChatForm(msg)"
+                                            :disabled="formSubmitting"
+                                            class="px-4 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                                            x-text="_chatI18n.formCancel"></button>
+                                    <button @click="submitChatForm(msg)"
+                                            :disabled="formSubmitting"
+                                            class="px-4 py-1.5 text-sm rounded-lg text-white cursor-pointer transition-colors disabled:opacity-50"
+                                            :class="msg._formSchema?.action === 'edit' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-violet-500 hover:bg-violet-600'">
+                                        <span x-show="!formSubmitting" x-text="_chatI18n.formSubmit"></span>
+                                        <span x-show="formSubmitting" class="inline-flex items-center gap-1.5">
+                                            <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>
+                                            <span x-text="_chatI18n.formSubmitting"></span>
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    </template>
+
+                    <!-- ====== 表单操作结果卡片（form_result_card） ====== -->
+                    <template x-if="msg.message_type === 'form_result_card'">
+                    <div class="py-2">
+                        <div class="max-w-[400px] rounded-xl border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 px-4 py-3 cursor-pointer hover:shadow-md transition-shadow"
+                             @click="msg.card_data?.entity_type === 'customer' ? window.open('/customer/' + msg.card_data.entity_id + '/view', '_blank')
+                                   : msg.card_data?.entity_type === 'contact' && msg.card_data?.company_id ? window.open('/customer/' + msg.card_data.company_id + '/view', '_blank')
+                                   : null">
+                            <div class="flex items-center gap-2 mb-1.5">
+                                <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-lg">check_circle</span>
+                                <span class="text-xs font-medium text-green-700 dark:text-green-400"
+                                      x-text="(msg.card_data?.action === 'edit' ? _chatI18n.formUpdated : _chatI18n.formCreated)"></span>
+                            </div>
+                            <div class="text-sm font-semibold text-slate-900 dark:text-white" x-text="msg.card_data?.entity_name || ''"></div>
+                            <div class="flex items-center justify-end mt-2 text-[10px] text-green-600 dark:text-green-400">
+                                <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+                                <span x-text="_chatI18n.formViewDetail"></span>
+                            </div>
+                        </div>
+                    </div>
+                    </template>
+
                     <!-- ====== AI 消息：Claude 风格 ====== -->
-                    <template x-if="msg.is_ai || msg.is_ai_response">
+                    <template x-if="(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card'">
                     <div class="group py-1"
                          @touchstart.passive="onMsgTouchStart($event, msg)"
                          @touchend="onMsgTouchEnd()"
@@ -333,7 +432,7 @@
                             <div class="flex items-center gap-2 mb-2">
                                 <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400"
                                       x-text="msg.sender_name || '{{ _('AI 助手') }}'"></span>
-                                <span x-show="msg.ai_model" x-text="msg.ai_model"
+                                <span x-show="msg.ai_model && _modelDisplayName(msg.ai_model)" x-text="_modelDisplayName(msg.ai_model)"
                                       class="text-[10px] text-slate-400 dark:text-slate-500 font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded"></span>
                                 <span class="text-[10px] text-slate-400 dark:text-slate-500 ml-auto"
                                       x-text="formatMsgTime(msg.created_at)"></span>
@@ -369,7 +468,7 @@
                     </template>
 
                     <!-- ====== 普通消息：气泡样式 ====== -->
-                    <template x-if="!(msg.is_ai || msg.is_ai_response)">
+                    <template x-if="!(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card'">
                     <div :class="msg.is_mine ? 'flex justify-start' : 'flex justify-end'">
                     <div class="max-w-[75%]" :class="msg.is_mine ? 'items-start' : 'items-end'">
 
@@ -1543,6 +1642,9 @@ function chatPanel() {
         entitySelectedProject: null,
         _entitySearchDebounce: null,
         entitySearching: false,
+        // 表单交互
+        formOptions: null,       // 下拉选项（init时加载）
+        formSubmitting: false,   // 提交中
         // 确认框 & Toast
         confirmDialog: { show: false, message: '', onConfirm: null },
         toastMsg: '',
@@ -1614,10 +1716,21 @@ function chatPanel() {
             entityViewDetail: '{{ _("查看详情") }}',
             customerCardLabel: '{{ _("[客户卡片]") }}',
             projectCardLabel: '{{ _("[项目卡片]") }}',
+            formResultLabel: '{{ _("[表单操作]") }}',
+            formSubmit: '{{ _("提交") }}',
+            formCancel: '{{ _("取消") }}',
+            formSubmitting: '{{ _("提交中...") }}',
+            formSuccess: '{{ _("操作成功") }}',
+            formFailed: '{{ _("操作失败") }}',
+            formRequired: '{{ _("必填") }}',
+            formCreated: '{{ _("已创建") }}',
+            formUpdated: '{{ _("已更新") }}',
+            formViewDetail: '{{ _("查看详情") }}',
         },
 
         // ----- 初始化 -----
         init() {
+            this.loadFormOptions();
             this.$watch('chatOpen', (val) => {
                 if (Alpine.store('chat')) {
                     Alpine.store('chat').panelOpen = val;
@@ -1789,6 +1902,7 @@ function chatPanel() {
                 avatar: displayName ? displayName[0] : '?',
                 lastMsg: lm ? (lm.message_type === 'customer_card' ? this._chatI18n.customerCardLabel
                     : lm.message_type === 'project_card' ? this._chatI18n.projectCardLabel
+                    : lm.message_type === 'form_result_card' ? this._chatI18n.formResultLabel
                     : lm.content || '') : '',
                 time: lm && lm.created_at ? this.formatMsgTime(lm.created_at) : '',
                 unread: c.unread_count || 0,
@@ -2241,6 +2355,11 @@ function chatPanel() {
                                 this.aiThinkingCollapsed = true;
                                 this.aiStatusMsg = '';
                                 this._clearSlowTimer();
+                                // 清除可能残留的表单标记文本
+                                if (this.aiStreamingMsg) {
+                                    const _fmIdx = this.aiStreamingMsg.indexOf('[[FORM:');
+                                    if (_fmIdx !== -1) this.aiStreamingMsg = this.aiStreamingMsg.substring(0, _fmIdx).trimEnd();
+                                }
                                 if (this.aiStreamingMsg) {
                                     this.messages.push({
                                         id: payload.message_id || ('ai_' + Date.now()),
@@ -2287,6 +2406,33 @@ function chatPanel() {
                                     }
                                 }
                                 streamDone = true;
+                            } else if (payload.type === 'form_request') {
+                                // AI 返回了表单请求 — 清除流式消息中可能残留的表单标记
+                                if (this.aiStreamingMsg) {
+                                    const markerIdx = this.aiStreamingMsg.indexOf('[[FORM:');
+                                    if (markerIdx !== -1) {
+                                        this.aiStreamingMsg = this.aiStreamingMsg.substring(0, markerIdx).trimEnd();
+                                    }
+                                }
+                                const schema = payload.form_schema;
+                                if (schema) {
+                                    const formValues = {};
+                                    for (const field of schema.fields) {
+                                        formValues[field.name] = field.prefill || '';
+                                    }
+                                    this.messages.push({
+                                        id: 'active_form_' + Date.now(),
+                                        message_type: 'active_form',
+                                        is_ai: true,
+                                        is_ai_response: true,
+                                        sender_name: '{{ _("AI 助手") }}',
+                                        created_at: new Date().toISOString(),
+                                        _formSchema: schema,
+                                        _formValues: formValues,
+                                        _formErrors: {},
+                                    });
+                                    this.scrollToBottom();
+                                }
                             } else if (payload.type === 'topic_update') {
                                 // 更新侧边栏对话名称（AI 自动生成话题标题）
                                 const targetConvId = payload.conversation_id || convId;
@@ -2871,6 +3017,8 @@ function chatPanel() {
             if (msg.message_type === 'file') return this._chatI18n.fileLabel + ' ' + (msg.file_name || '');
             if (msg.message_type === 'customer_card') return this._chatI18n.customerCardLabel;
             if (msg.message_type === 'project_card') return this._chatI18n.projectCardLabel;
+            if (msg.message_type === 'form_result_card') return this._chatI18n.formResultLabel;
+            if (msg.message_type === 'active_form') return this._chatI18n.formResultLabel;
             return msg.content || '';
         },
 
@@ -2961,6 +3109,101 @@ function chatPanel() {
             }
         },
 
+        // ----- 表单交互 -----
+        async loadFormOptions() {
+            try {
+                const resp = await fetch('/chat/api/forms/options');
+                const data = await resp.json();
+                if (data.success) this.formOptions = data.data;
+            } catch (e) {
+                console.error('Failed to load form options:', e);
+            }
+        },
+
+        getFormFieldOptions(optionsKey) {
+            if (!this.formOptions || !optionsKey) return [];
+            return this.formOptions[optionsKey] || [];
+        },
+
+        async submitChatForm(msg) {
+            if (this.formSubmitting || !msg._formSchema) return;
+
+            // 客户端验证必填字段
+            const schema = msg._formSchema;
+            const values = msg._formValues || {};
+            const errors = {};
+            for (const field of schema.fields) {
+                if (field.required && !values[field.name]?.trim()) {
+                    errors[field.name] = this._chatI18n.formRequired;
+                }
+            }
+            if (Object.keys(errors).length > 0) {
+                msg._formErrors = errors;
+                return;
+            }
+
+            this.formSubmitting = true;
+            try {
+                const body = {
+                    entity_type: schema.entity_type,
+                    action: schema.action,
+                    conversation_id: this.activeConv?.id,
+                    form_data: values,
+                };
+                // edit 操作需要 entity_id
+                if (schema.action === 'edit' && values.id) {
+                    body.entity_id = values.id;
+                }
+                const resp = await fetch('/chat/api/forms/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '',
+                    },
+                    body: JSON.stringify(body),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    // 替换消息为 form_result_card
+                    const idx = this.messages.indexOf(msg);
+                    if (idx >= 0) {
+                        this.messages[idx] = {
+                            id: 'form_result_' + Date.now(),
+                            message_type: 'form_result_card',
+                            is_ai: true,
+                            is_ai_response: true,
+                            sender_name: '{{ _("AI 助手") }}',
+                            created_at: new Date().toISOString(),
+                            card_data: {
+                                entity_type: data.data.entity_type,
+                                action: schema.action,
+                                entity_id: data.data.entity_id,
+                                entity_name: data.data.entity_name,
+                                company_id: data.data.company_id,
+                                company_name: data.data.company_name,
+                            },
+                        };
+                    }
+                    this.showToast(this._chatI18n.formSuccess);
+                    this.scrollToBottom();
+                } else {
+                    this.showToast(data.message || this._chatI18n.formFailed);
+                }
+            } catch (e) {
+                console.error('Form submit failed:', e);
+                this.showToast(this._chatI18n.formFailed);
+            } finally {
+                this.formSubmitting = false;
+            }
+        },
+
+        cancelChatForm(msg) {
+            const idx = this.messages.indexOf(msg);
+            if (idx >= 0) {
+                this.messages.splice(idx, 1);
+            }
+        },
+
         // ----- 确认框 & Toast -----
         showConfirm(message, onConfirm) {
             this.confirmDialog = { show: true, message, onConfirm };
@@ -2977,6 +3220,23 @@ function chatPanel() {
                     this.$refs.messageArea.scrollTop = this.$refs.messageArea.scrollHeight;
                 }
             });
+        },
+
+        _modelDisplayName(raw) {
+            if (!raw) return '';
+            const map = {
+                'deepseek/deepseek-chat': 'DeepSeek V3',
+                'deepseek/deepseek-reasoner': 'DeepSeek R1',
+                'anthropic/claude-opus-4-6': 'Claude Opus',
+                'anthropic/claude-sonnet-4-5-20250929': 'Claude Sonnet',
+                'anthropic/claude-haiku-4-5-20251001': 'Claude Haiku',
+            };
+            if (map[raw]) return map[raw];
+            // Hide legacy 'openclaw/openclaw' entries
+            if (raw === 'openclaw' || raw === 'openclaw/openclaw') return '';
+            // Strip provider prefix for unknown models
+            const slash = raw.indexOf('/');
+            return slash > 0 ? raw.substring(slash + 1) : raw;
         },
 
         formatMsgTime(isoString) {

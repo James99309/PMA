@@ -8,9 +8,11 @@
 - 用户搜索（@提及）
 - AI SSE 流式响应
 """
+import copy
 import json
 import logging
 import os
+import re
 import uuid
 from functools import wraps
 
@@ -25,6 +27,54 @@ from app.services import chat_service
 logger = logging.getLogger(__name__)
 
 chat = Blueprint('chat', __name__, url_prefix='/chat')
+
+# ---------------------------------------------------------------------------
+# 表单交互 Schema 定义
+# ---------------------------------------------------------------------------
+
+FORM_SCHEMAS = {
+    'create_customer': {
+        'title': '新建客户', 'entity_type': 'customer', 'action': 'create',
+        'context': '请补充以下客户信息：',
+        'fields': [
+            {'name': 'company_name', 'label': '企业名称', 'type': 'text', 'required': True},
+            {'name': 'company_type', 'label': '企业类型', 'type': 'select', 'options_key': 'company_type', 'required': True},
+            {'name': 'source', 'label': '来源', 'type': 'select', 'options_key': 'source', 'required': True},
+            {'name': 'country', 'label': '国家', 'type': 'text', 'required': False},
+            {'name': 'address', 'label': '地址', 'type': 'text', 'required': False},
+            {'name': 'industry', 'label': '行业', 'type': 'select', 'options_key': 'industry', 'required': False},
+            {'name': 'notes', 'label': '备注', 'type': 'textarea', 'required': False},
+        ]
+    },
+    'edit_customer': {
+        'title': '修改客户信息', 'entity_type': 'customer', 'action': 'edit',
+        'context': '修改需要更新的字段：',
+        'fields': [
+            {'name': 'company_name', 'label': '企业名称', 'type': 'text', 'required': False},
+            {'name': 'company_type', 'label': '企业类型', 'type': 'select', 'options_key': 'company_type', 'required': False},
+            {'name': 'source', 'label': '来源', 'type': 'select', 'options_key': 'source', 'required': False},
+            {'name': 'country', 'label': '国家', 'type': 'text', 'required': False},
+            {'name': 'address', 'label': '地址', 'type': 'text', 'required': False},
+            {'name': 'industry', 'label': '行业', 'type': 'select', 'options_key': 'industry', 'required': False},
+            {'name': 'notes', 'label': '备注', 'type': 'textarea', 'required': False},
+        ]
+    },
+    'create_contact': {
+        'title': '新建联系人', 'entity_type': 'contact', 'action': 'create',
+        'context': '请补充联系人信息：',
+        'fields': [
+            {'name': 'company_id', 'type': 'hidden'},
+            {'name': 'name', 'label': '姓名', 'type': 'text', 'required': True},
+            {'name': 'department', 'label': '部门', 'type': 'text', 'required': False},
+            {'name': 'position', 'label': '职位', 'type': 'text', 'required': False},
+            {'name': 'phone', 'label': '电话', 'type': 'text', 'required': False},
+            {'name': 'email', 'label': '邮箱', 'type': 'text', 'required': False},
+            {'name': 'notes', 'label': '备注', 'type': 'textarea', 'required': False},
+        ]
+    }
+}
+
+FORM_MARKER_RE = re.compile(r'\[\[FORM:(\w+)\|(\{.*?\})\]\]', re.DOTALL)
 
 
 # ---------------------------------------------------------------------------
@@ -469,43 +519,32 @@ def ai_stream():
         if not user_msg_result.get('success'):
             return jsonify(user_msg_result), 500
 
-        # 2. 获取对话历史（最近 20 条）
-        conversation_history = []
-        try:
-            recent_msgs = ChatMessage.query.filter_by(
-                conversation_id=conversation_id
-            ).order_by(ChatMessage.created_at.desc()).limit(20).all()
+        user_msg_id = user_msg_result.get('data', {}).get('id')
 
-            # 按时间正序排列，排除刚发的那条用户消息
-            recent_msgs.reverse()
-            user_msg_id = user_msg_result.get('data', {}).get('id')
-            for m in recent_msgs:
-                if m.id == user_msg_id:
-                    continue
-                if m.is_ai_response:
-                    conversation_history.append({'role': 'assistant', 'content': m.content or ''})
-                else:
-                    conversation_history.append({'role': 'user', 'content': m.content or ''})
-        except Exception as he:
-            logger.warning(f"获取对话历史失败: {he}")
-
-        # 3. 构建 SSE 流
+        # 2. 构建 SSE 流（OpenClaw 通过 sessionKey 自行管理对话上下文，无需传历史）
         def generate():
             full_response = ''
             ai_model = None
             ai_prompt_tokens = 0
             ai_completion_tokens = 0
+            _form_marker_detected = False  # 检测到 [[FORM: 后停止向前端输出内容
             try:
                 from app.services.chat_ai_service import get_ai_response_stream
 
-                oc_session_id = f'pma-conv-{conversation_id}'
+                oc_session_id = f'pma-u{current_user.id}-conv-{conversation_id}'
 
-                for chunk in get_ai_response_stream(content, current_user, conversation_history,
+                for chunk in get_ai_response_stream(content, current_user,
                                                     session_id=oc_session_id,
                                                     conversation_id=conversation_id):
                     chunk_type = chunk.get('type')
                     if chunk_type == 'content':
                         full_response += chunk.get('text', '')
+                        # 检测到表单标记开头后，停止向前端输出后续内容
+                        if not _form_marker_detected and '[[FORM:' in full_response:
+                            _form_marker_detected = True
+                            continue  # 不再发送，标记及之后的内容由 done 阶段处理
+                        if _form_marker_detected:
+                            continue  # 标记后续内容不发给前端
                     elif chunk_type == 'done':
                         ai_model = chunk.get('model')
                         ai_prompt_tokens = chunk.get('prompt_tokens', 0)
@@ -522,6 +561,27 @@ def ai_stream():
 
                 if full_response:
                     from datetime import datetime, timezone
+
+                    # 检测并处理表单标记 [[FORM:action|{json}]]
+                    form_schema_event = None
+                    form_match = FORM_MARKER_RE.search(full_response)
+                    if form_match:
+                        try:
+                            action_key = form_match.group(1)
+                            prefill = json.loads(form_match.group(2))
+                            if action_key in FORM_SCHEMAS:
+                                schema = copy.deepcopy(FORM_SCHEMAS[action_key])
+                                for field in schema['fields']:
+                                    if field['name'] in prefill:
+                                        field['prefill'] = prefill[field['name']]
+                                form_schema_event = json.dumps({
+                                    'type': 'form_request',
+                                    'form_schema': schema,
+                                }, ensure_ascii=False)
+                            # 剥离标记后保存纯文本
+                            full_response = FORM_MARKER_RE.sub('', full_response).strip()
+                        except (json.JSONDecodeError, KeyError) as fe:
+                            logger.warning(f"表单标记解析失败: {fe}")
 
                     ai_msg = ChatMessage(
                         conversation_id=conversation_id,
@@ -555,6 +615,10 @@ def ai_stream():
                         'ai_model': ai_model,
                     }, ensure_ascii=False)
                     yield f'data: {done_data}\n\n'
+
+                    # 发送表单请求事件（在 done 之后，确保前端已处理完消息）
+                    if form_schema_event:
+                        yield f'data: {form_schema_event}\n\n'
 
                     # 自动生成话题标题（仅首次，done 之后发送以确保前端对话对象已创建）
                     try:
@@ -815,7 +879,227 @@ def ai_db_schema():
 
 
 # ---------------------------------------------------------------------------
-# 17. AI 文件上传 API（供 OpenClaw 等外部 AI 上传生成的文件到聊天）
+# 17. 表单选项 API
+# ---------------------------------------------------------------------------
+
+@chat.route('/api/forms/options', methods=['GET'])
+@login_required
+def form_options():
+    """返回表单下拉选项（company_type, source, industry）"""
+    try:
+        from app.utils.dictionary_helpers import (
+            get_company_type_options,
+            get_report_source_options,
+            get_industry_options,
+        )
+        return jsonify({
+            'success': True,
+            'data': {
+                'company_type': [{'value': k, 'label': v} for k, v in get_company_type_options()],
+                'source': [{'value': k, 'label': v} for k, v in get_report_source_options()],
+                'industry': [{'value': k, 'label': v} for k, v in get_industry_options()],
+            }
+        })
+    except Exception as e:
+        logger.error(f"获取表单选项失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 18. 表单提交 API
+# ---------------------------------------------------------------------------
+
+@chat.route('/api/forms/submit', methods=['POST'])
+@login_required
+def form_submit():
+    """统一表单提交端点"""
+    try:
+        data = request.get_json() or {}
+        entity_type = data.get('entity_type')
+        action = data.get('action')
+        conversation_id = data.get('conversation_id')
+        form_data = data.get('form_data', {})
+        entity_id = data.get('entity_id')
+
+        if entity_type == 'customer' and action == 'create':
+            return _handle_create_customer(form_data, conversation_id, current_user)
+        elif entity_type == 'customer' and action == 'edit':
+            if not entity_id:
+                return jsonify({'success': False, 'message': '缺少 entity_id'}), 400
+            return _handle_edit_customer(entity_id, form_data, conversation_id, current_user)
+        elif entity_type == 'contact' and action == 'create':
+            return _handle_create_contact(form_data, conversation_id, current_user)
+        else:
+            return jsonify({'success': False, 'message': f'不支持的操作: {entity_type}/{action}'}), 400
+
+    except Exception as e:
+        logger.error(f"表单提交失败: {e}", exc_info=True)
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def _handle_create_customer(form_data, conversation_id, user):
+    """处理创建客户表单"""
+    from app.models.customer import Company
+    from app.permissions import has_permission
+
+    if not has_permission('customer', 'create'):
+        return jsonify({'success': False, 'message': '没有创建客户的权限'}), 403
+
+    company_name = (form_data.get('company_name') or '').strip()
+    company_type = (form_data.get('company_type') or '').strip()
+    source = (form_data.get('source') or '').strip()
+
+    if not company_name:
+        return jsonify({'success': False, 'message': '企业名称不能为空'}), 400
+    if not company_type:
+        return jsonify({'success': False, 'message': '企业类型不能为空'}), 400
+    if not source:
+        return jsonify({'success': False, 'message': '来源不能为空'}), 400
+
+    company = Company(
+        company_name=company_name,
+        company_type=company_type,
+        source=source,
+        country=form_data.get('country', ''),
+        address=form_data.get('address', ''),
+        industry=form_data.get('industry', ''),
+        notes=form_data.get('notes', ''),
+        owner_id=user.id,
+        status='active',
+    )
+    db.session.add(company)
+    db.session.flush()  # 获取 ID
+
+    # 创建 form_result_card 消息
+    if conversation_id:
+        _save_form_result_card(conversation_id, 'customer', 'create', company.id, company_name)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'entity_type': 'customer',
+            'entity_id': company.id,
+            'entity_name': company_name,
+        }
+    })
+
+
+def _handle_edit_customer(entity_id, form_data, conversation_id, user):
+    """处理修改客户表单"""
+    from app.models.customer import Company
+    from app.utils.access_control import can_view_company
+
+    company = Company.query.filter_by(id=entity_id, is_deleted=False).first()
+    if not company:
+        return jsonify({'success': False, 'message': '客户不存在'}), 404
+    if not can_view_company(user, company):
+        return jsonify({'success': False, 'message': '没有权限修改此客户'}), 403
+
+    # 只更新用户填了的字段
+    updatable = ['company_name', 'company_type', 'source', 'country', 'address', 'industry', 'notes']
+    for field in updatable:
+        val = form_data.get(field)
+        if val is not None and str(val).strip():
+            setattr(company, field, str(val).strip())
+
+    if conversation_id:
+        _save_form_result_card(conversation_id, 'customer', 'edit', company.id, company.company_name)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'entity_type': 'customer',
+            'entity_id': company.id,
+            'entity_name': company.company_name,
+        }
+    })
+
+
+def _handle_create_contact(form_data, conversation_id, user):
+    """处理创建联系人表单"""
+    from app.models.customer import Company, Contact
+    from app.utils.access_control import can_view_company
+
+    company_id = form_data.get('company_id')
+    if not company_id:
+        return jsonify({'success': False, 'message': '缺少 company_id'}), 400
+
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first()
+    if not company:
+        return jsonify({'success': False, 'message': '客户公司不存在'}), 404
+    if not can_view_company(user, company):
+        return jsonify({'success': False, 'message': '没有权限操作此客户'}), 403
+
+    name = (form_data.get('name') or '').strip()
+    if not name:
+        return jsonify({'success': False, 'message': '联系人姓名不能为空'}), 400
+
+    contact = Contact(
+        company_id=company_id,
+        name=name,
+        department=form_data.get('department', ''),
+        position=form_data.get('position', ''),
+        phone=form_data.get('phone', ''),
+        email=form_data.get('email', ''),
+        notes=form_data.get('notes', ''),
+        owner_id=user.id,
+    )
+    db.session.add(contact)
+    db.session.flush()
+
+    if conversation_id:
+        _save_form_result_card(
+            conversation_id, 'contact', 'create', contact.id,
+            f'{name} ({company.company_name})',
+        )
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'entity_type': 'contact',
+            'entity_id': contact.id,
+            'entity_name': name,
+            'company_id': company_id,
+            'company_name': company.company_name,
+        }
+    })
+
+
+def _save_form_result_card(conversation_id, entity_type, action, entity_id, entity_name):
+    """保存 form_result_card 消息到对话"""
+    from datetime import datetime, timezone
+
+    card_data = json.dumps({
+        'entity_type': entity_type,
+        'action': action,
+        'entity_id': entity_id,
+        'entity_name': entity_name,
+    }, ensure_ascii=False)
+
+    msg = ChatMessage(
+        conversation_id=conversation_id,
+        sender_id=None,
+        content=card_data,
+        message_type='form_result_card',
+        is_ai_response=True,
+        source_language='zh',
+    )
+    db.session.add(msg)
+
+    conv = ChatConversation.query.get(conversation_id)
+    if conv:
+        conv.updated_at = datetime.now(timezone.utc)
+
+
+# ---------------------------------------------------------------------------
+# 19. AI 文件上传 API（供 OpenClaw 等外部 AI 上传生成的文件到聊天）
 # ---------------------------------------------------------------------------
 
 @chat.route('/api/ai/upload-file', methods=['POST'])

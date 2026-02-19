@@ -50,63 +50,48 @@ _HIDDEN_COLUMNS = {
 
 _BUSINESS_NOTES = """
 业务标注：
-- projects.quotation_customer = 项目报价总额（单位：元）
-- quotations.amount = 报价金额（单位：元）
-- quotation_details.unit_price / total_price = 单价/总价（单位：元）
-- expenses.total_amount = 报销总金额（单位：元）
-- 注意：并非所有表都有 is_deleted 字段，请根据实际字段列表判断
-
-枚举值中文映射（展示结果时必须使用中文标签）：
-- companies.company_type: user=用户, designer=顾问, contractor=总包, integrator=集成, dealer=经销, distributor=分销, supplier=供应商, other=其他
-- companies.status: active=活跃, normal=正常, to_follow=待跟进, dormant=休眠, churned=流失, inactive=停用
-- companies.industry: manufacturing=制造, datacenter=数据中心, semiconductor=半导体, chemical=化工, energy=能源, transportation=交通, real_estate=地产, hospitality=酒店, technology=科技, other=其他
-- projects.current_stage: discover=发现, embed=植入, pre_tender=标前, tendering=标中, awarded=中标, quoted=批价, signed=签约, lost=失败, paused=搁置, preliminary_design=初步设计
-- projects.project_type: channel_follow=渠道, sales_focus=销售, business_opportunity=服务, sales_key=重点销售
-- quotations.approval_status: draft=草稿, pending=审批中, approved=已通过, rejected=已拒绝, pre_tender_approved=标前通过, quoted_approved=批价通过
-- expenses.status: draft=草稿, pending=审批中, approved=已通过, rejected=已拒绝, recalled=已召回, paid=已付款, awaiting_payment=待付款
-- pricing_orders.status: draft=草稿, pending=审批中, approved=已通过, rejected=已拒绝
-- tasks.priority: low=低, normal=普通, high=高, urgent=紧急
-- tasks.status: todo=待办, in_progress=进行中, done=已完成, cancelled=已取消
-- users.role: admin=管理员, ceo=总经理, sales_director=营销总监, service_manager=服务经理, channel_manager=渠道经理, product_manager=产品经理, solution_manager=方案经理, business_admin=商务助理, finance_director=财务总监, finace_director=财务总监, sales_manager=销售经理, hrdp_manager=HRDP经理, customer_sales=客户销售, dealer=经销商, user=普通用户
+- 金额字段单位均为元（projects.quotation_customer, quotations.amount, quotation_details.unit_price/total_price, expenses.total_amount）
+- 并非所有表都有 is_deleted 字段，请根据实际字段列表判断
+- 枚举字段的中文含义可通过 SELECT DISTINCT column_name FROM table 查询获取，展示时请用中文标签
 """.strip()
+
+# 表名→中文描述映射（精简版 schema 使用）
+_TABLE_DESCRIPTIONS = {
+    'companies': '客户公司',
+    'contacts': '联系人',
+    'projects': '项目',
+    'quotations': '报价单',
+    'quotation_details': '报价明细',
+    'products': '产品',
+    'expenses': '报销单',
+    'pricing_orders': '批价单',
+    'users': '用户',
+    'tasks': '任务',
+}
 
 
 def get_db_schema():
-    """从数据库动态读取核心表的字段结构，缓存 1 小时"""
+    """返回精简版数据库 schema（仅表名+描述），缓存 1 小时
+
+    AI 可通过查询 information_schema.columns 获取具体字段，
+    通过 SELECT DISTINCT 获取枚举值。这样大幅减少注入 token 数。
+    """
     global _schema_cache, _schema_cache_time
     if _schema_cache and (time.time() - _schema_cache_time) < 3600:
         return _schema_cache
 
-    try:
-        engine = _get_readonly_engine()
-        lines = ['可查询的数据库表（PostgreSQL）：\n']
-
-        with engine.connect() as conn:
-            for i, table in enumerate(_CORE_TABLES, 1):
-                result = conn.execute(text(
-                    "SELECT column_name, data_type FROM information_schema.columns "
-                    "WHERE table_schema='public' AND table_name=:t ORDER BY ordinal_position"
-                ), {'t': table})
-
-                hidden = _HIDDEN_COLUMNS.get(table, set())
-                cols = [r[0] for r in result if r[0] not in hidden]
-
-                if cols:
-                    lines.append(f'{i}. {table}\n   字段: {", ".join(cols)}\n')
-            conn.rollback()
-
-        lines.append(f'\n{_BUSINESS_NOTES}')
-        _schema_cache = '\n'.join(lines)
-        _schema_cache_time = time.time()
-        return _schema_cache
-
-    except Exception as e:
-        logger.error(f'动态读取数据库 schema 失败: {e}')
-        # fallback: 仅返回表名列表 + 业务标注
-        return (
-            '可查询的数据库表：' + ', '.join(_CORE_TABLES)
-            + '\n\n' + _BUSINESS_NOTES
-        )
+    table_list = ', '.join(
+        f'{t}({_TABLE_DESCRIPTIONS.get(t, t)})' for t in _CORE_TABLES
+    )
+    _schema_cache = (
+        f'可查询的 PostgreSQL 数据库表: {table_list}\n'
+        f'获取表字段: SELECT column_name, data_type FROM information_schema.columns '
+        f"WHERE table_schema='public' AND table_name='表名'\n"
+        f'获取枚举值: SELECT DISTINCT 字段名 FROM 表名 WHERE 字段名 IS NOT NULL\n'
+        f'\n{_BUSINESS_NOTES}'
+    )
+    _schema_cache_time = time.time()
+    return _schema_cache
 
 
 # ---------------------------------------------------------------------------
