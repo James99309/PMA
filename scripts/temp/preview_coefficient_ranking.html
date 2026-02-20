@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>积分系数排名预览 - PMA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" }, fontFamily: { "display": ["Inter","sans-serif"] } } }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        [x-cloak] { display: none !important; }
+        .coeff-bar { height: 4px; border-radius: 2px; transition: width 0.5s ease; }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
+
+<!-- Simulated nav -->
+<div class="h-14 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800 flex items-center px-6">
+    <span class="font-bold text-slate-800 dark:text-white text-lg">PMA System</span>
+    <span class="ml-6 text-sm text-slate-500">植入产品分析</span>
+</div>
+
+<div class="max-w-7xl mx-auto px-6 py-6" x-data="coefficientPreview()" x-cloak>
+
+    <!-- Page header -->
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">植入产品分析</h1>
+        <select class="h-10 pl-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm font-medium text-slate-700 dark:text-slate-200 appearance-none cursor-pointer">
+            <option selected>2026</option>
+        </select>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">活跃产品</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white">197</div>
+            <div class="text-xs text-slate-400 mt-1">零售价 > 0</div>
+        </div>
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">有引用产品</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white">134</div>
+            <div class="text-xs text-green-600 mt-1">68% 覆盖率</div>
+        </div>
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">引用中位数</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white">6</div>
+            <div class="text-xs text-slate-400 mt-1">有引用产品的中位数</div>
+        </div>
+        <div class="p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">平均系数</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white">1.58</div>
+            <div class="text-xs text-slate-400 mt-1">范围 0.30 ~ 3.00</div>
+        </div>
+        <div class="p-5 rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20">
+            <div class="text-sm text-amber-600 dark:text-amber-400 mb-1">需关注</div>
+            <div class="text-2xl font-bold text-amber-700 dark:text-amber-300">3</div>
+            <div class="text-xs text-amber-500 mt-1">高价 + 高系数产品</div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex border-b border-slate-200 dark:border-slate-700 mb-6 overflow-x-auto">
+        <button class="px-4 py-2.5 text-sm border-b-2 whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">趋势分析</button>
+        <button class="px-4 py-2.5 text-sm border-b-2 whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">分布分析</button>
+        <button class="px-4 py-2.5 text-sm border-b-2 whitespace-nowrap border-primary text-primary font-semibold">排名分析</button>
+        <button class="px-4 py-2.5 text-sm border-b-2 whitespace-nowrap border-transparent text-slate-500 hover:text-slate-700">明细数据</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="mb-4 flex flex-wrap gap-3 items-center">
+        <div class="relative">
+            <input type="text" x-model="search" placeholder="搜索产品/型号..."
+                   class="h-10 px-4 pr-9 w-64 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm">
+        </div>
+        <select x-model="categoryFilter" class="h-10 pl-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm">
+            <option value="">全部品类</option>
+            <template x-for="cat in categories" :key="cat">
+                <option :value="cat" x-text="cat"></option>
+            </template>
+        </select>
+        <select x-model="citationFilter" class="h-10 pl-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm">
+            <option value="">全部引用状态</option>
+            <option value="zero">零引用</option>
+            <option value="low">低引用 (1-5)</option>
+            <option value="mid">中等 (6-20)</option>
+            <option value="high">高引用 (>20)</option>
+        </select>
+        <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 ml-2">
+            <input type="checkbox" x-model="showWarningOnly" class="rounded border-slate-300 text-amber-500 focus:ring-amber-500/30">
+            <span>仅显示需关注</span>
+        </label>
+        <div class="ml-auto text-sm text-slate-400">
+            共 <span class="font-medium text-slate-600 dark:text-slate-300" x-text="filteredProducts.length"></span> 个产品
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+        <div class="overflow-x-auto" style="max-height: calc(100vh - 420px);">
+            <table class="w-full text-sm text-left">
+                <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-slate-50 dark:bg-slate-800/50 z-10">
+                    <tr>
+                        <th class="p-3 text-slate-500 font-medium w-10">#</th>
+                        <th class="p-3 text-slate-500 font-medium cursor-pointer select-none hover:text-slate-700" @click="toggleSort('name')">
+                            <span class="inline-flex items-center gap-1">产品 <span x-show="sortBy==='name'" x-text="sortDir==='asc'?'↑':'↓'" class="text-primary"></span></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium cursor-pointer select-none hover:text-slate-700" @click="toggleSort('category')">
+                            <span class="inline-flex items-center gap-1">品类 <span x-show="sortBy==='category'" x-text="sortDir==='asc'?'↑':'↓'" class="text-primary"></span></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none hover:text-slate-700" @click="toggleSort('price')">
+                            <span class="inline-flex items-center gap-1 justify-end">零售价 <span x-show="sortBy==='price'" x-text="sortDir==='asc'?'↑':'↓'" class="text-primary"></span></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none hover:text-slate-700" @click="toggleSort('quantity')">
+                            <span class="inline-flex items-center gap-1 justify-end">数量 <span x-show="sortBy==='quantity'" x-text="sortDir==='asc'?'↑':'↓'" class="text-primary"></span></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none hover:text-slate-700" @click="toggleSort('amount')">
+                            <span class="inline-flex items-center gap-1 justify-end">金额 <span x-show="sortBy==='amount'" x-text="sortDir==='asc'?'↑':'↓'" class="text-primary"></span></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-center cursor-pointer select-none hover:text-slate-700" @click="toggleSort('citations')">
+                            <span class="inline-flex items-center gap-1 justify-center">引用次数 <span x-show="sortBy==='citations'" x-text="sortDir==='asc'?'↑':'↓'" class="text-primary"></span></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-center cursor-pointer select-none hover:text-slate-700 min-w-[140px]" @click="toggleSort('coefficient')">
+                            <span class="inline-flex items-center gap-1 justify-center">引用系数 <span x-show="sortBy==='coefficient'" x-text="sortDir==='asc'?'↑':'↓'" class="text-primary"></span></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none hover:text-slate-700" @click="toggleSort('points')">
+                            <span class="inline-flex items-center gap-1 justify-end">积分 <span x-show="sortBy==='points'" x-text="sortDir==='asc'?'↑':'↓'" class="text-primary"></span></span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                    <template x-for="(item, idx) in filteredProducts" :key="item.model">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                            :class="item.warning ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''">
+                            <td class="p-3 text-slate-400 text-xs" x-text="idx + 1"></td>
+                            <td class="p-3">
+                                <div class="font-medium text-slate-800 dark:text-white text-sm leading-tight" x-text="item.name"></div>
+                                <div class="text-xs text-slate-400 font-mono mt-0.5" x-text="item.model"></div>
+                            </td>
+                            <td class="p-3">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                      :class="getCategoryColor(item.category)"
+                                      x-text="item.category"></span>
+                            </td>
+                            <td class="p-3 text-right font-mono text-sm" x-text="'¥' + item.price.toLocaleString()"></td>
+                            <td class="p-3 text-right text-sm" x-text="item.quantity"></td>
+                            <td class="p-3 text-right font-medium text-sm" x-text="formatAmount(item.amount)"></td>
+                            <td class="p-3 text-center">
+                                <span class="text-sm font-medium"
+                                      :class="item.citations === 0 ? 'text-red-400' : item.citations <= 3 ? 'text-amber-500' : 'text-slate-600 dark:text-slate-300'"
+                                      x-text="item.citations"></span>
+                            </td>
+                            <td class="p-3">
+                                <div class="flex items-center gap-2 justify-center">
+                                    <!-- Coefficient bar -->
+                                    <div class="w-16 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden h-1.5">
+                                        <div class="h-full rounded-full transition-all duration-500"
+                                             :class="item.coefficient >= 2.0 ? 'bg-amber-500' : item.coefficient >= 1.0 ? 'bg-primary' : 'bg-emerald-500'"
+                                             :style="'width:' + (item.coefficient / 3 * 100) + '%'"></div>
+                                    </div>
+                                    <span class="text-sm font-semibold min-w-[36px] text-right"
+                                          :class="item.coefficient >= 2.0 ? 'text-amber-600 dark:text-amber-400' : item.coefficient >= 1.0 ? 'text-primary' : 'text-emerald-600 dark:text-emerald-400'"
+                                          x-text="item.coefficient.toFixed(2)"></span>
+                                    <span x-show="item.warning" class="text-amber-500" title="高价+高系数">
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="p-3 text-right">
+                                <span class="font-semibold text-sm" x-text="item.points.toLocaleString()"></span>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="mt-4 flex flex-wrap gap-6 text-xs text-slate-500">
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-1.5 bg-emerald-500 rounded-full"></div>
+            <span>系数 &lt; 1.0 (热门产品)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-1.5 bg-primary rounded-full"></div>
+            <span>系数 1.0 ~ 2.0 (中等)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="w-8 h-1.5 bg-amber-500 rounded-full"></div>
+            <span>系数 &ge; 2.0 (冷门/新品)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+            <span>需关注：系数 &ge; 2.0 且 零售价 &ge; ¥50,000</span>
+        </div>
+        <div class="ml-auto text-slate-400">
+            公式: log(中位数+1) / log(引用次数+1)，范围 0.30 ~ 3.00 | 中位数 = 6
+        </div>
+    </div>
+
+</div>
+
+<script>
+function coefficientPreview() {
+    // Real data from CN-NAS queries
+    const allProducts = [
+        // High citation (hot products)
+        { name: '超薄室内全向吸顶天线', model: 'RFT-ANT-THIN', category: '天线', price: 142, quantity: 253, amount: 35926, citations: 277, coefficient: 0.35, points: 49 },
+        { name: '定向耦合器', model: 'RFT-DC-10', category: '功率/耦合器', price: 142, quantity: 228, amount: 32376, citations: 251, coefficient: 0.35, points: 50 },
+        { name: '智能光纤直放站 (近端)', model: 'RFT-BDA400B LT/M', category: '直放站', price: 9876, quantity: 223, amount: 2202348, citations: 245, coefficient: 0.35, points: 3491 },
+        { name: '数字智能信道机', model: 'RFT-BS400B', category: '基站', price: 13580, quantity: 155, amount: 2104900, citations: 169, coefficient: 0.38, points: 5145 },
+        { name: '功率分配器', model: 'RFT-SPL-2', category: '功率/耦合器', price: 142, quantity: 152, amount: 21584, citations: 171, coefficient: 0.38, points: 54 },
+        { name: '定向耦合合路器', model: 'RFT-CMB-DC', category: '合路平台', price: 4569, quantity: 151, amount: 689919, citations: 168, coefficient: 0.38, points: 1733 },
+        { name: '分路器', model: 'RFT-SPT-4', category: '合路平台', price: 2320, quantity: 151, amount: 350320, citations: 168, coefficient: 0.38, points: 880 },
+        { name: 'DMR常规对讲机', model: 'RFT-PT580H', category: '对讲机', price: 1333, quantity: 150, amount: 199950, citations: 162, coefficient: 0.38, points: 509 },
+        { name: '智能光纤直放站 (远端)', model: 'RFS-400 LT/M', category: '直放站', price: 11851, quantity: 145, amount: 1718395, citations: 159, coefficient: 0.38, points: 4544 },
+        { name: '下行信号剥离器', model: 'RFT-DMS-DL', category: '合路平台', price: 4569, quantity: 144, amount: 657936, citations: 144, coefficient: 0.39, points: 1786 },
+        { name: '上行信号剥离器', model: 'RFT-DMS-UL', category: '合路平台', price: 4569, quantity: 144, amount: 657936, citations: 144, coefficient: 0.39, points: 1786 },
+        { name: '双工器', model: 'RFT-DPX-400', category: '合路平台', price: 3753, quantity: 129, amount: 484137, citations: 129, coefficient: 0.40, points: 1500 },
+
+        // Medium citation
+        { name: '室外全向玻璃钢天线', model: 'RFT-ANT-FG8', category: '天线', price: 458, quantity: 77, amount: 35266, citations: 77, coefficient: 0.45, points: 205 },
+        { name: '网讯网关服务 软件', model: 'RFT-GW-SW', category: '应用', price: 12500, quantity: 72, amount: 900000, citations: 72, coefficient: 0.45, points: 5669 },
+        { name: '信号剥离矩阵', model: 'RFT-MTX-16', category: '合路平台', price: 7500, quantity: 63, amount: 472500, citations: 63, coefficient: 0.47, points: 3509 },
+        { name: '指挥调度台', model: 'RFT-DSP-S', category: '应用', price: 22500, quantity: 45, amount: 1012500, citations: 45, coefficient: 0.51, points: 11561 },
+        { name: '移动基站', model: 'RFT-MBS-V', category: '基站', price: 56000, quantity: 28, amount: 1568000, citations: 28, coefficient: 0.58, points: 32560 },
+        { name: '智能POC对讲机', model: 'RFT-POC-60', category: '对讲机', price: 2680, quantity: 22, amount: 58960, citations: 22, coefficient: 0.62, points: 1670 },
+        { name: '录音服务器软件', model: 'RFT-REC-SW', category: '应用', price: 15000, quantity: 16, amount: 240000, citations: 16, coefficient: 0.69, points: 10380 },
+        { name: '网管软件', model: 'RFT-NMS-SW', category: '应用', price: 8500, quantity: 12, amount: 102000, citations: 12, coefficient: 0.76, points: 6483 },
+
+        // Low citation (cold products)
+        { name: '室内定向板状天线', model: 'RFT-ANT-DIR', category: '天线', price: 680, quantity: 8, amount: 5440, citations: 8, coefficient: 0.89, points: 604 },
+        { name: '中继台', model: 'RFT-RPT-400', category: '直放站', price: 18500, quantity: 5, amount: 92500, citations: 5, coefficient: 1.13, points: 20833 },
+        { name: '多模合路器', model: 'RFT-CMB-MM', category: '合路平台', price: 12800, quantity: 4, amount: 51200, citations: 4, coefficient: 1.24, points: 15830 },
+        { name: '会议终端', model: 'RFT-CONF-T', category: '应用', price: 35000, quantity: 3, amount: 105000, citations: 3, coefficient: 1.39, points: 48730 },
+        { name: '防爆对讲机', model: 'RFT-PT-EX', category: '对讲机', price: 5800, quantity: 3, amount: 17400, citations: 3, coefficient: 1.39, points: 8080 },
+        { name: '车载台', model: 'RFT-VM-400', category: '对讲机', price: 3200, quantity: 2, amount: 6400, citations: 2, coefficient: 1.63, points: 5225 },
+        { name: '7/8馈线', model: 'RFT-FDR-78', category: '配件', price: 120, quantity: 2, amount: 240, citations: 2, coefficient: 1.63, points: 196 },
+
+        // Very low citation (1 time only)
+        { name: '智能集群基站', model: 'RFT-TBS-S', category: '基站', price: 125700, quantity: 1, amount: 125700, citations: 1, coefficient: 2.81, points: 352885, warning: true },
+        { name: '系统合路器 | 供电', model: 'RFT-CMB-PWR', category: '合路平台', price: 20450, quantity: 1, amount: 20450, citations: 1, coefficient: 2.81, points: 57410 },
+        { name: '系统合路器', model: 'RFT-CMB-SYS', category: '合路平台', price: 16667, quantity: 1, amount: 16667, citations: 1, coefficient: 2.81, points: 46790 },
+        { name: '一体化分合路矩阵', model: 'RFT-MTX-INT', category: '合路平台', price: 16000, quantity: 1, amount: 16000, citations: 1, coefficient: 2.81, points: 44918 },
+        { name: '虚拟集群服务器主机', model: 'RFT-SRV-VM', category: '配件', price: 13600, quantity: 1, amount: 13600, citations: 1, coefficient: 2.81, points: 38180 },
+        { name: '信道机虚拟集群功能许可', model: 'RFT-LIC-VC', category: '应用', price: 3000, quantity: 1, amount: 3000, citations: 1, coefficient: 2.81, points: 8422 },
+        { name: '智能多联充电栈', model: 'RFT-CHG-M6', category: '对讲机', price: 2460, quantity: 1, amount: 2460, citations: 1, coefficient: 2.81, points: 6906 },
+        { name: '智能信道交换机', model: 'RFT-CSW-16', category: '配件', price: 780, quantity: 1, amount: 780, citations: 1, coefficient: 2.81, points: 2190 },
+        { name: '光纤配线架 24口', model: 'RFT-ODF-24', category: '配件', price: 430, quantity: 1, amount: 430, citations: 1, coefficient: 2.81, points: 1207 },
+        { name: '光纤配线架 12口', model: 'RFT-ODF-12', category: '配件', price: 250, quantity: 1, amount: 250, citations: 1, coefficient: 2.81, points: 702 },
+        { name: '终端负载', model: 'RFT-LOAD-50', category: '配件', price: 142, quantity: 1, amount: 142, citations: 1, coefficient: 2.81, points: 399 },
+        { name: '漏泄同轴电缆', model: 'RFT-LCX-12', category: '配件', price: 83, quantity: 1, amount: 83, citations: 1, coefficient: 2.81, points: 233 },
+
+        // Zero citation products
+        { name: '手持终端加密模块', model: 'RFT-SEC-M1', category: '配件', price: 2200, quantity: 0, amount: 0, citations: 0, coefficient: 3.00, points: 6600 },
+        { name: '铁塔安装支架', model: 'RFT-BKT-TW', category: '配件', price: 850, quantity: 0, amount: 0, citations: 0, coefficient: 3.00, points: 2550 },
+        { name: '备用电池组', model: 'RFT-BAT-24V', category: '配件', price: 3600, quantity: 0, amount: 0, citations: 0, coefficient: 3.00, points: 10800 },
+        { name: 'IP互联网关', model: 'RFT-IGW-100', category: '应用', price: 45000, quantity: 0, amount: 0, citations: 0, coefficient: 3.00, points: 135000, warning: true },
+        { name: '集群调度服务器', model: 'RFT-TSS-R', category: '基站', price: 88000, quantity: 0, amount: 0, citations: 0, coefficient: 3.00, points: 264000, warning: true },
+        { name: '防水接头套件', model: 'RFT-WP-KIT', category: '配件', price: 65, quantity: 0, amount: 0, citations: 0, coefficient: 3.00, points: 195 },
+        { name: '接地铜排', model: 'RFT-GND-CU', category: '配件', price: 120, quantity: 0, amount: 0, citations: 0, coefficient: 3.00, points: 360 },
+        { name: '机柜配件包', model: 'RFT-RACK-KIT', category: '配件', price: 380, quantity: 0, amount: 0, citations: 0, coefficient: 3.00, points: 1140 },
+    ];
+
+    // Mark warnings: coefficient >= 2.0 AND price >= 50000
+    allProducts.forEach(p => {
+        if (!p.warning) p.warning = p.coefficient >= 2.0 && p.price >= 50000;
+    });
+
+    return {
+        products: allProducts,
+        search: '',
+        sortBy: 'coefficient',
+        sortDir: 'desc',
+        categoryFilter: '',
+        citationFilter: '',
+        showWarningOnly: false,
+        categories: [...new Set(allProducts.map(p => p.category))].sort(),
+
+        toggleSort(field) {
+            if (this.sortBy === field) {
+                this.sortDir = this.sortDir === 'desc' ? 'asc' : 'desc';
+            } else {
+                this.sortBy = field;
+                this.sortDir = 'desc';
+            }
+        },
+
+        get filteredProducts() {
+            let result = [...this.products];
+
+            if (this.search) {
+                const s = this.search.toLowerCase();
+                result = result.filter(p => p.name.toLowerCase().includes(s) || p.model.toLowerCase().includes(s));
+            }
+            if (this.categoryFilter) {
+                result = result.filter(p => p.category === this.categoryFilter);
+            }
+            if (this.citationFilter) {
+                if (this.citationFilter === 'zero') result = result.filter(p => p.citations === 0);
+                else if (this.citationFilter === 'low') result = result.filter(p => p.citations >= 1 && p.citations <= 5);
+                else if (this.citationFilter === 'mid') result = result.filter(p => p.citations >= 6 && p.citations <= 20);
+                else if (this.citationFilter === 'high') result = result.filter(p => p.citations > 20);
+            }
+            if (this.showWarningOnly) {
+                result = result.filter(p => p.warning);
+            }
+
+            const dir = this.sortDir === 'asc' ? 1 : -1;
+            const key = this.sortBy;
+            result.sort((a, b) => {
+                let va = a[key], vb = b[key];
+                if (typeof va === 'string') return va.localeCompare(vb, 'zh') * dir;
+                return (va - vb) * dir;
+            });
+
+            return result;
+        },
+
+        formatAmount(val) {
+            if (!val) return '¥0';
+            const wan = val / 10000;
+            if (wan >= 1) return '¥' + wan.toFixed(2) + '万';
+            return '¥' + parseFloat(val).toLocaleString('zh-CN');
+        },
+
+        getCategoryColor(cat) {
+            const colors = {
+                '天线': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                '功率/耦合器': 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+                '合路平台': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
+                '应用': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                '对讲机': 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+                '基站': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                '直放站': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+                '服务': 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+                '配件': 'bg-slate-100 text-slate-700 dark:bg-slate-700/30 dark:text-slate-400',
+            };
+            return colors[cat] || 'bg-slate-100 text-slate-600';
+        }
+    };
+}
+</script>
+</body>
+</html>
