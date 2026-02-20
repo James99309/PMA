@@ -40,7 +40,7 @@ FORM_SCHEMAS = {
             {'name': 'company_name', 'label': '企业名称', 'type': 'text', 'required': True},
             {'name': 'company_type', 'label': '企业类型', 'type': 'select', 'options_key': 'company_type', 'required': True},
             {'name': 'source', 'label': '来源', 'type': 'select', 'options_key': 'source', 'required': True},
-            {'name': 'country', 'label': '国家', 'type': 'text', 'required': False},
+            {'name': 'country', 'label': '国家', 'type': 'select', 'options_key': 'country', 'required': False},
             {'name': 'address', 'label': '地址', 'type': 'text', 'required': False},
             {'name': 'industry', 'label': '行业', 'type': 'select', 'options_key': 'industry', 'required': False},
             {'name': 'notes', 'label': '备注', 'type': 'textarea', 'required': False},
@@ -54,7 +54,7 @@ FORM_SCHEMAS = {
             {'name': 'company_name', 'label': '企业名称', 'type': 'text', 'required': False},
             {'name': 'company_type', 'label': '企业类型', 'type': 'select', 'options_key': 'company_type', 'required': False},
             {'name': 'source', 'label': '来源', 'type': 'select', 'options_key': 'source', 'required': False},
-            {'name': 'country', 'label': '国家', 'type': 'text', 'required': False},
+            {'name': 'country', 'label': '国家', 'type': 'select', 'options_key': 'country', 'required': False},
             {'name': 'address', 'label': '地址', 'type': 'text', 'required': False},
             {'name': 'industry', 'label': '行业', 'type': 'select', 'options_key': 'industry', 'required': False},
             {'name': 'notes', 'label': '备注', 'type': 'textarea', 'required': False},
@@ -1068,6 +1068,7 @@ def form_options():
             get_project_type_options,
             get_product_situation_options,
             get_currency_type_options,
+            get_country_options,
         )
         from app.models.expense import EXPENSE_CATEGORIES
         return jsonify({
@@ -1081,6 +1082,7 @@ def form_options():
                 'product_situation': [{'value': k, 'label': v} for k, v in get_product_situation_options()],
                 'expense_category': [{'value': k, 'label': v} for k, v in EXPENSE_CATEGORIES],
                 'currency': [{'value': k, 'label': v} for k, v in get_currency_type_options()],
+                'country': [{'value': k, 'label': v} for k, v in get_country_options()],
             }
         })
     except Exception as e:

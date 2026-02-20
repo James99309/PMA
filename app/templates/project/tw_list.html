@@ -18,6 +18,9 @@ with context %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="google-maps-api-key" content="{{ config.GOOGLE_MAPS_API_KEY }}">
+    <meta name="map-provider" content="{{ config.MAP_PROVIDER }}">
+    <meta name="amap-js-key" content="{{ config.AMAP_JS_KEY }}">
+    <meta name="amap-security-key" content="{{ config.AMAP_SECURITY_KEY }}">
     <title>{{ _('项目管理') }}</title>
     <!-- DNS预解析和预连接，加速CDN域名解析 -->
     <link rel="dns-prefetch" href="https://fonts.googleapis.cn">

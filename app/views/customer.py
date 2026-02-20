@@ -2282,6 +2282,9 @@ def api_create_company():
             country=data.get('country'),
             region=data.get('region'),
             address=data.get('address', ''),
+            city=data.get('city', ''),
+            latitude=data.get('latitude'),
+            longitude=data.get('longitude'),
             industry=data.get('industry', ''),
             company_type=data.get('company_type'),
             source=data.get('source'),
@@ -2344,6 +2347,7 @@ def api_update_company(company_id):
 
         # 允许更新的字段
         allowed_fields = ['company_name', 'country', 'region', 'address',
+                         'city', 'latitude', 'longitude',
                          'industry', 'company_type', 'source', 'notes']
 
         for field in allowed_fields:
@@ -4704,42 +4708,18 @@ def reverse_geocode():
                 'message': '缺少经纬度参数'
             }), 400
 
-        # 获取 Google Maps API Key
-        api_key = current_app.config.get('GOOGLE_MAPS_API_KEY')
-        if not api_key:
-            return jsonify({
-                'success': False,
-                'message': '未配置地图服务'
-            }), 500
-
         # 获取用户语言设置
         lang = data.get('language') or get_current_language()
-        google_lang = 'zh-CN' if lang == 'zh' else 'en'
 
-        # 调用 Google Maps Geocoding API
-        url = 'https://maps.googleapis.com/maps/api/geocode/json'
-        params = {
-            'latlng': f'{latitude},{longitude}',
-            'key': api_key,
-            'language': google_lang,
-            'result_type': 'street_address|route|locality|administrative_area_level_1|country'
-        }
+        # 根据地图引擎选择不同的 API
+        map_provider = current_app.config.get('MAP_PROVIDER', 'google')
 
-        response = requests.get(url, params=params, timeout=10)
-        result = response.json()
+        if map_provider == 'amap':
+            address_data = _reverse_geocode_amap(latitude, longitude, lang)
+        else:
+            address_data = _reverse_geocode_google(latitude, longitude, lang)
 
-        if result.get('status') != 'OK':
-            error_msg = result.get('error_message', result.get('status', '未知错误'))
-            current_app.logger.warning(f"Google Geocoding API 错误: {error_msg}")
-            return jsonify({
-                'success': False,
-                'message': f'地理编码失败: {error_msg}'
-            }), 400
-
-        # 解析地址组件
-        address_data = parse_google_geocode_result(result, lang)
-
-        current_app.logger.info(f"反向地理编码成功: ({latitude}, {longitude}) -> {address_data.get('formatted_address')}")
+        current_app.logger.info(f"反向地理编码成功 [{map_provider}]: ({latitude}, {longitude}) -> {address_data.get('formatted_address')}")
 
         return jsonify({
             'success': True,
@@ -4747,7 +4727,7 @@ def reverse_geocode():
         })
 
     except requests.exceptions.Timeout:
-        current_app.logger.error("Google Geocoding API 请求超时")
+        current_app.logger.error("地理编码 API 请求超时")
         return jsonify({
             'success': False,
             'message': '地理编码服务超时，请重试'
@@ -4758,6 +4738,63 @@ def reverse_geocode():
             'success': False,
             'message': f'地理编码失败: {str(e)}'
         }), 500
+
+
+def _reverse_geocode_google(latitude, longitude, lang='zh'):
+    """Google Maps 反向地理编码"""
+    import requests
+
+    api_key = current_app.config.get('GOOGLE_MAPS_API_KEY')
+    if not api_key:
+        raise ValueError('未配置 Google Maps API Key')
+
+    google_lang = 'zh-CN' if lang == 'zh' else 'en'
+
+    url = 'https://maps.googleapis.com/maps/api/geocode/json'
+    params = {
+        'latlng': f'{latitude},{longitude}',
+        'key': api_key,
+        'language': google_lang,
+        'result_type': 'street_address|route|locality|administrative_area_level_1|country'
+    }
+
+    response = requests.get(url, params=params, timeout=10)
+    result = response.json()
+
+    if result.get('status') != 'OK':
+        error_msg = result.get('error_message', result.get('status', '未知错误'))
+        current_app.logger.warning(f"Google Geocoding API 错误: {error_msg}")
+        raise ValueError(f'Google 地理编码失败: {error_msg}')
+
+    return parse_google_geocode_result(result, lang)
+
+
+def _reverse_geocode_amap(latitude, longitude, lang='zh'):
+    """高德地图反向地理编码"""
+    import requests
+
+    api_key = current_app.config.get('AMAP_SERVER_KEY')
+    if not api_key:
+        raise ValueError('未配置高德地图 Server Key')
+
+    # 高德坐标顺序：lng,lat
+    url = 'https://restapi.amap.com/v3/geocode/regeo'
+    params = {
+        'key': api_key,
+        'location': f'{longitude},{latitude}',
+        'extensions': 'base',
+        'output': 'json'
+    }
+
+    response = requests.get(url, params=params, timeout=10)
+    result = response.json()
+
+    if result.get('status') != '1':
+        error_msg = result.get('info', '未知错误')
+        current_app.logger.warning(f"高德 Geocoding API 错误: {error_msg}")
+        raise ValueError(f'高德地理编码失败: {error_msg}')
+
+    return parse_amap_geocode_result(result, lang)
 
 
 def parse_google_geocode_result(result, lang='zh'):
@@ -4861,5 +4898,86 @@ def parse_google_geocode_result(result, lang='zh'):
             if part:
                 formatted = formatted.replace(part, '').strip(' ,，')
         address_data['address'] = formatted.strip(' ,，')
+
+    return address_data
+
+
+def parse_amap_geocode_result(result, lang='zh'):
+    """
+    解析高德地图逆地理编码 API 返回的结果
+
+    Args:
+        result: 高德 API 返回的 JSON 结果
+        lang: 语言代码 ('zh' 或 'en')
+
+    Returns:
+        dict: 解析后的地址数据
+    """
+    address_data = {
+        'country': '',
+        'country_name': '',
+        'region': '',
+        'city': '',
+        'district': '',
+        'address': '',
+        'formatted_address': ''
+    }
+
+    regeocode = result.get('regeocode', {})
+    if not regeocode:
+        return address_data
+
+    address_data['formatted_address'] = regeocode.get('formatted_address', '')
+
+    component = regeocode.get('addressComponent', {})
+    if not component:
+        return address_data
+
+    # 国家
+    address_data['country'] = 'CN'
+    address_data['country_name'] = component.get('country', '中国')
+
+    # 省/州
+    province = component.get('province', '')
+    if isinstance(province, list):
+        province = province[0] if province else ''
+    address_data['region'] = province
+
+    # 城市（直辖市时 city 为空，用 province 代替）
+    city = component.get('city', '')
+    if isinstance(city, list):
+        city = city[0] if city else ''
+    if not city:
+        city = province
+    address_data['city'] = city
+
+    # 区/县
+    district = component.get('district', '')
+    if isinstance(district, list):
+        district = district[0] if district else ''
+    address_data['district'] = district
+
+    # 详细地址：township + street + streetNumber
+    township = component.get('township', '')
+    if isinstance(township, list):
+        township = township[0] if township else ''
+    street_number = component.get('streetNumber', {})
+    street = ''
+    number = ''
+    if isinstance(street_number, dict):
+        street = street_number.get('street', '')
+        number = street_number.get('number', '')
+
+    address_parts = []
+    if district:
+        address_parts.append(district)
+    if township:
+        address_parts.append(township)
+    if street:
+        address_parts.append(street)
+    if number:
+        address_parts.append(number)
+
+    address_data['address'] = ''.join(address_parts)
 
     return address_data

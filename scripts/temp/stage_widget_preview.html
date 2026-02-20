@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目阶段进度条 - 聊天卡片预览</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+<style>
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(132, 204, 22, 0.5); }
+    70% { box-shadow: 0 0 0 6px rgba(132, 204, 22, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(132, 204, 22, 0); }
+  }
+  .stage-current { animation: pulse-ring 2s ease-in-out infinite; }
+
+  /* 连线 */
+  .stage-line { height: 2px; flex: 1; min-width: 4px; }
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen py-10">
+<div class="max-w-md mx-auto space-y-8 px-4">
+
+  <h2 class="text-lg font-bold text-slate-700 mb-2">聊天中项目卡片 - 阶段进度条预览</h2>
+  <p class="text-sm text-slate-500 mb-6">以下模拟聊天气泡中项目卡片的样式，底部增加阶段进度条</p>
+
+  <!-- ==================== 场景1：正常阶段（植入） ==================== -->
+  <div>
+    <p class="text-xs text-slate-400 mb-2 font-medium">场景1：正常阶段 — 当前「植入」，有编辑权限</p>
+    <div class="flex justify-end">
+      <div class="rounded-2xl rounded-bl-md bg-white border border-slate-200 shadow-sm px-4 py-3 min-w-[240px] max-w-[300px]">
+        <!-- 头部 -->
+        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-emerald-500">
+          <span class="material-symbols-outlined text-[14px]">folder_open</span>
+          <span>项目</span>
+        </div>
+        <!-- 项目名 -->
+        <div class="text-sm font-semibold text-slate-800 truncate">深圳达实智能安防项目</div>
+        <!-- 阶段文字 -->
+        <div class="flex items-center gap-1.5 mt-1.5">
+          <span class="material-symbols-outlined text-[14px] text-slate-400">flag</span>
+          <span class="text-xs text-slate-600">植入</span>
+        </div>
+        <!-- 报价 -->
+        <div class="flex items-center gap-1.5 mt-1">
+          <span class="material-symbols-outlined text-[14px] text-slate-400">receipt_long</span>
+          <span class="text-xs text-slate-600">QT-2026-0042</span>
+          <span class="text-xs font-medium text-slate-700">¥1,280,000</span>
+        </div>
+
+        <!-- ★ 阶段进度条 ★ -->
+        <div class="mt-2.5 pt-2.5 border-t border-slate-100">
+          <div class="flex items-center gap-0">
+            <!-- 发现 - completed -->
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div>
+            </div>
+            <div class="stage-line bg-teal-400"></div>
+
+            <!-- 植入 - current -->
+            <div class="flex flex-col items-center relative">
+              <div class="w-3.5 h-3.5 rounded-full bg-lime-500 stage-current"></div>
+              <span class="absolute -bottom-4 text-[9px] text-lime-600 font-medium whitespace-nowrap">植入</span>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+
+            <!-- 标前 - next (clickable) -->
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-teal-400 cursor-pointer hover:scale-150 transition-transform" title="点击推进到「标前」"></div>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+
+            <!-- 标中 -->
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+
+            <!-- 中标 -->
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+
+            <!-- 批价 -->
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+
+            <!-- 签约 -->
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 查看详情 -->
+        <div class="flex items-center justify-end mt-5 text-[10px] text-slate-300">
+          <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+          <span>查看详情</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 场景2：中标阶段 ==================== -->
+  <div>
+    <p class="text-xs text-slate-400 mb-2 font-medium">场景2：当前「中标」，有编辑权限</p>
+    <div class="flex justify-end">
+      <div class="rounded-2xl rounded-bl-md bg-white border border-slate-200 shadow-sm px-4 py-3 min-w-[240px] max-w-[300px]">
+        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-emerald-500">
+          <span class="material-symbols-outlined text-[14px]">folder_open</span>
+          <span>项目</span>
+        </div>
+        <div class="text-sm font-semibold text-slate-800 truncate">武汉中心辅助楼智能化</div>
+        <div class="flex items-center gap-1.5 mt-1.5">
+          <span class="material-symbols-outlined text-[14px] text-slate-400">flag</span>
+          <span class="text-xs text-slate-600">中标</span>
+        </div>
+
+        <!-- ★ 阶段进度条 ★ -->
+        <div class="mt-2.5 pt-2.5 border-t border-slate-100">
+          <div class="flex items-center gap-0">
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div>
+            </div>
+            <div class="stage-line bg-teal-400"></div>
+
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div>
+            </div>
+            <div class="stage-line bg-teal-400"></div>
+
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div>
+            </div>
+            <div class="stage-line bg-teal-400"></div>
+
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div>
+            </div>
+            <div class="stage-line bg-teal-400"></div>
+
+            <!-- 中标 - current -->
+            <div class="flex flex-col items-center relative">
+              <div class="w-3.5 h-3.5 rounded-full bg-lime-500 stage-current"></div>
+              <span class="absolute -bottom-4 text-[9px] text-lime-600 font-medium whitespace-nowrap">中标</span>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+
+            <!-- 批价 - next clickable -->
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-slate-300 border-2 border-teal-400 cursor-pointer hover:scale-150 transition-transform" title="点击推进到「批价」"></div>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end mt-5 text-[10px] text-slate-300">
+          <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+          <span>查看详情</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 场景3：签约（锁定） ==================== -->
+  <div>
+    <p class="text-xs text-slate-400 mb-2 font-medium">场景3：已签约 — 锁定，不可操作</p>
+    <div class="flex justify-end">
+      <div class="rounded-2xl rounded-bl-md bg-white border border-slate-200 shadow-sm px-4 py-3 min-w-[240px] max-w-[300px]">
+        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-emerald-500">
+          <span class="material-symbols-outlined text-[14px]">folder_open</span>
+          <span>项目</span>
+        </div>
+        <div class="text-sm font-semibold text-slate-800 truncate">上海虹桥商务区项目</div>
+        <div class="flex items-center gap-1.5 mt-1.5">
+          <span class="material-symbols-outlined text-[14px] text-slate-400">flag</span>
+          <span class="text-xs text-slate-600">签约</span>
+        </div>
+
+        <!-- 全部完成 -->
+        <div class="mt-2.5 pt-2.5 border-t border-slate-100">
+          <div class="flex items-center gap-0">
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div></div>
+            <div class="stage-line bg-teal-400"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div></div>
+            <div class="stage-line bg-teal-400"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div></div>
+            <div class="stage-line bg-teal-400"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div></div>
+            <div class="stage-line bg-teal-400"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div></div>
+            <div class="stage-line bg-teal-400"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div></div>
+            <div class="stage-line bg-teal-400"></div>
+            <!-- 签约 - current (locked) -->
+            <div class="flex flex-col items-center relative">
+              <div class="w-3.5 h-3.5 rounded-full bg-teal-600 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white text-[10px]">check</span>
+              </div>
+              <span class="absolute -bottom-4 text-[9px] text-teal-600 font-medium whitespace-nowrap">签约 ✓</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end mt-5 text-[10px] text-slate-300">
+          <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+          <span>查看详情</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 场景4：失败状态 ==================== -->
+  <div>
+    <p class="text-xs text-slate-400 mb-2 font-medium">场景4：失败状态（在「标中」后失败），可点击恢复</p>
+    <div class="flex justify-end">
+      <div class="rounded-2xl rounded-bl-md bg-white border border-slate-200 shadow-sm px-4 py-3 min-w-[240px] max-w-[300px]">
+        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-emerald-500">
+          <span class="material-symbols-outlined text-[14px]">folder_open</span>
+          <span>项目</span>
+        </div>
+        <div class="text-sm font-semibold text-slate-800 truncate">广州天河智慧园区项目</div>
+        <div class="flex items-center gap-1.5 mt-1.5">
+          <span class="material-symbols-outlined text-[14px] text-red-400">flag</span>
+          <span class="text-xs text-red-500 font-medium">失败</span>
+        </div>
+
+        <!-- 失败状态进度条 -->
+        <div class="mt-2.5 pt-2.5 border-t border-slate-100">
+          <div class="flex items-center gap-0">
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500/50"></div></div>
+            <div class="stage-line bg-teal-400/30"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500/50"></div></div>
+            <div class="stage-line bg-teal-400/30"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500/50"></div></div>
+            <div class="stage-line bg-teal-400/30"></div>
+            <!-- 标中 - 最后活跃阶段 -->
+            <div class="flex flex-col items-center relative">
+              <div class="w-3 h-3 rounded-full bg-teal-500/50 ring-2 ring-red-300"></div>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div></div>
+            <div class="stage-line bg-slate-200"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div></div>
+            <div class="stage-line bg-slate-200"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div></div>
+          </div>
+          <!-- 失败标签 + 恢复按钮 -->
+          <div class="flex items-center justify-between mt-2">
+            <span class="text-[9px] text-red-500 flex items-center gap-0.5">
+              <span class="material-symbols-outlined text-[12px]">cancel</span>
+              失败
+            </span>
+            <button class="text-[9px] text-teal-600 bg-teal-50 hover:bg-teal-100 px-2 py-0.5 rounded-full transition-colors cursor-pointer">
+              恢复到「标中」
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end mt-3 text-[10px] text-slate-300">
+          <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+          <span>查看详情</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 场景5：无权限（只读） ==================== -->
+  <div>
+    <p class="text-xs text-slate-400 mb-2 font-medium">场景5：无编辑权限 — 纯展示，不可点击</p>
+    <div class="flex justify-start">
+      <div class="rounded-2xl rounded-br-md bg-white border border-slate-200 shadow-sm px-4 py-3 min-w-[240px] max-w-[300px]">
+        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-emerald-500">
+          <span class="material-symbols-outlined text-[14px]">folder_open</span>
+          <span>项目</span>
+        </div>
+        <div class="text-sm font-semibold text-slate-800 truncate">成都天府新区数据中心</div>
+        <div class="flex items-center gap-1.5 mt-1.5">
+          <span class="material-symbols-outlined text-[14px] text-slate-400">flag</span>
+          <span class="text-xs text-slate-600">标前</span>
+        </div>
+
+        <div class="mt-2.5 pt-2.5 border-t border-slate-100">
+          <div class="flex items-center gap-0">
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div></div>
+            <div class="stage-line bg-teal-400"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-500"></div></div>
+            <div class="stage-line bg-teal-400"></div>
+            <!-- 标前 - current, no click -->
+            <div class="flex flex-col items-center relative">
+              <div class="w-3.5 h-3.5 rounded-full bg-lime-500 stage-current"></div>
+              <span class="absolute -bottom-4 text-[9px] text-lime-600 font-medium whitespace-nowrap">标前</span>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+            <!-- 标中 - NOT clickable (no permission) -->
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div>
+            </div>
+            <div class="stage-line bg-slate-200"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div></div>
+            <div class="stage-line bg-slate-200"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div></div>
+            <div class="stage-line bg-slate-200"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-slate-200"></div></div>
+          </div>
+          <div class="mt-1.5 text-[8px] text-slate-300 text-right">只读</div>
+        </div>
+
+        <div class="flex items-center justify-end mt-3 text-[10px] text-slate-300">
+          <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+          <span>查看详情</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== 暗色模式预览 ==================== -->
+  <div class="bg-slate-900 rounded-xl p-6 mt-8">
+    <p class="text-xs text-slate-500 mb-3 font-medium">暗色模式预览：当前「标中」</p>
+    <div class="flex justify-end">
+      <div class="rounded-2xl rounded-bl-md bg-slate-800 border border-slate-700 px-4 py-3 min-w-[240px] max-w-[300px]">
+        <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-emerald-400">
+          <span class="material-symbols-outlined text-[14px]">folder_open</span>
+          <span>项目</span>
+        </div>
+        <div class="text-sm font-semibold text-slate-200 truncate">北京朝阳科创中心</div>
+        <div class="flex items-center gap-1.5 mt-1.5">
+          <span class="material-symbols-outlined text-[14px] text-slate-500">flag</span>
+          <span class="text-xs text-slate-400">标中</span>
+        </div>
+
+        <div class="mt-2.5 pt-2.5 border-t border-slate-700">
+          <div class="flex items-center gap-0">
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-400"></div></div>
+            <div class="stage-line bg-teal-500/60"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-400"></div></div>
+            <div class="stage-line bg-teal-500/60"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-teal-400"></div></div>
+            <div class="stage-line bg-teal-500/60"></div>
+            <!-- 标中 current -->
+            <div class="flex flex-col items-center relative">
+              <div class="w-3.5 h-3.5 rounded-full bg-lime-400 stage-current"></div>
+              <span class="absolute -bottom-4 text-[9px] text-lime-400 font-medium whitespace-nowrap">标中</span>
+            </div>
+            <div class="stage-line bg-slate-600"></div>
+            <!-- next clickable -->
+            <div class="flex flex-col items-center">
+              <div class="w-2.5 h-2.5 rounded-full bg-slate-600 border-2 border-teal-400 cursor-pointer hover:scale-150 transition-transform"></div>
+            </div>
+            <div class="stage-line bg-slate-600"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-slate-600"></div></div>
+            <div class="stage-line bg-slate-600"></div>
+            <div class="flex flex-col items-center"><div class="w-2.5 h-2.5 rounded-full bg-slate-600"></div></div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end mt-5 text-[10px] text-slate-600">
+          <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+          <span>查看详情</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

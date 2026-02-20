@@ -76,12 +76,12 @@ def get_ai_response_stream(message, user, session_id=None, conversation_id=None)
 # 话题标题生成（通过 OpenClaw 实现）
 # ---------------------------------------------------------------------------
 
-def generate_conversation_topic(user_message, ai_response):
-    """用第一轮对话生成 3-8 字的话题标题
+def generate_conversation_topic(user_message, ai_response=None):
+    """用用户首条消息生成 3-8 字的话题标题
 
     Args:
         user_message: 用户的第一条消息
-        ai_response: AI 的第一条回复（截取前 200 字）
+        ai_response: 已废弃，保留参数兼容性
 
     Returns:
         str 或 None: 生成的话题标题，失败返回 None
@@ -94,9 +94,9 @@ def generate_conversation_topic(user_message, ai_response):
     base_url = os.environ.get('DEEPSEEK_API_BASE', 'https://api.deepseek.com/v1').rstrip('/')
 
     prompt = (
-        '根据以下对话的第一轮内容，生成一个简短的话题标题（3-8个字，不带标点）。\n'
+        '根据用户的消息，生成一个简短的话题标题（3-8个字，不带标点）。\n'
+        '要求：概括用户的意图或需求，不要包含结果、状态或情感判断。\n'
         f'用户：{user_message[:200]}\n'
-        f'AI：{ai_response[:200]}\n'
         '只输出标题本身。'
     )
 

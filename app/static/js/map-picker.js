@@ -1,8 +1,10 @@
 /**
  * map-picker.js
- * 地图位置选择器
+ * 地图位置选择器（双引擎：高德地图 + Google Maps）
  *
- * 支持 Google Maps，加载失败时降级到简单定位
+ * 根据 <meta name="map-provider"> 自动选择引擎：
+ * - 'amap'  → 高德地图（中国 NAS / SP8D）
+ * - 'google' → Google Maps（新加坡 NAS / OVS）
  *
  * 使用方式：
  * MapPicker.open({
@@ -17,16 +19,19 @@ window.MapPicker = (function() {
     'use strict';
 
     // 配置
-    const CONFIG = {
-        googleMapsApiKey: '', // 从页面获取
-        sdkLoadTimeout: 5000, // SDK 加载超时时间 (ms)
+    var CONFIG = {
+        googleMapsApiKey: '',
+        amapJsKey: '',
+        amapSecurityKey: '',
+        mapProvider: 'google', // 'amap' 或 'google'
+        sdkLoadTimeout: 8000,
         defaultCenter: { lat: 31.2304, lng: 121.4737 }, // 默认上海
         defaultZoom: 15,
         reverseGeocodeApi: '/customer/api/geocode/reverse'
     };
 
     // 状态
-    let state = {
+    var state = {
         isOpen: false,
         map: null,
         marker: null,
@@ -37,21 +42,20 @@ window.MapPicker = (function() {
         sdkLoadFailed: false
     };
 
+    // ========== SDK 加载 ==========
+
     /**
      * 动态加载 Google Maps SDK
      */
     function loadGoogleMapsSDK() {
         return new Promise(function(resolve, reject) {
-            // 已经加载过
             if (window.google && window.google.maps) {
                 state.sdkLoaded = true;
                 resolve();
                 return;
             }
 
-            // 正在加载中
             if (document.querySelector('script[src*="maps.googleapis.com"]')) {
-                // 等待加载完成
                 var checkInterval = setInterval(function() {
                     if (window.google && window.google.maps) {
                         clearInterval(checkInterval);
@@ -69,7 +73,6 @@ window.MapPicker = (function() {
                 return;
             }
 
-            // 创建回调函数
             var callbackName = 'initGoogleMaps_' + Date.now();
             window[callbackName] = function() {
                 delete window[callbackName];
@@ -77,7 +80,6 @@ window.MapPicker = (function() {
                 resolve();
             };
 
-            // 创建 script 标签
             var script = document.createElement('script');
             script.src = 'https://maps.googleapis.com/maps/api/js?key=' + CONFIG.googleMapsApiKey +
                          '&libraries=places&callback=' + callbackName + '&language=zh-CN';
@@ -90,7 +92,6 @@ window.MapPicker = (function() {
                 reject(new Error('Google Maps SDK 加载失败'));
             };
 
-            // 超时处理
             setTimeout(function() {
                 if (!state.sdkLoaded) {
                     state.sdkLoadFailed = true;
@@ -103,9 +104,68 @@ window.MapPicker = (function() {
     }
 
     /**
-     * 初始化地图
+     * 动态加载高德地图 SDK
      */
-    function initMap(center) {
+    function loadAmapSDK() {
+        return new Promise(function(resolve, reject) {
+            if (window.AMap) {
+                state.sdkLoaded = true;
+                resolve();
+                return;
+            }
+
+            // 设置安全密钥（必须在 SDK 加载前设置）
+            window._AMapSecurityConfig = {
+                securityJsCode: CONFIG.amapSecurityKey
+            };
+
+            if (document.querySelector('script[src*="webapi.amap.com"]')) {
+                var checkInterval = setInterval(function() {
+                    if (window.AMap) {
+                        clearInterval(checkInterval);
+                        state.sdkLoaded = true;
+                        resolve();
+                    }
+                }, 100);
+
+                setTimeout(function() {
+                    clearInterval(checkInterval);
+                    if (!window.AMap) {
+                        reject(new Error('高德地图 SDK 加载超时'));
+                    }
+                }, CONFIG.sdkLoadTimeout);
+                return;
+            }
+
+            var script = document.createElement('script');
+            script.src = 'https://webapi.amap.com/maps?v=2.0&key=' + CONFIG.amapJsKey +
+                         '&plugin=AMap.AutoComplete,AMap.PlaceSearch,AMap.Geocoder';
+            script.async = true;
+
+            script.onload = function() {
+                state.sdkLoaded = true;
+                resolve();
+            };
+
+            script.onerror = function() {
+                state.sdkLoadFailed = true;
+                reject(new Error('高德地图 SDK 加载失败'));
+            };
+
+            setTimeout(function() {
+                if (!state.sdkLoaded) {
+                    state.sdkLoadFailed = true;
+                    reject(new Error('高德地图 SDK 加载超时'));
+                }
+            }, CONFIG.sdkLoadTimeout);
+
+            document.head.appendChild(script);
+        });
+    }
+
+    // ========== Google Maps 引擎 ==========
+
+    function initGoogleMap(center) {
         var mapContainer = document.getElementById('mapContainer');
         var loadingEl = document.getElementById('mapLoading');
 
@@ -113,19 +173,16 @@ window.MapPicker = (function() {
             return;
         }
 
-        // 清空容器
         if (loadingEl) {
             loadingEl.style.display = 'none';
         }
 
-        // 创建地图 div
         var mapDiv = document.createElement('div');
         mapDiv.id = 'googleMap';
         mapDiv.style.width = '100%';
         mapDiv.style.height = '100%';
         mapContainer.appendChild(mapDiv);
 
-        // 创建地图
         state.map = new google.maps.Map(mapDiv, {
             center: center,
             zoom: CONFIG.defaultZoom,
@@ -138,7 +195,6 @@ window.MapPicker = (function() {
             }
         });
 
-        // 创建标记
         state.marker = new google.maps.Marker({
             position: center,
             map: state.map,
@@ -146,42 +202,31 @@ window.MapPicker = (function() {
             animation: google.maps.Animation.DROP
         });
 
-        // 标记拖动结束事件
         state.marker.addListener('dragend', function() {
             var position = state.marker.getPosition();
             updateSelectedLocation(position.lat(), position.lng());
         });
 
-        // 地图点击事件
         state.map.addListener('click', function(event) {
             state.marker.setPosition(event.latLng);
             updateSelectedLocation(event.latLng.lat(), event.latLng.lng());
         });
 
-        // 初始化搜索自动完成
-        initAutocomplete();
-
-        // 设置初始位置
+        initGoogleAutocomplete();
         updateSelectedLocation(center.lat, center.lng);
     }
 
-    /**
-     * 初始化地址搜索自动完成
-     */
-    function initAutocomplete() {
+    function initGoogleAutocomplete() {
         var searchInput = document.getElementById('mapSearchInput');
-        var suggestionsContainer = document.getElementById('mapSearchSuggestions');
 
         if (!searchInput || !window.google || !window.google.maps || !window.google.maps.places) {
             return;
         }
 
-        // 创建 Autocomplete 服务
         state.autocomplete = new google.maps.places.Autocomplete(searchInput, {
             types: ['geocode', 'establishment']
         });
 
-        // 选择地点事件
         state.autocomplete.addListener('place_changed', function() {
             var place = state.autocomplete.getPlace();
 
@@ -189,18 +234,88 @@ window.MapPicker = (function() {
                 return;
             }
 
-            // 移动地图和标记
             state.map.setCenter(place.geometry.location);
             state.map.setZoom(CONFIG.defaultZoom);
             state.marker.setPosition(place.geometry.location);
 
-            // 更新选中位置
             updateSelectedLocation(
                 place.geometry.location.lat(),
                 place.geometry.location.lng()
             );
         });
     }
+
+    // ========== 高德地图引擎 ==========
+
+    function initAmapMap(center) {
+        var mapContainer = document.getElementById('mapContainer');
+        var loadingEl = document.getElementById('mapLoading');
+
+        if (!mapContainer || !window.AMap) {
+            return;
+        }
+
+        if (loadingEl) {
+            loadingEl.style.display = 'none';
+        }
+
+        var mapDiv = document.createElement('div');
+        mapDiv.id = 'amapContainer';
+        mapDiv.style.width = '100%';
+        mapDiv.style.height = '100%';
+        mapContainer.appendChild(mapDiv);
+
+        // 高德坐标顺序：[lng, lat]
+        state.map = new AMap.Map('amapContainer', {
+            center: [center.lng, center.lat],
+            zoom: CONFIG.defaultZoom,
+            resizeEnable: true
+        });
+
+        state.marker = new AMap.Marker({
+            position: [center.lng, center.lat],
+            draggable: true,
+            map: state.map
+        });
+
+        // 标记拖动结束
+        state.marker.on('dragend', function(e) {
+            var pos = state.marker.getPosition();
+            updateSelectedLocation(pos.getLat(), pos.getLng());
+        });
+
+        // 地图点击
+        state.map.on('click', function(e) {
+            state.marker.setPosition(e.lnglat);
+            updateSelectedLocation(e.lnglat.getLat(), e.lnglat.getLng());
+        });
+
+        initAmapAutocomplete();
+        updateSelectedLocation(center.lat, center.lng);
+    }
+
+    function initAmapAutocomplete() {
+        var searchInput = document.getElementById('mapSearchInput');
+        if (!searchInput || !window.AMap) {
+            return;
+        }
+
+        var autoComplete = new AMap.AutoComplete({
+            input: 'mapSearchInput'
+        });
+
+        autoComplete.on('select', function(e) {
+            if (e.poi && e.poi.location) {
+                var lnglat = e.poi.location;
+                state.map.setCenter(lnglat);
+                state.map.setZoom(CONFIG.defaultZoom);
+                state.marker.setPosition(lnglat);
+                updateSelectedLocation(lnglat.getLat(), lnglat.getLng());
+            }
+        });
+    }
+
+    // ========== 公共方法 ==========
 
     /**
      * 更新选中的位置
@@ -210,17 +325,14 @@ window.MapPicker = (function() {
         var coordsEl = document.getElementById('selectedCoords');
         var confirmBtn = document.getElementById('confirmLocationBtn');
 
-        // 显示坐标
         if (coordsEl) {
             coordsEl.textContent = lat.toFixed(6) + ', ' + lng.toFixed(6);
         }
 
-        // 显示加载状态
         if (addressEl) {
             addressEl.textContent = '正在获取地址...';
         }
 
-        // 调用后端 API 获取地址信息
         var csrfToken = document.querySelector('meta[name="csrf-token"]');
         fetch(CONFIG.reverseGeocodeApi, {
             method: 'POST',
@@ -252,7 +364,6 @@ window.MapPicker = (function() {
                     addressEl.textContent = result.data.formatted_address || '未知位置';
                 }
 
-                // 启用确认按钮
                 if (confirmBtn) {
                     confirmBtn.disabled = false;
                 }
@@ -344,10 +455,19 @@ window.MapPicker = (function() {
             return;
         }
 
-        // 获取 API Key
+        // 从 meta 标签读取配置
+        CONFIG.mapProvider = document.querySelector('meta[name="map-provider"]')?.getAttribute('content') || 'google';
         CONFIG.googleMapsApiKey = document.querySelector('meta[name="google-maps-api-key"]')?.getAttribute('content') || '';
+        CONFIG.amapJsKey = document.querySelector('meta[name="amap-js-key"]')?.getAttribute('content') || '';
+        CONFIG.amapSecurityKey = document.querySelector('meta[name="amap-security-key"]')?.getAttribute('content') || '';
 
-        if (!CONFIG.googleMapsApiKey) {
+        // 验证配置
+        if (CONFIG.mapProvider === 'amap' && !CONFIG.amapJsKey) {
+            console.error('未配置高德地图 API Key');
+            fallbackToSimple();
+            return;
+        }
+        if (CONFIG.mapProvider === 'google' && !CONFIG.googleMapsApiKey) {
             console.error('未配置 Google Maps API Key');
             fallbackToSimple();
             return;
@@ -385,11 +505,14 @@ window.MapPicker = (function() {
                 console.log('无法获取当前位置，使用默认位置');
             }
 
-            // 加载 SDK
-            await loadGoogleMapsSDK();
-
-            // 初始化地图
-            initMap(initialLocation);
+            // 根据引擎加载 SDK 并初始化
+            if (CONFIG.mapProvider === 'amap') {
+                await loadAmapSDK();
+                initAmapMap(initialLocation);
+            } else {
+                await loadGoogleMapsSDK();
+                initGoogleMap(initialLocation);
+            }
 
         } catch (error) {
             console.error('地图初始化失败:', error);
@@ -409,10 +532,14 @@ window.MapPicker = (function() {
         state.isOpen = false;
         document.body.style.overflow = '';
 
-        // 清理地图
-        var mapDiv = document.getElementById('googleMap');
-        if (mapDiv) {
-            mapDiv.remove();
+        // 清理地图容器
+        var googleMapDiv = document.getElementById('googleMap');
+        if (googleMapDiv) {
+            googleMapDiv.remove();
+        }
+        var amapDiv = document.getElementById('amapContainer');
+        if (amapDiv) {
+            amapDiv.remove();
         }
 
         // 显示加载状态（为下次打开准备）
@@ -461,10 +588,17 @@ window.MapPicker = (function() {
 
         try {
             var position = await getCurrentPosition();
-            var latLng = new google.maps.LatLng(position.lat, position.lng);
 
-            state.map.setCenter(latLng);
-            state.marker.setPosition(latLng);
+            if (CONFIG.mapProvider === 'amap') {
+                var lnglat = [position.lng, position.lat];
+                state.map.setCenter(lnglat);
+                state.marker.setPosition(lnglat);
+            } else {
+                var latLng = new google.maps.LatLng(position.lat, position.lng);
+                state.map.setCenter(latLng);
+                state.marker.setPosition(latLng);
+            }
+
             updateSelectedLocation(position.lat, position.lng);
 
         } catch (error) {
@@ -483,7 +617,6 @@ window.MapPicker = (function() {
     function fallbackToSimple() {
         close();
 
-        // 调用 CustomerForm 的简单定位功能
         if (window.CustomerForm && typeof window.CustomerForm.getLocation === 'function') {
             window.CustomerForm.getLocation();
         } else {

@@ -46,7 +46,7 @@ class Config:
     """基础配置类 - 支持动态数据库配置"""
 
     # 统一版本号（所有环境共用，基于代码而非数据库）
-    APP_VERSION = '1.29.0'
+    APP_VERSION = '1.29.1'
 
     # 基本配置
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'local-development-secret-key-pma-2025'
@@ -221,6 +221,14 @@ class Config:
 
     # Google Maps API 配置（用于地理编码服务）
     GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY') or 'AIzaSyD7Ipf3-0l0XYN5rvKpT1gL-PFKVEdzZmc'
+
+    # 高德地图 API 配置（中国 NAS 使用）
+    AMAP_JS_KEY = os.environ.get('AMAP_JS_KEY') or 'dbabe7d0f6436daec6a6a8e398b61432'
+    AMAP_SECURITY_KEY = os.environ.get('AMAP_SECURITY_KEY') or '49010883035150e8fe4fa45ca87fc8f0'
+    AMAP_SERVER_KEY = os.environ.get('AMAP_SERVER_KEY') or '113cd31aa67d2674fafdf434dcbae501'
+
+    # 地图引擎选择：SP8D 用高德，OVS 用 Google Maps
+    MAP_PROVIDER = 'amap' if IS_SP8D else 'google'
 
     # 旧规格系统特性开关 - 控制ProductCodeField API和UI的可用性
     # [LegacySpecSystem] 此配置用于隔离和控制旧规格系统，支持未来的完全移除

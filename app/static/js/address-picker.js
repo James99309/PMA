@@ -101,6 +101,17 @@ window.AddressPicker = (function() {
             cityInput.value = locationData.city || '';
             console.log('[AddressPicker] 设置城市:', cityInput.value);
         }
+
+        // 填充坐标隐藏字段
+        var latInput = document.getElementById(fieldId + '_latitude');
+        if (latInput && locationData.lat != null) {
+            latInput.value = locationData.lat;
+        }
+
+        var lngInput = document.getElementById(fieldId + '_longitude');
+        if (lngInput && locationData.lng != null) {
+            lngInput.value = locationData.lng;
+        }
     }
 
     /**

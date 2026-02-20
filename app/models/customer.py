@@ -53,6 +53,9 @@ class Company(SharingMixin, db.Model):
     country = db.Column(db.String(50))  # 国家/地区
     region = db.Column(db.String(50))  # 省/州
     address = db.Column(db.String(200))  # 详细地址
+    city = db.Column(db.String(100))  # 城市
+    latitude = db.Column(db.Float)  # 纬度
+    longitude = db.Column(db.Float)  # 经度
     industry = db.Column(db.String(50))  # 行业
     company_type = db.Column(db.String(20))  # 企业类型（用户/经销商/系统集成商/设计院及顾问/总承包单位）
     source = db.Column(db.String(20))  # 来源（渠道报备/销售线索/市场拓展）
