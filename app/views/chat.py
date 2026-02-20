@@ -50,6 +50,7 @@ FORM_SCHEMAS = {
         'title': '修改客户信息', 'entity_type': 'customer', 'action': 'edit',
         'context': '修改需要更新的字段：',
         'fields': [
+            {'name': 'id', 'type': 'hidden'},
             {'name': 'company_name', 'label': '企业名称', 'type': 'text', 'required': False},
             {'name': 'company_type', 'label': '企业类型', 'type': 'select', 'options_key': 'company_type', 'required': False},
             {'name': 'source', 'label': '来源', 'type': 'select', 'options_key': 'source', 'required': False},
@@ -71,10 +72,77 @@ FORM_SCHEMAS = {
             {'name': 'email', 'label': '邮箱', 'type': 'text', 'required': False},
             {'name': 'notes', 'label': '备注', 'type': 'textarea', 'required': False},
         ]
-    }
+    },
+    'edit_contact': {
+        'title': '修改联系人', 'entity_type': 'contact', 'action': 'edit',
+        'context': '修改需要更新的字段：',
+        'fields': [
+            {'name': 'id', 'type': 'hidden'},
+            {'name': 'company_id', 'type': 'hidden'},
+            {'name': 'name', 'label': '姓名', 'type': 'text', 'required': False},
+            {'name': 'department', 'label': '部门', 'type': 'text', 'required': False},
+            {'name': 'position', 'label': '职位', 'type': 'text', 'required': False},
+            {'name': 'phone', 'label': '电话', 'type': 'text', 'required': False},
+            {'name': 'email', 'label': '邮箱', 'type': 'text', 'required': False},
+            {'name': 'notes', 'label': '备注', 'type': 'textarea', 'required': False},
+        ]
+    },
+    'create_project': {
+        'title': '新建项目', 'entity_type': 'project', 'action': 'create',
+        'context': '请补充项目信息：',
+        'fields': [
+            {'name': 'project_name', 'label': '项目名称', 'type': 'text', 'required': True},
+            {'name': 'project_type', 'label': '项目类型', 'type': 'select', 'options_key': 'project_type', 'required': True},
+            {'name': 'report_source', 'label': '信息来源', 'type': 'select', 'options_key': 'report_source', 'required': True},
+            {'name': 'report_time', 'label': '上报日期', 'type': 'date', 'required': True},
+            {'name': 'industry', 'label': '行业', 'type': 'select', 'options_key': 'industry'},
+            {'name': 'product_situation', 'label': '产品情况', 'type': 'select', 'options_key': 'product_situation'},
+            {'name': 'delivery_forecast', 'label': '预计交付日期', 'type': 'date'},
+            {'name': 'address', 'label': '地址', 'type': 'text'},
+            {'name': 'stage_description', 'label': '阶段描述', 'type': 'textarea'},
+        ]
+    },
+    'edit_project': {
+        'title': '修改项目信息', 'entity_type': 'project', 'action': 'edit',
+        'context': '修改需要更新的字段：',
+        'fields': [
+            {'name': 'id', 'type': 'hidden'},
+            {'name': 'project_name', 'label': '项目名称', 'type': 'text'},
+            {'name': 'project_type', 'label': '项目类型', 'type': 'select', 'options_key': 'project_type'},
+            {'name': 'report_source', 'label': '信息来源', 'type': 'select', 'options_key': 'report_source'},
+            {'name': 'industry', 'label': '行业', 'type': 'select', 'options_key': 'industry'},
+            {'name': 'product_situation', 'label': '产品情况', 'type': 'select', 'options_key': 'product_situation'},
+            {'name': 'delivery_forecast', 'label': '预计交付日期', 'type': 'date'},
+            {'name': 'address', 'label': '地址', 'type': 'text'},
+            {'name': 'stage_description', 'label': '阶段描述', 'type': 'textarea'},
+        ]
+    },
+    'create_expense': {
+        'title': '新建报销单', 'entity_type': 'expense', 'action': 'create',
+        'context': '请填写报销信息：',
+        'fields': [
+            {'name': 'expense_category', 'label': '费用类别', 'type': 'select', 'options_key': 'expense_category', 'required': True},
+            {'name': 'expense_date', 'label': '费用日期', 'type': 'date', 'required': True},
+            {'name': 'description', 'label': '费用说明', 'type': 'text', 'required': True},
+            {'name': 'invoice_amount', 'label': '金额', 'type': 'number', 'required': True},
+            {'name': 'currency', 'label': '币种', 'type': 'select', 'options_key': 'currency'},
+        ]
+    },
+    'create_action': {
+        'title': '快速跟进记录', 'entity_type': 'action', 'action': 'create',
+        'context': '请输入跟进信息：',
+        'fields': [
+            {'name': 'company_id', 'type': 'hidden'},
+            {'name': 'contact_id', 'type': 'hidden'},
+            {'name': 'communication', 'label': '跟进内容', 'type': 'textarea', 'required': True},
+            {'name': 'date', 'label': '日期', 'type': 'date'},
+        ]
+    },
 }
 
 FORM_MARKER_RE = re.compile(r'\[\[FORM:(\w+)\|(\{.*?\})\]\]', re.DOTALL)
+# [[CHOICES:action_key|名称1:ID1|名称2:ID2]] — action_key + 带ID的选项
+CHOICES_MARKER_RE = re.compile(r'\[\[CHOICES:(.*?)\]\]', re.DOTALL)
 
 
 # ---------------------------------------------------------------------------
@@ -539,8 +607,8 @@ def ai_stream():
                     chunk_type = chunk.get('type')
                     if chunk_type == 'content':
                         full_response += chunk.get('text', '')
-                        # 检测到表单标记开头后，停止向前端输出后续内容
-                        if not _form_marker_detected and '[[FORM:' in full_response:
+                        # 检测到表单标记或选项标记开头后，停止向前端输出后续内容
+                        if not _form_marker_detected and ('[[FORM:' in full_response or '[[CHOICES:' in full_response):
                             _form_marker_detected = True
                             continue  # 不再发送，标记及之后的内容由 done 阶段处理
                         if _form_marker_detected:
@@ -571,6 +639,83 @@ def ai_stream():
                             prefill = json.loads(form_match.group(2))
                             if action_key in FORM_SCHEMAS:
                                 schema = copy.deepcopy(FORM_SCHEMAS[action_key])
+                                # edit_customer: 从数据库加载现有数据作为 prefill 底层
+                                if action_key == 'edit_customer' and prefill.get('id'):
+                                    try:
+                                        from app.models.customer import Company
+                                        company = Company.query.get(int(prefill['id']))
+                                        if company:
+                                            db_data = {
+                                                'company_name': company.company_name or '',
+                                                'company_type': company.company_type or '',
+                                                'source': company.source or '',
+                                                'country': company.country or '',
+                                                'address': company.address or '',
+                                                'industry': company.industry or '',
+                                                'notes': company.notes or '',
+                                            }
+                                            # AI prefill 覆盖数据库值（AI 提供的是用户想改的）
+                                            db_data.update(prefill)
+                                            prefill = db_data
+                                    except Exception as e:
+                                        logger.warning(f"加载客户现有数据失败: {e}")
+                                # edit_contact: 从数据库加载现有联系人数据
+                                if action_key == 'edit_contact' and prefill.get('id'):
+                                    try:
+                                        from app.models.customer import Contact
+                                        contact = Contact.query.get(int(prefill['id']))
+                                        if contact:
+                                            db_data = {
+                                                'name': contact.name or '',
+                                                'department': contact.department or '',
+                                                'position': contact.position or '',
+                                                'phone': contact.phone or '',
+                                                'email': contact.email or '',
+                                                'notes': contact.notes or '',
+                                                'company_id': contact.company_id,
+                                            }
+                                            db_data.update(prefill)
+                                            prefill = db_data
+                                    except Exception as e:
+                                        logger.warning(f"加载联系人现有数据失败: {e}")
+                                # edit_project: 从数据库加载现有项目数据
+                                if action_key == 'edit_project' and prefill.get('id'):
+                                    try:
+                                        from app.models.project import Project
+                                        from datetime import date
+                                        project = Project.query.get(int(prefill['id']))
+                                        if project:
+                                            db_data = {}
+                                            for field in schema['fields']:
+                                                fname = field['name']
+                                                if fname != 'id' and hasattr(project, fname):
+                                                    val = getattr(project, fname)
+                                                    if isinstance(val, date):
+                                                        val = val.isoformat()
+                                                    if val is not None:
+                                                        db_data[fname] = str(val) if not isinstance(val, str) else val
+                                            db_data.update(prefill)
+                                            prefill = db_data
+                                    except Exception as e:
+                                        logger.warning(f"加载项目现有数据失败: {e}")
+                                # create_action: 查出所属客户名称
+                                if action_key == 'create_action' and prefill.get('company_id'):
+                                    try:
+                                        from app.models.customer import Company
+                                        company = Company.query.get(int(prefill['company_id']))
+                                        if company:
+                                            schema['company_name'] = company.company_name
+                                    except Exception as e:
+                                        logger.warning(f"查询跟进记录所属客户失败: {e}")
+                                # create_contact / edit_contact: 查出所属客户名称
+                                if action_key in ('create_contact', 'edit_contact') and prefill.get('company_id'):
+                                    try:
+                                        from app.models.customer import Company
+                                        company = Company.query.get(int(prefill['company_id']))
+                                        if company:
+                                            schema['company_name'] = company.company_name
+                                    except Exception as e:
+                                        logger.warning(f"查询联系人所属客户失败: {e}")
                                 for field in schema['fields']:
                                     if field['name'] in prefill:
                                         field['prefill'] = prefill[field['name']]
@@ -582,6 +727,31 @@ def ai_stream():
                             full_response = FORM_MARKER_RE.sub('', full_response).strip()
                         except (json.JSONDecodeError, KeyError) as fe:
                             logger.warning(f"表单标记解析失败: {fe}")
+
+                    # 检测并处理选项标记 [[CHOICES:action_key|名称1:ID1|名称2:ID2]]
+                    choices_event = None
+                    choices_match = CHOICES_MARKER_RE.search(full_response)
+                    if choices_match:
+                        try:
+                            raw = choices_match.group(1)
+                            parts = [p.strip() for p in raw.split('|') if p.strip()]
+                            if parts:
+                                action_key = parts[0] if parts[0] in FORM_SCHEMAS else None
+                                option_list = []
+                                for p in (parts[1:] if action_key else parts):
+                                    if ':' in p:
+                                        label, eid = p.rsplit(':', 1)
+                                        option_list.append({'label': label.strip(), 'id': eid.strip()})
+                                    else:
+                                        option_list.append({'label': p})
+                                if option_list:
+                                    evt = {'type': 'choices', 'options': option_list}
+                                    if action_key:
+                                        evt['action_key'] = action_key
+                                    choices_event = json.dumps(evt, ensure_ascii=False)
+                            full_response = CHOICES_MARKER_RE.sub('', full_response).strip()
+                        except Exception as ce:
+                            logger.warning(f"选项标记解析失败: {ce}")
 
                     ai_msg = ChatMessage(
                         conversation_id=conversation_id,
@@ -619,6 +789,10 @@ def ai_stream():
                     # 发送表单请求事件（在 done 之后，确保前端已处理完消息）
                     if form_schema_event:
                         yield f'data: {form_schema_event}\n\n'
+
+                    # 发送选项事件（供用户点击快捷选择）
+                    if choices_event:
+                        yield f'data: {choices_event}\n\n'
 
                     # 自动生成话题标题（仅首次，done 之后发送以确保前端对话对象已创建）
                     try:
@@ -885,23 +1059,106 @@ def ai_db_schema():
 @chat.route('/api/forms/options', methods=['GET'])
 @login_required
 def form_options():
-    """返回表单下拉选项（company_type, source, industry）"""
+    """返回表单下拉选项"""
     try:
         from app.utils.dictionary_helpers import (
             get_company_type_options,
             get_report_source_options,
             get_industry_options,
+            get_project_type_options,
+            get_product_situation_options,
+            get_currency_type_options,
         )
+        from app.models.expense import EXPENSE_CATEGORIES
         return jsonify({
             'success': True,
             'data': {
                 'company_type': [{'value': k, 'label': v} for k, v in get_company_type_options()],
                 'source': [{'value': k, 'label': v} for k, v in get_report_source_options()],
                 'industry': [{'value': k, 'label': v} for k, v in get_industry_options()],
+                'project_type': [{'value': k, 'label': v} for k, v in get_project_type_options()],
+                'report_source': [{'value': k, 'label': v} for k, v in get_report_source_options()],
+                'product_situation': [{'value': k, 'label': v} for k, v in get_product_situation_options()],
+                'expense_category': [{'value': k, 'label': v} for k, v in EXPENSE_CATEGORIES],
+                'currency': [{'value': k, 'label': v} for k, v in get_currency_type_options()],
             }
         })
     except Exception as e:
         logger.error(f"获取表单选项失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@chat.route('/api/forms/prefill', methods=['POST'])
+@login_required
+def form_prefill():
+    """根据 action_key + entity_id 返回预填充的表单 schema（用于选项点击直达）"""
+    try:
+        data = request.get_json() or {}
+        action_key = data.get('action_key', '')
+        entity_id = data.get('entity_id')
+
+        if action_key not in FORM_SCHEMAS:
+            return jsonify({'success': False, 'message': f'未知表单类型: {action_key}'}), 400
+
+        schema = copy.deepcopy(FORM_SCHEMAS[action_key])
+        prefill = {'id': entity_id} if entity_id else {}
+
+        # 复用 SSE 流中的 DB prefill 逻辑
+        if action_key == 'edit_customer' and entity_id:
+            from app.models.customer import Company
+            company = Company.query.get(int(entity_id))
+            if not company:
+                return jsonify({'success': False, 'message': '未找到该客户'}), 404
+            prefill.update({
+                'company_name': company.company_name or '',
+                'company_type': company.company_type or '',
+                'source': company.source or '',
+                'country': company.country or '',
+                'address': company.address or '',
+                'industry': company.industry or '',
+                'notes': company.notes or '',
+            })
+        elif action_key == 'edit_contact' and entity_id:
+            from app.models.customer import Contact
+            contact = Contact.query.get(int(entity_id))
+            if not contact:
+                return jsonify({'success': False, 'message': '未找到该联系人'}), 404
+            prefill.update({
+                'name': contact.name or '',
+                'department': contact.department or '',
+                'position': contact.position or '',
+                'phone': contact.phone or '',
+                'email': contact.email or '',
+                'notes': contact.notes or '',
+                'company_id': contact.company_id,
+            })
+            if contact.company_id:
+                from app.models.customer import Company
+                company = Company.query.get(contact.company_id)
+                if company:
+                    schema['company_name'] = company.company_name
+        elif action_key == 'edit_project' and entity_id:
+            from app.models.project import Project
+            from datetime import date
+            project = Project.query.get(int(entity_id))
+            if not project:
+                return jsonify({'success': False, 'message': '未找到该项目'}), 404
+            for field in schema['fields']:
+                fname = field['name']
+                if fname != 'id' and hasattr(project, fname):
+                    val = getattr(project, fname)
+                    if isinstance(val, date):
+                        val = val.isoformat()
+                    if val is not None:
+                        prefill[fname] = str(val) if not isinstance(val, str) else val
+
+        for field in schema['fields']:
+            if field['name'] in prefill:
+                field['prefill'] = prefill[field['name']]
+
+        return jsonify({'success': True, 'form_schema': schema})
+    except Exception as e:
+        logger.error(f"表单预填充失败: {e}", exc_info=True)
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -929,6 +1186,18 @@ def form_submit():
             return _handle_edit_customer(entity_id, form_data, conversation_id, current_user)
         elif entity_type == 'contact' and action == 'create':
             return _handle_create_contact(form_data, conversation_id, current_user)
+        elif entity_type == 'contact' and action == 'edit':
+            return _handle_edit_contact(entity_id, form_data, conversation_id, current_user)
+        elif entity_type == 'project' and action == 'create':
+            return _handle_create_project(form_data, conversation_id, current_user)
+        elif entity_type == 'project' and action == 'edit':
+            if not entity_id:
+                return jsonify({'success': False, 'message': '缺少 entity_id'}), 400
+            return _handle_edit_project(entity_id, form_data, conversation_id, current_user)
+        elif entity_type == 'expense' and action == 'create':
+            return _handle_create_expense(form_data, conversation_id, current_user)
+        elif entity_type == 'action' and action == 'create':
+            return _handle_create_action(form_data, conversation_id, current_user)
         else:
             return jsonify({'success': False, 'message': f'不支持的操作: {entity_type}/{action}'}), 400
 
@@ -1067,6 +1336,321 @@ def _handle_create_contact(form_data, conversation_id, user):
             'entity_id': contact.id,
             'entity_name': name,
             'company_id': company_id,
+            'company_name': company.company_name,
+        }
+    })
+
+
+def _handle_edit_contact(entity_id, form_data, conversation_id, user):
+    """处理修改联系人表单"""
+    from app.models.customer import Company, Contact
+    from app.utils.access_control import can_view_company
+
+    contact = Contact.query.get(entity_id)
+    if not contact:
+        return jsonify({'success': False, 'message': '联系人不存在'}), 404
+
+    company = Company.query.get(contact.company_id)
+    if company and not can_view_company(user, company):
+        return jsonify({'success': False, 'message': '没有权限修改此联系人'}), 403
+
+    updatable = ['name', 'department', 'position', 'phone', 'email', 'notes']
+    for field in updatable:
+        val = form_data.get(field)
+        if val is not None and str(val).strip():
+            setattr(contact, field, str(val).strip())
+
+    if conversation_id:
+        company_name = company.company_name if company else ''
+        _save_form_result_card(
+            conversation_id, 'contact', 'edit', contact.id,
+            f'{contact.name} ({company_name})',
+        )
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'entity_type': 'contact',
+            'entity_id': contact.id,
+            'entity_name': contact.name,
+            'company_id': contact.company_id,
+            'company_name': company.company_name if company else '',
+        }
+    })
+
+
+def _handle_create_project(form_data, conversation_id, user):
+    """处理创建项目表单"""
+    from app.models.project import Project
+    from app.permissions import has_permission
+    from datetime import date
+
+    if not has_permission('project', 'create'):
+        return jsonify({'success': False, 'message': '没有创建项目的权限'}), 403
+
+    project_name = (form_data.get('project_name') or '').strip()
+    project_type = (form_data.get('project_type') or '').strip()
+    report_source = (form_data.get('report_source') or '').strip()
+    report_time_str = (form_data.get('report_time') or '').strip()
+
+    if not project_name:
+        return jsonify({'success': False, 'message': '项目名称不能为空'}), 400
+    if not project_type:
+        return jsonify({'success': False, 'message': '项目类型不能为空'}), 400
+    if not report_source:
+        return jsonify({'success': False, 'message': '信息来源不能为空'}), 400
+    if not report_time_str:
+        return jsonify({'success': False, 'message': '上报日期不能为空'}), 400
+
+    # 重名检查
+    existing = Project.query.filter_by(project_name=project_name).first()
+    if existing:
+        return jsonify({'success': False, 'message': f'项目名称 "{project_name}" 已存在'}), 400
+
+    # 解析日期
+    try:
+        report_time = date.fromisoformat(report_time_str)
+    except ValueError:
+        return jsonify({'success': False, 'message': '上报日期格式无效'}), 400
+
+    delivery_forecast = None
+    df_str = (form_data.get('delivery_forecast') or '').strip()
+    if df_str:
+        try:
+            delivery_forecast = date.fromisoformat(df_str)
+        except ValueError:
+            pass
+
+    # 如果当前用户是厂商账户，自动设置为厂商负责人
+    vendor_sales_manager_id = None
+    if user.is_vendor_user():
+        vendor_sales_manager_id = user.id
+
+    project = Project(
+        project_name=project_name,
+        project_type=project_type,
+        report_source=report_source,
+        report_time=report_time,
+        industry=form_data.get('industry', ''),
+        product_situation=form_data.get('product_situation', ''),
+        delivery_forecast=delivery_forecast,
+        address=form_data.get('address', ''),
+        stage_description=form_data.get('stage_description', ''),
+        current_stage='discover',
+        status='draft',
+        owner_id=user.id,
+        created_by=user.id,
+        vendor_sales_manager_id=vendor_sales_manager_id,
+    )
+    db.session.add(project)
+    db.session.flush()
+
+    if conversation_id:
+        _save_form_result_card(conversation_id, 'project', 'create', project.id, project_name)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'entity_type': 'project',
+            'entity_id': project.id,
+            'entity_name': project_name,
+        }
+    })
+
+
+def _handle_edit_project(entity_id, form_data, conversation_id, user):
+    """处理修改项目表单"""
+    from app.models.project import Project
+    from app.utils.access_control import get_viewable_data
+    from datetime import date
+
+    project = Project.query.get(entity_id)
+    if not project:
+        return jsonify({'success': False, 'message': '项目不存在'}), 404
+
+    # 权限验证：确认用户能查看此项目
+    viewable = get_viewable_data(Project, user, [Project.id == entity_id])
+    if not viewable.first():
+        return jsonify({'success': False, 'message': '没有权限修改此项目'}), 403
+
+    updatable_text = ['project_name', 'project_type', 'report_source', 'industry',
+                      'product_situation', 'address', 'stage_description']
+    for field in updatable_text:
+        val = form_data.get(field)
+        if val is not None and str(val).strip():
+            setattr(project, field, str(val).strip())
+
+    # 日期字段单独处理
+    for date_field in ['delivery_forecast']:
+        val = (form_data.get(date_field) or '').strip()
+        if val:
+            try:
+                setattr(project, date_field, date.fromisoformat(val))
+            except ValueError:
+                pass
+
+    if conversation_id:
+        _save_form_result_card(conversation_id, 'project', 'edit', project.id, project.project_name)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'entity_type': 'project',
+            'entity_id': project.id,
+            'entity_name': project.project_name,
+        }
+    })
+
+
+def _handle_create_expense(form_data, conversation_id, user):
+    """处理创建报销单表单（简化版：不关联客户模式）"""
+    from app.models.expense import Expense, ExpenseDetail
+    from app.permissions import has_permission
+    from datetime import date, datetime, timezone
+
+    if not has_permission('expense', 'create'):
+        return jsonify({'success': False, 'message': '没有创建报销单的权限'}), 403
+
+    expense_category = (form_data.get('expense_category') or '').strip()
+    expense_date_str = (form_data.get('expense_date') or '').strip()
+    description = (form_data.get('description') or '').strip()
+    invoice_amount_str = (form_data.get('invoice_amount') or '').strip()
+
+    if not expense_category:
+        return jsonify({'success': False, 'message': '费用类别不能为空'}), 400
+    if not expense_date_str:
+        return jsonify({'success': False, 'message': '费用日期不能为空'}), 400
+    if not description:
+        return jsonify({'success': False, 'message': '费用说明不能为空'}), 400
+    if not invoice_amount_str:
+        return jsonify({'success': False, 'message': '金额不能为空'}), 400
+
+    try:
+        invoice_amount = float(invoice_amount_str)
+    except ValueError:
+        return jsonify({'success': False, 'message': '金额格式无效'}), 400
+    if invoice_amount <= 0:
+        return jsonify({'success': False, 'message': '金额必须大于0'}), 400
+
+    try:
+        expense_date = date.fromisoformat(expense_date_str)
+    except ValueError:
+        return jsonify({'success': False, 'message': '费用日期格式无效'}), 400
+
+    currency = (form_data.get('currency') or 'CNY').strip()
+    user_name = getattr(user, 'real_name', None) or getattr(user, 'username', '') or ''
+    desc_prefix = description[:10] if len(description) > 10 else description
+    timestamp = datetime.now().strftime('%m%d%H%M')
+    title = f'不关联（{desc_prefix}）-{user_name}-{timestamp}'
+
+    expense = Expense(
+        title=title,
+        owner_id=user.id,
+        description=description,
+        currency=currency,
+        total_amount=invoice_amount,
+        status='draft',
+    )
+    db.session.add(expense)
+    db.session.flush()
+
+    detail = ExpenseDetail(
+        expense_id=expense.id,
+        expense_date=expense_date,
+        expense_category=expense_category,
+        description=description,
+        invoice_amount=invoice_amount,
+        current_amount=invoice_amount,
+        currency=currency,
+        exchange_rate=1.0,
+    )
+    db.session.add(detail)
+
+    if conversation_id:
+        _save_form_result_card(conversation_id, 'expense', 'create', expense.id, title)
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'entity_type': 'expense',
+            'entity_id': expense.id,
+            'entity_name': title,
+        }
+    })
+
+
+def _handle_create_action(form_data, conversation_id, user):
+    """处理创建跟进记录表单"""
+    from app.models.action import Action
+    from app.models.customer import Company, Contact
+    from app.utils.access_control import can_view_company
+    from datetime import date
+
+    company_id = form_data.get('company_id')
+    contact_id = form_data.get('contact_id')
+    communication = (form_data.get('communication') or '').strip()
+
+    if not company_id:
+        return jsonify({'success': False, 'message': '缺少 company_id'}), 400
+    if not contact_id:
+        return jsonify({'success': False, 'message': '缺少 contact_id'}), 400
+    if not communication:
+        return jsonify({'success': False, 'message': '跟进内容不能为空'}), 400
+
+    company = Company.query.filter_by(id=int(company_id), is_deleted=False).first()
+    if not company:
+        return jsonify({'success': False, 'message': '客户不存在'}), 404
+    if not can_view_company(user, company):
+        return jsonify({'success': False, 'message': '没有权限操作此客户'}), 403
+
+    contact = Contact.query.get(int(contact_id))
+    if not contact or contact.company_id != int(company_id):
+        return jsonify({'success': False, 'message': '联系人不存在或不属于该客户'}), 400
+
+    # 日期：用户提供或默认今天
+    action_date_str = (form_data.get('date') or '').strip()
+    if action_date_str:
+        try:
+            action_date = date.fromisoformat(action_date_str)
+        except ValueError:
+            action_date = date.today()
+    else:
+        action_date = date.today()
+
+    action = Action(
+        date=action_date,
+        communication=communication,
+        owner_id=user.id,
+        company_id=int(company_id),
+        contact_id=int(contact_id),
+        is_shared=True,
+    )
+    db.session.add(action)
+    db.session.flush()
+
+    if conversation_id:
+        _save_form_result_card(
+            conversation_id, 'action', 'create', action.id,
+            f'{contact.name} ({company.company_name})',
+        )
+
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'data': {
+            'entity_type': 'action',
+            'entity_id': action.id,
+            'entity_name': contact.name,
+            'company_id': int(company_id),
             'company_name': company.company_name,
         }
     })

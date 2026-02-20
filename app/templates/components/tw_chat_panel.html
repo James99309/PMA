@@ -51,7 +51,7 @@
      @toggle-chat-panel.window="toggle()"
      @keydown.escape.window="chatOpen && closePanel()"
     @click.outside="chatOpen && closePanel()"
-     class="fixed top-0 left-0 right-0 h-[100dvh] z-50 md:inset-auto md:top-0 md:right-0 md:w-[70vw] md:h-full md:max-w-[calc(100vw-48px)] bg-white dark:bg-slate-900 md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
+     class="fixed top-0 left-0 right-0 h-[100dvh] z-50 md:inset-auto md:top-0 md:right-0 md:w-[70vw] md:h-full md:max-w-[calc(100vw-48px)] bg-gray-50 dark:bg-slate-900 md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
      x-cloak
      style="display: none;">
 
@@ -314,81 +314,137 @@
 
             <!-- 消息列表 -->
             <template x-for="(msg, index) in messages" :key="msg.id || index">
-                <div class="chat-msg-appear">
+                <div class="chat-msg-appear" :data-msg-id="msg.id">
 
                     <!-- ====== 交互式表单卡片（active_form） ====== -->
                     <template x-if="msg.message_type === 'active_form'">
                     <div class="py-2">
                         <div class="max-w-[400px]">
                             <!-- 表单标题栏 -->
-                            <div class="rounded-t-xl px-4 py-2.5 flex items-center gap-2"
-                                 :class="msg._formSchema?.action === 'edit' ? 'bg-blue-500' : 'bg-violet-500'">
-                                <span class="material-symbols-outlined text-white text-lg"
-                                      x-text="msg._formSchema?.action === 'edit' ? 'edit' : msg._formSchema?.entity_type === 'contact' ? 'person_add' : 'add_business'"></span>
-                                <span class="text-sm font-medium text-white" x-text="msg._formSchema?.title || ''"></span>
+                            <div class="rounded-t-xl px-4 py-2.5 flex items-center gap-2 bg-slate-100 dark:bg-slate-700 border border-b-0 border-slate-200 dark:border-slate-600">
+                                <span class="material-symbols-outlined text-slate-600 dark:text-slate-300 text-lg"
+                                      x-text="msg._formConfirming ? 'fact_check' : (msg._formSchema?.action === 'edit' ? 'edit' : {'contact':'person_add','project':'work','expense':'receipt_long','action':'chat'}[msg._formSchema?.entity_type] || 'add_business')"></span>
+                                <span class="text-sm font-bold text-slate-700 dark:text-slate-200" x-text="msg._formConfirming ? '确认提交信息' : (msg._formSchema?.title || '')"></span>
                             </div>
                             <!-- 表单内容 -->
-                            <div class="bg-white dark:bg-slate-800 border border-t-0 border-slate-200 dark:border-slate-700 rounded-b-xl px-4 py-3">
-                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-3" x-text="msg._formSchema?.context || ''"></p>
-                                <template x-for="field in (msg._formSchema?.fields || []).filter(f => f.type !== 'hidden')" :key="field.name">
-                                    <div class="mb-3">
-                                        <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                                            <span x-text="field.label"></span>
-                                            <span x-show="field.required" class="text-red-500 ml-0.5">*</span>
-                                        </label>
-                                        <!-- text input -->
-                                        <template x-if="field.type === 'text'">
-                                            <input type="text"
-                                                   x-model="msg._formValues[field.name]"
-                                                   @input="if(msg._formErrors) delete msg._formErrors[field.name]"
-                                                   class="w-full text-sm px-3 py-2 rounded-lg border transition-colors focus:outline-none focus:ring-1"
-                                                   :class="msg._formErrors?.[field.name]
-                                                       ? 'border-red-300 dark:border-red-600 focus:ring-red-300 focus:border-red-300'
-                                                       : 'border-slate-200 dark:border-slate-600 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white'">
-                                        </template>
-                                        <!-- select -->
-                                        <template x-if="field.type === 'select'">
-                                            <select x-model="msg._formValues[field.name]"
-                                                    @change="if(msg._formErrors) delete msg._formErrors[field.name]"
-                                                    class="w-full text-sm px-3 py-2 rounded-lg border transition-colors focus:outline-none focus:ring-1"
-                                                    :class="msg._formErrors?.[field.name]
-                                                        ? 'border-red-300 dark:border-red-600 focus:ring-red-300 focus:border-red-300'
-                                                        : 'border-slate-200 dark:border-slate-600 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white'">
-                                                <option value="">--</option>
-                                                <template x-for="opt in getFormFieldOptions(field.options_key)" :key="opt.value">
-                                                    <option :value="opt.value" x-text="opt.label"></option>
-                                                </template>
-                                            </select>
-                                        </template>
-                                        <!-- textarea -->
-                                        <template x-if="field.type === 'textarea'">
-                                            <textarea x-model="msg._formValues[field.name]"
-                                                      rows="2"
-                                                      class="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white resize-none"></textarea>
-                                        </template>
-                                        <!-- 错误提示 -->
-                                        <p x-show="msg._formErrors?.[field.name]"
-                                           class="text-[11px] text-red-500 mt-0.5"
-                                           x-text="msg._formErrors?.[field.name]"></p>
+                            <div class="bg-gray-50 dark:bg-slate-800 border border-t-0 border-slate-200 dark:border-slate-600 rounded-b-xl px-4 py-3">
+                                <!-- 所属客户标识（create_contact 时显示） -->
+                                <template x-if="msg._formSchema?.company_name">
+                                    <div class="flex items-center gap-1.5 mb-3 px-2 py-1.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                        <span class="material-symbols-outlined text-sm text-slate-500">business</span>
+                                        <span class="text-xs text-slate-500 dark:text-slate-400">所属客户：</span>
+                                        <span class="text-xs font-medium text-slate-700 dark:text-slate-200" x-text="msg._formSchema.company_name"></span>
                                     </div>
                                 </template>
-                                <!-- 按钮 -->
-                                <div class="flex justify-end gap-2 mt-4">
-                                    <button @click="cancelChatForm(msg)"
-                                            :disabled="formSubmitting"
-                                            class="px-4 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
-                                            x-text="_chatI18n.formCancel"></button>
-                                    <button @click="submitChatForm(msg)"
-                                            :disabled="formSubmitting"
-                                            class="px-4 py-1.5 text-sm rounded-lg text-white cursor-pointer transition-colors disabled:opacity-50"
-                                            :class="msg._formSchema?.action === 'edit' ? 'bg-blue-500 hover:bg-blue-600' : 'bg-violet-500 hover:bg-violet-600'">
-                                        <span x-show="!formSubmitting" x-text="_chatI18n.formSubmit"></span>
-                                        <span x-show="formSubmitting" class="inline-flex items-center gap-1.5">
-                                            <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>
-                                            <span x-text="_chatI18n.formSubmitting"></span>
-                                        </span>
-                                    </button>
+
+                                <!-- ===== 编辑模式 ===== -->
+                                <template x-if="!msg._formConfirming">
+                                <div>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-3" x-text="msg._formSchema?.context || ''"></p>
+                                    <template x-for="field in (msg._formSchema?.fields || []).filter(f => f.type !== 'hidden')" :key="field.name">
+                                        <div class="mb-3">
+                                            <label class="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                                <span x-text="field.label"></span>
+                                                <span x-show="field.required" class="text-red-500 ml-0.5">*</span>
+                                            </label>
+                                            <!-- text input -->
+                                            <template x-if="field.type === 'text'">
+                                                <input type="text"
+                                                       x-model="msg._formValues[field.name]"
+                                                       @input="if(msg._formErrors) delete msg._formErrors[field.name]"
+                                                       class="w-full text-sm px-3 py-2 rounded-lg border transition-colors focus:outline-none focus:ring-1"
+                                                       :class="msg._formErrors?.[field.name]
+                                                           ? 'border-red-300 dark:border-red-600 focus:ring-red-300 focus:border-red-300'
+                                                           : 'border-slate-200 dark:border-slate-600 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white'">
+                                            </template>
+                                            <!-- select -->
+                                            <template x-if="field.type === 'select'">
+                                                <select x-model="msg._formValues[field.name]"
+                                                        @change="if(msg._formErrors) delete msg._formErrors[field.name]"
+                                                        class="w-full text-sm px-3 py-2 rounded-lg border transition-colors focus:outline-none focus:ring-1"
+                                                        :class="msg._formErrors?.[field.name]
+                                                            ? 'border-red-300 dark:border-red-600 focus:ring-red-300 focus:border-red-300'
+                                                            : 'border-slate-200 dark:border-slate-600 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white'">
+                                                    <option value="">--</option>
+                                                    <template x-for="opt in getFormFieldOptions(field.options_key)" :key="opt.value">
+                                                        <option :value="opt.value" x-text="opt.label" :selected="opt.value === msg._formValues[field.name]"></option>
+                                                    </template>
+                                                </select>
+                                            </template>
+                                            <!-- textarea -->
+                                            <template x-if="field.type === 'textarea'">
+                                                <textarea x-model="msg._formValues[field.name]"
+                                                          rows="3"
+                                                          class="w-full text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white resize-y"></textarea>
+                                            </template>
+                                            <!-- date input -->
+                                            <template x-if="field.type === 'date'">
+                                                <input type="date"
+                                                       x-model="msg._formValues[field.name]"
+                                                       @input="if(msg._formErrors) delete msg._formErrors[field.name]"
+                                                       class="w-full text-sm px-3 py-2 rounded-lg border transition-colors focus:outline-none focus:ring-1"
+                                                       :class="msg._formErrors?.[field.name]
+                                                           ? 'border-red-300 dark:border-red-600 focus:ring-red-300 focus:border-red-300'
+                                                           : 'border-slate-200 dark:border-slate-600 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white'">
+                                            </template>
+                                            <!-- number input -->
+                                            <template x-if="field.type === 'number'">
+                                                <input type="number" step="0.01" min="0"
+                                                       x-model="msg._formValues[field.name]"
+                                                       @input="if(msg._formErrors) delete msg._formErrors[field.name]"
+                                                       class="w-full text-sm px-3 py-2 rounded-lg border transition-colors focus:outline-none focus:ring-1"
+                                                       :class="msg._formErrors?.[field.name]
+                                                           ? 'border-red-300 dark:border-red-600 focus:ring-red-300 focus:border-red-300'
+                                                           : 'border-slate-200 dark:border-slate-600 focus:ring-primary/50 focus:border-primary bg-white dark:bg-slate-900 text-slate-900 dark:text-white'">
+                                            </template>
+                                            <!-- 错误提示 -->
+                                            <p x-show="msg._formErrors?.[field.name]"
+                                               class="text-[11px] text-red-500 mt-0.5"
+                                               x-text="msg._formErrors?.[field.name]"></p>
+                                        </div>
+                                    </template>
+                                    <!-- 按钮：取消 / 下一步 -->
+                                    <div class="flex justify-end gap-2 mt-4">
+                                        <button @click="cancelChatForm(msg)"
+                                                class="px-4 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                                                x-text="_chatI18n.formCancel"></button>
+                                        <button @click="confirmChatForm(msg)"
+                                                class="px-4 py-1.5 text-sm rounded-lg text-white cursor-pointer transition-colors bg-slate-800 hover:bg-slate-900 dark:bg-slate-200 dark:text-slate-800 dark:hover:bg-slate-300"
+                                                >确认信息</button>
+                                    </div>
                                 </div>
+                                </template>
+
+                                <!-- ===== 确认预览模式 ===== -->
+                                <template x-if="msg._formConfirming">
+                                <div>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">请确认以下信息无误后提交：</p>
+                                    <template x-for="field in (msg._formSchema?.fields || []).filter(f => f.type !== 'hidden')" :key="field.name">
+                                        <div class="flex items-start py-1.5"
+                                             x-show="msg._formValues[field.name]">
+                                            <span class="text-xs text-slate-500 dark:text-slate-400 w-20 shrink-0 pt-0.5" x-text="field.label"></span>
+                                            <span class="text-sm text-slate-800 dark:text-slate-200 font-medium"
+                                                  x-text="field.type === 'select' ? getFormSelectLabel(field.options_key, msg._formValues[field.name]) : (field.type === 'number' && msg._formValues[field.name] ? Number(msg._formValues[field.name]).toLocaleString('zh-CN', {minimumFractionDigits: 0, maximumFractionDigits: 2}) : msg._formValues[field.name])"></span>
+                                        </div>
+                                    </template>
+                                    <!-- 按钮：返回修改 / 确认提交 -->
+                                    <div class="flex justify-end gap-2 mt-4">
+                                        <button @click="msg._formConfirming = false"
+                                                :disabled="formSubmitting"
+                                                class="px-4 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                                                >返回修改</button>
+                                        <button @click="submitChatForm(msg)"
+                                                :disabled="formSubmitting"
+                                                class="px-4 py-1.5 text-sm rounded-lg cursor-pointer transition-colors disabled:opacity-50 bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-800 dark:hover:bg-slate-300">
+                                            <span x-show="!formSubmitting">确认提交</span>
+                                            <span x-show="formSubmitting" class="inline-flex items-center gap-1.5">
+                                                <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>
+                                                <span x-text="_chatI18n.formSubmitting"></span>
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+                                </template>
                             </div>
                         </div>
                     </div>
@@ -399,7 +455,10 @@
                     <div class="py-2">
                         <div class="max-w-[400px] rounded-xl border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 px-4 py-3 cursor-pointer hover:shadow-md transition-shadow"
                              @click="msg.card_data?.entity_type === 'customer' ? window.open('/customer/' + msg.card_data.entity_id + '/view', '_blank')
-                                   : msg.card_data?.entity_type === 'contact' && msg.card_data?.company_id ? window.open('/customer/' + msg.card_data.company_id + '/view', '_blank')
+                                   : msg.card_data?.entity_type === 'contact' ? window.open('/customer/contacts/' + msg.card_data.entity_id + '/view', '_blank')
+                                   : msg.card_data?.entity_type === 'project' ? window.open('/project/view/' + msg.card_data.entity_id, '_blank')
+                                   : msg.card_data?.entity_type === 'expense' ? window.open('/expense/' + msg.card_data.entity_id + '/detail', '_blank')
+                                   : msg.card_data?.entity_type === 'action' ? window.open('/customer/' + msg.card_data.company_id + '/view', '_blank')
                                    : null">
                             <div class="flex items-center gap-2 mb-1.5">
                                 <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-lg">check_circle</span>
@@ -447,6 +506,17 @@
                             <!-- Markdown 内容（无气泡） -->
                             <div class="prose prose-sm prose-slate dark:prose-invert max-w-none text-sm leading-relaxed"
                                  x-html="renderMarkdown(msg.content)"></div>
+                            <!-- 快捷选项（AI 列出多个匹配时显示） -->
+                            <template x-if="msg._choices && msg._choices.length > 0">
+                                <div class="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+                                    <template x-for="(choice, ci) in msg._choices" :key="ci">
+                                        <button @click="handleChoiceClick(choice, msg)"
+                                                class="text-sm text-violet-600 dark:text-violet-400 underline underline-offset-2 decoration-violet-300 dark:decoration-violet-600 hover:text-violet-800 dark:hover:text-violet-300 hover:decoration-violet-500 transition-colors cursor-pointer">
+                                            <span x-text="choice.label || choice"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </template>
                             <!-- 底部操作：复制 + 引用 + 转发（hover 显示） -->
                             <div class="flex items-center gap-0.5 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                                 <button @click="copyMessageContent(msg)" :title="_chatI18n.copy"
@@ -2158,6 +2228,61 @@ function chatPanel() {
             }
         },
 
+        // 点击 AI 推荐选项
+        async handleChoiceClick(choice, msg) {
+            const actionKey = msg._choicesActionKey;
+            const entityId = choice.id;
+
+            // 有 action_key + id → 直接加载表单（无需再问 AI）
+            if (actionKey && entityId) {
+                msg._choices = [];  // 清除选项按钮
+                try {
+                    const resp = await fetch('/chat/api/forms/prefill', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': this.csrfToken},
+                        body: JSON.stringify({action_key: actionKey, entity_id: entityId}),
+                    });
+                    const result = await resp.json();
+                    if (result.success && result.form_schema) {
+                        const schema = result.form_schema;
+                        const formValues = {};
+                        for (const field of schema.fields) {
+                            formValues[field.name] = field.prefill || '';
+                        }
+                        const formMsgId = 'active_form_' + Date.now();
+                        this.messages.push({
+                            id: formMsgId,
+                            message_type: 'active_form',
+                            is_ai: true,
+                            is_ai_response: true,
+                            sender_name: '{{ _("AI 助手") }}',
+                            created_at: new Date().toISOString(),
+                            _formSchema: schema,
+                            _formValues: formValues,
+                            _formErrors: {},
+                            _formConfirming: false,
+                        });
+                        this.$nextTick(() => {
+                            const formEl = this.$refs.messageArea?.querySelector(`[data-msg-id="${formMsgId}"]`);
+                            if (formEl) {
+                                formEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            } else {
+                                this.scrollToBottom();
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('表单预填充失败:', e);
+                }
+                return;
+            }
+
+            // 没有 id → fallback 发文本消息给 AI
+            msg._choices = [];
+            this.inputText = choice.label || choice;
+            this.sendMessage();
+        },
+
         async _uploadPendingFiles() {
             if (!this.activeConv) return;
             this.uploadingFile = true;
@@ -2355,10 +2480,12 @@ function chatPanel() {
                                 this.aiThinkingCollapsed = true;
                                 this.aiStatusMsg = '';
                                 this._clearSlowTimer();
-                                // 清除可能残留的表单标记文本
+                                // 清除可能残留的表单标记或选项标记文本
                                 if (this.aiStreamingMsg) {
                                     const _fmIdx = this.aiStreamingMsg.indexOf('[[FORM:');
                                     if (_fmIdx !== -1) this.aiStreamingMsg = this.aiStreamingMsg.substring(0, _fmIdx).trimEnd();
+                                    const _chIdx = this.aiStreamingMsg.indexOf('[[CHOICES:');
+                                    if (_chIdx !== -1) this.aiStreamingMsg = this.aiStreamingMsg.substring(0, _chIdx).trimEnd();
                                 }
                                 if (this.aiStreamingMsg) {
                                     this.messages.push({
@@ -2420,8 +2547,9 @@ function chatPanel() {
                                     for (const field of schema.fields) {
                                         formValues[field.name] = field.prefill || '';
                                     }
+                                    const formMsgId = 'active_form_' + Date.now();
                                     this.messages.push({
-                                        id: 'active_form_' + Date.now(),
+                                        id: formMsgId,
                                         message_type: 'active_form',
                                         is_ai: true,
                                         is_ai_response: true,
@@ -2430,7 +2558,28 @@ function chatPanel() {
                                         _formSchema: schema,
                                         _formValues: formValues,
                                         _formErrors: {},
+                                        _formConfirming: false,
                                     });
+                                    // 滚动到表单居中位置，方便用户查看和填写
+                                    this.$nextTick(() => {
+                                        const formEl = this.$refs.messageArea?.querySelector(`[data-msg-id="${formMsgId}"]`);
+                                        if (formEl) {
+                                            formEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        } else {
+                                            this.scrollToBottom();
+                                        }
+                                    });
+                                }
+                            } else if (payload.type === 'choices') {
+                                // AI 列出多个匹配结果，渲染为可点击选项
+                                if (payload.options && payload.options.length > 0) {
+                                    for (let i = this.messages.length - 1; i >= 0; i--) {
+                                        if (this.messages[i].is_ai) {
+                                            this.messages[i]._choices = payload.options;
+                                            this.messages[i]._choicesActionKey = payload.action_key || null;
+                                            break;
+                                        }
+                                    }
                                     this.scrollToBottom();
                                 }
                             } else if (payload.type === 'topic_update') {
@@ -3125,6 +3274,31 @@ function chatPanel() {
             return this.formOptions[optionsKey] || [];
         },
 
+        getFormSelectLabel(optionsKey, value) {
+            if (!value) return '';
+            const opts = this.getFormFieldOptions(optionsKey);
+            const opt = opts.find(o => o.value === value);
+            return opt ? opt.label : value;
+        },
+
+        confirmChatForm(msg) {
+            // 验证必填字段后进入确认模式
+            if (!msg._formSchema) return;
+            const schema = msg._formSchema;
+            const values = msg._formValues || {};
+            const errors = {};
+            for (const field of schema.fields) {
+                if (field.required && !values[field.name]?.toString().trim()) {
+                    errors[field.name] = (field.label || field.name) + '不能为空';
+                }
+            }
+            if (Object.keys(errors).length > 0) {
+                msg._formErrors = errors;
+                return;
+            }
+            msg._formConfirming = true;
+        },
+
         async submitChatForm(msg) {
             if (this.formSubmitting || !msg._formSchema) return;
 
@@ -3133,7 +3307,7 @@ function chatPanel() {
             const values = msg._formValues || {};
             const errors = {};
             for (const field of schema.fields) {
-                if (field.required && !values[field.name]?.trim()) {
+                if (field.required && !values[field.name]?.toString().trim()) {
                     errors[field.name] = this._chatI18n.formRequired;
                 }
             }
