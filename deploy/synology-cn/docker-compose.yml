@@ -122,6 +122,7 @@ services:
     volumes:
       - pma_storage:/app/storage
       - pma_logs:/app/logs
+      - pma_openclaw:/root/.openclaw
       # 代码热重载挂载（无需重建即可更新）
       - ${PROJECT_DIR:-/volume1/docker/pma}/app:/app/app:ro
       - ${PROJECT_DIR:-/volume1/docker/pma}/migrations:/app/migrations:ro
@@ -235,6 +236,8 @@ volumes:
   pma_storage:
     driver: local
   pma_logs:
+    driver: local
+  pma_openclaw:
     driver: local
 
 # 网络

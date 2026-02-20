@@ -44,14 +44,12 @@ def _clean_dsml(text):
 # 主入口：流式 AI 响应（统一走 OpenClaw）
 # ---------------------------------------------------------------------------
 
-def get_ai_response_stream(message, user, conversation_history=None,
-                           session_id=None, conversation_id=None):
+def get_ai_response_stream(message, user, session_id=None, conversation_id=None):
     """通过 OpenClaw 获取 AI 流式响应
 
     Args:
         message: 用户发送的消息文本
         user: 当前用户对象
-        conversation_history: 对话历史 [{role, content}, ...]
         session_id: OpenClaw session ID
         conversation_id: 当前对话 ID（供 OpenClaw 文件上传工具使用）
 
@@ -66,10 +64,8 @@ def get_ai_response_stream(message, user, conversation_history=None,
     try:
         from app.services.openclaw_provider import get_openclaw_response_stream
         yield from get_openclaw_response_stream(
-            message, conversation_history, session_id,
-            user=user, conversation_id=conversation_id,
-            user_id=user.id if user else None,
-            user_name=(user.real_name or user.username) if user else None)
+            message, session_id=session_id,
+            user=user, conversation_id=conversation_id)
     except Exception as e:
         logger.error(f'AI 流式响应异常: {e}', exc_info=True)
         yield {'type': 'content', 'text': '抱歉，AI 服务暂时不可用，请稍后重试。'}

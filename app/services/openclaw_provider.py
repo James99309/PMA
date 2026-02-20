@@ -168,10 +168,28 @@ def _build_device_auth(identity, client_id, client_mode, role, scopes, token, no
     }
 
 
+# ── Keyword detection for DB prompt injection ───────────────────────
+
+_DB_KEYWORDS = {
+    '数据', '查询', '统计', '多少', '报销', '项目', '客户', '报价',
+    '订单', '产品', '销售', '业绩', '金额', '合同', '人员', '任务',
+    '部门', '公司', '联系人', '费用', '预算', '排名', '对比', '汇总',
+    '分析', '趋势', '增长', '下降', '同比', '环比', '利润', '成本',
+    'data', 'query', 'report', 'sales', 'project', 'customer',
+    'expense', 'quotation', 'product', 'order', 'task',
+}
+
+
+def _needs_db_prompt(message):
+    """判断用户消息是否可能需要数据库查询"""
+    msg_lower = message.lower()
+    return any(kw in msg_lower for kw in _DB_KEYWORDS)
+
+
 # ── Main entry point ─────────────────────────────────────────────────
 
 def _build_db_tool_prompt(user, conversation_id=None):
-    """构建数据库查询工具说明，注入到发送给 OpenClaw 的消息中。
+    """构建数据库查询工具、文件上传工具和表单交互工具说明，注入到发送给 OpenClaw 的消息中。
 
     数据库查询通过原生 query_pma_database tool 执行（OpenClaw Extension），
     不再需要 exec/curl。此处仅注入 schema 和权限上下文供 AI 参考。
@@ -179,11 +197,11 @@ def _build_db_tool_prompt(user, conversation_id=None):
     try:
         from app.services.chat_db_query import get_db_schema, get_permission_context
 
+        user_id = user.id
+        pma_base_url = os.environ.get('PMA_API_BASE_URL', '').rstrip('/')
+
         db_schema = get_db_schema()
         permission_context = get_permission_context(user)
-        user_id = user.id
-
-        pma_base_url = os.environ.get('PMA_API_BASE_URL', '').rstrip('/')
 
         prompt = (
             '[系统提示] 查询数据库时请使用 query_pma_database 工具，'
@@ -200,20 +218,28 @@ def _build_db_tool_prompt(user, conversation_id=None):
         ai_token = os.environ.get('PMA_AI_QUERY_TOKEN', '')
         if conversation_id and pma_base_url and ai_token:
             prompt += (
-                f'\n[文件分享工具] 当你生成了文件（Excel、CSV、PDF、图片等）需要分享给用户下载时，'
-                f'请使用以下 API 上传文件到聊天对话中，用户即可在聊天界面直接点击下载。\n'
-                f'API: POST {pma_base_url}/chat/api/ai/upload-file\n'
-                f'Header: Authorization: Bearer {ai_token}\n'
-                f'Content-Type: multipart/form-data\n'
-                f'curl 示例:\n'
-                f'curl -X POST {pma_base_url}/chat/api/ai/upload-file \\\n'
-                f'  -H "Authorization: Bearer {ai_token}" \\\n'
-                f'  -F "file=@/path/to/generated_file.xlsx" \\\n'
-                f'  -F "conversation_id={conversation_id}" \\\n'
-                f'  -F "user_id={user_id}"\n'
-                f'\n'
-                f'上传成功后文件会自动出现在聊天对话中，请在回复中告知用户"文件已上传到对话中，可直接下载"。\n'
-                f'重要：请务必在生成文件后主动调用此 API 上传，不要告诉用户"无法提供下载链接"。\n'
+                '\n[表单交互工具] 当用户明确要求添加、新建、创建、修改客户信息，或添加联系人时，'
+                '请在回复末尾插入表单标记，系统会在聊天界面中为用户显示一个交互式表单。\n'
+                '\n'
+                '格式（严格遵守，标记必须在回复最末尾）：\n'
+                '- 新建客户: [[FORM:create_customer|{"company_name":"从对话提取","country":"如有","company_type":"如有","address":"如有"}]]\n'
+                '- 修改客户: [[FORM:edit_customer|{"id":客户ID,"company_name":"如需修改","address":"如需修改"}]]\n'
+                '  (修改前请先用数据库查询工具确认客户ID)\n'
+                '- 新建联系人: [[FORM:create_contact|{"company_id":公司ID,"name":"姓名","phone":"如有","email":"如有"}]]\n'
+                '  (请先用数据库查询工具确认公司ID)\n'
+                '\n'
+                '规则：\n'
+                '1. 只在用户明确要求新增/修改/添加数据时触发，查询搜索不触发\n'
+                '2. prefill JSON 中只填对话中已知的信息，未知字段不要填\n'
+                '3. 回复正文简短说明即可，不要提及标记本身\n'
+                '4. 标记必须是回复的最后一行内容\n'
+                '\n'
+                '客户匹配规则（修改客户/添加联系人时必须遵守）：\n'
+                '1. 先用数据库查询工具搜索: SELECT id, company_name FROM companies WHERE company_name ILIKE \'%关键词%\' AND is_deleted = false\n'
+                '2. 精确匹配1个 → 直接触发表单，在prefill中填入id\n'
+                '3. 匹配多个 → 列出所有候选客户(显示名称和ID)，要求用户明确选择，不触发表单\n'
+                '4. 匹配0个 → 告知用户未找到，建议创建新客户或换一个关键词搜索\n'
+                '5. 绝对不要猜测客户ID，必须通过数据库查询确认\n'
             )
 
         return prompt
@@ -222,9 +248,8 @@ def _build_db_tool_prompt(user, conversation_id=None):
         return ''
 
 
-def get_openclaw_response_stream(message, conversation_history=None, session_id=None,
-                                 user=None, conversation_id=None, user_id=None,
-                                 user_name=None):
+def get_openclaw_response_stream(message, session_id=None,
+                                 user=None, conversation_id=None):
     """获取 OpenClaw 流式响应的生成器
 
     通过 WebSocket 直连 OpenClaw Gateway，发送用户消息并流式接收响应。
@@ -232,7 +257,6 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
 
     Args:
         message: 用户消息文本
-        conversation_history: 对话历史（OpenClaw 自行管理 session，此参数仅供参考）
         session_id: OpenClaw session ID，用于保持对话上下文
         user: 当前用户对象（用于注入 DB 查询工具说明）
         conversation_id: 当前对话 ID（用于注入文件上传工具说明）
@@ -254,19 +278,30 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
         session_id = f'pma-{uuid.uuid4().hex[:8]}'
 
     # ① 准备阶段
+    _perf_start = time.time()
+    _perf_db_injected = False
+    _perf_msg_preview = message[:50].replace('\n', ' ')
     yield {'type': 'status', 'message': '正在理解您的问题...'}
 
-    # 注入用户身份上下文
+    # 注入用户身份到消息上下文（确保 AI 知道当前用户身份，实现 session 级隔离）
+    user_name = ''
     if user:
-        user_display = user.real_name or user.username or f'User#{user.id}'
-        user_ctx = f'[系统] 当前用户: {user_display} (ID:{user.id})'
-        message = f'{user_ctx}\n{message}'
+        user_name = getattr(user, 'real_name', None) or getattr(user, 'username', '') or ''
+        user_identity = f'[系统] 当前用户: {user_name} (ID:{user.id})'
+    else:
+        user_identity = ''
 
-    # 注入 DB 查询工具和文件上传工具说明到消息前
-    if user:
+    # 仅当消息可能涉及数据查询时，才注入 DB 工具说明（减少非数据问题的思考延迟）
+    if user and _needs_db_prompt(message):
         db_prompt = _build_db_tool_prompt(user, conversation_id=conversation_id)
         if db_prompt:
-            message = f'{db_prompt}\n[用户消息] {message}'
+            _perf_db_injected = True
+            _perf_prompt_len = len(db_prompt)
+            message = f'{user_identity}\n{db_prompt}\n[用户消息] {message}'
+            logger.info(f'[OpenClaw-Perf] DB提示已注入, prompt_chars={_perf_prompt_len}, msg="{_perf_msg_preview}"')
+    elif user_identity:
+        message = f'{user_identity}\n[用户消息] {message}'
+        logger.info(f'[OpenClaw-Perf] 用户标识已注入(无DB提示), msg="{_perf_msg_preview}"')
 
     # ② 连接阶段
     yield {'type': 'status', 'message': '正在连接 AI 服务...'}
@@ -276,8 +311,10 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
 
     def _run():
         try:
+            user_id = user.id if user else None
+            user_display = user_name if user else None
             asyncio.run(_ws_chat(gateway_url, token, message, session_id, result_queue,
-                                 user_id=user_id, user_name=user_name))
+                                 user_id=user_id, user_name=user_display))
         except Exception as e:
             logger.error(f'OpenClaw WebSocket 线程异常: {e}', exc_info=True)
             result_queue.put({'type': 'content', 'text': f'⚠️ AI 服务异常：{e}'})
@@ -291,6 +328,7 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
     # 分段超时：每秒检查一次，支持慢速提醒
     start_time = time.time()
     slow_warned = False
+    _perf_first_token = False  # TTFT 标记
 
     while True:
         try:
@@ -307,14 +345,31 @@ def get_openclaw_response_stream(message, conversation_history=None, session_id=
                 return
             continue
         if item is None:
+            # 流结束，记录总耗时
+            _perf_total = time.time() - _perf_start
+            logger.info(
+                f'[OpenClaw-Perf] 完成 total={_perf_total:.1f}s '
+                f'db_injected={_perf_db_injected} msg="{_perf_msg_preview}"'
+            )
             return
+
+        # 记录 TTFT（首个 content token 到达的时间）
+        if not _perf_first_token and item.get('type') == 'content':
+            _perf_first_token = True
+            _perf_ttft = time.time() - _perf_start
+            logger.info(
+                f'[OpenClaw-Perf] TTFT={_perf_ttft:.1f}s '
+                f'db_injected={_perf_db_injected} msg="{_perf_msg_preview}"'
+            )
+
         # 收到消息后重置计时器
         start_time = time.time()
         slow_warned = False
         yield item
 
 
-async def _ws_chat(url, token, message, session_key, q, user_id=None, user_name=None):
+async def _ws_chat(url, token, message, session_key, q,
+                    user_id=None, user_name=None):
     """Async WebSocket chat session with OpenClaw Gateway.
 
     Connects, authenticates (with device signing), sends a chat message,
@@ -375,6 +430,7 @@ async def _ws_chat(url, token, message, session_key, q, user_id=None, user_name=
         if not connect_res.get('ok'):
             error = connect_res.get('error', {})
             msg = error.get('message', '认证失败') if isinstance(error, dict) else str(error)
+            logger.error(f'[OpenClaw] 连接失败: {msg}, device_id={identity["deviceId"][:12]}..., response={json.dumps(connect_res, ensure_ascii=False)[:300]}')
             q.put({'type': 'content', 'text': f'⚠️ AI 连接失败：{msg}'})
             q.put({'type': 'done', 'model': 'openclaw', 'prompt_tokens': 0, 'completion_tokens': 0})
             return
@@ -389,6 +445,13 @@ async def _ws_chat(url, token, message, session_key, q, user_id=None, user_name=
             'message': message,
             'idempotencyKey': uuid.uuid4().hex,
         }
+        # 附加用户 metadata（Gateway 会忽略未知字段，不影响功能）
+        if user_id is not None:
+            chat_params['metadata'] = {
+                'userId': user_id,
+                'userName': user_name or '',
+                'source': 'pma',
+            }
         chat_req = {
             'type': 'req',
             'id': chat_id,
@@ -434,6 +497,8 @@ async def _ws_chat(url, token, message, session_key, q, user_id=None, user_name=
             if event_name == 'chat':
                 state = payload.get('state', '')
                 msg_obj = payload.get('message')
+                if state == 'final':
+                    logger.info(f'[OpenClaw-Chat-Final] payload_keys={list(payload.keys())} msg_keys={list(msg_obj.keys()) if isinstance(msg_obj, dict) else "N/A"} full_payload={json.dumps(payload, ensure_ascii=False)[:500]}')
 
                 # Extract text content from message object
                 if msg_obj and isinstance(msg_obj, dict):
@@ -463,20 +528,30 @@ async def _ws_chat(url, token, message, session_key, q, user_id=None, user_name=
                         if incremental:
                             q.put({'type': 'content', 'text': incremental})
 
-                # Extract usage from final event
+                # Extract model/usage from final event
                 if state == 'final':
-                    usage = payload.get('usage', {})
-                    if isinstance(usage, dict):
-                        prompt_tokens = usage.get('inputTokens', usage.get('input_tokens', usage.get('input', 0)))
-                        completion_tokens = usage.get('outputTokens', usage.get('output_tokens', usage.get('output', 0)))
-                        # usage 可能包含 model/provider
-                        if usage.get('model'):
-                            model_name = usage['model']
-                            if usage.get('provider') and '/' not in model_name:
-                                model_name = f"{usage['provider']}/{model_name}"
-                    # 顶层也可能有 model 字段
-                    if payload.get('model'):
-                        model_name = payload['model']
+                    # Model and usage info: try message object first, then payload top-level
+                    if msg_obj and isinstance(msg_obj, dict):
+                        model_name = msg_obj.get('model', model_name)
+                        provider = msg_obj.get('provider', '')
+                        if provider and '/' not in model_name:
+                            model_name = f'{provider}/{model_name}'
+                        msg_usage = msg_obj.get('usage', {})
+                        if isinstance(msg_usage, dict):
+                            prompt_tokens = msg_usage.get('inputTokens', msg_usage.get('input', msg_usage.get('input_tokens', 0)))
+                            completion_tokens = msg_usage.get('outputTokens', msg_usage.get('output', msg_usage.get('output_tokens', 0)))
+                    # Fallback: check payload top-level
+                    if model_name == 'openclaw':
+                        model_name = payload.get('model', 'openclaw')
+                    if not prompt_tokens and not completion_tokens:
+                        usage = payload.get('usage', {})
+                        if isinstance(usage, dict):
+                            prompt_tokens = usage.get('inputTokens', usage.get('input_tokens', usage.get('input', 0)))
+                            completion_tokens = usage.get('outputTokens', usage.get('output_tokens', usage.get('output', 0)))
+                            if usage.get('model'):
+                                model_name = usage['model']
+                                if usage.get('provider') and '/' not in model_name:
+                                    model_name = f"{usage['provider']}/{model_name}"
                     break
 
                 if state in ('aborted', 'error'):
@@ -532,7 +607,7 @@ async def _ws_chat(url, token, message, session_key, q, user_id=None, user_name=
                     logger.debug(f'[OpenClaw-Agent] unhandled stream={stream_type}')
 
         # ------ Step 5: Retrieve per-response model info via chat.history RPC ------
-        # Chat final events don't include model/usage; chat.history transcript does.
+        # Chat final events don't always include model/usage; chat.history transcript does.
         if model_name == 'openclaw':
             try:
                 hist_rpc_id = _req_id()

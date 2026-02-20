@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMA Chat Form Demo</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      colors: {
+        primary: { DEFAULT: '#6366f1', dark: '#4f46e5' },
+      }
+    }
+  }
+}
+</script>
+<style>
+  .chat-msg-appear { animation: chatMsgSlide 0.25s ease-out; }
+  @keyframes chatMsgSlide {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .chat-typing-dot { animation: chatTypingBounce 1.4s infinite ease-in-out; }
+  .chat-typing-dot:nth-child(1) { animation-delay: 0s; }
+  .chat-typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .chat-typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes chatTypingBounce {
+    0%, 60%, 100% { transform: translateY(0); }
+    30%           { transform: translateY(-4px); }
+  }
+  .chat-streaming-cursor { animation: chatCursorBlink 0.8s infinite; }
+  @keyframes chatCursorBlink {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0; }
+  }
+  .chat-panel-scroll::-webkit-scrollbar { width: 4px; }
+  .chat-panel-scroll::-webkit-scrollbar-track { background: transparent; }
+  .chat-panel-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+  .dark .chat-panel-scroll::-webkit-scrollbar-thumb { background: #475569; }
+  .form-card-enter { animation: formCardPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes formCardPop {
+    from { opacity: 0; transform: scale(0.95) translateY(6px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .result-card-enter { animation: resultCardPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes resultCardPop {
+    from { opacity: 0; transform: scale(0.9); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+  textarea { field-sizing: content; }
+</style>
+</head>
+
+<body class="bg-slate-100 dark:bg-slate-950 min-h-screen" x-data="chatFormDemo()">
+
+<!-- Dark mode toggle -->
+<div class="fixed top-3 left-3 z-[60]">
+  <button @click="toggleDark()"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+    <span x-show="!isDark">Dark Mode</span>
+    <span x-show="isDark">Light Mode</span>
+  </button>
+</div>
+
+<!-- Demo scenario selector -->
+<div class="fixed top-3 right-3 z-[60] flex gap-2">
+  <button @click="runScenario('create_customer')"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white shadow-sm hover:bg-violet-700 transition-colors">
+    Demo: New Customer
+  </button>
+  <button @click="runScenario('edit_customer')"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white shadow-sm hover:bg-blue-700 transition-colors">
+    Demo: Edit Customer
+  </button>
+  <button @click="runScenario('create_contact')"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition-colors">
+    Demo: New Contact
+  </button>
+  <button @click="resetChat()"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-500 text-white shadow-sm hover:bg-slate-600 transition-colors">
+    Reset
+  </button>
+</div>
+
+<!-- Chat Panel -->
+<div class="fixed top-0 right-0 w-full md:w-[70vw] md:max-w-[900px] h-[100dvh]
+            bg-white dark:bg-slate-900
+            md:rounded-l-2xl shadow-2xl
+            md:border md:border-r-0 border-slate-200 dark:border-slate-700
+            flex overflow-hidden">
+
+  <!-- Left: Conversation List -->
+  <div class="hidden md:flex border-r border-slate-200 dark:border-slate-700 flex-col
+              bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0 w-[260px]">
+
+    <div class="h-14 px-4 flex items-center justify-between flex-shrink-0
+                border-b border-slate-200 dark:border-slate-700">
+      <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Messages</h3>
+      <button class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800">
+        <span class="material-symbols-outlined text-xl">edit_square</span>
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto chat-panel-scroll">
+      <!-- Active AI conversation -->
+      <div class="flex items-center gap-3 px-3 py-3 bg-primary/10 dark:bg-primary/20 border-r-2 border-primary cursor-pointer">
+        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 text-white">
+          <span class="material-symbols-outlined text-lg">smart_toy</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-slate-900 dark:text-white truncate">AI Chat</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 truncate">Form interaction demo...</div>
+        </div>
+        <div class="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">Now</div>
+      </div>
+
+      <!-- Other conversations (decorative) -->
+      <div class="flex items-center gap-3 px-3 py-3 hover:bg-slate-100 dark:hover:bg-slate-800/50 cursor-pointer">
+        <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0 text-white text-sm font-medium">JW</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-slate-900 dark:text-white truncate">James Wang</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 truncate">OK, confirmed.</div>
+        </div>
+        <div class="text-[10px] text-slate-400 dark:text-slate-500">2h</div>
+      </div>
+
+      <div class="flex items-center gap-3 px-3 py-3 hover:bg-slate-100 dark:hover:bg-slate-800/50 cursor-pointer">
+        <div class="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 text-white text-sm font-medium">TL</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-slate-900 dark:text-white truncate">Tom Li</div>
+          <div class="text-xs text-slate-500 dark:text-slate-400 truncate">The report is ready.</div>
+        </div>
+        <div class="text-[10px] text-slate-400 dark:text-slate-500">5h</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Chat Area -->
+  <div class="flex-1 flex flex-col min-w-0">
+
+    <!-- Header -->
+    <div class="h-14 px-4 flex items-center justify-between flex-shrink-0
+                border-b border-slate-200 dark:border-slate-700">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white">
+          <span class="material-symbols-outlined text-base">smart_toy</span>
+        </div>
+        <div>
+          <div class="text-sm font-semibold text-slate-900 dark:text-white">AI Assistant</div>
+          <div class="text-[10px] text-slate-400 dark:text-slate-500">OpenClaw</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-1">
+        <button class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+          <span class="material-symbols-outlined text-xl">more_horiz</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div class="flex-1 overflow-y-auto overflow-x-hidden chat-panel-scroll px-4 py-4 space-y-4 relative"
+         x-ref="msgContainer">
+
+      <template x-for="(msg, index) in messages" :key="msg.id">
+        <div class="chat-msg-appear">
+
+          <!-- User message (right-aligned) -->
+          <template x-if="msg.is_mine">
+            <div class="flex justify-end">
+              <div class="max-w-[75%]">
+                <div class="flex items-center justify-end gap-2 mb-1">
+                  <span class="text-[10px] text-slate-400 dark:text-slate-500" x-text="msg.time"></span>
+                  <span class="text-[11px] font-semibold text-primary">You</span>
+                </div>
+                <div class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed bg-primary text-white rounded-bl-md"
+                     x-text="msg.content"></div>
+              </div>
+            </div>
+          </template>
+
+          <!-- AI text message -->
+          <template x-if="!msg.is_mine && msg.type === 'text'">
+            <div class="group py-1">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400">AI Assistant</span>
+                <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">openclaw</span>
+                <span class="text-[10px] text-slate-400 dark:text-slate-500 ml-auto" x-text="msg.time"></span>
+              </div>
+              <div class="prose prose-sm prose-slate dark:prose-invert max-w-none text-sm leading-relaxed"
+                   x-html="msg.content"></div>
+            </div>
+          </template>
+
+          <!-- Active form card -->
+          <template x-if="!msg.is_mine && msg.type === 'active_form'">
+            <div class="group py-1">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400">AI Assistant</span>
+                <span class="text-[10px] text-slate-400 dark:text-slate-500 ml-auto" x-text="msg.time"></span>
+              </div>
+              <div class="form-card-enter rounded-2xl bg-white dark:bg-slate-800
+                          border border-slate-200 dark:border-slate-700
+                          text-slate-800 dark:text-slate-200
+                          max-w-[400px] overflow-hidden shadow-sm">
+
+                <!-- Form header -->
+                <div class="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2"
+                     :class="msg.schema.action === 'edit' ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-violet-50 dark:bg-violet-900/20'">
+                  <span class="material-symbols-outlined text-[16px]"
+                        :class="msg.schema.action === 'edit' ? 'text-blue-600 dark:text-blue-400' : 'text-violet-600 dark:text-violet-400'"
+                        x-text="msg.schema.action === 'edit' ? 'edit' : 'add_circle'"></span>
+                  <span class="text-xs font-semibold"
+                        :class="msg.schema.action === 'edit' ? 'text-blue-700 dark:text-blue-300' : 'text-violet-700 dark:text-violet-300'"
+                        x-text="msg.schema.title"></span>
+                </div>
+
+                <!-- Context message -->
+                <div x-show="msg.schema.context" class="px-4 pt-3 pb-1 text-xs text-slate-500 dark:text-slate-400"
+                     x-text="msg.schema.context"></div>
+
+                <!-- Form fields -->
+                <div class="px-4 py-3 space-y-3">
+                  <template x-for="field in msg.schema.fields.filter(f => f.type !== 'hidden')" :key="field.name">
+                    <div>
+                      <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                        <span x-text="field.label"></span>
+                        <span x-show="field.required" class="text-red-500 ml-0.5">*</span>
+                      </label>
+
+                      <!-- Text input -->
+                      <template x-if="field.type === 'text'">
+                        <input type="text"
+                               x-model="formValues[field.name]"
+                               :placeholder="field.placeholder || ''"
+                               class="w-full px-2.5 py-1.5 text-sm rounded-lg border bg-white dark:bg-slate-700 focus:ring-1 focus:ring-violet-400 focus:outline-none transition-colors"
+                               :class="formErrors[field.name] ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'">
+                      </template>
+
+                      <!-- Select -->
+                      <template x-if="field.type === 'select'">
+                        <select x-model="formValues[field.name]"
+                                class="w-full px-2.5 py-1.5 text-sm rounded-lg border bg-white dark:bg-slate-700 focus:ring-1 focus:ring-violet-400 focus:outline-none transition-colors"
+                                :class="formErrors[field.name] ? 'border-red-400 dark:border-red-500' : 'border-slate-300 dark:border-slate-600'">
+                          <option value="">Please select...</option>
+                          <template x-for="opt in (formOptions[field.options_key] || [])" :key="opt.value">
+                            <option :value="opt.value" x-text="opt.label"></option>
+                          </template>
+                        </select>
+                      </template>
+
+                      <!-- Textarea -->
+                      <template x-if="field.type === 'textarea'">
+                        <textarea x-model="formValues[field.name]"
+                                  rows="2"
+                                  :placeholder="field.placeholder || ''"
+                                  class="w-full px-2.5 py-1.5 text-sm rounded-lg border resize-none bg-white dark:bg-slate-700 focus:ring-1 focus:ring-violet-400 focus:outline-none border-slate-300 dark:border-slate-600 transition-colors">
+                        </textarea>
+                      </template>
+
+                      <!-- Error -->
+                      <p x-show="formErrors[field.name]"
+                         class="mt-0.5 text-[11px] text-red-500"
+                         x-text="formErrors[field.name]"></p>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Buttons -->
+                <div class="px-4 pb-3 flex items-center gap-2">
+                  <button @click="submitForm(msg)"
+                          :disabled="formSubmitting"
+                          class="flex-1 py-1.5 text-xs font-medium text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          :class="msg.schema.action === 'edit' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-violet-600 hover:bg-violet-700'">
+                    <span x-show="!formSubmitting">Submit</span>
+                    <span x-show="formSubmitting" class="flex items-center justify-center gap-1.5">
+                      <svg class="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                      </svg>
+                      Submitting...
+                    </span>
+                  </button>
+                  <button @click="cancelForm(msg)"
+                          :disabled="formSubmitting"
+                          class="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Form result card (success) -->
+          <template x-if="!msg.is_mine && msg.type === 'form_result_card'">
+            <div class="group py-1">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400">AI Assistant</span>
+                <span class="text-[10px] text-slate-400 dark:text-slate-500 ml-auto" x-text="msg.time"></span>
+              </div>
+              <div class="result-card-enter rounded-2xl px-4 py-3 min-w-[220px] max-w-[300px] cursor-pointer
+                          transition-shadow hover:shadow-md
+                          bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200
+                          border border-emerald-200 dark:border-emerald-700/50">
+                <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                  <span class="material-symbols-outlined text-[14px]">check_circle</span>
+                  <span x-text="msg.result_label"></span>
+                </div>
+                <div class="text-sm font-semibold" x-text="msg.result_name"></div>
+                <template x-if="msg.result_detail">
+                  <div class="text-xs text-slate-500 dark:text-slate-400 mt-1" x-text="msg.result_detail"></div>
+                </template>
+                <div class="flex items-center justify-end mt-2 text-[10px] text-slate-300 dark:text-slate-600">
+                  <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+                  <span>View details</span>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- Customer card (existing pattern, for reference) -->
+          <template x-if="!msg.is_mine && msg.type === 'customer_card'">
+            <div class="group py-1">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400">AI Assistant</span>
+                <span class="text-[10px] text-slate-400 dark:text-slate-500 ml-auto" x-text="msg.time"></span>
+              </div>
+              <div class="rounded-2xl px-4 py-3 min-w-[220px] max-w-[280px] cursor-pointer transition-shadow hover:shadow-md
+                          bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200
+                          border border-slate-200 dark:border-slate-700">
+                <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium text-blue-500 dark:text-blue-400">
+                  <span class="material-symbols-outlined text-[14px]">apartment</span>
+                  <span>Customer</span>
+                </div>
+                <div class="text-sm font-semibold truncate" x-text="msg.card_name"></div>
+                <div class="flex items-center gap-1.5 mt-1.5">
+                  <span class="material-symbols-outlined text-[14px] text-slate-400">person</span>
+                  <span class="text-xs" x-text="msg.card_contact"></span>
+                </div>
+                <div class="flex items-center justify-end mt-2 text-[10px] text-slate-300 dark:text-slate-600">
+                  <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
+                  <span>View details</span>
+                </div>
+              </div>
+            </div>
+          </template>
+
+        </div>
+      </template>
+
+      <!-- AI typing indicator -->
+      <div x-show="aiTyping" class="chat-msg-appear py-1">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400">AI Assistant</span>
+        </div>
+        <div class="flex items-center gap-1.5 py-1">
+          <div class="chat-typing-dot w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full"></div>
+          <div class="chat-typing-dot w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full"></div>
+          <div class="chat-typing-dot w-2 h-2 bg-slate-400 dark:bg-slate-500 rounded-full"></div>
+        </div>
+      </div>
+
+      <!-- AI streaming -->
+      <div x-show="aiStreaming" class="chat-msg-appear py-1">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400">AI Assistant</span>
+          <span class="text-[10px] text-slate-400 dark:text-slate-500 font-mono px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">openclaw</span>
+        </div>
+        <div class="prose prose-sm prose-slate dark:prose-invert max-w-none text-sm leading-relaxed">
+          <span x-html="streamingText"></span>
+          <span class="chat-streaming-cursor text-slate-400 dark:text-slate-500 text-lg leading-none">&#9612;</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Input area -->
+    <div class="flex-shrink-0 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
+      <div class="px-4 py-3">
+        <div class="bg-slate-100 dark:bg-slate-800 rounded-2xl">
+          <textarea x-model="inputText"
+                    @keydown.enter.prevent="sendMessage()"
+                    class="w-full resize-none px-4 pt-3 pb-1 text-base md:text-sm bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-0 focus:border-transparent max-h-[120px] border-none"
+                    rows="1"
+                    placeholder="Type a message..."></textarea>
+          <div class="flex items-center justify-between px-2 pb-2 pt-0">
+            <button class="w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-primary hover:bg-white/60 dark:hover:bg-slate-700 transition-colors cursor-pointer">
+              <span class="material-symbols-outlined text-xl">add</span>
+            </button>
+            <button @click="sendMessage()"
+                    :disabled="!inputText.trim()"
+                    class="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
+                    :class="inputText.trim() ? 'bg-primary text-white hover:bg-primary-dark shadow-sm cursor-pointer' : 'bg-slate-300 dark:bg-slate-600 text-white cursor-not-allowed'">
+              <span class="material-symbols-outlined text-lg">arrow_upward</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function chatFormDemo() {
+  return {
+    isDark: false,
+    messages: [],
+    inputText: '',
+    aiTyping: false,
+    aiStreaming: false,
+    streamingText: '',
+    formValues: {},
+    formErrors: {},
+    formSubmitting: false,
+    formOptions: {
+      company_type: [
+        { value: 'user', label: 'End User' },
+        { value: 'design', label: 'Design Institute' },
+        { value: 'contractor', label: 'General Contractor' },
+        { value: 'integrator', label: 'System Integrator' },
+        { value: 'distributor', label: 'Distributor' },
+      ],
+      source: [
+        { value: 'exhibition', label: 'Exhibition' },
+        { value: 'referral', label: 'Referral' },
+        { value: 'website', label: 'Website' },
+        { value: 'cold_call', label: 'Cold Call' },
+        { value: 'social', label: 'Social Media' },
+      ],
+      industry: [
+        { value: 'manufacturing', label: 'Manufacturing' },
+        { value: 'energy', label: 'Energy' },
+        { value: 'construction', label: 'Construction' },
+        { value: 'technology', label: 'Technology' },
+        { value: 'healthcare', label: 'Healthcare' },
+        { value: 'logistics', label: 'Logistics' },
+      ],
+    },
+    msgId: 0,
+
+    formSchemas: {
+      create_customer: {
+        title: 'New Customer',
+        entity_type: 'customer',
+        action: 'create',
+        context: 'Please fill in the customer information below:',
+        fields: [
+          { name: 'company_name', label: 'Company Name', type: 'text', required: true, placeholder: 'e.g. ABC Corp' },
+          { name: 'company_type', label: 'Company Type', type: 'select', options_key: 'company_type', required: true },
+          { name: 'source', label: 'Source', type: 'select', options_key: 'source', required: true },
+          { name: 'country', label: 'Country', type: 'text', required: false, placeholder: 'e.g. China' },
+          { name: 'address', label: 'Address', type: 'text', required: false, placeholder: 'Full address' },
+          { name: 'industry', label: 'Industry', type: 'select', options_key: 'industry', required: false },
+          { name: 'notes', label: 'Notes', type: 'textarea', required: false, placeholder: 'Additional notes...' },
+        ]
+      },
+      edit_customer: {
+        title: 'Edit Customer',
+        entity_type: 'customer',
+        action: 'edit',
+        context: 'Modify the fields you want to update:',
+        fields: [
+          { name: 'company_name', label: 'Company Name', type: 'text', required: false },
+          { name: 'company_type', label: 'Company Type', type: 'select', options_key: 'company_type', required: false },
+          { name: 'country', label: 'Country', type: 'text', required: false },
+          { name: 'address', label: 'Address', type: 'text', required: false },
+          { name: 'industry', label: 'Industry', type: 'select', options_key: 'industry', required: false },
+          { name: 'notes', label: 'Notes', type: 'textarea', required: false },
+        ]
+      },
+      create_contact: {
+        title: 'New Contact',
+        entity_type: 'contact',
+        action: 'create',
+        context: 'Please fill in the contact details:',
+        fields: [
+          { name: 'company_id', type: 'hidden' },
+          { name: 'name', label: 'Name', type: 'text', required: true, placeholder: 'Contact name' },
+          { name: 'department', label: 'Department', type: 'text', required: false, placeholder: 'e.g. Engineering' },
+          { name: 'position', label: 'Position', type: 'text', required: false, placeholder: 'e.g. CTO' },
+          { name: 'phone', label: 'Phone', type: 'text', required: false, placeholder: '+86 ...' },
+          { name: 'email', label: 'Email', type: 'text', required: false, placeholder: 'name@company.com' },
+          { name: 'notes', label: 'Notes', type: 'textarea', required: false },
+        ]
+      }
+    },
+
+    init() {
+      // Initial welcome messages
+      this.messages = [
+        {
+          id: ++this.msgId,
+          is_mine: false,
+          type: 'text',
+          content: 'Hi! I\'m your AI assistant. I can help you manage customer information directly in this chat. Try asking me to <b>add a new customer</b>, <b>edit an existing customer</b>, or <b>add a contact</b>.',
+          time: '14:30',
+        },
+      ];
+    },
+
+    toggleDark() {
+      this.isDark = !this.isDark;
+      document.documentElement.classList.toggle('dark', this.isDark);
+    },
+
+    nowTime() {
+      const d = new Date();
+      return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+    },
+
+    scrollToBottom() {
+      this.$nextTick(() => {
+        const c = this.$refs.msgContainer;
+        if (c) c.scrollTop = c.scrollHeight;
+      });
+    },
+
+    sendMessage() {
+      const text = this.inputText.trim();
+      if (!text) return;
+
+      this.messages.push({
+        id: ++this.msgId,
+        is_mine: true,
+        type: 'text',
+        content: text,
+        time: this.nowTime(),
+      });
+      this.inputText = '';
+      this.scrollToBottom();
+    },
+
+    async runScenario(scenario) {
+      const scenarios = {
+        create_customer: {
+          userMsg: "Help me add a new customer, ABC Technology Corp, they are a system integrator from Shanghai.",
+          aiText: "Sure! I'll create a new customer record for ABC Technology Corp. I've pre-filled the information from our conversation - please review and complete the remaining fields.",
+          prefill: { company_name: 'ABC Technology Corp', company_type: 'integrator', country: 'China', address: 'Shanghai' },
+          schemaKey: 'create_customer',
+        },
+        edit_customer: {
+          userMsg: "Please update the address for Huawei Technologies to Shenzhen Bantian Base.",
+          aiText: "I found Huawei Technologies in the database. Here's a form to update their information - I've pre-filled the new address.",
+          prefill: { company_name: 'Huawei Technologies', address: 'Shenzhen Bantian Base' },
+          schemaKey: 'edit_customer',
+          preCard: { type: 'customer_card', card_name: 'Huawei Technologies Co., Ltd.', card_contact: 'Zhang Wei - VP Sales' },
+        },
+        create_contact: {
+          userMsg: "Add a new contact for Siemens: Li Ming, Engineering Director, phone 13800138000.",
+          aiText: "I'll help you add a new contact for Siemens. I've pre-filled the details from our conversation.",
+          prefill: { company_id: '15', name: 'Li Ming', department: 'Engineering', position: 'Director', phone: '13800138000' },
+          schemaKey: 'create_contact',
+        },
+      };
+
+      const s = scenarios[scenario];
+      if (!s) return;
+
+      // Add user message
+      this.messages.push({
+        id: ++this.msgId,
+        is_mine: true,
+        type: 'text',
+        content: s.userMsg,
+        time: this.nowTime(),
+      });
+      this.scrollToBottom();
+
+      // AI typing
+      await this.sleep(600);
+      this.aiTyping = true;
+      this.scrollToBottom();
+      await this.sleep(1200);
+      this.aiTyping = false;
+
+      // Show existing customer card for edit scenario
+      if (s.preCard) {
+        this.messages.push({
+          id: ++this.msgId,
+          is_mine: false,
+          ...s.preCard,
+          time: this.nowTime(),
+        });
+        this.scrollToBottom();
+        await this.sleep(400);
+      }
+
+      // AI streaming text
+      this.aiStreaming = true;
+      this.streamingText = '';
+      const words = s.aiText.split(' ');
+      for (let i = 0; i < words.length; i++) {
+        this.streamingText += (i > 0 ? ' ' : '') + words[i];
+        this.scrollToBottom();
+        await this.sleep(30 + Math.random() * 40);
+      }
+      await this.sleep(200);
+      this.aiStreaming = false;
+
+      // Save AI text message
+      this.messages.push({
+        id: ++this.msgId,
+        is_mine: false,
+        type: 'text',
+        content: s.aiText,
+        time: this.nowTime(),
+      });
+      this.scrollToBottom();
+
+      // Small delay before form appears
+      await this.sleep(300);
+
+      // Show form card
+      const schema = JSON.parse(JSON.stringify(this.formSchemas[s.schemaKey]));
+      this.formValues = {};
+      this.formErrors = {};
+      schema.fields.forEach(f => {
+        this.formValues[f.name] = s.prefill[f.name] || '';
+      });
+
+      this.messages.push({
+        id: ++this.msgId,
+        is_mine: false,
+        type: 'active_form',
+        schema: schema,
+        time: this.nowTime(),
+      });
+      this.scrollToBottom();
+    },
+
+    async submitForm(msg) {
+      const schema = msg.schema;
+
+      // Client-side validation
+      const errors = {};
+      let hasError = false;
+      for (const field of schema.fields) {
+        if (field.required && !this.formValues[field.name]?.trim()) {
+          errors[field.name] = `${field.label} is required`;
+          hasError = true;
+        }
+      }
+      this.formErrors = errors;
+      if (hasError) return;
+
+      this.formSubmitting = true;
+      await this.sleep(1200); // Simulate API call
+      this.formSubmitting = false;
+
+      // Replace form with result card
+      const idx = this.messages.findIndex(m => m.id === msg.id);
+      if (idx !== -1) {
+        const resultLabels = {
+          'create_customer': 'Customer created',
+          'edit_customer': 'Customer updated',
+          'create_contact': 'Contact added',
+        };
+        const actionKey = schema.action + '_' + schema.entity_type;
+        const entityName = this.formValues.company_name || this.formValues.name || 'Record';
+
+        this.messages[idx] = {
+          id: msg.id,
+          is_mine: false,
+          type: 'form_result_card',
+          result_label: resultLabels[actionKey] || 'Success',
+          result_name: entityName,
+          result_detail: schema.action === 'create'
+            ? `ID: CUS-${String(Math.floor(Math.random() * 9000) + 1000)}`
+            : 'Changes saved successfully',
+          time: this.nowTime(),
+        };
+      }
+
+      this.formValues = {};
+      this.formErrors = {};
+      this.scrollToBottom();
+
+      // AI follow-up message
+      await this.sleep(500);
+      const followUp = schema.entity_type === 'contact'
+        ? `Contact <b>${this.messages[idx]?.result_name || 'record'}</b> has been added successfully. Is there anything else you'd like to do?`
+        : schema.action === 'edit'
+          ? `Customer information has been updated. You can click the card above to view the full details.`
+          : `Customer <b>${this.messages[idx]?.result_name || 'record'}</b> has been created. Would you like to add a contact for this customer?`;
+
+      this.messages.push({
+        id: ++this.msgId,
+        is_mine: false,
+        type: 'text',
+        content: followUp,
+        time: this.nowTime(),
+      });
+      this.scrollToBottom();
+    },
+
+    cancelForm(msg) {
+      const idx = this.messages.findIndex(m => m.id === msg.id);
+      if (idx !== -1) {
+        this.messages.splice(idx, 1);
+      }
+      this.formValues = {};
+      this.formErrors = {};
+
+      // AI acknowledgment
+      this.messages.push({
+        id: ++this.msgId,
+        is_mine: false,
+        type: 'text',
+        content: 'Form cancelled. Let me know if you need anything else.',
+        time: this.nowTime(),
+      });
+      this.scrollToBottom();
+    },
+
+    resetChat() {
+      this.messages = [];
+      this.formValues = {};
+      this.formErrors = {};
+      this.aiTyping = false;
+      this.aiStreaming = false;
+      this.streamingText = '';
+      this.$nextTick(() => this.init());
+    },
+
+    sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    },
+  };
+}
+</script>
+
+</body>
+</html>
