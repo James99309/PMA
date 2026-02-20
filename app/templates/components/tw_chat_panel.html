@@ -49,15 +49,21 @@
      x-transition:leave-start="opacity-100 translate-y-0 scale-100"
      x-transition:leave-end="opacity-0 translate-y-4 scale-95"
      @toggle-chat-panel.window="toggle()"
-     @keydown.escape.window="chatOpen && closePanel()"
-    @click.outside="chatOpen && closePanel()"
-     class="fixed top-0 left-0 right-0 h-[100dvh] z-50 md:inset-auto md:top-0 md:right-0 md:w-[70vw] md:h-full md:max-w-[calc(100vw-48px)] bg-gray-50 dark:bg-slate-900 md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
+     @keydown.escape.window="chatOpen && (splitMode ? exitSplitMode() : closePanel())"
+    @click.outside="chatOpen && !splitMode && closePanel()"
+     class="fixed top-0 left-0 right-0 h-[100dvh] z-50 md:inset-auto md:top-16 md:right-0 md:h-[calc(100vh-4rem)] md:max-w-[calc(100vw-48px)] md:z-20 bg-gray-50 dark:bg-slate-900 md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
+     :style="window.innerWidth >= 768 ? { width: splitMode ? '30vw' : '70vw', transition: 'width 400ms cubic-bezier(0.4,0,0.2,1)' } : {}"
      x-cloak
      style="display: none;">
 
     <!-- ====== 左栏：对话列表 ====== -->
-    <div class="border-r border-slate-200 dark:border-slate-700 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0 w-full md:w-[260px]"
-         :class="{ 'hidden md:flex': mobileView !== 'list' }">
+    <div class="border-r border-slate-200 dark:border-slate-700 flex flex-col bg-slate-50/50 dark:bg-slate-900/50 flex-shrink-0 overflow-hidden"
+         :class="{
+             'hidden md:flex': mobileView !== 'list',
+             'md:w-0 md:opacity-0 md:p-0': splitMode,
+             'w-full md:w-[260px]': !splitMode
+         }"
+         style="transition: width 300ms cubic-bezier(0.4,0,0.2,1), opacity 200ms ease;">
 
         <!-- 左栏头部 -->
         <div class="h-14 px-4 flex items-center justify-between flex-shrink-0">
@@ -177,6 +183,8 @@
                           x-text="activeConv.memberCount + _chatI18n.memberUnit"></span>
                     <span x-show="activeConv.type === 'ai'"
                           class="text-[10px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded font-medium">AI</span>
+                    <span x-show="splitMode" x-cloak
+                          class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">{{ _('分屏') }}</span>
                 </div>
             </template>
             <template x-if="isNewChat && !activeConv">
@@ -198,9 +206,20 @@
                     <span class="material-symbols-outlined text-lg"
                           x-text="activeConv?.type === 'group' ? 'people' : 'person_add'"></span>
                 </button>
-                <button @click="closePanel()"
-                        class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
-                    <span class="material-symbols-outlined text-lg">close</span>
+                <button x-show="!splitMode"
+                        @click="enterSplitMode(window.location.pathname + window.location.search)"
+                        class="hidden md:flex w-8 h-8 items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="{{ _('分屏') }}">
+                    <span class="material-symbols-outlined text-lg">open_in_full</span>
+                </button>
+                <button @click="splitMode ? exitSplitMode() : closePanel()"
+                        class="w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer"
+                        :class="splitMode
+                            ? 'text-primary hover:bg-primary/10'
+                            : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                        :title="splitMode ? '{{ _('还原') }}' : '{{ _('关闭') }}'">
+                    <span class="material-symbols-outlined text-lg"
+                          x-text="splitMode ? 'close_fullscreen' : 'close'"></span>
                 </button>
             </div>
         </div>
@@ -454,12 +473,7 @@
                     <template x-if="msg.message_type === 'form_result_card'">
                     <div class="py-2">
                         <div class="max-w-[400px] rounded-xl border-2 border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 px-4 py-3 cursor-pointer hover:shadow-md transition-shadow"
-                             @click="msg.card_data?.entity_type === 'customer' ? window.open('/customer/' + msg.card_data.entity_id + '/view', '_blank')
-                                   : msg.card_data?.entity_type === 'contact' ? window.open('/customer/contacts/' + msg.card_data.entity_id + '/view', '_blank')
-                                   : msg.card_data?.entity_type === 'project' ? window.open('/project/view/' + msg.card_data.entity_id, '_blank')
-                                   : msg.card_data?.entity_type === 'expense' ? window.open('/expense/' + msg.card_data.entity_id + '/detail', '_blank')
-                                   : msg.card_data?.entity_type === 'action' ? window.open('/customer/' + msg.card_data.company_id + '/view', '_blank')
-                                   : null">
+                             @click="openFormResultDetail(msg.card_data)">
                             <div class="flex items-center gap-2 mb-1.5">
                                 <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-lg">check_circle</span>
                                 <span class="text-xs font-medium text-green-700 dark:text-green-400"
@@ -1650,6 +1664,7 @@ function chatPanel() {
     return {
         // ----- 状态 -----
         chatOpen: false,
+        splitMode: false,    // 分屏模式
         mobileView: 'list',  // 移动端视图: 'list' = 对话列表, 'chat' = 聊天窗口
         activeConv: null,
         isNewChat: false,
@@ -1910,6 +1925,7 @@ function chatPanel() {
         },
 
         closePanel() {
+            if (this.splitMode) this.exitSplitMode();
             this.chatOpen = false;
             this.stopPolling();
             this.stopUnreadPolling();
@@ -2012,7 +2028,9 @@ function chatPanel() {
             }
             this.startPolling();
             this.$nextTick(() => {
-                this.scrollToBottom();
+                if (this.$refs.messageArea) {
+                    this.$refs.messageArea.scrollTop = this.$refs.messageArea.scrollHeight;
+                }
                 if (this.$refs.chatInput) this.$refs.chatInput.focus();
             });
         },
@@ -2245,6 +2263,16 @@ function chatPanel() {
                     const result = await resp.json();
                     if (result.success && result.form_schema) {
                         const schema = result.form_schema;
+                        // 报销单太复杂，直接分屏打开新建页面
+                        if (schema.form_type === 'create_expense' || (schema.entity_type === 'expense' && schema.action === 'create')) {
+                            const url = '{{ url_for("expense.expense_list", action="create") }}';
+                            if (window.innerWidth < 768) {
+                                window.open(url, '_blank');
+                            } else {
+                                this.enterSplitMode(url);
+                            }
+                            return;
+                        }
                         // 确保表单选项已加载
                         if (!this.formOptions) await this.loadFormOptions();
                         const formValues = {};
@@ -2545,34 +2573,44 @@ function chatPanel() {
                                 }
                                 const schema = payload.form_schema;
                                 if (schema) {
-                                    // 确保表单选项已加载
-                                    if (!this.formOptions) await this.loadFormOptions();
-                                    const formValues = {};
-                                    for (const field of schema.fields) {
-                                        formValues[field.name] = field.prefill || '';
-                                    }
-                                    const formMsgId = 'active_form_' + Date.now();
-                                    this.messages.push({
-                                        id: formMsgId,
-                                        message_type: 'active_form',
-                                        is_ai: true,
-                                        is_ai_response: true,
-                                        sender_name: '{{ _("AI 助手") }}',
-                                        created_at: new Date().toISOString(),
-                                        _formSchema: schema,
-                                        _formValues: formValues,
-                                        _formErrors: {},
-                                        _formConfirming: false,
-                                    });
-                                    // 滚动到表单居中位置，方便用户查看和填写
-                                    this.$nextTick(() => {
-                                        const formEl = this.$refs.messageArea?.querySelector(`[data-msg-id="${formMsgId}"]`);
-                                        if (formEl) {
-                                            formEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    // 报销单太复杂，直接分屏打开新建页面
+                                    if (schema.form_type === 'create_expense' || (schema.entity_type === 'expense' && schema.action === 'create')) {
+                                        const url = '{{ url_for("expense.expense_list", action="create") }}';
+                                        if (window.innerWidth < 768) {
+                                            window.open(url, '_blank');
                                         } else {
-                                            this.scrollToBottom();
+                                            this.enterSplitMode(url);
                                         }
-                                    });
+                                    } else {
+                                        // 确保表单选项已加载
+                                        if (!this.formOptions) await this.loadFormOptions();
+                                        const formValues = {};
+                                        for (const field of schema.fields) {
+                                            formValues[field.name] = field.prefill || '';
+                                        }
+                                        const formMsgId = 'active_form_' + Date.now();
+                                        this.messages.push({
+                                            id: formMsgId,
+                                            message_type: 'active_form',
+                                            is_ai: true,
+                                            is_ai_response: true,
+                                            sender_name: '{{ _("AI 助手") }}',
+                                            created_at: new Date().toISOString(),
+                                            _formSchema: schema,
+                                            _formValues: formValues,
+                                            _formErrors: {},
+                                            _formConfirming: false,
+                                        });
+                                        // 滚动到表单居中位置，方便用户查看和填写
+                                        this.$nextTick(() => {
+                                            const formEl = this.$refs.messageArea?.querySelector(`[data-msg-id="${formMsgId}"]`);
+                                            if (formEl) {
+                                                formEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                            } else {
+                                                this.scrollToBottom();
+                                            }
+                                        });
+                                    }
                                 }
                             } else if (payload.type === 'choices') {
                                 // AI 列出多个匹配结果，渲染为可点击选项
@@ -2842,12 +2880,44 @@ function chatPanel() {
         openEntityDetail(type, cardData) {
             if (!cardData) return;
             let url = '';
-            if (type === 'customer') {
-                url = `/customer/${cardData.company_id}/view`;
-            } else if (type === 'project') {
-                url = `/project/view/${cardData.project_id}`;
+            if (type === 'customer') url = `/customer/${cardData.company_id}/view`;
+            else if (type === 'project') url = `/project/view/${cardData.project_id}`;
+            if (!url) return;
+            if (window.innerWidth < 768) { window.open(url, '_blank'); return; }
+            this.enterSplitMode(url);
+        },
+
+        openFormResultDetail(cardData) {
+            if (!cardData) return;
+            const urlMap = {
+                customer: `/customer/${cardData.entity_id}/view`,
+                contact: `/customer/contacts/${cardData.entity_id}/view`,
+                project: `/project/view/${cardData.entity_id}`,
+                expense: `/expense/${cardData.entity_id}/detail`,
+                action: `/customer/${cardData.company_id}/view`,
+            };
+            const url = urlMap[cardData.entity_type];
+            if (!url) return;
+            if (window.innerWidth < 768) { window.open(url, '_blank'); return; }
+            this.enterSplitMode(url);
+        },
+
+        enterSplitMode(url) {
+            // 手机端不支持分屏，改为新标签页打开
+            if (window.innerWidth < 768) {
+                window.open(url, '_blank');
+                return;
             }
-            if (url) window.open(url, '_blank');
+            const sep = url.includes('?') ? '&' : '?';
+            const embedUrl = url + sep + 'splitview=1';
+            this.splitMode = true;
+            this.$dispatch('enter-split-screen', { url: embedUrl });
+        },
+
+        exitSplitMode() {
+            if (!this.splitMode) return;
+            this.splitMode = false;
+            this.$dispatch('exit-split-screen');
         },
 
         // ----- 附件操作 -----

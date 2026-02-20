@@ -377,6 +377,11 @@
     window.openAddExpenseModal = function() {
         ExpenseModal.openCreate();
     };
+
+    // URL 参数 action=create 时自动打开新建模态框（供聊天分屏调用）
+    if (new URLSearchParams(window.location.search).get('action') === 'create') {
+        ExpenseModal.openCreate();
+    }
     </script>
 </body>
 </html>

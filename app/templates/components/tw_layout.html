@@ -39,6 +39,42 @@ Tailwind 统一布局组件
 {% from 'components/tw_chat_panel.html' import render_chat_button, render_chat_panel, render_chat_panel_script %}
 
 {% macro render_tw_layout(active_page='dashboard', show_search=true, search_value='', search_placeholder=none) %}
+{% set is_splitview = request.args.get('splitview') == '1' %}
+{% if is_splitview %}
+{# 分屏嵌入模式：只渲染内容区，不含 header/sidebar/chat #}
+<style>[x-cloak] { display: none !important; }</style>
+<div class="h-screen bg-background-light dark:bg-black overflow-y-auto">
+    {{ caller('content') if caller else '' }}
+</div>
+<script>
+window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'pma-theme-sync') {
+        document.documentElement.classList.toggle('dark', e.data.dark);
+        document.documentElement.classList.toggle('light', !e.data.dark);
+    }
+});
+// 拦截 <a> 链接点击，自动追加 splitview=1
+document.addEventListener('click', function(e) {
+    var a = e.target.closest('a[href]');
+    if (!a) return;
+    var href = a.getAttribute('href');
+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:')) return;
+    if (href.includes('splitview=')) return;
+    var sep = href.includes('?') ? '&' : '?';
+    a.setAttribute('href', href + sep + 'splitview=1');
+});
+// 拦截 <form> 提交，注入 splitview=1 hidden input
+document.addEventListener('submit', function(e) {
+    var form = e.target;
+    if (form.querySelector('input[name="splitview"]')) return;
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'splitview';
+    input.value = '1';
+    form.appendChild(input);
+});
+</script>
+{% else %}
 {# 获取待审批数量 #}
 {% set pending_approval_count = get_pending_approval_count() if get_pending_approval_count is defined else 0 %}
 {# x-cloak 样式：防止 Alpine.js 初始化前的闪烁 #}
@@ -72,8 +108,38 @@ Tailwind 统一布局组件
     100% { opacity: 0; transform: translateY(-8px); }
 }
 </style>
-<div x-data="{ sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true' }"
+<div x-data="{
+         sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
+         splitScreen: { active: false, url: '', loading: false, prevSidebarState: false }
+     }"
      x-init="$watch('sidebarCollapsed', val => localStorage.setItem('sidebarCollapsed', val))"
+     @enter-split-screen.window="
+         splitScreen.prevSidebarState = sidebarCollapsed;
+         sidebarCollapsed = true;
+         splitScreen.url = $event.detail.url;
+         splitScreen.loading = true;
+         splitScreen.active = true;
+     "
+     @exit-split-screen.window="
+         splitScreen.active = false;
+         splitScreen.url = '';
+         splitScreen.loading = false;
+         sidebarCollapsed = splitScreen.prevSidebarState;
+     "
+     @click="
+         if (splitScreen.active) {
+             let a = $event.target.closest('a[href]');
+             if (a) {
+                 let href = a.getAttribute('href');
+                 if (href && href.startsWith('/') && !href.startsWith('//') && !a.hasAttribute('download') && a.target !== '_blank') {
+                     $event.preventDefault();
+                     let sep = href.includes('?') ? '&' : '?';
+                     splitScreen.url = href + sep + 'splitview=1';
+                     splitScreen.loading = true;
+                 }
+             }
+         }
+     "
      class="h-screen flex flex-col">
 
     <!-- 顶部固定区域 -->
@@ -292,9 +358,33 @@ Tailwind 统一布局组件
         </aside>
 
         <!-- 主内容区 -->
-        <main class="flex-1 overflow-y-auto bg-background-light dark:bg-black">
+        <main class="overflow-y-auto bg-background-light dark:bg-black"
+              :class="splitScreen.active ? 'hidden' : 'flex-1'">
             {{ caller('content') if caller else '' }}
         </main>
+
+        <!-- 分屏 iframe 容器 -->
+        <div x-show="splitScreen.active" x-cloak
+             class="flex-1 overflow-hidden relative"
+             style="margin-right: 30vw;">
+            <div x-show="splitScreen.loading"
+                 class="absolute inset-0 flex items-center justify-center bg-white/80 dark:bg-black/80 z-10">
+                <div class="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent"></div>
+            </div>
+            <iframe :src="splitScreen.url"
+                    @load="
+                        splitScreen.loading = false;
+                        try {
+                            var iframeUrl = $el.contentWindow.location.href;
+                            if (iframeUrl && !iframeUrl.includes('splitview=1')) {
+                                var sep = iframeUrl.includes('?') ? '&' : '?';
+                                $el.src = iframeUrl + sep + 'splitview=1';
+                            }
+                        } catch(e) {}
+                    "
+                    class="w-full h-full border-none">
+            </iframe>
+        </div>
     </div>
 
     <!-- 消息通知面板 -->
@@ -308,6 +398,7 @@ Tailwind 统一布局组件
     {{ render_task_create_modal() }}
     {{ render_task_detail_modal() }}
 </div>
+{% endif %}
 {% endmacro %}
 
 
@@ -424,10 +515,17 @@ Tailwind 统一布局组件
     });
 
     // ========== 深色模式切换 ==========
+    function _syncThemeToIframe() {
+        const isDark = document.documentElement.classList.contains('dark');
+        document.querySelectorAll('iframe').forEach(f => {
+            try { f.contentWindow.postMessage({ type: 'pma-theme-sync', dark: isDark }, '*'); } catch(e) {}
+        });
+    }
     document.getElementById('themeToggle')?.addEventListener('click', function() {
         document.documentElement.classList.toggle('dark');
         document.documentElement.classList.toggle('light');
         localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        _syncThemeToIframe();
     });
 
     // 监听系统主题变化（仅在用户未手动设置时跟随）
@@ -435,6 +533,7 @@ Tailwind 统一布局组件
         if (!localStorage.getItem('theme')) {
             document.documentElement.classList.remove('light', 'dark');
             document.documentElement.classList.add(e.matches ? 'dark' : 'light');
+            _syncThemeToIframe();
         }
     });
 

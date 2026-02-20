@@ -1,522 +1,510 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="dark">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PMA - 聊天分屏预览</title>
+<title>PMA - 聊天分屏预览 v3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
 <script>
 tailwind.config = {
   darkMode: 'class',
-  theme: {
-    extend: {
-      colors: { primary: '#6366f1' }
-    }
-  }
+  theme: { extend: { colors: { primary: '#6366f1' } } }
 }
 </script>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; }
   .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24; }
 
-  /* Smooth transitions */
-  .chat-panel { transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
-  .content-panel { transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease; }
-  .history-sidebar { transition: width 0.3s ease, opacity 0.2s ease, padding 0.3s ease; }
-  .menu-bar { transition: height 0.3s ease, opacity 0.2s ease, padding 0.3s ease; }
-
-  /* Scrollbar styling */
-  .chat-messages::-webkit-scrollbar { width: 4px; }
-  .chat-messages::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-
-  /* Customer card hover */
-  .customer-card { transition: all 0.2s ease; }
-  .customer-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-
-  /* Pulse animation for hint */
-  @keyframes hint-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+  /* PMA glass morphism header */
+  .header-glass {
+    background: linear-gradient(135deg, rgba(40,40,40,0.85) 0%, rgba(20,20,20,0.90) 30%, rgba(0,0,0,0.88) 70%, rgba(15,15,15,0.85) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
   }
+
+  /* Transitions */
+  .chat-panel { transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+  .content-panel { transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+  .history-sidebar { transition: width 0.3s ease, opacity 0.2s ease, padding 0.3s ease; }
+  .menu-row { transition: height 0.3s ease, opacity 0.25s ease; overflow: hidden; }
+
+  /* Scrollbar */
+  .chat-messages::-webkit-scrollbar { width: 4px; }
+  .chat-messages::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; }
+  .detail-scroll::-webkit-scrollbar { width: 6px; }
+  .detail-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+  /* Card hover */
+  .customer-card { transition: all 0.2s ease; }
+  .customer-card:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+  /* Pulse */
+  @keyframes hint-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
   .hint-pulse { animation: hint-pulse 2s ease-in-out infinite; }
 
-  /* Button morph animation */
-  .btn-morph { transition: all 0.3s ease; }
-  .btn-morph:active { transform: scale(0.9); }
+  /* Menu item style */
+  .menu-link {
+    color: rgba(255,255,255,0.85);
+    font-size: 14px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .menu-link:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .menu-link.active { background: linear-gradient(135deg, #fff, #f8f9fa); color: #1a56db; }
 </style>
 </head>
-<body class="bg-slate-950 text-white h-screen overflow-hidden">
+<body class="bg-gray-100 text-gray-900 h-screen flex flex-col overflow-hidden">
 
-<div id="app" class="h-full flex flex-col">
+<!-- ============================================================ -->
+<!-- FIXED HEADER - PMA Style (always on top, never covered)      -->
+<!-- ============================================================ -->
+<header class="header-glass flex-shrink-0 z-50" style="position: relative;">
+  <!-- Row 1: Logo + System Name + User Avatar -->
+  <div class="px-6 h-10 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
+        <span class="text-white text-xs font-bold">P</span>
+      </div>
+      <span class="text-white font-semibold text-sm" style="text-shadow: 0 2px 4px rgba(0,0,0,0.5);">PMA 业务机会管理系统</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-white/70 text-xs cursor-pointer hover:text-white">简体中文 ▾</span>
+      <div class="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-medium cursor-pointer">J</div>
+    </div>
+  </div>
 
-  <!-- Top Bar: Logo + User -->
-  <div class="bg-slate-900 border-b border-slate-800/50 flex-shrink-0 z-30">
-    <div class="px-6 h-11 flex items-center justify-between">
-      <span class="text-lg font-bold bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent">PMA</span>
-      <div class="flex items-center gap-3">
-        <span class="material-symbols-outlined text-slate-400 text-xl cursor-pointer hover:text-slate-200">notifications</span>
-        <div class="w-7 h-7 rounded-full bg-violet-600 flex items-center justify-center text-xs font-medium">J</div>
+  <!-- Row 2: Menu Navigation (collapsible in split mode) -->
+  <div id="menuRow" class="menu-row" style="height: 36px;">
+    <div class="px-6 h-9 flex items-center gap-1">
+      <a href="#" class="menu-link active">仪表盘</a>
+      <a href="#" class="menu-link">业务管理 ▾</a>
+      <a href="#" class="menu-link">产品管理 ▾</a>
+      <a href="#" class="menu-link">库存管理 ▾</a>
+      <a href="#" class="menu-link">系统管理 ▾</a>
+    </div>
+  </div>
+</header>
+
+<!-- ============================================================ -->
+<!-- MAIN AREA (below header)                                     -->
+<!-- ============================================================ -->
+<div class="flex-1 flex overflow-hidden">
+
+  <!-- === Left: Page Content === -->
+  <div id="contentPanel" class="content-panel flex-1 overflow-hidden bg-gray-50">
+
+    <!-- Normal: placeholder -->
+    <div id="bgHint" class="h-full flex items-center justify-center">
+      <div class="text-center">
+        <div class="w-20 h-20 mx-auto mb-6 bg-gray-200 rounded-2xl flex items-center justify-center">
+          <span class="material-symbols-outlined text-4xl text-gray-400">dashboard</span>
+        </div>
+        <p class="text-gray-400 text-sm">主页面内容区域</p>
+        <p class="text-gray-400/60 text-xs mt-2">点击右侧聊天中的客户卡片体验分屏</p>
+      </div>
+    </div>
+
+    <!-- Split: Customer detail -->
+    <div id="customerDetail" class="h-full overflow-auto detail-scroll bg-white" style="display:none;">
+      <div class="p-6 max-w-5xl mx-auto">
+        <!-- Breadcrumb -->
+        <div class="flex items-center gap-2 text-sm text-gray-400 mb-6">
+          <a href="#" class="hover:text-blue-600">客户管理</a>
+          <span class="material-symbols-outlined text-xs">chevron_right</span>
+          <span class="text-gray-700 font-medium">苏州纳米科技有限公司</span>
+        </div>
+
+        <!-- Header -->
+        <div class="flex items-start justify-between mb-8">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">苏州纳米科技有限公司</h1>
+            <div class="flex items-center gap-3">
+              <span class="px-2.5 py-0.5 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full border border-emerald-200">活跃客户</span>
+              <span class="text-gray-400 text-sm">创建于 2025-03-15</span>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button class="px-4 py-2 bg-white hover:bg-gray-50 rounded-lg text-sm border border-gray-200 text-gray-700 shadow-sm">编辑</button>
+            <button class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm text-white shadow-sm">新建项目</button>
+          </div>
+        </div>
+
+        <!-- Info Grid -->
+        <div class="grid grid-cols-3 gap-4 mb-8">
+          <div class="bg-gray-50 border border-gray-100 rounded-xl p-4">
+            <div class="text-xs text-gray-400 mb-1">负责人</div>
+            <div class="text-sm font-medium text-gray-800">张明</div>
+          </div>
+          <div class="bg-gray-50 border border-gray-100 rounded-xl p-4">
+            <div class="text-xs text-gray-400 mb-1">所属行业</div>
+            <div class="text-sm font-medium text-gray-800">半导体</div>
+          </div>
+          <div class="bg-gray-50 border border-gray-100 rounded-xl p-4">
+            <div class="text-xs text-gray-400 mb-1">地区</div>
+            <div class="text-sm font-medium text-gray-800">江苏 · 苏州</div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-4 gap-4 mb-8">
+          <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-indigo-600">12</div>
+            <div class="text-xs text-gray-500 mt-1">项目数</div>
+          </div>
+          <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-blue-600">8</div>
+            <div class="text-xs text-gray-500 mt-1">报价单</div>
+          </div>
+          <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-emerald-600">¥285万</div>
+            <div class="text-xs text-gray-500 mt-1">总金额</div>
+          </div>
+          <div class="bg-amber-50 border border-amber-100 rounded-xl p-4 text-center">
+            <div class="text-2xl font-bold text-amber-600">5</div>
+            <div class="text-xs text-gray-500 mt-1">联系人</div>
+          </div>
+        </div>
+
+        <!-- Contacts -->
+        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden mb-8 shadow-sm">
+          <div class="px-5 py-3 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <h3 class="text-sm font-semibold text-gray-800">联系人</h3>
+            <button class="text-xs text-blue-600 hover:text-blue-700 font-medium">+ 添加</button>
+          </div>
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-xs text-gray-400 border-b border-gray-100">
+                <th class="text-left px-5 py-2.5 font-medium">姓名</th>
+                <th class="text-left px-5 py-2.5 font-medium">职位</th>
+                <th class="text-left px-5 py-2.5 font-medium">电话</th>
+                <th class="text-left px-5 py-2.5 font-medium">邮箱</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-b border-gray-50 hover:bg-blue-50/30">
+                <td class="px-5 py-3 font-medium text-gray-800">王磊</td>
+                <td class="px-5 py-3 text-gray-500">采购总监</td>
+                <td class="px-5 py-3 text-gray-500">138-0000-1234</td>
+                <td class="px-5 py-3 text-gray-500">wang.lei@suznano.com</td>
+              </tr>
+              <tr class="border-b border-gray-50 hover:bg-blue-50/30">
+                <td class="px-5 py-3 font-medium text-gray-800">李雪</td>
+                <td class="px-5 py-3 text-gray-500">技术经理</td>
+                <td class="px-5 py-3 text-gray-500">139-0000-5678</td>
+                <td class="px-5 py-3 text-gray-500">li.xue@suznano.com</td>
+              </tr>
+              <tr class="hover:bg-blue-50/30">
+                <td class="px-5 py-3 font-medium text-gray-800">陈波</td>
+                <td class="px-5 py-3 text-gray-500">项目工程师</td>
+                <td class="px-5 py-3 text-gray-500">136-0000-9012</td>
+                <td class="px-5 py-3 text-gray-500">chen.bo@suznano.com</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Recent Projects -->
+        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div class="px-5 py-3 border-b border-gray-100 bg-gray-50/50">
+            <h3 class="text-sm font-semibold text-gray-800">近期项目</h3>
+          </div>
+          <div class="divide-y divide-gray-50">
+            <div class="px-5 py-3 flex items-center justify-between hover:bg-blue-50/30 cursor-pointer">
+              <div>
+                <div class="text-sm font-medium text-gray-800">SiC 衬底检测设备采购</div>
+                <div class="text-xs text-gray-400 mt-0.5">2026-01-20</div>
+              </div>
+              <span class="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs rounded-full border border-blue-100">进行中</span>
+            </div>
+            <div class="px-5 py-3 flex items-center justify-between hover:bg-blue-50/30 cursor-pointer">
+              <div>
+                <div class="text-sm font-medium text-gray-800">MOCVD 配套产品</div>
+                <div class="text-xs text-gray-400 mt-0.5">2025-11-08</div>
+              </div>
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-xs rounded-full border border-emerald-100">已完成</span>
+            </div>
+            <div class="px-5 py-3 flex items-center justify-between hover:bg-blue-50/30 cursor-pointer">
+              <div>
+                <div class="text-sm font-medium text-gray-800">实验室耗材年度采购</div>
+                <div class="text-xs text-gray-400 mt-0.5">2025-09-12</div>
+              </div>
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-xs rounded-full border border-emerald-100">已完成</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Menu Bar (collapsible) -->
-  <div id="menuBar" class="menu-bar bg-slate-900/80 border-b border-slate-800 flex-shrink-0 z-20 overflow-hidden"
-       style="height: 40px;">
-    <div class="px-6 h-10 flex items-center gap-1">
-      <!-- Hamburger (hidden in normal mode, shown in split mode) -->
-      <button id="menuHamburger" onclick="toggleMenu()"
-              class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 mr-2 transition-colors"
-              style="display: none;">
-        <span class="material-symbols-outlined text-lg">menu</span>
-      </button>
-      <!-- Menu items -->
-      <div id="menuItems" class="flex items-center gap-1 text-sm">
-        <a href="#" class="px-3 py-1.5 rounded-lg bg-slate-800 text-white">仪表盘</a>
-        <a href="#" class="px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200">业务管理</a>
-        <a href="#" class="px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200">产品管理</a>
-        <a href="#" class="px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200">库存管理</a>
-        <a href="#" class="px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200">系统管理</a>
-      </div>
-    </div>
-  </div>
+  <!-- === Divider === -->
+  <div id="divider" class="w-px bg-gray-200 flex-shrink-0" style="display:none;"></div>
 
-  <!-- Main Area -->
-  <div class="flex-1 flex overflow-hidden relative">
+  <!-- ============================================================ -->
+  <!-- CHAT PANEL (below header, not covering it)                   -->
+  <!-- ============================================================ -->
+  <div id="chatPanel" class="chat-panel flex flex-col bg-white border-l border-gray-200 flex-shrink-0"
+       style="width: 420px;">
 
-    <!-- === Left: Content Panel === -->
-    <div id="contentPanel" class="content-panel flex-1 overflow-hidden">
-
-      <!-- Background hint (normal mode) -->
-      <div id="bgHint" class="h-full flex items-center justify-center">
-        <div class="text-center">
-          <div class="w-20 h-20 mx-auto mb-6 bg-slate-800 rounded-2xl flex items-center justify-center">
-            <span class="material-symbols-outlined text-4xl text-slate-600">dashboard</span>
-          </div>
-          <p class="text-slate-500 text-sm">主页面内容区域</p>
-          <p class="text-slate-600 text-xs mt-2">点击聊天中的客户卡片查看分屏效果</p>
+    <!-- Chat Header -->
+    <div class="flex items-center justify-between px-3 h-11 border-b border-gray-200 flex-shrink-0 bg-gray-50/80">
+      <div class="flex items-center gap-2">
+        <button onclick="toggleHistory()" class="p-1 rounded-lg hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors" title="会话列表">
+          <span class="material-symbols-outlined text-xl">menu</span>
+        </button>
+        <div class="flex items-center gap-1.5">
+          <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+          <span class="text-sm font-semibold text-gray-800">AI 助手</span>
         </div>
+        <span id="splitBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600 font-semibold" style="display:none;">分屏</span>
       </div>
-
-      <!-- Customer detail page (split mode) -->
-      <div id="customerDetail" class="h-full overflow-auto bg-slate-900" style="display: none;">
-        <div class="p-6 max-w-5xl mx-auto">
-          <!-- Breadcrumb -->
-          <div class="flex items-center gap-2 text-sm text-slate-400 mb-6">
-            <span>客户管理</span>
-            <span class="material-symbols-outlined text-xs">chevron_right</span>
-            <span class="text-slate-200">苏州纳米科技有限公司</span>
-          </div>
-
-          <!-- Header -->
-          <div class="flex items-start justify-between mb-8">
-            <div>
-              <h1 class="text-2xl font-bold text-white mb-2">苏州纳米科技有限公司</h1>
-              <div class="flex items-center gap-3">
-                <span class="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-full">活跃客户</span>
-                <span class="text-slate-400 text-sm">创建于 2025-03-15</span>
-              </div>
-            </div>
-            <div class="flex gap-2">
-              <button class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm border border-slate-700">编辑</button>
-              <button class="px-4 py-2 bg-violet-600 hover:bg-violet-700 rounded-lg text-sm">新建项目</button>
-            </div>
-          </div>
-
-          <!-- Info Cards -->
-          <div class="grid grid-cols-3 gap-4 mb-8">
-            <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
-              <div class="text-xs text-slate-400 mb-1">负责人</div>
-              <div class="text-sm font-medium">张明</div>
-            </div>
-            <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
-              <div class="text-xs text-slate-400 mb-1">所属行业</div>
-              <div class="text-sm font-medium">半导体</div>
-            </div>
-            <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4">
-              <div class="text-xs text-slate-400 mb-1">地区</div>
-              <div class="text-sm font-medium">江苏 · 苏州</div>
-            </div>
-          </div>
-
-          <!-- Stats -->
-          <div class="grid grid-cols-4 gap-4 mb-8">
-            <div class="bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-xl p-4 text-center">
-              <div class="text-2xl font-bold text-violet-400">12</div>
-              <div class="text-xs text-slate-400 mt-1">项目数</div>
-            </div>
-            <div class="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/20 rounded-xl p-4 text-center">
-              <div class="text-2xl font-bold text-blue-400">8</div>
-              <div class="text-xs text-slate-400 mt-1">报价单</div>
-            </div>
-            <div class="bg-gradient-to-br from-emerald-500/10 to-green-500/10 border border-emerald-500/20 rounded-xl p-4 text-center">
-              <div class="text-2xl font-bold text-emerald-400">¥285万</div>
-              <div class="text-xs text-slate-400 mt-1">总金额</div>
-            </div>
-            <div class="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-xl p-4 text-center">
-              <div class="text-2xl font-bold text-amber-400">5</div>
-              <div class="text-xs text-slate-400 mt-1">联系人</div>
-            </div>
-          </div>
-
-          <!-- Contacts Table -->
-          <div class="bg-slate-800/30 border border-slate-700/50 rounded-xl overflow-hidden mb-8">
-            <div class="px-5 py-3 border-b border-slate-700/50 flex items-center justify-between">
-              <h3 class="text-sm font-semibold">联系人</h3>
-              <button class="text-xs text-violet-400 hover:text-violet-300">+ 添加</button>
-            </div>
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="text-xs text-slate-400 border-b border-slate-700/30">
-                  <th class="text-left px-5 py-2 font-medium">姓名</th>
-                  <th class="text-left px-5 py-2 font-medium">职位</th>
-                  <th class="text-left px-5 py-2 font-medium">电话</th>
-                  <th class="text-left px-5 py-2 font-medium">邮箱</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr class="border-b border-slate-700/20 hover:bg-slate-800/50">
-                  <td class="px-5 py-3 font-medium">王磊</td>
-                  <td class="px-5 py-3 text-slate-400">采购总监</td>
-                  <td class="px-5 py-3 text-slate-400">138-0000-1234</td>
-                  <td class="px-5 py-3 text-slate-400">wang.lei@suznano.com</td>
-                </tr>
-                <tr class="border-b border-slate-700/20 hover:bg-slate-800/50">
-                  <td class="px-5 py-3 font-medium">李雪</td>
-                  <td class="px-5 py-3 text-slate-400">技术经理</td>
-                  <td class="px-5 py-3 text-slate-400">139-0000-5678</td>
-                  <td class="px-5 py-3 text-slate-400">li.xue@suznano.com</td>
-                </tr>
-                <tr class="hover:bg-slate-800/50">
-                  <td class="px-5 py-3 font-medium">陈波</td>
-                  <td class="px-5 py-3 text-slate-400">项目工程师</td>
-                  <td class="px-5 py-3 text-slate-400">136-0000-9012</td>
-                  <td class="px-5 py-3 text-slate-400">chen.bo@suznano.com</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <!-- Recent Projects -->
-          <div class="bg-slate-800/30 border border-slate-700/50 rounded-xl overflow-hidden">
-            <div class="px-5 py-3 border-b border-slate-700/50">
-              <h3 class="text-sm font-semibold">近期项目</h3>
-            </div>
-            <div class="divide-y divide-slate-700/30">
-              <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-800/50">
-                <div>
-                  <div class="text-sm font-medium">SiC 衬底检测设备采购</div>
-                  <div class="text-xs text-slate-400 mt-0.5">2026-01-20</div>
-                </div>
-                <span class="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full">进行中</span>
-              </div>
-              <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-800/50">
-                <div>
-                  <div class="text-sm font-medium">MOCVD 配套产品</div>
-                  <div class="text-xs text-slate-400 mt-0.5">2025-11-08</div>
-                </div>
-                <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">已完成</span>
-              </div>
-              <div class="px-5 py-3 flex items-center justify-between hover:bg-slate-800/50">
-                <div>
-                  <div class="text-sm font-medium">实验室耗材年度采购</div>
-                  <div class="text-xs text-slate-400 mt-0.5">2025-09-12</div>
-                </div>
-                <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs rounded-full">已完成</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="flex items-center gap-0.5">
+        <!-- THE button: ✕ close ↔ ⧉ restore -->
+        <button id="mainActionBtn" onclick="handleMainAction()"
+                class="p-1.5 rounded-lg hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-all"
+                title="关闭聊天">
+          <span id="mainActionIcon" class="material-symbols-outlined text-lg">close</span>
+        </button>
       </div>
     </div>
 
-    <!-- === Divider === -->
-    <div id="divider" class="w-px bg-slate-700 flex-shrink-0" style="display: none;"></div>
-
-    <!-- === Right: Chat Panel === -->
-    <div id="chatPanel" class="chat-panel flex flex-col bg-slate-900 border-l border-slate-800"
-         style="width: 420px;">
-
-      <!-- Chat Header -->
-      <div class="flex items-center justify-between px-3 h-11 border-b border-slate-800 flex-shrink-0">
-        <div class="flex items-center gap-2">
-          <!-- History toggle -->
-          <button id="historyToggleBtn" onclick="toggleHistory()"
-                  class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
-                  title="会话列表">
-            <span class="material-symbols-outlined text-xl">menu</span>
+    <div class="flex-1 flex overflow-hidden">
+      <!-- History Sidebar -->
+      <div id="historySidebar" class="history-sidebar w-[200px] border-r border-gray-100 flex flex-col flex-shrink-0 bg-gray-50/50">
+        <div class="p-2.5">
+          <button class="w-full py-2 px-3 bg-white hover:bg-gray-100 rounded-lg text-xs text-gray-600 flex items-center gap-2 border border-gray-200 shadow-sm transition-colors">
+            <span class="material-symbols-outlined text-sm">add</span>
+            新对话
           </button>
-          <div class="flex items-center gap-1.5">
-            <div class="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
-            <span class="text-sm font-medium">AI 助手</span>
-          </div>
-          <!-- Split mode badge -->
-          <span id="splitBadge" class="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-400 font-medium"
-                style="display: none;">分屏</span>
         </div>
-        <div class="flex items-center gap-0.5">
-          <!-- The morphing button: close ↔ restore -->
-          <button id="mainActionBtn" onclick="handleMainAction()"
-                  class="btn-morph p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
-                  title="关闭聊天">
-            <span id="mainActionIcon" class="material-symbols-outlined text-lg">close</span>
-          </button>
+        <div class="flex-1 overflow-auto px-2 pb-2 space-y-0.5">
+          <div class="px-3 py-2 rounded-lg bg-indigo-50 text-sm text-indigo-700 font-medium cursor-pointer truncate border border-indigo-100">
+            查看客户信息
+          </div>
+          <div class="px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-500 cursor-pointer truncate">
+            项目进度查询
+          </div>
+          <div class="px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-500 cursor-pointer truncate">
+            报价单对比分析
+          </div>
+          <div class="px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-500 cursor-pointer truncate">
+            本月报销统计
+          </div>
         </div>
       </div>
 
-      <div class="flex-1 flex overflow-hidden">
-        <!-- History Sidebar -->
-        <div id="historySidebar" class="history-sidebar w-[200px] border-r border-slate-800 flex flex-col flex-shrink-0">
-          <div class="p-3">
-            <button class="w-full py-2 px-3 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-300 flex items-center gap-2 transition-colors">
-              <span class="material-symbols-outlined text-sm">add</span>
-              新对话
+      <!-- Chat Messages -->
+      <div class="flex-1 flex flex-col min-w-0 bg-white">
+        <div class="flex-1 overflow-auto chat-messages p-4 space-y-4" style="background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);">
+
+          <!-- User -->
+          <div class="flex justify-end">
+            <div class="bg-indigo-600 text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%] shadow-sm">
+              <p class="text-sm">帮我查一下苏州纳米科技的客户信息</p>
+            </div>
+          </div>
+
+          <!-- AI -->
+          <div class="flex justify-start">
+            <div class="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[85%]">
+              <p class="text-sm text-gray-700 leading-relaxed">好的，我找到了苏州纳米科技有限公司的信息。这是一家活跃的半导体行业客户，目前有12个项目和8份报价单。</p>
+            </div>
+          </div>
+
+          <!-- Customer Card -->
+          <div class="flex justify-start">
+            <div id="customerCard" class="customer-card max-w-[280px] rounded-xl border border-gray-200 bg-white overflow-hidden cursor-pointer shadow-sm"
+                 onclick="openSplit()">
+              <div class="bg-gradient-to-r from-indigo-50 to-purple-50 px-4 py-2.5 border-b border-gray-100">
+                <div class="flex items-center gap-2">
+                  <span class="material-symbols-outlined text-indigo-500 text-lg">business</span>
+                  <span class="text-sm font-semibold text-gray-900">苏州纳米科技有限公司</span>
+                </div>
+              </div>
+              <div class="px-4 py-3 space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-gray-400">负责人</span>
+                  <span class="text-gray-700">张明</span>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-gray-400">行业</span>
+                  <span class="text-gray-700">半导体</span>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-gray-400">项目数</span>
+                  <span class="text-indigo-600 font-medium">12</span>
+                </div>
+                <div class="flex items-center justify-between text-xs">
+                  <span class="text-gray-400">总金额</span>
+                  <span class="text-emerald-600 font-medium">¥285万</span>
+                </div>
+              </div>
+              <div id="cardHint" class="px-4 py-2 bg-gray-50 border-t border-gray-100 flex items-center justify-center gap-1">
+                <span class="material-symbols-outlined text-xs text-indigo-500 hint-pulse">open_in_new</span>
+                <span class="text-xs text-indigo-500 hint-pulse">点击查看详情</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- More messages -->
+          <div class="flex justify-end">
+            <div class="bg-indigo-600 text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%] shadow-sm">
+              <p class="text-sm">最近有哪些进行中的项目？</p>
+            </div>
+          </div>
+
+          <div class="flex justify-start">
+            <div class="bg-gray-100 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[85%]">
+              <p class="text-sm text-gray-700 leading-relaxed">该客户目前有1个进行中的项目：<strong>SiC 衬底检测设备采购</strong>，创建于 2026-01-20。点击上方卡片可查看完整详情。</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Input -->
+        <div class="flex-shrink-0 p-3 border-t border-gray-200 bg-white">
+          <div class="flex items-end gap-2">
+            <div class="flex-1 bg-gray-50 rounded-xl border border-gray-200 focus-within:border-indigo-400 focus-within:ring-1 focus-within:ring-indigo-200 transition-all">
+              <textarea rows="1" placeholder="输入消息..."
+                        class="w-full bg-transparent text-sm px-4 py-2.5 resize-none focus:outline-none text-gray-800 placeholder-gray-400"></textarea>
+            </div>
+            <button class="p-2.5 bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors flex-shrink-0 shadow-sm">
+              <span class="material-symbols-outlined text-lg text-white">send</span>
             </button>
           </div>
-          <div class="flex-1 overflow-auto px-2 pb-2 space-y-0.5">
-            <div class="px-3 py-2 rounded-lg bg-violet-600/20 text-sm text-violet-300 cursor-pointer truncate">
-              查看客户信息
-            </div>
-            <div class="px-3 py-2 rounded-lg hover:bg-slate-800 text-sm text-slate-400 cursor-pointer truncate">
-              项目进度查询
-            </div>
-            <div class="px-3 py-2 rounded-lg hover:bg-slate-800 text-sm text-slate-400 cursor-pointer truncate">
-              报价单对比分析
-            </div>
-            <div class="px-3 py-2 rounded-lg hover:bg-slate-800 text-sm text-slate-400 cursor-pointer truncate">
-              本月报销统计
-            </div>
-          </div>
-        </div>
-
-        <!-- Chat Messages Area -->
-        <div class="flex-1 flex flex-col min-w-0">
-          <div class="flex-1 overflow-auto chat-messages p-4 space-y-4">
-
-            <!-- User message -->
-            <div class="flex justify-end">
-              <div class="bg-violet-600 rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%]">
-                <p class="text-sm">帮我查一下苏州纳米科技的客户信息</p>
-              </div>
-            </div>
-
-            <!-- AI response -->
-            <div class="flex justify-start">
-              <div class="bg-slate-800 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[85%]">
-                <p class="text-sm text-slate-200 leading-relaxed">好的，我找到了苏州纳米科技有限公司的信息。这是一家活跃的半导体行业客户，目前有12个项目和8份报价单。</p>
-              </div>
-            </div>
-
-            <!-- Customer Card -->
-            <div class="flex justify-start">
-              <div id="customerCard" class="customer-card max-w-[280px] rounded-xl border border-slate-700 bg-slate-800/80 overflow-hidden cursor-pointer"
-                   onclick="openSplit()">
-                <div class="bg-gradient-to-r from-violet-600/20 to-purple-600/20 px-4 py-2.5 border-b border-slate-700/50">
-                  <div class="flex items-center gap-2">
-                    <span class="material-symbols-outlined text-violet-400 text-lg">business</span>
-                    <span class="text-sm font-semibold text-white">苏州纳米科技有限公司</span>
-                  </div>
-                </div>
-                <div class="px-4 py-3 space-y-2">
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-400">负责人</span>
-                    <span class="text-slate-200">张明</span>
-                  </div>
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-400">行业</span>
-                    <span class="text-slate-200">半导体</span>
-                  </div>
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-400">项目数</span>
-                    <span class="text-violet-400 font-medium">12</span>
-                  </div>
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-400">总金额</span>
-                    <span class="text-emerald-400 font-medium">¥285万</span>
-                  </div>
-                </div>
-                <div class="px-4 py-2 bg-slate-700/30 border-t border-slate-700/50 flex items-center justify-center gap-1">
-                  <span class="material-symbols-outlined text-xs text-violet-400 hint-pulse">open_in_new</span>
-                  <span class="text-xs text-violet-400 hint-pulse">点击查看详情</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- More messages -->
-            <div class="flex justify-end">
-              <div class="bg-violet-600 rounded-2xl rounded-br-md px-4 py-2.5 max-w-[80%]">
-                <p class="text-sm">最近有哪些进行中的项目？</p>
-              </div>
-            </div>
-
-            <div class="flex justify-start">
-              <div class="bg-slate-800 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[85%]">
-                <p class="text-sm text-slate-200 leading-relaxed">该客户目前有1个进行中的项目：<strong>SiC 衬底检测设备采购</strong>，创建于 2026-01-20。您可以点击上方卡片查看完整详情。</p>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Input Area -->
-          <div class="flex-shrink-0 p-3 border-t border-slate-800">
-            <div class="flex items-end gap-2">
-              <div class="flex-1 bg-slate-800 rounded-xl border border-slate-700 focus-within:border-violet-500/50 transition-colors">
-                <textarea rows="1" placeholder="输入消息..."
-                          class="w-full bg-transparent text-sm px-4 py-2.5 resize-none focus:outline-none text-white placeholder-slate-500"></textarea>
-              </div>
-              <button class="p-2.5 bg-violet-600 hover:bg-violet-700 rounded-xl transition-colors flex-shrink-0">
-                <span class="material-symbols-outlined text-lg">send</span>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
-
   </div>
+
 </div>
 
-<!-- Toast notification -->
-<div id="toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-slate-800 border border-slate-700 rounded-xl px-5 py-3 shadow-2xl flex items-center gap-3 transition-all duration-300"
-     style="opacity: 0; transform: translate(-50%, -20px); pointer-events: none;">
-  <span id="toastIcon" class="material-symbols-outlined text-violet-400 text-lg">info</span>
-  <span id="toastText" class="text-sm text-slate-200"></span>
+<!-- Toast -->
+<div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-gray-900 text-white rounded-xl px-5 py-3 shadow-2xl flex items-center gap-3 transition-all duration-300"
+     style="opacity:0; transform:translate(-50%,-20px); pointer-events:none;">
+  <span id="toastIcon" class="material-symbols-outlined text-lg"></span>
+  <span id="toastText" class="text-sm"></span>
 </div>
 
 <!-- Mode indicator -->
-<div id="modeIndicator" class="fixed bottom-4 left-4 z-50 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 shadow-xl">
-  <div class="flex items-center gap-3">
-    <div class="flex items-center gap-2">
-      <div id="modeIcon" class="w-2 h-2 rounded-full bg-slate-500 transition-colors"></div>
-      <span id="modeText" class="text-xs text-slate-400">普通模式 · 聊天面板 420px</span>
-    </div>
+<div class="fixed bottom-4 left-4 z-50 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-lg">
+  <div class="flex items-center gap-2">
+    <div id="modeIcon" class="w-2 h-2 rounded-full bg-gray-400 transition-colors"></div>
+    <span id="modeText" class="text-xs text-gray-500">普通模式 · 聊天不覆盖顶栏</span>
   </div>
 </div>
 
-<!-- Keyboard hint -->
-<div class="fixed bottom-4 right-4 z-50 text-xs text-slate-600">
-  <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-slate-500">ESC</kbd> 还原分屏
+<!-- ESC hint -->
+<div class="fixed bottom-4 right-4 z-50 text-xs text-gray-400">
+  <kbd class="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded text-gray-500 text-[10px]">ESC</kbd> 还原
 </div>
 
 <script>
 let splitMode = false;
 let historyVisible = true;
-let chatClosed = false;
 
-function showToast(text, icon = 'info') {
-  const toast = document.getElementById('toast');
+function showToast(text, icon) {
+  const t = document.getElementById('toast');
   document.getElementById('toastText').textContent = text;
   document.getElementById('toastIcon').textContent = icon;
-  toast.style.opacity = '1';
-  toast.style.transform = 'translate(-50%, 0)';
-  toast.style.pointerEvents = 'auto';
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translate(-50%, -20px)';
-    toast.style.pointerEvents = 'none';
-  }, 2000);
+  t.style.opacity = '1';
+  t.style.transform = 'translate(-50%, 0)';
+  t.style.pointerEvents = 'auto';
+  setTimeout(() => { t.style.opacity='0'; t.style.transform='translate(-50%,-20px)'; t.style.pointerEvents='none'; }, 2200);
 }
 
 function openSplit() {
   if (splitMode) return;
   splitMode = true;
 
-  // 1. Collapse menu bar
-  const menuBar = document.getElementById('menuBar');
-  const menuItems = document.getElementById('menuItems');
-  const menuHamburger = document.getElementById('menuHamburger');
-  menuBar.style.height = '0px';
-  menuBar.style.opacity = '0';
-  menuBar.style.padding = '0';
-  menuBar.style.borderBottom = 'none';
-  menuHamburger.style.display = 'block';
+  // 1. Fold menu row
+  const menuRow = document.getElementById('menuRow');
+  menuRow.style.height = '0px';
+  menuRow.style.opacity = '0';
 
-  // 2. Collapse history sidebar
-  const historySidebar = document.getElementById('historySidebar');
-  historySidebar.style.width = '0px';
-  historySidebar.style.opacity = '0';
-  historySidebar.style.overflow = 'hidden';
-  historySidebar.style.padding = '0';
+  // 2. Fold history sidebar
+  const hs = document.getElementById('historySidebar');
+  hs.style.width = '0px';
+  hs.style.opacity = '0';
+  hs.style.overflow = 'hidden';
+  hs.style.padding = '0';
   historyVisible = false;
 
-  // 3. Resize chat panel to 30%
-  const chatPanel = document.getElementById('chatPanel');
-  chatPanel.style.width = '30%';
+  // 3. Chat → 30%
+  document.getElementById('chatPanel').style.width = '30%';
 
-  // 4. Show content area with customer detail
-  const contentPanel = document.getElementById('contentPanel');
-  const divider = document.getElementById('divider');
-  contentPanel.style.flex = 'none';
-  contentPanel.style.width = '70%';
-  divider.style.display = 'block';
+  // 4. Content → 70%
+  const cp = document.getElementById('contentPanel');
+  cp.style.flex = 'none';
+  cp.style.width = '70%';
+  document.getElementById('divider').style.display = 'block';
 
+  // 5. Show customer detail
   document.getElementById('bgHint').style.display = 'none';
   document.getElementById('customerDetail').style.display = 'block';
 
-  // 5. Morph close button → restore button
-  const btn = document.getElementById('mainActionBtn');
-  const icon = document.getElementById('mainActionIcon');
-  icon.textContent = 'pip_exit';
-  btn.title = '还原（退出分屏）';
+  // 6. Button morph: ✕ → restore
+  document.getElementById('mainActionIcon').textContent = 'pip_exit';
+  document.getElementById('mainActionBtn').title = '还原（退出分屏）';
 
-  // 6. Show split badge
+  // 7. Badge
   document.getElementById('splitBadge').style.display = 'inline';
 
-  // 7. Change card hint
-  const card = document.getElementById('customerCard');
-  const hint = card.querySelector('.hint-pulse');
-  if (hint) {
-    hint.parentElement.innerHTML = '<span class="material-symbols-outlined text-xs text-emerald-400">check_circle</span><span class="text-xs text-emerald-400">已在左侧打开</span>';
-  }
+  // 8. Card hint update
+  document.getElementById('cardHint').innerHTML =
+    '<span class="material-symbols-outlined text-xs text-emerald-500">check_circle</span>' +
+    '<span class="text-xs text-emerald-600">已在左侧打开</span>';
 
   updateIndicator();
-  showToast('已进入分屏模式 · 菜单栏和历史栏已折叠', 'splitscreen');
+  showToast('进入分屏 · 菜单栏已折叠 · 点击还原按钮退出', 'splitscreen');
 }
 
 function closeSplit() {
   if (!splitMode) return;
   splitMode = false;
 
-  // 1. Restore menu bar
-  const menuBar = document.getElementById('menuBar');
-  const menuHamburger = document.getElementById('menuHamburger');
-  menuBar.style.height = '40px';
-  menuBar.style.opacity = '1';
-  menuBar.style.padding = '';
-  menuBar.style.borderBottom = '';
-  menuHamburger.style.display = 'none';
+  // 1. Restore menu row
+  const menuRow = document.getElementById('menuRow');
+  menuRow.style.height = '36px';
+  menuRow.style.opacity = '1';
 
-  // 2. Restore history sidebar
-  const historySidebar = document.getElementById('historySidebar');
-  historySidebar.style.width = '200px';
-  historySidebar.style.opacity = '1';
-  historySidebar.style.overflow = '';
-  historySidebar.style.padding = '';
+  // 2. Restore history
+  const hs = document.getElementById('historySidebar');
+  hs.style.width = '200px';
+  hs.style.opacity = '1';
+  hs.style.overflow = '';
+  hs.style.padding = '';
   historyVisible = true;
 
-  // 3. Restore chat panel width
-  const chatPanel = document.getElementById('chatPanel');
-  chatPanel.style.width = '420px';
+  // 3. Chat → 420px
+  document.getElementById('chatPanel').style.width = '420px';
 
-  // 4. Restore content area
-  const contentPanel = document.getElementById('contentPanel');
-  const divider = document.getElementById('divider');
-  contentPanel.style.flex = '1';
-  contentPanel.style.width = '';
-  divider.style.display = 'none';
+  // 4. Content → flex
+  const cp = document.getElementById('contentPanel');
+  cp.style.flex = '1';
+  cp.style.width = '';
+  document.getElementById('divider').style.display = 'none';
 
+  // 5. Hide customer detail
   document.getElementById('bgHint').style.display = 'flex';
   document.getElementById('customerDetail').style.display = 'none';
 
-  // 5. Morph restore button → close button
-  const icon = document.getElementById('mainActionIcon');
-  const btn = document.getElementById('mainActionBtn');
-  icon.textContent = 'close';
-  btn.title = '关闭聊天';
+  // 6. Button morph: restore → ✕
+  document.getElementById('mainActionIcon').textContent = 'close';
+  document.getElementById('mainActionBtn').title = '关闭聊天';
 
-  // 6. Hide split badge
+  // 7. Badge
   document.getElementById('splitBadge').style.display = 'none';
+
+  // 8. Restore card hint
+  document.getElementById('cardHint').innerHTML =
+    '<span class="material-symbols-outlined text-xs text-indigo-500 hint-pulse">open_in_new</span>' +
+    '<span class="text-xs text-indigo-500 hint-pulse">点击查看详情</span>';
 
   updateIndicator();
   showToast('已还原普通模式', 'check_circle');
@@ -524,43 +512,20 @@ function closeSplit() {
 
 function handleMainAction() {
   if (splitMode) {
-    // In split mode: button = restore
-    closeSplit();
+    closeSplit();  // restore
   } else {
-    // In normal mode: button = close chat
-    showToast('聊天面板已关闭（演示中不真正关闭）', 'chat_bubble');
+    showToast('聊天面板已关闭（演示中不实际关闭）', 'chat_bubble');
   }
 }
 
 function toggleHistory() {
-  const sidebar = document.getElementById('historySidebar');
+  const hs = document.getElementById('historySidebar');
   if (historyVisible) {
-    sidebar.style.width = '0px';
-    sidebar.style.opacity = '0';
-    sidebar.style.overflow = 'hidden';
-    sidebar.style.padding = '0';
+    hs.style.width = '0px'; hs.style.opacity = '0'; hs.style.overflow = 'hidden'; hs.style.padding = '0';
     historyVisible = false;
   } else {
-    sidebar.style.width = '200px';
-    sidebar.style.opacity = '1';
-    sidebar.style.overflow = '';
-    sidebar.style.padding = '';
+    hs.style.width = '200px'; hs.style.opacity = '1'; hs.style.overflow = ''; hs.style.padding = '';
     historyVisible = true;
-  }
-}
-
-function toggleMenu() {
-  const menuBar = document.getElementById('menuBar');
-  if (menuBar.style.height === '0px') {
-    menuBar.style.height = '40px';
-    menuBar.style.opacity = '1';
-    menuBar.style.padding = '';
-    menuBar.style.borderBottom = '';
-  } else {
-    menuBar.style.height = '0px';
-    menuBar.style.opacity = '0';
-    menuBar.style.padding = '0';
-    menuBar.style.borderBottom = 'none';
   }
 }
 
@@ -568,20 +533,15 @@ function updateIndicator() {
   const icon = document.getElementById('modeIcon');
   const text = document.getElementById('modeText');
   if (splitMode) {
-    icon.className = 'w-2 h-2 rounded-full bg-emerald-400 transition-colors';
-    text.textContent = '分屏模式 · 页面 70% + 聊天 30%';
+    icon.className = 'w-2 h-2 rounded-full bg-emerald-500 transition-colors';
+    text.textContent = '分屏模式 · 页面70% + 聊天30% · 菜单栏已折叠';
   } else {
-    icon.className = 'w-2 h-2 rounded-full bg-slate-500 transition-colors';
-    text.textContent = '普通模式 · 聊天面板 420px';
+    icon.className = 'w-2 h-2 rounded-full bg-gray-400 transition-colors';
+    text.textContent = '普通模式 · 聊天不覆盖顶栏';
   }
 }
 
-// ESC to restore
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && splitMode) {
-    closeSplit();
-  }
-});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && splitMode) closeSplit(); });
 </script>
 
 </body>
