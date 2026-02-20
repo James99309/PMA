@@ -2245,6 +2245,8 @@ function chatPanel() {
                     const result = await resp.json();
                     if (result.success && result.form_schema) {
                         const schema = result.form_schema;
+                        // 确保表单选项已加载
+                        if (!this.formOptions) await this.loadFormOptions();
                         const formValues = {};
                         for (const field of schema.fields) {
                             formValues[field.name] = field.prefill || '';
@@ -2543,6 +2545,8 @@ function chatPanel() {
                                 }
                                 const schema = payload.form_schema;
                                 if (schema) {
+                                    // 确保表单选项已加载
+                                    if (!this.formOptions) await this.loadFormOptions();
                                     const formValues = {};
                                     for (const field of schema.fields) {
                                         formValues[field.name] = field.prefill || '';
@@ -3270,7 +3274,12 @@ function chatPanel() {
         },
 
         getFormFieldOptions(optionsKey) {
-            if (!this.formOptions || !optionsKey) return [];
+            if (!optionsKey) return [];
+            // 如果选项未加载，自动重试一次
+            if (!this.formOptions) {
+                this.loadFormOptions();
+                return [];
+            }
             return this.formOptions[optionsKey] || [];
         },
 
