@@ -818,6 +818,10 @@ def create_app(config_class=Config):
     app.register_blueprint(chat_bp)
     csrf.exempt(chat_bp)
 
+    # 注册星图蓝图
+    from app.views.star_graph import star_graph as star_graph_bp
+    app.register_blueprint(star_graph_bp)
+
     # 添加审批相关函数到模板上下文
     from app.context_processors import inject_approval_functions
     app.context_processor(inject_approval_functions)

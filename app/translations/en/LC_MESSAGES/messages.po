@@ -8982,3 +8982,58 @@ msgstr "Tags"
 
 msgid "已选"
 msgstr "Selected"
+
+#: star_graph
+msgid "星图"
+msgstr "Star Graph"
+
+msgid "业务星图"
+msgstr "Business Star Graph"
+
+msgid "内部成员"
+msgstr "Team Member"
+
+msgid "工作活动"
+msgstr "Work Activity"
+
+msgid "任务"
+msgstr "Task"
+
+msgid "点击"
+msgstr "Click"
+
+msgid "双击"
+msgstr "Double-click"
+
+msgid "滚轮"
+msgstr "Scroll"
+
+msgid "缩放"
+msgstr "Zoom"
+
+msgid "拖拽"
+msgstr "Drag"
+
+msgid "展开关联"
+msgstr "Expand"
+
+msgid "切换中心"
+msgstr "Switch Center"
+
+msgid "已探索的路径始终保持亮度"
+msgstr "Explored paths stay highlighted"
+
+msgid "搜索节点..."
+msgstr "Search nodes..."
+
+msgid "确认切换"
+msgstr "Confirm"
+
+msgid "加载星图数据..."
+msgstr "Loading star graph..."
+
+msgid "点击星点展开关联"
+msgstr "Click stars to expand"
+
+msgid "双击切换视角"
+msgstr "Double-click to switch view"

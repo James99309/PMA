@@ -228,6 +228,13 @@ render_tw_expense_status_badge with context %}
         },
         extra_actions=[
             {
+                'show': true,
+                'label': _('星图'),
+                'onclick': "window.location.href='" ~ url_for('star_graph.project_graph', project_id=project.id) ~ "'",
+                'icon': 'hub',
+                'color': 'slate'
+            },
+            {
                 'show': can_submit_approval and effective_status in ['draft', ''],
                 'label': _('提交审批'),
                 'onclick': 'submitProjectApproval()',
