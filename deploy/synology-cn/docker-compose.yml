@@ -126,6 +126,8 @@ services:
       - ${PROJECT_DIR:-/volume1/docker/pma}/app:/app/app:ro
       - ${PROJECT_DIR:-/volume1/docker/pma}/migrations:/app/migrations:ro
       - ${PROJECT_DIR:-/volume1/docker/pma}/config.py:/app/config.py:ro
+      # OpenClaw 设备身份持久化（防止容器重建时丢失 Ed25519 密钥）
+      - ${PROJECT_DIR:-/volume1/docker/pma}/openclaw-identity:/home/pma/.openclaw
     depends_on:
       postgres:
         condition: service_healthy
