@@ -109,6 +109,27 @@ svg#graph { position: fixed; top: 0; left: 0; z-index: 1; }
   color: rgba(180,200,255,0.9);
 }
 .confirm-dialog .cd-btn.primary:hover { background: rgba(100,130,220,0.4); color: #fff; }
+.context-menu {
+  position: fixed; z-index: 100;
+  background: rgba(10,14,30,0.88); backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+  padding: 4px; min-width: 150px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), 0 0 1px rgba(255,255,255,0.1);
+  opacity: 0; transform: scale(0.95) translateY(-4px);
+  transform-origin: top left; transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none; display: none;
+}
+.context-menu.show {
+  display: block; opacity: 1; transform: scale(1) translateY(0); pointer-events: auto;
+}
+.cm-item {
+  padding: 8px 14px; border-radius: 7px; font-size: 12px;
+  color: rgba(255,255,255,0.7); cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 8px;
+}
+.cm-item:hover { background: rgba(100,130,220,0.2); color: #fff; }
+.cm-item svg { width: 14px; height: 14px; opacity: 0.5; }
+.cm-item:hover svg { opacity: 0.9; }
 .loading-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   z-index: 50; display: flex; align-items: center; justify-content: center;
@@ -119,6 +140,7 @@ svg#graph { position: fixed; top: 0; left: 0; z-index: 1; }
   animation: pulse 1.5s ease-in-out infinite;
 }
 @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+@keyframes orbit-flow { to { stroke-dashoffset: -32; } }
 </style>
 </head>
 <body>
@@ -150,8 +172,8 @@ svg#graph { position: fixed; top: 0; left: 0; z-index: 1; }
 </div>
 <div class="panel hint-panel">
   <kbd>{{ _('点击') }}</kbd> {{ _('展开关联') }} &nbsp; <kbd>{{ _('双击') }}</kbd> {{ _('切换中心') }}<br>
-  <kbd>{{ _('滚轮') }}</kbd> {{ _('缩放') }} &nbsp; <kbd>{{ _('拖拽') }}</kbd> {{ _('移动') }}<br>
-  {{ _('已探索的路径始终保持亮度') }}
+  <kbd>{{ _('右键') }}</kbd> {{ _('打开详情页') }} &nbsp; <kbd>{{ _('滚轮') }}</kbd> {{ _('缩放') }}<br>
+  <kbd>{{ _('拖拽') }}</kbd> {{ _('移动') }} &nbsp; {{ _('已探索的路径始终保持亮度') }}
 </div>
 <div class="search-box">
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
@@ -159,6 +181,17 @@ svg#graph { position: fixed; top: 0; left: 0; z-index: 1; }
 </div>
 <div class="tooltip" id="tooltip">
   <div class="t-name"></div><div class="t-type"></div><div class="t-detail"></div>
+</div>
+
+<div class="context-menu" id="contextMenu">
+  <div class="cm-item" id="cmOpenDetail">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+      <polyline points="15 3 21 3 21 9"/>
+      <line x1="10" y1="14" x2="21" y2="3"/>
+    </svg>
+    <span>{{ _('打开详情页') }}</span>
+  </div>
 </div>
 
 <div class="confirm-overlay" id="confirmOverlay">
@@ -238,8 +271,8 @@ animateBg();
 const ALL_NODES = {}, ALL_LINKS = [];
 const BASE_R = { project: 10, company: 6, quotation: 5, contact: 2.8, member: 3, workitem: 2.2, task: 2.5, product: 2 };
 
-function addNode(id, name, nodeType, extra={}) { ALL_NODES[id] = {id, name, nodeType, ...extra}; }
-function link(s, t, label) { ALL_LINKS.push({source:s, target:t, label:label||''}); }
+function addNode(id, name, nodeType, url, extra={}) { ALL_NODES[id] = {id, name, nodeType, url: url||'', ...extra}; }
+function link(s, t, label, linkType) { ALL_LINKS.push({source:s, target:t, label:label||'', linkType:linkType||''}); }
 
 // ── 状态 ──
 let selectedId = null;
@@ -250,6 +283,44 @@ let navHistory = [];
 const activated = new Set();
 const savedPositions = {};
 let selectedNeighbors = new Set();
+
+// 获取整条时间链上的所有节点ID
+function getTimelineChain() {
+  const chain = new Set();
+  ALL_LINKS.forEach(l => {
+    if (l.linkType !== 'timeline') return;
+    const s = typeof l.source==='object'?l.source.id:l.source;
+    const t = typeof l.target==='object'?l.target.id:l.target;
+    chain.add(s); chain.add(t);
+  });
+  // 也加入链头连接中心的那个节点（通过"活动"标签找）
+  ALL_LINKS.forEach(l => {
+    if (l.linkType === 'timeline') return;
+    const s = typeof l.source==='object'?l.source.id:l.source;
+    const t = typeof l.target==='object'?l.target.id:l.target;
+    if (chain.has(t) && s === centerId) chain.add(t);
+    if (chain.has(s) && t === centerId) chain.add(s);
+  });
+  return chain;
+}
+
+function isTimelineNode(nodeId) {
+  return ALL_LINKS.some(l => {
+    if (l.linkType !== 'timeline') return false;
+    const s = typeof l.source==='object'?l.source.id:l.source;
+    const t = typeof l.target==='object'?l.target.id:l.target;
+    return s === nodeId || t === nodeId;
+  }) || ALL_LINKS.some(l => {
+    // 链头节点：连接到中心且在chain中
+    const s = typeof l.source==='object'?l.source.id:l.source;
+    const t = typeof l.target==='object'?l.target.id:l.target;
+    if (l.linkType === 'timeline') return false;
+    const other = s===centerId?t:(t===centerId?s:null);
+    if (!other || other !== nodeId) return false;
+    const nd = ALL_NODES[other];
+    return nd && (nd.nodeType==='workitem'||nd.nodeType==='task');
+  });
+}
 
 function getNeighbors(nodeId) {
   const ids = new Set();
@@ -338,6 +409,12 @@ function calcState(d) {
     labelWeight = 400; labelSize = 9;
   }
 
+  const isHovNeighbor = hoveredId && !isHov && getNeighbors(hoveredId).has(d.id);
+  // 悬浮时间链节点或中心节点时，整条链亮起
+  const chain = getTimelineChain();
+  const hoveredIsTimeline = hoveredId && (isTimelineNode(hoveredId) || hoveredId === centerId);
+  const isChainGlow = !isHov && hoveredIsTimeline && chain.has(d.id);
+
   if (isHov && !isSel && !isOtherP) {
     r = Math.max(r * 1.4, base * 1.1);
     opacity = Math.min(opacity + 0.2, 1);
@@ -348,6 +425,37 @@ function calcState(d) {
     filter = 'url(#starGlowMid)';
     labelWeight = Math.max(labelWeight, 600);
     labelSize = Math.max(labelSize, 11);
+  } else if (isChainGlow && !isSel) {
+    r = Math.max(r, base * 0.7);
+    opacity = Math.min(opacity + 0.15, 0.85);
+    labelOp = Math.min(labelOp + 0.35, 0.8);
+    subOp = Math.max(subOp, 0.25);
+    crossScale = Math.max(crossScale, 1.5);
+    crossOp = Math.min(crossOp + 0.1, 0.25);
+    labelWeight = Math.max(labelWeight, 500);
+    labelSize = Math.max(labelSize, 10);
+  } else if (isHovNeighbor && !isSel && !isOtherP) {
+    r = Math.max(r, base * 0.7);
+    opacity = Math.min(opacity + 0.15, 0.9);
+    labelOp = Math.min(labelOp + 0.4, 0.85);
+    subOp = Math.max(subOp, 0.3);
+    crossScale = Math.max(crossScale, 1.5);
+    crossOp = Math.min(crossOp + 0.1, 0.3);
+    labelWeight = Math.max(labelWeight, 500);
+    labelSize = Math.max(labelSize, 10);
+  }
+
+  // 轨道节点 3D 透视：近大远小
+  if (orbitSet.has(d.id) && d._orbitDepth != null) {
+    const depth = d._orbitDepth; // 0=远(上) 1=近(下)
+    const pScale = 0.5 + 0.5 * depth;
+    r *= pScale;
+    opacity *= (0.55 + 0.45 * depth);
+    labelOp *= (0.5 + 0.5 * depth);
+    subOp *= (0.4 + 0.6 * depth);
+    crossScale *= pScale;
+    crossOp *= (0.5 + 0.5 * depth);
+    labelSize = Math.round(labelSize * (0.7 + 0.3 * depth));
   }
 
   return { r, opacity, labelOp, subOp, crossScale, crossOp, filter, labelWeight, labelSize };
@@ -386,7 +494,11 @@ svg.call(zoomBehavior);
 svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(W/2,H/2));
 
 const linkLayer = zoomG.append('g');
+const orbitLayer = zoomG.append('g');
 const nodeLayer = zoomG.append('g');
+
+const ORBIT_RX = 110, ORBIT_RY = 40, ORBIT_ROTATION = -15; // 椭圆轨道 + 透视倾斜
+let orbitSet = new Set();
 
 let sim = d3.forceSimulation()
   .force('charge', d3.forceManyBody().strength(d=>d.isCenter?-600:-250))
@@ -394,13 +506,19 @@ let sim = d3.forceSimulation()
   .force('collision', d3.forceCollide().radius(d=>(BASE_R[d.nodeType]||3)*4+35))
   .force('link', d3.forceLink().id(d=>d.id)
     .distance(d=>{
-      const sn=ALL_NODES[typeof d.source==='object'?d.source.id:d.source];
-      const tn=ALL_NODES[typeof d.target==='object'?d.target.id:d.target];
+      if(d.linkType==='timeline') return 50;
+      const sid=typeof d.source==='object'?d.source.id:d.source;
+      const tid=typeof d.target==='object'?d.target.id:d.target;
+      const sn=ALL_NODES[sid];
+      const tn=ALL_NODES[tid];
       if(sn?.nodeType==='project'||tn?.nodeType==='project') return 200;
       if(sn?.nodeType==='company'||tn?.nodeType==='company') return 130;
       if(sn?.nodeType==='quotation'||tn?.nodeType==='quotation') return 110;
       return 85;
-    }).strength(0.35)
+    }).strength(d=>{
+      if(d.linkType==='timeline') return 0.6;
+      return 0.35;
+    })
   ).alphaDecay(0.025).velocityDecay(0.45);
 
 let linkAll, lblAll, nodeAll;
@@ -450,14 +568,32 @@ function buildGraph() {
     ALL_LINKS.forEach(l => {
       const s = typeof l.source==='object'?l.source.id:l.source;
       const t = typeof l.target==='object'?l.target.id:l.target;
-      if (s===nid) { vis.add(t); visLinks.push({source:s,target:t,label:l.label}); }
-      if (t===nid) { vis.add(s); visLinks.push({source:s,target:t,label:l.label}); }
+      if (s===nid) { vis.add(t); visLinks.push({source:s,target:t,label:l.label,linkType:l.linkType}); }
+      if (t===nid) { vis.add(s); visLinks.push({source:s,target:t,label:l.label,linkType:l.linkType}); }
     });
   });
+  // 沿时间链自动展开：可见节点的 timeline 连接也全部展开
+  let changed = true;
+  while (changed) {
+    changed = false;
+    ALL_LINKS.forEach(l => {
+      if (l.linkType !== 'timeline') return;
+      const s = typeof l.source==='object'?l.source.id:l.source;
+      const t = typeof l.target==='object'?l.target.id:l.target;
+      if (vis.has(s) && !vis.has(t)) { vis.add(t); visLinks.push({source:s,target:t,label:l.label,linkType:l.linkType}); changed=true; }
+      if (vis.has(t) && !vis.has(s)) { vis.add(s); visLinks.push({source:s,target:t,label:l.label,linkType:l.linkType}); changed=true; }
+    });
+  }
   const seen = new Set();
   const uLinks = visLinks.filter(l => {
     const k=[l.source,l.target].sort().join('|');
     if(seen.has(k)) return false; seen.add(k); return true;
+  });
+  // 过滤掉轨道报价连线（轨道本身说明关系，不需要连线）
+  const finalLinks = uLinks.filter(l => {
+    const s = l.source, t = l.target;
+    if ((s===centerId && orbitSet.has(t)) || (t===centerId && orbitSet.has(s))) return false;
+    return true;
   });
   const nodes = [...vis].map(id=>ALL_NODES[id]).filter(Boolean).map(n=>({
     ...n,
@@ -469,7 +605,7 @@ function buildGraph() {
       return other && !vis.has(other);
     }),
   }));
-  return { nodes, links: uLinks };
+  return { nodes, links: finalLinks };
 }
 
 // ── 渲染 ──
@@ -482,18 +618,46 @@ function render() {
     });
   }
 
+  // 计算轨道报价单集合（在 buildGraph 之前，因为 buildGraph 要用 orbitSet 过滤连线）
+  orbitSet = new Set();
+  ALL_LINKS.forEach(l => {
+    const s = typeof l.source === 'object' ? l.source.id : l.source;
+    const t = typeof l.target === 'object' ? l.target.id : l.target;
+    if (s === centerId && ALL_NODES[t]?.nodeType === 'quotation') orbitSet.add(t);
+    if (t === centerId && ALL_NODES[s]?.nodeType === 'quotation') orbitSet.add(s);
+  });
+
   const graph = buildGraph();
+
+  // 仅保留当前可见的轨道节点
+  const visibleIds = new Set(graph.nodes.map(n => n.id));
+  orbitSet.forEach(id => { if (!visibleIds.has(id)) orbitSet.delete(id); });
 
   graph.nodes.forEach(n => {
     if (savedPositions[n.id]) {
       n.x = savedPositions[n.id].x;
       n.y = savedPositions[n.id].y;
-      if (activated.has(n.id)) {
+      // 轨道节点不锁定位置，由 tick 手动定位
+      if (activated.has(n.id) && !orbitSet.has(n.id)) {
         n.fx = n.x;
         n.fy = n.y;
       }
     }
   });
+
+  // 绘制椭圆轨道环（3D 透视效果）
+  orbitLayer.selectAll('.orbit-group').remove();
+  if (orbitSet.size > 0) {
+    const og = orbitLayer.append('g').attr('class', 'orbit-group');
+    og.append('ellipse')
+      .attr('class', 'orbit-ring')
+      .attr('rx', ORBIT_RX).attr('ry', ORBIT_RY)
+      .attr('fill', 'none')
+      .attr('stroke', 'rgba(255,220,160,0.22)')
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', '6,10')
+      .style('animation', 'orbit-flow 40s linear infinite');
+  }
 
   const linkSel = linkLayer.selectAll('.cline')
     .data(graph.links, d=>`${typeof d.source==='object'?d.source.id:d.source}-${typeof d.target==='object'?d.target.id:d.target}`);
@@ -517,11 +681,19 @@ function render() {
   const nodeEnter = nodeSel.enter().append('g')
     .attr('class','snode').attr('opacity',0)
     .call(d3.drag()
-      .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('start',(e,d)=>{
+        if(!e.active)sim.alphaTarget(0.3).restart();
+        d.fx=d.x;d.fy=d.y;
+        if(orbitSet.has(d.id)) d._orbitDragging=true;
+      })
       .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
       .on('end',(e,d)=>{
         if(!e.active)sim.alphaTarget(0);
-        if (activated.has(d.id)) {
+        if(orbitSet.has(d.id)) {
+          // 轨道节点：释放后回归轨道（tick 会重新定位）
+          d._orbitDragging=false;
+          d.fx=null;d.fy=null;
+        } else if (activated.has(d.id)) {
           d.fx = d.x; d.fy = d.y;
           savedPositions[d.id] = { x: d.x, y: d.y };
         } else {
@@ -547,11 +719,16 @@ function render() {
   });
 
   nodeAll
-    .on('click', (ev,d)=>{ev.stopPropagation(); handleClick(d.id);})
+    .on('click', (ev,d)=>{ev.stopPropagation(); hideContextMenu(); handleClick(d.id);})
     .on('dblclick', (ev,d)=>{
       ev.stopPropagation();
       if (isOtherProject(d)) { showConfirmSwitch(d.id); return; }
       if(!isLeafNode(d)) switchCenter(d.id);
+    })
+    .on('contextmenu', (ev,d)=>{
+      ev.preventDefault(); ev.stopPropagation();
+      const nd = ALL_NODES[d.id];
+      if (nd?.url) showContextMenu(ev, nd);
     })
     .on('mouseenter', (ev,d)=>{hoveredId=d.id; updateVisuals(); showTip(ev,d);})
     .on('mousemove', (ev)=>moveTip(ev))
@@ -559,9 +736,39 @@ function render() {
 
   sim.nodes(graph.nodes);
   sim.force('link').links(graph.links);
+  // 轨道节点不参与碰撞检测，避免 collision 在 tick 中推开它们
+  sim.force('collision').radius(d =>
+    orbitSet.has(d.id) ? 0 : (BASE_R[d.nodeType]||3)*4+35
+  );
   sim.alpha(0.5).restart();
 
   sim.on('tick',()=>{
+    // 更新椭圆轨道环位置跟随中心节点
+    const cn = sim.nodes().find(n => n.id === centerId);
+    if (cn) {
+      orbitLayer.selectAll('.orbit-group')
+        .attr('transform', `translate(${cn.x},${cn.y}) rotate(${ORBIT_ROTATION})`);
+      // 手动定位轨道报价节点到椭圆上（3D 透视）
+      if (orbitSet.size > 0) {
+        const total = orbitSet.size;
+        const rad = ORBIT_ROTATION * Math.PI / 180;
+        let idx = 0;
+        sim.nodes().forEach(n => {
+          if (!orbitSet.has(n.id) || n._orbitDragging) return;
+          const angle = (2 * Math.PI * idx / total) - Math.PI / 2;
+          // 椭圆上的坐标（未旋转）
+          const ex = ORBIT_RX * Math.cos(angle);
+          const ey = ORBIT_RY * Math.sin(angle);
+          // 旋转后的最终坐标
+          n.x = cn.x + ex * Math.cos(rad) - ey * Math.sin(rad);
+          n.y = cn.y + ex * Math.sin(rad) + ey * Math.cos(rad);
+          // 深度值: sin(angle) > 0 = 近（下方），< 0 = 远（上方）
+          n._orbitDepth = (Math.sin(angle) + 1) / 2; // 0=远 1=近
+          n.vx = 0; n.vy = 0;
+          idx++;
+        });
+      }
+    }
     linkAll.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
            .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
     lblAll.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2-4);
@@ -575,6 +782,12 @@ function render() {
 function updateVisuals() {
   if(!nodeAll||!linkAll) return;
   const dur = 250;
+
+  // 轨道环悬浮效果
+  const orbHov = hoveredId && (hoveredId === centerId || orbitSet.has(hoveredId));
+  orbitLayer.selectAll('.orbit-ring').transition().duration(dur)
+    .attr('stroke', orbHov ? 'rgba(255,220,160,0.38)' : 'rgba(255,220,160,0.22)')
+    .attr('stroke-width', orbHov ? 1.3 : 1);
 
   nodeAll.each(function(d) {
     const g = d3.select(this);
@@ -636,6 +849,19 @@ function updateVisuals() {
       const t=typeof d.target==='object'?d.target.id:d.target;
       const touchesOtherP = linkTouchesOtherProject(d);
 
+      if (d.linkType === 'timeline') {
+        const hovTL = hoveredId && (isTimelineNode(hoveredId) || hoveredId === centerId);
+        if (hovTL) return 'rgba(176,200,232,0.45)';
+        if (hoveredId && (s===hoveredId||t===hoveredId)) return 'rgba(176,200,232,0.35)';
+        if (activated.has(s) && activated.has(t)) return 'rgba(176,200,232,0.3)';
+        return 'rgba(176,200,232,0.12)';
+      }
+      // 中心→链头的连线，悬浮时间链或中心时也亮起
+      const _chain = getTimelineChain();
+      const hovTL2 = hoveredId && (isTimelineNode(hoveredId) || hoveredId === centerId);
+      if (hovTL2 && ((s===centerId && _chain.has(t)) || (t===centerId && _chain.has(s)))) {
+        return 'rgba(176,200,232,0.45)';
+      }
       if (touchesOtherP) {
         if (hoveredId && (s===hoveredId||t===hoveredId)) return 'rgba(160,180,220,0.2)';
         return 'rgba(120,140,180,0.04)';
@@ -651,6 +877,7 @@ function updateVisuals() {
       const t=typeof d.target==='object'?d.target.id:d.target;
       const touchesOtherP = linkTouchesOtherProject(d);
 
+      if (d.linkType === 'timeline') return 0.8;
       if (touchesOtherP) return 0.5;
       if (selectedId && (s===selectedId||t===selectedId)) return 1.5;
       if (hoveredId && (s===hoveredId||t===hoveredId)) return 1.2;
@@ -662,6 +889,7 @@ function updateVisuals() {
       const t=typeof d.target==='object'?d.target.id:d.target;
       const touchesOtherP = linkTouchesOtherProject(d);
 
+      if (d.linkType === 'timeline') return '3,6';
       if (touchesOtherP) return '3,5';
       if (activated.has(s) && activated.has(t)) return 'none';
       if (selectedId && (s===selectedId||t===selectedId)) return 'none';
@@ -715,10 +943,6 @@ function handleClick(id) {
   }
 }
 
-svg.on('click', ()=>{
-  if(selectedId){ selectedId=null; refreshSelectedNeighbors(); updateVisuals(); }
-});
-
 function switchCenter(id) {
   const nd = ALL_NODES[id];
   if (!nd) return;
@@ -753,8 +977,16 @@ function updateInfo(id) {
   else if(nd.nodeType==='contact'){ const co=ALL_NODES[nd.parentCompany]; m=`职位: <b>${nd.position||''}</b> &nbsp; 企业: <b>${co?.name||''}</b>`; }
   else if(nd.nodeType==='member') m=`角色: <b>${nd.role||''}</b>`;
   else if(nd.nodeType==='quotation') m=`金额: <b>${nd.amount||''}</b> &nbsp; 状态: <b>${nd.status||''}</b>`;
-  else if(nd.nodeType==='workitem') m=`类型: <b>${nd.workType||''}</b> &nbsp; 日期: <b>${nd.date||''}</b>`;
-  else if(nd.nodeType==='task') m=`状态: <b>${nd.status||''}</b> &nbsp; 指派: <b>${nd.assignee||''}</b> &nbsp; 截止: <b>${nd.dueDate||''}</b>`;
+  else if(nd.nodeType==='workitem') {
+    m=`类型: <b>${nd.workType||''}</b> &nbsp; 日期: <b>${nd.date||''}</b>`;
+    if(nd.desc) m+=`<br><span style="color:rgba(255,255,255,0.35)">${nd.desc}</span>`;
+  }
+  else if(nd.nodeType==='task') {
+    m=`状态: <b>${nd.status||''}</b> &nbsp; 指派: <b>${nd.assignee||''}</b>`;
+    if(nd.dueDate) m+=` &nbsp; 截止: <b>${nd.dueDate}</b>`;
+    else if(nd.createdAt) m+=` &nbsp; 创建: <b>${nd.createdAt}</b>`;
+    if(nd.desc) m+=`<br><span style="color:rgba(255,255,255,0.35)">${nd.desc}</span>`;
+  }
   else if(nd.nodeType==='product') m=`品类: <b>${nd.category||''}</b> &nbsp; 品牌: <b>${nd.brand||''}</b>`;
   document.getElementById('infoMeta').innerHTML = m;
 }
@@ -800,19 +1032,57 @@ function showTip(ev,d) {
   else if(d.nodeType==='contact') dt=`${d.position||''} · ${ALL_NODES[d.parentCompany]?.name||''}`;
   else if(d.nodeType==='member') dt=d.role||'';
   else if(d.nodeType==='quotation') dt=`${d.amount||''} · ${d.status||''}`;
-  else if(d.nodeType==='workitem') dt=`${d.workType||''} · ${d.date||''}`;
-  else if(d.nodeType==='task') dt=`${d.status||''} · 指派: ${d.assignee||''}`;
+  else if(d.nodeType==='workitem') {
+    dt=`${d.workType||''} · ${d.date||''}`;
+    if(d.desc) dt+=`<br><span style="color:rgba(255,255,255,0.45)">${d.desc}</span>`;
+  }
+  else if(d.nodeType==='task') {
+    const parts = [];
+    if(d.status) parts.push(d.status);
+    if(d.assignee) parts.push('指派: '+d.assignee);
+    if(d.dueDate) parts.push('截止: '+d.dueDate);
+    else if(d.createdAt) parts.push('创建: '+d.createdAt);
+    dt = parts.join(' · ');
+    if(d.desc) dt+=`<br><span style="color:rgba(255,255,255,0.45)">${d.desc}</span>`;
+  }
   else if(d.nodeType==='product') dt=`${d.category||''} · ${d.brand||''}`;
   if (isOtherProject(d)) {
-    dt+='<br><span style="color:rgba(180,200,255,0.5)">点击切换为中心项目</span>';
+    dt+='<br><span style="color:rgba(180,200,255,0.5)">{{ _("点击切换为中心项目") }}</span>';
   } else if(d.hasMore) {
-    dt+='<br><span style="color:rgba(255,255,255,0.25)">点击展开更多</span>';
+    dt+='<br><span style="color:rgba(255,255,255,0.25)">{{ _("点击展开更多") }}</span>';
   }
   tip.querySelector('.t-detail').innerHTML = dt;
   tip.classList.add('show'); moveTip(ev);
 }
 function moveTip(ev){ tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY-8)+'px'; }
 function hideTip(){ tip.classList.remove('show'); }
+
+// ── 右键菜单 ──
+const ctxMenu = document.getElementById('contextMenu');
+const cmOpenDetail = document.getElementById('cmOpenDetail');
+let ctxNodeUrl = null;
+
+function showContextMenu(ev, nd) {
+  ctxNodeUrl = nd.url;
+  let x = ev.clientX, y = ev.clientY;
+  ctxMenu.style.left = '0px'; ctxMenu.style.top = '0px';
+  ctxMenu.classList.add('show');
+  const mw = ctxMenu.offsetWidth, mh = ctxMenu.offsetHeight;
+  if (x + mw > window.innerWidth) x = window.innerWidth - mw - 8;
+  if (y + mh > window.innerHeight) y = window.innerHeight - mh - 8;
+  ctxMenu.style.left = x + 'px'; ctxMenu.style.top = y + 'px';
+}
+
+function hideContextMenu() { ctxMenu.classList.remove('show'); ctxNodeUrl = null; }
+
+cmOpenDetail.addEventListener('click', () => {
+  if (ctxNodeUrl) window.open(ctxNodeUrl, '_blank');
+  hideContextMenu();
+});
+
+svg.on('contextmenu', ev => ev.preventDefault());
+svg.on('click', ()=>{ hideContextMenu(); if(selectedId){ selectedId=null; refreshSelectedNeighbors(); updateVisuals(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideContextMenu(); });
 
 // ── 搜索 ──
 document.getElementById('searchInput').addEventListener('input',e=>{
@@ -841,12 +1111,12 @@ async function loadGraphData(type, id, name) {
 
     // 填充节点
     data.nodes.forEach(n => {
-      addNode(n.id, n.name, n.nodeType, n.extra || {});
+      addNode(n.id, n.name, n.nodeType, n.url || '', n.extra || {});
     });
 
     // 填充连线
     data.links.forEach(l => {
-      link(l.source, l.target, l.label || '');
+      link(l.source, l.target, l.label || '', l.linkType || '');
     });
 
     centerId = data.centerId;
