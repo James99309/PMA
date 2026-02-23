@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+<script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ _('系统图编辑器') }} — {{ diagram_name }}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap">
+<style>
+  /* ── Theme Variables ── */
+  :root, html.light {
+    --bg-canvas: #f1f5f9;
+    --bg-panel: #ffffff;
+    --bg-input: #f1f5f9;
+    --border: #e2e8f0;
+    --border-subtle: #f1f5f9;
+    --text-primary: #1e293b;
+    --text-secondary: #64748b;
+    --text-muted: #94a3b8;
+    --text-bright: #0f172a;
+    --grid-small: #dde3ea;
+    --grid-large: #cbd5e1;
+    --node-label: #1e293b;
+    --node-sublabel: #94a3b8;
+    --edge-label-bg: rgba(255,255,255,.92);
+    --minimap-bg: #e2e8f0;
+    --minimap-canvas: #f1f5f9;
+    --toolbar-bg: #ffffff;
+    --toolbar-border: #e2e8f0;
+    --toolbar-hover: #f1f5f9;
+    --toolbar-text: #475569;
+    --active-bg: #dbeafe;
+    --active-border: #3b82f6;
+    --active-text: #1d4ed8;
+    --port-fill: #ffffff;
+    --port-stroke: #cbd5e1;
+    --delete-bg: #fef2f2;
+    --delete-border: #fecaca;
+    --delete-text: #dc2626;
+    --popup-bg: #ffffff;
+    --popup-shadow: rgba(0,0,0,.12);
+    --handle-grip: #ffffff;
+    --toast-bg: #ffffff;
+    --toast-border: #e2e8f0;
+    --toast-shadow: rgba(0,0,0,.08);
+    --legend-bg: rgba(255,255,255,.92);
+    --scrollbar: #cbd5e1;
+    --item-hover: #f1f5f9;
+    --category-text: #64748b;
+  }
+  html.dark {
+    --bg-canvas: #0f172a;
+    --bg-panel: #1e293b;
+    --bg-input: #0f172a;
+    --border: #334155;
+    --border-subtle: #1e293b;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #475569;
+    --text-bright: #fff;
+    --grid-small: #141e2e;
+    --grid-large: #1a2538;
+    --node-label: #e2e8f0;
+    --node-sublabel: #64748b;
+    --edge-label-bg: rgba(15,23,42,.9);
+    --minimap-bg: #1e293b;
+    --minimap-canvas: #0f172a;
+    --toolbar-bg: #1e293b;
+    --toolbar-border: #475569;
+    --toolbar-hover: #334155;
+    --toolbar-text: #94a3b8;
+    --active-bg: #1e40af;
+    --active-border: #3b82f6;
+    --active-text: #fff;
+    --port-fill: #1e293b;
+    --port-stroke: #475569;
+    --delete-bg: #7f1d1d;
+    --delete-border: #991b1b;
+    --delete-text: #fca5a5;
+    --popup-bg: #1e293b;
+    --popup-shadow: rgba(0,0,0,.5);
+    --handle-grip: #1e293b;
+    --toast-bg: #1e293b;
+    --toast-border: #334155;
+    --toast-shadow: rgba(0,0,0,.3);
+    --legend-bg: rgba(30,41,59,.92);
+    --scrollbar: #475569;
+    --item-hover: #334155;
+    --category-text: #94a3b8;
+  }
+
+  /* ── Base ── */
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;background:var(--bg-canvas);color:var(--text-primary);overflow:hidden;height:100vh}
+
+  /* ── Left Panel ── */
+  .panel{width:280px;background:var(--bg-panel);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;flex-shrink:0}
+  .panel-header{padding:16px;border-bottom:1px solid var(--border)}
+  .panel-search{width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none}
+  .panel-search:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.2)}
+  .panel-search::placeholder{color:var(--text-muted)}
+  .panel-tabs{display:flex;gap:0;margin-top:10px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .panel-tab{flex:1;padding:7px 8px;font-size:12px;font-weight:500;border:none;background:var(--bg-input);color:var(--text-muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all .15s}
+  .panel-tab:not(:last-child){border-right:1px solid var(--border)}
+  .panel-tab:hover{color:var(--text-primary)}
+  .panel-tab.active{background:var(--active-bg);color:var(--active-text);font-weight:600}
+  .panel-tab .tab-count{font-size:10px;background:var(--bg-canvas);padding:0 5px;border-radius:8px;line-height:16px}
+  .panel-tab.active .tab-count{background:rgba(59,130,246,.15);color:var(--active-text)}
+  .panel-body{flex:1;overflow-y:auto;padding:8px}
+  .panel-body::-webkit-scrollbar{width:4px}
+  .panel-body::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:2px}
+
+  /* ── Category / Subcategory Tree ── */
+  .category-group{margin-bottom:4px}
+  .cat-icon{display:flex;align-items:center;justify-content:center;width:18px;height:18px;flex-shrink:0}
+  .cat-icon svg{display:block}
+  .category-header{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;border-radius:6px;font-size:13px;font-weight:600;color:var(--category-text);transition:all .15s;user-select:none}
+  .category-header:hover{background:var(--item-hover);color:var(--text-primary)}
+  .category-header .arrow{transition:transform .2s;font-size:10px}
+  .category-header.open .arrow{transform:rotate(90deg)}
+  .category-items{display:none;padding:2px 0 2px 8px}
+  .category-header.open+.category-items{display:block}
+  .subcat-item{display:flex;align-items:center;gap:8px;padding:6px 10px;margin:1px 0;cursor:grab;border-radius:6px;font-size:12px;color:var(--text-secondary);transition:all .15s;user-select:none}
+  .subcat-item:hover{background:var(--item-hover);color:var(--text-primary)}
+  .subcat-item:active{cursor:grabbing;opacity:.6}
+  .subcat-item .item-icon{width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .subcat-item .item-icon svg{width:28px;height:28px}
+  .subcat-count{margin-left:auto;font-size:10px;color:var(--text-muted);background:var(--bg-input);padding:1px 6px;border-radius:10px}
+
+  /* ── Canvas Area ── */
+  .canvas-wrapper{flex:1;position:relative;overflow:hidden;background:var(--bg-canvas)}
+  .canvas-toolbar{position:absolute;top:12px;left:12px;display:flex;gap:6px;z-index:20}
+  .canvas-toolbar button{padding:6px 10px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);border-radius:6px;color:var(--toolbar-text);font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px;white-space:nowrap;box-shadow:0 1px 3px var(--toast-shadow)}
+  .canvas-toolbar button:hover{background:var(--toolbar-hover);color:var(--text-primary);border-color:var(--toolbar-border)}
+  .canvas-toolbar button.active{background:var(--active-bg);border-color:var(--active-border);color:var(--active-text)}
+  .canvas-info{position:absolute;bottom:12px;left:12px;font-size:11px;color:var(--text-muted);z-index:20}
+  .canvas-actions{position:absolute;top:12px;right:12px;display:flex;gap:6px;z-index:20}
+  .canvas-actions button,.canvas-actions a{padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;transition:all .15s;border:1px solid;text-decoration:none;display:inline-flex;align-items:center;gap:4px;box-shadow:0 1px 3px var(--toast-shadow)}
+  .btn-back{background:var(--toolbar-bg);border-color:var(--toolbar-border)!important;color:var(--toolbar-text)}
+  .btn-back:hover{background:var(--toolbar-hover);color:var(--text-primary)}
+  .btn-export{background:var(--toolbar-bg);border-color:var(--toolbar-border)!important;color:var(--toolbar-text)}
+  .btn-export:hover{background:var(--toolbar-hover);color:var(--text-primary)}
+  .btn-save{background:#1d4ed8;border-color:#2563eb!important;color:#fff}
+  .btn-save:hover{background:#2563eb}
+  .btn-save.saving{opacity:.6;pointer-events:none}
+
+  /* ── SVG Canvas ── */
+  #diagramCanvas{width:100%;height:100%}
+  .grid-small-line{stroke:var(--grid-small);stroke-width:.5}
+  .grid-large-line{stroke:var(--grid-large);stroke-width:.8}
+  .node-group{cursor:move}
+  .node-group:hover .node-glow{opacity:.3}
+  .node-group.selected .node-glow{opacity:.5}
+  .node-label-bg{fill:var(--bg-canvas);opacity:.85;pointer-events:none}
+  .node-label{font-size:11px;fill:var(--node-label);font-weight:500;pointer-events:none;text-anchor:middle}
+  .node-sublabel{font-size:9px;fill:var(--node-sublabel);pointer-events:none;text-anchor:middle}
+  .node-tag{font-size:9px;fill:#3b82f6;pointer-events:none;text-anchor:middle;font-style:italic}
+  .node-qty-badge{font-size:9px;fill:#fbbf24;font-weight:700;pointer-events:none}
+  .qty-badge-bg{stroke:#f59e0b;stroke-width:1.5}
+  .port{r:5;fill:var(--port-fill);stroke:var(--port-stroke);stroke-width:1.5;cursor:crosshair;transition:all .15s;opacity:0}
+  .node-group:hover .port,.node-group.selected .port{opacity:1}
+  .port:hover{r:7;fill:#3b82f6;stroke:#60a5fa;opacity:1}
+  .edge-line{fill:none;cursor:pointer}
+  .edge-line:hover{filter:brightness(1.3)}
+  .edge-hit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
+  .edge-label-bg{fill:var(--edge-label-bg)}
+  .edge-label{font-size:9px;pointer-events:none;text-anchor:middle;dominant-baseline:central}
+  .edge-temp{stroke:#3b82f6;stroke-width:2;stroke-dasharray:6 3;fill:none;pointer-events:none}
+  .mid-handle{cursor:ew-resize;transition:opacity .15s}
+  .mid-handle:hover .mid-handle-bar{stroke:#60a5fa;stroke-width:3}
+  .mid-handle:hover .mid-handle-grip{fill:#3b82f6;r:5}
+  .mid-handle-bar{stroke:#3b82f6;stroke-width:2;stroke-dasharray:4 2;opacity:.5}
+  .mid-handle-grip{fill:var(--handle-grip);stroke:#3b82f6;stroke-width:1.5;r:4;transition:all .15s}
+
+  /* ── Right Props Panel ── */
+  .props-panel{width:280px;background:var(--bg-panel);border-left:1px solid var(--border);padding:16px;display:none;flex-direction:column;gap:10px;overflow-y:auto;flex-shrink:0}
+  .props-panel.visible{display:flex}
+  .props-panel::-webkit-scrollbar{width:4px}
+  .props-panel::-webkit-scrollbar-thumb{background:var(--scrollbar);border-radius:2px}
+  .props-title{font-size:14px;font-weight:600;color:var(--text-primary);padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .props-field{display:flex;flex-direction:column;gap:4px}
+  .props-label{font-size:11px;color:var(--text-secondary);font-weight:500}
+  .props-input{padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;outline:none}
+  .props-input:focus{border-color:#3b82f6}
+  .props-input:disabled{color:var(--text-secondary)}
+  .props-select{padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;outline:none}
+  .props-row{display:flex;gap:8px;align-items:center}
+  .props-color{width:32px;height:32px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:var(--bg-input);padding:2px}
+  .props-color::-webkit-color-swatch-wrapper{padding:0}
+  .props-color::-webkit-color-swatch{border:none;border-radius:4px}
+  .props-range{flex:1;accent-color:#3b82f6}
+  .props-range-val{font-size:11px;color:var(--text-muted);min-width:28px;text-align:right}
+  .props-section{font-size:11px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;padding-top:8px;border-top:1px solid var(--border-subtle)}
+  .route-mode-btns{display:flex;gap:4px}
+  .route-mode-btn{flex:1;padding:6px 4px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;color:var(--text-secondary)}
+  .route-mode-btn:hover{border-color:var(--toolbar-border);color:var(--text-primary)}
+  .route-mode-btn.active{border-color:#3b82f6;color:#60a5fa;background:rgba(59,130,246,.06)}
+  .route-mode-btn svg{width:28px;height:16px}
+  .btn-delete{margin-top:12px;width:100%;padding:8px;background:var(--delete-bg);border:1px solid var(--delete-border);border-radius:6px;color:var(--delete-text);font-size:12px;cursor:pointer}
+  .btn-delete:hover{opacity:.85}
+  .props-btn{padding:6px 10px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:11px;cursor:pointer}
+  .props-btn:hover{background:var(--toolbar-hover)}
+  .props-btn-warn{color:var(--delete-text);border-color:var(--delete-border)}
+  .props-divider{height:1px;background:var(--border);margin:4px 0}
+  .ds-section{background:var(--bg-input);border:1px solid var(--border);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:6px}
+  .ds-title{font-size:11px;font-weight:600;color:var(--text-primary);margin-bottom:2px}
+  .ds-row{display:flex;align-items:center;gap:8px}
+  .ds-label{font-size:10px;color:var(--text-muted);min-width:28px;flex-shrink:0}
+  .ds-opts{display:flex;gap:3px;flex:1}
+  .ds-opt{flex:1;padding:3px 0;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-size:10px;cursor:pointer;text-align:center;transition:all .15s}
+  .ds-opt:hover{border-color:var(--toolbar-border);color:var(--text-primary)}
+  .ds-opt.active{background:var(--active-bg);color:var(--active-text);border-color:var(--active-border);font-weight:600}
+  .ds-toggles{display:flex;gap:10px;padding-top:2px}
+  .ds-toggle{display:flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:var(--text-secondary)}
+  .ds-toggle input{width:13px;height:13px;accent-color:#3b82f6;margin:0}
+  .ds-select{flex:1;padding:3px 6px;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary);font-size:10px;cursor:pointer}
+
+  /* ── Overlays ── */
+  .drop-indicator{position:absolute;pointer-events:none;z-index:15;display:none}
+  .conn-type-popup{position:fixed;background:var(--popup-bg);border:1px solid var(--border);border-radius:10px;padding:6px;z-index:100;display:none;box-shadow:0 12px 40px var(--popup-shadow);min-width:200px}
+  .conn-type-popup-title{font-size:11px;color:var(--text-muted);padding:4px 8px 6px;font-weight:600}
+  .conn-type-option{padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center;gap:10px}
+  .conn-type-option:hover{background:var(--item-hover)}
+  .zoom-controls{position:absolute;bottom:12px;right:184px;display:flex;gap:4px;z-index:20}
+  .zoom-controls button{width:32px;height:32px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);border-radius:6px;color:var(--toolbar-text);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px var(--toast-shadow)}
+  .zoom-controls button:hover{background:var(--toolbar-hover);color:var(--text-primary)}
+  .zoom-level{padding:4px 8px;font-size:11px;color:var(--text-muted);background:var(--toolbar-bg);border:1px solid var(--border);border-radius:4px;min-width:48px;text-align:center;display:flex;align-items:center;justify-content:center}
+  .diagram-name{position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:8px}
+  .diagram-name input{background:transparent;border:none;color:var(--text-primary);font-size:15px;font-weight:600;text-align:center;outline:none;border-bottom:1px solid transparent;padding:4px 8px;width:280px}
+  .diagram-name input:hover{border-bottom-color:var(--border)}
+  .diagram-name input:focus{border-bottom-color:#3b82f6}
+  .minimap{position:absolute;bottom:12px;right:12px;width:160px;height:100px;background:var(--minimap-bg);border:1px solid var(--border);border-radius:8px;z-index:20;overflow:hidden}
+  .minimap-viewport{stroke:#3b82f6;stroke-width:2;fill:rgba(59,130,246,.08)}
+  .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--toast-bg);border:1px solid var(--toast-border);padding:10px 20px;border-radius:8px;font-size:13px;color:var(--text-primary);z-index:100;opacity:0;transition:opacity .3s;box-shadow:0 8px 24px var(--toast-shadow)}
+  .toast.show{opacity:1}
+  .legend{position:absolute;bottom:50px;left:12px;background:var(--legend-bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;z-index:20;font-size:11px;backdrop-filter:blur(8px)}
+  .legend-title{color:var(--text-secondary);font-weight:600;margin-bottom:6px;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+  .legend-item{display:flex;align-items:center;gap:8px;color:var(--text-primary);margin:4px 0}
+
+  /* ── Context Menu ── */
+  .ctx-menu{position:fixed;background:var(--popup-bg);border:1px solid var(--border);border-radius:10px;padding:4px;z-index:50;box-shadow:0 12px 40px var(--popup-shadow);min-width:180px;backdrop-filter:blur(12px)}
+  .ctx-item{padding:7px 12px;border-radius:6px;font-size:12px;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center;gap:10px;transition:all .1s;user-select:none}
+  .ctx-item:hover{background:var(--item-hover);color:var(--text-primary)}
+  .ctx-item.disabled{opacity:.35;pointer-events:none}
+  .ctx-shortcut{margin-left:auto;font-size:10px;color:var(--text-muted);font-family:system-ui}
+  .ctx-divider{height:1px;background:var(--border);margin:4px 8px}
+
+  /* ── View Tabs ── */
+  .view-tabs{display:flex;gap:2px;padding:8px 12px;align-items:center;background:var(--bg-canvas);z-index:25;position:absolute;top:50px;left:12px;border-radius:8px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);box-shadow:0 1px 3px var(--toast-shadow)}
+  .view-tab{padding:6px 14px;background:transparent;border:none;border-radius:6px;color:var(--text-secondary);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .view-tab:hover{background:var(--toolbar-hover);color:var(--text-primary)}
+  .view-tab.active{background:var(--active-bg);color:var(--active-text);font-weight:600}
+  .view-tab-add{padding:6px 10px;background:transparent;border:1px dashed var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;cursor:pointer;transition:all .15s}
+  .view-tab-add:hover{border-color:var(--active-border);color:var(--active-text);background:rgba(59,130,246,.06)}
+  .view-tab[data-fp-id]{cursor:grab;user-select:none}
+  .view-tab[data-fp-id]:active{cursor:grabbing}
+  .view-tab.drag-over{box-shadow:inset 2px 0 0 var(--active-text)}
+  .tab-ghost{box-shadow:0 4px 12px rgba(0,0,0,.25);border-radius:6px;background:var(--toolbar-bg)}
+
+  /* ── Floor Plan Tools ── */
+  .floor-tools{display:none;gap:6px;align-items:center}
+  .floor-tools button{padding:5px 10px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);border-radius:6px;color:var(--toolbar-text);font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;box-shadow:0 1px 3px var(--toast-shadow)}
+  .floor-tools button:hover{background:var(--toolbar-hover);color:var(--text-primary)}
+
+  /* ── Locked Node ── */
+  .node-locked{opacity:.85}
+  .node-locked .node-label{font-style:italic}
+
+  /* ── Existing device item ── */
+  .existing-device-item{display:flex;align-items:center;gap:8px;padding:6px 10px;margin:1px 0;cursor:grab;border-radius:6px;font-size:12px;color:var(--text-secondary);transition:all .15s;user-select:none}
+  .existing-device-item:hover{background:var(--item-hover);color:var(--text-primary)}
+  .existing-device-item:active{cursor:grabbing;opacity:.6}
+  .existing-device-item.all-placed{opacity:.45;cursor:default;pointer-events:none}
+  .existing-device-item.selected-in-panel{background:rgba(59,130,246,.15);border-left:3px solid #3b82f6;padding-left:7px}
+  .existing-device-item.connected-in-panel{background:rgba(251,191,36,.08);border-left:3px solid #f59e0b;padding-left:7px}
+  .existing-device-item .item-icon{width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .existing-device-item .item-icon svg{width:24px;height:24px}
+  .existing-device-item .placed-badge{font-size:10px;color:#22c55e;margin-left:auto;flex-shrink:0}
+
+
+  /* ── Floor area interaction ── */
+  .floor-area{cursor:pointer}
+  .floor-area.selected rect{stroke-width:2;stroke-opacity:.8}
+  .area-resize-handle{fill:var(--handle-grip);stroke:#3b82f6;stroke-width:1.5;cursor:nwse-resize}
+  .area-tool-active{cursor:crosshair!important}
+</style>
+</head>
+<body>
+<div style="display:flex;height:100vh;">
+  <!-- 左侧产品面板 -->
+  <div class="panel">
+    <div class="panel-header">
+      <input class="panel-search" placeholder="{{ _('搜索产品名称或型号...') }}" id="productSearch">
+      <!-- 页签（仅平面图模式显示） -->
+      <div class="panel-tabs" id="panelTabs" style="display:none;">
+        <button class="panel-tab active" data-tab="existing" onclick="switchPanelTab('existing')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12l2 2 4-4"/></svg>
+          {{ _('已有设备') }} <span id="existingDevicesCount" class="tab-count">0</span>
+        </button>
+        <button class="panel-tab" data-tab="products" onclick="switchPanelTab('products')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0022 16z"/></svg>
+          {{ _('产品库') }}
+        </button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <!-- 已有设备（仅平面图模式显示） -->
+      <div id="existingDevicesSection" style="display:none;">
+        <div id="existingDevicesPanel"></div>
+      </div>
+      <!-- 产品库 -->
+      <div id="productPanel">
+        <div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">{{ _('加载产品列表...') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 中间画布 -->
+  <div class="canvas-wrapper" id="canvasWrapper">
+    <div class="canvas-toolbar">
+      <button id="btnSelect" class="active" onclick="setTool('select')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>{{ _('选择') }}</button>
+      <button id="btnConnect" onclick="setTool('connect')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>{{ _('连线') }}</button>
+      <button id="btnText" onclick="addTextNode()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>{{ _('标注') }}</button>
+      <div style="width:1px;height:24px;background:var(--border);margin:0 2px;"></div>
+      <button onclick="undoAction()" title="撤销 (Ctrl+Z)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg></button>
+      <button onclick="redoAction()" title="重做 (Ctrl+Shift+Z)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.13-9.36L23 10"/></svg></button>
+      <button onclick="deleteSelected()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+      <button id="btnRelayout" onclick="relayoutFloorNodesTopo()" title="按连线关系重排楼层节点"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><line x1="10" y1="6.5" x2="14" y2="6.5"/><line x1="17.5" y1="10" x2="17.5" y2="14"/></svg>{{ _('自动布局') }}</button>
+      <div style="width:1px;height:24px;background:var(--border);margin:0 2px;"></div>
+      <!-- 平面图工具（仅楼层视图时显示） -->
+      <div class="floor-tools" id="floorPlanTools">
+        <button onclick="uploadFloorBg(currentView)" title="上传背景图"><span class="material-symbols-outlined" style="font-size:16px;">image</span>{{ _('背景图') }}</button>
+        <button onclick="toggleAllLocks(true)" title="锁定全部"><span class="material-symbols-outlined" style="font-size:16px;">lock</span></button>
+        <button onclick="toggleAllLocks(false)" title="解锁全部"><span class="material-symbols-outlined" style="font-size:16px;">lock_open</span></button>
+        <button id="btnAreaTool" onclick="setTool('area')" title="绘制区域"><span class="material-symbols-outlined" style="font-size:16px;">crop_free</span>{{ _('区域') }}</button>
+        <button id="btnCalibrate" onclick="setTool('calibrate')" title="标定尺寸"><span class="material-symbols-outlined" style="font-size:16px;">straighten</span>{{ _('标定') }}</button>
+        <button onclick="deleteFloorBg(currentView)" title="删除背景图"><span class="material-symbols-outlined" style="font-size:16px;">delete</span>{{ _('删除背景') }}</button>
+      </div>
+    </div>
+    <!-- 视图标签栏 -->
+    <div class="view-tabs" id="viewTabs">
+      <button class="view-tab active" data-view="topology" onclick="switchView('topology')">🔧 {{ _('系统图') }}</button>
+      <button class="view-tab-add" onclick="addFloorPlan()">+ {{ _('添加楼层') }}</button>
+    </div>
+    <div class="diagram-name"><input value="{{ diagram_name }}" id="diagramNameInput"></div>
+    <div class="canvas-actions">
+      {% if project_id|default(0) %}
+      <a class="btn-back" href="{{ url_for('project.view_project', project_id=project_id) }}" onclick="return confirmLeave(this)"><span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span>{{ _('返回项目') }}</a>
+      {% else %}
+      <a class="btn-back" href="{{ url_for('system_diagram.list_view') }}" onclick="return confirmLeave(this)"><span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span>{{ _('返回列表') }}</a>
+      {% endif %}
+      <div style="position:relative;"><button class="btn-export" onclick="toggleExportMenu()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>{{ _('导出') }} ▾</button><div id="exportMenu" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--popup-bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--popup-shadow);min-width:160px;z-index:30;overflow:hidden;"><div style="padding:6px 14px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:11px;color:var(--text-muted);" onclick="event.stopPropagation()"><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="color" checked onchange="exportBlackMode=false" style="margin:0;width:12px;height:12px;">{{ _('原色') }}</label><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="black" onchange="exportBlackMode=true" style="margin:0;width:12px;height:12px;">{{ _('黑色') }}</label></div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="exportSVG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>SVG {{ _('矢量图') }}</div><div onclick="exportPNG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>PNG {{ _('位图') }} (2x)</div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="startCropExport()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="4,2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>{{ _('框选导出') }} PNG</div></div></div>
+      <button class="btn-save" id="btnSave" onclick="saveDiagram()">{{ _('保存') }}</button>
+    </div>
+    <svg id="diagramCanvas" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="gridSmall" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" class="grid-small-line"/></pattern>
+        <pattern id="gridLarge" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#gridSmall)"/><path d="M 100 0 L 0 0 0 100" fill="none" class="grid-large-line"/></pattern>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="iconShadow"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.3"/></filter>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#gridLarge)"/>
+      <g id="canvasGroup" transform="translate(0,0) scale(1)">
+        <g id="edgesLayer"></g>
+        <g id="handlesLayer"></g>
+        <g id="nodesLayer"></g>
+        <g id="tempLayer"></g>
+      </g>
+    </svg>
+    <div class="canvas-info" id="canvasInfo">{{ _('节点') }}: 0 | {{ _('连线') }}: 0</div>
+    <div id="scaleIndicator" style="display:none;position:absolute;bottom:30px;left:12px;z-index:20;font-size:11px;color:var(--text-muted);background:var(--legend-bg);border:1px solid var(--border);border-radius:6px;padding:4px 10px;backdrop-filter:blur(8px);user-select:none;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <svg id="scaleBar" width="80" height="8"><line x1="0" y1="4" x2="80" y2="4" stroke="#f59e0b" stroke-width="2"/><line x1="0" y1="0" x2="0" y2="8" stroke="#f59e0b" stroke-width="1.5"/><line x1="80" y1="0" x2="80" y2="8" stroke="#f59e0b" stroke-width="1.5"/></svg>
+        <span id="scaleLabel">1m</span>
+      </div>
+    </div>
+    <div class="legend" id="legendPanel"></div>
+    <div class="zoom-controls">
+      <button onclick="zoomCanvas(-0.1)">−</button>
+      <div class="zoom-level" id="zoomLevel">100%</div>
+      <button onclick="zoomCanvas(0.1)">+</button>
+      <button onclick="fitView()">⊡</button>
+    </div>
+    <div class="minimap"><svg id="minimapSvg" width="160" height="100" viewBox="-100 -100 1400 900"><rect x="-100" y="-100" width="1400" height="900" style="fill:var(--minimap-canvas)"/><g id="minimapNodes"></g><rect class="minimap-viewport" id="minimapViewport" x="0" y="0" width="400" height="250"/></svg></div>
+    <div class="drop-indicator" id="dropIndicator"></div>
+    <div class="conn-type-popup" id="connTypePopup"><div id="connTypeList"></div></div>
+  </div>
+
+  <!-- 右侧属性面板 -->
+  <div class="props-panel" id="propsPanel"><div class="props-title" id="propsTitle">{{ _('属性') }}</div><div id="propsContent"></div></div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="ctxMenu" class="ctx-menu" style="display:none;">
+  <div class="ctx-item" data-action="copy" onclick="onCtxAction('copy')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>{{ _('复制') }}<span class="ctx-shortcut">⌘C</span></div>
+  <div class="ctx-item" data-action="paste" onclick="onCtxAction('paste')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>{{ _('粘贴') }}<span class="ctx-shortcut">⌘V</span></div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-item" data-action="delete" onclick="onCtxAction('delete')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>{{ _('删除') }}<span class="ctx-shortcut">⌫</span></div>
+  <div class="ctx-item" data-action="selectAll" onclick="onCtxAction('selectAll')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M9 12l2 2 4-4"/></svg>{{ _('全选') }}<span class="ctx-shortcut">⌘A</span></div>
+</div>
+
+<!-- 离开确认弹窗 -->
+<div id="deleteFloorModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;padding:28px 32px 24px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;">
+    <div style="margin-bottom:16px;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+    </div>
+    <div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:8px;" id="deleteFloorTitle"></div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.5;" id="deleteFloorMsg"></div>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button onclick="dismissDeleteFloorModal()" style="flex:1;padding:10px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;color:var(--text-secondary);font-size:13px;cursor:pointer;transition:all .15s;">{{ _('取消') }}</button>
+      <button onclick="confirmDeleteFloorPlan()" style="flex:1;padding:10px 16px;background:#ef4444;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;">{{ _('确认删除') }}</button>
+    </div>
+  </div>
+</div>
+<div id="leaveModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;padding:28px 32px 24px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);text-align:center;">
+    <div style="margin-bottom:16px;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    </div>
+    <div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">{{ _('尚未保存') }}</div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-bottom:24px;line-height:1.5;">{{ _('当前系统图有未保存的修改，是否保存后再离开？') }}</div>
+    <div style="display:flex;gap:10px;justify-content:center;">
+      <button onclick="leaveDiscard()" style="flex:1;padding:10px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;color:var(--text-secondary);font-size:13px;cursor:pointer;transition:all .15s;">{{ _('放弃修改') }}</button>
+      <button onclick="leaveSaveFirst()" style="flex:1;padding:10px 16px;background:#3b82f6;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;">{{ _('保存并离开') }}</button>
+    </div>
+    <button onclick="leaveCancel()" style="margin-top:12px;background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;padding:4px 8px;">{{ _('取消') }}</button>
+  </div>
+</div>
+
+<script>
+// Flask configuration injected
+const DIAGRAM_CONFIG = {
+  diagramId: {{ diagram_id }},
+  projectId: {{ project_id|default(0) }},
+  apiProducts: '{{ url_for("system_diagram.api_products") }}',
+  apiSave: '{{ url_for("system_diagram.api_save") }}',
+  apiLoadBase: '{{ url_for("system_diagram.list_view") }}api/',
+  editorBase: '{{ url_for("system_diagram.list_view") }}',
+  apiFloorBgBase: '{{ url_for("system_diagram.list_view") }}api/',
+  csrfToken: '{{ csrf_token() }}'
+};
+/* ── System Diagram i18n dictionary ── */
+window.SD_I18N = {
+  '线缆': '{{ _("线缆") }}',
+  '粗细': '{{ _("粗细") }}',
+  '颜色': '{{ _("颜色") }}',
+  '原色': '{{ _("原色") }}',
+  '黑色': '{{ _("黑色") }}',
+  '标签': {% if session.get('language', 'zh') == 'en' %}'Label'{% else %}'标签'{% endif %},
+  '长度': '{{ _("长度") }}',
+  '图标': '{{ _("图标") }}',
+  '型号': '{{ _("型号") }}',
+  '覆盖': '{{ _("覆盖") }}',
+  '关闭': {% if session.get('language', 'zh') == 'en' %}'Off'{% else %}'关闭'{% endif %},
+  '依据天线': '{{ _("依据天线") }}',
+  '全部显示': '{{ _("全部显示") }}',
+  '模式': '{{ _("模式") }}',
+  '圆圈': '{{ _("圆圈") }}',
+  '热力图': '{{ _("热力图") }}',
+  '填充色': '{{ _("填充色") }}',
+  '内圈': '{{ _("内圈") }}',
+  '中圈': '{{ _("中圈") }}',
+  '外圈': '{{ _("外圈") }}',
+  '环境在每个天线属性中单独设置': '{{ _("环境在每个天线属性中单独设置") }}',
+  '系统图属性': '{{ _("系统图属性") }}',
+  '统计': '{{ _("统计") }}',
+  '节点': '{{ _("节点") }}',
+  '连线': '{{ _("连线") }}',
+  '暂无产品': '{{ _("暂无产品") }}',
+  '加载产品失败': '{{ _("加载产品失败") }}',
+  '文本标注': '{{ _("文本标注") }}',
+  '双击编辑': '{{ _("双击编辑") }}',
+  '没有可撤销的操作': '{{ _("没有可撤销的操作") }}',
+  '没有可重做的操作': '{{ _("没有可重做的操作") }}',
+  'PNG 导出失败，请尝试 SVG 格式': '{{ _("PNG 导出失败，请尝试 SVG 格式") }}',
+  '已撤销': '{{ _("已撤销") }}',
+  '已重做': '{{ _("已重做") }}',
+  '已复制': '{{ _("已复制") }}',
+  '个节点': '{{ _("个节点") }}',
+  '条连线': '{{ _("条连线") }}',
+  '已粘贴': '{{ _("已粘贴") }}',
+  '已导出 SVG': '{{ _("已导出 SVG") }}',
+  '已导出 PNG': '{{ _("已导出 PNG") }}',
+  '拖拽框选导出区域，ESC 取消': '{{ _("拖拽框选导出区域，ESC 取消") }}',
+  '选区太小，已取消': '{{ _("选区太小，已取消") }}',
+  '已导出选区 PNG': '{{ _("已导出选区 PNG") }}',
+  'PNG 导出失败': '{{ _("PNG 导出失败") }}',
+  '已取消框选导出': '{{ _("已取消框选导出") }}',
+  '保存中...': '{{ _("保存中...") }}',
+  '保存': '{{ _("保存") }}',
+  '未命名系统图': '{{ _("未命名系统图") }}',
+  '保存失败': '{{ _("保存失败") }}',
+  '系统图已保存': '{{ _("系统图已保存") }}',
+  '系统图': '{{ _("系统图") }}',
+  '添加楼层': '{{ _("添加楼层") }}',
+  '楼层名称（同时作为导出图纸名称）': '{{ _("楼层名称（同时作为导出图纸名称）") }}',
+  '已删除': '{{ _("已删除") }}',
+  '个元素': '{{ _("个元素") }}',
+  '选择线缆类型': '{{ _("选择线缆类型") }}',
+  '节点属性': '{{ _("节点属性") }}',
+  '选择产品': '{{ _("选择产品") }}',
+  '-- 选择型号 --': '{{ _("-- 选择型号 --") }}',
+  '产品': '{{ _("产品") }}',
+  '暂无图片': '{{ _("暂无图片") }}',
+  '名称': '{{ _("名称") }}',
+  '规格': '{{ _("规格") }}',
+  '子分类': '{{ _("子分类") }}',
+  '位置标签': '{{ _("位置标签") }}',
+  '如：1F-A区': '{{ _("如：1F-A区") }}',
+  '隐藏标签': '{{ _("隐藏标签") }}',
+  '数量': '{{ _("数量") }}',
+  '删除节点': '{{ _("删除节点") }}',
+  '连线属性': '{{ _("连线属性") }}',
+  '线缆类型': '{{ _("线缆类型") }}',
+  '未知': '{{ _("未知") }}',
+  '路由模式': '{{ _("路由模式") }}',
+  '提示：选中后拖动中间段调整位置': '{{ _("提示：选中后拖动中间段调整位置") }}',
+  '中间段位置': '{{ _("中间段位置") }}',
+  '重置居中': '{{ _("重置居中") }}',
+  '线路样式': '{{ _("线路样式") }}',
+  '连线标签': '{{ _("连线标签") }}',
+  '连接': '{{ _("连接") }}',
+  '起点': '{{ _("起点") }}',
+  '终点': '{{ _("终点") }}',
+  '删除连线': '{{ _("删除连线") }}',
+  '多选操作': '{{ _("多选操作") }}',
+  '已选中': '{{ _("已选中") }}',
+  '未选中任何对象': '{{ _("未选中任何对象") }}',
+  '删除选中': '{{ _("删除选中") }}',
+  '图例': '{{ _("图例") }}',
+  '显示覆盖范围': '{{ _("显示覆盖范围") }}',
+  '覆盖半径': '{{ _("覆盖半径") }}',
+  '传播环境': '{{ _("传播环境") }}',
+  '全局已关闭': '{{ _("全局已关闭") }}',
+  '全局已强制开启': '{{ _("全局已强制开启") }}',
+  '区域属性': '{{ _("区域属性") }}',
+  '透明度': '{{ _("透明度") }}',
+  '位置': '{{ _("位置") }}',
+  '弱电井': '{{ _("弱电井") }}',
+  '锁定区域': '{{ _("锁定区域") }}',
+  '删除区域': '{{ _("删除区域") }}',
+  '已删除区域': '{{ _("已删除区域") }}',
+  '弱电井区域最多容纳1个设备': '{{ _("弱电井区域最多容纳1个设备") }}',
+  '弱电井区域只能放置1个设备': '{{ _("弱电井区域只能放置1个设备") }}',
+  '尺寸标定': '{{ _("尺寸标定") }}',
+  '像素长度': '{{ _("像素长度") }}',
+  '实际长度': '{{ _("实际长度") }}',
+  '输入长度': '{{ _("输入长度") }}',
+  '已有标定，将基于当前比例重新调整': '{{ _("已有标定，将基于当前比例重新调整") }}',
+  '应用标定': '{{ _("应用标定") }}',
+  '当前标定': '{{ _("当前标定") }}',
+  '参考长度': '{{ _("参考长度") }}',
+  '比例': '{{ _("比例") }}',
+  '删除标定': '{{ _("删除标定") }}',
+  '请输入实际长度': '{{ _("请输入实际长度") }}',
+  '请输入有效的正数': '{{ _("请输入有效的正数") }}',
+  '已标定': '{{ _("已标定") }}',
+  '标定已删除，背景图比例不变': '{{ _("标定已删除，背景图比例不变") }}',
+  '走线属性': '{{ _("走线属性") }}',
+  '未设置': '{{ _("未设置") }}',
+  '恢复自动走线': '{{ _("恢复自动走线") }}',
+  '删除走线': '{{ _("删除走线") }}',
+  '已删除走线': '{{ _("已删除走线") }}',
+  '已恢复为自动走线': '{{ _("已恢复为自动走线") }}',
+  '信号强度': '{{ _("信号强度") }}',
+  '强': '{{ _("强") }}',
+  '弱': '{{ _("弱") }}',
+  '图片大小不能超过 12MB': '{{ _("图片大小不能超过 12MB") }}',
+  '上传中...': '{{ _("上传中...") }}',
+  '保存失败，无法上传': '{{ _("保存失败，无法上传") }}',
+  '背景图已上传': '{{ _("背景图已上传") }}',
+  '上传失败': '{{ _("上传失败") }}',
+  '确定删除背景图？': '{{ _("确定删除背景图？") }}',
+  '请先保存系统图': '{{ _("请先保存系统图") }}',
+  '背景图已删除': '{{ _("背景图已删除") }}',
+  '删除失败': '{{ _("删除失败") }}',
+  '楼层属性': '{{ _("楼层属性") }}',
+  '楼层名称（导出文件名）': '{{ _("楼层名称（导出文件名）") }}',
+  '背景图透明度': '{{ _("背景图透明度") }}',
+  '更换背景图': '{{ _("更换背景图") }}',
+  '删除背景图': '{{ _("删除背景图") }}',
+  '上传背景图': '{{ _("上传背景图") }}',
+  '设备': '{{ _("设备") }}',
+  '走线': '{{ _("走线") }}',
+  '区域': '{{ _("区域") }}',
+  '删除楼层': '{{ _("删除楼层") }}',
+  '已删除楼层': '{{ _("已删除楼层") }}',
+  '请先上传背景图': '{{ _("请先上传背景图") }}',
+  '线段太短，请重新画': '{{ _("线段太短，请重新画") }}',
+  '区域太小，请拖大一些': '{{ _("区域太小，请拖大一些") }}',
+  '锁定位置': '{{ _("锁定位置") }}',
+  '旋转角度': '{{ _("旋转角度") }}',
+  '删除设备': '{{ _("删除设备") }}',
+  '设备属性': '{{ _("设备属性") }}',
+  '上限': '{{ _("上限") }}',
+  '从楼层移除': '{{ _("从楼层移除") }}',
+  '已从楼层移除': '{{ _("已从楼层移除") }}',
+  '该设备数量已全部放置': '{{ _("该设备数量已全部放置") }}',
+  '数量+1': '{{ _("数量+1") }}',
+  '当前': '{{ _("当前") }}',
+  '已放置到楼层': '{{ _("已放置到楼层") }}',
+  '已锁定': '{{ _("已锁定") }}',
+  '已解锁': '{{ _("已解锁") }}',
+  '全部已锁定': '{{ _("全部已锁定") }}',
+  '全部已解锁': '{{ _("全部已解锁") }}',
+  '暂无设备': '{{ _("暂无设备") }}',
+  '替换当前图标': '{{ _("替换当前图标") }}',
+  '弧线': '{{ _("弧线") }}',
+  '直线': '{{ _("直线") }}',
+  '一折': '{{ _("一折") }}',
+  '二折': '{{ _("二折") }}',
+  '虚线样式': '{{ _("虚线样式") }}',
+  '实线': '{{ _("实线") }}',
+  '长虚线': '{{ _("长虚线") }}',
+  '中虚线': '{{ _("中虚线") }}',
+  '短虚线': '{{ _("短虚线") }}',
+  '点划线': '{{ _("点划线") }}',
+  '复制选中': '{{ _("复制选中") }}',
+  '自动': '{{ _("自动") }}',
+  '重置为自动': '{{ _("重置为自动") }}',
+  '连接点': '{{ _("连接点") }}',
+  '预估长度': '{{ _("预估长度") }}',
+  '路径长度': '{{ _("路径长度") }}',
+  '未标定': '{{ _("未标定") }}'
+};
+const wrapper = document.getElementById('canvasWrapper');
+</script>
+<script src="{{ url_for('static', filename='js/system-diagram-core.js') }}?v={{ range(10000,99999)|random }}"></script>
+<script src="{{ url_for('static', filename='js/system-diagram-topology.js') }}?v={{ range(10000,99999)|random }}"></script>
+<script src="{{ url_for('static', filename='js/system-diagram-floorplan.js') }}?v={{ range(10000,99999)|random }}"></script>
+<script src="{{ url_for('static', filename='js/system-diagram-statistics.js') }}?v={{ range(10000,99999)|random }}"></script>
+</body>
+</html>
