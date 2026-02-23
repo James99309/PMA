@@ -158,6 +158,86 @@
             outline: none;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
         }
+        /* === 特别主题样式（由 special_theme 控制） === */
+        {% if special_theme %}
+        .check-icon-wrapper {
+            position: relative;
+            animation: checkBounceIn 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+        }
+        .check-icon-wrapper::before {
+            content: '';
+            position: absolute;
+            inset: -4px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(239, 68, 68, 0.3) 0%, transparent 70%);
+            animation: glowPulse 2.5s ease-in-out infinite;
+        }
+        .check-icon-wrapper::after {
+            content: '';
+            position: absolute;
+            inset: -8px;
+            border-radius: 50%;
+            border: 1.5px solid rgba(239, 68, 68, 0.15);
+            animation: ringExpand 2.5s ease-in-out infinite;
+        }
+        @keyframes checkBounceIn {
+            0% { opacity: 0; transform: scale(0.3); }
+            50% { opacity: 1; transform: scale(1.05); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        @keyframes glowPulse {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.15); }
+        }
+        @keyframes ringExpand {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 0; transform: scale(1.4); }
+        }
+        .welcome-text {
+            background: linear-gradient(135deg, #b8860b 0%, #daa520 25%, #ffd700 50%, #daa520 75%, #b8860b 100%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: welcomeFadeIn 0.8s ease-out 0.3s both, goldShimmer 3s ease-in-out 1.5s infinite;
+        }
+        @keyframes welcomeFadeIn {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes goldShimmer {
+            0% { background-position: 200% center; }
+            100% { background-position: -200% center; }
+        }
+        .login-btn {
+            position: relative;
+            overflow: hidden;
+        }
+        .login-btn::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -60%;
+            width: 40%;
+            height: 200%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            transform: skewX(-20deg);
+            animation: btnShine 4s ease-in-out 2s infinite;
+        }
+        @keyframes btnShine {
+            0% { left: -60%; }
+            30% { left: 120%; }
+            100% { left: 120%; }
+        }
+        .subtitle-text {
+            animation: subtitleFadeIn 0.8s ease-out 0.5s both;
+        }
+        @keyframes subtitleFadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        {% endif %}
+
         /* 验证错误样式 */
         .form-input.is-invalid {
             border-color: #dc2626;
@@ -231,6 +311,15 @@
                     {% endif %}
                 </div>
 
+                {% if special_theme %}
+                <div class="check-icon-wrapper w-14 h-14 mx-auto mb-4 bg-red-500 rounded-full flex items-center justify-center shadow-lg shadow-red-200">
+                    <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </div>
+                <h1 class="welcome-text text-2xl font-bold">{{ _('欢迎回来') }}</h1>
+                <p class="subtitle-text text-slate-500 mt-1 text-sm">{{ _('登录到 PMA 销售项目管理系统') }}</p>
+                {% else %}
                 <div class="w-12 h-12 mx-auto mb-4 bg-blue-500 rounded-full flex items-center justify-center">
                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
@@ -238,6 +327,7 @@
                 </div>
                 <h1 class="text-2xl font-bold text-slate-900">{{ _('欢迎回来') }}</h1>
                 <p class="text-slate-500 mt-1 text-sm">{{ _('登录到 PMA 销售项目管理系统') }}</p>
+                {% endif %}
             </div>
 
             <!-- Flash 消息 -->
@@ -302,15 +392,23 @@
                         </label>
                     </div>
                     <a href="{{ url_for('auth.forgot_password') }}"
-                       class="font-medium text-blue-600 hover:text-blue-500 transition-colors">
+                       class="font-medium {{ 'text-red-500 hover:text-red-400' if special_theme else 'text-blue-600 hover:text-blue-500' }} transition-colors">
                         {{ _('忘记密码?') }}
                     </a>
                 </div>
 
+                {% if special_theme %}
+                <button type="submit"
+                        class="login-btn w-full text-white font-semibold py-3 px-4 rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                        style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);">
+                    {{ _('登录') }}
+                </button>
+                {% else %}
                 <button type="submit"
                         class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                     {{ _('登录') }}
                 </button>
+                {% endif %}
             </form>
         </div>
     </div>

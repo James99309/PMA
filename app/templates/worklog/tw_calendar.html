@@ -556,6 +556,114 @@
                 border-color: #ef4444;
             }
         }
+
+        /* ========================================
+           国定假期标签（国旗圆圈）
+           ======================================== */
+        .holiday-labels {
+            position: absolute;
+            bottom: 2px;
+            left: 2px;
+            display: flex;
+            gap: 3px;
+            z-index: 3;
+            pointer-events: auto;
+        }
+        .holiday-flag {
+            width: 16px;
+            height: 16px;
+            border-radius: 9999px;
+            border: 1.5px solid #e2e8f0;
+            background: #e2e8f0;
+            cursor: default;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .holiday-flag img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            border-radius: 9999px;
+        }
+        .dark .holiday-flag {
+            border-color: #475569;
+            background: #334155;
+        }
+        .holiday-flag-more {
+            width: 16px;
+            height: 16px;
+            border-radius: 9999px;
+            border: 1.5px solid #e2e8f0;
+            font-size: 8px;
+            font-weight: 600;
+            line-height: 13px;
+            text-align: center;
+            background: #e2e8f0;
+            color: #64748b;
+            cursor: default;
+        }
+        .dark .holiday-flag-more {
+            border-color: #475569;
+            background: #334155;
+            color: #94a3b8;
+        }
+
+        /* 悬浮 Tooltip（CSS only） */
+        .holiday-flag .holiday-tip {
+            display: none;
+            position: absolute;
+            bottom: calc(100% + 6px);
+            left: 0;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 4px 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            white-space: nowrap;
+            font-size: 0.75rem;
+            color: #334155;
+            z-index: 9999;
+            pointer-events: none;
+        }
+        .holiday-flag:hover .holiday-tip {
+            display: block;
+        }
+        .dark .holiday-flag .holiday-tip {
+            background: #1e293b;
+            border-color: #475569;
+            color: #e2e8f0;
+        }
+
+        /* 确保日期格不裁切 tooltip */
+        .fc .fc-daygrid-day {
+            overflow: visible !important;
+        }
+        .fc .fc-daygrid-day-frame {
+            overflow: visible !important;
+        }
+        .fc .fc-daygrid-day-events {
+            overflow: visible !important;
+        }
+
+        /* 日期格需要相对定位来放置假期标签 */
+        .fc .fc-daygrid-day-frame {
+            position: relative;
+        }
+        /* 给日期格底部留出假期圆圈空间 */
+        .fc .fc-daygrid-day-frame {
+            padding-bottom: 22px;
+        }
+
+        /* 移动端隐藏假期标签（空间不足） */
+        @media (max-width: 768px) {
+            .holiday-labels {
+                display: none;
+            }
+            .fc .fc-daygrid-day-frame {
+                padding-bottom: 0.5rem;
+            }
+        }
     </style>
 </head>
 
@@ -1691,8 +1799,15 @@ function workCalendar() {
         currentUserInitials: '{{ current_user.real_name[:2] if current_user.real_name else current_user.username[:1].upper() }}',
         // 评分已查看记录（localStorage 持久化）
         viewedScores: JSON.parse(localStorage.getItem('pma_viewedScores') || '[]'),
+        // 假期相关状态
+        holidayData: {{ holidays_data | tojson | safe }},
+        holidayCountries: {{ supported_countries.keys() | list | tojson | safe }},
+        _currentLang: '{{ session.get("language", "zh") }}',
+        _supportedCountries: {{ supported_countries | tojson | safe }},
 
         init() {
+            // 标记当前年份假期数据已加载（通过模板注入）
+            this._loadedHolidayYears = new Set([new Date().getFullYear()]);
             this.initCalendar();
             this.loadAvailableAccounts();
             // 监听用户选择器保存事件
@@ -1778,6 +1893,107 @@ function workCalendar() {
                     return response.events || [];
                 }
             });
+        },
+
+        // ===== 假期相关方法 =====
+        toggleHolidayCountry(code) {
+            const idx = this.holidayCountries.indexOf(code);
+            if (idx > -1) this.holidayCountries.splice(idx, 1);
+            else this.holidayCountries.push(code);
+            this.onHolidayFilterChange();
+        },
+
+        onHolidayFilterChange() {
+            localStorage.setItem('pma_holidayCountries', JSON.stringify(this.holidayCountries));
+            this.refreshHolidayLabels();
+        },
+
+        getHolidaysForDate(dateStr) {
+            return this.holidayData[dateStr] || [];
+        },
+
+        injectHolidayLabels(el, dateStr) {
+            // 移除旧标签
+            const old = el.querySelector('.holiday-labels');
+            if (old) old.remove();
+
+            const holidays = this.getHolidaysForDate(dateStr);
+            if (!holidays.length) return;
+
+            const container = document.createElement('div');
+            container.className = 'holiday-labels';
+
+            const isZh = this._currentLang === 'zh';
+            // 按国家去重（同日同国家只显示一个圆圈，tooltip 列出全部）
+            const seen = new Set();
+            const uniqueByCountry = [];
+            holidays.forEach(h => {
+                if (!seen.has(h.country)) {
+                    seen.add(h.country);
+                    uniqueByCountry.push(h);
+                }
+            });
+
+            const shown = uniqueByCountry;
+            const rest = 0;
+
+            shown.forEach(h => {
+                // 该国家当天所有假期名称
+                const names = holidays.filter(x => x.country === h.country)
+                    .map(x => isZh ? x.name_zh : x.name_en);
+                const tipText = names.join(' / ');
+
+                const circle = document.createElement('span');
+                circle.className = 'holiday-flag';
+                // 使用 circle-flags SVG 圆形国旗
+                const img = document.createElement('img');
+                img.src = 'https://hatscripts.github.io/circle-flags/flags/' + h.country.toLowerCase() + '.svg';
+                img.alt = h.country;
+                img.loading = 'lazy';
+                circle.appendChild(img);
+                // 纯 CSS hover tooltip
+                const tip = document.createElement('span');
+                tip.className = 'holiday-tip';
+                tip.textContent = tipText;
+                circle.appendChild(tip);
+                container.appendChild(circle);
+            });
+
+            if (rest > 0) {
+                const more = document.createElement('span');
+                more.className = 'holiday-flag-more';
+                more.textContent = '+' + rest;
+                container.appendChild(more);
+            }
+
+            // 插入到 day-frame 中
+            const frame = el.querySelector('.fc-daygrid-day-frame') || el;
+            frame.appendChild(container);
+        },
+
+        // tooltip 已改为纯 CSS hover，无需 JS 方法
+
+        refreshHolidayLabels() {
+            document.querySelectorAll('.fc-daygrid-day').forEach(dayEl => {
+                const dateStr = dayEl.getAttribute('data-date');
+                if (dateStr) this.injectHolidayLabels(dayEl, dateStr);
+            });
+        },
+
+        async loadHolidaysForYear(year) {
+            if (this._loadedHolidayYears && this._loadedHolidayYears.has(year)) return;
+            try {
+                const resp = await fetch('{{ url_for("worklog.get_holidays", year=0) }}'.replace('/0', '/' + year));
+                const data = await resp.json();
+                if (data.success) {
+                    Object.assign(this.holidayData, data.data);
+                    if (!this._loadedHolidayYears) this._loadedHolidayYears = new Set();
+                    this._loadedHolidayYears.add(year);
+                    this.refreshHolidayLabels();
+                }
+            } catch (e) {
+                console.error('加载假期数据失败:', e);
+            }
         },
 
         initCalendar() {
@@ -1936,9 +2152,19 @@ function workCalendar() {
                     if (self.selectedAccountId) {
                         self.addLogIndicator(info.el, dateStr);
                     }
+
+                    // 注入假期标签
+                    self.injectHolidayLabels(info.el, dateStr);
                     // 注：点击日期数字打开日志的逻辑已移至 dateClick 回调中
                 },
                 // 日期头部点击事件（用于3天时间线视图打开日志）
+                datesSet: function(info) {
+                    // 跨年导航时加载新年份假期数据
+                    const startYear = info.start.getFullYear();
+                    const endYear = info.end.getFullYear();
+                    self.loadHolidaysForYear(startYear);
+                    if (endYear !== startYear) self.loadHolidaysForYear(endYear);
+                },
                 dayHeaderDidMount: function(info) {
                     info.el.style.cursor = 'pointer';
                     info.el.addEventListener('click', function(e) {
@@ -2005,6 +2231,8 @@ function workCalendar() {
                         const existingDot = dayEl.querySelector('.log-indicator-dot');
                         if (existingDot) existingDot.remove();
                     }
+                    // 刷新假期标签
+                    this.injectHolidayLabels(dayEl, dateStr);
                 }
             });
         },

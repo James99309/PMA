@@ -24,6 +24,7 @@ from app.models.pricing_order import PricingOrder
 from app.models.action import Action
 from app.utils.access_control import get_viewable_data
 from app.utils.sharing import get_shareable_users_tree
+from app.data.holidays import get_holidays_for_api, SUPPORTED_COUNTRIES
 from sqlalchemy import func, or_, cast, text
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -435,6 +436,10 @@ def calendar():
         len(subordinate_ids) > 0  # 有数据归属下属的用户也可以查看
     )
 
+    # 假期数据（当前年份）
+    current_year = date.today().year
+    holidays_data = get_holidays_for_api(current_year)
+
     return render_template(
         'worklog/tw_calendar.html',
         work_type_options=work_type_options,
@@ -444,11 +449,23 @@ def calendar():
         projects=projects,
         customers=customers,
         shareable_users_tree=shareable_users_tree,
-        can_view_others_worklog=can_view_others_worklog
+        can_view_others_worklog=can_view_others_worklog,
+        holidays_data=holidays_data,
+        supported_countries=SUPPORTED_COUNTRIES
     )
 
 
 # ===== AJAX API =====
+
+@worklog.route('/api/holidays/<int:year>', methods=['GET'])
+@login_required
+def get_holidays(year):
+    """获取指定年份的假期数据"""
+    countries = request.args.get('countries', '').split(',')
+    countries = [c.strip() for c in countries if c.strip()]
+    data = get_holidays_for_api(year, countries if countries else None)
+    return jsonify({'success': True, 'data': data})
+
 
 @worklog.route('/api/customers/<int:customer_id>/contacts', methods=['GET'])
 @login_required

@@ -128,7 +128,10 @@ def login():
                 logger.warning(f"用户 {username_or_email} 登录失败：用户名或邮箱不存在")
             flash('用户名/邮箱或密码错误', 'danger')
     
-    return render_template('auth/login.html')
+    # 临时红金主题：仅2026-02-24当天生效
+    from datetime import date
+    special_theme = (date.today() == date(2026, 2, 24))
+    return render_template('auth/login.html', special_theme=special_theme)
 
 @auth.route('/complete_profile', methods=['GET', 'POST'])
 @login_required

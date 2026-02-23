@@ -1,3 +1,4 @@
+{% from 'components/tw_whats_new_popup.html' import render_whats_new_popup, render_whats_new_popup_script %}
 {% from 'components/tw_work_records.html' import render_tw_work_records, render_tw_work_records_script, render_tw_work_records_styles %}
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_item_list_card.html' import tw_item_list_card, tw_item_list_item, tw_item_list_empty %}
@@ -764,5 +765,9 @@
     {% from 'components/tw_daily_report_modal.html' import render_daily_report_modal, render_daily_report_script %}
     {{ render_daily_report_modal() }}
     {{ render_daily_report_script() }}
+
+    {# What's New 登录弹窗 #}
+    {{ render_whats_new_popup(whats_new_features, url_for('guide.whats_new')) }}
+    {{ render_whats_new_popup_script() }}
 </body>
 </html>

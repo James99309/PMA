@@ -593,7 +593,20 @@ def create_app(config_class=Config):
         # 如果用户未登录，重定向到登录页面
         if not current_user.is_authenticated:
             return redirect(url_for('auth.login'))
-            
+
+        # 强制重新登录：2026-02-24 当天，所有旧 session 必须重新登录
+        # （2026-02-25 自动失效，届时可删除此段代码）
+        from datetime import date, datetime
+        FORCE_RELOGIN_DATE = date(2026, 2, 24)
+        if date.today() == FORCE_RELOGIN_DATE:
+            login_time = session.get('login_time', 0)
+            # 如果登录时间在 2月24日 00:00 之前，强制重新登录
+            cutoff = datetime(2026, 2, 24).timestamp()
+            if login_time < cutoff:
+                logout_user()
+                session.clear()
+                return redirect(url_for('auth.login'))
+
         # 如果用户已登录，检查角色一致性
         if current_user.is_authenticated:
             # 从数据库重新获取用户信息

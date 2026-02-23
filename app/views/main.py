@@ -195,6 +195,11 @@ def index():
     logging.info(f"[DEBUG] DATABASE_URL contains 'pma_db_sp8d': {'pma_db_sp8d' in db_url}")
     logging.info(f"[DEBUG] IS_SP8D={is_sp8d}, DEBUG={is_debug}, show_manual_download={show_manual_download}")
 
+    # What's New 弹窗数据（过滤掉草稿）
+    from app.data.features_guide_data import get_features_data
+    whats_new_features = [f for f in get_features_data(lang_code)
+                          if f.get('status') != 'draft']
+
     # 获取当前用户的AI分析启用状态
     ai_enabled = False
     try:
@@ -219,7 +224,8 @@ def index():
                          app_version=app_version,
                          last_upgrade_time=last_upgrade_time,
                          show_manual_download=show_manual_download,
-                         ai_enabled=ai_enabled)
+                         ai_enabled=ai_enabled,
+                         whats_new_features=whats_new_features)
 
 @main.route('/api/recent_work_records')
 @login_required

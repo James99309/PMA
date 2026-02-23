@@ -576,5 +576,33 @@
       "查看生成的调研报告，可保存到客户档案"
     ],
     "gallery": []
+  },
+  {
+    "id": "holiday-calendar",
+    "icon": "calendar_month",
+    "color": "red",
+    "status": "published",
+    "hero_image": "",
+    "title": "多国假日日历",
+    "keywords": [
+      "国定假日",
+      "多国假期",
+      "跨国协作"
+    ],
+    "summary": "工作日历显示🇨🇳中国、🇸🇬新加坡、🇲🇾马来西亚、🇹🇭泰国、🇮🇩印尼国定假日，悬浮查看节日名称，助力跨国业务协调。",
+    "description": [
+      "工作日历日期格底部以圆形国旗徽章标记各国假日，悬浮可查看节日名称。覆盖中国、新加坡、马来西亚、泰国、印尼五国，帮助团队更好地协调跨国业务合作与出差安排。"
+    ],
+    "scenarios": [],
+    "entry": "打开工作日历即可在月视图看到国旗标记",
+    "steps": [
+      "进入\"工作日历\"页面",
+      "日期格底部的圆形国旗表示该国当日有假期",
+      "鼠标悬浮在国旗上查看具体节日名称"
+    ],
+    "gallery": [
+      "holiday-calendar_gallery_0.png",
+      "holiday-calendar_gallery_1.png"
+    ]
   }
 ]

@@ -62,6 +62,21 @@ def upload_guide_image():
     os.makedirs(GUIDE_IMAGE_DIR, exist_ok=True)
     file.save(os.path.join(GUIDE_IMAGE_DIR, filename))
 
+    # If this is a hero image ({feature_id}_main.ext), update hero_image in JSON
+    hero_match = re.match(r'^(.+)_main\.(png|jpg|jpeg|webp)$', filename)
+    if hero_match:
+        feature_id = hero_match.group(1)
+        from app.data.features_guide_data import get_features_data, save_features_data
+        for lang in ('zh', 'en'):
+            try:
+                features = get_features_data(lang=lang)
+                target = next((f for f in features if f['id'] == feature_id), None)
+                if target and target.get('hero_image') != filename:
+                    target['hero_image'] = filename
+                    save_features_data(features, lang=lang)
+            except Exception:
+                pass
+
     return jsonify({
         'success': True,
         'url': url_for('guide.guide_image', filename=filename)

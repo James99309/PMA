@@ -576,5 +576,33 @@
       "View the generated research report; save it to the customer file if needed"
     ],
     "gallery": []
+  },
+  {
+    "id": "holiday-calendar",
+    "icon": "calendar_month",
+    "color": "red",
+    "status": "published",
+    "hero_image": "",
+    "title": "Multi-Country Holiday Calendar",
+    "keywords": [
+      "Public Holidays",
+      "Multi-Country",
+      "Cross-Border Coordination"
+    ],
+    "summary": "Work calendar displays public holidays for 🇨🇳China, 🇸🇬Singapore, 🇲🇾Malaysia, 🇹🇭Thailand, and 🇮🇩Indonesia. Hover to see holiday names, helping coordinate cross-border business.",
+    "description": [
+      "Circular flag badges at the bottom of each calendar date mark public holidays for each country. Hover to see holiday names. Covers China, Singapore, Malaysia, Thailand, and Indonesia — helping teams better coordinate cross-border business and travel planning."
+    ],
+    "scenarios": [],
+    "entry": "Open the Work Calendar to see flag markers in month view",
+    "steps": [
+      "Go to the \"Work Calendar\" page",
+      "Circular flags at the bottom of date cells indicate a public holiday for that country",
+      "Hover over a flag to see the holiday name"
+    ],
+    "gallery": [
+      "holiday-calendar_gallery_0.png",
+      "holiday-calendar_gallery_1.png"
+    ]
   }
 ]
