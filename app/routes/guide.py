@@ -58,6 +58,91 @@ def upload_guide_image():
     })
 
 
+@guide_bp.route('/gallery-image', methods=['POST'])
+@login_required
+def add_gallery_image():
+    """添加图库图片（仅管理员）"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': '未选择文件'}), 400
+
+    file = request.files['file']
+    feature_id = request.form.get('feature_id', '').strip()
+
+    if not file.filename or not file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+        return jsonify({'success': False, 'message': '仅支持 PNG/JPG/WEBP 图片格式'}), 400
+
+    if not feature_id or not re.match(r'^[a-zA-Z0-9_\-]+$', feature_id):
+        return jsonify({'success': False, 'message': '无效功能ID'}), 400
+
+    from app.data.features_guide_data import get_features_data, save_features_data
+    features = get_features_data()
+    target = next((f for f in features if f['id'] == feature_id), None)
+    if not target:
+        return jsonify({'success': False, 'message': '功能不存在'}), 404
+
+    gallery = target.get('gallery', [])
+    ext = file.filename.rsplit('.', 1)[-1].lower()
+    # Find next available index
+    idx = len(gallery)
+    filename = f'{feature_id}_gallery_{idx}.{ext}'
+    while os.path.exists(os.path.join(GUIDE_IMAGE_DIR, filename)):
+        idx += 1
+        filename = f'{feature_id}_gallery_{idx}.{ext}'
+
+    os.makedirs(GUIDE_IMAGE_DIR, exist_ok=True)
+    file.save(os.path.join(GUIDE_IMAGE_DIR, filename))
+
+    gallery.append(filename)
+    target['gallery'] = gallery
+    save_features_data(features)
+
+    return jsonify({
+        'success': True,
+        'filename': filename,
+        'url': url_for('guide.guide_image', filename=filename),
+        'index': len(gallery) - 1
+    })
+
+
+@guide_bp.route('/gallery-image', methods=['DELETE'])
+@login_required
+def delete_gallery_image():
+    """删除图库图片（仅管理员）"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '权限不足'}), 403
+
+    data = request.get_json()
+    feature_id = data.get('feature_id', '')
+    index = data.get('index')
+
+    if index is None:
+        return jsonify({'success': False, 'message': '缺少索引'}), 400
+
+    from app.data.features_guide_data import get_features_data, save_features_data
+    features = get_features_data()
+    target = next((f for f in features if f['id'] == feature_id), None)
+    if not target:
+        return jsonify({'success': False, 'message': '功能不存在'}), 404
+
+    gallery = target.get('gallery', [])
+    if index < 0 or index >= len(gallery):
+        return jsonify({'success': False, 'message': '索引超出范围'}), 400
+
+    removed = gallery.pop(index)
+    target['gallery'] = gallery
+    save_features_data(features)
+
+    # Delete file from disk
+    filepath = os.path.join(GUIDE_IMAGE_DIR, removed)
+    if os.path.isfile(filepath):
+        os.remove(filepath)
+
+    return jsonify({'success': True})
+
+
 @guide_bp.route('/update-text', methods=['POST'])
 @login_required
 def update_guide_text():

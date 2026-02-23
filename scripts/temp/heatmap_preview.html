@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对讲机信号热力图预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; }
+  .header { padding: 12px 20px; background: #1e293b; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
+  .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .controls label { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .controls input[type="range"] { width: 70px; accent-color: #3b82f6; }
+  .controls select, .controls input[type="number"] { background: #334155; border: 1px solid #475569; border-radius: 4px; color: #e2e8f0; padding: 2px 6px; font-size: 11px; }
+  .btn { padding: 3px 10px; border-radius: 4px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 11px; cursor: pointer; }
+  .btn:hover { background: #475569; }
+  .btn.active { background: #3b82f6; border-color: #3b82f6; color: white; }
+  .main { display: flex; height: calc(100vh - 49px); }
+  .canvas-area { flex: 1; position: relative; overflow: hidden; background: #1a1a2e; }
+  canvas { position: absolute; top: 0; left: 0; }
+  #bgCanvas { z-index: 1; }
+  #heatCanvas { z-index: 2; }
+  #overlayCanvas { z-index: 3; }
+  .sidebar { width: 280px; background: #1e293b; border-left: 1px solid #334155; padding: 12px; overflow-y: auto; }
+  .sidebar h3 { font-size: 12px; font-weight: 600; margin-bottom: 6px; color: #94a3b8; }
+  .antenna-item { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 8px; margin-bottom: 6px; }
+  .antenna-item .name { font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+  .antenna-item .row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+  .antenna-item .row span { font-size: 10px; color: #94a3b8; min-width: 32px; }
+  .antenna-item input[type="number"] { width: 48px; background: #1e293b; border: 1px solid #475569; border-radius: 3px; color: #e2e8f0; padding: 2px 4px; font-size: 10px; text-align: center; }
+  .legend { position: absolute; bottom: 14px; left: 14px; z-index: 10; background: rgba(15,23,42,0.92); border: 1px solid #334155; border-radius: 8px; padding: 10px 14px; }
+  .legend-title { font-size: 10px; color: #94a3b8; margin-bottom: 5px; }
+  .legend-bar { width: 200px; height: 12px; border-radius: 3px; background: linear-gradient(to right, #3b82f6, #06b6d4, #22c55e, #84cc16, #eab308, #f59e0b, #ea580c, #dc2626); }
+  .legend-labels { display: flex; justify-content: space-between; font-size: 9px; color: #64748b; margin-top: 3px; }
+  .legend-marker { position: relative; margin-top: 2px; height: 10px; }
+  .legend-marker .tick { position: absolute; font-size: 8px; color: #ef4444; transform: translateX(-50%); }
+  .mode-switch { display: flex; gap: 2px; background: #0f172a; border-radius: 5px; padding: 2px; }
+  .mode-switch .btn { border: none; border-radius: 3px; }
+  .info { position: absolute; top: 10px; left: 10px; z-index: 10; font-size: 10px; color: #64748b; background: rgba(15,23,42,0.85); padding: 5px 10px; border-radius: 6px; }
+  .physics-box { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 8px; margin-bottom: 8px; font-size: 10px; line-height: 1.7; }
+  .physics-box .val { color: #e2e8f0; font-weight: 600; }
+  .physics-box .lbl { color: #64748b; }
+  .physics-box .design { color: #ef4444; }
+  .physics-box .sens { color: #475569; }
+  .dim { opacity: 0.4; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>对讲机信号热力图</h1>
+  <div class="controls">
+    <div class="mode-switch">
+      <button class="btn active" id="btnHeatmap" onclick="setMode('heatmap')">热力图</button>
+      <button class="btn" id="btnCircles" onclick="setMode('circles')">圆圈</button>
+    </div>
+    <label>建筑环境
+      <select id="envSelect" onchange="onEnvChange()">
+        <option value="4.5">停车库 (n=4.5)</option>
+        <option value="5.5" selected>办公区域 (n=5.5)</option>
+        <option value="6.5">隔间办公 (n=6.5)</option>
+        <option value="7.5">密集空间 (n=7.5)</option>
+      </select>
+    </label>
+    <label>n微调 <input type="range" id="nSlider" min="3.0" max="9.0" step="0.1" value="5.5" oninput="onNSliderChange()"> <span id="nVal">5.5</span></label>
+    <label>透明度 <input type="range" id="alphaSlider" min="40" max="220" value="160" oninput="render()"> <span id="alphaVal">160</span></label>
+    <label>采样 <select id="sampleSize" onchange="invalidateCache();render()"><option value="2">2px</option><option value="4" selected>4px</option><option value="8">8px</option></select></label>
+    <label>模糊 <input type="range" id="blurSlider" min="0" max="8" value="3" oninput="render()"> <span id="blurVal">3</span>px</label>
+    <button class="btn" onclick="addAntenna()">+ 天线</button>
+    <button class="btn" onclick="resetAntennas()">重置</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="canvas-area" id="canvasArea">
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="heatCanvas"></canvas>
+    <canvas id="overlayCanvas"></canvas>
+    <div class="info" id="infoPanel">点击拖动天线 | 选择建筑环境类型调整衰减模型</div>
+    <div class="legend">
+      <div class="legend-title">信号强度 (dBm)</div>
+      <div class="legend-bar"></div>
+      <div class="legend-labels"><span>-110</span><span>-85</span><span>-60</span><span>-35</span><span>-14.5</span></div>
+      <div class="legend-marker">
+        <span class="tick" id="legendDesignTick" style="color:#ef4444;">&#9650; -85dBm 设计标准</span>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar" id="sidebar">
+    <h3>信号物理参数</h3>
+    <div class="physics-box" id="physicsBox">
+      <!-- filled by JS -->
+    </div>
+
+    <h3>天线列表</h3>
+    <div id="antennaList"></div>
+
+    <div style="margin-top:10px;border-top:1px solid #334155;padding-top:10px;">
+      <h3>信号衰减曲线</h3>
+      <canvas id="curveCanvas" width="500" height="220" style="width:100%;border-radius:6px;background:#0f172a;border:1px solid #334155;margin-top:4px;"></canvas>
+      <div style="font-size:9px;color:#475569;margin-top:4px;line-height:1.4;">
+        室内对数距离路径损耗: Rx = Tx - FSPL(1m) - 10n·log₁₀(d)<br>
+        <span style="color:#ef4444;">- -</span> -85dBm 设计标准 &nbsp;
+        <span style="color:#475569;">···</span> -110dBm 灵敏度
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== 色带 ======
+const HEATMAP_COLORS = [
+  { stop: 0.00, r: 59,  g: 130, b: 246 },  // 蓝 - 无信号
+  { stop: 0.10, r: 6,   g: 182, b: 212 },  // 青
+  { stop: 0.25, r: 34,  g: 197, b: 94  },  // 绿
+  { stop: 0.40, r: 132, g: 204, b: 22  },  // 黄绿
+  { stop: 0.55, r: 234, g: 179, b: 8   },  // 黄
+  { stop: 0.70, r: 245, g: 158, b: 11  },  // 橙
+  { stop: 0.85, r: 234, g: 88,  b: 12  },  // 橙红
+  { stop: 1.00, r: 220, g: 38,  b: 38  },  // 红 - 最强
+];
+
+const CIRCLE_RINGS = [
+  { color: '#16a34a', fillOpacity: 0.12, strokeOpacity: 0.6, strokeWidth: 2 },
+  { color: '#22c55e', fillOpacity: 0.08, strokeOpacity: 0.5, strokeWidth: 1.5 },
+  { color: '#4ade80', fillOpacity: 0.04, strokeOpacity: 0.4, strokeWidth: 1 },
+];
+
+// ====== 对讲机信号物理模型 ======
+// 室内对数距离路径损耗模型：
+//   Rx(dBm) = Tx - FSPL(1m) - 10·n·log₁₀(d)
+//
+// 参数（固定）：
+//   Tx = +10 dBm（天线输出功率）
+//   freq = 400 MHz（对讲机频率）
+//   FSPL(1m, 400MHz) = 20·log₁₀(0.001km) + 20·log₁₀(400MHz) + 32.44 = 24.5 dB
+//   Rx(1m) = 10 - 24.5 = -14.5 dBm
+//
+// 参数（环境相关）：
+//   n = 路径损耗指数，由建筑环境决定：
+//     开阔空间: 2.0    轻隔断: 2.5    标准办公: 3.0
+//     砖墙隔间: 3.5    混凝土墙: 4.0   密集结构: 4.5
+//
+// 设计标准：-85 dBm（确保信噪比的最低标准）
+// 接收灵敏度：-110 dBm（低于此为底噪）
+
+const TX_DBM = 10;          // 天线输出功率 dBm
+const FREQ_MHZ = 400;       // 频率 MHz
+const FSPL_1M = 24.5;       // 自由空间路径损耗 @1m, 400MHz
+const RX_AT_1M = TX_DBM - FSPL_1M;  // = -14.5 dBm
+const DESIGN_DBM = -85;     // 设计标准线
+const MOBILE_SENS = -110;   // 对讲机接收灵敏度
+const MOBILE_TX = 33;       // 对讲机发射功率 +33dBm (2W)
+const REPEATER_MIN = -90;   // 直放站最低安全输入（NF导致SNR不足）
+const NOISE_FLOOR = MOBILE_SENS;  // 下行底噪 = 对讲机灵敏度
+const DBM_RANGE = RX_AT_1M - NOISE_FLOOR; // = 95.5 dB
+const DL_BUDGET = TX_DBM - MOBILE_SENS;   // 下行链路预算 = 120 dB
+const UL_BUDGET = MOBILE_TX - REPEATER_MIN; // 上行链路预算 = 123 dB
+
+let currentN = 5.5;  // 当前路径损耗指数（办公区域默认）
+
+// 计算距离 d(米) 处的接收功率 dBm
+function signalDbm(d) {
+  if (d < 0.5) return RX_AT_1M;
+  return RX_AT_1M - 10 * currentN * Math.log10(d);
+}
+
+// dBm → 0~1 归一化（颜色映射用）
+function dBmToStrength(dBm) {
+  if (dBm >= RX_AT_1M) return 1.0;
+  if (dBm <= NOISE_FLOOR) return 0.0;
+  return (dBm - NOISE_FLOOR) / DBM_RANGE;
+}
+
+// 距离 → 信号强度 0~1（热力图调用）
+function signalStrength(d) {
+  return dBmToStrength(signalDbm(d));
+}
+
+// 计算下行达到指定 dBm 的距离
+function distAtDbm(targetDbm) {
+  const logD = (RX_AT_1M - targetDbm) / (10 * currentN);
+  return Math.pow(10, logD);
+}
+
+// 计算任意发射功率达到指定接收电平的距离
+// 用于上行：对讲机 +33dBm 发射，直放站收到 -90dBm 的距离
+function distAtDbmCustom(txDbm, rxDbm) {
+  const rxAt1m = txDbm - FSPL_1M; // 该发射功率 1m 处的接收电平
+  const logD = (rxAt1m - rxDbm) / (10 * currentN);
+  return Math.pow(10, logD);
+}
+
+function signalToColor(strength) {
+  for (let i = 1; i < HEATMAP_COLORS.length; i++) {
+    if (strength <= HEATMAP_COLORS[i].stop) {
+      const a = HEATMAP_COLORS[i - 1], b = HEATMAP_COLORS[i];
+      const t = (strength - a.stop) / (b.stop - a.stop);
+      return {
+        r: Math.round(a.r + (b.r - a.r) * t),
+        g: Math.round(a.g + (b.g - a.g) * t),
+        b: Math.round(a.b + (b.b - a.b) * t),
+      };
+    }
+  }
+  return HEATMAP_COLORS[HEATMAP_COLORS.length - 1];
+}
+
+// ====== STATE ======
+let W, H;
+const PPM = 5; // 5 pixels per meter
+let mode = 'heatmap';
+let antennas = [
+  { id: 1, x: 300, y: 250, radii: [15, 30, 100], name: '天线 1', color: '#f59e0b' },
+  { id: 2, x: 600, y: 350, radii: [15, 30, 100], name: '天线 2', color: '#3b82f6' },
+  { id: 3, x: 450, y: 500, radii: [15, 30, 80],  name: '天线 3', color: '#8b5cf6' },
+  { id: 4, x: 150, y: 450, radii: [15, 30, 100], name: '天线 4', color: '#ec4899' },
+  { id: 5, x: 750, y: 200, radii: [15, 30, 100], name: '天线 5', color: '#06b6d4' },
+];
+let nextId = 6;
+let dragging = null;
+let dragOffset = { x: 0, y: 0 };
+let heatmapCache = { stamp: null, imageData: null };
+
+// ====== CANVAS SETUP ======
+const bgCanvas = document.getElementById('bgCanvas');
+const heatCanvas = document.getElementById('heatCanvas');
+const overlayCanvas = document.getElementById('overlayCanvas');
+const bgCtx = bgCanvas.getContext('2d');
+const heatCtx = heatCanvas.getContext('2d');
+const olCtx = overlayCanvas.getContext('2d');
+
+function resize() {
+  const area = document.getElementById('canvasArea');
+  W = area.clientWidth;
+  H = area.clientHeight;
+  [bgCanvas, heatCanvas, overlayCanvas].forEach(c => { c.width = W; c.height = H; });
+  invalidateCache();
+  render();
+}
+window.addEventListener('resize', resize);
+
+// ====== ENVIRONMENT CONTROLS ======
+function onEnvChange() {
+  const val = parseFloat(document.getElementById('envSelect').value);
+  currentN = val;
+  document.getElementById('nSlider').value = val;
+  document.getElementById('nVal').textContent = val.toFixed(1);
+  invalidateCache();
+  render();
+}
+
+function onNSliderChange() {
+  const val = parseFloat(document.getElementById('nSlider').value);
+  currentN = val;
+  document.getElementById('nVal').textContent = val.toFixed(1);
+  // 匹配最近的环境预设
+  const sel = document.getElementById('envSelect');
+  let bestIdx = 0, bestDiff = 999;
+  for (let i = 0; i < sel.options.length; i++) {
+    const diff = Math.abs(parseFloat(sel.options[i].value) - val);
+    if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+  }
+  if (bestDiff < 0.05) sel.selectedIndex = bestIdx;
+  invalidateCache();
+  render();
+}
+
+// ====== CACHE ======
+function getStamp() {
+  return antennas.map(a => `${a.x},${a.y}`).join('|')
+    + `|n=${currentN}`
+    + `|s=${document.getElementById('sampleSize').value}`
+    + `|a=${document.getElementById('alphaSlider').value}`;
+}
+
+function invalidateCache() {
+  heatmapCache.stamp = null;
+}
+
+// ====== RENDER ======
+function render() {
+  document.getElementById('alphaVal').textContent = document.getElementById('alphaSlider').value;
+  document.getElementById('blurVal').textContent = document.getElementById('blurSlider').value;
+  renderBackground();
+  if (mode === 'heatmap') {
+    renderHeatmap();
+  } else {
+    renderCircles();
+  }
+  renderOverlay();
+  buildAntennaList();
+  renderPhysicsBox();
+  renderSignalCurve();
+  updateLegendMarker();
+}
+
+function renderBackground() {
+  bgCtx.clearRect(0, 0, W, H);
+  bgCtx.strokeStyle = '#1e293b';
+  bgCtx.lineWidth = 0.5;
+  const step = 50;
+  for (let x = 0; x < W; x += step) { bgCtx.beginPath(); bgCtx.moveTo(x, 0); bgCtx.lineTo(x, H); bgCtx.stroke(); }
+  for (let y = 0; y < H; y += step) { bgCtx.beginPath(); bgCtx.moveTo(0, y); bgCtx.lineTo(W, y); bgCtx.stroke(); }
+  bgCtx.strokeStyle = '#475569';
+  bgCtx.lineWidth = 2;
+  bgCtx.strokeRect(60, 60, W - 120, H - 120);
+  bgCtx.lineWidth = 1.5;
+  bgCtx.strokeStyle = '#334155';
+  const walls = [
+    [60, H/2, W/3, H/2], [W/3, 60, W/3, H/2],
+    [W*2/3, H/2, W*2/3, H-60], [W/2, 60, W/2, H/3],
+    [60, H*2/3, W/3, H*2/3], [W*2/3, 60, W*2/3, H/3],
+  ];
+  walls.forEach(([x1,y1,x2,y2]) => { bgCtx.beginPath(); bgCtx.moveTo(x1,y1); bgCtx.lineTo(x2,y2); bgCtx.stroke(); });
+  bgCtx.font = '11px system-ui';
+  bgCtx.fillStyle = '#334155';
+  bgCtx.fillText('会议室 A', 100, 150);
+  bgCtx.fillText('办公区', W/3 + 30, 150);
+  bgCtx.fillText('服务器机房', W*2/3 + 20, 150);
+  bgCtx.fillText('休息室', 100, H/2 + 40);
+  bgCtx.fillText('开放办公', W/3 + 30, H/2 + 40);
+  bgCtx.fillText('走廊', W*2/3 + 20, H/2 + 40);
+}
+
+function renderHeatmap() {
+  heatCtx.clearRect(0, 0, W, H);
+  const stamp = getStamp();
+  const ss = parseInt(document.getElementById('sampleSize').value);
+  const maxAlpha = parseInt(document.getElementById('alphaSlider').value);
+  const blur = parseInt(document.getElementById('blurSlider').value);
+
+  if (heatmapCache.stamp === stamp && heatmapCache.imageData) {
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = heatmapCache.imageData.width;
+    tmpCanvas.height = heatmapCache.imageData.height;
+    tmpCanvas.getContext('2d').putImageData(heatmapCache.imageData, 0, 0);
+    heatCtx.filter = blur > 0 ? `blur(${blur}px)` : 'none';
+    heatCtx.drawImage(tmpCanvas, 0, 0, W, H);
+    heatCtx.filter = 'none';
+    return;
+  }
+
+  const sw = Math.ceil(W / ss);
+  const sh = Math.ceil(H / ss);
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = sw;
+  tmpCanvas.height = sh;
+  const tmpCtx = tmpCanvas.getContext('2d');
+  const imageData = tmpCtx.createImageData(sw, sh);
+  const data = imageData.data;
+  const t0 = performance.now();
+
+  for (let sy = 0; sy < sh; sy++) {
+    for (let sx = 0; sx < sw; sx++) {
+      const px = (sx + 0.5) * ss;
+      const py = (sy + 0.5) * ss;
+      let maxSignal = 0;
+      for (const ant of antennas) {
+        const dx = (px - ant.x) / PPM;
+        const dy = (py - ant.y) / PPM;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const s = signalStrength(dist);
+        if (s > maxSignal) maxSignal = s;
+      }
+      const idx = (sy * sw + sx) * 4;
+      if (maxSignal > 0.01) {
+        const c = signalToColor(maxSignal);
+        data[idx]     = c.r;
+        data[idx + 1] = c.g;
+        data[idx + 2] = c.b;
+        data[idx + 3] = Math.round(maxSignal * maxAlpha);
+      }
+    }
+  }
+
+  const elapsed = (performance.now() - t0).toFixed(1);
+  tmpCtx.putImageData(imageData, 0, 0);
+  heatmapCache = { stamp, imageData };
+
+  heatCtx.filter = blur > 0 ? `blur(${blur}px)` : 'none';
+  heatCtx.drawImage(tmpCanvas, 0, 0, W, H);
+  heatCtx.filter = 'none';
+
+  document.getElementById('infoPanel').textContent =
+    `热力图 ${sw}x${sh} | ${antennas.length} 天线 | n=${currentN} | ${elapsed}ms`;
+}
+
+function renderCircles() {
+  heatCtx.clearRect(0, 0, W, H);
+  for (const ant of antennas) {
+    for (let i = 2; i >= 0; i--) {
+      const r = ant.radii[i] * PPM;
+      if (r <= 0) continue;
+      const ring = CIRCLE_RINGS[i];
+      heatCtx.beginPath();
+      heatCtx.arc(ant.x, ant.y, r, 0, Math.PI * 2);
+      heatCtx.fillStyle = ring.color;
+      heatCtx.globalAlpha = ring.fillOpacity;
+      heatCtx.fill();
+      heatCtx.globalAlpha = ring.strokeOpacity;
+      heatCtx.strokeStyle = ring.color;
+      heatCtx.lineWidth = ring.strokeWidth;
+      heatCtx.stroke();
+      heatCtx.globalAlpha = 1;
+      heatCtx.font = '10px system-ui';
+      heatCtx.fillStyle = ring.color;
+      heatCtx.globalAlpha = ring.strokeOpacity;
+      heatCtx.fillText(`${ant.radii[i]}m`, ant.x + r + 4, ant.y + 4);
+      heatCtx.globalAlpha = 1;
+    }
+  }
+  document.getElementById('infoPanel').textContent = `圆圈模式 | ${antennas.length} 天线`;
+}
+
+function renderOverlay() {
+  olCtx.clearRect(0, 0, W, H);
+
+  // 热力图模式下画 -85dBm 设计半径圈（虚线）
+  if (mode === 'heatmap') {
+    const designR = distAtDbm(DESIGN_DBM) * PPM;
+    olCtx.setLineDash([6, 4]);
+    olCtx.strokeStyle = 'rgba(239,68,68,0.35)';
+    olCtx.lineWidth = 1;
+    for (const ant of antennas) {
+      olCtx.beginPath();
+      olCtx.arc(ant.x, ant.y, designR, 0, Math.PI * 2);
+      olCtx.stroke();
+    }
+    olCtx.setLineDash([]);
+  }
+
+  // 天线图标
+  for (const ant of antennas) {
+    olCtx.beginPath();
+    olCtx.arc(ant.x, ant.y, 16, 0, Math.PI * 2);
+    olCtx.fillStyle = ant.color + '30';
+    olCtx.fill();
+    olCtx.beginPath();
+    olCtx.arc(ant.x, ant.y, 10, 0, Math.PI * 2);
+    olCtx.fillStyle = '#0f172a';
+    olCtx.strokeStyle = ant.color;
+    olCtx.lineWidth = 2;
+    olCtx.fill();
+    olCtx.stroke();
+    olCtx.strokeStyle = ant.color;
+    olCtx.lineWidth = 1.5;
+    for (let k = 1; k <= 2; k++) {
+      olCtx.beginPath();
+      olCtx.arc(ant.x, ant.y, 3 + k * 3, -Math.PI * 0.6, -Math.PI * 0.1);
+      olCtx.stroke();
+    }
+    olCtx.beginPath();
+    olCtx.arc(ant.x, ant.y, 2, 0, Math.PI * 2);
+    olCtx.fillStyle = ant.color;
+    olCtx.fill();
+    olCtx.font = '10px system-ui';
+    olCtx.fillStyle = '#e2e8f0';
+    olCtx.textAlign = 'center';
+    olCtx.fillText(ant.name, ant.x, ant.y + 26);
+    olCtx.textAlign = 'left';
+  }
+}
+
+// ====== PHYSICS INFO BOX ======
+function renderPhysicsBox() {
+  const d85 = distAtDbm(DESIGN_DBM);
+  const d110 = distAtDbm(NOISE_FLOOR);
+  const s85 = dBmToStrength(DESIGN_DBM);
+  const c85 = signalToColor(s85);
+
+  // 上行分析
+  const plAt85 = TX_DBM - DESIGN_DBM; // 下行 -85dBm 时路径损耗 = 95 dB
+  const ulAtDesign = MOBILE_TX - plAt85; // 上行到达直放站的电平
+  const ulMarginDesign = ulAtDesign - REPEATER_MIN;
+  // 下行极限处
+  const plAtEdge = DL_BUDGET; // = 120 dB
+  const ulAtEdge = MOBILE_TX - plAtEdge;
+  const ulMarginEdge = ulAtEdge - REPEATER_MIN;
+  // 上行失效距离（直放站收到 -90dBm）
+  const ulMaxDist = distAtDbmCustom(MOBILE_TX, REPEATER_MIN);
+
+  document.getElementById('physicsBox').innerHTML = `
+    <div style="font-size:10px;font-weight:600;color:#94a3b8;margin-bottom:3px;">下行 (天线→对讲机)</div>
+    <div><span class="lbl">天线:</span> <span class="val">+${TX_DBM}dBm</span> · <span class="lbl">${FREQ_MHZ}MHz · n=${currentN.toFixed(1)}</span></div>
+    <div><span class="lbl">链路预算:</span> <span class="val">${DL_BUDGET}dB</span> <span class="lbl">(+${TX_DBM} → ${MOBILE_SENS}dBm)</span></div>
+    <div style="margin-top:3px;border-top:1px solid #1e293b;padding-top:3px;">
+      <div style="font-size:10px;font-weight:600;color:#94a3b8;margin-bottom:3px;">上行 (对讲机→直放站)</div>
+      <div><span class="lbl">对讲机:</span> <span class="val">+${MOBILE_TX}dBm (2W)</span></div>
+      <div><span class="lbl">直放站门槛:</span> <span class="val">${REPEATER_MIN}dBm</span> <span class="lbl">(NF致SNR≥17dB)</span></div>
+      <div><span class="lbl">链路预算:</span> <span class="val">${UL_BUDGET}dB</span> <span class="lbl">(+${MOBILE_TX} → ${REPEATER_MIN}dBm)</span></div>
+    </div>
+    <div style="margin-top:3px;border-top:1px solid #1e293b;padding-top:3px;">
+      <div style="font-size:10px;font-weight:600;color:#94a3b8;margin-bottom:3px;">双向覆盖分析</div>
+      <div><span class="design">-85dBm 设计半径:</span> <span class="val">${d85.toFixed(1)}m</span>
+        <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgb(${c85.r},${c85.g},${c85.b});vertical-align:middle;margin-left:4px;"></span>
+      </div>
+      <div><span class="lbl" style="padding-left:8px;">↑ 上行余量:</span> <span class="val" style="color:#22c55e;">+${ulMarginDesign}dB (${ulAtDesign}dBm@直放站)</span></div>
+      <div style="margin-top:2px;"><span class="sens">下行极限:</span> <span class="val">${d110.toFixed(1)}m</span> <span class="lbl">(${MOBILE_SENS}dBm)</span></div>
+      <div><span class="lbl" style="padding-left:8px;">↑ 上行余量:</span> <span class="val" style="color:${ulMarginEdge <= 3 ? '#ef4444' : ulMarginEdge <= 10 ? '#eab308' : '#22c55e'};">${ulMarginEdge > 0 ? '+' : ''}${ulMarginEdge}dB (${ulAtEdge}dBm@直放站)</span></div>
+      <div style="margin-top:2px;"><span class="lbl" style="color:#f59e0b;">上行极限:</span> <span class="val">${ulMaxDist.toFixed(1)}m</span> <span class="lbl">(直放站收到${REPEATER_MIN}dBm)</span></div>
+      <div style="margin-top:3px;padding-top:3px;border-top:1px solid #1e293b;">
+        <span class="lbl">瓶颈:</span> <span class="val" style="color:${DL_BUDGET <= UL_BUDGET ? '#ef4444' : '#f59e0b'};">${DL_BUDGET <= UL_BUDGET ? '下行' : '上行'} (差${Math.abs(DL_BUDGET - UL_BUDGET)}dB)</span>
+      </div>
+    </div>
+  `;
+}
+
+// ====== LEGEND -85dBm MARKER ======
+function updateLegendMarker() {
+  const s85 = dBmToStrength(DESIGN_DBM);
+  const pct = s85 * 100;
+  const tick = document.getElementById('legendDesignTick');
+  if (tick) tick.style.left = pct + '%';
+}
+
+// ====== SIGNAL CURVE (dBm) ======
+function renderSignalCurve() {
+  const cv = document.getElementById('curveCanvas');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const cw = cv.width, ch = cv.height;
+  ctx.clearRect(0, 0, cw, ch);
+
+  // 计算显示范围
+  const maxDist = Math.min(distAtDbm(NOISE_FLOOR) * 1.1, 2000);
+  const d85 = distAtDbm(DESIGN_DBM);
+
+  const dbmTop = 0;
+  const dbmBot = -120;
+  const dbmRange = dbmTop - dbmBot;
+
+  const pad = { l: 48, r: 14, t: 14, b: 26 };
+  const gw = cw - pad.l - pad.r;
+  const gh = ch - pad.t - pad.b;
+
+  function dbmY(dBm) { return pad.t + gh * (1 - (dBm - dbmBot) / dbmRange); }
+  function distX(d) { return pad.l + (d / maxDist) * gw; }
+
+  // 色带背景
+  const steps = 400;
+  for (let i = 0; i < steps; i++) {
+    const d = Math.max(0.5, (i / steps) * maxDist);
+    const dBm = signalDbm(d);
+    const s = dBmToStrength(dBm);
+    const c = signalToColor(s);
+    const x = pad.l + (i / steps) * gw;
+    ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.12)`;
+    ctx.fillRect(x, pad.t, gw / steps + 1, gh);
+  }
+
+  // Y 轴 dBm 刻度
+  ctx.font = '11px system-ui';
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'right';
+  for (let dBm = -120; dBm <= 0; dBm += 20) {
+    const y = dbmY(dBm);
+    ctx.fillText(`${dBm}`, pad.l - 5, y + 4);
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + gw, y); ctx.stroke();
+  }
+
+  // -85 dBm 设计线（红色虚线）
+  ctx.setLineDash([6, 4]);
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 1.5;
+  const y85 = dbmY(DESIGN_DBM);
+  ctx.beginPath(); ctx.moveTo(pad.l, y85); ctx.lineTo(pad.l + gw, y85); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = '11px system-ui';
+  ctx.fillStyle = '#ef4444';
+  ctx.textAlign = 'left';
+  ctx.fillText('-85dBm 设计标准', pad.l + 4, y85 - 5);
+
+  // -110 dBm 灵敏度线
+  ctx.setLineDash([3, 3]);
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1;
+  const y110 = dbmY(NOISE_FLOOR);
+  ctx.beginPath(); ctx.moveTo(pad.l, y110); ctx.lineTo(pad.l + gw, y110); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.font = '10px system-ui';
+  ctx.fillStyle = '#475569';
+  ctx.fillText('-110dBm 灵敏度', pad.l + 4, y110 - 4);
+
+  // dBm 衰减曲线（颜色跟随信号强度）
+  ctx.lineWidth = 3;
+  for (let i = 0; i < steps; i++) {
+    const d1 = Math.max(0.5, (i / steps) * maxDist);
+    const d2 = Math.max(0.5, ((i + 1) / steps) * maxDist);
+    const dBm1 = signalDbm(d1);
+    const dBm2 = signalDbm(d2);
+    if (dBm1 < dbmBot - 5) break;
+    const s = dBmToStrength((dBm1 + dBm2) / 2);
+    const c = signalToColor(s);
+    ctx.strokeStyle = `rgb(${c.r},${c.g},${c.b})`;
+    ctx.beginPath();
+    ctx.moveTo(distX(d1), dbmY(dBm1));
+    ctx.lineTo(distX(d2), dbmY(dBm2));
+    ctx.stroke();
+  }
+
+  // -85dBm 交叉点标注
+  if (d85 < maxDist) {
+    const xD = distX(d85);
+    const yD = dbmY(DESIGN_DBM);
+    // 竖线
+    ctx.setLineDash([2, 2]);
+    ctx.strokeStyle = '#ef444460';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(xD, pad.t); ctx.lineTo(xD, pad.t + gh); ctx.stroke();
+    ctx.setLineDash([]);
+    // 圆点
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(xD, yD, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.arc(xD, yD, 3, 0, Math.PI * 2); ctx.fill();
+    // 标注距离
+    ctx.font = '11px system-ui';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${d85.toFixed(0)}m`, xD, pad.t + gh + 16);
+  }
+
+  // X 轴距离标注
+  ctx.font = '10px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#64748b';
+  // 自动生成合理刻度
+  const xTickStep = maxDist < 100 ? 10 : maxDist < 300 ? 25 : maxDist < 600 ? 50 : maxDist < 1500 ? 100 : 200;
+  for (let d = xTickStep; d < maxDist; d += xTickStep) {
+    if (Math.abs(d - d85) < xTickStep * 0.3) continue; // 避免和 -85dBm 标注重叠
+    const x = distX(d);
+    ctx.fillText(`${d}m`, x, pad.t + gh + 16);
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 0.3;
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t + gh); ctx.stroke();
+  }
+  // 1m 标注
+  ctx.fillText('1m', distX(1), pad.t + gh + 16);
+
+  // 右下角参数
+  ctx.font = '10px system-ui';
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'right';
+  ctx.fillText(`Tx=+${TX_DBM}dBm  ${FREQ_MHZ}MHz  n=${currentN.toFixed(1)}`, pad.l + gw, pad.t + gh + 16);
+}
+
+// ====== INTERACTION ======
+overlayCanvas.addEventListener('mousedown', e => {
+  const rect = overlayCanvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  for (let i = antennas.length - 1; i >= 0; i--) {
+    const a = antennas[i];
+    if (Math.hypot(mx - a.x, my - a.y) < 20) {
+      dragging = a;
+      dragOffset.x = mx - a.x;
+      dragOffset.y = my - a.y;
+      return;
+    }
+  }
+});
+
+overlayCanvas.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const rect = overlayCanvas.getBoundingClientRect();
+  dragging.x = e.clientX - rect.left - dragOffset.x;
+  dragging.y = e.clientY - rect.top - dragOffset.y;
+  invalidateCache();
+  render();
+});
+
+overlayCanvas.addEventListener('mouseup', () => { dragging = null; });
+overlayCanvas.addEventListener('mouseleave', () => { dragging = null; });
+
+// ====== MODE ======
+function setMode(m) {
+  mode = m;
+  document.getElementById('btnHeatmap').classList.toggle('active', m === 'heatmap');
+  document.getElementById('btnCircles').classList.toggle('active', m === 'circles');
+  render();
+}
+
+// ====== SIDEBAR ======
+function buildAntennaList() {
+  const isHeatmap = mode === 'heatmap';
+  const list = document.getElementById('antennaList');
+  list.innerHTML = antennas.map(a => `
+    <div class="antenna-item">
+      <div class="name" style="color:${a.color}">${a.name}
+        <span style="float:right;cursor:pointer;color:#64748b;font-size:10px;" onclick="removeAntenna(${a.id})">删除</span>
+      </div>
+      <div class="${isHeatmap ? 'dim' : ''}">
+        <div class="row"><span>内圈</span><input type="number" value="${a.radii[0]}" min="0" step="5" onchange="updateRadius(${a.id},0,this.value)">m</div>
+        <div class="row"><span>中圈</span><input type="number" value="${a.radii[1]}" min="0" step="5" onchange="updateRadius(${a.id},1,this.value)">m</div>
+        <div class="row"><span>外圈</span><input type="number" value="${a.radii[2]}" min="0" step="10" onchange="updateRadius(${a.id},2,this.value)">m</div>
+      </div>
+      ${isHeatmap ? '<div style="font-size:9px;color:#475569;margin-top:2px;">热力图由物理模型驱动，不依赖圈半径</div>' : ''}
+    </div>
+  `).join('');
+}
+
+function updateRadius(id, idx, val) {
+  const a = antennas.find(x => x.id === id);
+  if (a) { a.radii[idx] = Math.max(0, parseFloat(val) || 0); invalidateCache(); render(); }
+}
+
+function addAntenna() {
+  const colors = ['#f59e0b','#3b82f6','#8b5cf6','#ec4899','#06b6d4','#ef4444','#10b981'];
+  antennas.push({
+    id: nextId,
+    x: 100 + Math.random() * (W - 200),
+    y: 100 + Math.random() * (H - 200),
+    radii: [15, 30, 100],
+    name: `天线 ${nextId}`,
+    color: colors[nextId % colors.length],
+  });
+  nextId++;
+  invalidateCache();
+  render();
+}
+
+function removeAntenna(id) {
+  antennas = antennas.filter(a => a.id !== id);
+  invalidateCache();
+  render();
+}
+
+function resetAntennas() {
+  antennas = [
+    { id: 1, x: 300, y: 250, radii: [15, 30, 100], name: '天线 1', color: '#f59e0b' },
+    { id: 2, x: 600, y: 350, radii: [15, 30, 100], name: '天线 2', color: '#3b82f6' },
+    { id: 3, x: 450, y: 500, radii: [15, 30, 80],  name: '天线 3', color: '#8b5cf6' },
+    { id: 4, x: 150, y: 450, radii: [15, 30, 100], name: '天线 4', color: '#ec4899' },
+    { id: 5, x: 750, y: 200, radii: [15, 30, 100], name: '天线 5', color: '#06b6d4' },
+  ];
+  nextId = 6;
+  invalidateCache();
+  render();
+}
+
+// ====== INIT ======
+resize();
+</script>
+</body>
+</html>

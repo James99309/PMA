@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资源池搜索 - 前端效果原型 v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { primary: '#3b82f6', 'primary-dark': '#2563eb' } } }
+        }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .page-section { border: 2px dashed #3b82f6; border-radius: 12px; padding: 16px; margin-bottom: 32px; position: relative; }
+        .page-label { position: absolute; top: -12px; left: 16px; background: #1e293b; padding: 0 8px; color: #3b82f6; font-weight: 700; font-size: 14px; }
+        .change-note { position: absolute; top: -12px; right: 16px; background: #1e293b; padding: 0 8px; color: #f59e0b; font-weight: 600; font-size: 12px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 p-6">
+
+<div class="max-w-6xl mx-auto">
+    <h1 class="text-2xl font-bold text-white mb-2">资源池搜索 — 前端效果原型 v2</h1>
+    <p class="text-slate-400 text-sm mb-2">根据反馈调整：1. 发送请求后锁变为「请求中」图标 &nbsp; 2. 审批通知放在「待办」Tab</p>
+    <p class="text-amber-400 text-xs mb-8">* 黄色标注 = v2 调整点</p>
+
+    <!-- ==================== 页面1: 客户列表 ==================== -->
+    <div class="page-section">
+        <span class="page-label">页面1: 客户列表（搜索"科技"后的结果）</span>
+        <span class="change-note">v2: 请求中状态变化</span>
+
+        <div class="bg-slate-900 rounded-lg p-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="text-slate-400 text-sm">客户管理</span>
+                <div class="flex-1"></div>
+                <div class="flex items-center bg-slate-800 rounded-lg w-80">
+                    <div class="pl-3 text-slate-400">
+                        <span class="material-symbols-outlined text-lg">search</span>
+                    </div>
+                    <input type="text" value="科技" class="bg-transparent px-3 py-2 text-sm text-white outline-none flex-1" placeholder="搜索客户...">
+                    <button class="pr-3 text-slate-400 hover:text-white">
+                        <span class="material-symbols-outlined text-lg">close</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-3 flex items-center gap-2 px-2">
+            <span class="material-symbols-outlined text-amber-400 text-sm" style="font-size:16px">info</span>
+            <span class="text-xs text-slate-400">搜索结果包含全部客户。带 <span class="material-symbols-outlined text-xs align-middle" style="font-size:14px">lock</span> 标记的为受限客户，可点击请求访问权限。</span>
+        </div>
+
+        <div class="bg-slate-900 rounded-lg overflow-hidden">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-800 text-slate-400">
+                        <th class="text-left p-3 font-medium">归属人</th>
+                        <th class="text-left p-3 font-medium">公司名称</th>
+                        <th class="text-left p-3 font-medium">类型</th>
+                        <th class="text-left p-3 font-medium">行业</th>
+                        <th class="text-left p-3 font-medium">来源</th>
+                        <th class="text-left p-3 font-medium">更新时间</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- 正常行 -->
+                    <tr class="border-b border-slate-800/50 hover:bg-slate-800/50 cursor-pointer transition-colors">
+                        <td class="p-3"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs font-medium">我</span></td>
+                        <td class="p-3"><a href="#" class="text-blue-400 hover:text-blue-300 font-medium">上海锐科技术有限公司</a></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-400">系统集成商</span></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-slate-300">智能建筑</span></td>
+                        <td class="p-3 text-slate-400">展会</td>
+                        <td class="p-3 text-slate-500">2026-02-18</td>
+                    </tr>
+
+                    <!-- 正常行 -->
+                    <tr class="border-b border-slate-800/50 hover:bg-slate-800/50 cursor-pointer transition-colors">
+                        <td class="p-3"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs font-medium">我</span></td>
+                        <td class="p-3"><a href="#" class="text-blue-400 hover:text-blue-300 font-medium">北京智光科技发展公司</a></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-purple-500/20 text-purple-400">经销商</span></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-slate-300">数据中心</span></td>
+                        <td class="p-3 text-slate-400">推荐</td>
+                        <td class="p-3 text-slate-500">2026-02-15</td>
+                    </tr>
+
+                    <!-- ★ 受限行（无权限，可点击） -->
+                    <tr class="border-b border-slate-800/50 hover:bg-amber-900/10 cursor-pointer transition-colors opacity-70" onclick="document.getElementById('requestModal').classList.remove('hidden')">
+                        <td class="p-3"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-700 text-slate-400 text-xs font-medium">张</span></td>
+                        <td class="p-3">
+                            <span class="text-slate-400 font-medium">深**科技**公司</span>
+                            <span class="material-symbols-outlined text-amber-400 ml-1 align-middle" style="font-size:14px">lock</span>
+                        </td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-400">系统集成商</span></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-slate-300">智能照明</span></td>
+                        <td class="p-3 text-slate-500">-</td>
+                        <td class="p-3 text-slate-500">2026-02-10</td>
+                    </tr>
+
+                    <!-- 正常行 -->
+                    <tr class="border-b border-slate-800/50 hover:bg-slate-800/50 cursor-pointer transition-colors">
+                        <td class="p-3"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 text-xs font-medium">我</span></td>
+                        <td class="p-3"><a href="#" class="text-blue-400 hover:text-blue-300 font-medium">广州恒科技贸易有限公司</a></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-orange-500/20 text-orange-400">终端用户</span></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-slate-300">工业自动化</span></td>
+                        <td class="p-3 text-slate-400">官网</td>
+                        <td class="p-3 text-slate-500">2026-02-08</td>
+                    </tr>
+
+                    <!-- ★★ v2调整: 已发送请求 → 锁图标变为"请求中"图标 -->
+                    <tr class="border-b border-slate-800/50 transition-colors opacity-70 border-l-2 border-l-amber-500/50">
+                        <td class="p-3"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-700 text-slate-400 text-xs font-medium">王</span></td>
+                        <td class="p-3">
+                            <span class="text-slate-400 font-medium">杭**科技**限公司</span>
+                            <span class="material-symbols-outlined text-amber-400 ml-1 align-middle animate-pulse" style="font-size:14px">hourglass_top</span>
+                            <span class="ml-1.5 px-2 py-0.5 rounded-full text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30">请求中</span>
+                        </td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-purple-500/20 text-purple-400">经销商</span></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-slate-300">安防</span></td>
+                        <td class="p-3 text-slate-500">-</td>
+                        <td class="p-3 text-slate-500">2026-01-20</td>
+                    </tr>
+
+                    <!-- ★ 受限行 -->
+                    <tr class="border-b border-slate-800/50 hover:bg-amber-900/10 cursor-pointer transition-colors opacity-70" onclick="document.getElementById('requestModal').classList.remove('hidden')">
+                        <td class="p-3"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-700 text-slate-400 text-xs font-medium">李</span></td>
+                        <td class="p-3">
+                            <span class="text-slate-400 font-medium">成**科技**份公司</span>
+                            <span class="material-symbols-outlined text-amber-400 ml-1 align-middle" style="font-size:14px">lock</span>
+                        </td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-400">系统集成商</span></td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-slate-300">能源</span></td>
+                        <td class="p-3 text-slate-500">-</td>
+                        <td class="p-3 text-slate-500">2026-01-15</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- v2: 状态图标说明 -->
+        <div class="mt-3 px-2 flex items-center gap-6 text-xs text-slate-500">
+            <span>共 6 条结果</span>
+            <span class="flex items-center gap-1">
+                <span class="material-symbols-outlined" style="font-size:14px">lock</span>
+                受限（可点击请求）
+            </span>
+            <span class="flex items-center gap-1">
+                <span class="material-symbols-outlined text-amber-400" style="font-size:14px">hourglass_top</span>
+                <span class="text-amber-400">请求中（等待审批）</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- ==================== 页面2: 项目列表（简化展示） ==================== -->
+    <div class="page-section">
+        <span class="page-label">页面2: 项目列表（同样效果，略）</span>
+        <p class="text-sm text-slate-500 py-4 text-center">项目列表的受限行效果与客户列表完全一致：锁图标 / 请求中图标 / 名称遮挡</p>
+    </div>
+
+    <!-- ==================== 组件3: 请求访问模态框 ==================== -->
+    <div class="page-section">
+        <span class="page-label">组件3: 请求访问模态框（点击受限行弹出）</span>
+
+        <div class="flex justify-center">
+            <div class="bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-full max-w-md">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+                    <h3 class="text-lg font-semibold text-white">请求访问客户资源</h3>
+                    <button class="text-slate-400 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+                </div>
+                <div class="px-6 py-5 space-y-4">
+                    <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                        <div class="flex items-start gap-3">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/20 text-blue-400 flex-shrink-0">
+                                <span class="material-symbols-outlined">apartment</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-slate-300">深**科技**公司</p>
+                                <div class="flex flex-wrap gap-2 mt-1.5">
+                                    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-400">系统集成商</span>
+                                    <span class="px-2 py-0.5 rounded-full text-xs bg-slate-700 text-slate-400">智能照明</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-slate-700/50 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-slate-500" style="font-size:16px">person</span>
+                            <span class="text-sm text-slate-400">归属人:</span>
+                            <span class="text-sm text-white font-medium">张三</span>
+                            <span class="text-xs text-slate-500">(华东区销售)</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-300 mb-1.5">请求说明 <span class="text-slate-500 font-normal">(选填)</span></label>
+                        <textarea rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none focus:outline-none focus:border-blue-500" placeholder="说明您请求访问的原因，例如：我有该公司的新项目线索..."></textarea>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800">
+                    <button class="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">取消</button>
+                    <button class="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                        <span class="material-symbols-outlined text-sm align-middle mr-1" style="font-size:16px">send</span>
+                        发送请求
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 组件4: 消息面板 — 待办 Tab ==================== -->
+    <div class="page-section">
+        <span class="page-label">组件4: 消息面板 — 请求出现在「待办」Tab</span>
+        <span class="change-note">v2: 放在待办Tab，不是通知</span>
+
+        <div class="flex justify-center">
+            <div class="bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-full max-w-sm">
+                <!-- 面板头部 -->
+                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+                    <h2 class="text-base font-semibold text-white">消息通知</h2>
+                    <button class="text-slate-400"><span class="material-symbols-outlined text-lg">close</span></button>
+                </div>
+
+                <!-- ★★ v2: 三个 Tab — 与现有消息面板一致 -->
+                <div class="flex border-b border-slate-700">
+                    <button class="flex-1 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 flex items-center justify-center gap-1.5">
+                        @我
+                        <span class="min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full">2</span>
+                    </button>
+                    <button class="flex-1 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 flex items-center justify-center gap-1.5">
+                        待审批
+                        <span class="min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full">1</span>
+                    </button>
+                    <!-- ★ 当前激活: 待办 Tab -->
+                    <button class="flex-1 px-4 py-2.5 text-sm font-medium border-b-2 border-primary text-primary flex items-center justify-center gap-1.5">
+                        待办
+                        <span class="min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-orange-500 rounded-full">3</span>
+                    </button>
+                </div>
+
+                <!-- 待办列表 -->
+                <div class="divide-y divide-slate-800">
+                    <!-- ★★ 新增: 访问请求待办（客户） -->
+                    <div class="px-4 py-3 hover:bg-slate-800/50 cursor-pointer transition-colors" onclick="document.getElementById('approvalModal').classList.remove('hidden')">
+                        <div class="flex items-start gap-3">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-blue-600 dark:text-blue-400" style="font-size:20px">person_add</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-sm font-medium text-white truncate">李四 请求访问客户</span>
+                                    <span class="text-xs text-slate-400 flex-shrink-0">3分钟前</span>
+                                </div>
+                                <div class="text-xs text-slate-400 mt-1">「深圳某某科技有限公司」</div>
+                            </div>
+                            <span class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                        </div>
+                    </div>
+
+                    <!-- ★★ 新增: 访问请求待办（项目） -->
+                    <div class="px-4 py-3 hover:bg-slate-800/50 cursor-pointer transition-colors" onclick="document.getElementById('approvalModalProject').classList.remove('hidden')">
+                        <div class="flex items-start gap-3">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-purple-600 dark:text-purple-400" style="font-size:20px">person_add</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-sm font-medium text-white truncate">王五 请求访问项目</span>
+                                    <span class="text-xs text-slate-400 flex-shrink-0">15分钟前</span>
+                                </div>
+                                <div class="text-xs text-slate-400 mt-1">「智慧园区综合管理平台 - 深圳」</div>
+                            </div>
+                            <span class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                        </div>
+                    </div>
+
+                    <!-- 现有待办: 普通任务 -->
+                    <div class="px-4 py-3 hover:bg-slate-800/50 cursor-pointer transition-colors">
+                        <div class="flex items-start gap-3">
+                            <div class="flex-shrink-0 w-10 h-10 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-orange-600 dark:text-orange-400" style="font-size:20px">task_alt</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-2">
+                                    <div class="flex items-center gap-1.5 min-w-0">
+                                        <span class="w-2 h-2 rounded-full bg-orange-500 flex-shrink-0"></span>
+                                        <span class="text-sm font-medium text-white truncate">准备投标文件</span>
+                                    </div>
+                                    <span class="text-xs text-slate-400 flex-shrink-0">2小时前</span>
+                                </div>
+                                <div class="text-xs text-slate-400 mt-1">赵六 发起</div>
+                                <div class="text-xs text-orange-500 mt-0.5">
+                                    <span class="material-symbols-outlined text-xs align-middle">schedule</span>
+                                    截止: 明天 18:00
+                                </div>
+                            </div>
+                            <span class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 组件5: 审批模态框（客户） ==================== -->
+    <div class="page-section">
+        <span class="page-label">组件5: 审批模态框 — 客户访问（点击待办中的请求弹出）</span>
+
+        <div class="flex justify-center">
+            <div class="bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-full max-w-lg">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+                    <h3 class="text-lg font-semibold text-white">访问权限请求</h3>
+                    <button class="text-slate-400 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+                </div>
+
+                <div class="px-6 py-5 space-y-5">
+                    <!-- 请求者信息 -->
+                    <div class="bg-blue-500/5 rounded-lg p-4 border border-blue-500/20">
+                        <div class="flex items-center gap-3">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-500/20 text-blue-400">
+                                <span class="text-sm font-bold">李</span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-white">李四</p>
+                                <p class="text-xs text-slate-400">华北区销售 &middot; XX科技公司</p>
+                            </div>
+                            <div class="ml-auto text-xs text-slate-500">3 分钟前</div>
+                        </div>
+                        <div class="mt-3 pl-[52px]">
+                            <p class="text-sm text-slate-300 italic">"我有该公司的新项目线索，希望能获取联系方式进行跟进。"</p>
+                        </div>
+                    </div>
+
+                    <!-- 客户信息（审批人看到完整信息） -->
+                    <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="material-symbols-outlined text-slate-400" style="font-size:18px">apartment</span>
+                            <span class="text-sm font-medium text-white">请求访问的客户</span>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between"><span class="text-slate-400">公司名称</span><span class="text-white font-medium">深圳某某科技有限公司</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">类型</span><span class="text-emerald-400">系统集成商</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">行业</span><span class="text-slate-300">智能照明</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">联系人数</span><span class="text-slate-300">5 人</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">关联项目</span><span class="text-slate-300">3 个</span></div>
+                        </div>
+                    </div>
+
+                    <!-- 共享内容勾选 -->
+                    <div>
+                        <p class="text-sm font-medium text-white mb-3">选择共享内容:</p>
+                        <div class="space-y-3">
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" checked class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-0">
+                                <span class="material-symbols-outlined text-slate-400 group-hover:text-white transition-colors" style="font-size:20px">contacts</span>
+                                <div>
+                                    <span class="text-sm text-slate-200">联系人</span>
+                                    <span class="text-xs text-slate-500 ml-2">5 位联系人的姓名、电话、邮箱</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" checked class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-0">
+                                <span class="material-symbols-outlined text-slate-400 group-hover:text-white transition-colors" style="font-size:20px">folder_special</span>
+                                <div>
+                                    <span class="text-sm text-slate-200">关联项目</span>
+                                    <span class="text-xs text-slate-500 ml-2">3 个项目的基本信息</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-0">
+                                <span class="material-symbols-outlined text-slate-400 group-hover:text-white transition-colors" style="font-size:20px">history</span>
+                                <div>
+                                    <span class="text-sm text-slate-200">跟进记录</span>
+                                    <span class="text-xs text-slate-500 ml-2">行动记录、拜访记录等</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between px-6 py-4 border-t border-slate-800">
+                    <button class="px-4 py-2 text-sm font-medium text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors">
+                        <span class="material-symbols-outlined text-sm align-middle mr-1" style="font-size:16px">close</span>
+                        拒绝
+                    </button>
+                    <button class="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
+                        <span class="material-symbols-outlined text-sm align-middle mr-1" style="font-size:16px">check</span>
+                        确认共享
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 组件6: 审批模态框（项目） ==================== -->
+    <div class="page-section">
+        <span class="page-label">组件6: 审批模态框 — 项目访问</span>
+
+        <div class="flex justify-center">
+            <div class="bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-full max-w-lg">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+                    <h3 class="text-lg font-semibold text-white">访问权限请求</h3>
+                    <button class="text-slate-400 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+                </div>
+
+                <div class="px-6 py-5 space-y-5">
+                    <div class="bg-blue-500/5 rounded-lg p-4 border border-blue-500/20">
+                        <div class="flex items-center gap-3">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-500/20 text-blue-400">
+                                <span class="text-sm font-bold">王</span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-white">王五</p>
+                                <p class="text-xs text-slate-400">华南区销售</p>
+                            </div>
+                        </div>
+                        <p class="text-sm text-slate-300 italic mt-3 pl-[52px]">"我的客户是该项目的甲方，希望了解项目详情。"</p>
+                    </div>
+
+                    <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="material-symbols-outlined text-slate-400" style="font-size:18px">folder_special</span>
+                            <span class="text-sm font-medium text-white">请求访问的项目</span>
+                        </div>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between"><span class="text-slate-400">项目名称</span><span class="text-white font-medium">智慧园区综合管理平台 - 深圳</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">阶段</span><span class="text-emerald-400">投标中</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">关联客户</span><span class="text-slate-300">深圳某某科技有限公司</span></div>
+                            <div class="flex justify-between"><span class="text-slate-400">报价单</span><span class="text-slate-300">2 份</span></div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="text-sm font-medium text-white mb-3">选择共享内容:</p>
+                        <div class="space-y-3">
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" checked class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600">
+                                <span class="material-symbols-outlined text-slate-400 group-hover:text-white transition-colors" style="font-size:20px">description</span>
+                                <div><span class="text-sm text-slate-200">报价单</span><span class="text-xs text-slate-500 ml-2">2 份报价单</span></div>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600">
+                                <span class="material-symbols-outlined text-slate-400 group-hover:text-white transition-colors" style="font-size:20px">history</span>
+                                <div><span class="text-sm text-slate-200">跟进记录</span><span class="text-xs text-slate-500 ml-2">行动记录等</span></div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between px-6 py-4 border-t border-slate-800">
+                    <button class="px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg">拒绝</button>
+                    <button class="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg">确认共享</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 组件7: 请求者收到审批结果 ==================== -->
+    <div class="page-section">
+        <span class="page-label">组件7: 请求者收到审批结果（@我 Tab 中的通知）</span>
+
+        <div class="flex justify-center">
+            <div class="bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-full max-w-sm">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+                    <h2 class="text-base font-semibold text-white">消息通知</h2>
+                </div>
+                <!-- Tab: @我 激活 -->
+                <div class="flex border-b border-slate-700">
+                    <button class="flex-1 px-4 py-2.5 text-sm font-medium border-b-2 border-primary text-primary flex items-center justify-center gap-1.5">
+                        @我
+                        <span class="min-w-[18px] h-[18px] px-1 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full">2</span>
+                    </button>
+                    <button class="flex-1 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500">待审批</button>
+                    <button class="flex-1 px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500">待办</button>
+                </div>
+
+                <div class="divide-y divide-slate-800">
+                    <!-- 批准通知 -->
+                    <div class="px-4 py-3 bg-blue-50/5 cursor-pointer transition-colors">
+                        <div class="flex items-start gap-3">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-emerald-900/30 flex-shrink-0 mt-0.5">
+                                <span class="material-symbols-outlined text-emerald-400" style="font-size:20px">check_circle</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-sm font-medium text-white">访问请求已通过</span>
+                                    <span class="text-xs text-slate-400">5分钟前</span>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-1">张三 已共享客户「深圳某某科技有限公司」</p>
+                                <div class="flex flex-wrap gap-1.5 mt-1.5">
+                                    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-400">联系人</span>
+                                    <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-400">关联项目</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 拒绝通知 -->
+                    <div class="px-4 py-3 cursor-pointer transition-colors">
+                        <div class="flex items-start gap-3">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-red-900/30 flex-shrink-0 mt-0.5">
+                                <span class="material-symbols-outlined text-red-400" style="font-size:20px">cancel</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="text-sm font-medium text-white">访问请求被拒绝</span>
+                                    <span class="text-xs text-slate-400">30分钟前</span>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-1">赵六 拒绝了您对项目「智慧园区」的访问请求</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 交互流程说明 ==================== -->
+    <div class="mt-8 bg-slate-900 rounded-xl p-6 border border-slate-700">
+        <h2 class="text-lg font-bold text-white mb-4">交互流程总结</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <h3 class="text-sm font-semibold text-blue-400 mb-2">请求方流程</h3>
+                <ol class="space-y-2 text-sm text-slate-300">
+                    <li class="flex gap-2"><span class="text-blue-400 font-mono text-xs mt-0.5">1.</span>在客户/项目列表页搜索关键词</li>
+                    <li class="flex gap-2"><span class="text-blue-400 font-mono text-xs mt-0.5">2.</span>受限记录: 半透明 + <span class="material-symbols-outlined text-amber-400 align-middle" style="font-size:14px">lock</span> 锁图标 + 名称遮挡</li>
+                    <li class="flex gap-2"><span class="text-blue-400 font-mono text-xs mt-0.5">3.</span>点击受限行 → 弹出请求模态框</li>
+                    <li class="flex gap-2"><span class="text-blue-400 font-mono text-xs mt-0.5">4.</span>发送后: 锁变为 <span class="material-symbols-outlined text-amber-400 align-middle" style="font-size:14px">hourglass_top</span> + 「请求中」标签</li>
+                    <li class="flex gap-2"><span class="text-blue-400 font-mono text-xs mt-0.5">5.</span>结果通知出现在「@我」Tab</li>
+                    <li class="flex gap-2"><span class="text-blue-400 font-mono text-xs mt-0.5">6.</span>通过后: 该记录变为正常行，可点击进入</li>
+                </ol>
+            </div>
+            <div>
+                <h3 class="text-sm font-semibold text-emerald-400 mb-2">审批方流程</h3>
+                <ol class="space-y-2 text-sm text-slate-300">
+                    <li class="flex gap-2"><span class="text-emerald-400 font-mono text-xs mt-0.5">1.</span>请求出现在「待办」Tab</li>
+                    <li class="flex gap-2"><span class="text-emerald-400 font-mono text-xs mt-0.5">2.</span>点击 → 弹出审批模态框</li>
+                    <li class="flex gap-2"><span class="text-emerald-400 font-mono text-xs mt-0.5">3.</span>看到请求者信息 + 完整实体信息</li>
+                    <li class="flex gap-2"><span class="text-emerald-400 font-mono text-xs mt-0.5">4.</span>勾选共享内容: 联系人/项目/跟进/报价</li>
+                    <li class="flex gap-2"><span class="text-emerald-400 font-mono text-xs mt-0.5">5.</span>确认共享 或 拒绝</li>
+                    <li class="flex gap-2"><span class="text-emerald-400 font-mono text-xs mt-0.5">6.</span>系统自动添加共享权限 + 通知请求者</li>
+                </ol>
+            </div>
+        </div>
+        <div class="mt-6 pt-4 border-t border-slate-800">
+            <h3 class="text-sm font-semibold text-amber-400 mb-2">特殊情况</h3>
+            <ul class="space-y-1.5 text-sm text-slate-400">
+                <li>- 归属人账户未激活 → 请求自动转发给其厂商的商务经理</li>
+                <li>- 已有待处理的请求 → 显示 <span class="material-symbols-outlined text-amber-400 align-middle" style="font-size:14px">hourglass_top</span> 请求中，不可重复提交</li>
+                <li>- 报销单不参与共享（财务隐私保护规则）</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== 可交互模态框 ==================== -->
+
+<!-- 请求模态框 -->
+<div id="requestModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-full max-w-md mx-4">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+            <h3 class="text-lg font-semibold text-white">请求访问客户资源</h3>
+            <button onclick="document.getElementById('requestModal').classList.add('hidden')" class="text-slate-400 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="px-6 py-5 space-y-4">
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="flex items-start gap-3">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-500/20 text-blue-400 flex-shrink-0"><span class="material-symbols-outlined">apartment</span></div>
+                    <div><p class="text-sm font-medium text-slate-300">深**科技**公司</p><div class="flex gap-2 mt-1.5"><span class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-400">系统集成商</span></div></div>
+                </div>
+                <div class="mt-3 pt-3 border-t border-slate-700/50 flex items-center gap-2"><span class="material-symbols-outlined text-slate-500" style="font-size:16px">person</span><span class="text-sm text-slate-400">归属人:</span><span class="text-sm text-white font-medium">张三</span></div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-1.5">请求说明 <span class="text-slate-500 font-normal">(选填)</span></label>
+                <textarea rows="3" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 resize-none focus:outline-none focus:border-blue-500" placeholder="说明请求原因..."></textarea>
+            </div>
+        </div>
+        <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800">
+            <button onclick="document.getElementById('requestModal').classList.add('hidden')" class="px-4 py-2 text-sm text-slate-400">取消</button>
+            <button onclick="document.getElementById('requestModal').classList.add('hidden');alert('请求已发送！该行将显示为「请求中」状态')" class="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg"><span class="material-symbols-outlined text-sm align-middle mr-1" style="font-size:16px">send</span>发送请求</button>
+        </div>
+    </div>
+</div>
+
+<!-- 审批模态框（客户） -->
+<div id="approvalModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800 sticky top-0 bg-slate-900 z-10">
+            <h3 class="text-lg font-semibold text-white">访问权限请求</h3>
+            <button onclick="document.getElementById('approvalModal').classList.add('hidden')" class="text-slate-400 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="px-6 py-5 space-y-5">
+            <div class="bg-blue-500/5 rounded-lg p-4 border border-blue-500/20">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-500/20 text-blue-400"><span class="text-sm font-bold">李</span></div>
+                    <div><p class="text-sm font-medium text-white">李四</p><p class="text-xs text-slate-400">华北区销售</p></div>
+                </div>
+                <p class="text-sm text-slate-300 italic mt-3 pl-[52px]">"我有该公司的新项目线索..."</p>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between"><span class="text-slate-400">公司名称</span><span class="text-white font-medium">深圳某某科技有限公司</span></div>
+                    <div class="flex justify-between"><span class="text-slate-400">类型</span><span class="text-emerald-400">系统集成商</span></div>
+                    <div class="flex justify-between"><span class="text-slate-400">联系人</span><span class="text-slate-300">5 人</span></div>
+                    <div class="flex justify-between"><span class="text-slate-400">关联项目</span><span class="text-slate-300">3 个</span></div>
+                </div>
+            </div>
+            <div>
+                <p class="text-sm font-medium text-white mb-3">选择共享内容:</p>
+                <div class="space-y-3">
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600"><span class="material-symbols-outlined text-slate-400" style="font-size:20px">contacts</span><span class="text-sm text-slate-200">联系人</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600"><span class="material-symbols-outlined text-slate-400" style="font-size:20px">folder_special</span><span class="text-sm text-slate-200">关联项目</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600"><span class="material-symbols-outlined text-slate-400" style="font-size:20px">history</span><span class="text-sm text-slate-200">跟进记录</span></label>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center justify-between px-6 py-4 border-t border-slate-800 sticky bottom-0 bg-slate-900">
+            <button onclick="document.getElementById('approvalModal').classList.add('hidden');alert('已拒绝')" class="px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg">拒绝</button>
+            <button onclick="document.getElementById('approvalModal').classList.add('hidden');alert('已确认共享！请求者将获得勾选的访问权限')" class="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg">确认共享</button>
+        </div>
+    </div>
+</div>
+
+<!-- 审批模态框（项目） -->
+<div id="approvalModalProject" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50" onclick="if(event.target===this)this.classList.add('hidden')">
+    <div class="bg-slate-900 rounded-xl shadow-2xl border border-slate-700 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800 sticky top-0 bg-slate-900 z-10">
+            <h3 class="text-lg font-semibold text-white">访问权限请求</h3>
+            <button onclick="document.getElementById('approvalModalProject').classList.add('hidden')" class="text-slate-400 hover:text-white"><span class="material-symbols-outlined">close</span></button>
+        </div>
+        <div class="px-6 py-5 space-y-5">
+            <div class="bg-blue-500/5 rounded-lg p-4 border border-blue-500/20">
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center justify-center w-10 h-10 rounded-full bg-blue-500/20 text-blue-400"><span class="text-sm font-bold">王</span></div>
+                    <div><p class="text-sm font-medium text-white">王五</p><p class="text-xs text-slate-400">华南区销售</p></div>
+                </div>
+                <p class="text-sm text-slate-300 italic mt-3 pl-[52px]">"我的客户是该项目的甲方..."</p>
+            </div>
+            <div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">
+                <div class="space-y-2 text-sm">
+                    <div class="flex justify-between"><span class="text-slate-400">项目名称</span><span class="text-white font-medium">智慧园区综合管理平台 - 深圳</span></div>
+                    <div class="flex justify-between"><span class="text-slate-400">阶段</span><span class="text-emerald-400">投标中</span></div>
+                    <div class="flex justify-between"><span class="text-slate-400">报价单</span><span class="text-slate-300">2 份</span></div>
+                </div>
+            </div>
+            <div>
+                <p class="text-sm font-medium text-white mb-3">选择共享内容:</p>
+                <div class="space-y-3">
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" checked class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600"><span class="material-symbols-outlined text-slate-400" style="font-size:20px">description</span><span class="text-sm text-slate-200">报价单</span></label>
+                    <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" class="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600"><span class="material-symbols-outlined text-slate-400" style="font-size:20px">history</span><span class="text-sm text-slate-200">跟进记录</span></label>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center justify-between px-6 py-4 border-t border-slate-800 sticky bottom-0 bg-slate-900">
+            <button onclick="document.getElementById('approvalModalProject').classList.add('hidden');alert('已拒绝')" class="px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/10 rounded-lg">拒绝</button>
+            <button onclick="document.getElementById('approvalModalProject').classList.add('hidden');alert('已确认共享！')" class="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg">确认共享</button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

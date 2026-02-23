@@ -1105,6 +1105,97 @@ def forward_message(message_id, sender_id, target_conversation_ids, note=None):
 
 
 # ---------------------------------------------------------------------------
+# 14b. 分享文件管理器文件到对话
+# ---------------------------------------------------------------------------
+
+def share_files_to_conversations(sender_id, file_refs_with_libs, target_conversation_ids, note=None):
+    """
+    将文件管理器文件分享到一个或多个聊天对话。
+
+    Args:
+        sender_id: 发送者用户 ID
+        file_refs_with_libs: list of (UserFileRef, FileLibrary) 元组
+        target_conversation_ids: 目标对话 ID 列表
+        note: 可选的留言文本
+
+    Returns:
+        dict: {'success': True, 'data': {'shared_count': N, 'conversation_ids': [...]}}
+    """
+    try:
+        shared_ids = []
+
+        for conv_id in target_conversation_ids:
+            # 验证操作者是目标对话的参与者
+            participant = ChatParticipant.query.filter_by(
+                conversation_id=conv_id,
+                user_id=sender_id,
+            ).first()
+            if not participant:
+                continue
+
+            # 为每个文件创建一条消息
+            for ref, lib in file_refs_with_libs:
+                # 根据 mime_type 判断消息类型
+                mime = (lib.mime_type or '').lower()
+                if mime.startswith('image/'):
+                    msg_type = 'image'
+                elif mime.startswith('video/'):
+                    msg_type = 'video'
+                else:
+                    msg_type = 'file'
+
+                msg = ChatMessage(
+                    conversation_id=conv_id,
+                    sender_id=sender_id,
+                    content=None,
+                    message_type=msg_type,
+                    file_url=f'fm:{ref.id}',
+                    file_name=ref.display_name,
+                    file_size=lib.file_size,
+                    source_language=detect_language(ref.display_name),
+                )
+                db.session.add(msg)
+
+            # 如果有留言，追加一条文本消息
+            if note and note.strip():
+                note_msg = ChatMessage(
+                    conversation_id=conv_id,
+                    sender_id=sender_id,
+                    content=note.strip(),
+                    source_language=detect_language(note),
+                )
+                db.session.add(note_msg)
+
+            # 更新目标对话 updated_at 和发送者 last_read_at
+            conv = ChatConversation.query.get(conv_id)
+            if conv:
+                conv.updated_at = datetime.now(timezone.utc)
+            participant.last_read_at = datetime.now(timezone.utc)
+
+            shared_ids.append(conv_id)
+
+        db.session.commit()
+
+        logger.info(
+            f"用户 {sender_id} 分享 {len(file_refs_with_libs)} 个文件到 {len(shared_ids)} 个对话: {shared_ids}"
+        )
+
+        return {
+            'success': True,
+            'data': {
+                'shared_count': len(shared_ids),
+                'conversation_ids': shared_ids,
+            },
+            'message': f'成功分享到 {len(shared_ids)} 个对话',
+        }
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"分享文件到对话失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'分享文件失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
 # 15. 发送卡片消息
 # ---------------------------------------------------------------------------
 

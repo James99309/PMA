@@ -217,6 +217,10 @@ def resolve_access():
                     company.share_enabled = True
                     company.add_shared_user(req.requester_id)
 
+                    # 审批选项包含联系人共享时，确保 share_contacts 为 True
+                    if share_options.get('contacts'):
+                        company.share_contacts = True
+
                     # 如果勾选了项目共享，或勾选了报价单（报价单权限依赖项目共享）
                     if share_options.get('projects') or share_options.get('quotations'):
                         from app.models.project_customer_association import ProjectCustomerAssociation

@@ -8467,6 +8467,27 @@ msgstr "Uploading"
 msgid "个文件"
 msgstr "files"
 
+msgid "分享到聊天"
+msgstr "Share to Chat"
+
+msgid "分享"
+msgstr "Share"
+
+msgid "分享成功"
+msgstr "Shared successfully"
+
+msgid "分享失败"
+msgstr "Failed to share"
+
+msgid "分享文件"
+msgstr "Share files"
+
+msgid "分享中..."
+msgstr "Sharing..."
+
+msgid "发送失败"
+msgstr "Failed to send"
+
 msgid "搜索结果"
 msgstr "Search Results"
 

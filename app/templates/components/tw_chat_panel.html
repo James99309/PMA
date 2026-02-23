@@ -586,7 +586,7 @@
                                         <div class="text-xs mt-0.5 text-slate-400"
                                              x-text="formatFileSize(msg.file_size)"></div>
                                     </div>
-                                    <a :href="getFileAccessUrl(msg.file_url, msg.file_name)"
+                                    <a :href="getFileDownloadUrl(msg.file_url, msg.file_name)"
                                        :download="msg.file_name"
                                        class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500"
                                        @click.stop>
@@ -615,7 +615,7 @@
                                 </div>
                                 <div class="mt-1 flex items-center justify-between px-1">
                                     <span class="text-[10px] text-slate-400 truncate" x-text="msg.file_name"></span>
-                                    <a :href="getFileAccessUrl(msg.file_url, msg.file_name)"
+                                    <a :href="getFileDownloadUrl(msg.file_url, msg.file_name)"
                                        :download="msg.file_name"
                                        class="text-slate-400 hover:text-primary transition-colors flex-shrink-0"
                                        @click.stop>
@@ -849,7 +849,7 @@
                             <!-- 视频下载条 -->
                             <div class="mt-1 flex items-center justify-between px-1">
                                 <span class="text-[10px] text-slate-400 truncate" x-text="msg.file_name"></span>
-                                <a :href="getFileAccessUrl(msg.file_url)"
+                                <a :href="getFileDownloadUrl(msg.file_url, msg.file_name)"
                                    :download="msg.file_name"
                                    class="text-slate-400 hover:text-primary transition-colors flex-shrink-0"
                                    @click.stop>
@@ -1270,6 +1270,12 @@
                                     <span class="material-symbols-outlined text-lg text-amber-500">attach_file</span>
                                     <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('文件') }}</span>
                                 </button>
+                                <hr class="my-1 border-slate-100 dark:border-slate-800">
+                                <button @click="openFileBrowser(); showAttachMenu = false"
+                                        class="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer">
+                                    <span class="material-symbols-outlined text-lg text-indigo-500">folder_open</span>
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('文件夹') }}</span>
+                                </button>
                             </div>
                             <!-- 隐藏的 file input -->
                             <input type="file" x-ref="fileInput" class="hidden" @change="handleFilePick($event)">
@@ -1578,6 +1584,72 @@
                     class="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors">
                 <span class="material-symbols-outlined text-lg">close</span>
             </button>
+        </div>
+    </div>
+
+    <!-- 文件夹浏览器模态框 -->
+    <div x-show="showFileBrowser" x-transition.opacity
+         class="fixed inset-0 z-[60] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/30" @click="showFileBrowser = false"></div>
+        <div class="relative bg-white dark:bg-slate-900 rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden w-full h-full md:w-[480px] md:h-[520px]"
+             @click.stop>
+            <!-- 标题栏 -->
+            <div class="flex items-center justify-between px-4 pt-4 pb-2">
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('选择文件') }}</h3>
+                <button @click="showFileBrowser = false"
+                        class="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+            <!-- 面包屑导航 -->
+            <div class="flex items-center gap-1 px-4 pb-2 text-sm overflow-x-auto flex-shrink-0">
+                <button @click="browseTo(null)"
+                        class="text-primary hover:underline cursor-pointer whitespace-nowrap">{{ _('全部文件') }}</button>
+                <template x-for="(bc, idx) in fileBrowserBreadcrumbs" :key="'fbc_' + idx">
+                    <div class="flex items-center gap-1">
+                        <span class="text-slate-300">/</span>
+                        <button @click="browseTo(bc.id)"
+                                class="text-primary hover:underline cursor-pointer whitespace-nowrap truncate max-w-[120px]"
+                                x-text="bc.name"></button>
+                    </div>
+                </template>
+            </div>
+            <!-- 文件列表 -->
+            <div class="flex-1 overflow-y-auto px-2 pb-2">
+                <!-- 加载状态 -->
+                <div x-show="fileBrowserLoading" class="flex justify-center py-12">
+                    <span class="material-symbols-outlined text-slate-300 animate-spin text-2xl">progress_activity</span>
+                </div>
+                <!-- 空状态 -->
+                <div x-show="!fileBrowserLoading && fileBrowserFolders.length === 0 && fileBrowserFiles.length === 0"
+                     class="text-sm text-slate-400 py-12 text-center">
+                    <span class="material-symbols-outlined text-3xl text-slate-200 block mb-2">folder_off</span>
+                    {{ _('此文件夹为空') }}
+                </div>
+                <!-- 文件夹 -->
+                <template x-for="folder in fileBrowserFolders" :key="'fbf_' + folder.id">
+                    <button @click="browseTo(folder.id)"
+                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors text-left">
+                        <span class="material-symbols-outlined text-xl text-amber-400">folder</span>
+                        <span class="text-sm text-slate-700 dark:text-slate-300 truncate" x-text="folder.name"></span>
+                        <span class="material-symbols-outlined text-sm text-slate-300 ml-auto">chevron_right</span>
+                    </button>
+                </template>
+                <!-- 文件 -->
+                <template x-for="file in fileBrowserFiles" :key="'fbfi_' + file.id">
+                    <button @click="selectBrowsedFile(file)"
+                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors text-left group/fbfile">
+                        <span class="material-symbols-outlined text-xl"
+                              :class="file.mime_type?.startsWith('image/') ? 'text-green-500' : file.mime_type?.startsWith('video/') ? 'text-blue-500' : 'text-slate-400'"
+                              x-text="file.mime_type?.startsWith('image/') ? 'image' : file.mime_type?.startsWith('video/') ? 'videocam' : 'description'"></span>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm text-slate-700 dark:text-slate-300 truncate" x-text="file.display_name"></div>
+                            <div class="text-xs text-slate-400" x-text="formatFileSize(file.file_size)"></div>
+                        </div>
+                        <span class="material-symbols-outlined text-sm text-primary opacity-0 group-hover/fbfile:opacity-100 transition-opacity">send</span>
+                    </button>
+                </template>
+            </div>
         </div>
     </div>
 
@@ -1980,6 +2052,13 @@ function chatPanel() {
         forwardTab: 'conversations',  // 'conversations' | 'users'
         forwardUserResults: [],
         _forwardSearchDebounce: null,
+        // 文件夹浏览器
+        showFileBrowser: false,
+        fileBrowserFolderId: null,
+        fileBrowserFolders: [],
+        fileBrowserFiles: [],
+        fileBrowserBreadcrumbs: [],
+        fileBrowserLoading: false,
         // 实体选择器
         showEntitySelector: false,
         entityTab: 'customer',
@@ -3393,6 +3472,11 @@ function chatPanel() {
 
         getFileAccessUrl(fileUrl, fileName) {
             if (!fileUrl) return '';
+            // 文件管理器文件走 /files/api/ 路由
+            if (fileUrl.startsWith('fm:')) {
+                const fileId = fileUrl.substring(3);
+                return '/files/api/files/' + fileId + '/preview';
+            }
             // 本地存储的文件直接走 /storage/ 路由
             if (fileUrl.startsWith('chat_files/')) {
                 let url = '/storage/' + fileUrl;
@@ -3401,6 +3485,15 @@ function chatPanel() {
             }
             // NAS 存储的文件走代理路由
             return '/storage/nas/chat?path=' + encodeURIComponent(fileUrl);
+        },
+
+        getFileDownloadUrl(fileUrl, fileName) {
+            if (!fileUrl) return '';
+            if (fileUrl.startsWith('fm:')) {
+                const fileId = fileUrl.substring(3);
+                return '/files/api/files/' + fileId + '/download';
+            }
+            return this.getFileAccessUrl(fileUrl, fileName);
         },
 
         getFileIcon(fileName) {
@@ -3746,6 +3839,70 @@ function chatPanel() {
                 this.showToast(this._chatI18n.forwardFailed);
             } finally {
                 this.forwarding = false;
+            }
+        },
+
+        // ----- 文件夹浏览器 -----
+        openFileBrowser() {
+            this.showFileBrowser = true;
+            this.fileBrowserFolderId = null;
+            this.fileBrowserBreadcrumbs = [];
+            this.browseTo(null);
+        },
+
+        async browseTo(folderId) {
+            this.fileBrowserFolderId = folderId;
+            this.fileBrowserLoading = true;
+            this.fileBrowserFolders = [];
+            this.fileBrowserFiles = [];
+            try {
+                const url = folderId ? `/files/api/list?folder_id=${folderId}` : '/files/api/list';
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (data.success) {
+                    this.fileBrowserFolders = data.data.folders || [];
+                    this.fileBrowserFiles = data.data.files || [];
+                    this.fileBrowserBreadcrumbs = data.breadcrumbs || [];
+                }
+            } catch (e) {
+                console.error('Browse files failed:', e);
+            } finally {
+                this.fileBrowserLoading = false;
+            }
+        },
+
+        formatFileSize(bytes) {
+            if (!bytes) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+        },
+
+        async selectBrowsedFile(file) {
+            this.showFileBrowser = false;
+            if (!this.activeConv) return;
+            try {
+                const resp = await fetch('/chat/api/share-files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '',
+                    },
+                    body: JSON.stringify({
+                        file_ids: [file.id],
+                        conversation_ids: [this.activeConv.id],
+                    }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    // 刷新消息
+                    await this.loadMessages(this.activeConv.id);
+                } else {
+                    this.showToast(data.message || '{{ _("发送失败") }}');
+                }
+            } catch (e) {
+                console.error('Send file from browser failed:', e);
+                this.showToast('{{ _("发送失败") }}');
             }
         },
 

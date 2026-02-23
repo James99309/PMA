@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>自动布局算法预览 — 列对齐</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f172a;color:#e2e8f0;font-family:-apple-system,system-ui,sans-serif;padding:20px}
+h1{font-size:18px;margin-bottom:4px}
+.sub{color:#94a3b8;font-size:12px;margin-bottom:16px}
+canvas{background:#1e293b;border-radius:10px;border:1px solid #334155;display:block;margin-bottom:12px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;padding:8px 12px;background:#1e293b;border-radius:8px;border:1px solid #334155;font-size:11px;color:#94a3b8}
+.legend span{display:flex;align-items:center;gap:5px}
+.dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+</style>
+</head>
+<body>
+<h1>自动布局算法预览 — 全局列对齐 + 末端天线右对齐</h1>
+<p class="sub">规则：根节点col0对齐 → 第1个器件col1对齐 → 第2个器件col2对齐 → ... → 末端天线右对齐（线缆补偿长度）</p>
+<div class="legend">
+  <span><i class="dot" style="background:#3b82f6"></i>远端直放站</span>
+  <span><i class="dot" style="background:#8b5cf6"></i>耦合器</span>
+  <span><i class="dot" style="background:#ec4899"></i>分配器</span>
+  <span><i class="dot" style="background:#10b981"></i>天线</span>
+  <span><i class="dot" style="background:#f59e0b"></i>连线</span>
+  <span><i class="dot" style="background:#64748b;border:1.5px dashed #94a3b8"></i>跨楼层端口</span>
+  <span style="color:#ef4444;font-weight:600">← 对齐列（红色虚线）</span>
+  <span style="color:#22d3ee">← 拉长线缆区（青色高亮）</span>
+</div>
+<canvas id="c" width="1500" height="1100"></canvas>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const S=50,GAP_H=130,GAP_V=86,R=10;
+
+const C={root:'#3b82f6',coup:'#8b5cf6',split:'#ec4899',ant:'#10b981',
+  wire:'#f59e0b',port:'#64748b',leafBg:'rgba(34,211,238,0.04)',leafBd:'rgba(34,211,238,0.15)',
+  riser:'rgba(124,58,237,0.07)',riserB:'rgba(124,58,237,0.35)',
+  lbl:'#94a3b8',txt:'#e2e8f0',ann:'#22d3ee',bg:'#1e293b',dim:'#475569',align:'rgba(239,68,68,0.2)'};
+
+function rr(x,y,w,h,r,f,s,lw){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(f){ctx.fillStyle=f;ctx.fill()}if(s){ctx.strokeStyle=s;ctx.lineWidth=lw||2;ctx.stroke()}}
+function t(s,x,y,font,col,al){ctx.fillStyle=col||C.txt;ctx.font=font||'11px system-ui';ctx.textAlign=al||'center';ctx.fillText(s,x,y)}
+
+function drawNode(x,y,label,sub,color){
+  ctx.beginPath();ctx.arc(x+S/2,y+S/2,S/2+8,0,Math.PI*2);ctx.fillStyle=color;ctx.globalAlpha=.1;ctx.fill();ctx.globalAlpha=1;
+  rr(x,y,S,S,6,color+'35',color);
+  t(label,x+S/2,y+S/2+4,'bold 10px system-ui');
+  if(sub)t(sub,x+S/2,y+S+13,'9px system-ui',C.lbl);
+  return{x,y,cx:x+S/2,cy:y+S/2};
+}
+function drawPort(x,y,sub){
+  ctx.setLineDash([3,2]);rr(x+10,y+10,S-20,S-20,S/2-10,null,C.port,1.5);ctx.setLineDash([]);
+  ctx.beginPath();ctx.arc(x+S/2,y+S/2,3.5,0,Math.PI*2);ctx.fillStyle=C.port;ctx.fill();
+  if(sub)t(sub,x+S/2,y+S+13,'9px system-ui',C.lbl);
+  return{x,y,cx:x+S/2,cy:y+S/2};
+}
+function drawAnt(x,y,sub){
+  ctx.beginPath();ctx.arc(x+S/2,y+S/2,S/2-6,0,Math.PI*2);ctx.fillStyle=C.ant+'18';ctx.fill();ctx.strokeStyle=C.ant;ctx.lineWidth=1.5;ctx.stroke();
+  ctx.beginPath();ctx.arc(x+S/2,y+S/2-2,10,Math.PI*.15,Math.PI*.85);ctx.strokeStyle=C.ant;ctx.lineWidth=2;ctx.stroke();
+  ctx.beginPath();ctx.arc(x+S/2,y+S/2+2,2,0,Math.PI*2);ctx.fillStyle=C.ant;ctx.fill();
+  ctx.setLineDash([4,3]);ctx.strokeStyle='#64748b';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x+S/2-15,y-3);ctx.lineTo(x+S/2+15,y-3);ctx.stroke();ctx.setLineDash([]);
+  if(sub)t(sub,x+S/2,y+S+13,'9px system-ui',C.lbl);
+  return{x,y,cx:x+S/2,cy:y+S/2};
+}
+
+function pp(n,d){const pr=S/2+7;switch(d){case'top':return{x:n.cx,y:n.cy-pr};case'right':return{x:n.cx+pr,y:n.cy};case'bottom':return{x:n.cx,y:n.cy+pr};case'left':return{x:n.cx-pr,y:n.cy}}}
+
+function wireSt(a,b){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.strokeStyle=C.wire;ctx.lineWidth=2;ctx.stroke();[a,b].forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,2.5,0,Math.PI*2);ctx.fillStyle=C.wire;ctx.fill()});return{mx:(a.x+b.x)/2,my:(a.y+b.y)/2}}
+function wireL(sp,tp){
+  const co={x:sp.x,y:tp.y},dy=co.y-sp.y,dx=tp.x-co.x;
+  const cr=Math.min(R,Math.abs(dy)/2,Math.abs(dx)/2);
+  ctx.beginPath();ctx.moveTo(sp.x,sp.y);
+  if(dy!==0&&dx!==0){ctx.lineTo(sp.x,co.y-Math.sign(dy)*cr);ctx.quadraticCurveTo(co.x,co.y,co.x+Math.sign(dx)*cr,co.y)}
+  ctx.lineTo(tp.x,tp.y);ctx.strokeStyle=C.wire;ctx.lineWidth=2;ctx.stroke();
+  [sp,tp].forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,2.5,0,Math.PI*2);ctx.fillStyle=C.wire;ctx.fill()})
+}
+function cbl(x,y,s){ctx.font='8px system-ui';const tw=ctx.measureText(s).width+8;rr(x-tw/2,y-7,tw,14,3,C.bg);t(s,x,y+3,'8px system-ui',C.wire)}
+function leafHL(x,yMin,yMax){ctx.setLineDash([3,3]);rr(x-10,yMin-10,S+20,yMax-yMin+S+20,6,C.leafBg,C.leafBd,1);ctx.setLineDash([])}
+function riserBg(x,y){ctx.setLineDash([4,2]);rr(x-10,y-24,S+20,S+48,4,C.riser,C.riserB,1);ctx.setLineDash([])}
+
+// ===== DATA =====
+// Each floor: array of "slots". Each slot is either a chain node or a leaf column.
+// Slots are indexed by global column number for alignment.
+// Format: {type:'node'|'leaf', nodeType:'root'|'coupler'|'splitter'|'port', leafCount:N, label, sub}
+
+const floors=[
+  {id:'B1', slots:[
+    {type:'node',nodeType:'port',label:'端口',sub:'B1-跨楼层'},
+    {type:'node',nodeType:'coupler',label:'耦合器',sub:'B1'},
+    {type:'leaf',parent:1,count:1},    // coupler's 1 leaf
+    {type:'node',nodeType:'splitter',label:'分配器',sub:'B1'},
+    {type:'leaf',parent:3,count:2},    // splitter's 2 leaves
+  ]},
+  {id:'1F', slots:[
+    {type:'node',nodeType:'root',label:'远端直放',sub:'1F-弱电井'},
+    {type:'node',nodeType:'coupler',label:'耦合器',sub:'1F'},
+    {type:'leaf',parent:1,count:1},
+    {type:'node',nodeType:'coupler',label:'耦合器',sub:'1F'},
+    {type:'leaf',parent:3,count:1},
+    {type:'node',nodeType:'splitter',label:'分配器',sub:'1F'},
+    {type:'leaf',parent:5,count:2},
+    {type:'node',nodeType:'splitter',label:'分配器',sub:'1F'},
+    {type:'leaf',parent:7,count:3},    // 末端: 3 leaves
+  ]},
+  {id:'2F', slots:[
+    {type:'node',nodeType:'root',label:'远端直放',sub:'2F-弱电井'},
+    {type:'node',nodeType:'coupler',label:'耦合器',sub:'2F'},
+    // no leaf for coupler (passes through)
+    // skip col 2 (no device here, cable stretches)
+    // skip col 3
+    // skip col 4
+    // skip col 5
+    // skip col 6
+    // skip col 7
+    {type:'leaf',parent:1,count:2,atCol:8},  // aligned with 1F's last leaf col
+  ]},
+  {id:'3F', slots:[
+    {type:'node',nodeType:'coupler',label:'耦合器',sub:'3F-弱电井'},
+    {type:'node',nodeType:'splitter',label:'分配器',sub:'3F'},
+    {type:'leaf',parent:1,count:2,atCol:8},
+  ]},
+];
+
+// Global max columns = 9 (from 1F: 0..8)
+const maxCol=9;
+const startX=50;
+const colW=GAP_H+10; // width per column
+const antColX=startX+(maxCol-1)*colW; // rightmost column X
+
+// Column X positions
+function colX(c){return startX+c*colW}
+
+// Draw alignment guide columns
+for(let c=0;c<maxCol;c++){
+  const x=colX(c)+S/2;
+  ctx.setLineDash([2,6]);ctx.strokeStyle=C.align;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x,18);ctx.lineTo(x,1080);ctx.stroke();ctx.setLineDash([]);
+  // Column header
+  t(`col${c}`,x,14,'8px system-ui',C.dim);
+}
+
+// Highlight the antenna column
+rr(colX(maxCol-1)-4,20,S+8,1055,4,'rgba(16,185,129,0.03)',null);
+
+let curY=28;
+
+floors.forEach((floor,fi)=>{
+  // Floor label
+  t(`━━ ${floor.id} ━━━━━━━━━━━━━━━━━━`,20,curY+14,'bold 10px system-ui',C.dim,'left');
+
+  const chainY=curY+36+GAP_V;
+
+  // Determine which global columns this floor uses
+  // 1F uses all cols 0-8
+  // Other floors map their slots to global columns
+  let globalSlots=[]; // {col, type, ...data}
+
+  if(floor.id==='1F'){
+    // 1F: sequential cols 0-8
+    floor.slots.forEach((s,i)=>{globalSlots.push({...s,col:i})});
+  } else if(floor.id==='B1'){
+    // B1: root=col0, coupler=col1, leaf=col2, splitter=col3, leaf→aligned to col8
+    globalSlots=[
+      {...floor.slots[0],col:0},
+      {...floor.slots[1],col:1},
+      {...floor.slots[2],col:2},
+      {...floor.slots[3],col:3},
+      {...floor.slots[4],col:maxCol-1}, // leaf aligned right
+    ];
+  } else if(floor.id==='2F'){
+    // 2F: root=col0, coupler=col1, leaf→aligned to col8 (long cable)
+    globalSlots=[
+      {...floor.slots[0],col:0},
+      {...floor.slots[1],col:1},
+      {...floor.slots[2],col:maxCol-1},
+    ];
+  } else if(floor.id==='3F'){
+    // 3F: coupler=col0, splitter=col1, leaf→aligned to col8
+    globalSlots=[
+      {...floor.slots[0],col:0},
+      {...floor.slots[1],col:1},
+      {...floor.slots[2],col:maxCol-1},
+    ];
+  }
+
+  // Draw nodes and collect references
+  const nodeRefs={};
+  const chainNodes=[];
+
+  globalSlots.forEach(s=>{
+    const x=colX(s.col);
+    if(s.type==='node'){
+      if(s.nodeType==='root'||s.nodeType==='coupler'){
+        if(s.sub&&s.sub.includes('弱电井'))riserBg(x,chainY);
+      }
+      let n;
+      if(s.nodeType==='root')n=drawNode(x,chainY,s.label,s.sub,C.root);
+      else if(s.nodeType==='coupler')n=drawNode(x,chainY,s.label,s.sub,C.coup);
+      else if(s.nodeType==='splitter')n=drawNode(x,chainY,s.label,s.sub,C.split);
+      else if(s.nodeType==='port')n=drawPort(x,s.sub);
+      nodeRefs[s.col]=n;
+      chainNodes.push({col:s.col,node:n});
+    }
+  });
+
+  // Draw chain connections between consecutive chain nodes
+  for(let i=0;i<chainNodes.length-1;i++){
+    const a=chainNodes[i],b=chainNodes[i+1];
+    const colDist=b.col-a.col;
+    const m=wireSt(pp(a.node,'right'),pp(b.node,'left'));
+    cbl(m.mx,m.my,'1/2" 同轴');
+    // Highlight long cables
+    if(colDist>2){
+      const ax=pp(a.node,'right').x+15,bx=pp(b.node,'left').x-15;
+      ctx.fillStyle='rgba(34,211,238,0.04)';
+      ctx.fillRect(ax,chainY-4,(bx-ax),S+8);
+      t('← 线缆拉长补偿 →',(ax+bx)/2,chainY-10,'italic 9px system-ui',C.ann);
+    }
+  }
+
+  // Draw leaf columns
+  globalSlots.forEach(s=>{
+    if(s.type!=='leaf')return;
+    const x=colX(s.col);
+    const parentNode=chainNodes.find(cn=>{
+      // find parent: the chain node before this leaf col (or specified parent)
+      const pIdx=s.parent;
+      const pSlot=floor.slots[pIdx];
+      return nodeRefs[globalSlots.find(gs=>gs.type==='node'&&floor.slots.indexOf(pSlot)!==-1)?.col];
+    });
+    // Find actual parent node
+    let pn=null;
+    for(const cn of chainNodes){
+      if(cn.col<s.col)pn=cn;
+    }
+    if(!pn)pn=chainNodes[chainNodes.length-1];
+
+    const isLast=(s.col===maxCol-1);
+    const nLeaves=s.count;
+    const leafYs=[];
+
+    for(let j=0;j<nLeaves;j++){
+      if(isLast||chainNodes[chainNodes.length-1].col===pn.col){
+        // Last chain node or last leaf col: first at chainY
+        if(j===0)leafYs.push(chainY);
+        else{const tt=Math.ceil(j/2);leafYs.push((j%2===1)?chainY-tt*GAP_V:chainY+tt*GAP_V)}
+      }else{
+        const tt=Math.floor(j/2)+1;
+        leafYs.push((j%2===0)?chainY-tt*GAP_V:chainY+tt*GAP_V);
+      }
+    }
+
+    if(leafYs.length){
+      const minY=Math.min(...leafYs),maxY=Math.max(...leafYs);
+      leafHL(x,minY,maxY);
+    }
+
+    leafYs.forEach((ly,j)=>{
+      const a=drawAnt(x,ly,floor.id);
+      const dy=ly-chainY;
+      if(Math.abs(dy)<S/2){
+        wireSt(pp(pn.node,'right'),pp(a,'left'));
+      }else if(dy<0){
+        wireL(pp(pn.node,'top'),pp(a,'left'));
+      }else{
+        wireL(pp(pn.node,'bottom'),pp(a,'left'));
+      }
+    });
+  });
+
+  // Calculate floor height
+  let minFY=chainY,maxFY=chainY;
+  globalSlots.forEach(s=>{
+    if(s.type!=='leaf')return;
+    const n=s.count;
+    for(let j=0;j<n;j++){
+      let ly;
+      if(j===0)ly=chainY;
+      else{const tt=Math.ceil(j/2);ly=(j%2===1)?chainY-tt*GAP_V:chainY+tt*GAP_V}
+      if(ly<minFY)minFY=ly;if(ly>maxFY)maxFY=ly;
+    }
+  });
+
+  curY=maxFY+S+45;
+
+  // Floor separator
+  if(fi<floors.length-1){
+    ctx.setLineDash([6,4]);ctx.strokeStyle='#334155';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(20,curY-8);ctx.lineTo(1480,curY-8);ctx.stroke();ctx.setLineDash([]);
+  }
+});
+
+// Column labels at bottom
+t('根节点',colX(0)+S/2,curY+6,'bold 9px system-ui','#ef4444');
+t('第1器件',colX(1)+S/2,curY+6,'bold 9px system-ui','#ef4444');
+t('第1叶子',colX(2)+S/2,curY+6,'bold 9px system-ui',C.ann);
+t('第2器件',colX(3)+S/2,curY+6,'bold 9px system-ui','#ef4444');
+t('...',colX(4)+S/2,curY+6,'9px system-ui',C.dim);
+t('末端天线',colX(maxCol-1)+S/2,curY+6,'bold 9px system-ui',C.ant);
+t('↑ 右对齐',colX(maxCol-1)+S/2,curY+18,'9px system-ui',C.ant);
+</script>
+</body>
+</html>

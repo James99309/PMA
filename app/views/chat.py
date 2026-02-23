@@ -403,6 +403,69 @@ def forward_message_api(id):
 
 
 # ---------------------------------------------------------------------------
+# 9c. 分享文件管理器文件到聊天
+# ---------------------------------------------------------------------------
+
+@chat.route('/api/share-files', methods=['POST'])
+@login_required
+def share_files_to_chat():
+    """分享文件管理器文件到聊天对话"""
+    try:
+        data = request.get_json() or {}
+        file_ids = data.get('file_ids', [])
+        conversation_ids = list(data.get('conversation_ids', []))
+        user_ids = data.get('user_ids', [])
+        note = data.get('note')
+
+        if not file_ids:
+            return jsonify({'success': False, 'message': '请选择要分享的文件'}), 400
+        if not conversation_ids and not user_ids:
+            return jsonify({'success': False, 'message': '请选择分享目标'}), 400
+
+        # 验证文件属于当前用户
+        from app.models.file_manager import UserFileRef, FileLibrary
+        file_refs_with_libs = []
+        for fid in file_ids:
+            ref = UserFileRef.query.filter_by(
+                id=fid, user_id=current_user.id, is_deleted=False
+            ).first()
+            if not ref:
+                continue
+            lib = FileLibrary.query.get(ref.file_library_id)
+            if lib:
+                file_refs_with_libs.append((ref, lib))
+
+        if not file_refs_with_libs:
+            return jsonify({'success': False, 'message': '未找到有效文件'}), 400
+
+        # 为每个 user_id 创建/查找私聊对话
+        for uid in user_ids:
+            conv_result = chat_service.create_conversation(
+                creator_id=current_user.id,
+                participant_ids=[uid],
+            )
+            if conv_result.get('success') and conv_result.get('data', {}).get('id'):
+                conv_id = conv_result['data']['id']
+                if conv_id not in conversation_ids:
+                    conversation_ids.append(conv_id)
+
+        if not conversation_ids:
+            return jsonify({'success': False, 'message': '请选择分享目标'}), 400
+
+        result = chat_service.share_files_to_conversations(
+            sender_id=current_user.id,
+            file_refs_with_libs=file_refs_with_libs,
+            target_conversation_ids=conversation_ids,
+            note=note,
+        )
+        status = 200 if result['success'] else 400
+        return jsonify(result), status
+    except Exception as e:
+        logger.error(f"分享文件到聊天失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
 # 10. 文件上传（附件消息）
 # ---------------------------------------------------------------------------
 

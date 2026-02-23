@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>采购订单模块重构 - 交互原型 v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; }
+        .material-symbols-outlined { font-size: 20px; vertical-align: middle; }
+        .msi { font-size: 18px; }
+        /* 实际系统顶栏 */
+        .top-bar { background: white; border-bottom: 1px solid #e5e7eb; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .top-bar-search { background: #f3f4f6; border-radius: 8px; padding: 8px 16px; display: flex; align-items: center; gap: 8px; width: 400px; color: #9ca3af; font-size: 14px; }
+        .top-bar-icons { display: flex; align-items: center; gap: 16px; color: #6b7280; }
+        /* 卡片 */
+        .card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; }
+        .card-header { padding: 20px 24px 0; }
+        .card-body { padding: 16px 24px 20px; }
+        /* 统计卡片 - 匹配实际UI */
+        .stat-card { border: 1.5px solid; border-radius: 12px; padding: 16px; cursor: pointer; min-width: 0; transition: all .15s; }
+        .stat-card:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+        .stat-card .stat-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+        .stat-card .stat-label { font-size: 13px; color: #6b7280; margin-bottom: 2px; }
+        .stat-card .stat-value { font-size: 28px; font-weight: 700; }
+        /* Tab */
+        .tab-bar { display: flex; border-bottom: 1px solid #e5e7eb; padding: 0 24px; }
+        .tab-item { padding: 12px 16px; font-size: 14px; font-weight: 500; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
+        .tab-item:hover { color: #3b82f6; }
+        .tab-item.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+        /* 徽章 */
+        .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+        .badge-blue { background: #dbeafe; color: #2563eb; }
+        .badge-green { background: #dcfce7; color: #16a34a; }
+        .badge-yellow { background: #fef9c3; color: #ca8a04; }
+        .badge-purple { background: #f3e8ff; color: #9333ea; }
+        .badge-red { background: #fee2e2; color: #dc2626; }
+        .badge-cyan { background: #cffafe; color: #0891b2; }
+        .badge-gray { background: #f3f4f6; color: #6b7280; }
+        /* 表格 */
+        .data-table { width: 100%; font-size: 14px; }
+        .data-table thead th { text-align: left; padding: 12px 16px; font-size: 12px; color: #9ca3af; font-weight: 500; border-bottom: 1px solid #e5e7eb; }
+        .data-table tbody td { padding: 16px; border-bottom: 1px solid #f3f4f6; }
+        .data-table tbody tr:hover { background: #f9fafb; }
+        /* 进度条 */
+        .progress-bar { width: 80px; height: 4px; background: #e5e7eb; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+        .progress-fill { height: 100%; border-radius: 2px; }
+        /* NEW标记 */
+        .new-tag { position: relative; }
+        .new-tag::after { content: 'NEW'; position: absolute; top: -10px; right: -10px; background: #ef4444; color: white; font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; letter-spacing: .5px; }
+        .mod-tag { position: relative; }
+        .mod-tag::after { content: '改'; position: absolute; top: -10px; right: -10px; background: #3b82f6; color: white; font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700; }
+        /* 面包屑 */
+        .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #6b7280; margin-bottom: 8px; }
+        .breadcrumb a { color: #3b82f6; text-decoration: none; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        /* 时间线 */
+        .timeline-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; }
+        .timeline-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+        .timeline-line { width: 2px; background: #e5e7eb; margin-left: 9px; min-height: 24px; }
+        /* 筛选区 */
+        .filter-bar { display: flex; align-items: center; gap: 12px; padding: 16px 24px; background: #fafbfc; border-bottom: 1px solid #e5e7eb; }
+        .filter-input { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 14px; font-size: 14px; outline: none; }
+        .filter-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.15); }
+        .filter-select { border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 14px; font-size: 14px; background: white; outline: none; appearance: auto; }
+        .btn-primary { background: #3b82f6; color: white; border: none; border-radius: 8px; padding: 8px 20px; font-size: 14px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-outline { background: white; border: 1px solid #d1d5db; border-radius: 8px; padding: 8px 16px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; color: #374151; }
+        .btn-outline:hover { background: #f9fafb; }
+        /* 流程选择器 */
+        .journey-card { cursor: pointer; transition: all 0.15s; border: 1.5px solid #e5e7eb; }
+        .journey-card:hover { border-color: #93c5fd; transform: translateY(-1px); }
+        .journey-card.selected { border-color: #3b82f6; background: #eff6ff; }
+        /* 步骤指示器 */
+        .step-dot { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
+        .step-dot.active { background: #3b82f6; color: white; }
+        .step-dot.done { background: #10b981; color: white; }
+        .step-dot.pending { background: #e5e7eb; color: #6b7280; }
+        /* 模态框遮罩 */
+        .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.25); z-index: 20; display: flex; justify-content: center; padding-top: 20px; border-radius: 0 0 12px 12px; }
+        .modal-box { background: white; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.15); width: 700px; max-height: 540px; overflow-y: auto; }
+        .modal-header { padding: 16px 20px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; background: #fafbfc; position: sticky; top: 0; border-radius: 16px 16px 0 0; z-index: 1; }
+        .modal-footer { padding: 12px 20px; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 8px; background: #fafbfc; position: sticky; bottom: 0; border-radius: 0 0 16px 16px; }
+        /* 发货批次卡片 */
+        .shipment-item { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; background: white; transition: all .15s; }
+        .shipment-item:hover { border-color: #93c5fd; }
+    </style>
+</head>
+<body>
+
+<!-- ===== 原型导航头 ===== -->
+<div class="bg-slate-800 text-white px-6 py-3 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center gap-4">
+        <h1 class="text-sm font-bold">采购订单模块重构 — 交互原型 v2</h1>
+        <span class="text-xs text-slate-400">基于实际 UI 截图还原，红色标记 = 新增，蓝色标记 = 修改</span>
+    </div>
+    <div class="flex items-center gap-3 text-xs">
+        <span class="new-tag pr-4 mr-2">新增功能</span>
+        <span class="mod-tag pr-3 mr-2">修改功能</span>
+        <span class="text-slate-400">不变功能无标记</span>
+    </div>
+</div>
+
+<!-- ===== 流程选择器 ===== -->
+<div class="max-w-[1200px] mx-auto px-6 py-4">
+    <div class="grid grid-cols-5 gap-3 mb-4" id="journeySelector">
+        <div class="journey-card selected rounded-xl p-3 bg-white" onclick="showJourney(1)">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined text-blue-500 msi">inventory_2</span>
+                <span class="text-sm font-semibold text-slate-700">流程 1</span>
+            </div>
+            <p class="text-xs text-gray-500">创建备货订单</p>
+        </div>
+        <div class="journey-card rounded-xl p-3 bg-white" onclick="showJourney(2)">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined text-purple-500 msi">link</span>
+                <span class="text-sm font-semibold text-slate-700">流程 2</span>
+            </div>
+            <p class="text-xs text-gray-500">批价单导入创建</p>
+        </div>
+        <div class="journey-card rounded-xl p-3 bg-white" onclick="showJourney(3)">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined text-green-500 msi">local_shipping</span>
+                <span class="text-sm font-semibold text-slate-700">流程 3</span>
+            </div>
+            <p class="text-xs text-gray-500">添加发货批次</p>
+        </div>
+        <div class="journey-card rounded-xl p-3 bg-white" onclick="showJourney(4)">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined text-amber-500 msi">dashboard</span>
+                <span class="text-sm font-semibold text-slate-700">流程 4</span>
+            </div>
+            <p class="text-xs text-gray-500">发货总览</p>
+        </div>
+        <div class="journey-card rounded-xl p-3 bg-white" onclick="showJourney(5)">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="material-symbols-outlined text-cyan-500 msi">receipt_long</span>
+                <span class="text-sm font-semibold text-slate-700">流程 5</span>
+            </div>
+            <p class="text-xs text-gray-500">批价关联→结算</p>
+        </div>
+    </div>
+    <!-- 步骤指示 + 说明 -->
+    <div class="flex items-center justify-between mb-4" id="stepBar">
+        <div class="flex items-center gap-3" id="stepDots"></div>
+        <div class="flex gap-2" id="stepNav"></div>
+    </div>
+    <div class="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5 mb-4 text-sm text-blue-700 flex items-center gap-2" id="stepHint">
+        <span class="material-symbols-outlined msi">touch_app</span>
+        <span id="stepHintText"></span>
+    </div>
+</div>
+
+<!-- ===== 页面展示区 ===== -->
+<div class="max-w-[1200px] mx-auto px-6 pb-16" id="pageContent"></div>
+
+<script>
+// ==================== 系统顶栏组件 ====================
+const topBar = `
+<div class="top-bar">
+    <div class="top-bar-search">
+        <span class="material-symbols-outlined msi">search</span>
+        <span>搜索</span>
+    </div>
+    <div class="top-bar-icons">
+        <span>🌐 简体中文 ▾</span>
+        <span class="material-symbols-outlined">help_outline</span>
+        <span class="material-symbols-outlined">calendar_today</span>
+        <span class="material-symbols-outlined">open_in_new</span>
+        <span class="material-symbols-outlined">share</span>
+        <span class="material-symbols-outlined" style="position:relative">notifications<span style="position:absolute;top:-4px;right:-6px;background:#ef4444;color:white;font-size:9px;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center">3</span></span>
+        <span class="material-symbols-outlined">dark_mode</span>
+    </div>
+</div>`;
+
+// ==================== 页面模板 ====================
+const pages = {
+
+// ===== 列表页 - 采购订单 =====
+listOrders: `
+<div class="card overflow-hidden">
+    ${topBar}
+    <!-- 标题区 -->
+    <div style="padding:20px 24px 16px;display:flex;align-items:center;justify-content:space-between">
+        <h1 style="font-size:22px;font-weight:700">采购订单管理</h1>
+        <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:13px;color:#9ca3af">共 6 条记录</span>
+            <button class="btn-primary" id="btnCreate">
+                <span class="material-symbols-outlined msi">add</span>新建采购订单
+            </button>
+        </div>
+    </div>
+    <!-- NEW: Tab栏 -->
+    <div class="tab-bar new-tag" style="padding-right:40px">
+        <div class="tab-item active">采购订单</div>
+        <div class="tab-item" id="btnShipmentTab" style="position:relative">发货总览<span style="position:absolute;top:4px;right:-6px;background:#ef4444;color:white;font-size:8px;padding:1px 4px;border-radius:3px;font-weight:700">NEW</span></div>
+    </div>
+    <!-- 统计卡片 -->
+    <div style="padding:16px 24px;display:grid;grid-template-columns:repeat(6,1fr);gap:12px">
+        <div class="stat-card" style="border-color:#dbeafe;background:#eff6ff">
+            <div class="stat-icon" style="background:#dbeafe"><span class="material-symbols-outlined" style="color:#2563eb;font-size:20px">assignment</span></div>
+            <div class="stat-label">全部</div>
+            <div class="stat-value" style="color:#1e3a5f">6</div>
+        </div>
+        <div class="stat-card" style="border-color:#fef3c7;background:#fffbeb">
+            <div class="stat-icon" style="background:#fef3c7"><span class="material-symbols-outlined" style="color:#d97706;font-size:20px">pending_actions</span></div>
+            <div class="stat-label">待确认</div>
+            <div class="stat-value" style="color:#92400e">0</div>
+        </div>
+        <div class="stat-card" style="border-color:#e0e7ff;background:#eef2ff">
+            <div class="stat-icon" style="background:#e0e7ff"><span class="material-symbols-outlined" style="color:#6366f1;font-size:20px">precision_manufacturing</span></div>
+            <div class="stat-label">生产中</div>
+            <div class="stat-value" style="color:#3730a3">0</div>
+        </div>
+        <div class="stat-card" style="border-color:#cffafe;background:#ecfeff">
+            <div class="stat-icon" style="background:#cffafe"><span class="material-symbols-outlined" style="color:#0891b2;font-size:20px">local_shipping</span></div>
+            <div class="stat-label">已发货</div>
+            <div class="stat-value" style="color:#155e75">0</div>
+        </div>
+        <div class="stat-card" style="border-color:#dcfce7;background:#f0fdf4">
+            <div class="stat-icon" style="background:#dcfce7"><span class="material-symbols-outlined" style="color:#16a34a;font-size:20px">inventory</span></div>
+            <div class="stat-label">已入库</div>
+            <div class="stat-value" style="color:#14532d">0</div>
+        </div>
+        <div class="stat-card" style="border-color:#fee2e2;background:#fef2f2">
+            <div class="stat-icon" style="background:#fee2e2"><span class="material-symbols-outlined" style="color:#dc2626;font-size:20px">warning</span></div>
+            <div class="stat-label">超期订单</div>
+            <div class="stat-value" style="color:#991b1b">0</div>
+        </div>
+    </div>
+    <!-- 筛选区 -->
+    <div class="filter-bar">
+        <input class="filter-input" style="flex:1;max-width:500px" placeholder="搜索订单号...">
+        <select class="filter-select" style="min-width:150px"><option>全部供应商</option></select>
+        <select class="filter-select mod-tag" style="min-width:120px">
+            <option>全部来源</option><option>备货</option><option>批价关联</option>
+        </select>
+        <select class="filter-select"><option>测试状态</option></select>
+        <button class="btn-primary"><span class="material-symbols-outlined msi">search</span>搜索</button>
+    </div>
+    <!-- 表格 -->
+    <div style="padding:0 24px 16px">
+        <table class="data-table">
+            <thead><tr>
+                <th>PO单号</th><th>供应商</th><th class="new-tag" style="padding-right:16px">来源</th><th style="text-align:right">金额</th><th style="text-align:center">生产进度</th><th style="text-align:center">状态</th><th style="text-align:center">测试</th><th style="text-align:center">交期</th><th style="text-align:center">操作</th>
+            </tr></thead>
+            <tbody>
+                <tr id="rowPO1" style="cursor:pointer">
+                    <td><a style="color:#3b82f6;font-weight:500;text-decoration:none">CG-2601-001</a></td>
+                    <td>长泽科技</td>
+                    <td><span class="badge badge-blue">备货</span></td>
+                    <td style="text-align:right">¥0.00</td>
+                    <td style="text-align:center"><span class="progress-bar"><span class="progress-fill" style="width:0%;background:#e5e7eb"></span></span>0%</td>
+                    <td style="text-align:center"><span class="badge badge-green">已审批</span></td>
+                    <td style="text-align:center;color:#9ca3af">◷ / ◷</td>
+                    <td style="text-align:center;font-size:13px">03-01</td>
+                    <td style="text-align:center"><span class="material-symbols-outlined" style="color:#9ca3af;cursor:pointer;font-size:18px">visibility</span> <span class="material-symbols-outlined" style="color:#9ca3af;cursor:pointer;font-size:18px">edit</span></td>
+                </tr>
+                <tr id="rowPO2" style="cursor:pointer">
+                    <td><a style="color:#3b82f6;font-weight:500;text-decoration:none">PUO202507-004</a></td>
+                    <td>上海瀚网智能科技有限公司</td>
+                    <td><span class="badge badge-purple">批价关联</span></td>
+                    <td style="text-align:right">¥239,940.00</td>
+                    <td style="text-align:center"><span class="progress-bar"><span class="progress-fill" style="width:100%;background:#10b981"></span></span>100%</td>
+                    <td style="text-align:center"><span class="badge badge-green">已入库</span> <span class="badge badge-cyan" style="font-size:11px;font-weight:600">可结算</span></td>
+                    <td style="text-align:center;color:#9ca3af">◷ / ◷</td>
+                    <td style="text-align:center;font-size:13px">-</td>
+                    <td style="text-align:center"><span class="material-symbols-outlined" style="color:#9ca3af;cursor:pointer;font-size:18px">visibility</span> <span class="material-symbols-outlined" style="color:#9ca3af;cursor:pointer;font-size:18px">edit</span></td>
+                </tr>
+                <tr>
+                    <td><a style="color:#3b82f6;font-weight:500;text-decoration:none">PUO202507-003</a></td>
+                    <td>上海瑞康通信科技有限公司</td>
+                    <td><span class="badge badge-blue">备货</span></td>
+                    <td style="text-align:right">¥90,000.00</td>
+                    <td style="text-align:center"><span class="progress-bar"><span class="progress-fill" style="width:0%;background:#e5e7eb"></span></span>0%</td>
+                    <td style="text-align:center"><span class="badge badge-green">已审批</span></td>
+                    <td style="text-align:center;color:#9ca3af">◷ / ◷</td>
+                    <td style="text-align:center;font-size:13px">-</td>
+                    <td style="text-align:center"><span class="material-symbols-outlined" style="color:#9ca3af;cursor:pointer;font-size:18px">visibility</span> <span class="material-symbols-outlined" style="color:#9ca3af;cursor:pointer;font-size:18px">edit</span></td>
+                </tr>
+                <tr>
+                    <td><a style="color:#3b82f6;font-weight:500;text-decoration:none">PUO202507-002</a></td>
+                    <td>上海瑞康通信科技有限公司</td>
+                    <td><span class="badge badge-blue">备货</span></td>
+                    <td style="text-align:right">¥53,330.00</td>
+                    <td style="text-align:center"><span class="progress-bar"><span class="progress-fill" style="width:0%"></span></span>0%</td>
+                    <td style="text-align:center"><span class="badge badge-green">已审批</span></td>
+                    <td style="text-align:center;color:#9ca3af">◷ / ◷</td>
+                    <td style="text-align:center;font-size:13px">-</td>
+                    <td style="text-align:center"><span class="material-symbols-outlined" style="color:#9ca3af;cursor:pointer;font-size:18px">visibility</span> <span class="material-symbols-outlined" style="color:#9ca3af;cursor:pointer;font-size:18px">edit</span></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>`,
+
+// ===== 列表页 - 发货总览 Tab =====
+listShipments: `
+<div class="card overflow-hidden">
+    ${topBar}
+    <div style="padding:20px 24px 16px;display:flex;align-items:center;justify-content:space-between">
+        <h1 style="font-size:22px;font-weight:700">采购订单管理</h1>
+        <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:13px;color:#9ca3af">共 6 条记录</span>
+            <button class="btn-primary"><span class="material-symbols-outlined msi">add</span>新建采购订单</button>
+        </div>
+    </div>
+    <div class="tab-bar">
+        <div class="tab-item" id="btnOrdersTab2">采购订单</div>
+        <div class="tab-item active">发货总览</div>
+    </div>
+    <!-- 发货统计卡片 -->
+    <div style="padding:16px 24px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+        <div class="stat-card" style="border-color:#e5e7eb;background:#f9fafb">
+            <div class="stat-icon" style="background:#f3f4f6"><span class="material-symbols-outlined" style="color:#6b7280;font-size:20px">package_2</span></div>
+            <div class="stat-label">全部批次</div><div class="stat-value" style="color:#374151">8</div>
+        </div>
+        <div class="stat-card" style="border-color:#fef3c7;background:#fffbeb">
+            <div class="stat-icon" style="background:#fef3c7"><span class="material-symbols-outlined" style="color:#d97706;font-size:20px">schedule</span></div>
+            <div class="stat-label">待发货</div><div class="stat-value" style="color:#92400e">2</div>
+        </div>
+        <div class="stat-card" style="border-color:#dbeafe;background:#eff6ff">
+            <div class="stat-icon" style="background:#dbeafe"><span class="material-symbols-outlined" style="color:#2563eb;font-size:20px">local_shipping</span></div>
+            <div class="stat-label">在途中</div><div class="stat-value" style="color:#1e3a5f">3</div>
+        </div>
+        <div class="stat-card" style="border-color:#cffafe;background:#ecfeff">
+            <div class="stat-icon" style="background:#cffafe"><span class="material-symbols-outlined" style="color:#0891b2;font-size:20px">location_on</span></div>
+            <div class="stat-label">已到达</div><div class="stat-value" style="color:#155e75">1</div>
+        </div>
+        <div class="stat-card" style="border-color:#dcfce7;background:#f0fdf4">
+            <div class="stat-icon" style="background:#dcfce7"><span class="material-symbols-outlined" style="color:#16a34a;font-size:20px">check_circle</span></div>
+            <div class="stat-label">已签收</div><div class="stat-value" style="color:#14532d">2</div>
+        </div>
+    </div>
+    <div class="filter-bar">
+        <input class="filter-input" style="flex:1;max-width:400px" placeholder="搜索运单号 / 批次号...">
+        <select class="filter-select"><option>全部状态</option><option>待发货</option><option>已发货</option><option>在途中</option><option>已到达</option><option>已签收</option></select>
+        <button class="btn-primary"><span class="material-symbols-outlined msi">search</span>搜索</button>
+    </div>
+    <div style="padding:0 24px 16px">
+        <table class="data-table">
+            <thead><tr><th>发货批次号</th><th>PO单号</th><th>供应商</th><th>承运商</th><th>运单号</th><th style="text-align:center">状态</th><th style="text-align:center">发货日期</th><th style="text-align:center">预计到达</th></tr></thead>
+            <tbody>
+                <tr style="cursor:pointer"><td style="color:#3b82f6;font-weight:500">PO202602-001-S01</td><td style="color:#3b82f6">PO202602-001</td><td>华为技术有限公司</td><td>顺丰速运</td><td style="font-family:monospace;font-size:12px">SF1234567890</td><td style="text-align:center"><span class="badge badge-blue">在途中</span></td><td style="text-align:center;font-size:13px">2026-02-18</td><td style="text-align:center;font-size:13px">2026-02-22</td></tr>
+                <tr style="cursor:pointer"><td style="color:#3b82f6;font-weight:500">PO202602-001-S02</td><td style="color:#3b82f6">PO202602-001</td><td>华为技术有限公司</td><td>-</td><td>-</td><td style="text-align:center"><span class="badge badge-yellow">待发货</span></td><td style="text-align:center;font-size:13px">-</td><td style="text-align:center;font-size:13px">-</td></tr>
+                <tr style="cursor:pointer"><td style="color:#3b82f6;font-weight:500">PO202602-002-S01</td><td style="color:#3b82f6">PO202602-002</td><td>中兴通讯股份有限公司</td><td>德邦物流</td><td style="font-family:monospace;font-size:12px">DB9876543210</td><td style="text-align:center"><span class="badge badge-green">已签收</span></td><td style="text-align:center;font-size:13px">2026-02-10</td><td style="text-align:center;font-size:13px">2026-02-15</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>`,
+
+// ===== 创建表单 - 备货 =====
+createFormStocking: `
+<div class="card overflow-hidden">
+    <div style="padding:24px;border-bottom:1px solid #e5e7eb">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px">
+            <span class="material-symbols-outlined" style="color:#3b82f6">assignment</span>
+            <h2 style="font-size:18px;font-weight:700">新建采购订单</h2>
+        </div>
+        <!-- Row 1 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">
+            <div>
+                <label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">供应商 <span style="color:#ef4444">*</span></label>
+                <select class="filter-select" style="width:100%"><option>请选择供应商</option></select>
+            </div>
+            <div class="mod-tag">
+                <label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">订单来源</label>
+                <select class="filter-select" id="selectSource" style="width:100%;background:#eff6ff;border-color:#93c5fd">
+                    <option value="stocking" selected>备货</option>
+                    <option value="pricing_linked">批价关联</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">需求日期 <span style="color:#ef4444">*</span></label>
+                <input type="date" class="filter-input" style="width:100%">
+            </div>
+        </div>
+        <!-- NEW: Row 1.5 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:20px">
+            <div class="new-tag">
+                <label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">目的仓库</label>
+                <select class="filter-select" style="width:100%"><option>请选择</option><option>厂商自有仓库</option><option>代理商仓库</option></select>
+            </div>
+            <div>
+                <label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">贸易术语</label>
+                <select class="filter-select" style="width:100%"><option>请选择</option><option>DDP</option><option>FOB</option><option>CIF</option></select>
+            </div>
+            <div>
+                <label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">运输方式</label>
+                <select class="filter-select" style="width:100%"><option>请选择</option><option>陆运</option><option>空运</option><option>快递</option><option>自提</option></select>
+            </div>
+            <div>
+                <label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">运费承担</label>
+                <select class="filter-select" style="width:100%"><option>采购方</option><option>供应商</option></select>
+            </div>
+        </div>
+        <!-- Row 2 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+            <div><label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">交货地点</label><input class="filter-input" style="width:100%" placeholder="请输入交货地址"></div>
+            <div><label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">付款条件</label><input class="filter-input" style="width:100%" placeholder="例如：50%预付，发货后45天付清"></div>
+        </div>
+        <div style="margin-bottom:16px"><label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">备注</label><textarea class="filter-input" style="width:100%;height:60px;resize:none" placeholder="订单备注信息"></textarea></div>
+    </div>
+    <!-- 产品明细 -->
+    <div style="padding:20px 24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <span></span>
+            <div style="display:flex;gap:8px">
+                <button class="btn-outline new-tag" id="btnImportPricing" style="padding-right:20px;color:#9333ea;border-color:#c084fc">
+                    <span class="material-symbols-outlined msi">download</span>从批价单导入
+                </button>
+                <button class="btn-outline"><span class="material-symbols-outlined msi">add</span>添加产品</button>
+            </div>
+        </div>
+        <table class="data-table">
+            <thead><tr><th style="color:#ef4444">产品名称 *</th><th>型号</th><th>规格描述</th><th style="text-align:center;color:#ef4444">数量 *</th><th style="text-align:center">单位</th><th style="text-align:right">单价</th><th style="text-align:right">金额</th></tr></thead>
+            <tbody><tr><td style="color:#9ca3af">点击选择产品...</td><td></td><td></td><td style="text-align:center">1</td><td style="text-align:center"></td><td style="text-align:right">0.00</td><td style="text-align:right">0.00</td></tr></tbody>
+        </table>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
+            <button class="btn-outline"><span class="material-symbols-outlined msi">add</span>添加产品</button>
+            <div style="display:flex;align-items:center;gap:16px">
+                <span style="font-size:13px;color:#6b7280">货币: <strong>CNY (¥)</strong></span>
+                <span style="font-size:15px;font-weight:700">合计金额: ¥0.00</span>
+            </div>
+        </div>
+    </div>
+    <!-- 底部按钮 -->
+    <div style="padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:12px;background:#fafbfc">
+        <button class="btn-outline" id="btnCancelCreate">取消</button>
+        <button class="btn-primary" id="btnSubmitCreate"><span class="material-symbols-outlined msi">assignment</span>创建采购订单</button>
+    </div>
+</div>`,
+
+// ===== 批价单选择器 =====
+pricingSelector: `
+<div class="card overflow-hidden" style="position:relative;min-height:500px">
+    <div style="padding:24px;opacity:.15;pointer-events:none">
+        <h2 style="font-size:18px;font-weight:700;margin-bottom:20px">新建采购订单</h2>
+        <div style="height:200px;background:#f3f4f6;border-radius:12px"></div>
+    </div>
+    <div class="modal-overlay">
+        <div class="modal-box" style="max-height:420px;margin-top:20px">
+            <div class="modal-header">
+                <h3 style="font-size:15px;font-weight:700">选择批价单</h3>
+                <span class="material-symbols-outlined" style="color:#9ca3af;cursor:pointer">close</span>
+            </div>
+            <div style="padding:12px 20px;border-bottom:1px solid #e5e7eb">
+                <input class="filter-input" style="width:100%" placeholder="搜索批价单号或项目名称...">
+            </div>
+            <div style="padding:16px 20px;display:flex;flex-direction:column;gap:8px">
+                <label style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid #93c5fd;border-radius:10px;background:#eff6ff;cursor:pointer">
+                    <input type="checkbox" checked style="accent-color:#3b82f6;width:16px;height:16px">
+                    <div style="flex:1">
+                        <div style="font-size:14px;font-weight:600">PRC202602-001</div>
+                        <div style="font-size:12px;color:#6b7280">项目：XX医院智慧医疗 | 经销商：深圳XX科技</div>
+                    </div>
+                    <div style="text-align:right">
+                        <div style="font-size:14px;font-weight:600">¥186,000</div>
+                        <div style="font-size:11px;color:#9ca3af">3个产品</div>
+                    </div>
+                </label>
+                <label style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid #e5e7eb;border-radius:10px;cursor:pointer">
+                    <input type="checkbox" style="width:16px;height:16px">
+                    <div style="flex:1">
+                        <div style="font-size:14px;font-weight:600">PRC202602-003</div>
+                        <div style="font-size:12px;color:#6b7280">项目：YY学校校园网 | 经销商：广州XX信息</div>
+                    </div>
+                    <div style="text-align:right">
+                        <div style="font-size:14px;font-weight:600">¥92,000</div>
+                        <div style="font-size:11px;color:#9ca3af">2个产品</div>
+                    </div>
+                </label>
+                <label style="display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid #e5e7eb;border-radius:10px;cursor:pointer">
+                    <input type="checkbox" style="width:16px;height:16px">
+                    <div style="flex:1">
+                        <div style="font-size:14px;font-weight:600">PRC202601-008</div>
+                        <div style="font-size:12px;color:#6b7280">项目：ZZ集团数据中心 | 经销商：北京XX通信</div>
+                    </div>
+                    <div style="text-align:right">
+                        <div style="font-size:14px;font-weight:600">¥456,000</div>
+                        <div style="font-size:11px;color:#9ca3af">5个产品</div>
+                    </div>
+                </label>
+            </div>
+            <div class="modal-footer" style="justify-content:space-between">
+                <span style="font-size:12px;color:#6b7280">已选择 1 个批价单</span>
+                <div style="display:flex;gap:8px">
+                    <button class="btn-outline">取消</button>
+                    <button class="btn-primary" id="btnConfirmImport">确认导入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>`,
+
+// ===== 创建表单 - 批价导入后 =====
+createFormPricingFilled: `
+<div class="card overflow-hidden">
+    <div style="padding:24px;border-bottom:1px solid #e5e7eb">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:24px">
+            <span class="material-symbols-outlined" style="color:#9333ea">assignment</span>
+            <h2 style="font-size:18px;font-weight:700">新建采购订单</h2>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px">
+            <div><label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">供应商 *</label><select class="filter-select" style="width:100%"><option>华为技术有限公司</option></select></div>
+            <div>
+                <label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">订单来源</label>
+                <div style="border:1.5px solid #c084fc;border-radius:8px;padding:8px 14px;background:#f5f3ff;color:#7c3aed;font-weight:600;font-size:14px">批价关联 <span style="font-weight:400;font-size:12px;color:#9ca3af">(已从批价单导入)</span></div>
+            </div>
+            <div><label style="font-size:13px;font-weight:500;margin-bottom:4px;display:block">需求日期 *</label><input type="date" class="filter-input" style="width:100%" value="2026-03-15"></div>
+        </div>
+        <!-- 关联批价单标签 -->
+        <div class="new-tag" style="background:#f5f3ff;border:1.5px solid #ddd6fe;border-radius:10px;padding:14px 16px;margin-bottom:20px">
+            <div style="font-size:13px;font-weight:600;color:#7c3aed;margin-bottom:8px;display:flex;align-items:center;gap:4px">
+                <span class="material-symbols-outlined msi" style="color:#7c3aed">link</span>关联批价单
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+                <span style="background:white;border:1px solid #c084fc;border-radius:6px;padding:4px 10px;font-size:13px;color:#7c3aed;font-weight:500">PRC202602-001 <span style="cursor:pointer;margin-left:4px;color:#9ca3af">×</span></span>
+                <button style="font-size:12px;color:#7c3aed;background:none;border:none;cursor:pointer;text-decoration:underline">+ 添加更多</button>
+            </div>
+        </div>
+    </div>
+    <!-- 自动填充的产品 -->
+    <div style="padding:20px 24px">
+        <div style="font-size:12px;color:#9ca3af;margin-bottom:8px">以下产品已从批价单自动填充：</div>
+        <table class="data-table">
+            <thead><tr><th>产品名称</th><th>型号</th><th style="text-align:center">数量</th><th style="text-align:center">单位</th><th style="text-align:right">单价</th><th style="text-align:right">金额</th></tr></thead>
+            <tbody style="background:#faf5ff">
+                <tr><td style="font-weight:500">交换机 S5735-L48T4X</td><td style="color:#6b7280">S5735-L48T4X</td><td style="text-align:center">5</td><td style="text-align:center">台</td><td style="text-align:right">¥18,600</td><td style="text-align:right;font-weight:600">¥93,000</td></tr>
+                <tr><td style="font-weight:500">防火墙 USG6555E</td><td style="color:#6b7280">USG6555E</td><td style="text-align:center">2</td><td style="text-align:center">台</td><td style="text-align:right">¥32,000</td><td style="text-align:right;font-weight:600">¥64,000</td></tr>
+                <tr><td style="font-weight:500">无线AP AirEngine 5762</td><td style="color:#6b7280">AirEngine 5762-12</td><td style="text-align:center">10</td><td style="text-align:center">个</td><td style="text-align:right">¥2,900</td><td style="text-align:right;font-weight:600">¥29,000</td></tr>
+            </tbody>
+        </table>
+        <div style="text-align:right;margin-top:12px;font-size:15px;font-weight:700">合计金额: ¥186,000</div>
+    </div>
+    <div style="padding:16px 24px;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:12px;background:#fafbfc">
+        <button class="btn-outline">取消</button>
+        <button class="btn-primary" id="btnSubmitPricing"><span class="material-symbols-outlined msi">assignment</span>创建采购订单</button>
+    </div>
+</div>`,
+
+// ===== 详情页 - 备货订单 =====
+detailStocking: `
+<div class="card overflow-hidden">
+    ${topBar}
+    <!-- 面包屑 + 标题 -->
+    <div style="padding:16px 24px 0">
+        <div class="breadcrumb"><a href="#">采购管理</a><span>›</span><a href="#">采购订单</a><span>›</span><span>PUO202507-003</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:12px">
+                <h1 style="font-size:24px;font-weight:700">PUO202507-003</h1>
+                <span class="badge badge-green">已审批</span>
+                <span class="badge badge-blue">备货</span>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn-outline" id="btnBackFromDetail"><span class="material-symbols-outlined msi">arrow_back</span>返回</button>
+                <button class="btn-outline"><span class="material-symbols-outlined msi">download</span>导出PO</button>
+            </div>
+        </div>
+    </div>
+    <!-- 内容区: 左2/3 右1/3 -->
+    <div style="padding:16px 24px 24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
+        <!-- 左侧 -->
+        <div>
+            <!-- 基本信息卡片 -->
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700">基本信息</h3></div>
+                <div class="card-body">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                        <div><div style="display:flex;align-items:center;gap:6px;color:#9ca3af;font-size:13px;margin-bottom:2px"><span class="material-symbols-outlined" style="font-size:16px">business</span>供应商</div><div style="font-size:14px;font-weight:500">上海瑞康通信科技有限公司</div></div>
+                        <div><div style="display:flex;align-items:center;gap:6px;color:#9ca3af;font-size:13px;margin-bottom:2px"><span class="material-symbols-outlined" style="font-size:16px">calendar_today</span>订单日期</div><div style="font-size:14px">2025-07-20</div></div>
+                        <div class="mod-tag"><div style="display:flex;align-items:center;gap:6px;color:#9ca3af;font-size:13px;margin-bottom:2px"><span class="material-symbols-outlined" style="font-size:16px">source</span>订单来源</div><div><span class="badge badge-blue">备货</span></div></div>
+                        <div class="new-tag"><div style="display:flex;align-items:center;gap:6px;color:#9ca3af;font-size:13px;margin-bottom:2px"><span class="material-symbols-outlined" style="font-size:16px">warehouse</span>目的仓库</div><div style="font-size:14px">厂商自有仓库</div></div>
+                        <div><div style="display:flex;align-items:center;gap:6px;color:#9ca3af;font-size:13px;margin-bottom:2px"><span class="material-symbols-outlined" style="font-size:16px">public</span>贸易术语</div><div style="font-size:14px">-</div></div>
+                        <div><div style="display:flex;align-items:center;gap:6px;color:#9ca3af;font-size:13px;margin-bottom:2px"><span class="material-symbols-outlined" style="font-size:16px">local_shipping</span>运输方式</div><div style="font-size:14px">-</div></div>
+                        <div><div style="display:flex;align-items:center;gap:6px;color:#9ca3af;font-size:13px;margin-bottom:2px"><span class="material-symbols-outlined" style="font-size:16px">payments</span>付款条件</div><div style="font-size:14px">-</div></div>
+                        <div><div style="display:flex;align-items:center;gap:6px;color:#9ca3af;font-size:13px;margin-bottom:2px"><span class="material-symbols-outlined" style="font-size:16px">event</span>需求日期</div><div style="font-size:14px">-</div></div>
+                    </div>
+                </div>
+            </div>
+            <!-- 订单明细 -->
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700">订单明细</h3></div>
+                <div class="card-body">
+                    <table class="data-table">
+                        <thead><tr><th>行号</th><th>产品描述</th><th>型号</th><th style="text-align:center">数量</th><th class="new-tag" style="text-align:center;padding-right:16px">已发</th><th class="new-tag" style="text-align:center;padding-right:16px">已收</th><th style="text-align:right">单价</th><th style="text-align:right">金额</th></tr></thead>
+                        <tbody>
+                            <tr><td>1</td><td><div style="font-weight:500">信号剥离矩阵</div><div style="font-size:12px;color:#9ca3af">频率范围: 350-430MHz 信道端口数: 4 input/4 output</div></td><td>R-EVDC-BLST-4</td><td style="text-align:center">12 套</td><td style="text-align:center;color:#3b82f6;font-weight:500">8</td><td style="text-align:center;color:#16a34a;font-weight:500">6</td><td style="text-align:right">¥7,500</td><td style="text-align:right;font-weight:600">¥90,000</td></tr>
+                        </tbody>
+                        <tfoot><tr><td colspan="3" style="text-align:right;font-weight:600;padding:12px 16px">合计</td><td style="text-align:center;font-weight:600">12</td><td></td><td></td><td></td><td style="text-align:right;font-weight:700;font-size:15px">¥90,000.00</td></tr></tfoot>
+                    </table>
+                </div>
+            </div>
+            <!-- NEW: 发货批次 -->
+            <div class="card new-tag" style="margin-bottom:16px;border-color:#93c5fd">
+                <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+                    <h3 style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px">
+                        <span class="material-symbols-outlined" style="color:#3b82f6">local_shipping</span>发货批次
+                    </h3>
+                    <button class="btn-outline" id="btnAddShipment" style="font-size:13px;padding:6px 12px">
+                        <span class="material-symbols-outlined" style="font-size:16px">add</span>新增发货
+                    </button>
+                </div>
+                <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+                    <div class="shipment-item">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <div style="display:flex;align-items:center;gap:10px">
+                                <span class="badge badge-blue">在途中</span>
+                                <span style="font-weight:600;font-size:14px">PO202507-003-S01</span>
+                                <span style="font-size:12px;color:#9ca3af">顺丰速运 SF1234567890</span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:12px;font-size:12px;color:#9ca3af">
+                                <span>发货: 2026-02-18</span>
+                                <span>预到: 2026-02-22</span>
+                                <span class="material-symbols-outlined" style="font-size:16px;cursor:pointer">expand_more</span>
+                            </div>
+                        </div>
+                        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #f3f4f6;font-size:12px;color:#6b7280;display:flex;gap:20px">
+                            <span>产品: 信号剥离矩阵 x 6套</span>
+                            <span>件数: 3件</span>
+                            <span>重量: 120kg</span>
+                        </div>
+                    </div>
+                    <div class="shipment-item">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <div style="display:flex;align-items:center;gap:10px">
+                                <span class="badge badge-green">已签收</span>
+                                <span style="font-weight:600;font-size:14px">PO202507-003-S02</span>
+                                <span style="font-size:12px;color:#9ca3af">德邦物流 DB0001234</span>
+                            </div>
+                            <span style="font-size:12px;color:#9ca3af">签收: 2026-02-14</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- 产品序列号 (现有不变) -->
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700">产品序列号</h3></div>
+                <div class="card-body" style="text-align:center;padding:30px;color:#9ca3af">
+                    <span class="material-symbols-outlined" style="font-size:40px;color:#d1d5db">qr_code_2</span>
+                    <div style="margin-top:8px;font-size:13px">暂无序列号数据</div>
+                </div>
+            </div>
+            <!-- 测试记录 (现有不变) -->
+            <div class="card">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700">测试记录</h3></div>
+                <div style="padding:0 24px"><div class="tab-bar" style="padding:0"><div class="tab-item active">工厂测试</div><div class="tab-item">验证测试</div></div></div>
+                <div class="card-body">
+                    <div style="display:flex;align-items:center;justify-content:space-between">
+                        <span class="badge badge-gray"><span class="material-symbols-outlined" style="font-size:14px;margin-right:4px">schedule</span>待执行</span>
+                        <button style="color:#3b82f6;font-size:13px;background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:4px"><span class="material-symbols-outlined" style="font-size:16px">upload_file</span>上传测试报告</button>
+                    </div>
+                    <div style="margin-top:12px;font-size:13px;color:#6b7280">工厂测试是必须的质量检验环节，由供应商在出厂前完成。</div>
+                </div>
+            </div>
+        </div>
+        <!-- 右侧 -->
+        <div>
+            <!-- 订单流程时间线 (现有不变) -->
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700">订单流程</h3></div>
+                <div class="card-body">
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#dcfce7"><span class="material-symbols-outlined" style="font-size:14px;color:#16a34a">check</span></div><div><div style="font-size:14px;font-weight:600">提交申请</div><div style="font-size:11px;color:#9ca3af">2025-07-20 10:42</div></div></div>
+                    <div class="timeline-line"></div>
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#dcfce7"><span class="material-symbols-outlined" style="font-size:14px;color:#16a34a">check</span></div><div><div style="font-size:14px;font-weight:500">部门负责人 <span class="badge badge-green" style="font-size:10px">已同意</span></div></div></div>
+                    <div class="timeline-line"></div>
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#dcfce7"><span class="material-symbols-outlined" style="font-size:14px;color:#16a34a">check</span></div><div><div style="font-size:14px;font-weight:500">财务审批 <span class="badge badge-green" style="font-size:10px">已同意</span></div></div></div>
+                    <div class="timeline-line" style="border-left:2px dashed #d1d5db;margin-left:9px"></div>
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#f3f4f6"><span class="material-symbols-outlined" style="font-size:14px;color:#9ca3af">radio_button_unchecked</span></div><div><div style="font-size:14px;color:#6b7280">供应商确认</div><div style="font-size:12px;color:#3b82f6;cursor:pointer">确认 →</div></div></div>
+                    <div class="timeline-line" style="border-left:2px dashed #d1d5db;margin-left:9px"></div>
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#f3f4f6"><span class="material-symbols-outlined" style="font-size:14px;color:#9ca3af">radio_button_unchecked</span></div><div><div style="font-size:14px;color:#9ca3af">备料</div><div style="font-size:12px;color:#9ca3af">点击推进到此阶段 →</div></div></div>
+                    <div class="timeline-line" style="border-left:2px dashed #d1d5db;margin-left:9px"></div>
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#f3f4f6"><span class="material-symbols-outlined" style="font-size:14px;color:#9ca3af">radio_button_unchecked</span></div><div><div style="font-size:14px;color:#9ca3af">生产</div></div></div>
+                    <div class="timeline-line" style="border-left:2px dashed #d1d5db;margin-left:9px"></div>
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#f3f4f6"><span class="material-symbols-outlined" style="font-size:14px;color:#9ca3af">radio_button_unchecked</span></div><div><div style="font-size:14px;color:#9ca3af">测试</div></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>`,
+
+// ===== 详情页 - 批价关联（可结算） =====
+detailPricingLinked: `
+<div class="card overflow-hidden">
+    ${topBar}
+    <div style="padding:16px 24px 0">
+        <div class="breadcrumb"><a href="#">采购管理</a><span>›</span><a href="#">采购订单</a><span>›</span><span>PUO202507-004</span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:12px">
+                <h1 style="font-size:24px;font-weight:700">PUO202507-004</h1>
+                <span class="badge badge-green">已入库</span>
+                <span class="badge badge-purple">批价关联</span>
+                <span class="badge badge-cyan new-tag" style="font-weight:700;padding-right:16px">可结算</span>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn-outline" id="btnBackFromDetail2"><span class="material-symbols-outlined msi">arrow_back</span>返回</button>
+                <button class="btn-outline"><span class="material-symbols-outlined msi">download</span>导出PO</button>
+                <button class="btn-primary new-tag" id="btnGoSettlement" style="background:#0891b2;padding-right:24px"><span class="material-symbols-outlined msi">account_balance</span>前往结算管理</button>
+            </div>
+        </div>
+    </div>
+    <div style="padding:16px 24px 24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
+        <div>
+            <!-- 基本信息 -->
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700">基本信息</h3></div>
+                <div class="card-body">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                        <div><div style="color:#9ca3af;font-size:13px;margin-bottom:2px;display:flex;align-items:center;gap:4px"><span class="material-symbols-outlined" style="font-size:16px">business</span>供应商</div><div style="font-size:14px;font-weight:500">上海瀚网智能科技有限公司</div></div>
+                        <div><div style="color:#9ca3af;font-size:13px;margin-bottom:2px;display:flex;align-items:center;gap:4px"><span class="material-symbols-outlined" style="font-size:16px">calendar_today</span>订单日期</div><div>2025-07-15</div></div>
+                        <div><div style="color:#9ca3af;font-size:13px;margin-bottom:2px;display:flex;align-items:center;gap:4px"><span class="material-symbols-outlined" style="font-size:16px">source</span>订单来源</div><div><span class="badge badge-purple">批价关联</span></div></div>
+                        <div><div style="color:#9ca3af;font-size:13px;margin-bottom:2px;display:flex;align-items:center;gap:4px"><span class="material-symbols-outlined" style="font-size:16px">warehouse</span>目的仓库</div><div>代理商仓库</div></div>
+                    </div>
+                </div>
+            </div>
+            <!-- NEW: 关联批价单 -->
+            <div class="card new-tag" style="margin-bottom:16px;border-color:#c084fc;background:#faf5ff">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700;color:#7c3aed;display:flex;align-items:center;gap:6px"><span class="material-symbols-outlined" style="font-size:18px;color:#7c3aed">link</span>关联批价单</h3></div>
+                <div class="card-body">
+                    <a href="#" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:white;border:1px solid #e5e7eb;border-radius:8px;text-decoration:none;color:inherit">
+                        <div><span style="font-weight:600;color:#7c3aed">PRC202602-001</span><span style="margin-left:8px;font-size:13px;color:#6b7280">XX医院智慧医疗项目</span></div>
+                        <div style="display:flex;align-items:center;gap:8px"><span class="badge badge-green">已审批</span><span style="font-size:13px;color:#9ca3af">¥239,940</span><span class="material-symbols-outlined" style="font-size:16px;color:#9ca3af">open_in_new</span></div>
+                    </a>
+                </div>
+            </div>
+            <!-- 订单明细 -->
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700">订单明细</h3></div>
+                <div class="card-body">
+                    <table class="data-table">
+                        <thead><tr><th>行号</th><th>产品</th><th style="text-align:center">数量</th><th style="text-align:center">已发</th><th style="text-align:center">已收</th><th style="text-align:right">金额</th></tr></thead>
+                        <tbody>
+                            <tr><td>1</td><td style="font-weight:500">交换机 S5735-L48T4X</td><td style="text-align:center">5</td><td style="text-align:center;color:#16a34a;font-weight:500">5 ✓</td><td style="text-align:center;color:#16a34a;font-weight:500">5 ✓</td><td style="text-align:right">¥93,000</td></tr>
+                            <tr><td>2</td><td style="font-weight:500">防火墙 USG6555E</td><td style="text-align:center">2</td><td style="text-align:center;color:#16a34a;font-weight:500">2 ✓</td><td style="text-align:center;color:#16a34a;font-weight:500">2 ✓</td><td style="text-align:right">¥64,000</td></tr>
+                            <tr><td>3</td><td style="font-weight:500">无线AP AirEngine 5762</td><td style="text-align:center">10</td><td style="text-align:center;color:#16a34a;font-weight:500">10 ✓</td><td style="text-align:center;color:#16a34a;font-weight:500">10 ✓</td><td style="text-align:right">¥29,000</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- 发货批次 -->
+            <div class="card">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:6px"><span class="material-symbols-outlined" style="color:#3b82f6">local_shipping</span>发货批次</h3></div>
+                <div class="card-body">
+                    <div class="shipment-item">
+                        <div style="display:flex;align-items:center;justify-content:space-between">
+                            <div style="display:flex;align-items:center;gap:10px"><span class="badge badge-green">已签收</span><span style="font-weight:600">PUO202507-004-S01</span><span style="font-size:12px;color:#9ca3af">德邦物流</span></div>
+                            <span style="font-size:12px;color:#9ca3af">签收: 2026-02-15</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <div class="card" style="margin-bottom:16px">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700">订单流程</h3></div>
+                <div class="card-body">
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#dcfce7"><span class="material-symbols-outlined" style="font-size:14px;color:#16a34a">check</span></div><div><div style="font-size:14px;font-weight:500">已确认</div></div></div>
+                    <div class="timeline-line" style="background:#16a34a"></div>
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#dcfce7"><span class="material-symbols-outlined" style="font-size:14px;color:#16a34a">check</span></div><div><div style="font-size:14px;font-weight:500">生产完成</div></div></div>
+                    <div class="timeline-line" style="background:#16a34a"></div>
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#dcfce7"><span class="material-symbols-outlined" style="font-size:14px;color:#16a34a">check</span></div><div><div style="font-size:14px;font-weight:500">已发货</div></div></div>
+                    <div class="timeline-line" style="background:#16a34a"></div>
+                    <div class="timeline-item"><div class="timeline-dot" style="background:#dcfce7"><span class="material-symbols-outlined" style="font-size:14px;color:#16a34a">check</span></div><div><div style="font-size:14px;font-weight:700">已入库 ✓</div></div></div>
+                </div>
+            </div>
+            <!-- NEW: 结算状态卡片 -->
+            <div class="card new-tag" style="border-color:#06b6d4;background:#ecfeff">
+                <div class="card-header"><h3 style="font-size:16px;font-weight:700;color:#0e7490">结算状态</h3></div>
+                <div class="card-body">
+                    <div style="font-size:13px;color:#6b7280;margin-bottom:12px">该订单关联的批价单可以进行库存结算</div>
+                    <button class="btn-primary" id="btnGoSettlement2" style="width:100%;justify-content:center;background:#0891b2"><span class="material-symbols-outlined msi">account_balance</span>前往结算管理</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>`,
+
+// ===== 新增发货模态框 =====
+shipmentModal: `
+<div class="card overflow-hidden" style="position:relative;min-height:520px">
+    <div style="padding:24px;opacity:.12;pointer-events:none"><h2 style="font-size:20px;font-weight:700;margin-bottom:16px">PUO202507-003</h2><div style="height:300px;background:#f3f4f6;border-radius:12px"></div></div>
+    <div class="modal-overlay">
+        <div class="modal-box" style="margin-top:10px;max-height:500px">
+            <div class="modal-header">
+                <h3 style="font-size:15px;font-weight:700">新增发货批次</h3>
+                <span style="font-size:12px;color:#9ca3af">批次号: PO202507-003-S03 (自动生成)</span>
+            </div>
+            <div style="padding:20px;display:flex;flex-direction:column;gap:20px">
+                <!-- 发货产品 -->
+                <div>
+                    <h4 style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">选择发货产品</h4>
+                    <table class="data-table" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden">
+                        <thead style="background:#f9fafb"><tr><th style="font-size:12px">产品</th><th style="text-align:center;font-size:12px">订单数量</th><th style="text-align:center;font-size:12px">已发</th><th style="text-align:center;font-size:12px;color:#ea580c">剩余</th><th style="text-align:center;font-size:12px">本批发货</th></tr></thead>
+                        <tbody><tr><td style="font-weight:500">信号剥离矩阵</td><td style="text-align:center">12</td><td style="text-align:center;color:#9ca3af">8</td><td style="text-align:center;color:#ea580c;font-weight:600">4</td><td style="text-align:center"><input type="number" value="4" max="4" style="width:60px;text-align:center;border:1px solid #d1d5db;border-radius:6px;padding:4px"></td></tr></tbody>
+                    </table>
+                </div>
+                <!-- 物流信息 -->
+                <div>
+                    <h4 style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">物流信息</h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                        <div><label style="font-size:12px;color:#9ca3af">承运商</label><input class="filter-input" style="width:100%;margin-top:2px" placeholder="如：顺丰速运"></div>
+                        <div><label style="font-size:12px;color:#9ca3af">运单号</label><input class="filter-input" style="width:100%;margin-top:2px" placeholder="运单追踪号"></div>
+                        <div><label style="font-size:12px;color:#9ca3af">运输方式</label><select class="filter-select" style="width:100%;margin-top:2px"><option>陆运</option><option>空运</option><option>快递</option></select></div>
+                        <div><label style="font-size:12px;color:#9ca3af">发货日期</label><input type="date" class="filter-input" style="width:100%;margin-top:2px" value="2026-02-22"></div>
+                        <div><label style="font-size:12px;color:#9ca3af">预计到达</label><input type="date" class="filter-input" style="width:100%;margin-top:2px"></div>
+                    </div>
+                </div>
+                <!-- 包装 -->
+                <div>
+                    <h4 style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">包装信息</h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+                        <div><label style="font-size:12px;color:#9ca3af">件数</label><input type="number" class="filter-input" style="width:100%;margin-top:2px" placeholder="0"></div>
+                        <div><label style="font-size:12px;color:#9ca3af">重量(kg)</label><input class="filter-input" style="width:100%;margin-top:2px" placeholder="0.00"></div>
+                        <div><label style="font-size:12px;color:#9ca3af">体积(m³)</label><input class="filter-input" style="width:100%;margin-top:2px" placeholder="0.000"></div>
+                    </div>
+                </div>
+                <!-- 联系人 -->
+                <div>
+                    <h4 style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">联系人</h4>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                        <div><label style="font-size:12px;color:#9ca3af">发货联系人</label><input class="filter-input" style="width:100%;margin-top:2px"></div>
+                        <div><label style="font-size:12px;color:#9ca3af">发货电话</label><input class="filter-input" style="width:100%;margin-top:2px"></div>
+                        <div><label style="font-size:12px;color:#9ca3af">收货联系人</label><input class="filter-input" style="width:100%;margin-top:2px"></div>
+                        <div><label style="font-size:12px;color:#9ca3af">收货电话</label><input class="filter-input" style="width:100%;margin-top:2px"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-outline" id="btnCancelShipment">取消</button>
+                <button class="btn-primary" id="btnConfirmShipment"><span class="material-symbols-outlined msi">check</span>确认发货</button>
+            </div>
+        </div>
+    </div>
+</div>`,
+
+// ===== 结算管理页面 =====
+settlementPage: `
+<div class="card overflow-hidden">
+    ${topBar}
+    <div style="padding:20px 24px 16px"><h1 style="font-size:22px;font-weight:700">结算管理</h1></div>
+    <div style="padding:0 24px 16px">
+        <div style="background:#ecfeff;border:1px solid #a5f3fc;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px">
+            <span class="material-symbols-outlined" style="color:#0891b2">info</span>
+            <div><div style="font-size:14px;font-weight:600;color:#0e7490">从采购订单 PUO202507-004 跳转</div><div style="font-size:12px;color:#6b7280">已筛选显示关联的批价单：PRC202602-001</div></div>
+        </div>
+        <table class="data-table">
+            <thead><tr><th>结算单号</th><th>批价单号</th><th>分销商</th><th style="text-align:right">金额</th><th style="text-align:center">结算状态</th><th style="text-align:center">操作</th></tr></thead>
+            <tbody>
+                <tr><td style="font-weight:600">STL202602-001</td><td style="color:#3b82f6">PRC202602-001</td><td>深圳XX代理商</td><td style="text-align:right;font-weight:500">¥239,940</td><td style="text-align:center"><span class="badge badge-yellow">待结算</span></td><td style="text-align:center"><button style="color:#3b82f6;font-size:13px;background:none;border:none;cursor:pointer;text-decoration:underline">执行结算</button></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>`
+};
+
+// ==================== 流程定义 ====================
+const journeys = {
+    1: { name:'创建备货订单', steps:[
+        {label:'采购订单列表', page:'listOrders', desc:'点击右上角 "新建采购订单" 按钮'},
+        {label:'填写订单信息', page:'createFormStocking', desc:'订单来源选择"备货"，填写供应商和产品明细'},
+        {label:'订单详情页', page:'detailStocking', desc:'创建成功，跳转到详情页，显示来源=备货'}
+    ]},
+    2: { name:'从批价单导入创建', steps:[
+        {label:'采购订单列表', page:'listOrders', desc:'点击 "新建采购订单"'},
+        {label:'点击从批价单导入', page:'createFormStocking', desc:'在创建表单中点击 "从批价单导入" 按钮'},
+        {label:'选择批价单', page:'pricingSelector', desc:'弹出批价单选择器，勾选一个或多个批价单'},
+        {label:'自动填充产品', page:'createFormPricingFilled', desc:'产品明细自动填充，来源自动标记为"批价关联"'},
+        {label:'订单详情页', page:'detailPricingLinked', desc:'创建成功，显示关联批价单和"可结算"标记'}
+    ]},
+    3: { name:'添加发货批次', steps:[
+        {label:'订单详情页', page:'detailStocking', desc:'滚动到"发货批次"卡片，点击 "新增发货"'},
+        {label:'填写发货信息', page:'shipmentModal', desc:'填写物流/包装/联系人信息，选择发货产品数量'},
+        {label:'发货记录更新', page:'detailStocking', desc:'确认后，发货批次列表新增一条记录'}
+    ]},
+    4: { name:'发货总览', steps:[
+        {label:'采购订单列表', page:'listOrders', desc:'点击 "发货总览" Tab 切换视图'},
+        {label:'发货总览', page:'listShipments', desc:'显示所有订单的发货批次，可按状态筛选'},
+        {label:'跳转到订单', page:'detailStocking', desc:'点击PO单号，跳转到对应订单详情页'}
+    ]},
+    5: { name:'批价关联→结算', steps:[
+        {label:'批价关联订单详情', page:'detailPricingLinked', desc:'批价关联订单已入库，显示"可结算"标记和结算按钮'},
+        {label:'跳转结算管理', page:'settlementPage', desc:'点击"前往结算管理"，自动筛选关联的批价单'}
+    ]}
+};
+
+// ==================== 交互逻辑 ====================
+let curJ = 1, curS = 0;
+
+function showJourney(n) {
+    curJ = n; curS = 0;
+    document.querySelectorAll('.journey-card').forEach((el,i) => {
+        el.classList.toggle('selected', i===n-1);
+    });
+    render();
+}
+
+function render() {
+    const j = journeys[curJ], s = j.steps[curS];
+    // 步骤点
+    document.getElementById('stepDots').innerHTML = j.steps.map((st,i) => `
+        <div style="display:flex;align-items:center;gap:6px;cursor:pointer" onclick="goTo(${i})">
+            <span class="step-dot ${i===curS?'active':i<curS?'done':'pending'}">${i<curS?'✓':i+1}</span>
+            <span style="font-size:13px;font-weight:${i===curS?600:400};color:${i===curS?'#1e3a5f':i<curS?'#16a34a':'#9ca3af'}">${st.label}</span>
+            ${i<j.steps.length-1?'<span style="color:#d1d5db;margin:0 4px">→</span>':''}
+        </div>
+    `).join('');
+    // 导航按钮
+    document.getElementById('stepNav').innerHTML = `
+        ${curS>0?'<button class="btn-outline" onclick="prev()" style="font-size:13px"><span class="material-symbols-outlined msi">arrow_back</span>上一步</button>':''}
+        ${curS<j.steps.length-1?'<button class="btn-primary" onclick="next()" style="font-size:13px">下一步<span class="material-symbols-outlined msi">arrow_forward</span></button>':'<span style="color:#16a34a;font-size:13px;font-weight:600;display:flex;align-items:center;gap:4px"><span class="material-symbols-outlined msi">check_circle</span>流程结束</span>'}
+    `;
+    // 提示
+    document.getElementById('stepHintText').innerHTML = `<strong>步骤 ${curS+1}/${j.steps.length}：</strong>${s.desc}`;
+    // 页面
+    document.getElementById('pageContent').innerHTML = pages[s.page];
+    // 绑定交互
+    bind();
+    window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function next() { if(curS < journeys[curJ].steps.length-1) { curS++; render(); } }
+function prev() { if(curS > 0) { curS--; render(); } }
+function goTo(i) { curS = i; render(); }
+
+function bind() {
+    const on = (id, fn) => { const el=document.getElementById(id); if(el) el.onclick=fn; };
+    on('btnCreate', next);
+    on('btnShipmentTab', () => { if(curJ===4) next(); });
+    on('btnOrdersTab2', prev);
+    on('btnSubmitCreate', next);
+    on('btnSubmitPricing', next);
+    on('btnCancelCreate', prev);
+    on('btnImportPricing', () => { if(curJ===2) next(); });
+    on('btnConfirmImport', next);
+    on('btnBackFromDetail', prev);
+    on('btnBackFromDetail2', prev);
+    on('btnAddShipment', () => { if(curJ===3) next(); });
+    on('btnConfirmShipment', next);
+    on('btnCancelShipment', prev);
+    on('btnGoSettlement', () => { if(curJ===5) next(); });
+    on('btnGoSettlement2', () => { if(curJ===5) next(); });
+    const r2 = document.getElementById('rowPO2');
+    if(r2 && curJ===5) r2.onclick = next;
+}
+
+showJourney(1);
+</script>
+</body>
+</html>

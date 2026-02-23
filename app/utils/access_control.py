@@ -1673,7 +1673,8 @@ def can_view_contact(user, contact):
     # 检查公司共享设置
     if hasattr(company, 'shared_with_users') and company.shared_with_users:
         if user.id in company.shared_with_users:
-            if hasattr(company, 'share_contacts') and company.share_contacts:
+            # share_contacts 默认值为 True，NULL(旧数据未backfill)视同 True
+            if not hasattr(company, 'share_contacts') or company.share_contacts is not False:
                 return True
     # 判断是否通过归属关系获得权限
     affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()

@@ -251,6 +251,7 @@ def _serialize_defaults():
             'scenarios': [{'title': str(s['title']), 'desc': str(s['desc']), 'image': s['image']} for s in feat.get('scenarios', [])],
             'entry': str(feat.get('entry', '')),
             'steps': [str(s) for s in feat.get('steps', [])],
+            'gallery': feat.get('gallery', []),
         }
         result.append(item)
     return result

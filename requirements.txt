@@ -96,3 +96,6 @@ tiktoken>=0.7.0
 
 # OpenClaw Gateway WebSocket 直连
 websockets>=12.0
+
+# AI 客户调研 — 网络搜索
+duckduckgo-search>=7.0.0

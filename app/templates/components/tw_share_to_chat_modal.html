@@ -1,0 +1,283 @@
+{#
+  分享到聊天 - 独立弹窗组件
+  用法:
+    {% from 'components/tw_share_to_chat_modal.html' import render_share_to_chat_modal, render_share_to_chat_script %}
+    {{ render_share_to_chat_modal() }}
+    {{ render_share_to_chat_script() }}
+
+  触发方式:
+    window.dispatchEvent(new CustomEvent('open-share-to-chat', {
+        detail: { files: [{ id, display_name, file_size }] }
+    }));
+#}
+
+{% macro render_share_to_chat_modal() %}
+<div x-data="shareToChatApp()" x-cloak
+     @open-share-to-chat.window="openShareModal($event.detail)">
+
+    <!-- 遮罩 + 弹窗 -->
+    <div x-show="showModal" x-transition.opacity
+         class="fixed inset-0 z-[60] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/30" @click="showModal = false"></div>
+        <div class="relative bg-white dark:bg-slate-900 rounded-none md:rounded-2xl shadow-2xl flex flex-col md:flex-row overflow-hidden w-full h-full md:w-[560px] md:h-[480px]"
+             @click.stop>
+
+            <!-- 左栏：对话/联系人选择 -->
+            <div class="w-full md:w-[300px] flex-1 md:flex-none border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-700 flex flex-col">
+                <div class="p-4 pb-2">
+                    <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('分享到聊天') }}</h3>
+                    <div class="mt-2 relative">
+                        <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">search</span>
+                        <input x-model="searchQuery"
+                               @input="activeTab === 'users' && searchUsers()"
+                               :placeholder="activeTab === 'users' ? '{{ _('搜索联系人...') }}' : '{{ _('搜索对话...') }}'"
+                               class="w-full text-sm pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/30 text-slate-900 dark:text-white placeholder:text-slate-400">
+                    </div>
+                </div>
+                <!-- Tab -->
+                <div class="flex px-4 gap-4 border-b border-slate-100 dark:border-slate-800">
+                    <button @click="activeTab = 'conversations'"
+                            class="pb-2 text-[12px] font-medium border-b-2 transition-colors cursor-pointer"
+                            :class="activeTab === 'conversations' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'">
+                        {{ _('最近聊天') }}
+                    </button>
+                    <button @click="activeTab = 'users'; searchQuery && searchUsers()"
+                            class="pb-2 text-[12px] font-medium border-b-2 transition-colors cursor-pointer"
+                            :class="activeTab === 'users' ? 'border-primary text-primary' : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'">
+                        {{ _('联系人') }}
+                    </button>
+                </div>
+                <!-- 最近聊天列表 -->
+                <div x-show="activeTab === 'conversations'" class="flex-1 overflow-y-auto px-2 py-2">
+                    <div x-show="loadingConvs" class="flex justify-center py-8">
+                        <span class="material-symbols-outlined text-slate-300 animate-spin">progress_activity</span>
+                    </div>
+                    <template x-for="conv in filteredConversations" :key="'sc_' + conv.id">
+                        <label class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors">
+                            <input type="checkbox"
+                                   @change="toggleConv(conv)"
+                                   :checked="selected.some(s => s.id === conv.id)"
+                                   class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/30 cursor-pointer">
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="conv.name || '{{ _('未命名') }}'"></div>
+                                <div class="text-xs text-slate-400 truncate" x-text="conv.last_message || ''"></div>
+                            </div>
+                        </label>
+                    </template>
+                </div>
+                <!-- 联系人搜索 -->
+                <div x-show="activeTab === 'users'" class="flex-1 overflow-y-auto px-2 py-2">
+                    <div x-show="!searchQuery" class="text-sm text-slate-400 py-8 text-center">{{ _('输入姓名搜索联系人') }}</div>
+                    <template x-for="u in userResults" :key="'scu_' + u.id">
+                        <label class="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors">
+                            <input type="checkbox"
+                                   @change="toggleUser(u)"
+                                   :checked="selected.some(s => s.userId === u.id)"
+                                   class="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/30 cursor-pointer">
+                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white bg-gradient-to-br from-blue-400 to-blue-600"
+                                 x-text="u.name?.[0] || '?'"></div>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="u.name"></div>
+                                <div class="text-xs text-slate-400" x-text="u.dept || ''"></div>
+                            </div>
+                        </label>
+                    </template>
+                    <div x-show="searchQuery && userResults.length === 0"
+                         class="text-sm text-slate-400 py-8 text-center">{{ _('未找到联系人') }}</div>
+                </div>
+            </div>
+
+            <!-- 右栏：已选 + 文件信息 + 留言 -->
+            <div class="flex-shrink-0 md:flex-1 flex flex-col max-h-[40%] md:max-h-none min-w-0 overflow-hidden">
+                <div class="p-4 pb-2">
+                    <span class="text-sm font-semibold text-slate-900 dark:text-white">
+                        {{ _('已选择') }}（<span x-text="selected.length"></span>）
+                    </span>
+                </div>
+                <div class="flex-1 overflow-y-auto px-4">
+                    <!-- 已选列表 -->
+                    <template x-for="sel in selected" :key="'ssel_' + (sel.id || sel.userId)">
+                        <div class="flex items-center gap-2 py-1.5 group/sel">
+                            <span class="text-sm text-slate-700 dark:text-slate-300 truncate flex-1" x-text="sel.name"></span>
+                            <button @click="removeTarget(sel)"
+                                    class="w-5 h-5 flex items-center justify-center rounded-full text-slate-300 hover:text-red-500 opacity-0 group-hover/sel:opacity-100 transition-opacity cursor-pointer">
+                                <span class="material-symbols-outlined text-sm">close</span>
+                            </button>
+                        </div>
+                    </template>
+                    <!-- 文件信息 -->
+                    <div class="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800" x-show="shareFiles.length > 0">
+                        <div class="text-xs text-slate-400 mb-1">{{ _('分享文件') }}（<span x-text="shareFiles.length"></span>）</div>
+                        <template x-for="f in shareFiles.slice(0, 5)" :key="'sf_' + f.id">
+                            <div class="flex items-center gap-1.5 py-0.5 min-w-0">
+                                <span class="material-symbols-outlined text-sm text-slate-400 flex-shrink-0">description</span>
+                                <span class="text-xs text-slate-600 dark:text-slate-400 truncate" x-text="f.display_name"></span>
+                            </div>
+                        </template>
+                        <div x-show="shareFiles.length > 5" class="text-xs text-slate-400 mt-0.5"
+                             x-text="'... {{ _('等') }} ' + shareFiles.length + ' {{ _('个文件') }}'"></div>
+                    </div>
+                </div>
+                <div class="p-3 border-t border-slate-200 dark:border-slate-700">
+                    <textarea x-model="note"
+                              placeholder="{{ _('留言...') }}"
+                              rows="2"
+                              class="w-full text-sm px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 resize-none focus:outline-none focus:ring-1 focus:ring-primary/30 mb-2 text-slate-900 dark:text-white placeholder:text-slate-400"></textarea>
+                    <div class="flex justify-end gap-2">
+                        <button @click="showModal = false"
+                                class="px-5 py-1.5 text-sm rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors">
+                            {{ _('取消') }}
+                        </button>
+                        <button @click="executeShare()"
+                                :disabled="selected.length === 0 || sharing"
+                                class="px-5 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary-dark disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors">
+                            <span x-show="!sharing">{{ _('分享') }}</span>
+                            <span x-show="sharing" class="flex items-center gap-1">
+                                <span class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                                {{ _('分享中...') }}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <button @click="showModal = false"
+                    class="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors">
+                <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{% macro render_share_to_chat_script() %}
+<script>
+function shareToChatApp() {
+    return {
+        showModal: false,
+        shareFiles: [],
+        conversations: [],
+        loadingConvs: false,
+        selected: [],
+        note: '',
+        sharing: false,
+        searchQuery: '',
+        activeTab: 'conversations',
+        userResults: [],
+        _searchDebounce: null,
+
+        init() {
+            // 将弹窗移到 body 层级，避免被 overflow-hidden 容器裁剪
+            document.body.appendChild(this.$el);
+        },
+
+        get filteredConversations() {
+            const q = this.searchQuery.toLowerCase();
+            if (!q) return this.conversations;
+            return this.conversations.filter(c => c.name?.toLowerCase().includes(q));
+        },
+
+        openShareModal(detail) {
+            this.shareFiles = detail.files || [];
+            this.selected = [];
+            this.note = '';
+            this.searchQuery = '';
+            this.activeTab = 'conversations';
+            this.userResults = [];
+            this.showModal = true;
+            this.loadConversations();
+        },
+
+        async loadConversations() {
+            this.loadingConvs = true;
+            try {
+                const resp = await fetch('/chat/api/conversations');
+                const data = await resp.json();
+                if (data.success) {
+                    this.conversations = (data.data || []).filter(c => c.type !== 'ai');
+                }
+            } catch (e) {
+                console.error('Load conversations failed:', e);
+            } finally {
+                this.loadingConvs = false;
+            }
+        },
+
+        toggleConv(conv) {
+            const idx = this.selected.findIndex(s => s.id === conv.id);
+            if (idx >= 0) {
+                this.selected.splice(idx, 1);
+            } else {
+                this.selected.push({ id: conv.id, name: conv.name, type: 'conv' });
+            }
+        },
+
+        toggleUser(user) {
+            const idx = this.selected.findIndex(s => s.userId === user.id);
+            if (idx >= 0) {
+                this.selected.splice(idx, 1);
+            } else {
+                this.selected.push({ userId: user.id, name: user.name, type: 'user' });
+            }
+        },
+
+        removeTarget(sel) {
+            this.selected = this.selected.filter(s => s !== sel);
+        },
+
+        searchUsers() {
+            clearTimeout(this._searchDebounce);
+            const q = this.searchQuery.trim();
+            if (!q) { this.userResults = []; return; }
+            this._searchDebounce = setTimeout(async () => {
+                try {
+                    const resp = await fetch(`/chat/api/users/search?q=${encodeURIComponent(q)}`);
+                    const data = await resp.json();
+                    if (data.success) {
+                        this.userResults = data.data || [];
+                    }
+                } catch (e) {
+                    console.error('Search users failed:', e);
+                }
+            }, 300);
+        },
+
+        async executeShare() {
+            if (this.selected.length === 0 || this.shareFiles.length === 0) return;
+            this.sharing = true;
+            try {
+                const resp = await fetch('/chat/api/share-files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '',
+                    },
+                    body: JSON.stringify({
+                        file_ids: this.shareFiles.map(f => f.id),
+                        conversation_ids: this.selected.filter(s => s.id).map(s => s.id),
+                        user_ids: this.selected.filter(s => s.userId).map(s => s.userId),
+                        note: this.note.trim() || null,
+                    }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.showModal = false;
+                    // 发送成功事件供外部监听
+                    window.dispatchEvent(new CustomEvent('share-to-chat-success', {
+                        detail: { message: data.message || '{{ _("分享成功") }}' }
+                    }));
+                } else {
+                    alert(data.message || '{{ _("分享失败") }}');
+                }
+            } catch (e) {
+                console.error('Share files failed:', e);
+                alert('{{ _("分享失败") }}');
+            } finally {
+                this.sharing = false;
+            }
+        },
+    };
+}
+</script>
+{% endmacro %}

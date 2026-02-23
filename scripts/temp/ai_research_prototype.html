@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 客户调研 - 原型预览</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            bg: '#0f172a',
+                            card: '#1e293b',
+                            border: '#334155',
+                            hover: '#293548',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .section-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, opacity 0.2s ease-out; opacity: 0; }
+        .section-content.expanded { max-height: 2000px; opacity: 1; transition: max-height 0.5s ease-in, opacity 0.3s ease-in; }
+        .chevron-icon { transition: transform 0.3s ease; }
+        .chevron-icon.rotated { transform: rotate(180deg); }
+        .risk-pulse { animation: pulse-ring 2s ease-out infinite; }
+        @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); } }
+        .shimmer { background: linear-gradient(90deg, #1e293b 25%, #293548 50%, #1e293b 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    </style>
+</head>
+<body class="bg-dark-bg text-gray-200 min-h-screen">
+
+    <!-- 顶部模拟导航 -->
+    <div class="bg-dark-card border-b border-dark-border px-6 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span class="text-gray-400 text-sm">客户管理</span>
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            <span class="text-white font-medium">深圳达实智能股份有限公司</span>
+        </div>
+        <div class="text-xs text-gray-500">原型预览 · 非正式页面</div>
+    </div>
+
+    <div class="max-w-5xl mx-auto px-6 py-6">
+
+        <!-- 页面标题区 -->
+        <div class="flex items-center justify-between mb-6">
+            <div>
+                <h1 class="text-xl font-semibold text-white">深圳达实智能股份有限公司</h1>
+                <p class="text-sm text-gray-400 mt-1">系统集成商 · 深圳市南山区</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <!-- AI 调研按钮 -->
+                <button id="btnResearch" onclick="startResearch()" class="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    AI 调研
+                </button>
+                <!-- 刷新按钮（已有数据时显示） -->
+                <button id="btnRefresh" onclick="refreshResearch()" class="hidden items-center gap-1.5 px-3 py-2 border border-dark-border hover:bg-dark-hover text-gray-300 rounded-lg text-sm transition-colors cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    更新
+                </button>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- 加载状态（搜索中） -->
+        <!-- ============================================ -->
+        <div id="loadingState" class="hidden space-y-4">
+            <div class="bg-dark-card rounded-xl border border-dark-border p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-indigo-400 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    </div>
+                    <div>
+                        <p class="text-white font-medium">AI 正在调研中...</p>
+                        <p id="loadingStep" class="text-sm text-gray-400">正在搜索公司基本信息</p>
+                    </div>
+                </div>
+                <!-- shimmer 骨架屏 -->
+                <div class="space-y-3">
+                    <div class="shimmer h-4 rounded w-3/4"></div>
+                    <div class="shimmer h-4 rounded w-1/2"></div>
+                    <div class="shimmer h-4 rounded w-2/3"></div>
+                    <div class="shimmer h-4 rounded w-1/3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================ -->
+        <!-- AI 调研结果展示区 -->
+        <!-- ============================================ -->
+        <div id="researchResult" class="hidden space-y-3">
+
+            <!-- 更新时间提示 -->
+            <div class="flex items-center justify-between text-xs text-gray-500 mb-2 px-1">
+                <span>AI 调研报告</span>
+                <span id="updateTime">最后更新：2026-02-21 10:30</span>
+            </div>
+
+            <!-- ========== 1. 公司概况 ========== -->
+            <div class="bg-dark-card rounded-xl border border-dark-border overflow-hidden">
+                <button onclick="toggleSection('profile')" class="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-hover transition-colors cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                        </div>
+                        <span class="text-white font-medium text-sm">公司概况</span>
+                    </div>
+                    <svg id="chevron-profile" class="chevron-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="section-profile" class="section-content">
+                    <div class="px-5 pb-5 border-t border-dark-border pt-4">
+                        <div class="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
+                            <div>
+                                <span class="text-gray-500">成立时间</span>
+                                <p class="text-gray-200 mt-0.5">1995年3月</p>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">总部地址</span>
+                                <p class="text-gray-200 mt-0.5">深圳市南山区高新区科技南一路28号</p>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">企业定位</span>
+                                <p class="text-gray-200 mt-0.5">智能物联网产品及解决方案服务商</p>
+                            </div>
+                            <div>
+                                <span class="text-gray-500">年营收</span>
+                                <p class="text-gray-200 mt-0.5">31.71亿元 <span class="text-red-400 text-xs">(-17.28%)</span></p>
+                            </div>
+                        </div>
+                        <!-- 主营业务标签 -->
+                        <div class="mt-4">
+                            <span class="text-gray-500 text-sm">核心业务</span>
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                <span class="px-2.5 py-1 bg-blue-500/10 text-blue-400 rounded-md text-xs">智慧建筑/园区</span>
+                                <span class="px-2.5 py-1 bg-green-500/10 text-green-400 rounded-md text-xs">智慧医院</span>
+                                <span class="px-2.5 py-1 bg-purple-500/10 text-purple-400 rounded-md text-xs">智慧交通</span>
+                                <span class="px-2.5 py-1 bg-orange-500/10 text-orange-400 rounded-md text-xs">数据中心</span>
+                            </div>
+                        </div>
+                        <!-- 战略方向 -->
+                        <div class="mt-4 p-3 bg-slate-800/50 rounded-lg">
+                            <span class="text-gray-500 text-xs">战略方向（2025-2027）</span>
+                            <p class="text-gray-300 text-sm mt-1">健康成长期：夯实基础、调整业务结构。重点细分：企业总部、产业园区、智慧医院。AI 应用加速落地园区，布局沙特海外市场。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== 2. 关键人物 ========== -->
+            <div class="bg-dark-card rounded-xl border border-dark-border overflow-hidden">
+                <button onclick="toggleSection('executives')" class="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-hover transition-colors cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-white font-medium text-sm">关键人物</span>
+                            <span class="text-xs text-gray-500 bg-dark-border/50 px-1.5 py-0.5 rounded">3人</span>
+                        </div>
+                    </div>
+                    <svg id="chevron-executives" class="chevron-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="section-executives" class="section-content">
+                    <div class="px-5 pb-4 border-t border-dark-border pt-3">
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-3 p-3 rounded-lg hover:bg-dark-hover transition-colors">
+                                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">刘</div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-white text-sm font-medium">刘磅</span>
+                                        <span class="text-xs px-1.5 py-0.5 bg-amber-500/10 text-amber-400 rounded">董事长/创始人</span>
+                                        <span class="text-xs px-1.5 py-0.5 bg-red-500/10 text-red-400 rounded risk-pulse">被调查</span>
+                                    </div>
+                                    <p class="text-gray-500 text-xs mt-0.5">中南工大硕士 · 教授级高级工程师 · 1995年创立公司</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 p-3 rounded-lg hover:bg-dark-hover transition-colors">
+                                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">苏</div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-white text-sm font-medium">苏俊锋</span>
+                                        <span class="text-xs px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded">总经理</span>
+                                        <span class="text-xs px-1.5 py-0.5 bg-green-500/10 text-green-400 rounded">新任</span>
+                                    </div>
+                                    <p class="text-gray-500 text-xs mt-0.5">华中理工大学硕士 · 高级工程师 · 2025年9月上任</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 p-3 rounded-lg hover:bg-dark-hover transition-colors">
+                                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">吕</div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-white text-sm font-medium">吕枫</span>
+                                        <span class="text-xs px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded">副总/董秘</span>
+                                    </div>
+                                    <p class="text-gray-500 text-xs mt-0.5">南开物理学士 · 清华MBA · 高级经济师</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== 3. 在建/近期项目 ========== -->
+            <div class="bg-dark-card rounded-xl border border-dark-border overflow-hidden">
+                <button onclick="toggleSection('projects')" class="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-hover transition-colors cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-white font-medium text-sm">在建/近期项目</span>
+                            <span class="text-xs text-gray-500 bg-dark-border/50 px-1.5 py-0.5 rounded">6个</span>
+                        </div>
+                    </div>
+                    <svg id="chevron-projects" class="chevron-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="section-projects" class="section-content">
+                    <div class="px-5 pb-4 border-t border-dark-border pt-3">
+                        <div class="space-y-2">
+                            <!-- 项目行 - 可点击展开详情 -->
+                            <div class="group">
+                                <button onclick="toggleProject(this)" class="w-full text-left p-3 rounded-lg hover:bg-dark-hover transition-colors cursor-pointer">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                                            <span class="px-2 py-0.5 bg-purple-500/10 text-purple-400 rounded text-xs flex-shrink-0">交通</span>
+                                            <span class="text-white text-sm truncate">深圳地铁13号线二期综合监控</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 flex-shrink-0">
+                                            <span class="text-amber-400 text-sm font-medium">1.22亿</span>
+                                            <svg class="w-4 h-4 text-gray-500 chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </div>
+                                    </div>
+                                </button>
+                                <div class="project-detail section-content">
+                                    <div class="mx-3 mb-2 p-3 bg-slate-800/50 rounded-lg text-sm space-y-2">
+                                        <div class="flex gap-6">
+                                            <div><span class="text-gray-500">合作方：</span><span class="text-gray-300">港铁运营</span></div>
+                                            <div><span class="text-gray-500">状态：</span><span class="text-green-400">已中标</span></div>
+                                        </div>
+                                        <p class="text-gray-400 text-xs">13号线二期含南延和北延工程，北延起于上屋站止于公明北站，线路全长19.25km，设车站11座。与港铁的第四次综合监控项目合作。</p>
+                                        <button class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 cursor-pointer">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                            搜索更多项目详情
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="group">
+                                <button onclick="toggleProject(this)" class="w-full text-left p-3 rounded-lg hover:bg-dark-hover transition-colors cursor-pointer">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                                            <span class="px-2 py-0.5 bg-green-500/10 text-green-400 rounded text-xs flex-shrink-0">医院</span>
+                                            <span class="text-white text-sm truncate">上海临港浦东医院净化项目</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 flex-shrink-0">
+                                            <span class="text-amber-400 text-sm font-medium">1.13亿</span>
+                                            <svg class="w-4 h-4 text-gray-500 chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </div>
+                                    </div>
+                                </button>
+                                <div class="project-detail section-content">
+                                    <div class="mx-3 mb-2 p-3 bg-slate-800/50 rounded-lg text-sm space-y-2">
+                                        <div class="flex gap-6">
+                                            <div><span class="text-gray-500">业主：</span><span class="text-gray-300">上海市临港新片区</span></div>
+                                            <div><span class="text-gray-500">状态：</span><span class="text-blue-400">签约施工中</span></div>
+                                        </div>
+                                        <p class="text-gray-400 text-xs">三级综合性医院，总投资约20亿元，总建筑面积16.98万m²，地上12层地下2层，设置床位700张。涉及净化、防辐射及医用气体工程。</p>
+                                        <button class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 cursor-pointer">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                            搜索更多项目详情
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="group">
+                                <button onclick="toggleProject(this)" class="w-full text-left p-3 rounded-lg hover:bg-dark-hover transition-colors cursor-pointer">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                                            <span class="px-2 py-0.5 bg-green-500/10 text-green-400 rounded text-xs flex-shrink-0">医院</span>
+                                            <span class="text-white text-sm truncate">宝安区中医院扩建工程（二期）</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 flex-shrink-0">
+                                            <span class="text-amber-400 text-sm font-medium">5,738万</span>
+                                            <svg class="w-4 h-4 text-gray-500 chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </div>
+                                    </div>
+                                </button>
+                                <div class="project-detail section-content">
+                                    <div class="mx-3 mb-2 p-3 bg-slate-800/50 rounded-lg text-sm space-y-2">
+                                        <div class="flex gap-6">
+                                            <div><span class="text-gray-500">子公司：</span><span class="text-gray-300">达实久信</span></div>
+                                            <div><span class="text-gray-500">状态：</span><span class="text-green-400">已中标</span></div>
+                                        </div>
+                                        <p class="text-gray-400 text-xs">医疗专项工程，由达实久信承接，涉及手术室净化系统建设。</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="group">
+                                <button onclick="toggleProject(this)" class="w-full text-left p-3 rounded-lg hover:bg-dark-hover transition-colors cursor-pointer">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                                            <span class="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-xs flex-shrink-0">建筑</span>
+                                            <span class="text-white text-sm truncate">新皇岗口岸联检大楼智能化</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 flex-shrink-0">
+                                            <span class="text-amber-400 text-sm font-medium">5,506万</span>
+                                            <svg class="w-4 h-4 text-gray-500 chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </div>
+                                    </div>
+                                </button>
+                                <div class="project-detail section-content">
+                                    <div class="mx-3 mb-2 p-3 bg-slate-800/50 rounded-lg text-sm space-y-2">
+                                        <div class="flex gap-6">
+                                            <div><span class="text-gray-500">状态：</span><span class="text-green-400">已中标</span></div>
+                                        </div>
+                                        <p class="text-gray-400 text-xs">新皇岗口岸联检大楼的综合智能化系统集成项目。</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="group">
+                                <button onclick="toggleProject(this)" class="w-full text-left p-3 rounded-lg hover:bg-dark-hover transition-colors cursor-pointer">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                                            <span class="px-2 py-0.5 bg-blue-500/10 text-blue-400 rounded text-xs flex-shrink-0">园区</span>
+                                            <span class="text-white text-sm truncate">前海深港青年梦工场智能化</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 flex-shrink-0">
+                                            <span class="text-gray-500 text-sm">金额未披露</span>
+                                            <svg class="w-4 h-4 text-gray-500 chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </div>
+                                    </div>
+                                </button>
+                                <div class="project-detail section-content">
+                                    <div class="mx-3 mb-2 p-3 bg-slate-800/50 rounded-lg text-sm space-y-2">
+                                        <div class="flex gap-6">
+                                            <div><span class="text-gray-500">状态：</span><span class="text-blue-400">已签约</span></div>
+                                        </div>
+                                        <p class="text-gray-400 text-xs">前海深港青年梦工场南区智能化项目，总建筑面积20.99万m²，建筑高度188米。</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="group">
+                                <button onclick="toggleProject(this)" class="w-full text-left p-3 rounded-lg hover:bg-dark-hover transition-colors cursor-pointer">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3 flex-1 min-w-0">
+                                            <span class="px-2 py-0.5 bg-green-500/10 text-green-400 rounded text-xs flex-shrink-0">医院</span>
+                                            <span class="text-white text-sm truncate">云南省肿瘤医院采购项目</span>
+                                        </div>
+                                        <div class="flex items-center gap-3 flex-shrink-0">
+                                            <span class="text-amber-400 text-sm font-medium">210万</span>
+                                            <svg class="w-4 h-4 text-gray-500 chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </div>
+                                    </div>
+                                </button>
+                                <div class="project-detail section-content">
+                                    <div class="mx-3 mb-2 p-3 bg-slate-800/50 rounded-lg text-sm space-y-2">
+                                        <div class="flex gap-6">
+                                            <div><span class="text-gray-500">业主：</span><span class="text-gray-300">昆明医科大学第三附属医院</span></div>
+                                            <div><span class="text-gray-500">状态：</span><span class="text-green-400">已中标</span></div>
+                                            <div><span class="text-gray-500">时间：</span><span class="text-gray-300">2026年2月</span></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== 4. 合作伙伴/生态 ========== -->
+            <div class="bg-dark-card rounded-xl border border-dark-border overflow-hidden">
+                <button onclick="toggleSection('partners')" class="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-hover transition-colors cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                        </div>
+                        <span class="text-white font-medium text-sm">合作伙伴与生态</span>
+                    </div>
+                    <svg id="chevron-partners" class="chevron-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="section-partners" class="section-content">
+                    <div class="px-5 pb-5 border-t border-dark-border pt-4">
+                        <div class="space-y-4">
+                            <div>
+                                <span class="text-gray-500 text-xs uppercase tracking-wider">总包合作方</span>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">中建二局</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">上海建工一建</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">中建三局</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">中建八局</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">港铁</span>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 text-xs uppercase tracking-wider">生态合作伙伴</span>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">北大青鸟</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">国安电气</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">华创电子</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">朗高科技</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">英飞拓</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">同方股份</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">航天科工</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-300 rounded-md text-xs">中科软件</span>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="text-gray-500 text-xs uppercase tracking-wider">标杆客户</span>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <span class="px-2.5 py-1 bg-amber-500/10 text-amber-400 rounded-md text-xs">招商银行总部</span>
+                                    <span class="px-2.5 py-1 bg-amber-500/10 text-amber-400 rounded-md text-xs">深圳地铁</span>
+                                    <span class="px-2.5 py-1 bg-amber-500/10 text-amber-400 rounded-md text-xs">树兰医院</span>
+                                    <span class="px-2.5 py-1 bg-amber-500/10 text-amber-400 rounded-md text-xs">联影研发基地</span>
+                                    <span class="px-2.5 py-1 bg-slate-700 text-gray-400 rounded-md text-xs">等 500+ 项目</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== 5. 风险预警 ========== -->
+            <div class="bg-dark-card rounded-xl border border-red-500/30 overflow-hidden">
+                <button onclick="toggleSection('risks')" class="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-hover transition-colors cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center flex-shrink-0 risk-pulse">
+                            <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-white font-medium text-sm">风险预警</span>
+                            <span class="text-xs text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded font-medium">2项</span>
+                        </div>
+                    </div>
+                    <svg id="chevron-risks" class="chevron-icon rotated w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="section-risks" class="section-content expanded">
+                    <div class="px-5 pb-4 border-t border-red-500/20 pt-3">
+                        <div class="space-y-3">
+                            <!-- 高风险 -->
+                            <div class="flex gap-3 p-3 bg-red-500/5 rounded-lg border border-red-500/10">
+                                <div class="flex-shrink-0 mt-0.5">
+                                    <span class="inline-block w-2 h-2 rounded-full bg-red-500"></span>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded font-medium">高风险</span>
+                                        <span class="text-gray-500 text-xs">2025年11月</span>
+                                    </div>
+                                    <p class="text-gray-200 text-sm mt-1">实控人、董事长刘磅被颍上县监察委员会立案调查并采取留置措施</p>
+                                    <button class="text-indigo-400 hover:text-indigo-300 text-xs flex items-center gap-1 mt-1 cursor-pointer">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                                        查看公告原文
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- 中风险 -->
+                            <div class="flex gap-3 p-3 bg-amber-500/5 rounded-lg border border-amber-500/10">
+                                <div class="flex-shrink-0 mt-0.5">
+                                    <span class="inline-block w-2 h-2 rounded-full bg-amber-500"></span>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs px-1.5 py-0.5 bg-amber-500/20 text-amber-400 rounded font-medium">中风险</span>
+                                        <span class="text-gray-500 text-xs">2024年年报</span>
+                                    </div>
+                                    <p class="text-gray-200 text-sm mt-1">2024年营收31.71亿元，同比下降17.28%；净利润同比下降77.45%。政府/医院客户回款周期较长。</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== 6. 销售切入建议 ========== -->
+            <div class="bg-dark-card rounded-xl border border-indigo-500/20 overflow-hidden">
+                <button onclick="toggleSection('suggestions')" class="w-full flex items-center justify-between px-5 py-4 hover:bg-dark-hover transition-colors cursor-pointer">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                        </div>
+                        <span class="text-white font-medium text-sm">AI 销售切入建议</span>
+                    </div>
+                    <svg id="chevron-suggestions" class="chevron-icon w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="section-suggestions" class="section-content">
+                    <div class="px-5 pb-5 border-t border-indigo-500/10 pt-4">
+                        <div class="space-y-3">
+                            <div class="flex gap-3 items-start">
+                                <span class="text-indigo-400 text-lg leading-none mt-0.5">1.</span>
+                                <p class="text-gray-300 text-sm">该客户医院+交通项目密集，如有净化设备、暖通、医用气体等配套产品，可作为<strong class="text-white">供应链合作伙伴</strong>切入</p>
+                            </div>
+                            <div class="flex gap-3 items-start">
+                                <span class="text-indigo-400 text-lg leading-none mt-0.5">2.</span>
+                                <p class="text-gray-300 text-sm">与中建二局、港铁、上海建工等总包有深度合作，可通过<strong class="text-white">总包渠道</strong>间接建立联系</p>
+                            </div>
+                            <div class="flex gap-3 items-start">
+                                <span class="text-indigo-400 text-lg leading-none mt-0.5">3.</span>
+                                <p class="text-gray-300 text-sm">正在布局<strong class="text-white">沙特海外市场</strong>（2025年6月设立子公司），海外项目配套有新机会</p>
+                            </div>
+                            <div class="flex gap-3 items-start">
+                                <span class="text-red-400 text-lg leading-none mt-0.5">!</span>
+                                <p class="text-gray-300 text-sm">实控人被调查期间，建议<strong class="text-amber-400">谨慎评估合作风险</strong>，关注后续公告，避免大额垫资合作</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /researchResult -->
+
+    </div>
+
+    <script>
+        // 展开/收起区块
+        function toggleSection(name) {
+            const section = document.getElementById('section-' + name);
+            const chevron = document.getElementById('chevron-' + name);
+            section.classList.toggle('expanded');
+            chevron.classList.toggle('rotated');
+        }
+
+        // 展开/收起项目详情
+        function toggleProject(btn) {
+            const detail = btn.parentElement.querySelector('.project-detail');
+            const chevron = btn.querySelector('.chevron-icon');
+            detail.classList.toggle('expanded');
+            chevron.classList.toggle('rotated');
+        }
+
+        // 模拟 AI 调研过程
+        function startResearch() {
+            const btn = document.getElementById('btnResearch');
+            const loading = document.getElementById('loadingState');
+            const result = document.getElementById('researchResult');
+            const stepText = document.getElementById('loadingStep');
+
+            // 隐藏按钮，显示加载
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            loading.classList.remove('hidden');
+            result.classList.add('hidden');
+
+            const steps = [
+                '正在搜索公司基本信息...',
+                '正在搜索高管团队信息...',
+                '正在搜索近期项目和中标公告...',
+                '正在搜索合作伙伴和生态信息...',
+                '正在搜索风险和舆情信息...',
+                'AI 正在整理分析结果...',
+            ];
+
+            let i = 0;
+            const interval = setInterval(() => {
+                i++;
+                if (i < steps.length) {
+                    stepText.textContent = steps[i];
+                } else {
+                    clearInterval(interval);
+                    // 显示结果
+                    loading.classList.add('hidden');
+                    result.classList.remove('hidden');
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50');
+                    // 显示刷新按钮
+                    document.getElementById('btnRefresh').classList.remove('hidden');
+                    document.getElementById('btnRefresh').classList.add('flex');
+                    // 更新时间
+                    const now = new Date();
+                    document.getElementById('updateTime').textContent =
+                        '最后更新：' + now.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                }
+            }, 800);
+        }
+
+        // 刷新调研
+        function refreshResearch() {
+            startResearch();
+        }
+    </script>
+
+</body>
+</html>
