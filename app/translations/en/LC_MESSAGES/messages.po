@@ -10824,3 +10824,6 @@ msgstr "Right-click"
 
 msgid "打开详情页"
 msgstr "Open Detail Page"
+
+msgid "系统设计"
+msgstr "System Design"
