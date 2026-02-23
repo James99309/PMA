@@ -10793,3 +10793,28 @@ msgstr "Draw Area"
 
 msgid "标定尺寸"
 msgstr "Calibrate Size"
+
+#: Star Graph - internationalization
+msgid "销售经理"
+msgstr "Sales Manager"
+
+msgid "活动"
+msgstr "Activity"
+
+msgid "指派"
+msgstr "Assignee"
+
+msgid "品类"
+msgstr "Category"
+
+msgid "切换到"
+msgstr "Switch to"
+
+msgid "将以此"
+msgstr "Recenter star graph on this"
+
+msgid "为中心重新展开星图"
+msgstr ""
+
+msgid "数据加载失败，请刷新重试"
+msgstr "Failed to load data, please refresh"

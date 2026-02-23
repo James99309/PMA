@@ -217,6 +217,20 @@ const CENTER_NAME = '{{ center_name|e }}';
 const BACK_URL = '{{ back_url }}';
 const API_URL = '{{ url_for("star_graph.api_graph_data") }}';
 
+const _T = {
+  project: '{{ _("项目") }}', company: '{{ _("企业") }}',
+  contact: '{{ _("联系人") }}', member: '{{ _("内部成员") }}',
+  quotation: '{{ _("报价单") }}', workitem: '{{ _("工作活动") }}',
+  task: '{{ _("任务") }}', product: '{{ _("产品") }}',
+  stage: '{{ _("阶段") }}', amount: '{{ _("金额") }}',
+  role: '{{ _("角色") }}', position: '{{ _("职位") }}',
+  company_label: '{{ _("企业") }}', status: '{{ _("状态") }}',
+  type: '{{ _("类型") }}', date: '{{ _("日期") }}',
+  assignee: '{{ _("指派") }}', due: '{{ _("截止") }}',
+  created: '{{ _("创建") }}', category: '{{ _("品类") }}',
+  brand: '{{ _("品牌") }}',
+};
+
 // ── 星空背景 ──
 const W = window.innerWidth, H = window.innerHeight;
 const nebulaCanvas = document.getElementById('nebula');
@@ -533,8 +547,8 @@ function showConfirmSwitch(id) {
   const nd = ALL_NODES[id];
   if (!nd) return;
   pendingSwitchId = id;
-  confirmTitle.textContent = `切换到「${nd.name}」？`;
-  confirmSub.textContent = `将以此${nd.nodeType==='project'?'项目':'企业'}为中心重新展开星图`;
+  confirmTitle.textContent = `{{ _("切换到") }}「${nd.name}」？`;
+  confirmSub.textContent = `{{ _("将以此") }}${nd.nodeType==='project'?_T.project:_T.company}{{ _("为中心重新展开星图") }}`;
   confirmOverlay.classList.add('show');
 }
 
@@ -972,22 +986,22 @@ function updateInfo(id) {
   const nd=ALL_NODES[id]; if(!nd) return;
   document.getElementById('infoTitle').textContent = nd.name;
   let m='';
-  if(nd.nodeType==='project') m=`阶段: <b>${nd.stage||''}</b> &nbsp; 金额: <b>${nd.amount||''}</b>`;
-  else if(nd.nodeType==='company') m=`角色: <b>${nd.role||''}</b>`;
-  else if(nd.nodeType==='contact'){ const co=ALL_NODES[nd.parentCompany]; m=`职位: <b>${nd.position||''}</b> &nbsp; 企业: <b>${co?.name||''}</b>`; }
-  else if(nd.nodeType==='member') m=`角色: <b>${nd.role||''}</b>`;
-  else if(nd.nodeType==='quotation') m=`金额: <b>${nd.amount||''}</b> &nbsp; 状态: <b>${nd.status||''}</b>`;
+  if(nd.nodeType==='project') m=`${_T.stage}: <b>${nd.stage||''}</b> &nbsp; ${_T.amount}: <b>${nd.amount||''}</b>`;
+  else if(nd.nodeType==='company') m=`${_T.role}: <b>${nd.role||''}</b>`;
+  else if(nd.nodeType==='contact'){ const co=ALL_NODES[nd.parentCompany]; m=`${_T.position}: <b>${nd.position||''}</b> &nbsp; ${_T.company_label}: <b>${co?.name||''}</b>`; }
+  else if(nd.nodeType==='member') m=`${_T.role}: <b>${nd.role||''}</b>`;
+  else if(nd.nodeType==='quotation') m=`${_T.amount}: <b>${nd.amount||''}</b> &nbsp; ${_T.status}: <b>${nd.status||''}</b>`;
   else if(nd.nodeType==='workitem') {
-    m=`类型: <b>${nd.workType||''}</b> &nbsp; 日期: <b>${nd.date||''}</b>`;
+    m=`${_T.type}: <b>${nd.workType||''}</b> &nbsp; ${_T.date}: <b>${nd.date||''}</b>`;
     if(nd.desc) m+=`<br><span style="color:rgba(255,255,255,0.35)">${nd.desc}</span>`;
   }
   else if(nd.nodeType==='task') {
-    m=`状态: <b>${nd.status||''}</b> &nbsp; 指派: <b>${nd.assignee||''}</b>`;
-    if(nd.dueDate) m+=` &nbsp; 截止: <b>${nd.dueDate}</b>`;
-    else if(nd.createdAt) m+=` &nbsp; 创建: <b>${nd.createdAt}</b>`;
+    m=`${_T.status}: <b>${nd.status||''}</b> &nbsp; ${_T.assignee}: <b>${nd.assignee||''}</b>`;
+    if(nd.dueDate) m+=` &nbsp; ${_T.due}: <b>${nd.dueDate}</b>`;
+    else if(nd.createdAt) m+=` &nbsp; ${_T.created}: <b>${nd.createdAt}</b>`;
     if(nd.desc) m+=`<br><span style="color:rgba(255,255,255,0.35)">${nd.desc}</span>`;
   }
-  else if(nd.nodeType==='product') m=`品类: <b>${nd.category||''}</b> &nbsp; 品牌: <b>${nd.brand||''}</b>`;
+  else if(nd.nodeType==='product') m=`${_T.category}: <b>${nd.category||''}</b> &nbsp; ${_T.brand}: <b>${nd.brand||''}</b>`;
   document.getElementById('infoMeta').innerHTML = m;
 }
 
@@ -1024,7 +1038,7 @@ function updateBreadcrumb() {
 const tip = document.getElementById('tooltip');
 function showTip(ev,d) {
   tip.querySelector('.t-name').textContent = d.name;
-  const types={project:'项目',company:'企业',contact:'联系人',member:'内部成员',quotation:'报价单',workitem:'工作活动',task:'任务',product:'产品'};
+  const types={project:_T.project,company:_T.company,contact:_T.contact,member:_T.member,quotation:_T.quotation,workitem:_T.workitem,task:_T.task,product:_T.product};
   tip.querySelector('.t-type').textContent = types[d.nodeType]||'';
   let dt='';
   if(d.nodeType==='project') dt=`${d.stage||''} · ${d.amount||''}`;
@@ -1039,9 +1053,9 @@ function showTip(ev,d) {
   else if(d.nodeType==='task') {
     const parts = [];
     if(d.status) parts.push(d.status);
-    if(d.assignee) parts.push('指派: '+d.assignee);
-    if(d.dueDate) parts.push('截止: '+d.dueDate);
-    else if(d.createdAt) parts.push('创建: '+d.createdAt);
+    if(d.assignee) parts.push(_T.assignee+': '+d.assignee);
+    if(d.dueDate) parts.push(_T.due+': '+d.dueDate);
+    else if(d.createdAt) parts.push(_T.created+': '+d.createdAt);
     dt = parts.join(' · ');
     if(d.desc) dt+=`<br><span style="color:rgba(255,255,255,0.45)">${d.desc}</span>`;
   }
@@ -1130,7 +1144,7 @@ async function loadGraphData(type, id, name) {
     render();
   } catch (err) {
     console.error('星图数据加载失败:', err);
-    document.getElementById('infoMeta').innerHTML = '<span style="color:#f87171">数据加载失败，请刷新重试</span>';
+    document.getElementById('infoMeta').innerHTML = '<span style="color:#f87171">{{ _("数据加载失败，请刷新重试") }}</span>';
   } finally {
     loading.style.display = 'none';
   }

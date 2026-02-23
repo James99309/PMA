@@ -4,15 +4,31 @@
 scenarios 结构：每个场景包含 title、desc、image 三个字段，
 用于在说明书中以轮播图形式展示，切换时同步更新截图和说明文字。
 
-数据加载优先级：JSON 文件 > Python 默认值（含 _l() 翻译）
+数据加载优先级：JSON 文件（按语言） > Python 默认值（含 _l() 翻译）
+支持多语言：guide_data.json (中文) / guide_data_en.json (英文)
 """
 import json
 import os
 
 from flask_babel import lazy_gettext as _l
 
-GUIDE_DATA_JSON = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                                'scripts', 'temp', 'guide_data.json')
+_GUIDE_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                               'scripts', 'temp')
+GUIDE_DATA_JSON = os.path.join(_GUIDE_DATA_DIR, 'guide_data.json')
+GUIDE_DATA_EN_JSON = os.path.join(_GUIDE_DATA_DIR, 'guide_data_en.json')
+
+
+def _get_guide_json_path(lang=None):
+    """根据语言返回对应的 JSON 文件路径"""
+    if lang is None:
+        try:
+            from flask import session
+            lang = session.get('language', 'zh')
+        except RuntimeError:
+            lang = 'zh'
+    if lang == 'en':
+        return GUIDE_DATA_EN_JSON
+    return GUIDE_DATA_JSON
 
 
 FEATURES_GUIDE_DATA = [
@@ -350,12 +366,25 @@ def _serialize_defaults():
     return result
 
 
-def get_features_data():
-    """加载说明书数据：优先 JSON 文件，否则用 Python 默认值"""
-    if os.path.isfile(GUIDE_DATA_JSON):
-        with open(GUIDE_DATA_JSON, 'r', encoding='utf-8') as f:
+def get_features_data(lang=None):
+    """加载说明书数据：优先对应语言的 JSON 文件，否则用 Python 默认值
+
+    Args:
+        lang: 指定语言 ('zh'/'en')，None 则自动从 session 获取
+    """
+    json_path = _get_guide_json_path(lang)
+    if os.path.isfile(json_path):
+        with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         # 确保每个条目都有 status 字段（兼容旧 JSON）
+        for item in data:
+            if 'status' not in item:
+                item['status'] = 'published'
+        return data
+    # 英文 JSON 不存在时，尝试回退到中文 JSON
+    if json_path != GUIDE_DATA_JSON and os.path.isfile(GUIDE_DATA_JSON):
+        with open(GUIDE_DATA_JSON, 'r', encoding='utf-8') as f:
+            data = json.load(f)
         for item in data:
             if 'status' not in item:
                 item['status'] = 'published'
@@ -363,8 +392,14 @@ def get_features_data():
     return _serialize_defaults()
 
 
-def save_features_data(data):
-    """保存说明书数据到 JSON"""
-    os.makedirs(os.path.dirname(GUIDE_DATA_JSON), exist_ok=True)
-    with open(GUIDE_DATA_JSON, 'w', encoding='utf-8') as f:
+def save_features_data(data, lang=None):
+    """保存说明书数据到对应语言的 JSON 文件
+
+    Args:
+        data: 要保存的数据
+        lang: 指定语言 ('zh'/'en')，None 则自动从 session 获取
+    """
+    json_path = _get_guide_json_path(lang)
+    os.makedirs(os.path.dirname(json_path), exist_ok=True)
+    with open(json_path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)

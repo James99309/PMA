@@ -77,6 +77,29 @@
             background: linear-gradient(135deg, #137fec 0%, #6366f1 50%, #a855f7 100%);
         }
 
+        /* Shimmer loading animation for images */
+        .img-shimmer {
+            background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s ease-in-out infinite;
+        }
+        .dark .img-shimmer {
+            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+            background-size: 200% 100%;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        /* Fade in image after load */
+        .img-fade-in {
+            opacity: 0;
+            transition: opacity 0.3s ease-in;
+        }
+        .img-fade-in.loaded {
+            opacity: 1;
+        }
+
         /* Image placeholder */
         .img-placeholder {
             background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
@@ -320,8 +343,8 @@
                         <div class="lg:col-span-3 space-y-4">
 
                             {# Hero Image Carousel #}
-                            {% if feature.hero_image %}
-                            {% set carousel_images = [feature.hero_image] + (feature.gallery if feature.gallery else []) %}
+                            {% set carousel_images = (([feature.hero_image] if feature.hero_image else []) + (feature.gallery if feature.gallery else [])) %}
+                            {% if carousel_images %}
                             <div x-data="heroCarousel({{ carousel_images | tojson | forceescape }}, '{{ feature.id }}')"
                                  x-init="startAutoplay()"
                                  @mouseenter="pauseAutoplay()" @mouseleave="resumeAutoplay()"
@@ -332,13 +355,16 @@
                                 <div class="carousel-slide absolute inset-0"
                                      :style="{ opacity: currentIndex === 0 ? 1 : 0, zIndex: currentIndex === 0 ? 1 : 0 }"
                                      style="opacity:1; z-index:1;">
-                                    <img src="{{ url_for('guide.guide_image', filename=feature.hero_image) }}"
+                                    <div class="img-shimmer absolute inset-0 z-0"></div>
+                                    <img src="{{ url_for('guide.guide_image', filename=carousel_images[0]) }}"
                                          alt="{{ feature.title }}"
-                                         class="w-full h-full object-cover cursor-pointer relative z-[1]"
+                                         class="w-full h-full object-cover cursor-pointer relative z-[1] img-fade-in"
                                          x-ref="heroImg"
                                          @click="!editMode && openLightbox(featureImages[featureId], 0)"
+                                         onload="this.classList.add('loaded'); this.previousElementSibling.style.display='none';"
                                          onerror="this.style.display='none';">
                                     {# Edit mode upload overlay on hero #}
+                                    {% if feature.hero_image %}
                                     <template x-if="editMode && currentIndex === 0">
                                         <div class="absolute inset-0 z-10 upload-dropzone"
                                              x-data="dropZone('{{ feature.hero_image }}')"
@@ -357,22 +383,19 @@
                                                    @change="onFileSelect($event)">
                                         </div>
                                     </template>
-                                </div>
-
-                                {# Placeholder (hidden once hero loads) #}
-                                <div class="hero-placeholder absolute inset-0 flex flex-col items-center justify-center gap-2 z-0">
-                                    <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">panorama</span>
-                                    <span class="text-xs text-slate-400 dark:text-slate-500">{{ feature.hero_image }}</span>
+                                    {% endif %}
                                 </div>
 
                                 {# Gallery slides (Alpine-rendered, index 1+) #}
                                 <template x-for="(img, i) in images.slice(1)" :key="img">
                                     <div class="carousel-slide absolute inset-0"
                                          :style="{ opacity: (i + 1) === currentIndex ? 1 : 0, zIndex: (i + 1) === currentIndex ? 1 : 0 }">
+                                        <div class="img-shimmer absolute inset-0 z-0"></div>
                                         <img :src="'/guide/image/' + img"
                                              :alt="img"
-                                             class="w-full h-full object-cover cursor-pointer"
+                                             class="w-full h-full object-cover cursor-pointer relative z-[1] img-fade-in"
                                              @click="openLightbox(featureImages[featureId], i + 1)"
+                                             @load="$el.classList.add('loaded'); $el.previousElementSibling.style.display='none'"
                                              @error="$el.style.display='none'">
                                     </div>
                                 </template>
@@ -438,15 +461,16 @@
                                              @dragleave.prevent="editMode && onDragLeave($event)"
                                              @drop.prevent="editMode && onDrop($event)"
                                              @click="editMode ? $refs.fileInput.click() : ($refs.img.style.display !== 'none' && openLightbox([$refs.img.src], 0))">
+                                            <div class="img-shimmer absolute inset-0 z-0"></div>
                                             <img src="{{ url_for('guide.guide_image', filename=s.image) }}"
                                                  alt="{{ s.title }}"
-                                                 class="w-full h-full object-cover"
+                                                 loading="lazy"
+                                                 class="w-full h-full object-cover relative z-[1] img-fade-in"
                                                  :class="!editMode && 'cursor-pointer'"
                                                  x-ref="img"
-                                                 style="display:none;"
-                                                 onload="this.style.display='block'; this.nextElementSibling.style.display='none';"
-                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                            <div class="w-full h-full flex flex-col items-center justify-center gap-1">
+                                                 onload="this.classList.add('loaded'); this.previousElementSibling.style.display='none';"
+                                                 onerror="this.style.display='none'; this.previousElementSibling.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                            <div class="w-full h-full flex flex-col items-center justify-center gap-1" style="display:none;">
                                                 <span class="material-symbols-outlined text-xl text-slate-300 dark:text-slate-600">photo_camera</span>
                                                 <span class="text-[9px] text-slate-400 dark:text-slate-500">{{ s.image }}</span>
                                             </div>
@@ -600,13 +624,12 @@
 
 {{ render_tw_layout_script() }}
 <script>
-// Feature images mapping: featureId -> [heroUrl, gallery1Url, gallery2Url, ...]
-// Only hero + gallery images for hero carousel lightbox (scenarios are separate)
+// Feature images mapping: featureId -> [url1, url2, ...] (hero + gallery, only existing files)
 const featureImages = {
     {% for feature in features %}
+    {% set all_imgs = (([feature.hero_image] if feature.hero_image else []) + (feature.gallery if feature.gallery else [])) %}
     '{{ feature.id }}': [
-        {% if feature.hero_image %}'{{ url_for('guide.guide_image', filename=feature.hero_image) }}'{% endif %}
-        {% for g in (feature.gallery if feature.gallery else []) %}, '{{ url_for('guide.guide_image', filename=g) }}'{% endfor %}
+        {% for img in all_imgs %}'{{ url_for('guide.guide_image', filename=img) }}'{% if not loop.last %}, {% endif %}{% endfor %}
     ]{% if not loop.last %},{% endif %}
     {% endfor %}
 };

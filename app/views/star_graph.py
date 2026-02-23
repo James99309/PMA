@@ -1,5 +1,6 @@
 """星图视图 — 项目/客户关系可视化"""
 from flask import Blueprint, render_template, request, jsonify, url_for
+from flask_babel import gettext as _
 from flask_login import login_required, current_user
 from app.decorators import permission_required
 from app.models.project import Project
@@ -133,14 +134,14 @@ def _build_project_graph(project_id):
         mid = f'member_{project.owner_id}'
         if mid not in nodes:
             nodes[mid] = _member_node(users[project.owner_id], 'owner')
-        links.append({'source': pid, 'target': mid, 'label': '负责人'})
+        links.append({'source': pid, 'target': mid, 'label': _('负责人')})
 
     # vendor_sales_manager
     if project.vendor_sales_manager_id and project.vendor_sales_manager_id in users:
         mid = f'member_{project.vendor_sales_manager_id}'
         if mid not in nodes:
             nodes[mid] = _member_node(users[project.vendor_sales_manager_id], 'sales_manager')
-        links.append({'source': pid, 'target': mid, 'label': '销售经理'})
+        links.append({'source': pid, 'target': mid, 'label': _('销售经理')})
 
     # 报价单（排除失败阶段）
     quotations = Quotation.query.filter(
@@ -150,10 +151,10 @@ def _build_project_graph(project_id):
     for q in quotations:
         qid = f'quotation_{q.id}'
         nodes[qid] = _quotation_node(q)
-        links.append({'source': pid, 'target': qid, 'label': '报价'})
+        links.append({'source': pid, 'target': qid, 'label': _('报价')})
         # 报价→企业
         if q.customer_id and f'company_{q.customer_id}' in nodes:
-            links.append({'source': qid, 'target': f'company_{q.customer_id}', 'label': '客户'})
+            links.append({'source': qid, 'target': f'company_{q.customer_id}', 'label': _('客户')})
 
     # 活动时间链（工作活动 + 任务合并，按时间排序）
     _build_timeline_chain(pid, project.id, 'project', nodes, links, users)
@@ -249,7 +250,7 @@ def _build_company_graph(company_id):
                 mid = f'member_{p.owner_id}'
                 if mid not in nodes:
                     nodes[mid] = _member_node(users[p.owner_id], 'owner')
-                links.append({'source': pid, 'target': mid, 'label': '负责人'})
+                links.append({'source': pid, 'target': mid, 'label': _('负责人')})
 
     # 报价单（排除失败阶段）
     quotations = Quotation.query.filter(
@@ -259,10 +260,10 @@ def _build_company_graph(company_id):
     for q in quotations:
         qid = f'quotation_{q.id}'
         nodes[qid] = _quotation_node(q)
-        links.append({'source': cid, 'target': qid, 'label': '报价'})
+        links.append({'source': cid, 'target': qid, 'label': _('报价')})
         # 报价→项目
         if q.project_id and f'project_{q.project_id}' in nodes:
-            links.append({'source': qid, 'target': f'project_{q.project_id}', 'label': '项目'})
+            links.append({'source': qid, 'target': f'project_{q.project_id}', 'label': _('项目')})
 
     # 活动时间链（工作活动 + 任务合并，按时间排序）
     _build_timeline_chain(cid, company.id, 'company', nodes, links, users)
@@ -335,7 +336,7 @@ def _build_timeline_chain(center_id, entity_id, entity_type, nodes, links, users
 
         if i == 0:
             # 最近的连到中心
-            links.append({'source': center_id, 'target': nid, 'label': '活动'})
+            links.append({'source': center_id, 'target': nid, 'label': _('活动')})
         else:
             # 后续的串联到前一个，标记为 timeline 类型
             links.append({
@@ -492,11 +493,11 @@ def _task_node(t, users=None):
 
 def _role_label(role):
     labels = {
-        'owner': '负责人',
-        'sales_manager': '销售经理',
-        'member': '成员',
-        'solution_engineer': '方案工程师',
-        'product_manager': '产品经理',
+        'owner': _('负责人'),
+        'sales_manager': _('销售经理'),
+        'member': _('成员'),
+        'solution_engineer': _('方案工程师'),
+        'product_manager': _('产品经理'),
     }
     return labels.get(role, role or '')
 

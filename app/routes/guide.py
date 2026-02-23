@@ -20,6 +20,12 @@ def whats_new():
     is_admin = current_user.role == 'admin'
     # published/beta: 所有人可见; draft: 仅管理员可见
     features = [f for f in all_features if f.get('status', 'published') != 'draft' or is_admin]
+    # 过滤掉不存在的图片，避免轮播空帧
+    for f in features:
+        if f.get('hero_image') and not os.path.isfile(os.path.join(GUIDE_IMAGE_DIR, f['hero_image'])):
+            f['hero_image'] = ''
+        if f.get('gallery'):
+            f['gallery'] = [g for g in f['gallery'] if os.path.isfile(os.path.join(GUIDE_IMAGE_DIR, g))]
     return render_template('guide/whats_new.html', features=features)
 
 
@@ -29,7 +35,7 @@ def guide_image(filename):
     """提供说明书截图文件"""
     if not os.path.isfile(os.path.join(GUIDE_IMAGE_DIR, filename)):
         abort(404)
-    return send_from_directory(GUIDE_IMAGE_DIR, filename)
+    return send_from_directory(GUIDE_IMAGE_DIR, filename, max_age=86400)
 
 
 @guide_bp.route('/upload-image', methods=['POST'])
@@ -103,6 +109,17 @@ def add_gallery_image():
     target['gallery'] = gallery
     save_features_data(features)
 
+    # Sync gallery to the other language file
+    for other_lang in ('zh', 'en'):
+        try:
+            other_features = get_features_data(lang=other_lang)
+            other_target = next((f for f in other_features if f['id'] == feature_id), None)
+            if other_target and other_target.get('gallery') != gallery:
+                other_target['gallery'] = list(gallery)
+                save_features_data(other_features, lang=other_lang)
+        except Exception:
+            pass
+
     return jsonify({
         'success': True,
         'filename': filename,
@@ -138,6 +155,17 @@ def delete_gallery_image():
     removed = gallery.pop(index)
     target['gallery'] = gallery
     save_features_data(features)
+
+    # Sync gallery removal to the other language file
+    for other_lang in ('zh', 'en'):
+        try:
+            other_features = get_features_data(lang=other_lang)
+            other_target = next((f for f in other_features if f['id'] == feature_id), None)
+            if other_target and removed in other_target.get('gallery', []):
+                other_target['gallery'].remove(removed)
+                save_features_data(other_features, lang=other_lang)
+        except Exception:
+            pass
 
     # Delete file from disk
     filepath = os.path.join(GUIDE_IMAGE_DIR, removed)
