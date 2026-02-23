@@ -238,12 +238,15 @@ def get_amount_unit_config(language=None):
             'currency_symbol': '¥'
         }
     else:
+        import os
+        db_type = os.environ.get('PMA_DB_TYPE', os.environ.get('SUPABASE_DB_TYPE', 'sp8d'))
+        symbol = '$' if db_type == 'ovs' else '¥'
         return {
             'divisor': 100,         # 万元转百万：万元/100 = M
             'unit': 'M',
             'decimal_places': 2,
             'format_type': 'million',
-            'currency_symbol': '¥'
+            'currency_symbol': symbol
         }
 
 def format_amount_with_unit(amount, currency_symbol, language=None):

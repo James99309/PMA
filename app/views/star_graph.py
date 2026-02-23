@@ -13,9 +13,18 @@ from app.models.task import Task
 from app.models.user import User
 from app.extensions import db
 from app.utils.dictionary_helpers import company_type_label, project_stage_label
+from app.utils.i18n import get_current_language
 from sqlalchemy import desc
 
 star_graph = Blueprint('star_graph', __name__, url_prefix='/star-graph')
+
+
+def _lang():
+    """获取当前语言代码用于字典标签"""
+    try:
+        return get_current_language()
+    except Exception:
+        return 'zh'
 
 
 # ── 页面路由 ──────────────────────────────────────────────
@@ -87,7 +96,7 @@ def _build_project_graph(project_id):
             cid = f'company_{a.company_id}'
             company_ids.add(a.company_id)
             nodes[cid] = _company_node(a.company)
-            role_label = company_type_label(a.company.company_type) if a.company.company_type else ''
+            role_label = company_type_label(a.company.company_type, _lang()) if a.company.company_type else ''
             links.append({'source': pid, 'target': cid, 'label': role_label})
 
     # 企业联系人
@@ -364,9 +373,9 @@ def _build_timeline_chain(center_id, entity_id, entity_type, nodes, links, users
 # ── 节点构造辅助函数 ─────────────────────────────────────
 
 def _project_node(p):
-    from app.utils.dictionary_helpers import get_amount_unit_config, get_currency_symbol
+    from app.utils.dictionary_helpers import get_amount_unit_config
     unit_cfg = get_amount_unit_config()
-    symbol = get_currency_symbol()
+    symbol = unit_cfg['currency_symbol']
     amount_str = ''
     if p.quotation_customer:
         amount_str = f'{symbol}{p.quotation_customer / unit_cfg["divisor"]:.{unit_cfg["decimal_places"]}f}{unit_cfg["unit"]}'
@@ -376,7 +385,7 @@ def _project_node(p):
         'nodeType': 'project',
         'url': url_for('project.view_project', project_id=p.id),
         'extra': {
-            'stage': project_stage_label(p.current_stage) if p.current_stage else '',
+            'stage': project_stage_label(p.current_stage, _lang()) if p.current_stage else '',
             'amount': amount_str,
         },
     }
@@ -389,7 +398,7 @@ def _company_node(c):
         'nodeType': 'company',
         'url': url_for('customer.view_company', company_id=c.id),
         'extra': {
-            'role': company_type_label(c.company_type) if c.company_type else '',
+            'role': company_type_label(c.company_type, _lang()) if c.company_type else '',
         },
     }
 
@@ -421,16 +430,16 @@ def _member_node(u, role=''):
 
 
 def _quotation_node(q):
-    from app.utils.dictionary_helpers import get_amount_unit_config, get_currency_symbol
+    from app.utils.dictionary_helpers import get_amount_unit_config
     from app.models.quotation import QuotationApprovalStatus
     unit_cfg = get_amount_unit_config()
-    symbol = get_currency_symbol()
+    symbol = unit_cfg['currency_symbol']
     amount_str = ''
     if q.amount:
         amount_str = f'{symbol}{q.amount / unit_cfg["divisor"]:.{unit_cfg["decimal_places"]}f}{unit_cfg["unit"]}'
     status_label = ''
     if q.approval_status:
-        status_info = QuotationApprovalStatus.get_status_label(q.approval_status)
+        status_info = QuotationApprovalStatus.get_status_label(q.approval_status, _lang())
         status_label = status_info.get('label', q.approval_status) if isinstance(status_info, dict) else str(status_info)
     return {
         'id': f'quotation_{q.id}',
