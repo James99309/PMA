@@ -8,8 +8,8 @@ from flask_login import login_required, current_user
 guide_bp = Blueprint('guide', __name__, url_prefix='/guide')
 
 # 说明书截图存储目录
-GUIDE_IMAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'scripts', 'temp', 'guide_images')
+GUIDE_IMAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                               'data', 'guide_images')
 
 
 @guide_bp.route('/whats-new')

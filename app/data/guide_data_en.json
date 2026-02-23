@@ -1,0 +1,580 @@
+[
+  {
+    "id": "ai-chat",
+    "icon": "smart_toy",
+    "color": "purple",
+    "hero_image": "ai-chat_main.png",
+    "title": "AI Smart Assistant",
+    "keywords": [
+      "Smart Chat",
+      "Data Query",
+      "Auto Translation",
+      "Form Creation"
+    ],
+    "summary": "Built-in AI chat assistant that supports natural language business data queries, automatic translation, and form creation to boost daily productivity.",
+    "description": [
+      "PMA now integrates an AI smart assistant that lets you chat with AI directly within the system. Whether it's querying customer information, project progress, or analyzing sales data, simply describe your needs in natural language and AI will provide quick answers.",
+      "The AI assistant supports automatic language detection and translation, facilitating communication across Chinese and English environments. When you @AI in a chat, the assistant will automatically join the conversation and provide intelligent replies.",
+      "Additionally, the AI assistant can help create quotations, projects and other forms, guiding you through complex data entry via conversational interaction."
+    ],
+    "scenarios": [
+      {
+        "title": "Quick Query",
+        "desc": "Ask questions in natural language, such as \"What projects was I responsible for last month?\", and get instant results from AI.",
+        "image": "ai-chat_1.png"
+      },
+      {
+        "title": "Data Analysis",
+        "desc": "Ask about business metrics, such as \"What's the customer activity rate for Q1 this year?\", and get data insights.",
+        "image": "ai-chat_2.png"
+      },
+      {
+        "title": "Translation Assist",
+        "desc": "Automatically detect and translate message content in Chinese-English conversations for seamless cross-language communication.",
+        "image": "ai-chat_3.png"
+      },
+      {
+        "title": "Form Creation",
+        "desc": "Create quotations, projects and other forms through conversational interaction, simplifying complex data entry.",
+        "image": "ai-chat_4.png"
+      }
+    ],
+    "entry": "Click the chat icon on the right side of the top navigation bar, or use split-screen mode to open the AI panel",
+    "steps": [
+      "Click the chat icon in the bottom-right corner to open the chat panel",
+      "Type your question or request in the input box",
+      "AI will return answers in real-time streaming, supporting Markdown format",
+      "You can download analysis tables provided by AI"
+    ],
+    "status": "published",
+    "gallery": [
+      "ai-chat_gallery_0.png"
+    ]
+  },
+  {
+    "id": "points-system",
+    "icon": "emoji_events",
+    "color": "yellow",
+    "hero_image": "points-system_main.png",
+    "title": "Points & Participation System",
+    "keywords": [
+      "Performance Points",
+      "Reference Factor",
+      "Leaderboard",
+      "Product Score"
+    ],
+    "summary": "A contribution-based points incentive system that automatically calculates quotation product points and displays real-time personal rankings.",
+    "description": [
+      "The points system automatically calculates points based on your business contributions. Every time you create or update a quotation, the system automatically calculates and records points based on the product reference factors in the quotation.",
+      "Each product has a corresponding points factor (reference factor). Higher-value or strategically important products have higher factors, meaning promoting key products earns more points.",
+      "Points are calculated on an annual cycle. You can view your current points in the navigation bar in real-time, and check the annual leaderboard to see your team ranking."
+    ],
+    "scenarios": [
+      {
+        "title": "Role-Based Points",
+        "desc": "The top navigation bar shows your current annual points in real-time. Sales, product managers, and solution architects each have their own dedicated points system.",
+        "image": "points-system_1.png"
+      },
+      {
+        "title": "Business Participation",
+        "desc": "Track business activity contributions. The system now shows your contributions in project details and rewards participation during and after successful business deals.",
+        "image": "points-system_2.png"
+      },
+      {
+        "title": "Reward Strategy",
+        "desc": "Based on product scarcity and launch timing, the points factor gives extra rewards to these products. Choose promotion priorities for more points.",
+        "image": "points-system_3.png"
+      },
+      {
+        "title": "Performance Incentive",
+        "desc": "Points serve as a reference metric for performance evaluation, motivating business engagement. Additional reward activities will be launched progressively.",
+        "image": "points-system_4.png"
+      }
+    ],
+    "entry": "Points badge displayed in the top navigation bar; click to view point details",
+    "steps": [
+      "View your current points in the top navigation bar",
+      "Create a quotation and add products; the system automatically calculates points",
+      "Points are automatically credited to your account after submitting a quotation",
+      "Check the leaderboard to see team point rankings"
+    ],
+    "gallery": [
+      "points-system_gallery_0.png"
+    ],
+    "status": "published"
+  },
+  {
+    "id": "resource-pool",
+    "icon": "lock_open",
+    "color": "blue",
+    "hero_image": "resource-pool_main.png",
+    "title": "Resource Pool & Access Requests",
+    "keywords": [
+      "Cross-Permission Search",
+      "Access Request",
+      "Resource Sharing",
+      "Permission Approval"
+    ],
+    "summary": "A resource discovery mechanism that breaks permission boundaries, supporting cross-permission customer resource search and access requests.",
+    "description": [
+      "The resource pool feature lets you discover customer resources beyond your personal permission scope. When searching for customers, in addition to data you have access to, you can also see customers managed by other colleagues (displayed in anonymized form).",
+      "If you find a customer relevant to your business, you can directly submit an access request. The request will be sent to the customer's owner for approval, and once approved, you'll gain viewing permission.",
+      "The entire process is transparent and efficient, protecting data security while promoting resource sharing and business collaboration across teams."
+    ],
+    "scenarios": [
+      {
+        "title": "Discover Prospects",
+        "desc": "Discover related customers managed by other colleagues during search; lock icons indicate resources beyond your permission.",
+        "image": "resource-pool_1.png"
+      },
+      {
+        "title": "Cross-Department Collaboration",
+        "desc": "Request access to customer resources from other departments to promote joint development and business synergy.",
+        "image": "resource-pool_2.png"
+      },
+      {
+        "title": "Resource Integration",
+        "desc": "Discover existing customers in the system through search to avoid duplicate entries and resource waste.",
+        "image": "resource-pool_3.png"
+      },
+      {
+        "title": "Permission Management",
+        "desc": "Customer owners approve access requests online; the process is transparent and traceable.",
+        "image": "resource-pool_4.png"
+      }
+    ],
+    "entry": "When searching on the customer list page, results beyond your permission display a lock icon",
+    "steps": [
+      "Enter keywords in the customer search box",
+      "Results with a lock icon indicate resources beyond your permission",
+      "Click the lock icon or \"Request Access\" button to submit a request",
+      "Fill in the reason for your request and submit",
+      "Wait for the customer owner's approval; access is granted automatically once approved"
+    ],
+    "gallery": [
+      "resource-pool_gallery_0.png",
+      "resource-pool_gallery_1.png",
+      "resource-pool_gallery_2.png",
+      "resource-pool_gallery_3.png",
+      "resource-pool_gallery_4.png",
+      "resource-pool_gallery_5.png"
+    ],
+    "status": "published"
+  },
+  {
+    "id": "split-screen",
+    "icon": "view_sidebar",
+    "color": "cyan",
+    "hero_image": "split-screen_main.png",
+    "title": "Team Chat & AI Assist",
+    "keywords": [
+      "Split Screen",
+      "@Mentions",
+      "Pending Approvals",
+      "To-Do Items"
+    ],
+    "summary": "50/50 split-screen layout supports chatting while working. The notification panel centralizes @mentions and to-do items.",
+    "description": [
+      "The team chat tool is not only for internal team communication. The split-screen feature divides the page in half: the left side is the chat panel and the right side is the business page you're browsing. This lets you communicate with colleagues or AI while viewing customer info or editing quotations.",
+      "In the chat tool, you can use # to open project and customer selectors to share customer information with your team. You can also use + to share files from your file manager.",
+      "In split-screen mode, the navigation bar automatically narrows to maximize screen space. You can switch between split-screen and full-screen modes at any time."
+    ],
+    "scenarios": [
+      {
+        "title": "Chat & Browse",
+        "desc": "View project details while discussing with colleagues; information comparison at a glance.",
+        "image": "split-screen_1.png"
+      },
+      {
+        "title": "AI Assist",
+        "desc": "Use the AI assistant to get information on one side while filling forms or editing data on the other.",
+        "image": "split-screen_2.png"
+      },
+      {
+        "title": "Share & Track",
+        "desc": "Quickly share your customers and projects using #.",
+        "image": "split-screen_3.png"
+      },
+      {
+        "title": "File Sharing",
+        "desc": "Share files from local or system file manager using +.",
+        "image": "split-screen_4.png"
+      }
+    ],
+    "entry": "Click the split-screen icon in the navigation bar to toggle split-screen mode; click the chat tool in the bottom-right corner to open the floating chat box",
+    "steps": [
+      "Click the split-screen icon in the top-right corner of the navigation bar to enter split-screen mode",
+      "The left chat panel opens automatically while the right side shows the current page",
+      "Click the bell icon to view the notification panel",
+      "Click a notification item to jump directly to the corresponding page"
+    ],
+    "gallery": [
+      "split-screen_gallery_0.png",
+      "split-screen_gallery_1.png",
+      "split-screen_gallery_2.png"
+    ],
+    "status": "published"
+  },
+  {
+    "id": "dashboard",
+    "icon": "dashboard",
+    "color": "green",
+    "hero_image": "dashboard_main.png",
+    "title": "Performance Dashboard Enhancement",
+    "keywords": [
+      "Goal Achievement",
+      "Activity Analysis",
+      "Industry Distribution",
+      "Customer Map"
+    ],
+    "summary": "Fully upgraded performance dashboard with new goal achievement tracking, customer activity analysis, and industry distribution charts.",
+    "description": [
+      "The performance dashboard has been comprehensively upgraded with richer data visualization. The homepage dashboard displays your annual goal achievement rate, monthly performance trends, customer activity, and other core metrics.",
+      "New industry distribution charts help you understand your customer industry composition and discover high-potential industries. Customer activity analysis tracks interaction frequency to help you identify customers that need priority attention.",
+      "The dashboard supports year-based filtering, and all charts support interactive operations. Hover over chart elements to view detailed data. Performance has been significantly optimized with noticeably faster loading."
+    ],
+    "scenarios": [
+      {
+        "title": "Performance Tracking",
+        "desc": "View annual/monthly goal achievement rates in real-time to stay on top of your progress.",
+        "image": "dashboard_1.png"
+      },
+      {
+        "title": "Trend Analysis",
+        "desc": "View monthly performance trend curves to identify growth or decline patterns.",
+        "image": "dashboard_2.png"
+      },
+      {
+        "title": "Customer Analysis",
+        "desc": "Understand customer industry distribution and activity levels to identify priority accounts.",
+        "image": "dashboard_3.png"
+      },
+      {
+        "title": "Management Decisions",
+        "desc": "Formulate business strategies based on data charts for data-driven decision making.",
+        "image": "dashboard_4.png"
+      }
+    ],
+    "entry": "The homepage after login is the performance dashboard, or click \"Dashboard\" in the navigation bar",
+    "steps": [
+      "After logging in, you're automatically taken to the performance dashboard homepage",
+      "Use the year selector at the top to switch between different years' data",
+      "Click chart areas to view detailed data",
+      "Hover over chart elements to see specific values"
+    ],
+    "status": "draft"
+  },
+  {
+    "id": "task-management",
+    "icon": "task_alt",
+    "color": "orange",
+    "hero_image": "task-management_main.png",
+    "title": "Task Management System",
+    "keywords": [
+      "To-Do Tasks",
+      "Calendar Integration",
+      "Attachment Management",
+      "Collaborative Comments"
+    ],
+    "summary": "Lightweight task management with support for creating tasks, setting deadlines, uploading attachments, and collaborative commenting.",
+    "description": [
+      "The task management system helps you efficiently manage daily work items. You can create tasks, set priorities and deadlines, and link tasks to specific projects or customers.",
+      "Each task supports attachments and comments for team collaboration. Task statuses include To-Do, In Progress, and Completed for clear visibility.",
+      "Tasks are linked to the calendar system. Upcoming tasks will appear as reminders in the notification panel, ensuring you never miss any important items."
+    ],
+    "scenarios": [
+      {
+        "title": "Quotation Technical Review",
+        "desc": "Quotation creators can initiate tasks to request solution architect assistance for technical confirmation on quotations.",
+        "image": "task-management_1.png"
+      },
+      {
+        "title": "Project Collaboration",
+        "desc": "Create linked tasks for projects and assign them to team members to drive work forward collaboratively.",
+        "image": "task-management_2.png"
+      },
+      {
+        "title": "Calendar Task Management",
+        "desc": "Manage tasks directly on the calendar view.",
+        "image": "task-management_3.png"
+      },
+      {
+        "title": "Progress Tracking",
+        "desc": "View task completion rates to understand overall progress and identify delay risks early.",
+        "image": "task-management_4.png"
+      }
+    ],
+    "entry": "Click the \"Task Management\" menu item in the navigation bar to enter the task list",
+    "steps": [
+      "Go to the task management page to view your current task list",
+      "Click \"New Task\" to create a new to-do item",
+      "Set the task title, description, priority, and deadline",
+      "Optionally link to a specific project or customer",
+      "Add attachments or comments to collaborate with your team"
+    ],
+    "gallery": [
+      "task-management_gallery_0.png",
+      "task-management_gallery_1.png",
+      "task-management_gallery_2.png",
+      "task-management_gallery_3.png",
+      "task-management_gallery_4.png"
+    ],
+    "status": "published"
+  },
+  {
+    "id": "file-manager",
+    "icon": "folder_open",
+    "color": "indigo",
+    "hero_image": "file-manager_main.png",
+    "title": "File Management System",
+    "keywords": [
+      "File Storage",
+      "Deduplication",
+      "Knowledge Base",
+      "Quick Upload"
+    ],
+    "summary": "A unified file storage and management platform with file deduplication, category management, and knowledge base capabilities.",
+    "description": [
+      "The file management system provides a unified file storage platform. Uploaded invoices, contracts, product documents, and other files are automatically categorized, with support for filtering by type, date, and associated objects.",
+      "The system features built-in file deduplication — identical files are not stored repeatedly, saving storage space. Common document, image, and PDF file formats are supported.",
+      "The knowledge base feature lets you centrally manage important product materials, industry reports, and other documents, building shared knowledge assets for the team."
+    ],
+    "scenarios": [
+      {
+        "title": "File Archiving",
+        "desc": "Upload invoices, contracts, and other business documents; the system automatically categorizes and organizes them.",
+        "image": "file-manager_1.png"
+      },
+      {
+        "title": "Share to Chat",
+        "desc": "Share files you manage to conversations through the chat window.",
+        "image": "file-manager_2.png"
+      },
+      {
+        "title": "Knowledge Building",
+        "desc": "Upload product manuals, industry reports, etc. to the knowledge base, building shared team assets.",
+        "image": "file-manager_3.png"
+      },
+      {
+        "title": "Space Optimization",
+        "desc": "File deduplication automatically identifies duplicate files, saving storage space.",
+        "image": "file-manager_4.png"
+      }
+    ],
+    "entry": "Click the \"File Management\" menu item in the navigation bar to enter the file list",
+    "steps": [
+      "Go to the file management page to view uploaded files",
+      "Click \"Upload File\" or drag and drop files to the upload area",
+      "Select file category and associated object (e.g., customer, project)",
+      "Use search and filter functions to quickly find the files you need"
+    ],
+    "gallery": [
+      "file-manager_gallery_0.png"
+    ],
+    "status": "published"
+  },
+  {
+    "id": "customer-map",
+    "icon": "map",
+    "color": "red",
+    "hero_image": "customer-map_main.png",
+    "title": "Customer Map",
+    "keywords": [
+      "Map Visualization",
+      "Regional Distribution",
+      "Customer Locating",
+      "Geo Filtering"
+    ],
+    "summary": "Geographic visualization of customer distribution, supporting province-level customer data map display.",
+    "description": [
+      "The customer map feature visually displays your customer data on a map. Different color shades on the China map indicate the number of customers in each province, letting you see at a glance where customers are concentrated.",
+      "Click on a province on the map to view the detailed customer list for that region, supporting quick location and management from a map perspective.",
+      "Combined with geo-filtering, you can analyze customer distribution patterns by region, discover blank markets and opportunity areas, providing data support for market expansion."
+    ],
+    "scenarios": [
+      {
+        "title": "Regional Analysis",
+        "desc": "Visually see customer distribution across all provinces; color depth represents customer density.",
+        "image": "customer-map_1.png"
+      },
+      {
+        "title": "Market Discovery",
+        "desc": "Identify regions with few customers as potential markets and discover expansion opportunities.",
+        "image": "customer-map_2.png"
+      },
+      {
+        "title": "Quick Location",
+        "desc": "Click on the map to quickly view a region's customer list for efficient management.",
+        "image": "customer-map_3.png"
+      },
+      {
+        "title": "Strategic Planning",
+        "desc": "Develop regional marketing strategies based on geographic distribution for precise resource allocation.",
+        "image": "customer-map_4.png"
+      }
+    ],
+    "entry": "Click the \"Map View\" toggle button on the customer list page",
+    "steps": [
+      "Go to the customer list page",
+      "Click the \"Map View\" toggle button to enter map mode",
+      "View the customer distribution heatmap on the China map",
+      "Click on specific provinces to view that region's customer list"
+    ],
+    "status": "draft"
+  },
+  {
+    "id": "star-graph",
+    "icon": "star",
+    "color": "violet",
+    "status": "published",
+    "hero_image": "star-graph_main.png",
+    "title": "Star Graph",
+    "keywords": [
+      "Relationship Network",
+      "Node Visualization",
+      "Association Analysis",
+      "Interactive Graph"
+    ],
+    "summary": "Visualize project and customer relationship networks. Node size reflects connection strength, helping discover business associations and expansion opportunities.",
+    "description": [
+      "The star graph feature displays relationships between projects and customers as a visual network graph. Each node represents a business entity (project or customer), with node size reflecting its connection strength and business importance.",
+      "Through the star graph, you can intuitively discover business connections — which customers are involved in the same projects, and which projects share the same customer resources. This helps identify potential collaboration opportunities and business expansion directions.",
+      "The star graph supports interactive operations: zoom, drag nodes, and click nodes to view detailed information, helping you understand business relationships from a holistic perspective."
+    ],
+    "scenarios": [
+      {
+        "title": "Relationship Discovery",
+        "desc": "Discover hidden connections between customers and projects through the star graph, identifying potential opportunities.",
+        "image": "star-graph_1.png"
+      },
+      {
+        "title": "Global View",
+        "desc": "View the entire business network from a macro perspective, understanding connection density across entities.",
+        "image": "star-graph_2.png"
+      },
+      {
+        "title": "Key Tracking",
+        "desc": "Node size reflects business volume, quickly identifying core customers and key projects.",
+        "image": "star-graph_3.png"
+      },
+      {
+        "title": "Path Analysis",
+        "desc": "Trace connection paths between nodes to discover indirect business relationships and referral opportunities.",
+        "image": "star-graph_4.png"
+      }
+    ],
+    "entry": "Click \"Star Graph\" in the action menu on project detail and customer detail pages",
+    "steps": [
+      "Open a project or customer detail page",
+      "Select \"Star Graph\" from the action menu",
+      "View the relationship network graph centered on the current entity",
+      "Drag or zoom to adjust the view; click nodes to see details"
+    ],
+    "gallery": [
+      "star-graph_gallery_0.png"
+    ]
+  },
+  {
+    "id": "system-diagram",
+    "icon": "schema",
+    "color": "teal",
+    "status": "published",
+    "hero_image": "system-diagram_main.png",
+    "title": "Online System Design",
+    "keywords": [
+      "Architecture Design",
+      "Drag & Drop Editing",
+      "Component Wiring",
+      "Template Library"
+    ],
+    "summary": "Drag-and-drop system architecture diagram editor with product component wiring and hierarchical layout. Save as templates for team reuse.",
+    "description": [
+      "Now you can quickly design from floor plans to system diagrams using pre-built product components — accurate, intuitive, and efficient. The feature provides an intuitive drag-and-drop editor for creating and managing system architecture diagrams. Select components from the product library and drag them onto the canvas, using connectors to represent relationships between components.",
+      "Each floor plan and system diagram is accessed through a project entry, forming a unique relationship with the project — all the way through to service and maintenance, providing technical support for the system lifecycle.",
+      "System diagrams are linked to product data — each component in the diagram corresponds to an actual product model and specification. You can view product details directly from the architecture diagram, achieving seamless integration of design and data."
+    ],
+    "scenarios": [
+      {
+        "title": "Scaled Floor Plan Layout",
+        "desc": "Use PNG images as base maps to quickly design floor distribution systems with the layout tool. With proper scale calibration, cable lengths are calculated automatically.",
+        "image": "system-diagram_1.png"
+      },
+      {
+        "title": "Auto-Generated Architecture",
+        "desc": "Automatically layout multi-floor plans into a system architecture diagram on the system view, importing device info, floor details, and cable lengths.",
+        "image": "system-diagram_2.png"
+      },
+      {
+        "title": "Signal Coverage Prediction",
+        "desc": "Enable the signal coverage radius prediction tool to evaluate antenna placement and assess whether positioning is optimal.",
+        "image": "system-diagram_3.png"
+      },
+      {
+        "title": "Heatmap Estimation",
+        "desc": "Generate signal heatmap estimates based on building environment conditions and each antenna's environment factor (n).",
+        "image": "system-diagram_4.png"
+      }
+    ],
+    "entry": "Select \"System Diagram\" under the \"Product Management\" menu in the sidebar",
+    "steps": [
+      "Go to \"Product Management > System Diagram\" in the sidebar",
+      "Click \"New System Diagram\" or select an existing template",
+      "Drag components from the left product panel onto the canvas",
+      "Use the connector tool to link components, then save when done"
+    ],
+    "gallery": [
+      "system-diagram_gallery_0.png",
+      "system-diagram_gallery_1.png"
+    ]
+  },
+  {
+    "id": "ai-research",
+    "icon": "travel_explore",
+    "color": "amber",
+    "status": "draft",
+    "hero_image": "ai-research_main.png",
+    "title": "AI Research",
+    "keywords": [
+      "Smart Research",
+      "Company Analysis",
+      "Industry Insights",
+      "Auto Reports"
+    ],
+    "summary": "AI automatically researches public online information about customers, generating company overviews and industry analysis reports to support business expansion decisions.",
+    "description": [
+      "The AI research feature uses artificial intelligence to automatically search and analyze publicly available online information about customers. Simply enter a customer name, and AI will collect enterprise information from multiple public data sources and generate a structured report.",
+      "Research reports cover dimensions including basic company information, business scope, industry position, and recent developments, helping you fully understand a customer's background before visits — \"know yourself and know your enemy.\"",
+      "AI research results can be saved to customer files as supplementary information for customer profiles, making it easy for team members to share and reference."
+    ],
+    "scenarios": [
+      {
+        "title": "Visit Preparation",
+        "desc": "Quickly understand a company's background before customer visits for targeted conversations.",
+        "image": "ai-research_1.png"
+      },
+      {
+        "title": "Industry Analysis",
+        "desc": "Understand the customer's industry market size and competitive landscape to find collaboration entry points.",
+        "image": "ai-research_2.png"
+      },
+      {
+        "title": "Risk Assessment",
+        "desc": "Assess a customer's business status and cooperation risks through publicly available information.",
+        "image": "ai-research_3.png"
+      },
+      {
+        "title": "Opportunity Discovery",
+        "desc": "Discover potential needs and opportunities from a customer's recent activities for proactive outreach.",
+        "image": "ai-research_4.png"
+      }
+    ],
+    "entry": "Click the \"AI Research\" button on the customer detail page",
+    "steps": [
+      "Open a customer detail page",
+      "Click the \"AI Research\" button to start the research",
+      "AI automatically searches and analyzes the customer's public information",
+      "View the generated research report; save it to the customer file if needed"
+    ],
+    "gallery": []
+  }
+]

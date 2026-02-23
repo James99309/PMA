@@ -99,6 +99,8 @@ tmp/
 *.csv
 *.json
 !app_version.json
+!app/data/guide_data.json
+!app/data/guide_data_en.json
 *.zip
 *.tar
 *.gz

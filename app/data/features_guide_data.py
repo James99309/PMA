@@ -12,8 +12,7 @@ import os
 
 from flask_babel import lazy_gettext as _l
 
-_GUIDE_DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-                               'scripts', 'temp')
+_GUIDE_DATA_DIR = os.path.dirname(__file__)
 GUIDE_DATA_JSON = os.path.join(_GUIDE_DATA_DIR, 'guide_data.json')
 GUIDE_DATA_EN_JSON = os.path.join(_GUIDE_DATA_DIR, 'guide_data_en.json')
 
