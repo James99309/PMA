@@ -1037,9 +1037,9 @@ function showFloorRouteProps(routeId){
   panel.classList.add('visible');
   document.getElementById('propsTitle').textContent=_t('走线属性');
   let cableOpts='';
-  [...new Set(Object.values(CABLE_TYPES).map(c=>typeof c.category==='object'?_m(c.category):c.category))].forEach(cat=>{
+  [...new Set(Object.values(CABLE_TYPES).map(c=>_m(c.category)))].forEach(cat=>{
     cableOpts+=`<optgroup label="${cat}">`;
-    Object.entries(CABLE_TYPES).filter(([,ct])=>(typeof ct.category==='object'?_m(ct.category):ct.category)===cat).forEach(([key,ct])=>{
+    Object.entries(CABLE_TYPES).filter(([,ct])=>_m(ct.category)===cat).forEach(([key,ct])=>{
       cableOpts+=`<option value="${key}" ${route.cableType===key?'selected':''}>${_m(ct.name)}</option>`;
     });cableOpts+='</optgroup>';
   });
