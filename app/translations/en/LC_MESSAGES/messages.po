@@ -10691,3 +10691,46 @@ msgstr "Path Length"
 
 msgid "未标定"
 msgstr "Not calibrated"
+
+#: System Diagram Editor - tw_editor.html
+msgid "已有设备"
+msgstr "Existing"
+
+msgid "加载产品列表..."
+msgstr "Loading products..."
+
+msgid "标注"
+msgstr "Text"
+
+msgid "自动布局"
+msgstr "Auto Layout"
+
+msgid "背景图"
+msgstr "Background"
+
+msgid "标定"
+msgstr "Calibrate"
+
+msgid "删除背景"
+msgstr "Remove BG"
+
+msgid "属性"
+msgstr "Properties"
+
+msgid "粘贴"
+msgstr "Paste"
+
+msgid "尚未保存"
+msgstr "Unsaved Changes"
+
+msgid "当前系统图有未保存的修改，是否保存后再离开？"
+msgstr "You have unsaved changes. Save before leaving?"
+
+msgid "保存并离开"
+msgstr "Save & Leave"
+
+msgid "放弃修改"
+msgstr "Discard"
+
+msgid "PNG 导出失败，请尝试 SVG 格式"
+msgstr "PNG failed, try SVG"
