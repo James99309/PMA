@@ -943,7 +943,7 @@ async function saveDiagram(){
     const name=document.getElementById('diagramNameInput').value.trim()||_t('未命名系统图');
     let thumbnailSvg='';
     try{
-      const thumbResult=prepareExportSVG();
+      const thumbResult=await prepareExportSVG();
       const tc=thumbResult.clone;
       const bgRect=tc.querySelector(':scope > rect');if(bgRect)bgRect.remove();
       tc.querySelectorAll('pattern, [fill="url(#gridSmall)"], [fill="url(#gridLarge)"]').forEach(el=>el.remove());

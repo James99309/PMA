@@ -356,7 +356,7 @@ def _build_timeline_chain(center_id, entity_id, entity_type, nodes, links, users
                     links.append({'source': nid, 'target': co_nid, 'label': ''})
             if obj.project_id:
                 p_nid = f'project_{obj.project_id}'
-                if p_nid in nodes:
+                if p_nid in nodes and p_nid != center_id:
                     links.append({'source': nid, 'target': p_nid, 'label': ''})
 
 

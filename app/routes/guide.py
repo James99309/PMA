@@ -16,7 +16,11 @@ GUIDE_IMAGE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(_
 @login_required
 def whats_new():
     from app.data.features_guide_data import get_features_data
-    return render_template('guide/whats_new.html', features=get_features_data())
+    all_features = get_features_data()
+    is_admin = current_user.role == 'admin'
+    # published/beta: 所有人可见; draft: 仅管理员可见
+    features = [f for f in all_features if f.get('status', 'published') != 'draft' or is_admin]
+    return render_template('guide/whats_new.html', features=features)
 
 
 @guide_bp.route('/image/<path:filename>')

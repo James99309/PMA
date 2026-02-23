@@ -20,6 +20,7 @@ FEATURES_GUIDE_DATA = [
         'id': 'ai-chat',
         'icon': 'smart_toy',
         'color': 'purple',
+        'status': 'published',
         'hero_image': 'ai-chat_main.png',
         'title': _l('AI 智能助手'),
         'keywords': [_l('智能对话'), _l('数据查询'), _l('自动翻译'), _l('表单创建')],
@@ -47,6 +48,7 @@ FEATURES_GUIDE_DATA = [
         'id': 'points-system',
         'icon': 'emoji_events',
         'color': 'yellow',
+        'status': 'published',
         'hero_image': 'points-system_main.png',
         'title': _l('积分系统'),
         'keywords': [_l('业绩积分'), _l('引用系数'), _l('排行榜'), _l('产品评分')],
@@ -75,6 +77,7 @@ FEATURES_GUIDE_DATA = [
         'hero_image': 'resource-pool_main.png',
         'icon': 'lock_open',
         'color': 'blue',
+        'status': 'published',
         'title': _l('资源池与访问申请'),
         'keywords': [_l('跨权限搜索'), _l('访问请求'), _l('资源共享'), _l('权限审批')],
         'summary': _l('突破权限边界的资源发现机制，支持跨权限搜索客户资源并发起访问申请。'),
@@ -103,6 +106,7 @@ FEATURES_GUIDE_DATA = [
         'hero_image': 'split-screen_main.png',
         'icon': 'view_sidebar',
         'color': 'cyan',
+        'status': 'published',
         'title': _l('分屏浏览与消息通知'),
         'keywords': [_l('分屏浏览'), _l('@提醒'), _l('待审批'), _l('待办事项')],
         'summary': _l('50/50 分屏布局支持边聊天边工作，消息通知面板集中显示 @提醒和待办事项。'),
@@ -130,6 +134,7 @@ FEATURES_GUIDE_DATA = [
         'hero_image': 'dashboard_main.png',
         'icon': 'dashboard',
         'color': 'green',
+        'status': 'published',
         'title': _l('绩效仪表盘增强'),
         'keywords': [_l('目标达成'), _l('活跃度分析'), _l('行业分布'), _l('客户地图')],
         'summary': _l('全面升级的绩效仪表盘，新增目标达成率追踪、客户活跃度分析和行业分布图表。'),
@@ -157,6 +162,7 @@ FEATURES_GUIDE_DATA = [
         'hero_image': 'task-management_main.png',
         'icon': 'task_alt',
         'color': 'orange',
+        'status': 'published',
         'title': _l('任务管理系统'),
         'keywords': [_l('待办任务'), _l('日历关联'), _l('附件管理'), _l('协作评论')],
         'summary': _l('轻量级任务管理，支持创建任务、设定截止日期、上传附件和协作评论。'),
@@ -185,6 +191,7 @@ FEATURES_GUIDE_DATA = [
         'hero_image': 'file-manager_main.png',
         'icon': 'folder_open',
         'color': 'indigo',
+        'status': 'published',
         'title': _l('文件管理系统'),
         'keywords': [_l('文件存储'), _l('去重管理'), _l('知识库'), _l('快速上传')],
         'summary': _l('统一的文件存储和管理平台，支持文件去重、分类管理和知识库建设。'),
@@ -212,6 +219,7 @@ FEATURES_GUIDE_DATA = [
         'hero_image': 'customer-map_main.png',
         'icon': 'map',
         'color': 'red',
+        'status': 'draft',
         'title': _l('客户地图'),
         'keywords': [_l('地图可视化'), _l('区域分布'), _l('客户定位'), _l('地理筛选')],
         'summary': _l('基于地理位置的客户分布可视化，支持省份级别的客户数据地图展示。'),
@@ -234,6 +242,90 @@ FEATURES_GUIDE_DATA = [
             _l('点击具体省份查看该区域客户列表'),
         ],
     },
+    {
+        'id': 'star-graph',
+        'icon': 'star',
+        'color': 'violet',
+        'status': 'published',
+        'hero_image': 'star-graph_main.png',
+        'title': _l('星图'),
+        'keywords': [_l('关系网络'), _l('节点可视化'), _l('关联分析'), _l('交互图谱')],
+        'summary': _l('可视化展示项目与客户的关系网络图，节点大小反映关联度，帮助发现业务关联和拓展机会。'),
+        'description': [
+            _l('星图功能以可视化网络图的形式展示项目、客户之间的关联关系。每个节点代表一个业务实体（项目或客户），节点大小反映其关联度和业务重要性。'),
+            _l('通过星图可以直观地发现业务关联——哪些客户参与了相同的项目，哪些项目共享了相同的客户资源。这有助于识别潜在的合作机会和业务拓展方向。'),
+            _l('星图支持交互操作，可缩放、拖拽节点，点击节点查看详细信息，帮助您从全局视角理解业务关系。'),
+        ],
+        'scenarios': [
+            {'title': _l('关系发现'), 'desc': _l('通过星图发现客户和项目之间的隐藏关联，识别潜在商机。'), 'image': 'star-graph_1.png'},
+            {'title': _l('全局视图'), 'desc': _l('从宏观角度查看整个业务网络，了解各实体的关联密度。'), 'image': 'star-graph_2.png'},
+            {'title': _l('重点追踪'), 'desc': _l('节点大小反映业务量级，快速识别核心客户和关键项目。'), 'image': 'star-graph_3.png'},
+            {'title': _l('路径分析'), 'desc': _l('追踪节点间的连接路径，发现间接业务关联和转介绍机会。'), 'image': 'star-graph_4.png'},
+        ],
+        'entry': _l('在项目详情页和客户详情页的操作菜单中点击"星图"'),
+        'steps': [
+            _l('打开项目或客户详情页'),
+            _l('在操作菜单中选择"星图"选项'),
+            _l('查看以当前实体为中心的关系网络图'),
+            _l('拖拽或缩放调整视图，点击节点查看详情'),
+        ],
+    },
+    {
+        'id': 'system-diagram',
+        'icon': 'schema',
+        'color': 'teal',
+        'status': 'published',
+        'hero_image': 'system-diagram_main.png',
+        'title': _l('在线系统设计'),
+        'keywords': [_l('架构设计'), _l('拖拽编辑'), _l('组件连线'), _l('模板库')],
+        'summary': _l('拖拽式系统架构图编辑器，支持产品组件连线和层级布局，可保存为模板供团队复用。'),
+        'description': [
+            _l('系统图功能提供直观的拖拽式编辑器，用于创建和管理系统架构图。您可以从产品库中选择组件拖入画布，通过连线表示组件之间的关系。'),
+            _l('编辑器支持多种布局方式和分层结构，可以清晰地展示产品系统的组成和连接关系。完成的系统图可以保存为模板，方便在不同项目中复用。'),
+            _l('系统图与产品数据联动——图中的每个组件对应实际的产品型号和规格，支持从架构图直接查看产品详情，实现设计与数据的无缝衔接。'),
+        ],
+        'scenarios': [
+            {'title': _l('架构设计'), 'desc': _l('拖拽产品组件到画布，用连线表示系统各部分的连接关系。'), 'image': 'system-diagram_1.png'},
+            {'title': _l('模板复用'), 'desc': _l('将常用系统架构保存为模板，在新项目中一键套用。'), 'image': 'system-diagram_2.png'},
+            {'title': _l('产品联动'), 'desc': _l('图中组件直接关联产品数据，点击即可查看型号和规格详情。'), 'image': 'system-diagram_3.png'},
+            {'title': _l('方案展示'), 'desc': _l('生成专业的系统架构图，用于客户方案展示和技术交流。'), 'image': 'system-diagram_4.png'},
+        ],
+        'entry': _l('在侧边栏"产品管理"菜单下选择"系统图"'),
+        'steps': [
+            _l('进入侧边栏"产品管理 > 系统图"页面'),
+            _l('点击"新建系统图"或选择已有模板'),
+            _l('从左侧产品面板拖拽组件到画布'),
+            _l('使用连线工具连接各组件，完成后保存'),
+        ],
+    },
+    {
+        'id': 'ai-research',
+        'icon': 'travel_explore',
+        'color': 'amber',
+        'status': 'draft',
+        'hero_image': 'ai-research_main.png',
+        'title': _l('AI 调研'),
+        'keywords': [_l('智能调研'), _l('企业分析'), _l('行业洞察'), _l('自动报告')],
+        'summary': _l('AI 自动调研客户的公开网络信息，生成企业概况和行业分析报告，助力业务拓展决策。'),
+        'description': [
+            _l('AI 调研功能利用人工智能技术自动搜索和分析客户的公开网络信息。只需输入客户名称，AI 即可从多个公开数据源收集企业信息并生成结构化报告。'),
+            _l('调研报告包括企业基本信息、业务范围、行业地位、近期动态等维度，帮助您在拜访客户前全面了解对方背景，做到"知己知彼"。'),
+            _l('AI 调研结果可以保存到客户档案中，作为客户画像的补充信息，方便团队成员共享和参考。'),
+        ],
+        'scenarios': [
+            {'title': _l('拜访准备'), 'desc': _l('拜访客户前快速了解企业背景，做到有的放矢。'), 'image': 'ai-research_1.png'},
+            {'title': _l('行业分析'), 'desc': _l('了解客户所在行业的市场规模和竞争格局，发现合作切入点。'), 'image': 'ai-research_2.png'},
+            {'title': _l('风险评估'), 'desc': _l('通过公开信息评估客户的经营状况和合作风险。'), 'image': 'ai-research_3.png'},
+            {'title': _l('商机发现'), 'desc': _l('从客户近期动态中发现潜在需求和商机，主动出击。'), 'image': 'ai-research_4.png'},
+        ],
+        'entry': _l('在客户详情页点击"AI 调研"按钮'),
+        'steps': [
+            _l('打开客户详情页'),
+            _l('点击"AI 调研"按钮启动调研'),
+            _l('AI 自动搜索和分析客户公开信息'),
+            _l('查看生成的调研报告，可保存到客户档案'),
+        ],
+    },
 ]
 
 
@@ -243,6 +335,7 @@ def _serialize_defaults():
     for feat in FEATURES_GUIDE_DATA:
         item = {
             'id': feat['id'], 'icon': feat['icon'], 'color': feat['color'],
+            'status': feat.get('status', 'published'),
             'hero_image': feat.get('hero_image', ''),
             'title': str(feat['title']),
             'keywords': [str(k) for k in feat.get('keywords', [])],
@@ -261,7 +354,12 @@ def get_features_data():
     """加载说明书数据：优先 JSON 文件，否则用 Python 默认值"""
     if os.path.isfile(GUIDE_DATA_JSON):
         with open(GUIDE_DATA_JSON, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
+        # 确保每个条目都有 status 字段（兼容旧 JSON）
+        for item in data:
+            if 'status' not in item:
+                item['status'] = 'published'
+        return data
     return _serialize_defaults()
 
 
