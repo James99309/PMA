@@ -180,7 +180,7 @@ def api_products():
             categories[cat_id] = {
                 'id': cat_id,
                 'name': cat_name,
-                'iconKey': cat_obj.icon_key if cat_obj else None,
+                'iconKey': getattr(cat_obj, 'icon_key', None) if cat_obj else None,
                 'color': _category_color(cat_name),
                 'subcategories': {}
             }
@@ -190,7 +190,7 @@ def api_products():
             subs[sub_id] = {
                 'id': sub_id,
                 'name': sub_name,
-                'iconKey': sub_obj.icon_key if sub_obj else None,
+                'iconKey': getattr(sub_obj, 'icon_key', None) if sub_obj else None,
                 'products': []
             }
 
