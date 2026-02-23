@@ -226,29 +226,19 @@ function getIconForProduct(product,subcatName,subcatIconKey){
 }
 
 function _catIcon(name){
-  const s='width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
-  const icons={'基站':`<svg ${s}><path d="M12 20V10"/><path d="M6 20l6-16 6 16"/><circle cx="12" cy="8" r="2"/></svg>`,
-    'Basestation':`<svg ${s}><path d="M12 20V10"/><path d="M6 20l6-16 6 16"/><circle cx="12" cy="8" r="2"/></svg>`,
-    '天线':`<svg ${s}><path d="M2 12L12 2l10 10"/><path d="M12 2v20"/><path d="M5 19h14"/></svg>`,
-    'Antenna':`<svg ${s}><path d="M2 12L12 2l10 10"/><path d="M12 2v20"/><path d="M5 19h14"/></svg>`,
-    '直放':`<svg ${s}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M15 9l3 3-3 3"/><path d="M9 9l-3 3 3 3"/></svg>`,
-    'BDA':`<svg ${s}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M15 9l3 3-3 3"/><path d="M9 9l-3 3 3 3"/></svg>`,
-    '合路':`<svg ${s}><path d="M4 8h4l4 4 4-4h4"/><path d="M12 12v8"/><path d="M8 4v4"/><path d="M16 4v4"/></svg>`,
-    'Combiner':`<svg ${s}><path d="M4 8h4l4 4 4-4h4"/><path d="M12 12v8"/><path d="M8 4v4"/><path d="M16 4v4"/></svg>`,
-    '功率':`<svg ${s}><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
-    'Splitter':`<svg ${s}><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
-    '耦合':`<svg ${s}><path d="M8 6h8"/><path d="M8 18h8"/><path d="M12 6v12"/><circle cx="4" cy="12" r="2"/><circle cx="20" cy="12" r="2"/></svg>`,
-    'Coupler':`<svg ${s}><path d="M8 6h8"/><path d="M8 18h8"/><path d="M12 6v12"/><circle cx="4" cy="12" r="2"/><circle cx="20" cy="12" r="2"/></svg>`,
-    '对讲':`<svg ${s}><rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="15" r="2"/><path d="M10 7h4"/></svg>`,
-    'Radio':`<svg ${s}><rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="15" r="2"/><path d="M10 7h4"/></svg>`,
-    '配件':`<svg ${s}><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>`,
-    'Accessories':`<svg ${s}><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>`,
-    '服务':`<svg ${s}><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>`,
-    'Commissioning':`<svg ${s}><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>`,
-    '应用':`<svg ${s}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>`,
-    'Application':`<svg ${s}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>`};
-  for(const k in icons){if((name||'').includes(k))return icons[k]}
-  return `<svg ${s}><rect x="3" y="3" width="18" height="18" rx="3"/></svg>`;
+  const ms='material-symbols-outlined';
+  const icons={'基站':'cell_tower','Basestation':'cell_tower',
+    '天线':'settings_input_antenna','Antenna':'settings_input_antenna',
+    '直放':'broadcast_on_personal','BDA':'broadcast_on_personal',
+    '合路':'hub','Combiner':'hub',
+    '功率':'power','Splitter':'power',
+    '耦合':'power','Coupler':'power',
+    '对讲':'perm_phone_msg','Radio':'perm_phone_msg',
+    '配件':'extension','Accessories':'extension',
+    '服务':'support_agent','Commissioning':'support_agent',
+    '应用':'apps','Application':'apps'};
+  for(const k in icons){if((name||'').includes(k))return `<span class="${ms}" style="font-size:16px;">${icons[k]}</span>`}
+  return `<span class="${ms}" style="font-size:16px;">category</span>`;
 }
 function toggleCategory(el){
   const wasOpen=el.classList.contains('open');
