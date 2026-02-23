@@ -220,7 +220,7 @@ def api_save():
     """保存或更新系统图"""
     data = request.get_json()
     if not data:
-        return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+        return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
 
     diagram_id = data.get('id', 0)
     name = data.get('name', '').strip() or _('未命名系统图')
@@ -232,7 +232,7 @@ def api_save():
     if diagram_id:
         diagram = SystemDiagram.query.get(diagram_id)
         if not diagram or diagram.is_deleted:
-            return jsonify({'success': False, 'message': '系统图不存在'}), 404
+            return jsonify({'success': False, 'message': _('系统图不存在')}), 404
         diagram.name = name
         diagram.description = description
         diagram.project_id = project_id
@@ -265,7 +265,7 @@ def api_load(diagram_id):
     """加载系统图数据"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
     if diagram.is_deleted:
-        return jsonify({'success': False, 'message': '系统图不存在'}), 404
+        return jsonify({'success': False, 'message': _('系统图不存在')}), 404
     return jsonify({
         'success': True,
         'diagram': {

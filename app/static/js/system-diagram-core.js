@@ -6,7 +6,7 @@
 
 /* ── i18n helpers ── */
 const _lang = (document.documentElement.lang||'zh').startsWith('en') ? 'en' : 'zh';
-function _t(k){return (window.SD_I18N&&window.SD_I18N[k])||k;}
+function _t(k){const v=(window.SD_I18N&&window.SD_I18N[k])||k;return(typeof v==='object'&&v!==null)?(v[_lang]||v.zh):v;}
 function _m(obj){return (typeof obj==='object'&&obj!==null)?(obj[_lang]||obj.zh):obj;}
 
 // ====== CABLE TYPES ======
@@ -71,6 +71,7 @@ const DEFAULT_DEVICE_ICONS = {
 };
 
 const SUBCAT_ICON_MAP={
+  // Chinese names
   '数字基站':'rru','数字信道机':'channel_radio','广播多频点调频处理器':'fm_processor',
   '室外天线':'antenna_outdoor','室内天线':'antenna_indoor','防爆天线':'antenna_exproof',
   '光纤远端直放站':'oru','光纤近端机':'omu','射频直放站':'repeater','直放站配件':'generic',
@@ -84,6 +85,18 @@ const SUBCAT_ICON_MAP={
   '应用功能':'software','许可证':'license','服务软件':'software','服务器主机':'server',
   '主站频率占用费':'service','对讲机频率占用费':'service','施工附件':'service',
   '电磁环境检测及申报报告费':'service','调试开通':'service',
+  // English names (SG NAS)
+  'Base station':'bbu','Repeater':'channel_radio','FM Broadcast':'fm_processor',
+  'Indoor antenna':'antenna_indoor','Outdoor antenna':'antenna_outdoor','Explosion-proof antenna':'antenna_exproof',
+  'ORU':'oru','OMU':'omu','RF BDA':'repeater',
+  'RF Combiner':'combiner','Hybrid Combiner':'combiner','System Combiner':'combiner',
+  'Duplex':'combiner','Signal Stripper':'signal_stripper','Splitter':'splitter_2',
+  'Multi-Coupler':'coupler','Coupler':'coupler','Matrix':'matrix',
+  'Two-way radio':'radio','Battery':'battery','Charge':'charger',
+  'RF Cable':'cable_coax','Fiber Cable':'cable_fiber','Attenuator':'attenuator',
+  'Grounding':'grounding','Switch':'switch','Antenna Accessories':'connector',
+  'DC Block':'dc_blocker','Dummy Load':'load','Cabinet':'cabinet','Explosion-proof box':'cabinet',
+  'License':'license','Software':'software','Applications':'software','Server':'server',
 };
 
 // ====== STATE ======
@@ -215,15 +228,25 @@ function getIconForProduct(product,subcatName,subcatIconKey){
 function _catIcon(name){
   const s='width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
   const icons={'基站':`<svg ${s}><path d="M12 20V10"/><path d="M6 20l6-16 6 16"/><circle cx="12" cy="8" r="2"/></svg>`,
+    'Basestation':`<svg ${s}><path d="M12 20V10"/><path d="M6 20l6-16 6 16"/><circle cx="12" cy="8" r="2"/></svg>`,
     '天线':`<svg ${s}><path d="M2 12L12 2l10 10"/><path d="M12 2v20"/><path d="M5 19h14"/></svg>`,
+    'Antenna':`<svg ${s}><path d="M2 12L12 2l10 10"/><path d="M12 2v20"/><path d="M5 19h14"/></svg>`,
     '直放':`<svg ${s}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M15 9l3 3-3 3"/><path d="M9 9l-3 3 3 3"/></svg>`,
+    'BDA':`<svg ${s}><path d="M5 12h14"/><path d="M12 5v14"/><path d="M15 9l3 3-3 3"/><path d="M9 9l-3 3 3 3"/></svg>`,
     '合路':`<svg ${s}><path d="M4 8h4l4 4 4-4h4"/><path d="M12 12v8"/><path d="M8 4v4"/><path d="M16 4v4"/></svg>`,
+    'Combiner':`<svg ${s}><path d="M4 8h4l4 4 4-4h4"/><path d="M12 12v8"/><path d="M8 4v4"/><path d="M16 4v4"/></svg>`,
     '功率':`<svg ${s}><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+    'Splitter':`<svg ${s}><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
     '耦合':`<svg ${s}><path d="M8 6h8"/><path d="M8 18h8"/><path d="M12 6v12"/><circle cx="4" cy="12" r="2"/><circle cx="20" cy="12" r="2"/></svg>`,
+    'Coupler':`<svg ${s}><path d="M8 6h8"/><path d="M8 18h8"/><path d="M12 6v12"/><circle cx="4" cy="12" r="2"/><circle cx="20" cy="12" r="2"/></svg>`,
     '对讲':`<svg ${s}><rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="15" r="2"/><path d="M10 7h4"/></svg>`,
+    'Radio':`<svg ${s}><rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="15" r="2"/><path d="M10 7h4"/></svg>`,
     '配件':`<svg ${s}><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>`,
+    'Accessories':`<svg ${s}><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>`,
     '服务':`<svg ${s}><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>`,
-    '应用':`<svg ${s}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>`};
+    'Commissioning':`<svg ${s}><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>`,
+    '应用':`<svg ${s}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>`,
+    'Application':`<svg ${s}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>`};
   for(const k in icons){if((name||'').includes(k))return icons[k]}
   return `<svg ${s}><rect x="3" y="3" width="18" height="18" rx="3"/></svg>`;
 }
@@ -421,7 +444,7 @@ function addNode(sub,x,y){
 function addTextNode(){
   pushHistory();
   const cx=(wrapper.clientWidth/2-viewX)/scale,cy=(wrapper.clientHeight/2-viewY)/scale;
-  nodes.push({id:nodeIdCounter++,subcategoryId:null,selectedProductId:null,name:_t('文本标注'),model:_t('双击编辑'),category:'标注',color:'#64748b',iconData:DEFAULT_DEVICE_ICONS.text_note,products:[],x:cx-32,y:cy-32,w:NODE_SIZE,h:NODE_SIZE,qty:1,label:'',hideLabel:false,floor_id:null,area_label:'',floor_label:''});
+  nodes.push({id:nodeIdCounter++,subcategoryId:null,selectedProductId:null,name:_t('文本标注'),model:_t('双击编辑'),category:_t('标注'),color:'#64748b',iconData:DEFAULT_DEVICE_ICONS.text_note,products:[],x:cx-32,y:cy-32,w:NODE_SIZE,h:NODE_SIZE,qty:1,label:'',hideLabel:false,floor_id:null,area_label:'',floor_label:''});
   hasUnsavedChanges=true;renderAll();selectNode(nodeIdCounter-1);
 }
 

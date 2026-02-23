@@ -10755,3 +10755,41 @@ msgstr "Discard"
 
 msgid "PNG 导出失败，请尝试 SVG 格式"
 msgstr "PNG failed, try SVG"
+
+#: System Diagram - views/system_diagram.py
+msgid "系统图不存在"
+msgstr "System diagram not found"
+
+msgid "请选择文件"
+msgstr "Please select a file"
+
+msgid "缺少参数"
+msgstr "Missing parameters"
+
+msgid "仅支持 PNG/JPG 格式"
+msgstr "Only PNG/JPG formats supported"
+
+msgid "文件大小不能超过 12MB"
+msgstr "File size cannot exceed 12MB"
+
+#: System Diagram Editor - tw_editor.html title attributes
+msgid "撤销 (Ctrl+Z)"
+msgstr "Undo (Ctrl+Z)"
+
+msgid "重做 (Ctrl+Shift+Z)"
+msgstr "Redo (Ctrl+Shift+Z)"
+
+msgid "按连线关系重排楼层节点"
+msgstr "Relayout floor nodes by connections"
+
+msgid "锁定全部"
+msgstr "Lock All"
+
+msgid "解锁全部"
+msgstr "Unlock All"
+
+msgid "绘制区域"
+msgstr "Draw Area"
+
+msgid "标定尺寸"
+msgstr "Calibrate Size"
