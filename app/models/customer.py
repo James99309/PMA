@@ -64,6 +64,13 @@ class Company(SharingMixin, db.Model):
     updated_at = db.Column(db.DateTime, default=get_local_time)
     notes = db.Column(db.Text)  # 备注
     is_deleted = db.Column(db.Boolean, default=False)  # 是否删除
+
+    # AI 网络调研数据
+    ai_research_data = db.Column(db.JSON, nullable=True)  # 结构化调研结果
+    ai_research_updated_at = db.Column(db.DateTime, nullable=True)  # 最后调研时间
+    ai_research_status = db.Column(db.String(20), default='none')  # none/pre_searching/needs_input/researching/completed/error
+    ai_research_error = db.Column(db.String(500), nullable=True)  # 错误信息
+    ai_research_candidates = db.Column(db.JSON, nullable=True)  # 候选公司列表
     
     # 通用共享字段（与项目保持一致）
     shared_with_users = db.Column(db.JSON, default=list)  # 被共享用户ID列表，如 [3, 5]

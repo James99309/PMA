@@ -236,8 +236,28 @@ def list_companies():
     country_filter = filters.get('country', '')
     status_filter = filters.get('status_filter', '')
 
-    # 初始化查询：使用权限控制（仅1次 get_viewable_data）
-    base_query = get_viewable_data(Company, current_user)
+    # 资源池搜索：有搜索时查全部客户，标记权限；无搜索保持原逻辑
+    viewable_query = get_viewable_data(Company, current_user)
+    restricted_ids = None  # None 表示未进入资源池搜索模式
+    pending_request_ids = set()
+
+    if search:
+        # 搜索时查全部客户（排除已删除），标记哪些是无权限的
+        base_query = Company.query.filter(Company.is_deleted == False)
+        viewable_id_set = set(
+            r[0] for r in viewable_query.with_entities(Company.id).all()
+        )
+        restricted_ids = viewable_id_set  # 用于模板判断
+
+        # 查询当前用户对搜索结果中的 pending 请求
+        from app.models.access_request import AccessRequest
+        pending_request_ids = set(
+            r.entity_id for r in AccessRequest.query.filter_by(
+                requester_id=current_user.id, entity_type='customer', status='pending'
+            ).all()
+        )
+    else:
+        base_query = viewable_query
 
     # 使用公共工具应用筛选
     query = apply_filters_to_query(base_query, Company, filters, CUSTOMER_FILTER_CONFIG)
@@ -275,6 +295,15 @@ def list_companies():
         for company in companies:
             if company.owner_id and company.owner_id in owners:
                 company.owner = owners[company.owner_id]
+
+    # 标记受限行和请求中状态（资源池搜索模式）
+    for company in companies:
+        company._is_restricted = (restricted_ids is not None and company.id not in restricted_ids)
+        company._is_pending = (company.id in pending_request_ids)
+        if company._is_restricted and company.owner:
+            company._owner_name = company.owner.real_name or company.owner.username
+        else:
+            company._owner_name = ''
     
     # 为每个公司添加联系人创建者ID列表（优化：只处理当前页的数据）
     company_ids = [company.id for company in companies]
@@ -711,8 +740,25 @@ def companies_list_ajax():
         country_filter = filters.get('country', '')
         status_filter = filters.get('status_filter', '')
 
-        # 基础查询
-        query = get_viewable_data(Company, current_user)
+        # 资源池搜索：有搜索时查全部客户，无搜索保持原逻辑
+        viewable_query = get_viewable_data(Company, current_user)
+        restricted_ids = None
+        pending_request_ids = set()
+
+        if search:
+            query = Company.query.filter(Company.is_deleted == False)
+            viewable_id_set = set(
+                r[0] for r in viewable_query.with_entities(Company.id).all()
+            )
+            restricted_ids = viewable_id_set
+            from app.models.access_request import AccessRequest
+            pending_request_ids = set(
+                r.entity_id for r in AccessRequest.query.filter_by(
+                    requester_id=current_user.id, entity_type='customer', status='pending'
+                ).all()
+            )
+        else:
+            query = viewable_query
 
         # 使用公共工具应用筛选
         query = apply_filters_to_query(query, Company, filters, CUSTOMER_FILTER_CONFIG)
@@ -748,11 +794,20 @@ def companies_list_ajax():
             for company in companies:
                 if company.owner_id and company.owner_id in owners:
                     company.owner = owners[company.owner_id]
-        
+
+        # 标记受限行和请求中状态
+        for company in companies:
+            company._is_restricted = (restricted_ids is not None and company.id not in restricted_ids)
+            company._is_pending = (company.id in pending_request_ids)
+            if company._is_restricted and company.owner:
+                company._owner_name = company.owner.real_name or company.owner.username
+            else:
+                company._owner_name = ''
+
         # 获取国际化的国家名称映射
         from app.utils.i18n import get_current_language
         country_code_to_name = get_country_names(get_current_language())
-        
+
         # 使用统一的响应式渲染器
         from app.utils.responsive_renderer import ResponsiveRenderer
         from app.utils.smart_module_configs import get_smart_module_config
@@ -2308,6 +2363,13 @@ def api_create_company():
         except Exception as track_err:
             logger.warning(f"记录客户创建历史失败: {str(track_err)}")
 
+        # 自动触发 AI 后台调研
+        try:
+            from app.services.ai_research_service import AIResearchService
+            AIResearchService.trigger_research(company.id)
+        except Exception as e:
+            logger.warning(f"触发 AI 调研失败: {e}")
+
         return jsonify({
             'success': True,
             'message': _('客户创建成功'),
@@ -2368,6 +2430,14 @@ def api_update_company(company_id):
             ChangeTracker.log_update(company, old_values, new_values)
         except Exception as track_err:
             logger.warning(f"记录客户变更历史失败: {str(track_err)}")
+
+        # 如果客户名称变更，重新触发 AI 调研
+        if 'company_name' in old_values and old_values['company_name'] != company.company_name:
+            try:
+                from app.services.ai_research_service import AIResearchService
+                AIResearchService.trigger_research(company.id)
+            except Exception as e:
+                logger.warning(f"触发 AI 调研失败: {e}")
 
         # 更新客户活跃状态
         check_company_activity(company_id=company_id, days_threshold=1)
@@ -4510,7 +4580,14 @@ def execute_merge():
                               f"目标客户 {target_company.company_name} (ID: {target_company_id}), "
                               f"合并客户 {[c.company_name for c in source_companies]}, "
                               f"合并统计: {merge_summary}")
-        
+
+        # 合并后重新触发目标客户的 AI 调研
+        try:
+            from app.services.ai_research_service import AIResearchService
+            AIResearchService.trigger_research(target_company_id)
+        except Exception as e:
+            current_app.logger.warning(f"合并后触发 AI 调研失败: {e}")
+
         return jsonify({
             'success': True,
             'message': '客户合并成功',
@@ -4981,3 +5058,61 @@ def parse_amap_geocode_result(result, lang='zh'):
     address_data['address'] = ''.join(address_parts)
 
     return address_data
+
+
+# ============================================================
+# AI 客户网络调研 API
+# ============================================================
+
+@customer.route('/api/company/<int:company_id>/ai-research')
+@login_required
+@permission_required('customer', 'view')
+def api_get_ai_research(company_id):
+    """获取 AI 调研状态和数据（前端轮询用）"""
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
+
+    if not can_view_company(current_user, company):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+
+    from app.services.ai_research_service import AIResearchService
+    status_data = AIResearchService.get_status(company_id)
+
+    if not status_data:
+        return jsonify({'success': True, 'data': {'status': 'none'}})
+
+    return jsonify({'success': True, 'data': status_data})
+
+
+@customer.route('/api/company/<int:company_id>/ai-research/continue', methods=['POST'])
+@login_required
+@permission_required('customer', 'view')
+def api_continue_ai_research(company_id):
+    """用户确认候选公司后继续调研"""
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
+
+    if not can_view_company(current_user, company):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+
+    data = request.get_json(silent=True) or {}
+    confirmed_name = data.get('confirmed_name')
+
+    from app.services.ai_research_service import AIResearchService
+    AIResearchService.continue_with_candidate(company_id, confirmed_name)
+
+    return jsonify({'success': True, 'message': '已启动调研'})
+
+
+@customer.route('/api/company/<int:company_id>/ai-research/retry', methods=['POST'])
+@login_required
+@permission_required('customer', 'view')
+def api_retry_ai_research(company_id):
+    """手动重新触发调研（error/completed 状态可用）"""
+    company = Company.query.filter_by(id=company_id, is_deleted=False).first_or_404()
+
+    if not can_view_company(current_user, company):
+        return jsonify({'success': False, 'message': '无权限'}), 403
+
+    from app.services.ai_research_service import AIResearchService
+    AIResearchService.trigger_research(company_id)
+
+    return jsonify({'success': True, 'message': '已重新启动调研'})

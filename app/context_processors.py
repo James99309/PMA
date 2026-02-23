@@ -277,6 +277,22 @@ def inject_product_points_functions():
     }
 
 
+def inject_resource_pool_helpers():
+    """向模板上下文注入资源池辅助函数（名称遮挡等）"""
+
+    def mask_name(name):
+        """遮挡名称: 上海某某科技有限公司 → 上**科**公司"""
+        if not name or len(name) <= 2:
+            return '***'
+        if len(name) <= 4:
+            return name[0] + '**' + name[-1]
+        return name[0] + '**' + name[len(name) // 2] + '**' + name[-1]
+
+    return {
+        'mask_name': mask_name,
+    }
+
+
 def inject_currency_config():
     """
     向模板上下文注入货币配置（基于数据库类型，与语言设置解耦）

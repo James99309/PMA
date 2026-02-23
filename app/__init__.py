@@ -448,6 +448,15 @@ def create_app(config_class=Config):
     app.register_blueprint(knowledge_bp)
     csrf.exempt(knowledge_bp)
 
+    # 注册资源池蓝图
+    from app.routes.resource_pool import resource_pool_bp
+    app.register_blueprint(resource_pool_bp)
+    csrf.exempt(resource_pool_bp)
+
+    # 注册新功能说明书蓝图
+    from app.routes.guide import guide_bp
+    app.register_blueprint(guide_bp)
+
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
     app.register_blueprint(backup_bp)
@@ -574,6 +583,7 @@ def create_app(config_class=Config):
             '/api/v1/',  # API v1端点（有自己的认证机制）
             '/api/external/',  # 外部API端点（供Stargirl等系统调用，使用API Key认证）
             '/chat/api/ai/',  # OpenClaw AI API（db-query, db-schema, upload-file，均使用 token 认证）
+            '/health',  # 健康检查（Docker + OpenClaw 回调验证）
         ]
         
         # 检查当前路径是否需要登录
@@ -855,6 +865,10 @@ def create_app(config_class=Config):
     from app.context_processors import inject_product_points_functions
     app.context_processor(inject_product_points_functions)
 
+    # 添加资源池辅助函数到模板上下文
+    from app.context_processors import inject_resource_pool_helpers
+    app.context_processor(inject_resource_pool_helpers)
+
     # 添加用户辅助函数到模板上下文
     from app.context_processors import inject_user_helpers
     app.context_processor(inject_user_helpers)
@@ -1109,7 +1123,12 @@ def create_app(config_class=Config):
                 logger.warning(f"请求的文件不存在: {filename}")
                 abort(404)
             
-            # 返回文件
+            # 返回文件（支持 ?name= 参数指定下载文件名）
+            from flask import request as _req
+            download_name = _req.args.get('name')
+            if download_name:
+                return send_from_directory(storage_dir, filename,
+                                           as_attachment=True, download_name=download_name)
             return send_from_directory(storage_dir, filename)
             
         except Exception as e:

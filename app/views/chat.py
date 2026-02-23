@@ -143,6 +143,8 @@ FORM_SCHEMAS = {
 FORM_MARKER_RE = re.compile(r'\[\[FORM:(\w+)\|(\{.*?\})\]\]', re.DOTALL)
 # [[CHOICES:action_key|名称1:ID1|名称2:ID2]] — action_key + 带ID的选项
 CHOICES_MARKER_RE = re.compile(r'\[\[CHOICES:(.*?)\]\]', re.DOTALL)
+# [[PROJECT_CARD:123]] — AI 查询到单个项目时自动展示卡片
+PROJECT_CARD_MARKER_RE = re.compile(r'\[\[PROJECT_CARD:(\d+)\]\]')
 
 
 # ---------------------------------------------------------------------------
@@ -401,6 +403,69 @@ def forward_message_api(id):
 
 
 # ---------------------------------------------------------------------------
+# 9c. 分享文件管理器文件到聊天
+# ---------------------------------------------------------------------------
+
+@chat.route('/api/share-files', methods=['POST'])
+@login_required
+def share_files_to_chat():
+    """分享文件管理器文件到聊天对话"""
+    try:
+        data = request.get_json() or {}
+        file_ids = data.get('file_ids', [])
+        conversation_ids = list(data.get('conversation_ids', []))
+        user_ids = data.get('user_ids', [])
+        note = data.get('note')
+
+        if not file_ids:
+            return jsonify({'success': False, 'message': '请选择要分享的文件'}), 400
+        if not conversation_ids and not user_ids:
+            return jsonify({'success': False, 'message': '请选择分享目标'}), 400
+
+        # 验证文件属于当前用户
+        from app.models.file_manager import UserFileRef, FileLibrary
+        file_refs_with_libs = []
+        for fid in file_ids:
+            ref = UserFileRef.query.filter_by(
+                id=fid, user_id=current_user.id, is_deleted=False
+            ).first()
+            if not ref:
+                continue
+            lib = FileLibrary.query.get(ref.file_library_id)
+            if lib:
+                file_refs_with_libs.append((ref, lib))
+
+        if not file_refs_with_libs:
+            return jsonify({'success': False, 'message': '未找到有效文件'}), 400
+
+        # 为每个 user_id 创建/查找私聊对话
+        for uid in user_ids:
+            conv_result = chat_service.create_conversation(
+                creator_id=current_user.id,
+                participant_ids=[uid],
+            )
+            if conv_result.get('success') and conv_result.get('data', {}).get('id'):
+                conv_id = conv_result['data']['id']
+                if conv_id not in conversation_ids:
+                    conversation_ids.append(conv_id)
+
+        if not conversation_ids:
+            return jsonify({'success': False, 'message': '请选择分享目标'}), 400
+
+        result = chat_service.share_files_to_conversations(
+            sender_id=current_user.id,
+            file_refs_with_libs=file_refs_with_libs,
+            target_conversation_ids=conversation_ids,
+            note=note,
+        )
+        status = 200 if result['success'] else 400
+        return jsonify(result), status
+    except Exception as e:
+        logger.error(f"分享文件到聊天失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
 # 10. 文件上传（附件消息）
 # ---------------------------------------------------------------------------
 
@@ -578,6 +643,44 @@ def ai_stream():
                 return jsonify(ai_conv), 500
             conversation_id = ai_conv['data']['id']
 
+        # 0. 上下文耗尽预检查：最近一条 AI 消息的 prompt_tokens > 阈值则阻断
+        CONTEXT_TOKEN_LIMIT = 6000
+        last_ai_msg = ChatMessage.query.filter_by(
+            conversation_id=conversation_id,
+            is_ai_response=True
+        ).order_by(ChatMessage.id.desc()).first()
+
+        if last_ai_msg and (last_ai_msg.ai_prompt_tokens or 0) > CONTEXT_TOKEN_LIMIT:
+            # 保存用户消息（仍然保存，让用户看到自己发了什么）
+            chat_service.send_message(
+                conversation_id=conversation_id,
+                sender_id=current_user.id,
+                content=content,
+            )
+            # 保存系统阻断消息
+            system_msg = ChatMessage(
+                conversation_id=conversation_id,
+                sender_id=None,
+                content='对话上下文已满，请开启新对话继续与 AI 交流。',
+                message_type='context_exhausted',
+                is_ai_response=False,
+            )
+            db.session.add(system_msg)
+            db.session.commit()
+
+            def generate_exhausted():
+                yield f'data: {json.dumps({"type": "context_exhausted", "message": "对话上下文已满，请开启新对话继续与 AI 交流。", "message_id": system_msg.id}, ensure_ascii=False)}\n\n'
+
+            return Response(
+                generate_exhausted(),
+                content_type='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'X-Accel-Buffering': 'no',
+                    'Connection': 'close',
+                },
+            )
+
         # 1. 先保存用户消息
         user_msg_result = chat_service.send_message(
             conversation_id=conversation_id,
@@ -606,13 +709,18 @@ def ai_stream():
                                                     conversation_id=conversation_id):
                     chunk_type = chunk.get('type')
                     if chunk_type == 'content':
-                        full_response += chunk.get('text', '')
+                        text = chunk.get('text', '')
+                        full_response += text
                         # 检测到表单标记或选项标记开头后，停止向前端输出后续内容
-                        if not _form_marker_detected and ('[[FORM:' in full_response or '[[CHOICES:' in full_response):
+                        if not _form_marker_detected and ('[[FORM:' in full_response or '[[CHOICES:' in full_response or '[[PROJECT_CARD:' in full_response):
                             _form_marker_detected = True
                             continue  # 不再发送，标记及之后的内容由 done 阶段处理
                         if _form_marker_detected:
                             continue  # 标记后续内容不发给前端
+                        # 轻量级实时过滤：替换常见技术泄露词
+                        text = text.replace('数据库中', '').replace('暂未记录', '暂无相关记录')
+                        if text.strip():
+                            chunk = {**chunk, 'text': text}
                     elif chunk_type == 'done':
                         ai_model = chunk.get('model')
                         ai_prompt_tokens = chunk.get('prompt_tokens', 0)
@@ -626,6 +734,8 @@ def ai_stream():
                     from datetime import datetime, timezone
                     from app.services.chat_ai_service import _clean_dsml
                     full_response = _clean_dsml(full_response)
+                    from app.services.chat_service import sanitize_ai_response
+                    full_response = sanitize_ai_response(full_response)
 
                 if full_response:
                     from datetime import datetime, timezone
@@ -728,6 +838,46 @@ def ai_stream():
                         except (json.JSONDecodeError, KeyError) as fe:
                             logger.warning(f"表单标记解析失败: {fe}")
 
+                    # 检测并处理项目卡片标记 [[PROJECT_CARD:id]]
+                    project_cards_event = None
+                    pc_match = PROJECT_CARD_MARKER_RE.search(full_response)
+                    if pc_match:
+                        try:
+                            pid = int(pc_match.group(1))
+                            from app.models.project import Project
+                            from app.models.quotation import Quotation
+                            from app.models.chat import _build_project_stages_for_card
+                            from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
+                            from app.utils.i18n import get_current_language
+                            project = Project.query.get(pid)
+                            if project:
+                                _lang = get_current_language()
+                                _stage_key = project.current_stage or ''
+                                _stage_label = PROJECT_STAGE_LABELS.get(_stage_key, {}).get(_lang, _stage_key)
+                                card_data = {
+                                    'project_id': project.id,
+                                    'project_name': project.project_name,
+                                    'current_stage': _stage_label,
+                                }
+                                # 查最新报价
+                                latest_q = Quotation.query.filter_by(
+                                    project_id=pid
+                                ).order_by(Quotation.created_at.desc()).first()
+                                if latest_q:
+                                    card_data['quotation_number'] = latest_q.quotation_number
+                                    card_data['quotation_amount'] = latest_q.amount or 0
+                                # 注入阶段进度条数据
+                                stages_info = _build_project_stages_for_card(pid)
+                                if stages_info:
+                                    card_data.update(stages_info)
+                                project_cards_event = json.dumps({
+                                    'type': 'project_cards',
+                                    'cards': [card_data],
+                                }, ensure_ascii=False)
+                            full_response = PROJECT_CARD_MARKER_RE.sub('', full_response).strip()
+                        except Exception as pe:
+                            logger.warning(f"项目卡片标记解析失败: {pe}")
+
                     # 检测并处理选项标记 [[CHOICES:action_key|名称1:ID1|名称2:ID2]]
                     choices_event = None
                     choices_match = CHOICES_MARKER_RE.search(full_response)
@@ -737,8 +887,10 @@ def ai_stream():
                             parts = [p.strip() for p in raw.split('|') if p.strip()]
                             if parts:
                                 action_key = parts[0] if parts[0] in FORM_SCHEMAS else None
+                                # 跳过非 action_key 且无 ID 的首项（AI 误放的描述文字如"查看项目详情"）
+                                skip_first = (not action_key and ':' not in parts[0])
                                 option_list = []
-                                for p in (parts[1:] if action_key else parts):
+                                for p in (parts[1:] if action_key or skip_first else parts):
                                     if ':' in p:
                                         label, eid = p.rsplit(':', 1)
                                         option_list.append({'label': label.strip(), 'id': eid.strip()})
@@ -777,13 +929,17 @@ def ai_stream():
                         logger.warning(f"AI 消息翻译触发失败: {te}")
 
                     # 发送完成事件（携带 user_message_id 供前端去重）
-                    done_data = json.dumps({
+                    done_payload = {
                         'type': 'done',
                         'message_id': ai_msg.id,
                         'user_message_id': user_msg_id,
                         'conversation_id': conversation_id,
                         'ai_model': ai_model,
-                    }, ensure_ascii=False)
+                        'prompt_tokens': ai_prompt_tokens or 0,
+                    }
+                    if ai_prompt_tokens and ai_prompt_tokens > CONTEXT_TOKEN_LIMIT:
+                        done_payload['context_warning'] = True
+                    done_data = json.dumps(done_payload, ensure_ascii=False)
                     yield f'data: {done_data}\n\n'
 
                     # 发送表单请求事件（在 done 之后，确保前端已处理完消息）
@@ -793,6 +949,10 @@ def ai_stream():
                     # 发送选项事件（供用户点击快捷选择）
                     if choices_event:
                         yield f'data: {choices_event}\n\n'
+
+                    # 发送项目卡片事件（AI 查询到具体项目时自动附带卡片）
+                    if project_cards_event:
+                        yield f'data: {project_cards_event}\n\n'
 
                     # 自动生成话题标题（仅首次，done 之后发送以确保前端对话对象已创建）
                     try:
@@ -1247,6 +1407,13 @@ def _handle_create_customer(form_data, conversation_id, user):
         _save_form_result_card(conversation_id, 'customer', 'create', company.id, company_name)
 
     db.session.commit()
+
+    # 自动触发 AI 后台调研
+    try:
+        from app.services.ai_research_service import AIResearchService
+        AIResearchService.trigger_research(company.id)
+    except Exception as e:
+        logger.warning(f"聊天创建客户后触发 AI 调研失败: {e}")
 
     return jsonify({
         'success': True,
@@ -1803,9 +1970,16 @@ def ai_upload_file():
         conv.updated_at = datetime.now(timezone.utc)
         db.session.commit()
 
-        # 构建下载 URL
+        # 构建下载 URL（与前端 getFileAccessUrl 路由一致）
         external_url = os.environ.get('EXTERNAL_URL', '').rstrip('/')
-        download_url = f"{external_url}/storage/chat/{file_url}" if external_url else ''
+        if external_url and file_url:
+            if file_url.startswith('chat_files/'):
+                download_url = f"{external_url}/storage/{file_url}"
+            else:
+                from urllib.parse import quote
+                download_url = f"{external_url}/storage/nas/chat?path={quote(file_url)}"
+        else:
+            download_url = f"/storage/{file_url}" if file_url and file_url.startswith('chat_files/') else ''
 
         logger.info(f"AI 文件上传成功: {filename} -> 对话 {conversation_id}")
         return jsonify({

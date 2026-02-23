@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>PMA 系统图图标库 - 按分类预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f172a; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; }
+  h1 { text-align: center; margin-bottom: 8px; font-size: 24px; color: #f8fafc; }
+  .subtitle { text-align: center; color: #94a3b8; margin-bottom: 32px; font-size: 14px; }
+
+  .category { margin-bottom: 32px; background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; }
+  .cat-header { padding: 12px 20px; background: #1e293b; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 12px; }
+  .cat-name { font-size: 16px; font-weight: 600; color: #f8fafc; }
+  .cat-count { font-size: 12px; color: #64748b; }
+  .cat-body { padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+
+  .subcat-card { background: #0f172a; border-radius: 10px; padding: 12px; text-align: center; border: 1px solid #334155; transition: all 0.2s; position: relative; }
+  .subcat-card:hover { border-color: #60a5fa; transform: translateY(-1px); }
+  .subcat-card.has-new { border-color: #22c55e40; }
+  .subcat-card.has-new:hover { border-color: #22c55e; }
+  .subcat-card.no-icon { border-color: #ef444440; opacity: .7; }
+
+  .icon-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
+  .icon-box { background: #1e293b; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+  .icon-box.sz64 { width: 68px; height: 68px; }
+  .icon-box.sz48 { width: 52px; height: 52px; }
+
+  .subcat-name { font-size: 12px; color: #cbd5e1; margin-bottom: 2px; }
+  .subcat-id { font-size: 10px; color: #64748b; }
+  .icon-key-tag { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 10px; color: #94a3b8; background: #334155; padding: 1px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 6px; }
+  .badge-new { background: #22c55e; color: #0f172a; }
+  .badge-exist { background: #3b82f6; color: white; }
+  .badge-reuse { background: #f59e0b; color: #0f172a; }
+  .badge-none { background: #ef4444; color: white; }
+
+  .legend { display: flex; gap: 20px; justify-content: center; margin-bottom: 24px; font-size: 12px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+
+  .stats { text-align: center; color: #94a3b8; margin-bottom: 16px; font-size: 13px; }
+  .stats strong { color: #f8fafc; }
+</style>
+</head>
+<body>
+
+<h1>PMA 系统图图标库 — 按产品分类</h1>
+<p class="subtitle">9个分类 / 41个子分类 / 暗色背景模拟系统图编辑器 / 每个子分类显示 64+48 两种尺寸</p>
+
+<div class="legend">
+  <div class="legend-item"><span class="badge badge-exist">现有</span> 已有专用图标</div>
+  <div class="legend-item"><span class="badge badge-new">新绘</span> 本次新绘制</div>
+  <div class="legend-item"><span class="badge badge-reuse">复用</span> 复用相近图标</div>
+  <div class="legend-item"><span class="badge badge-none">缺失</span> 使用通用图标</div>
+</div>
+
+<div id="app"></div>
+
+<script>
+// ========== ALL DEVICE ICONS ==========
+const ICONS = {
+  // --- 合路平台 ---
+  combiner:{viewBox:'0 0 64 64',paths:[{d:'M8 18h12l24 0h12v28H44L20 46H8z',fill:'none',stroke:'#3b82f6',strokeWidth:2},{d:'M2 24h6M2 32h6M2 40h6',fill:'none',stroke:'#60a5fa',strokeWidth:2},{d:'M56 32h6',fill:'none',stroke:'#60a5fa',strokeWidth:2.5}]},
+  splitter_2:{viewBox:'0 0 64 64',paths:[{d:'M12 20h16v24H12zM28 20l18-6v36l-18-6z',fill:'#a855f7',opacity:.08,stroke:'#a855f7',strokeWidth:2},{d:'M2 32h10',fill:'none',stroke:'#a855f7',strokeWidth:2.5},{d:'M46 20h12M46 44h12',fill:'none',stroke:'#c084fc',strokeWidth:2},{d:'M22 32h8l14-12M30 32l14 12',fill:'none',stroke:'#a855f7',strokeWidth:1,opacity:.5}]},
+  splitter_3:{viewBox:'0 0 64 64',paths:[{d:'M12 18h16v28H12zM28 18l18-6v40l-18-6z',fill:'#a855f7',opacity:.08,stroke:'#a855f7',strokeWidth:2},{d:'M2 32h10',fill:'none',stroke:'#a855f7',strokeWidth:2.5},{d:'M46 16h12M46 32h12M46 48h12',fill:'none',stroke:'#c084fc',strokeWidth:2}]},
+  signal_stripper:{viewBox:'0 0 64 64',paths:[
+    {d:'M8 18h48v28H8z',fill:'none',stroke:'#3b82f6',strokeWidth:2},
+    {d:'M2 26h6M2 38h6',fill:'none',stroke:'#60a5fa',strokeWidth:2},
+    {d:'M56 26h6M56 32h6M56 38h6',fill:'none',stroke:'#60a5fa',strokeWidth:2},
+    {d:'M20 26h24',fill:'none',stroke:'#60a5fa',strokeWidth:1.5},
+    {d:'M28 26v12',fill:'none',stroke:'#f59e0b',strokeWidth:1.5},
+    {d:'M36 26v12',fill:'none',stroke:'#f59e0b',strokeWidth:1.5},
+    {d:'M24 38l4-4 4 4 4-4 4 4',fill:'none',stroke:'#f59e0b',strokeWidth:1.5},
+  ]},
+  matrix:{viewBox:'0 0 64 64',paths:[
+    {d:'M6 10h52v44H6z',fill:'none',stroke:'#3b82f6',strokeWidth:2},
+    {d:'M6 22h52M6 34h52M6 46h52',fill:'none',stroke:'#3b82f6',strokeWidth:.6,opacity:.3},
+    {d:'M22 10v44M38 10v44',fill:'none',stroke:'#3b82f6',strokeWidth:.6,opacity:.3},
+    {d:'M14 16a2 2 0 1 1 0-.01M30 16a2 2 0 1 1 0-.01M46 16a2 2 0 1 1 0-.01',fill:'#60a5fa',opacity:.5,stroke:'none'},
+    {d:'M14 28a2 2 0 1 1 0-.01M30 28a2 2 0 1 1 0-.01M46 28a2 2 0 1 1 0-.01',fill:'#60a5fa',opacity:.5,stroke:'none'},
+    {d:'M14 40a2 2 0 1 1 0-.01M30 40a2 2 0 1 1 0-.01M46 40a2 2 0 1 1 0-.01',fill:'#60a5fa',opacity:.5,stroke:'none'},
+  ]},
+
+  // --- 配件 ---
+  cable_coax:{viewBox:'0 0 64 64',paths:[
+    {d:'M32 8a24 24 0 1 1 0 48a24 24 0 1 1 0-48z',fill:'#f59e0b',opacity:.08,stroke:'#f59e0b',strokeWidth:2},
+    {d:'M32 14a18 18 0 1 1 0 36a18 18 0 1 1 0-36z',fill:'none',stroke:'#f59e0b',strokeWidth:1,strokeDasharray:'3 2'},
+    {d:'M32 20a12 12 0 1 1 0 24a12 12 0 1 1 0-24z',fill:'#f59e0b',opacity:.12,stroke:'#f59e0b',strokeWidth:1},
+    {d:'M32 26a6 6 0 1 1 0 12a6 6 0 1 1 0-12z',fill:'#f59e0b',opacity:.3,stroke:'#d97706',strokeWidth:1.5},
+  ]},
+  cable_fiber:{viewBox:'0 0 64 64',paths:[
+    {d:'M32 8a24 24 0 1 1 0 48a24 24 0 1 1 0-48z',fill:'#a855f7',opacity:.06,stroke:'#a855f7',strokeWidth:2},
+    {d:'M32 16a16 16 0 1 1 0 32a16 16 0 1 1 0-32z',fill:'none',stroke:'#a855f7',strokeWidth:1,opacity:.4},
+    {d:'M32 28a4 4 0 1 1 0 8a4 4 0 1 1 0-8z',fill:'#c084fc',opacity:.6,stroke:'#a855f7',strokeWidth:1},
+    {d:'M32 18a3 3 0 1 1 0 6a3 3 0 1 1 0-6z',fill:'#c084fc',opacity:.4,stroke:'none'},
+    {d:'M44 24a3 3 0 1 1 0 6a3 3 0 1 1 0-6z',fill:'#c084fc',opacity:.4,stroke:'none'},
+    {d:'M44 36a3 3 0 1 1 0 6a3 3 0 1 1 0-6z',fill:'#c084fc',opacity:.4,stroke:'none'},
+    {d:'M32 42a3 3 0 1 1 0 6a3 3 0 1 1 0-6z',fill:'#c084fc',opacity:.4,stroke:'none'},
+    {d:'M20 36a3 3 0 1 1 0 6a3 3 0 1 1 0-6z',fill:'#c084fc',opacity:.4,stroke:'none'},
+    {d:'M20 24a3 3 0 1 1 0 6a3 3 0 1 1 0-6z',fill:'#c084fc',opacity:.4,stroke:'none'},
+  ]},
+  attenuator:{viewBox:'0 0 64 64',paths:[
+    {d:'M4 32h12M48 32h12',fill:'none',stroke:'#a855f7',strokeWidth:2.5},
+    {d:'M16 20h32v24H16z',fill:'#a855f7',opacity:.08,stroke:'#a855f7',strokeWidth:2},
+    {d:'M32 24v16',fill:'none',stroke:'#c084fc',strokeWidth:2},
+    {d:'M28 36l4 4 4-4',fill:'none',stroke:'#c084fc',strokeWidth:2},
+    {d:'M16 32a2 2 0 1 1 0-.01',fill:'#c084fc',stroke:'none'},
+    {d:'M48 32a2 2 0 1 1 0-.01',fill:'#c084fc',stroke:'none'},
+  ]},
+  grounding:{viewBox:'0 0 64 64',paths:[
+    {d:'M20 12h24v28H20z',fill:'none',stroke:'#f59e0b',strokeWidth:2},
+    {d:'M32 40v8',fill:'none',stroke:'#64748b',strokeWidth:2},
+    {d:'M24 48h16M28 52h8M30 56h4',fill:'none',stroke:'#64748b',strokeWidth:2},
+    {d:'M26 20h12v6H26z',fill:'#f59e0b',opacity:.15,stroke:'#f59e0b',strokeWidth:1},
+    {d:'M32 8v4',fill:'none',stroke:'#f59e0b',strokeWidth:2},
+    {d:'M24 30h16',fill:'none',stroke:'#f59e0b',strokeWidth:1,opacity:.3},
+  ]},
+  switch:{viewBox:'0 0 64 64',paths:[
+    {d:'M4 22h56v20H4z',fill:'none',stroke:'#06b6d4',strokeWidth:2},
+    {d:'M8 26h4v4H8zM14 26h4v4h-4zM20 26h4v4h-4zM26 26h4v4h-4zM32 26h4v4h-4zM38 26h4v4h-4zM44 26h4v4h-4zM50 26h4v4h-4z',fill:'#06b6d4',opacity:.15,stroke:'#0891b2',strokeWidth:.8},
+    {d:'M8 33h4v4H8zM14 33h4v4h-4zM20 33h4v4h-4zM26 33h4v4h-4zM32 33h4v4h-4zM38 33h4v4h-4zM44 33h4v4h-4zM50 33h4v4h-4z',fill:'#06b6d4',opacity:.15,stroke:'#0891b2',strokeWidth:.8},
+    {d:'M9 24a1 1 0 1 1 0-.01M15 24a1 1 0 1 1 0-.01M21 24a1 1 0 1 1 0-.01M27 24a1 1 0 1 1 0-.01M33 24a1 1 0 1 1 0-.01M39 24a1 1 0 1 1 0-.01M45 24a1 1 0 1 1 0-.01M51 24a1 1 0 1 1 0-.01',fill:'#22c55e',stroke:'none',opacity:.6},
+  ]},
+  connector:{viewBox:'0 0 64 64',paths:[
+    {d:'M6 24h14v16H6z',fill:'#64748b',opacity:.12,stroke:'#94a3b8',strokeWidth:2},
+    {d:'M20 28h4v8h-4z',fill:'#94a3b8',opacity:.2,stroke:'#94a3b8',strokeWidth:1},
+    {d:'M44 24h14v16H44z',fill:'#64748b',opacity:.12,stroke:'#94a3b8',strokeWidth:2},
+    {d:'M40 28h4v8h-4z',fill:'#94a3b8',opacity:.2,stroke:'#94a3b8',strokeWidth:1},
+    {d:'M28 32h8',fill:'none',stroke:'#cbd5e1',strokeWidth:2},
+    {d:'M30 30v4',fill:'none',stroke:'#cbd5e1',strokeWidth:1.5},
+    {d:'M2 28h4M58 28h4M2 36h4M58 36h4',fill:'none',stroke:'#64748b',strokeWidth:1.5},
+  ]},
+  dc_blocker:{viewBox:'0 0 64 64',paths:[
+    {d:'M4 32h16M44 32h16',fill:'none',stroke:'#f59e0b',strokeWidth:2.5},
+    {d:'M20 20h24v24H20z',fill:'#f59e0b',opacity:.08,stroke:'#f59e0b',strokeWidth:2},
+    {d:'M30 26v12',fill:'none',stroke:'#f59e0b',strokeWidth:2},
+    {d:'M34 26v12',fill:'none',stroke:'#f59e0b',strokeWidth:2},
+    {d:'M27 32h-4M41 32h-4',fill:'none',stroke:'#f59e0b',strokeWidth:1,opacity:.4},
+  ]},
+  load:{viewBox:'0 0 64 64',paths:[{d:'M8 32h8l4-10 8 20 8-20 8 20 4-10h8',fill:'none',stroke:'#a855f7',strokeWidth:2},{d:'M54 32v14',fill:'none',stroke:'#64748b',strokeWidth:1.5},{d:'M50 46h12M52 50h8M54 54h4',fill:'none',stroke:'#64748b',strokeWidth:1.5,opacity:.5}]},
+  cabinet:{viewBox:'0 0 64 64',paths:[
+    {d:'M14 6h36v52H14z',fill:'none',stroke:'#64748b',strokeWidth:2},
+    {d:'M14 6h36v6H14z',fill:'#64748b',opacity:.1,stroke:'none'},
+    {d:'M18 16h28v14H18z',fill:'#64748b',opacity:.06,stroke:'#64748b',strokeWidth:.8},
+    {d:'M18 34h28v14H18z',fill:'#64748b',opacity:.06,stroke:'#64748b',strokeWidth:.8},
+    {d:'M30 16v14M30 34v14',fill:'none',stroke:'#64748b',strokeWidth:.6,opacity:.3},
+    {d:'M44 22a1.5 1.5 0 1 1 0-.01M44 40a1.5 1.5 0 1 1 0-.01',fill:'#22c55e',opacity:.5,stroke:'none'},
+    {d:'M22 56v4h4v-4M38 56v4h4v-4',fill:'none',stroke:'#64748b',strokeWidth:1.5},
+  ]},
+
+  // --- 直放站 ---
+  repeater:{viewBox:'0 0 64 64',paths:[{d:'M12 18h40v28H12z',fill:'none',stroke:'#3b82f6',strokeWidth:2},{d:'M32 24v14',fill:'none',stroke:'#60a5fa',strokeWidth:2},{d:'M26 28a8 8 0 0 1 12 0',fill:'none',stroke:'#60a5fa',strokeWidth:1.5},{d:'M6 32h6M52 32h6',fill:'none',stroke:'#3b82f6',strokeWidth:2},{d:'M54 30l4 2-4 2',fill:'#3b82f6',stroke:'none'}]},
+  oru:{viewBox:'0 0 64 64',paths:[
+    {d:'M16 18h32v32H16z',fill:'none',stroke:'#a855f7',strokeWidth:2},
+    {d:'M20 24h24v4H20z',fill:'#a855f7',opacity:.12,stroke:'#a855f7',strokeWidth:1},
+    {d:'M20 32h24v4H20z',fill:'#a855f7',opacity:.12,stroke:'#a855f7',strokeWidth:1},
+    {d:'M28 12v6M36 12v6',fill:'none',stroke:'#c084fc',strokeWidth:2},
+    {d:'M28 12a2 2 0 1 1 0-.01M36 12a2 2 0 1 1 0-.01',fill:'#c084fc',stroke:'none'},
+    {d:'M48 30h6M48 38h6',fill:'none',stroke:'#60a5fa',strokeWidth:2},
+    {d:'M22 42a1.5 1.5 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},
+    {d:'M28 42a1.5 1.5 0 1 1 0-.01',fill:'#f59e0b',stroke:'none'},
+  ]},
+  omu:{viewBox:'0 0 64 64',paths:[
+    {d:'M10 14h44v40H10z',fill:'none',stroke:'#a855f7',strokeWidth:2},
+    {d:'M14 18h16v10H14z',fill:'#a855f7',opacity:.12,stroke:'#a855f7',strokeWidth:1},
+    {d:'M34 18h16v10H34z',fill:'#a855f7',opacity:.12,stroke:'#a855f7',strokeWidth:1},
+    {d:'M14 32h16v10H14z',fill:'#a855f7',opacity:.12,stroke:'#a855f7',strokeWidth:1},
+    {d:'M34 32h16v10H34z',fill:'#a855f7',opacity:.12,stroke:'#a855f7',strokeWidth:1},
+    {d:'M20 8v6M28 8v6M36 8v6M44 8v6',fill:'none',stroke:'#c084fc',strokeWidth:1.5},
+    {d:'M20 8a1.5 1.5 0 1 1 0-.01M28 8a1.5 1.5 0 1 1 0-.01M36 8a1.5 1.5 0 1 1 0-.01M44 8a1.5 1.5 0 1 1 0-.01',fill:'#c084fc',stroke:'none'},
+    {d:'M16 48a1.5 1.5 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},
+    {d:'M22 48a1.5 1.5 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},
+  ]},
+
+  // --- 应用 ---
+  software:{viewBox:'0 0 64 64',paths:[
+    {d:'M12 10h40v44H12z',fill:'none',stroke:'#06b6d4',strokeWidth:2},
+    {d:'M12 10h40v8H12z',fill:'#06b6d4',opacity:.1,stroke:'none'},
+    {d:'M16 14a1.5 1.5 0 1 1 0-.01',fill:'#ef4444',opacity:.5,stroke:'none'},
+    {d:'M22 14a1.5 1.5 0 1 1 0-.01',fill:'#f59e0b',opacity:.5,stroke:'none'},
+    {d:'M28 14a1.5 1.5 0 1 1 0-.01',fill:'#22c55e',opacity:.5,stroke:'none'},
+    {d:'M20 26l6 4-6 4',fill:'none',stroke:'#06b6d4',strokeWidth:2},
+    {d:'M30 34h14',fill:'none',stroke:'#06b6d4',strokeWidth:1.5,opacity:.4},
+    {d:'M20 42h24',fill:'none',stroke:'#06b6d4',strokeWidth:1,opacity:.2},
+    {d:'M20 46h16',fill:'none',stroke:'#06b6d4',strokeWidth:1,opacity:.2},
+  ]},
+  license:{viewBox:'0 0 64 64',paths:[
+    {d:'M16 8h28l8 8v40H16z',fill:'none',stroke:'#06b6d4',strokeWidth:2},
+    {d:'M44 8v8h8',fill:'none',stroke:'#06b6d4',strokeWidth:2},
+    {d:'M24 24h20M24 30h16M24 36h12',fill:'none',stroke:'#06b6d4',strokeWidth:1,opacity:.3},
+    {d:'M32 42a6 6 0 1 1 0 12a6 6 0 1 1 0-12z',fill:'#22c55e',opacity:.15,stroke:'#22c55e',strokeWidth:1.5},
+    {d:'M30 48l2 2 4-4',fill:'none',stroke:'#22c55e',strokeWidth:2},
+  ]},
+  server:{viewBox:'0 0 64 64',paths:[
+    {d:'M6 10h52v44H6z',fill:'none',stroke:'#06b6d4',strokeWidth:2},
+    {d:'M10 14h44v12H10z',fill:'#06b6d4',opacity:.08,stroke:'#06b6d4',strokeWidth:1},
+    {d:'M10 30h44v12H10z',fill:'#06b6d4',opacity:.08,stroke:'#06b6d4',strokeWidth:1},
+    {d:'M14 18h4v4h-4zM20 18h4v4h-4zM26 18h4v4h-4z',fill:'#06b6d4',opacity:.15,stroke:'#0891b2',strokeWidth:.8},
+    {d:'M14 34h4v4h-4zM20 34h4v4h-4zM26 34h4v4h-4z',fill:'#06b6d4',opacity:.15,stroke:'#0891b2',strokeWidth:.8},
+    {d:'M48 18a2 2 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},
+    {d:'M48 34a2 2 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},
+    {d:'M38 18v4M40 18v4M42 18v4M44 18v4',fill:'none',stroke:'#06b6d4',strokeWidth:.6,opacity:.3},
+    {d:'M38 34v4M40 34v4M42 34v4M44 34v4',fill:'none',stroke:'#06b6d4',strokeWidth:.6,opacity:.3},
+    {d:'M10 46h44v4H10z',fill:'#06b6d4',opacity:.06,stroke:'none'},
+  ]},
+
+  // --- 功率/耦合器 ---
+  coupler:{viewBox:'0 0 64 64',paths:[{d:'M4 24h56',fill:'none',stroke:'#a855f7',strokeWidth:2.5},{d:'M20 18h24v28H20z',fill:'#a855f7',opacity:.08,stroke:'#a855f7',strokeWidth:2},{d:'M32 46v12',fill:'none',stroke:'#c084fc',strokeWidth:2},{d:'M26 30c4-4 8 4 12 0',fill:'none',stroke:'#c084fc',strokeWidth:1.5,opacity:.6}]},
+
+  // --- 基站 ---
+  rru:'<svg width="176px" height="172px" viewBox="0 0 176 172" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="Page-1" stroke="none" stroke-width="3" fill="none" fill-rule="evenodd"><rect id="Rectangle-11" stroke="#3b82f6" stroke-width="6" x="13.5" y="7.5" width="152" height="160" rx="6"></rect><rect id="Rectangle-11-Copy" stroke="#3b82f6" stroke-width="6" x="30.5" y="21.5" width="120" height="28" rx="6"></rect><rect id="Rectangle-9-Copy-2" fill-opacity="0.3" fill="#3b82f6" x="74.6707317" y="27.5555556" width="30" height="15" rx="3"></rect><rect id="Rectangle-11-Copy-10" stroke="#3b82f6" stroke-width="6" x="30.5" y="58.5" width="120" height="28" rx="6"></rect><rect id="Rectangle-9-Copy-4" fill-opacity="0.3" fill="#3b82f6" x="74.6707317" y="64.5555556" width="30" height="15" rx="3"></rect><rect id="Rectangle-11-Copy-11" stroke="#3b82f6" stroke-width="6" x="30.5" y="95.5" width="120" height="28" rx="6"></rect><line x1="43.955813" y1="113.207444" x2="58.3507532" y2="113.207444" id="Path" stroke="#3b82f6"></line><line x1="43.955813" y1="111.207444" x2="58.3507532" y2="111.207444" id="Path-Copy-19" stroke="#3b82f6"></line><line x1="43.955813" y1="115.207444" x2="58.3507532" y2="115.207444" id="Path-Copy-20" stroke="#3b82f6"></line></g></svg>',
+  bbu:{viewBox:'0 0 64 64',paths:[{d:'M8 12h48v44H8z',fill:'none',stroke:'#3b82f6',strokeWidth:2},{d:'M12 16h16v8H12zM32 16h20v8H32z',fill:'#3b82f6',opacity:.12,stroke:'#3b82f6',strokeWidth:1},{d:'M12 28h16v8H12zM32 28h20v8H32z',fill:'#3b82f6',opacity:.12,stroke:'#3b82f6',strokeWidth:1},{d:'M12 40h16v8H12zM32 40h20v8H32z',fill:'#3b82f6',opacity:.12,stroke:'#3b82f6',strokeWidth:1},{d:'M14 18v4M16 18v4M34 18v4M36 18v4',fill:'none',stroke:'#60a5fa',strokeWidth:1},{d:'M46 20a2 2 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},{d:'M46 32a2 2 0 1 1 0-.01',fill:'#22c55e',stroke:'none'}]},
+  channel_radio:'<svg width="206px" height="71px" viewBox="0 0 206 71" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd"><rect id="Rectangle-10" stroke="#3b82f6" stroke-width="7" x="25.5" y="19.5" width="152" height="42" rx="6"></rect><rect id="Rectangle-9-Copy" fill-opacity="0.3" fill="#3b82f6" x="76.6707317" y="30.5555556" width="39" height="20" rx="3"></rect><g id="Group" transform="translate(141.2317, 33.7778)" fill="#3b82f6" fill-opacity="0.3"><rect id="Rectangle-11-Copy-10" x="4" y="0" width="10" height="1.88888889" rx="0.944444444"></rect><rect id="Rectangle-11-Copy-14" x="4" y="12" width="10" height="1.88888889" rx="0.944444444"></rect><rect id="Rectangle-11-Copy-11" x="2" y="3" width="14" height="1.88888889" rx="0.944444444"></rect><rect id="Rectangle-11-Copy-13" x="2" y="9" width="14" height="1.88888889" rx="0.944444444"></rect><rect id="Rectangle-11-Copy-12" x="0" y="6" width="18" height="1.88888889" rx="0.944444444"></rect></g><text id="Mark" font-family="Calibri-Bold, Calibri" font-size="12" font-weight="bold" fill="#3b82f6"><tspan x="83" y="45">Mark </tspan></text></g></svg>',
+  fm_processor:{viewBox:'0 0 64 64',paths:[
+    {d:'M8 16h48v32H8z',fill:'none',stroke:'#3b82f6',strokeWidth:2},
+    {d:'M14 22h14v8H14z',fill:'#3b82f6',opacity:.1,stroke:'#3b82f6',strokeWidth:1},
+    {d:'M14 22h14v8H14z',fill:'none',stroke:'#3b82f6',strokeWidth:.8},
+    {d:'M16 26c2-4 4 4 6-2 2 4 4-2 4 2',fill:'none',stroke:'#60a5fa',strokeWidth:1.5},
+    {d:'M34 24h16v4H34z',fill:'#3b82f6',opacity:.08,stroke:'#3b82f6',strokeWidth:.8},
+    {d:'M36 26h4M42 26h4',fill:'none',stroke:'#60a5fa',strokeWidth:1,opacity:.5},
+    {d:'M14 36h36v6H14z',fill:'#3b82f6',opacity:.06,stroke:'#3b82f6',strokeWidth:.8},
+    {d:'M18 39a1 1 0 1 1 0-.01M24 39a1 1 0 1 1 0-.01M30 39a1 1 0 1 1 0-.01',fill:'#22c55e',opacity:.5,stroke:'none'},
+    {d:'M2 28h6M56 28h6',fill:'none',stroke:'#3b82f6',strokeWidth:2},
+    {d:'M32 10v6',fill:'none',stroke:'#60a5fa',strokeWidth:2},
+    {d:'M28 10a6 4 0 0 1 8 0',fill:'none',stroke:'#60a5fa',strokeWidth:1,opacity:.4},
+  ]},
+
+  // --- 天线 ---
+  antenna_outdoor:{viewBox:'0 0 64 64',paths:[
+    {d:'M18 10h28v36H18z',fill:'#22c55e',opacity:.1,stroke:'#22c55e',strokeWidth:2},
+    {d:'M22 14h20M22 20h20M22 26h20M22 32h20',fill:'none',stroke:'#22c55e',strokeWidth:.6,opacity:.3},
+    {d:'M32 4l-6 6h12z',fill:'#4ade80',opacity:.5,stroke:'none'},
+    {d:'M48 12a20 20 0 0 1 0 20',fill:'none',stroke:'#4ade80',strokeWidth:1,opacity:.4},
+    {d:'M28 46v8h8v-8',fill:'none',stroke:'#64748b',strokeWidth:1.5},
+  ]},
+  antenna_indoor:{viewBox:'0 0 64 64',paths:[
+    {d:'M16 28a16 8 0 1 1 32 0',fill:'#22c55e',opacity:.1,stroke:'#22c55e',strokeWidth:2},
+    {d:'M16 28v4a16 8 0 0 0 32 0v-4',fill:'none',stroke:'#22c55e',strokeWidth:2},
+    {d:'M24 20h16v8H24z',fill:'#22c55e',opacity:.08,stroke:'#22c55e',strokeWidth:1},
+    {d:'M28 16h8v4h-8z',fill:'#22c55e',opacity:.15,stroke:'#22c55e',strokeWidth:1},
+    {d:'M8 16h48',fill:'none',stroke:'#64748b',strokeWidth:1,strokeDasharray:'4 3'},
+    {d:'M22 38a14 6 0 0 0 20 0',fill:'none',stroke:'#4ade80',strokeWidth:1,opacity:.4},
+    {d:'M18 42a20 8 0 0 0 28 0',fill:'none',stroke:'#4ade80',strokeWidth:.8,opacity:.25},
+    {d:'M32 30a1.5 1.5 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},
+    {d:'M32 12v4',fill:'none',stroke:'#64748b',strokeWidth:1.5},
+  ]},
+  antenna_exproof:{viewBox:'0 0 64 64',paths:[
+    {d:'M20 12h24v36H20z',fill:'#22c55e',opacity:.08,stroke:'#22c55e',strokeWidth:2.5},
+    {d:'M22 14h20v4H22z',fill:'#f59e0b',opacity:.15,stroke:'#f59e0b',strokeWidth:1},
+    {d:'M26 22h12M26 28h12M26 34h12',fill:'none',stroke:'#22c55e',strokeWidth:.8,opacity:.3},
+    {d:'M44 20a8 8 0 0 1 0 16',fill:'none',stroke:'#4ade80',strokeWidth:1,opacity:.35},
+    {d:'M28 48v8h8v-8',fill:'none',stroke:'#64748b',strokeWidth:1.5},
+    {d:'M30 16a2 2 0 1 1 0-.01',fill:'#f59e0b',stroke:'none'},
+  ]},
+
+  // --- 对讲机 ---
+  radio:'<svg width="78px" height="153px" viewBox="0 0 78 153" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><g id="Page-1" stroke="none" stroke-width="5" fill="none" fill-rule="evenodd"><path d="M46.6585366,43.8575878 L58.0731707,43.8575878 L58.0731707,40.3495352 C58.0731707,39.1785882 57.6255114,38.5931147 56.7301926,38.5931147 C55.3872145,38.5931147 49.7440633,38.5931147 48.2012999,38.5931147 C47.172791,38.5931147 46.6585366,39.1046334 46.6585366,40.1276709 L46.6585366,43.8575878 Z" id="Path" fill="#F5DBAF"></path><path d="M8.86585366,66.0649048 L21.8658537,66.0649048 L21.8658537,62.5568523 C21.8658537,61.3859053 21.3560194,60.8004317 20.3363508,60.8004317 C18.806848,60.8004317 12.3799257,60.8004317 10.6228897,60.8004317 C9.45153234,60.8004317 8.86585366,61.3119505 8.86585366,62.3349879 L8.86585366,66.0649048 Z" id="Path-Copy-17" fill="#F5DBAF" transform="translate(15.3659, 63.4327) rotate(-90) translate(-15.3659, -63.4327)"></path><path d="M8.86585366,81.0649048 L21.8658537,81.0649048 L21.8658537,77.5568523 C21.8658537,76.3859053 21.3560194,75.8004317 20.3363508,75.8004317 C18.806848,75.8004317 12.3799257,75.8004317 10.6228897,75.8004317 C9.45153234,75.8004317 8.86585366,76.3119505 8.86585366,77.3349879 L8.86585366,81.0649048 Z" id="Path-Copy-18" fill="#F5DBAF" transform="translate(15.3659, 78.4327) rotate(-90) translate(-15.3659, -78.4327)"></path><path d="M56.0750805,66.4249195 L73.0750805,66.4249195 L73.0750805,63.7594656 C73.0750805,62.8697682 72.4083742,62.4249195 71.0749614,62.4249195 C69.0748423,62.4249195 60.1811624,62.4249195 58.1281214,62.4249195 C56.7594275,62.4249195 56.0750805,62.8135766 56.0750805,63.5908908 L56.0750805,66.4249195 Z" id="Path" fill="#F5DBAF" transform="translate(64.5751, 64.4249) rotate(90) translate(-64.5751, -64.4249)"></path><rect id="Rectangle-9" fill-opacity="0.3" fill="#F59E0C" x="24.7317073" y="51" width="30.4390244" height="41.5555556" rx="3"></rect><rect id="Rectangle-8" stroke="#F59E0C" x="17.6219512" y="43.9444444" width="44.6585366" height="89.6666667" rx="3"></rect><rect id="Rectangle-11-Copy-4" fill-opacity="0.3" fill="#F59E0C" x="24.7317073" y="96.3333333" width="11.4146341" height="3.77777778" rx="1.88888889"></rect><rect id="Rectangle-11-Copy-6" fill-opacity="0.3" fill="#F59E0C" x="24.7317073" y="105.777778" width="30.4390244" height="1.88888889" rx="0.944444444"></rect><rect id="Rectangle-11-Copy-7" fill-opacity="0.3" fill="#F59E0C" x="24.7317073" y="109.555556" width="30.4390244" height="1.88888889" rx="0.944444444"></rect><rect id="Rectangle-11-Copy-8" fill-opacity="0.3" fill="#F59E0C" x="24.7317073" y="113.333333" width="30.4390244" height="1.88888889" rx="0.944444444"></rect><rect id="Rectangle-11-Copy-9" fill-opacity="0.3" fill="#F59E0C" x="24.7317073" y="117.111111" width="30.4390244" height="1.88888889" rx="0.944444444"></rect><rect id="Rectangle-11-Copy-5" fill-opacity="0.3" fill="#F59E0C" x="43.7560976" y="96.3333333" width="11.4146341" height="3.77777778" rx="1.88888889"></rect><path d="M23.4235514,13.8819658 L23.4235514,43.8575878 L29.9830751,43.8575878 L29.9830751,13.8819658 C29.5020001,11.8657138 28.4087461,10.8575878 26.7033133,10.8575878 C24.9978804,10.8575878 23.9046264,11.8657138 23.4235514,13.8819658 Z" id="Path" stroke="#F59E0C"></path></g></svg>',
+  charger:{viewBox:'0 0 64 64',paths:[
+    {d:'M12 20h40v32H12z',fill:'none',stroke:'#f59e0b',strokeWidth:2},
+    {d:'M16 24h14v20H16z',fill:'#f59e0b',opacity:.08,stroke:'#f59e0b',strokeWidth:1},
+    {d:'M34 24h14v20H34z',fill:'#f59e0b',opacity:.08,stroke:'#f59e0b',strokeWidth:1},
+    {d:'M23 30v8',fill:'none',stroke:'#fbbf24',strokeWidth:1.5},
+    {d:'M21 34h4',fill:'none',stroke:'#fbbf24',strokeWidth:1.5},
+    {d:'M41 30v8',fill:'none',stroke:'#fbbf24',strokeWidth:1.5},
+    {d:'M39 34h4',fill:'none',stroke:'#fbbf24',strokeWidth:1.5},
+    {d:'M20 48a1.5 1.5 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},
+    {d:'M38 48a1.5 1.5 0 1 1 0-.01',fill:'#f59e0b',stroke:'none'},
+    {d:'M26 52v6M38 52v6',fill:'none',stroke:'#64748b',strokeWidth:1.5},
+    {d:'M12 16h40v4H12z',fill:'#f59e0b',opacity:.06,stroke:'none'},
+  ]},
+  battery:{viewBox:'0 0 64 64',paths:[
+    {d:'M14 18h36v32H14z',fill:'none',stroke:'#f59e0b',strokeWidth:2},
+    {d:'M26 12h12v6H26z',fill:'#f59e0b',opacity:.15,stroke:'#f59e0b',strokeWidth:1.5},
+    {d:'M18 24h28v20H18z',fill:'#f59e0b',opacity:.06,stroke:'none'},
+    {d:'M18 24h18v20H18z',fill:'#22c55e',opacity:.12,stroke:'none'},
+    {d:'M36 28v12',fill:'none',stroke:'#f59e0b',strokeWidth:1,strokeDasharray:'2 2'},
+    {d:'M24 32h4',fill:'none',stroke:'#22c55e',strokeWidth:2},
+    {d:'M26 30v4',fill:'none',stroke:'#22c55e',strokeWidth:2},
+    {d:'M40 32h4',fill:'none',stroke:'#ef4444',strokeWidth:2},
+  ]},
+
+  // --- 电源 ---
+  psu:{viewBox:'0 0 64 64',paths:[{d:'M10 14h44v36H10z',fill:'#ef4444',opacity:.08,stroke:'#ef4444',strokeWidth:2},{d:'M2 26h8M2 38h8',fill:'none',stroke:'#ef4444',strokeWidth:2},{d:'M54 26h8M54 38h8',fill:'none',stroke:'#f87171',strokeWidth:2},{d:'M36 28h14v8H36z',fill:'#ef4444',opacity:.12,stroke:'none'},{d:'M16 44a2 2 0 1 1 0-.01',fill:'#22c55e',stroke:'none'}]},
+  poi:{viewBox:'0 0 64 64',paths:[{d:'M6 8h52v48H6z',fill:'#ef4444',opacity:.06,stroke:'#ef4444',strokeWidth:2},{d:'M10 12h18v12H10zM32 12h22v12H32z',fill:'none',stroke:'#ef4444',strokeWidth:1,opacity:.5},{d:'M10 28h18v12H10zM32 28h22v12H32z',fill:'none',stroke:'#ef4444',strokeWidth:1,opacity:.5},{d:'M16 4v8M24 4v8M40 4v8M48 4v8',fill:'none',stroke:'#f87171',strokeWidth:1.5}]},
+  ups:{viewBox:'0 0 64 64',paths:[{d:'M10 12h44v40H10z',fill:'#ef4444',opacity:.06,stroke:'#ef4444',strokeWidth:2},{d:'M16 18h32v16H16z',fill:'#0f172a',stroke:'#ef4444',strokeWidth:1},{d:'M26 24h10v4H26z',fill:'#22c55e',opacity:.4,stroke:'none'},{d:'M20 40a3 3 0 1 1 0-.01',fill:'#ef4444',opacity:.3,stroke:'#ef4444',strokeWidth:1}]},
+  spd:{viewBox:'0 0 64 64',paths:[{d:'M18 12h28v40H18z',fill:'#ef4444',opacity:.08,stroke:'#ef4444',strokeWidth:2},{d:'M36 16l-8 14h8l-8 14',fill:'none',stroke:'#fbbf24',strokeWidth:2.5},{d:'M32 52v6M26 58h12M28 61h8',fill:'none',stroke:'#64748b',strokeWidth:1.5},{d:'M32 6v6',fill:'none',stroke:'#ef4444',strokeWidth:2}]},
+
+  // --- 服务 ---
+  service:{viewBox:'0 0 64 64',paths:[
+    {d:'M16 12h28l8 8v36H16z',fill:'none',stroke:'#64748b',strokeWidth:2},
+    {d:'M44 12v8h8',fill:'none',stroke:'#64748b',strokeWidth:2},
+    {d:'M24 28h20M24 34h16M24 40h12',fill:'none',stroke:'#64748b',strokeWidth:1,opacity:.3},
+    {d:'M24 22h4v2h-4z',fill:'#64748b',opacity:.3,stroke:'none'},
+    {d:'M30 22h4v2h-4z',fill:'#64748b',opacity:.3,stroke:'none'},
+  ]},
+
+  // --- 通用 ---
+  text_note:{viewBox:'0 0 64 64',paths:[{d:'M12 12h40v40H12z',fill:'#475569',opacity:.08,stroke:'#64748b',strokeWidth:1.5,strokeDasharray:'4 2'},{d:'M20 24h24M20 32h20M20 40h16',fill:'none',stroke:'#64748b',strokeWidth:1.5,opacity:.5}]},
+  generic:{viewBox:'0 0 64 64',paths:[{d:'M12 12h40v40H12z',fill:'#475569',opacity:.08,stroke:'#64748b',strokeWidth:2},{d:'M32 24v16M24 32h16',fill:'none',stroke:'#64748b',strokeWidth:2,opacity:.5}]},
+};
+
+// ========== CATEGORY → SUBCATEGORY MAPPING (from database) ==========
+const CATEGORIES = [
+  {name:'基站', count:11, subcats:[
+    {name:'数字基站', id:109, products:8, icon:'rru', status:'exist'},
+    {name:'数字信道机', id:110, products:2, icon:'channel_radio', status:'new'},
+    {name:'广播多频点调频处理器', id:8, products:1, icon:'fm_processor', status:'new'},
+  ]},
+  {name:'天线', count:11, subcats:[
+    {name:'室外天线', id:120, products:5, icon:'antenna_outdoor', status:'new'},
+    {name:'室内天线', id:119, products:4, icon:'antenna_indoor', status:'new'},
+    {name:'防爆天线', id:121, products:2, icon:'antenna_exproof', status:'new'},
+  ]},
+  {name:'直放站', count:37, subcats:[
+    {name:'光纤远端直放站', id:114, products:21, icon:'oru', status:'new'},
+    {name:'光纤近端机', id:113, products:12, icon:'omu', status:'new'},
+    {name:'射频直放站', id:112, products:3, icon:'repeater', status:'exist'},
+    {name:'直放站配件', id:115, products:1, icon:'generic', status:'none'},
+  ]},
+  {name:'合路平台', count:48, subcats:[
+    {name:'双工器', id:17, products:12, icon:'combiner', status:'exist'},
+    {name:'系统合路器', id:18, products:12, icon:'combiner', status:'reuse'},
+    {name:'合路器', id:9, products:7, icon:'combiner', status:'reuse'},
+    {name:'信号剥离器', id:111, products:6, icon:'signal_stripper', status:'new'},
+    {name:'分路器', id:10, products:6, icon:'splitter_2', status:'exist'},
+    {name:'多信道分合路器', id:11, products:3, icon:'splitter_3', status:'reuse'},
+    {name:'一体化分合路矩阵', id:69, products:2, icon:'matrix', status:'new'},
+  ]},
+  {name:'功率/耦合器', count:15, subcats:[
+    {name:'耦合器', id:122, products:13, icon:'coupler', status:'exist'},
+    {name:'分配器', id:123, products:2, icon:'splitter_2', status:'reuse'},
+  ]},
+  {name:'对讲机', count:9, subcats:[
+    {name:'数字对讲机', id:116, products:3, icon:'radio', status:'new'},
+    {name:'充电器', id:118, products:4, icon:'charger', status:'new'},
+    {name:'电池板', id:117, products:2, icon:'battery', status:'new'},
+  ]},
+  {name:'配件', count:45, subcats:[
+    {name:'射频电缆及配件', id:128, products:22, icon:'cable_coax', status:'new'},
+    {name:'光纤电缆及配件', id:129, products:13, icon:'cable_fiber', status:'new'},
+    {name:'衰减器', id:77, products:3, icon:'attenuator', status:'new'},
+    {name:'馈线接地卡', id:79, products:3, icon:'grounding', status:'new'},
+    {name:'交换机', id:106, products:1, icon:'switch', status:'new'},
+    {name:'天线配件', id:127, products:1, icon:'connector', status:'reuse'},
+    {name:'直流隔断器', id:89, products:1, icon:'dc_blocker', status:'new'},
+    {name:'终端负载', id:90, products:1, icon:'load', status:'exist'},
+    {name:'机柜', id:130, products:0, icon:'cabinet', status:'new'},
+    {name:'防爆盒', id:131, products:0, icon:'cabinet', status:'reuse'},
+  ]},
+  {name:'应用', count:18, subcats:[
+    {name:'应用功能', id:124, products:6, icon:'software', status:'new'},
+    {name:'许可证', id:107, products:5, icon:'license', status:'new'},
+    {name:'服务软件', id:108, products:4, icon:'software', status:'reuse'},
+    {name:'服务器主机', id:125, products:3, icon:'server', status:'new'},
+  ]},
+  {name:'服务', count:5, subcats:[
+    {name:'主站频率占用费', id:99, products:1, icon:'service', status:'new'},
+    {name:'对讲机频率占用费', id:100, products:1, icon:'service', status:'reuse'},
+    {name:'施工附件', id:101, products:1, icon:'service', status:'reuse'},
+    {name:'电磁环境检测及申报报告费', id:102, products:1, icon:'service', status:'reuse'},
+    {name:'调试开通', id:103, products:1, icon:'service', status:'reuse'},
+  ]},
+];
+
+// ========== RENDER ==========
+function buildSVG(iconData, size) {
+  if (!iconData) return '';
+  if (typeof iconData === 'string') {
+    return iconData.replace(/<svg/, `<svg width="${size}" height="${size}"`);
+  }
+  let paths = '';
+  iconData.paths.forEach(p => {
+    let a = `d="${p.d}"`;
+    if (p.fill) a += ` fill="${p.fill}"`;
+    if (p.stroke) a += ` stroke="${p.stroke}"`;
+    if (p.strokeWidth) a += ` stroke-width="${p.strokeWidth}"`;
+    if (p.opacity !== undefined) a += ` opacity="${p.opacity}"`;
+    if (p.strokeDasharray) a += ` stroke-dasharray="${p.strokeDasharray}"`;
+    paths += `<path ${a}/>`;
+  });
+  return `<svg width="${size}" height="${size}" viewBox="${iconData.viewBox}">${paths}</svg>`;
+}
+
+const statusLabel = {exist:'现有', new:'新绘', reuse:'复用', none:'缺失'};
+const statusClass = {exist:'badge-exist', new:'badge-new', reuse:'badge-reuse', none:'badge-none'};
+
+const app = document.getElementById('app');
+
+// Stats
+let totalNew = 0, totalExist = 0, totalReuse = 0, totalNone = 0;
+CATEGORIES.forEach(cat => cat.subcats.forEach(s => {
+  if (s.status === 'new') totalNew++;
+  else if (s.status === 'exist') totalExist++;
+  else if (s.status === 'reuse') totalReuse++;
+  else totalNone++;
+}));
+const stats = document.createElement('div');
+stats.className = 'stats';
+stats.innerHTML = `共 <strong>41</strong> 个子分类：<strong style="color:#3b82f6">${totalExist}</strong> 现有 + <strong style="color:#22c55e">${totalNew}</strong> 新绘 + <strong style="color:#f59e0b">${totalReuse}</strong> 复用 + <strong style="color:#ef4444">${totalNone}</strong> 缺失`;
+app.appendChild(stats);
+
+CATEGORIES.forEach(cat => {
+  const section = document.createElement('div');
+  section.className = 'category';
+
+  const header = document.createElement('div');
+  header.className = 'cat-header';
+  header.innerHTML = `<span class="cat-name">${cat.name}</span><span class="cat-count">${cat.subcats.length} 子分类 / ${cat.count} 产品</span>`;
+  section.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'cat-body';
+
+  cat.subcats.forEach(sub => {
+    const iconData = ICONS[sub.icon];
+    const card = document.createElement('div');
+    card.className = 'subcat-card' + (sub.status === 'new' ? ' has-new' : '') + (sub.status === 'none' ? ' no-icon' : '');
+
+    card.innerHTML = `
+      <div class="icon-row">
+        <div class="icon-box sz64">${buildSVG(iconData, 64)}</div>
+        <div class="icon-box sz48">${buildSVG(iconData, 48)}</div>
+      </div>
+      <div class="subcat-name">${sub.name}</div>
+      <div class="subcat-id">ID: ${sub.id} / ${sub.products}个产品</div>
+      <span class="badge ${statusClass[sub.status]}">${statusLabel[sub.status]}</span>
+      <div class="icon-key-tag">${sub.icon}</div>
+    `;
+    body.appendChild(card);
+  });
+
+  section.appendChild(body);
+  app.appendChild(section);
+});
+</script>
+
+</body>
+</html>

@@ -8467,6 +8467,27 @@ msgstr "Uploading"
 msgid "个文件"
 msgstr "files"
 
+msgid "分享到聊天"
+msgstr "Share to Chat"
+
+msgid "分享"
+msgstr "Share"
+
+msgid "分享成功"
+msgstr "Shared successfully"
+
+msgid "分享失败"
+msgstr "Failed to share"
+
+msgid "分享文件"
+msgstr "Share files"
+
+msgid "分享中..."
+msgstr "Sharing..."
+
+msgid "发送失败"
+msgstr "Failed to send"
+
 msgid "搜索结果"
 msgstr "Search Results"
 
@@ -9037,3 +9058,1065 @@ msgstr "Click stars to expand"
 
 msgid "双击切换视角"
 msgstr "Double-click to switch view"
+
+msgid "引用次数"
+msgstr "Citations"
+
+msgid "次引用"
+msgstr "citations"
+
+msgid "需关注"
+msgstr "Attention"
+
+msgid "活跃产品"
+msgstr "Active Products"
+
+msgid "有引用产品"
+msgstr "Cited Products"
+
+msgid "引用中位数"
+msgstr "Median Citations"
+
+msgid "平均系数"
+msgstr "Avg Coefficient"
+
+msgid "有引用"
+msgstr "Cited"
+
+msgid "无引用"
+msgstr "No Citations"
+
+msgid "全部引用状态"
+msgstr "All Citation Status"
+
+msgid "全部品类"
+msgstr "All Categories"
+
+msgid "仅显示需关注"
+msgstr "Warning Only"
+
+msgid "高频引用"
+msgstr "High Frequency"
+
+msgid "低频/无引用"
+msgstr "Low/No Citations"
+
+msgid "中位数"
+msgstr "Median"
+
+msgid "公式"
+msgstr "Formula"
+
+msgid "搜索产品/型号..."
+msgstr "Search product/model..."
+
+msgid "上下文已满"
+msgstr "Context Full"
+
+msgid "对话上下文已满"
+msgstr "Conversation context full"
+
+msgid "开启新对话"
+msgstr "Start New Chat"
+
+msgid "新对话"
+msgstr "New Chat"
+
+msgid "对话即将达到上下文上限，建议开启新对话以获得更快响应。"
+msgstr "Conversation is approaching context limit. Start a new chat for faster responses."
+
+#: Resource Pool / Access Request Feature
+msgid "请求访问客户资源"
+msgstr "Request Customer Access"
+
+msgid "请求访问项目资源"
+msgstr "Request Project Access"
+
+msgid "归属人"
+msgstr "Owner"
+
+msgid "请求说明"
+msgstr "Request Note"
+
+msgid "选填"
+msgstr "Optional"
+
+msgid "请简要说明请求访问的原因..."
+msgstr "Briefly describe the reason for requesting access..."
+
+msgid "发送请求"
+msgstr "Send Request"
+
+msgid "访问权限请求"
+msgstr "Access Permission Request"
+
+msgid "选择共享内容"
+msgstr "Select Shared Content"
+
+msgid "跟进记录"
+msgstr "Follow-up Records"
+
+msgid "确认共享"
+msgstr "Confirm Sharing"
+
+msgid "希望获取的数据"
+msgstr "Desired Data"
+
+msgid "申请人请求"
+msgstr "Requested"
+
+msgid "确认共享以下内容"
+msgstr "Confirm Sharing the Following"
+
+msgid "即将向"
+msgstr "About to share with"
+
+msgid "共享"
+msgstr "share"
+
+msgid "未选择任何数据"
+msgstr "No data selected"
+
+msgid "共享后对方可查看上述数据。"
+msgstr "After sharing, the requester can view the above data."
+
+msgid "请求中"
+msgstr "Pending"
+
+msgid "网络错误，请重试"
+msgstr "Network error, please try again"
+
+msgid "参数错误"
+msgstr "Parameter Error"
+
+msgid "资源不存在"
+msgstr "Resource Not Found"
+
+msgid "已有待处理的请求"
+msgstr "Pending request already exists"
+
+msgid "找不到审批人，请联系管理员"
+msgstr "Cannot find approver, please contact admin"
+
+msgid "您已拥有该资源的访问权限"
+msgstr "You already have access to this resource"
+
+msgid "请求访问"
+msgstr "Request Access"
+
+msgid "请求已发送"
+msgstr "Request Sent"
+
+msgid "无权查看"
+msgstr "No Permission"
+
+msgid "无权操作"
+msgstr "No Permission"
+
+msgid "该请求已处理"
+msgstr "This request has been processed"
+
+msgid "访问请求已通过"
+msgstr "Access Request Approved"
+
+msgid "已批准您的访问请求"
+msgstr "Your access request has been approved"
+
+msgid "访问请求被拒绝"
+msgstr "Access Request Rejected"
+
+msgid "拒绝了您的访问请求"
+msgstr "Your access request has been rejected"
+
+msgid "操作成功"
+msgstr "Operation Successful"
+
+# ===== 新功能说明书 (Features Guide) =====
+
+msgid "更新"
+msgstr "Update"
+
+msgid "欢迎体验 PMA 系统新功能！本指南详细介绍了近期新增的功能模块，帮助您快速了解和上手使用。"
+msgstr "Welcome to PMA's new features! This guide details recently added modules to help you quickly understand and start using them."
+
+msgid "概览"
+msgstr "Overview"
+
+msgid "详细"
+msgstr "Details"
+
+msgid "点击卡片查看详情"
+msgstr "Click a card to view details"
+
+msgid "了解更多"
+msgstr "Learn More"
+
+msgid "功能截图"
+msgstr "Screenshots"
+
+msgid "图片加载中"
+msgstr "Loading image"
+
+msgid "功能介绍"
+msgstr "Introduction"
+
+msgid "新功能"
+msgstr "What's New"
+
+msgid "新功能说明书"
+msgstr "What's New Guide"
+
+msgid "2026年第一季度更新 · 共8项新功能"
+msgstr "Q1 2026 Update · 8 New Features"
+
+msgid "功能概览"
+msgstr "Features Overview"
+
+msgid "详细说明"
+msgstr "Detailed Description"
+
+msgid "使用场景"
+msgstr "Use Cases"
+
+msgid "操作入口"
+msgstr "Entry Point"
+
+msgid "操作步骤"
+msgstr "Steps"
+
+msgid "截图占位"
+msgstr "Screenshot Placeholder"
+
+msgid "返回概览"
+msgstr "Back to Overview"
+
+msgid "AI 智能助手"
+msgstr "AI Smart Assistant"
+
+msgid "智能对话"
+msgstr "Smart Chat"
+
+msgid "数据查询"
+msgstr "Data Query"
+
+msgid "自动翻译"
+msgstr "Auto Translation"
+
+msgid "表单创建"
+msgstr "Form Creation"
+
+msgid "内置 AI 聊天助手，支持自然语言查询业务数据、自动翻译、辅助创建表单，让日常工作更高效。"
+msgstr "Built-in AI chat assistant supporting natural language business data queries, auto-translation, and form creation assistance."
+
+msgid "PMA 现已集成 AI 智能助手，您可以在系统内直接与 AI 进行对话。无论是查询客户信息、项目进度，还是分析销售数据，只需用自然语言描述需求，AI 即可快速给出答案。"
+msgstr "PMA now integrates an AI Smart Assistant for direct in-system conversations. Whether querying customer information, project progress, or analyzing sales data, simply describe your needs in natural language and AI will quickly provide answers."
+
+msgid "AI 助手支持自动识别对话语言并进行翻译，方便中英文环境下的沟通协作。当您在聊天中 @AI 时，助手会自动参与对话并提供智能回复。"
+msgstr "The AI assistant supports automatic language detection and translation for Chinese-English collaboration. When you @AI in chat, the assistant automatically joins the conversation with intelligent responses."
+
+msgid "此外，AI 助手还能辅助创建报价单、项目等表单，通过对话式交互引导您完成复杂的数据录入工作。"
+msgstr "Additionally, the AI assistant helps create quotations, projects, and other forms through conversational interaction, guiding you through complex data entry."
+
+msgid "快速查询："上个月我负责的项目有哪些？""
+msgstr "Quick query: \"What projects was I responsible for last month?\""
+
+msgid "数据分析："今年Q1的客户活跃度是多少？""
+msgstr "Data analysis: \"What's the customer activity rate for Q1 this year?\""
+
+msgid "翻译协助：在中英文对话中自动翻译消息内容"
+msgstr "Translation help: Auto-translate messages in Chinese-English conversations"
+
+msgid "表单创建：通过对话引导创建新的报价单"
+msgstr "Form creation: Create new quotations through conversational guidance"
+
+msgid "点击顶部导航栏右侧的聊天图标，或使用分屏模式打开 AI 面板"
+msgstr "Click the chat icon on the top navigation bar, or use split-screen mode to open the AI panel"
+
+msgid "点击导航栏右上角的聊天图标打开聊天面板"
+msgstr "Click the chat icon in the top-right corner to open the chat panel"
+
+msgid "在输入框中输入您的问题或需求"
+msgstr "Type your question or request in the input box"
+
+msgid "AI 会实时流式返回回答，支持 Markdown 格式"
+msgstr "AI streams responses in real-time with Markdown formatting support"
+
+msgid "如需切换 AI 模型，可在面板顶部选择不同的 AI 提供商"
+msgstr "To switch AI models, select a different AI provider at the top of the panel"
+
+msgid "积分系统"
+msgstr "Points System"
+
+msgid "业绩积分"
+msgstr "Performance Points"
+
+msgid "引用系数"
+msgstr "Citation Coefficient"
+
+msgid "排行榜"
+msgstr "Leaderboard"
+
+msgid "产品评分"
+msgstr "Product Rating"
+
+msgid "基于业务贡献的积分激励体系，自动计算报价产品积分，实时显示个人积分排名。"
+msgstr "A contribution-based points incentive system that auto-calculates quotation product points and displays real-time personal rankings."
+
+msgid "积分系统根据您的业务贡献自动计算积分。每当您创建或更新报价单时，系统会根据报价中产品的引用系数自动计算并记录积分。"
+msgstr "The points system automatically calculates points based on your business contributions. When you create or update quotations, the system auto-calculates and records points based on product citation coefficients."
+
+msgid "每个产品都有对应的积分系数（引用系数），高价值或战略重点产品的系数更高。这意味着推广重点产品能获得更多积分奖励。"
+msgstr "Each product has a corresponding points coefficient (citation coefficient), with higher values for strategic products. Promoting key products earns more point rewards."
+
+msgid "积分以年度为周期，您可以在导航栏实时查看当前积分，也可以查看年度积分排行榜，了解自己在团队中的排名。"
+msgstr "Points reset annually. You can view your current points in the navigation bar and check the annual leaderboard for team rankings."
+
+msgid "查看积分：导航栏顶部实时显示当前年度积分"
+msgstr "View points: Real-time current year points displayed in the top navigation"
+
+msgid "了解排名：查看积分排行榜，了解团队排名"
+msgstr "Check rankings: View the leaderboard for team standings"
+
+msgid "策略参考：根据产品积分系数选择推广重点"
+msgstr "Strategic reference: Choose promotion focus based on product point coefficients"
+
+msgid "业绩激励：积分作为绩效考核的参考指标之一"
+msgstr "Performance incentive: Points serve as one of the performance evaluation metrics"
+
+msgid "导航栏顶部显示积分徽章，点击可查看积分详情"
+msgstr "Points badge displayed at the top of the navigation bar; click to view details"
+
+msgid "在导航栏顶部查看您的当前积分"
+msgstr "View your current points at the top of the navigation bar"
+
+msgid "创建报价单并添加产品，系统自动计算积分"
+msgstr "Create a quotation and add products; the system auto-calculates points"
+
+msgid "提交报价后积分自动记入您的账户"
+msgstr "Points are automatically credited to your account after submitting a quotation"
+
+msgid "查看排行榜了解团队积分排名"
+msgstr "Check the leaderboard for team point rankings"
+
+msgid "资源池与访问申请"
+msgstr "Resource Pool & Access Requests"
+
+msgid "跨权限搜索"
+msgstr "Cross-Permission Search"
+
+msgid "访问请求"
+msgstr "Access Request"
+
+msgid "资源共享"
+msgstr "Resource Sharing"
+
+msgid "权限审批"
+msgstr "Permission Approval"
+
+msgid "突破权限边界的资源发现机制，支持跨权限搜索客户资源并发起访问申请。"
+msgstr "A resource discovery mechanism beyond permission boundaries, supporting cross-permission customer search and access requests."
+
+msgid "资源池功能让您能够发现系统中超出个人权限范围的客户资源。当您搜索客户时，除了自己有权访问的数据外，还能看到其他同事管理的客户（以脱敏方式展示）。"
+msgstr "The resource pool enables you to discover customer resources beyond your permissions. When searching, you can see customers managed by colleagues (displayed in anonymized form) in addition to your own data."
+
+msgid "如果您发现某个客户与自己的业务相关，可以直接发起访问申请。申请会发送给该客户的负责人审批，审批通过后您即可获得查看权限。"
+msgstr "If you find a relevant customer, you can directly submit an access request. The request goes to the customer's owner for approval, and you gain viewing permission once approved."
+
+msgid "整个流程透明高效，既保护了数据安全，又促进了团队间的资源共享和业务协作。"
+msgstr "The entire process is transparent and efficient, protecting data security while promoting resource sharing and business collaboration."
+
+msgid "发现潜在客户：搜索时发现其他同事管理的相关客户"
+msgstr "Discover potential customers: Find related customers managed by colleagues during searches"
+
+msgid "跨部门协作：申请访问其他部门的客户资源进行联合开发"
+msgstr "Cross-department collaboration: Request access to other departments' customer resources"
+
+msgid "资源整合：通过搜索发现系统中已有的客户避免重复录入"
+msgstr "Resource integration: Discover existing customers to avoid duplicate entries"
+
+msgid "权限管理：客户负责人审批他人的访问请求"
+msgstr "Permission management: Customer owners approve others' access requests"
+
+msgid "在客户列表页面搜索时，超出权限的结果会显示锁定图标"
+msgstr "When searching in the customer list, results beyond your permissions show a lock icon"
+
+msgid "在客户搜索框输入关键词进行搜索"
+msgstr "Enter keywords in the customer search box"
+
+msgid "搜索结果中带锁定图标的是超出权限的资源"
+msgstr "Results with a lock icon are resources beyond your permissions"
+
+msgid "点击锁定图标或"申请访问"按钮发起申请"
+msgstr "Click the lock icon or \"Request Access\" button to submit a request"
+
+msgid "填写申请理由并提交"
+msgstr "Fill in the reason and submit"
+
+msgid "等待客户负责人审批，通过后自动获得访问权限"
+msgstr "Wait for the customer owner's approval; access is granted automatically upon approval"
+
+msgid "分屏浏览与消息通知"
+msgstr "Split Screen & Notifications"
+
+msgid "分屏浏览"
+msgstr "Split Screen"
+
+msgid "@提醒"
+msgstr "@Mentions"
+
+msgid "待审批"
+msgstr "Pending Approval"
+
+msgid "待办事项"
+msgstr "To-Do Items"
+
+msgid "50/50 分屏布局支持边聊天边工作，消息通知面板集中显示 @提醒和待办事项。"
+msgstr "50/50 split-screen layout for chatting while working, with a notification panel for @mentions and to-do items."
+
+msgid "分屏浏览功能将页面分为左右两半：左侧是聊天面板，右侧是您正在浏览的业务页面。这样您可以一边与同事或 AI 沟通，一边查看客户信息或编辑报价单。"
+msgstr "Split-screen divides the page in half: chat panel on the left, business page on the right. Chat with colleagues or AI while viewing customer information or editing quotations."
+
+msgid "消息通知面板集中展示所有需要您关注的事项：@您的聊天消息、待审批的项目/报销单、即将到期的任务等。点击通知可直接跳转到对应页面。"
+msgstr "The notification panel displays all items requiring your attention: @mentions, pending approvals for projects/expenses, upcoming task deadlines, etc. Click notifications to jump directly to the relevant page."
+
+msgid "分屏模式下导航栏会自动收窄，最大化利用屏幕空间。您可以随时切换分屏和全屏模式。"
+msgstr "In split-screen mode, the navigation bar auto-collapses to maximize screen space. Switch between split and full-screen modes anytime."
+
+msgid "边聊边查：与同事讨论项目时同时查看项目详情"
+msgstr "Chat and browse: View project details while discussing with colleagues"
+
+msgid "AI 辅助：一边使用 AI 助手一边填写表单"
+msgstr "AI assistance: Use the AI assistant while filling out forms"
+
+msgid "消息追踪：快速查看和处理 @提醒消息"
+msgstr "Message tracking: Quickly view and handle @mention messages"
+
+msgid "审批处理：在通知面板中快速处理待审批事项"
+msgstr "Approval processing: Quickly handle pending approvals in the notification panel"
+
+msgid "点击导航栏的分屏图标切换分屏模式，点击铃铛图标打开消息面板"
+msgstr "Click the split-screen icon in the navigation bar, or the bell icon to open the notification panel"
+
+msgid "点击导航栏右上角的分屏图标进入分屏模式"
+msgstr "Click the split-screen icon in the top-right corner to enter split-screen mode"
+
+msgid "左侧聊天面板自动展开，右侧显示当前页面"
+msgstr "The left chat panel auto-expands while the right side shows the current page"
+
+msgid "点击铃铛图标查看消息通知面板"
+msgstr "Click the bell icon to view the notification panel"
+
+msgid "点击通知项可直接跳转到对应页面处理"
+msgstr "Click notification items to jump directly to the relevant page"
+
+msgid "绩效仪表盘增强"
+msgstr "Enhanced Performance Dashboard"
+
+msgid "目标达成"
+msgstr "Goal Achievement"
+
+msgid "活跃度分析"
+msgstr "Activity Analysis"
+
+msgid "行业分布"
+msgstr "Industry Distribution"
+
+msgid "客户地图"
+msgstr "Customer Map"
+
+msgid "全面升级的绩效仪表盘，新增目标达成率追踪、客户活跃度分析和行业分布图表。"
+msgstr "Fully upgraded performance dashboard with goal achievement tracking, customer activity analysis, and industry distribution charts."
+
+msgid "绩效仪表盘经过全面升级，现在提供更丰富的数据可视化。首页仪表盘展示您的年度目标达成率、月度业绩趋势、客户活跃度等核心指标。"
+msgstr "The performance dashboard has been fully upgraded with richer data visualizations. The homepage displays your annual goal achievement rate, monthly performance trends, and customer activity metrics."
+
+msgid "新增的行业分布图表帮助您了解客户的行业构成，发现潜力行业。客户活跃度分析则追踪客户的互动频率，帮助您识别需要重点维护的客户。"
+msgstr "New industry distribution charts help you understand customer industry composition and discover potential sectors. Customer activity analysis tracks interaction frequency to identify clients needing attention."
+
+msgid "仪表盘支持按年份筛选，所有图表均支持交互操作，鼠标悬停可查看详细数据。性能方面进行了大幅优化，加载速度提升显著。"
+msgstr "The dashboard supports year filtering, all charts are interactive with hover details, and performance has been significantly optimized for faster loading."
+
+msgid "业绩追踪：实时查看年度/月度目标达成率"
+msgstr "Performance tracking: View real-time annual/monthly goal achievement rates"
+
+msgid "趋势分析：查看月度业绩趋势变化"
+msgstr "Trend analysis: View monthly performance trend changes"
+
+msgid "客户分析：了解客户的行业分布和活跃度"
+msgstr "Customer analysis: Understand customer industry distribution and activity levels"
+
+msgid "管理决策：基于数据图表制定业务策略"
+msgstr "Management decisions: Formulate business strategies based on data charts"
+
+msgid "登录后首页即为绩效仪表盘，或点击导航栏"仪表盘""
+msgstr "The homepage after login is the performance dashboard, or click \"Dashboard\" in the navigation"
+
+msgid "登录系统后自动进入绩效仪表盘首页"
+msgstr "Automatically enter the performance dashboard homepage after logging in"
+
+msgid "使用顶部年份选择器切换查看不同年份的数据"
+msgstr "Use the year selector at the top to switch between different years"
+
+msgid "点击各图表区域可查看详细数据"
+msgstr "Click chart areas to view detailed data"
+
+msgid "鼠标悬停在图表元素上查看具体数值"
+msgstr "Hover over chart elements to view specific values"
+
+msgid "任务管理系统"
+msgstr "Task Management System"
+
+msgid "待办任务"
+msgstr "Pending Tasks"
+
+msgid "日历关联"
+msgstr "Calendar Integration"
+
+msgid "附件管理"
+msgstr "Attachment Management"
+
+msgid "协作评论"
+msgstr "Collaborative Comments"
+
+msgid "轻量级任务管理，支持创建任务、设定截止日期、上传附件和协作评论。"
+msgstr "Lightweight task management supporting task creation, deadlines, file attachments, and collaborative comments."
+
+msgid "任务管理系统帮助您高效管理日常工作事项。您可以创建任务、设定优先级和截止日期，并将任务关联到具体的项目或客户。"
+msgstr "The task management system helps you efficiently manage daily work items. Create tasks, set priorities and deadlines, and link tasks to specific projects or customers."
+
+msgid "每个任务支持上传附件和添加评论，方便团队协作。任务状态包括待办、进行中和已完成，一目了然。"
+msgstr "Each task supports file attachments and comments for team collaboration. Task statuses include pending, in progress, and completed for clear visibility."
+
+msgid "任务与日历系统关联，即将到期的任务会在消息通知面板中提醒，确保不遗漏任何重要事项。"
+msgstr "Tasks are linked to the calendar system, with upcoming deadlines shown in the notification panel to ensure nothing is missed."
+
+msgid "日常管理：创建每日待办事项并跟踪完成情况"
+msgstr "Daily management: Create daily to-do items and track completion"
+
+msgid "项目协作：为项目创建关联任务分配给团队成员"
+msgstr "Project collaboration: Create linked tasks for projects and assign to team members"
+
+msgid "文件管理：在任务中附加相关文档和资料"
+msgstr "File management: Attach relevant documents and materials to tasks"
+
+msgid "进度追踪：查看任务完成率了解整体进度"
+msgstr "Progress tracking: View task completion rates for overall progress"
+
+msgid "点击导航栏的"任务管理"菜单项进入任务列表"
+msgstr "Click \"Task Management\" in the navigation menu to enter the task list"
+
+msgid "进入任务管理页面，查看当前任务列表"
+msgstr "Enter the task management page to view the current task list"
+
+msgid "点击"新建任务"创建新的待办事项"
+msgstr "Click \"New Task\" to create a new to-do item"
+
+msgid "设置任务标题、描述、优先级和截止日期"
+msgstr "Set the task title, description, priority, and deadline"
+
+msgid "可选择关联到具体项目或客户"
+msgstr "Optionally link to a specific project or customer"
+
+msgid "添加附件或评论与团队协作"
+msgstr "Add attachments or comments for team collaboration"
+
+msgid "文件管理系统"
+msgstr "File Management System"
+
+msgid "文件存储"
+msgstr "File Storage"
+
+msgid "去重管理"
+msgstr "Deduplication"
+
+msgid "知识库"
+msgstr "Knowledge Base"
+
+msgid "快速上传"
+msgstr "Quick Upload"
+
+msgid "统一的文件存储和管理平台，支持文件去重、分类管理和知识库建设。"
+msgstr "A unified file storage and management platform supporting deduplication, categorization, and knowledge base building."
+
+msgid "文件管理系统为您提供统一的文件存储平台。上传的发票、合同、产品资料等文件自动归类，支持按类型、日期和关联对象筛选查找。"
+msgstr "The file management system provides a unified storage platform. Uploaded invoices, contracts, and product materials are auto-categorized, with filtering by type, date, and linked objects."
+
+msgid "系统内置文件去重机制，相同文件不会重复存储，节省存储空间。支持常见的文档、图片和 PDF 格式文件。"
+msgstr "Built-in file deduplication prevents duplicate storage, saving space. Supports common document, image, and PDF formats."
+
+msgid "知识库功能让您可以将重要的产品资料、行业报告等文档集中管理，形成团队共享的知识资产。"
+msgstr "The knowledge base feature lets you centrally manage important product materials and industry reports as shared team knowledge assets."
+
+msgid "文件归档：上传发票、合同等商务文件并自动归类"
+msgstr "File archiving: Upload invoices, contracts, and other business files with auto-categorization"
+
+msgid "资料查找：按类型或关联对象快速查找历史文件"
+msgstr "Document search: Quickly find historical files by type or linked objects"
+
+msgid "知识沉淀：将产品手册、行业报告等上传到知识库"
+msgstr "Knowledge building: Upload product manuals and industry reports to the knowledge base"
+
+msgid "空间优化：文件去重机制自动节省存储空间"
+msgstr "Space optimization: File deduplication automatically saves storage space"
+
+msgid "点击导航栏的"文件管理"菜单项进入文件列表"
+msgstr "Click \"File Management\" in the navigation menu to enter the file list"
+
+msgid "进入文件管理页面查看已上传的文件列表"
+msgstr "Enter the file management page to view uploaded files"
+
+msgid "点击"上传文件"或拖拽文件到上传区域"
+msgstr "Click \"Upload File\" or drag files to the upload area"
+
+msgid "选择文件分类和关联对象（如客户、项目）"
+msgstr "Select file category and linked objects (e.g., customer, project)"
+
+msgid "使用搜索和筛选功能快速查找所需文件"
+msgstr "Use search and filter features to quickly find needed files"
+
+msgid "地图可视化"
+msgstr "Map Visualization"
+
+msgid "区域分布"
+msgstr "Regional Distribution"
+
+msgid "客户定位"
+msgstr "Customer Positioning"
+
+msgid "地理筛选"
+msgstr "Geographic Filtering"
+
+msgid "基于地理位置的客户分布可视化，支持省份级别的客户数据地图展示。"
+msgstr "Geographic customer distribution visualization supporting province-level customer data map display."
+
+msgid "客户地图功能将您的客户数据以地图的形式直观展示。中国地图上以不同颜色深浅表示各省份的客户数量，一眼即可看出客户集中的区域。"
+msgstr "The customer map visualizes your customer data on a map. Different color shades on the China map indicate customer counts by province, instantly showing concentration areas."
+
+msgid "点击地图上的省份可以查看该地区的客户详细列表，支持从地图视角快速定位和管理客户。"
+msgstr "Click provinces on the map to view detailed customer lists for that region, enabling quick location and management from a map perspective."
+
+msgid "结合地理筛选功能，您可以按区域分析客户分布特征，发现空白市场和机会区域，为市场拓展提供数据支持。"
+msgstr "Combined with geographic filtering, analyze customer distribution by region, discover blank markets and opportunities for market expansion."
+
+msgid "区域分析：直观查看客户在全国各省的分布情况"
+msgstr "Regional analysis: Visually view customer distribution across provinces"
+
+msgid "市场发现：识别客户稀少的区域作为潜在市场"
+msgstr "Market discovery: Identify regions with few customers as potential markets"
+
+msgid "快速定位：通过地图点击快速查看某地区的客户"
+msgstr "Quick location: Click the map to quickly view customers in a region"
+
+msgid "战略规划：基于地理分布制定区域营销策略"
+msgstr "Strategic planning: Develop regional marketing strategies based on geographic distribution"
+
+msgid "在客户列表页面点击"地图视图"切换按钮"
+msgstr "Click the \"Map View\" toggle button on the customer list page"
+
+msgid "进入客户列表页面"
+msgstr "Enter the customer list page"
+
+msgid "点击"地图视图"切换按钮进入地图模式"
+msgstr "Click the \"Map View\" toggle button to enter map mode"
+
+msgid "查看中国地图上的客户分布热力图"
+msgstr "View the customer distribution heatmap on the China map"
+
+msgid "点击具体省份查看该区域客户列表"
+msgstr "Click specific provinces to view the customer list for that region"
+
+# ===== 新功能说明书 - 场景轮播标题与描述 =====
+
+msgid "快速查询"
+msgstr "Quick Query"
+
+msgid "用自然语言提问，如"上个月我负责的项目有哪些？"，AI 即时返回结果。"
+msgstr "Ask in natural language, e.g. \"What projects was I responsible for last month?\", and AI returns results instantly."
+
+msgid "询问业务数据指标，如"今年Q1的客户活跃度是多少？"，获取数据洞察。"
+msgstr "Ask about business metrics, e.g. \"What's the customer activity rate for Q1?\", to get data insights."
+
+msgid "在中英文对话中自动识别语言并翻译消息内容，跨语言沟通无障碍。"
+msgstr "Auto-detect language and translate messages in Chinese-English conversations for seamless cross-language communication."
+
+msgid "通过对话式交互引导创建报价单、项目等表单，简化复杂数据录入。"
+msgstr "Create quotations, projects and other forms through conversational guidance, simplifying complex data entry."
+
+msgid "查看积分"
+msgstr "View Points"
+
+msgid "导航栏顶部实时显示当前年度积分，随时掌握自己的业绩表现。"
+msgstr "Real-time current year points displayed in the top navigation bar, always track your performance."
+
+msgid "了解排名"
+msgstr "Check Rankings"
+
+msgid "查看积分排行榜，了解自己在团队中的位置和差距。"
+msgstr "View the leaderboard to understand your position and gap within the team."
+
+msgid "策略参考"
+msgstr "Strategic Reference"
+
+msgid "根据产品积分系数选择推广重点，高系数产品带来更多积分奖励。"
+msgstr "Choose promotion focus based on product point coefficients; high-coefficient products earn more rewards."
+
+msgid "业绩激励"
+msgstr "Performance Incentive"
+
+msgid "积分作为绩效考核的参考指标之一，激励业务积极性。"
+msgstr "Points serve as a performance evaluation metric, motivating business initiative."
+
+msgid "发现潜在客户"
+msgstr "Discover Potential Customers"
+
+msgid "搜索时发现其他同事管理的相关客户，锁定图标标识超出权限的资源。"
+msgstr "Discover related customers managed by colleagues during searches; lock icons indicate resources beyond your permissions."
+
+msgid "跨部门协作"
+msgstr "Cross-Department Collaboration"
+
+msgid "申请访问其他部门的客户资源，促进联合开发和业务协同。"
+msgstr "Request access to other departments' customer resources, promoting joint development and business collaboration."
+
+msgid "资源整合"
+msgstr "Resource Integration"
+
+msgid "通过搜索发现系统中已有的客户，避免重复录入和资源浪费。"
+msgstr "Discover existing customers through search to avoid duplicate entries and resource waste."
+
+msgid "权限管理"
+msgstr "Permission Management"
+
+msgid "客户负责人在线审批他人的访问请求，流程透明可追溯。"
+msgstr "Customer owners approve access requests online with a transparent and traceable process."
+
+msgid "边聊边查"
+msgstr "Chat & Browse"
+
+msgid "与同事讨论项目时同时查看项目详情，信息对照一目了然。"
+msgstr "View project details while discussing with colleagues, with information comparison at a glance."
+
+msgid "AI 辅助"
+msgstr "AI Assistance"
+
+msgid "一边使用 AI 助手获取信息，一边填写表单或编辑数据。"
+msgstr "Use the AI assistant for information while filling out forms or editing data."
+
+msgid "消息追踪"
+msgstr "Message Tracking"
+
+msgid "快速查看和处理 @提醒消息，不错过任何重要沟通。"
+msgstr "Quickly view and handle @mention messages, never miss important communications."
+
+msgid "审批处理"
+msgstr "Approval Processing"
+
+msgid "在通知面板中快速处理待审批事项，提升审批效率。"
+msgstr "Quickly handle pending approvals in the notification panel, improving approval efficiency."
+
+msgid "业绩追踪"
+msgstr "Performance Tracking"
+
+msgid "实时查看年度/月度目标达成率，掌握业绩进展。"
+msgstr "View real-time annual/monthly goal achievement rates, track performance progress."
+
+msgid "趋势分析"
+msgstr "Trend Analysis"
+
+msgid "查看月度业绩趋势变化曲线，发现增长或下滑趋势。"
+msgstr "View monthly performance trend curves to identify growth or decline patterns."
+
+msgid "客户分析"
+msgstr "Customer Analysis"
+
+msgid "了解客户的行业分布和活跃度，识别重点维护对象。"
+msgstr "Understand customer industry distribution and activity levels, identify key accounts to maintain."
+
+msgid "管理决策"
+msgstr "Management Decisions"
+
+msgid "基于数据图表制定业务策略，数据驱动科学决策。"
+msgstr "Formulate business strategies based on data charts, data-driven scientific decision making."
+
+msgid "日常管理"
+msgstr "Daily Management"
+
+msgid "创建每日待办事项并跟踪完成情况，高效管理工作节奏。"
+msgstr "Create daily to-do items and track completion, efficiently manage your work rhythm."
+
+msgid "项目协作"
+msgstr "Project Collaboration"
+
+msgid "为项目创建关联任务并分配给团队成员，协同推进工作。"
+msgstr "Create linked tasks for projects and assign to team members, collaboratively drive progress."
+
+msgid "在任务中附加相关文档和资料，信息集中不遗漏。"
+msgstr "Attach relevant documents and materials to tasks, keeping information centralized."
+
+msgid "进度追踪"
+msgstr "Progress Tracking"
+
+msgid "查看任务完成率了解整体进度，及时发现延期风险。"
+msgstr "View task completion rates for overall progress, promptly identify delay risks."
+
+msgid "文件归档"
+msgstr "File Archiving"
+
+msgid "上传发票、合同等商务文件，系统自动归类整理。"
+msgstr "Upload invoices, contracts and other business files with automatic categorization."
+
+msgid "资料查找"
+msgstr "Document Search"
+
+msgid "按类型或关联对象快速查找历史文件，秒级定位。"
+msgstr "Quickly find historical files by type or linked objects, located in seconds."
+
+msgid "知识沉淀"
+msgstr "Knowledge Building"
+
+msgid "将产品手册、行业报告等上传到知识库，形成团队共享资产。"
+msgstr "Upload product manuals and industry reports to the knowledge base as shared team assets."
+
+msgid "空间优化"
+msgstr "Space Optimization"
+
+msgid "文件去重机制自动识别重复文件，节省存储空间。"
+msgstr "File deduplication mechanism automatically identifies duplicate files, saving storage space."
+
+msgid "区域分析"
+msgstr "Regional Analysis"
+
+msgid "直观查看客户在全国各省的分布情况，颜色深浅代表客户密度。"
+msgstr "Visually view customer distribution across provinces; color depth represents customer density."
+
+msgid "市场发现"
+msgstr "Market Discovery"
+
+msgid "识别客户稀少的区域作为潜在市场，发现拓展机会。"
+msgstr "Identify regions with few customers as potential markets, discover expansion opportunities."
+
+msgid "快速定位"
+msgstr "Quick Location"
+
+msgid "通过地图点击快速查看某地区的客户列表，高效管理。"
+msgstr "Click the map to quickly view customer lists for a region, efficient management."
+
+msgid "战略规划"
+msgstr "Strategic Planning"
+
+msgid "基于地理分布制定区域营销策略，精准投放资源。"
+msgstr "Develop regional marketing strategies based on geographic distribution, precisely allocate resources."
+
+msgid "翻译协助"
+msgstr "Translation Help"
+
+msgid "截图占位"
+msgstr "Screenshot Placeholder"
+
+#: AI Customer Research
+msgid "AI 网络调研"
+msgstr "AI Web Research"
+
+msgid "尚未进行网络调研"
+msgstr "No web research yet"
+
+msgid "开始 AI 调研"
+msgstr "Start AI Research"
+
+msgid "公司概况"
+msgstr "Company Overview"
+
+msgid "关键人物"
+msgstr "Key Executives"
+
+msgid "在建/近期项目"
+msgstr "Active Projects"
+
+msgid "合作伙伴"
+msgstr "Partners"
+
+msgid "风险预警"
+msgstr "Risk Alerts"
+
+msgid "AI 销售切入建议"
+msgstr "AI Sales Suggestions"
+
+msgid "AI 正在调研中..."
+msgstr "AI researching..."
+
+msgid "数据已超过30天，正在自动刷新..."
+msgstr "Data is over 30 days old, auto-refreshing..."
+
+msgid "更新于"
+msgstr "Updated"
+
+msgid "今天"
+msgstr "today"
+
+msgid "昨天"
+msgstr "yesterday"
+
+msgid "暂无风险预警"
+msgstr "No risk alerts"
+
+msgid "暂无数据"
+msgstr "No data"
+
+msgid "成立"
+msgstr "Founded"
+
+msgid "总部"
+msgstr "Headquarters"
+
+msgid "营收"
+msgstr "Revenue"
+
+msgid "主营业务"
+msgstr "Main Business"
+
+msgid "战略方向"
+msgstr "Strategic Direction"
+
+msgid "总包方"
+msgstr "General Contractors"
+
+msgid "生态伙伴"
+msgstr "Ecosystem Partners"
+
+msgid "重要客户"
+msgstr "Key Customers"
+
+msgid "合作方"
+msgstr "Partner"
+
+msgid "正在搜索网络公开信息..."
+msgstr "Searching public information..."
+
+msgid "正在搜索公司基本信息..."
+msgstr "Searching company information..."
+
+msgid "正在搜索项目中标信息..."
+msgstr "Searching project bidding info..."
+
+msgid "正在搜索高管信息..."
+msgstr "Searching executive info..."
+
+msgid "正在分析风险舆情..."
+msgstr "Analyzing risk alerts..."
+
+msgid "AI 正在结构化分析..."
+msgstr "AI structuring analysis..."
+
+msgid "调研失败，请稍后重试"
+msgstr "Research failed, please try again later"
+
+msgid "重试"
+msgstr "Retry"
+
+msgid "正在预搜索，验证公司信息..."
+msgstr "Pre-searching, verifying company info..."
+
+msgid "预搜索失败"
+msgstr "Pre-search failed"
+
+msgid "确认调研对象"
+msgstr "Confirm Research Target"
+
+msgid "未找到与当前客户名完全匹配的结果，以下是搜索到的相关公司："
+msgstr "No exact match found. Here are related companies from search results:"
+
+msgid "仍使用原始名称调研"
+msgstr "Use original name anyway"
+
+msgid "继续调研"
+msgstr "Continue Research"
+
+msgid "调研中..."
+msgstr "Researching..."
+
+msgid "调研失败"
+msgstr "Research Failed"
+
+msgid "AI 调研完成"
+msgstr "AI Research Complete"
+
+msgid "AI 调研中"
+msgstr "AI Researching"
+
+msgid "未找到匹配的候选公司"
+msgstr "No matching candidate companies found"
+
+msgid "已启动调研"
+msgstr "Research started"
+
+msgid "已重新启动调研"
+msgstr "Research restarted"
+
+msgid "AI 调研"
+msgstr "AI Research"
+
+msgid "重新调研"
+msgstr "Re-research"
+
+msgid "项目概况"
+msgstr "Project Overview"
+
+msgid "项目参与方"
+msgstr "Stakeholders"
+
+msgid "近期动向"
+msgstr "Recent Updates"
+
+msgid "投资方/建设单位"
+msgstr "Investor/Owner"
+
+msgid "总承包"
+msgstr "General Contractor"
+
+msgid "顾问公司"
+msgstr "Consultant"
+
+msgid "分包方"
+msgstr "Subcontractors"
+
+msgid "总投资"
+msgstr "Total Investment"
+
+msgid "建筑面积"
+msgstr "Building Area"
+
+msgid "开工时间"
+msgstr "Start Date"
+
+msgid "竣工时间"
+msgstr "Completion Date"
+
+msgid "占地面积"
+msgstr "Land Area"
+
+msgid "未找到该项目的公开信息"
+msgstr "No public information found for this project"
+
+msgid "可能是项目信息尚未公开或网络公开信息较少，您可以尝试重新调研"
+msgstr "Project information may not be publicly available yet. You can try re-researching."
+
+msgid "AI 正在调研中..."
+msgstr "AI is researching..."
+
+msgid "通常需要 30-60 秒，请稍候"
+msgstr "Usually takes 30-60 seconds, please wait"
+
+msgid "已触发 AI 调研"
+msgstr "AI research triggered"
+
+msgid "城市"
+msgstr "City"
+
+msgid "未找到该公司的公开信息"
+msgstr "No public information found for this company"
+
+msgid "可能是小型企业或网络公开信息较少，您可以尝试重新调研"
+msgstr "May be a small business or have limited online presence. You can try re-researching."
+
+msgid "数据已超过30天，正在自动刷新..."
+msgstr "Data is over 30 days old, auto-refreshing..."

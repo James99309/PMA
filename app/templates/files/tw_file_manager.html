@@ -1,5 +1,6 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+{% from 'components/tw_share_to_chat_modal.html' import render_share_to_chat_modal, render_share_to_chat_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -257,6 +258,11 @@
                                 class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
                             <span class="material-symbols-outlined" style="font-size:14px">drive_file_move</span>
                             {{ _('移动') }}
+                        </button>
+                        <button @click="shareFilesToChat(getSelectedFileObjects())"
+                                class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                            <span class="material-symbols-outlined" style="font-size:14px">chat</span>
+                            {{ _('分享') }}
                         </button>
                     </div>
                 </template>
@@ -705,6 +711,10 @@
                     <button @click="showMoveModal = true; selectedFiles = [contextMenu.item.id]; contextMenu.show = false"
                             class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
                         <span class="material-symbols-outlined text-base">drive_file_move</span> {{ _('移动到...') }}
+                    </button>
+                    <button @click="shareFilesToChat([contextMenu.item]); contextMenu.show = false"
+                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <span class="material-symbols-outlined text-base">chat</span> {{ _('分享到聊天') }}
                     </button>
                     <hr class="my-1 border-slate-200 dark:border-slate-700">
                     {# 加入知识库 #}
@@ -1163,12 +1173,14 @@
         </div>
 
     </div>
+    {{ render_share_to_chat_modal() }}
     {% endif %}
 {% endcall %}
 
 {# ============ JavaScript ============ #}
 {{ render_tw_layout_script() }}
 {{ tw_confirm_modal_script() }}
+{{ render_share_to_chat_script() }}
 <script src="{{ url_for('static', filename='js/file-manager.js') }}"></script>
 <script>
     // 传递初始文件夹ID和管理员标志

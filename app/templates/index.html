@@ -604,7 +604,8 @@
                     pm_implant_amount: '{{ _("产品植入额") }}',
                     pm_sales_amount: '{{ _("产品批价额") }}',
                     se_implant_amount: '{{ _("支持项目植入额") }}',
-                    se_sales_amount: '{{ _("支持项目批价额") }}'
+                    se_sales_amount: '{{ _("支持项目批价额") }}',
+                    customer_activity_rate: '{{ _("客户活跃度") }}'
                 };
                 return labels[key] || key;
             },
@@ -619,7 +620,8 @@
                     pm_implant_amount: 'inventory_2',
                     pm_sales_amount: 'sell',
                     se_implant_amount: 'engineering',
-                    se_sales_amount: 'handshake'
+                    se_sales_amount: 'handshake',
+                    customer_activity_rate: 'person_check'
                 };
                 return icons[key] || 'analytics';
             },
@@ -634,7 +636,8 @@
                     pm_implant_amount: 'text-indigo-500',
                     pm_sales_amount: 'text-teal-500',
                     se_implant_amount: 'text-rose-500',
-                    se_sales_amount: 'text-orange-500'
+                    se_sales_amount: 'text-orange-500',
+                    customer_activity_rate: 'text-cyan-500'
                 };
                 return colors[key] || 'text-slate-500';
             },

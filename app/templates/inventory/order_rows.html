@@ -8,7 +8,7 @@
         </a>
     </td>
     <td>{{ order.company.company_name if order.company else '-' }}</td>
-    <td class="text-end">{{ "%.2f"|format((order.total_amount | float) / 10000) }}万</td>
+    <td class="text-end">{{ "%.2f"|format((order.total_amount | float) / currency_config.divisor) }}{{ currency_config.amount_unit }}</td>
     <td>
         {{ render_order_status_badge(order.status) }}
     </td>

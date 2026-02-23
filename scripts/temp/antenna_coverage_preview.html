@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>室内天线覆盖范围预览</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#0f172a; color:#e2e8f0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; overflow:hidden; }
+
+  .toolbar { position:fixed; top:0; left:0; right:0; height:48px; background:#1e293b; border-bottom:1px solid #334155; display:flex; align-items:center; padding:0 16px; gap:16px; z-index:10; }
+  .toolbar h1 { font-size:14px; font-weight:600; color:#f1f5f9; }
+  .toolbar .sep { width:1px; height:24px; background:#334155; }
+
+  .controls { display:flex; align-items:center; gap:12px; }
+  .ctrl-group { display:flex; align-items:center; gap:6px; }
+  .ctrl-group label { font-size:11px; color:#94a3b8; white-space:nowrap; }
+  .ctrl-group input[type="checkbox"] { accent-color:#22c55e; }
+  .ctrl-group select { background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:2px 6px; border-radius:4px; font-size:11px; }
+
+  .legend { position:fixed; bottom:16px; left:16px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:12px 16px; z-index:10; }
+  .legend-title { font-size:11px; font-weight:600; color:#94a3b8; margin-bottom:8px; }
+  .legend-item { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:11px; }
+  .legend-dot { width:12px; height:12px; border-radius:50%; }
+
+  /* Right panel - simulates antenna properties panel */
+  .props-panel { position:fixed; top:60px; right:16px; background:#1e293b; border:1px solid #334155; border-radius:8px; width:240px; z-index:10; overflow:hidden; }
+  .props-header { padding:10px 14px; border-bottom:1px solid #334155; display:flex; align-items:center; gap:8px; }
+  .props-header-title { font-size:12px; font-weight:600; color:#f1f5f9; }
+  .props-body { padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+  .props-field { display:flex; flex-direction:column; gap:4px; }
+  .props-label { font-size:10px; color:#94a3b8; font-weight:500; }
+  .props-input { background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:5px 8px; border-radius:6px; font-size:11px; width:100%; }
+  .props-input:focus { outline:none; border-color:#3b82f6; }
+  .props-divider { border-top:1px solid #334155; }
+  .props-toggle { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  .props-toggle input { accent-color:#22c55e; }
+  .props-toggle span { font-size:11px; color:#e2e8f0; }
+
+  /* Coverage radius inputs */
+  .radius-group { display:flex; flex-direction:column; gap:6px; }
+  .radius-row { display:flex; align-items:center; gap:8px; }
+  .radius-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .radius-name { font-size:10px; color:#94a3b8; min-width:32px; }
+  .radius-input { background:#0f172a; border:1px solid #334155; color:#e2e8f0; padding:4px 6px; border-radius:4px; font-size:11px; width:60px; text-align:center; }
+  .radius-input:focus { outline:none; border-color:#22c55e; }
+  .radius-unit { font-size:10px; color:#64748b; }
+
+  .scale-bar { position:fixed; bottom:16px; right:16px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:8px 12px; z-index:10; display:flex; align-items:center; gap:8px; }
+  .scale-line { height:2px; background:#f59e0b; border-radius:1px; }
+  .scale-text { font-size:10px; color:#94a3b8; white-space:nowrap; }
+
+  svg { position:fixed; top:48px; left:0; right:0; bottom:0; }
+
+  .grid-line { stroke:#334155; stroke-width:0.5; }
+  .grid-line-major { stroke:#475569; stroke-width:0.8; }
+  .wall { stroke:#64748b; stroke-width:3; fill:none; }
+  .room-label { fill:#64748b; font-size:10px; text-anchor:middle; }
+  .device-label { fill:#e2e8f0; font-size:10px; text-anchor:middle; }
+  .device-sublabel { fill:#94a3b8; font-size:8px; text-anchor:middle; }
+  .cable { stroke:#f59e0b; stroke-width:2; fill:none; }
+
+  /* Coverage label along circle */
+  .coverage-label { font-size:11px; font-weight:500; letter-spacing:1px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1>室内天线覆盖范围 - 效果预览</h1>
+  <div class="sep"></div>
+  <div class="controls">
+    <div class="ctrl-group">
+      <input type="checkbox" id="toggleCoverage" checked onchange="updateCoverage()">
+      <label for="toggleCoverage">全局开关：天线覆盖范围</label>
+    </div>
+    <div class="ctrl-group">
+      <label>配色</label>
+      <select id="colorScheme" onchange="updateCoverage()">
+        <option value="green">绿色渐变</option>
+        <option value="heatmap">热力图</option>
+        <option value="blue">蓝色渐变</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="iconShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <g id="world">
+    <g id="gridLayer"></g>
+    <g id="floorLayer"></g>
+    <g id="coverageLayer"></g>
+    <g id="cableLayer"></g>
+    <g id="deviceLayer"></g>
+  </g>
+</svg>
+
+<!-- Simulated Antenna Properties Panel -->
+<div class="props-panel">
+  <div class="props-header">
+    <svg width="20" height="20" viewBox="0 0 64 64"><path d="M16 28a16 8 0 1 1 32 0" fill="#22c55e" opacity=".15" stroke="#22c55e" stroke-width="2"/><path d="M16 28v4a16 8 0 0 0 32 0v-4" fill="none" stroke="#22c55e" stroke-width="2"/><path d="M32 30a1.5 1.5 0 1 1 0-.01" fill="#22c55e"/></svg>
+    <span class="props-header-title">天线属性</span>
+  </div>
+  <div class="props-body">
+    <div class="props-field">
+      <span class="props-label">子分类</span>
+      <input class="props-input" value="室内天线" disabled>
+    </div>
+    <div class="props-field">
+      <span class="props-label">产品</span>
+      <input class="props-input" value="IA-2400" disabled>
+    </div>
+    <div class="props-field">
+      <span class="props-label">位置标签</span>
+      <input class="props-input" value="1F-餐厅区" placeholder="如：1F-A区">
+    </div>
+
+    <div class="props-divider"></div>
+
+    <label class="props-toggle">
+      <input type="checkbox" id="antennaCovToggle" checked onchange="updateCoverage()">
+      <span>显示覆盖范围</span>
+    </label>
+
+    <div class="radius-group">
+      <span class="props-label">覆盖半径</span>
+      <div class="radius-row">
+        <div class="radius-dot" id="dot1" style="background:#16a34a;"></div>
+        <span class="radius-name">内圈</span>
+        <input class="radius-input" type="number" id="r1" min="1" max="50" value="15" oninput="updateCoverage()">
+        <span class="radius-unit">m</span>
+      </div>
+      <div class="radius-row">
+        <div class="radius-dot" id="dot2" style="background:#22c55e;"></div>
+        <span class="radius-name">中圈</span>
+        <input class="radius-input" type="number" id="r2" min="5" max="100" value="30" oninput="updateCoverage()">
+        <span class="radius-unit">m</span>
+      </div>
+      <div class="radius-row">
+        <div class="radius-dot" id="dot3" style="background:#4ade80;"></div>
+        <span class="radius-name">外圈</span>
+        <input class="radius-input" type="number" id="r3" min="10" max="200" value="100" oninput="updateCoverage()">
+        <span class="radius-unit">m</span>
+      </div>
+    </div>
+
+    <div class="props-divider"></div>
+
+    <div class="props-field">
+      <label class="props-toggle">
+        <input type="checkbox" checked disabled>
+        <span>锁定位置</span>
+      </label>
+    </div>
+    <div class="props-field">
+      <span class="props-label">旋转角度</span>
+      <input class="props-input" type="number" value="0" disabled>
+    </div>
+
+    <button style="margin-top:4px;width:100%;padding:7px;border:1px solid #ef4444;border-radius:6px;background:transparent;color:#ef4444;cursor:pointer;font-size:11px;">从楼层移除</button>
+  </div>
+</div>
+
+<div class="legend">
+  <div class="legend-title">覆盖范围图例</div>
+  <div class="legend-item"><div class="legend-dot" id="legDot1" style="background:#16a34a;opacity:0.5;"></div><span id="leg1">强信号 15m</span></div>
+  <div class="legend-item"><div class="legend-dot" id="legDot2" style="background:#22c55e;opacity:0.35;"></div><span id="leg2">中等信号 30m</span></div>
+  <div class="legend-item"><div class="legend-dot" id="legDot3" style="background:#4ade80;opacity:0.2;"></div><span id="leg3">弱信号 100m</span></div>
+</div>
+
+<div class="scale-bar">
+  <div class="scale-line" style="width:50px;"></div>
+  <span class="scale-text">1m (50px)</span>
+</div>
+
+<script>
+const PPM = 50;
+const W = window.innerWidth;
+const H = window.innerHeight - 48;
+
+const antennas = [
+  { x: 620, y: 420, name: '室内天线', model: 'IA-2400', showCoverage: true },
+  { x: 1050, y: 280, name: '室内天线', model: 'IA-2400', showCoverage: true },
+];
+
+const devices = [
+  { x: 380, y: 200, name: '光纤远端直放站', color: '#a855f7' },
+  { x: 780, y: 500, name: '耦合器', color: '#a855f7' },
+  { x: 1200, y: 420, name: '分配器', color: '#a855f7' },
+];
+
+const COLOR_SCHEMES = {
+  green: [
+    { color: '#16a34a', fillOpacity: 0.12, strokeOpacity: 0.6, strokeWidth: 1.2 },
+    { color: '#22c55e', fillOpacity: 0.08, strokeOpacity: 0.5, strokeWidth: 1 },
+    { color: '#4ade80', fillOpacity: 0.04, strokeOpacity: 0.4, strokeWidth: 0.8 },
+  ],
+  heatmap: [
+    { color: '#ef4444', fillOpacity: 0.12, strokeOpacity: 0.6, strokeWidth: 1.2 },
+    { color: '#f59e0b', fillOpacity: 0.08, strokeOpacity: 0.5, strokeWidth: 1 },
+    { color: '#3b82f6', fillOpacity: 0.04, strokeOpacity: 0.4, strokeWidth: 0.8 },
+  ],
+  blue: [
+    { color: '#1d4ed8', fillOpacity: 0.12, strokeOpacity: 0.6, strokeWidth: 1.2 },
+    { color: '#3b82f6', fillOpacity: 0.08, strokeOpacity: 0.5, strokeWidth: 1 },
+    { color: '#93c5fd', fillOpacity: 0.04, strokeOpacity: 0.4, strokeWidth: 0.8 },
+  ],
+};
+
+const svgEl = document.getElementById('canvas');
+svgEl.setAttribute('width', W);
+svgEl.setAttribute('height', H);
+
+let _pathIdCounter = 0;
+
+function buildGrid() {
+  const g = document.getElementById('gridLayer');
+  g.innerHTML = '';
+  for (let x = 0; x < 1600; x += 50) {
+    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l.setAttribute('x1', x); l.setAttribute('y1', 0); l.setAttribute('x2', x); l.setAttribute('y2', 900);
+    l.setAttribute('class', x % 250 === 0 ? 'grid-line-major' : 'grid-line');
+    l.setAttribute('opacity', x % 250 === 0 ? '0.4' : '0.15');
+    g.appendChild(l);
+  }
+  for (let y = 0; y < 900; y += 50) {
+    const l = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    l.setAttribute('x1', 0); l.setAttribute('y1', y); l.setAttribute('x2', 1600); l.setAttribute('y2', y);
+    l.setAttribute('class', y % 250 === 0 ? 'grid-line-major' : 'grid-line');
+    l.setAttribute('opacity', y % 250 === 0 ? '0.4' : '0.15');
+    g.appendChild(l);
+  }
+}
+
+function buildFloorPlan() {
+  const g = document.getElementById('floorLayer');
+  g.innerHTML = '';
+  const walls = [
+    [200,100,1400,100],[1400,100,1400,700],[1400,700,200,700],[200,700,200,100],
+    [200,350,500,350],[500,100,500,350],[500,250,700,250],
+    [700,100,700,350],[700,350,900,350],
+    [900,100,900,500],[900,500,1100,500],
+    [1100,300,1100,700],[1100,300,1400,300],
+    [200,550,500,550],[500,350,500,700],
+    [700,450,900,450],[700,350,700,600],[700,600,900,600],
+  ];
+  walls.forEach(([x1,y1,x2,y2]) => {
+    const l = document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x1);l.setAttribute('y1',y1);l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+    l.setAttribute('class','wall'); g.appendChild(l);
+  });
+  const rooms = [
+    [350,220,'厨房'],[600,180,'储物室'],[800,220,'机房'],
+    [350,450,'餐厅'],[600,500,'走廊'],[800,520,'服务区'],
+    [1000,200,'办公室'],[1250,200,'会议室'],
+    [350,640,'休息区'],[1250,500,'设备间'],
+  ];
+  rooms.forEach(([x,y,name]) => {
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x);t.setAttribute('y',y);t.setAttribute('class','room-label');t.textContent=name;
+    g.appendChild(t);
+  });
+}
+
+function buildCables() {
+  const g = document.getElementById('cableLayer');
+  g.innerHTML = '';
+  const cables = [
+    [[380,200],[380,420],[620,420]],
+    [[620,420],[620,500],[780,500]],
+    [[780,500],[900,500],[900,280],[1050,280]],
+    [[780,500],[780,600],[1000,600],[1200,600],[1200,420]],
+  ];
+  cables.forEach(pts => {
+    const p = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+    p.setAttribute('points',pts.map(p=>p.join(',')).join(' '));
+    p.setAttribute('class','cable'); g.appendChild(p);
+  });
+}
+
+function renderAntennaIcon(x, y, size) {
+  return `<g transform="translate(${x-size/2},${y-size/2})" filter="url(#iconShadow)">
+    <svg width="${size}" height="${size}" viewBox="0 0 64 64" overflow="hidden">
+      <path d="M16 28a16 8 0 1 1 32 0" fill="#22c55e" opacity=".1" stroke="#22c55e" stroke-width="2"/>
+      <path d="M16 28v4a16 8 0 0 0 32 0v-4" fill="none" stroke="#22c55e" stroke-width="2"/>
+      <path d="M24 20h16v8H24z" fill="#22c55e" opacity=".08" stroke="#22c55e" stroke-width="1"/>
+      <path d="M28 16h8v4h-8z" fill="#22c55e" opacity=".15" stroke="#22c55e" stroke-width="1"/>
+      <path d="M8 16h48" fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="4 3"/>
+      <path d="M22 38a14 6 0 0 0 20 0" fill="none" stroke="#4ade80" stroke-width="1" opacity=".4"/>
+      <path d="M18 42a20 8 0 0 0 28 0" fill="none" stroke="#4ade80" stroke-width=".8" opacity=".25"/>
+      <path d="M32 30a1.5 1.5 0 1 1 0-.01" fill="#22c55e" stroke="none"/>
+      <path d="M32 12v4" fill="none" stroke="#64748b" stroke-width="1.5"/>
+    </svg>
+  </g>`;
+}
+
+function buildDevices() {
+  const g = document.getElementById('deviceLayer');
+  g.innerHTML = '';
+  const sz = 48;
+  antennas.forEach(a => {
+    const dg = document.createElementNS('http://www.w3.org/2000/svg','g');
+    dg.innerHTML = renderAntennaIcon(a.x,a.y,sz);
+    const lblW = Math.max(a.name.length,(a.model||'').length)*10+12;
+    const bg = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bg.setAttribute('x',a.x-lblW/2);bg.setAttribute('y',a.y+sz/2+2);
+    bg.setAttribute('width',lblW);bg.setAttribute('height',28);bg.setAttribute('rx',4);
+    bg.setAttribute('fill','#0f172a');bg.setAttribute('opacity','0.8');dg.appendChild(bg);
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x',a.x);lbl.setAttribute('y',a.y+sz/2+16);lbl.setAttribute('class','device-label');lbl.textContent=a.name;dg.appendChild(lbl);
+    if(a.model){const sl=document.createElementNS('http://www.w3.org/2000/svg','text');sl.setAttribute('x',a.x);sl.setAttribute('y',a.y+sz/2+26);sl.setAttribute('class','device-sublabel');sl.textContent=a.model;dg.appendChild(sl)}
+    g.appendChild(dg);
+  });
+  devices.forEach(d => {
+    const dg = document.createElementNS('http://www.w3.org/2000/svg','g');
+    const r = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    r.setAttribute('x',d.x-20);r.setAttribute('y',d.y-20);r.setAttribute('width',40);r.setAttribute('height',40);
+    r.setAttribute('rx',6);r.setAttribute('fill',d.color);r.setAttribute('opacity','0.12');
+    r.setAttribute('stroke',d.color);r.setAttribute('stroke-width','1.5');dg.appendChild(r);
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x',d.x);lbl.setAttribute('y',d.y+36);lbl.setAttribute('class','device-label');lbl.textContent=d.name;dg.appendChild(lbl);
+    g.appendChild(dg);
+  });
+}
+
+// Create a circular arc path for textPath (clockwise, starting from right side)
+function circlePathD(cx, cy, r) {
+  return `M ${cx+r},${cy} A ${r},${r} 0 1,1 ${cx+r-0.001},${cy}`;
+}
+
+function updateCoverage() {
+  const g = document.getElementById('coverageLayer');
+  g.innerHTML = '';
+
+  // Clear old defs paths
+  const defs = svgEl.querySelector('defs');
+  defs.querySelectorAll('.cov-path').forEach(p => p.remove());
+
+  const showGlobal = document.getElementById('toggleCoverage').checked;
+  const showAntenna = document.getElementById('antennaCovToggle').checked;
+  const r1 = parseInt(document.getElementById('r1').value) || 15;
+  const r2 = parseInt(document.getElementById('r2').value) || 30;
+  const r3 = parseInt(document.getElementById('r3').value) || 100;
+  const scheme = document.getElementById('colorScheme').value;
+  const colors = COLOR_SCHEMES[scheme];
+
+  // Update legend
+  document.getElementById('leg1').textContent = `强信号 ${r1}m`;
+  document.getElementById('leg2').textContent = `中等信号 ${r2}m`;
+  document.getElementById('leg3').textContent = `弱信号 ${r3}m`;
+  document.getElementById('legDot1').style.background = colors[0].color;
+  document.getElementById('legDot2').style.background = colors[1].color;
+  document.getElementById('legDot3').style.background = colors[2].color;
+  document.getElementById('dot1').style.background = colors[0].color;
+  document.getElementById('dot2').style.background = colors[1].color;
+  document.getElementById('dot3').style.background = colors[2].color;
+
+  if (!showGlobal) return;
+
+  const ringDefs = [
+    { m: r3, label: `${r3}m`, ...colors[2] },
+    { m: r2, label: `${r2}m`, ...colors[1] },
+    { m: r1, label: `${r1}m`, ...colors[0] },
+  ];
+
+  antennas.forEach((a, ai) => {
+    const show = ai === 0 ? showAntenna : a.showCoverage;
+    if (!show) return;
+
+    ringDefs.forEach((ring, ri) => {
+      const px = ring.m * PPM;
+
+      // Filled circle
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', a.x);
+      circle.setAttribute('cy', a.y);
+      circle.setAttribute('r', px);
+      circle.setAttribute('fill', ring.color);
+      circle.setAttribute('fill-opacity', ring.fillOpacity);
+      circle.setAttribute('stroke', ring.color);
+      circle.setAttribute('stroke-opacity', ring.strokeOpacity);
+      circle.setAttribute('stroke-width', ring.strokeWidth);
+      g.appendChild(circle);
+
+      // Text path for label along the circle
+      const pathId = `covPath_${ai}_${ri}_${_pathIdCounter++}`;
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('id', pathId);
+      pathEl.setAttribute('class', 'cov-path');
+      pathEl.setAttribute('d', circlePathD(a.x, a.y, px));
+      pathEl.setAttribute('fill', 'none');
+      defs.appendChild(pathEl);
+
+      // Label text following the circle
+      const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      textEl.setAttribute('class', 'coverage-label');
+      textEl.setAttribute('fill', ring.color);
+      textEl.setAttribute('fill-opacity', Math.min(ring.strokeOpacity + 0.3, 1));
+
+      const textPath = document.createElementNS('http://www.w3.org/2000/svg', 'textPath');
+      textPath.setAttributeNS('http://www.w3.org/1999/xlink', 'href', '#' + pathId);
+      // Position label at ~5% along the circle (near top-right area)
+      const circumference = 2 * Math.PI * px;
+      const offsetPercent = 92; // top area
+      textPath.setAttribute('startOffset', offsetPercent + '%');
+      textPath.setAttribute('text-anchor', 'middle');
+      textPath.textContent = ring.label;
+      textEl.appendChild(textPath);
+      g.appendChild(textEl);
+    });
+  });
+}
+
+// Pan & Zoom
+let viewX = -200, viewY = -50, zoom = 0.85;
+let isPanning = false, panStartX, panStartY;
+
+function updateView() {
+  document.getElementById('world').setAttribute('transform', `translate(${viewX},${viewY}) scale(${zoom})`);
+}
+
+svgEl.addEventListener('wheel', e => {
+  e.preventDefault();
+  const oldZoom = zoom;
+  zoom *= e.deltaY > 0 ? 0.92 : 1.08;
+  zoom = Math.max(0.1, Math.min(3, zoom));
+  const rect = svgEl.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  viewX = mx - (mx - viewX) * (zoom / oldZoom);
+  viewY = my - (my - viewY) * (zoom / oldZoom);
+  updateView();
+});
+
+svgEl.addEventListener('mousedown', e => {
+  if (e.button === 0) { isPanning = true; panStartX = e.clientX - viewX; panStartY = e.clientY - viewY; svgEl.style.cursor = 'grabbing'; }
+});
+svgEl.addEventListener('mousemove', e => {
+  if (isPanning) { viewX = e.clientX - panStartX; viewY = e.clientY - panStartY; updateView(); }
+});
+svgEl.addEventListener('mouseup', () => { isPanning = false; svgEl.style.cursor = 'grab'; });
+svgEl.addEventListener('mouseleave', () => { isPanning = false; svgEl.style.cursor = 'grab'; });
+svgEl.style.cursor = 'grab';
+
+buildGrid();
+buildFloorPlan();
+buildCables();
+buildDevices();
+updateCoverage();
+updateView();
+</script>
+</body>
+</html>

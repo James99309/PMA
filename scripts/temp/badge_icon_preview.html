@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>负责人徽章 + 状态图标 设计预览</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; padding: 40px; color: #334155; }
+h1 { font-size: 20px; margin-bottom: 8px; }
+.subtitle { color: #94a3b8; font-size: 13px; margin-bottom: 32px; }
+.section { background: #fff; border-radius: 12px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+.section-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; color: #1e293b; }
+.section-desc { font-size: 12px; color: #94a3b8; margin-bottom: 20px; }
+.row { display: flex; align-items: center; gap: 40px; flex-wrap: wrap; }
+.demo-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.demo-label { font-size: 11px; color: #94a3b8; }
+
+/* ---- 徽章基础 ---- */
+.badge { width: 32px; height: 32px; border-radius: 50%; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; }
+.badge.green  { background: #bbf7d0; color: #16a34a; }
+.badge.purple { background: #e9d5ff; color: #9333ea; }
+.badge.blue   { background: #bfdbfe; color: #2563eb; }
+.badge.teal   { background: #99f6e4; color: #0d9488; }
+.badge.yellow { background: #fef08a; color: #ca8a04; }
+.badge.red    { background: #fecaca; color: #dc2626; }
+
+/* ============================================
+   方案 A: 小圆点 indicator（类似消息通知红点）
+   ============================================ */
+.badge .indicator {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+}
+.badge .indicator .material-symbols-outlined {
+    font-size: 10px;
+    font-variation-settings: 'FILL' 1;
+}
+.badge .indicator.lock {
+    background: #fef3c7;
+}
+.badge .indicator.lock .material-symbols-outlined {
+    color: #d97706;
+}
+.badge .indicator.pending {
+    background: #fef3c7;
+}
+.badge .indicator.pending .material-symbols-outlined {
+    color: #d97706;
+    animation: pulse-icon 1.5s ease-in-out infinite;
+}
+
+/* ============================================
+   方案 B: 半透明遮罩 + 居中图标
+   ============================================ */
+.badge-overlay {
+    position: relative;
+    display: inline-flex;
+}
+.badge-overlay .overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(255,255,255,.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.badge-overlay .overlay .material-symbols-outlined {
+    font-size: 16px;
+    font-variation-settings: 'FILL' 1;
+}
+.badge-overlay .overlay.lock .material-symbols-outlined {
+    color: #d97706;
+}
+.badge-overlay .overlay.pending .material-symbols-outlined {
+    color: #d97706;
+    animation: pulse-icon 1.5s ease-in-out infinite;
+}
+
+/* ============================================
+   方案 C: 底部横条标签
+   ============================================ */
+.badge-tag-wrap {
+    position: relative;
+    display: inline-flex;
+}
+.badge-tag-wrap .tag {
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fbbf24;
+    color: #fff;
+    border-radius: 6px;
+    padding: 0 4px;
+    height: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid #fff;
+    white-space: nowrap;
+}
+.badge-tag-wrap .tag .material-symbols-outlined {
+    font-size: 9px;
+    font-variation-settings: 'FILL' 1;
+}
+.badge-tag-wrap .tag.pending .material-symbols-outlined {
+    animation: pulse-icon 1.5s ease-in-out infinite;
+}
+
+/* ============================================
+   方案 D: 环形边框指示（推荐）
+   ============================================ */
+.badge-ring {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+.badge-ring.locked {
+    border: 2px dashed #f59e0b;
+}
+.badge-ring.pending {
+    border: 2px dashed #f59e0b;
+    animation: rotate-border 8s linear infinite;
+}
+.badge-ring .badge {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+}
+.badge-ring .dot {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fbbf24;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+}
+.badge-ring .dot .material-symbols-outlined {
+    font-size: 9px;
+    color: #fff;
+    font-variation-settings: 'FILL' 1;
+}
+.badge-ring.pending .dot .material-symbols-outlined {
+    animation: pulse-icon 1.5s ease-in-out infinite;
+}
+
+/* ============================================
+   表格模拟
+   ============================================ */
+table.preview { width: 100%; border-collapse: collapse; }
+table.preview th { text-align: left; font-size: 12px; color: #94a3b8; font-weight: 500; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+table.preview td { padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; font-size: 13px; color: #475569; }
+table.preview tr.restricted { cursor: pointer; }
+table.preview tr.restricted:hover { background: #fffbeb; }
+table.preview tr.pending-row { border-left: 2px solid #fbbf24; }
+.type-badge { display: inline-block; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; }
+.type-badge.user { background: #eff6ff; color: #2563eb; }
+.type-badge.advisor { background: #faf5ff; color: #9333ea; }
+.type-badge.mfg { background: #f0fdf4; color: #16a34a; }
+.name-with-badge { display: flex; align-items: center; gap: 10px; }
+
+@keyframes pulse-icon {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+}
+@keyframes rotate-border {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+</style>
+</head>
+<body>
+
+<h1>负责人徽章 + 锁/沙漏 状态图标设计</h1>
+<p class="subtitle">4 种方案对比，含表格实际效果模拟</p>
+
+<!-- 方案 A -->
+<div class="section">
+    <div class="section-title">方案 A: 通知圆点（Notification Dot）</div>
+    <div class="section-desc">右下角小圆点内嵌微型图标，类似 App 通知角标。轻量不遮挡文字，辨识度高。</div>
+    <div class="row">
+        <div class="demo-item">
+            <div class="badge green">管理<div class="indicator lock"><span class="material-symbols-outlined">lock</span></div></div>
+            <div class="demo-label">受限（锁）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge green">管理<div class="indicator pending"><span class="material-symbols-outlined">hourglass_top</span></div></div>
+            <div class="demo-label">申请中（沙漏）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge purple">郭小<div class="indicator lock"><span class="material-symbols-outlined">lock</span></div></div>
+            <div class="demo-label">受限（锁）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge blue">李华</div>
+            <div class="demo-label">正常（无图标）</div>
+        </div>
+    </div>
+</div>
+
+<!-- 方案 B -->
+<div class="section">
+    <div class="section-title">方案 B: 半透明遮罩</div>
+    <div class="section-desc">整个徽章叠加半透明白色遮罩 + 居中图标。视觉冲击力强，明确表示"不可用"。</div>
+    <div class="row">
+        <div class="demo-item">
+            <div class="badge-overlay">
+                <div class="badge green">管理</div>
+                <div class="overlay lock"><span class="material-symbols-outlined">lock</span></div>
+            </div>
+            <div class="demo-label">受限（锁）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge-overlay">
+                <div class="badge green">管理</div>
+                <div class="overlay pending"><span class="material-symbols-outlined">hourglass_top</span></div>
+            </div>
+            <div class="demo-label">申请中（沙漏）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge-overlay">
+                <div class="badge purple">郭小</div>
+                <div class="overlay lock"><span class="material-symbols-outlined">lock</span></div>
+            </div>
+            <div class="demo-label">受限（锁）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge blue">李华</div>
+            <div class="demo-label">正常（无图标）</div>
+        </div>
+    </div>
+</div>
+
+<!-- 方案 C -->
+<div class="section">
+    <div class="section-title">方案 C: 底部标签（Mini Tag）</div>
+    <div class="section-desc">底部居中小标签，琥珀色底 + 白色图标。紧凑且不覆盖文字。</div>
+    <div class="row">
+        <div class="demo-item">
+            <div class="badge-tag-wrap">
+                <div class="badge green">管理</div>
+                <div class="tag"><span class="material-symbols-outlined">lock</span></div>
+            </div>
+            <div class="demo-label">受限（锁）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge-tag-wrap">
+                <div class="badge green">管理</div>
+                <div class="tag pending"><span class="material-symbols-outlined">hourglass_top</span></div>
+            </div>
+            <div class="demo-label">申请中（沙漏）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge-tag-wrap">
+                <div class="badge purple">郭小</div>
+                <div class="tag"><span class="material-symbols-outlined">lock</span></div>
+            </div>
+            <div class="demo-label">受限（锁）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge blue">李华</div>
+            <div class="demo-label">正常（无图标）</div>
+        </div>
+    </div>
+</div>
+
+<!-- 方案 D -->
+<div class="section">
+    <div class="section-title">方案 D: 虚线环 + 圆点（Ring + Dot）</div>
+    <div class="section-desc">虚线环框暗示"受限"状态，右下角实心圆点显示具体图标。沙漏时环缓慢旋转。</div>
+    <div class="row">
+        <div class="demo-item">
+            <div class="badge-ring locked">
+                <div class="badge green">管理</div>
+                <div class="dot"><span class="material-symbols-outlined">lock</span></div>
+            </div>
+            <div class="demo-label">受限（锁）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge-ring pending">
+                <div class="badge green">管理</div>
+                <div class="dot"><span class="material-symbols-outlined">hourglass_top</span></div>
+            </div>
+            <div class="demo-label">申请中（沙漏）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge-ring locked">
+                <div class="badge purple">郭小</div>
+                <div class="dot"><span class="material-symbols-outlined">lock</span></div>
+            </div>
+            <div class="demo-label">受限（锁）</div>
+        </div>
+        <div class="demo-item">
+            <div class="badge blue">李华</div>
+            <div class="demo-label">正常（无图标）</div>
+        </div>
+    </div>
+</div>
+
+<!-- 表格实际效果 -->
+<div class="section">
+    <div class="section-title">表格实际效果模拟（方案 A）</div>
+    <div class="section-desc">模拟企业列表中的实际显示效果</div>
+    <table class="preview">
+        <thead>
+            <tr><th>负责人</th><th>企业名称</th><th>企业类型</th><th>行业</th><th>来源</th></tr>
+        </thead>
+        <tbody>
+            <tr class="restricted">
+                <td><div class="badge green">管理<div class="indicator lock"><span class="material-symbols-outlined">lock</span></div></div></td>
+                <td>上海外滩经贸公司</td>
+                <td><span class="type-badge user">用户</span></td>
+                <td><span class="type-badge mfg">制造</span></td>
+                <td style="color:#94a3b8">-</td>
+            </tr>
+            <tr class="pending-row">
+                <td><div class="badge green">管理<div class="indicator pending"><span class="material-symbols-outlined">hourglass_top</span></div></div></td>
+                <td>上海建筑工程公司</td>
+                <td><span class="type-badge advisor">顾问</span></td>
+                <td><span class="type-badge mfg">制造</span></td>
+                <td style="color:#94a3b8">-</td>
+            </tr>
+            <tr class="restricted">
+                <td><div class="badge purple">郭小<div class="indicator lock"><span class="material-symbols-outlined">lock</span></div></div></td>
+                <td>巴马丹拿建筑设计咨询(上海)有...</td>
+                <td><span class="type-badge advisor">顾问</span></td>
+                <td style="color:#94a3b8">-</td>
+                <td style="color:#94a3b8">-</td>
+            </tr>
+            <tr>
+                <td><div class="badge red">李华</div></td>
+                <td style="color:#2563eb; font-weight:500;">上海章城酒店</td>
+                <td><span class="type-badge user">用户</span></td>
+                <td><span class="type-badge" style="background:#fef2f2;color:#dc2626">酒店</span></td>
+                <td><span class="type-badge" style="background:#eff6ff;color:#2563eb">市场</span></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- 表格实际效果 方案 B -->
+<div class="section">
+    <div class="section-title">表格实际效果模拟（方案 B）</div>
+    <div class="section-desc">遮罩方案在列表中的效果</div>
+    <table class="preview">
+        <thead>
+            <tr><th>负责人</th><th>企业名称</th><th>企业类型</th><th>行业</th><th>来源</th></tr>
+        </thead>
+        <tbody>
+            <tr class="restricted">
+                <td><div class="badge-overlay"><div class="badge green">管理</div><div class="overlay lock"><span class="material-symbols-outlined">lock</span></div></div></td>
+                <td>上海外滩经贸公司</td>
+                <td><span class="type-badge user">用户</span></td>
+                <td><span class="type-badge mfg">制造</span></td>
+                <td style="color:#94a3b8">-</td>
+            </tr>
+            <tr class="pending-row">
+                <td><div class="badge-overlay"><div class="badge green">管理</div><div class="overlay pending"><span class="material-symbols-outlined">hourglass_top</span></div></div></td>
+                <td>上海建筑工程公司</td>
+                <td><span class="type-badge advisor">顾问</span></td>
+                <td><span class="type-badge mfg">制造</span></td>
+                <td style="color:#94a3b8">-</td>
+            </tr>
+            <tr class="restricted">
+                <td><div class="badge-overlay"><div class="badge purple">郭小</div><div class="overlay lock"><span class="material-symbols-outlined">lock</span></div></div></td>
+                <td>巴马丹拿建筑设计咨询(上海)有...</td>
+                <td><span class="type-badge advisor">顾问</span></td>
+                <td style="color:#94a3b8">-</td>
+                <td style="color:#94a3b8">-</td>
+            </tr>
+            <tr>
+                <td><div class="badge red">李华</div></td>
+                <td style="color:#2563eb; font-weight:500;">上海章城酒店</td>
+                <td><span class="type-badge user">用户</span></td>
+                <td><span class="type-badge" style="background:#fef2f2;color:#dc2626">酒店</span></td>
+                <td><span class="type-badge" style="background:#eff6ff;color:#2563eb">市场</span></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+</body>
+</html>

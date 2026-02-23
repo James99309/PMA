@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMA 业务星图</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  overflow: hidden; height: 100vh; width: 100vw;
+  font-family: -apple-system, 'PingFang SC', sans-serif;
+  cursor: default; background: #080b18;
+}
+canvas#nebula { position: fixed; top: 0; left: 0; z-index: 0; }
+svg#graph { position: fixed; top: 0; left: 0; z-index: 1; }
+.panel {
+  position: fixed; z-index: 10;
+  background: rgba(10, 14, 30, 0.7); backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; color: #dde4f0;
+}
+.info-panel { top: 24px; left: 24px; padding: 18px 22px; min-width: 260px; }
+.info-panel .label {
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(255,255,255,0.3); margin-bottom: 10px;
+}
+.info-panel .title { font-size: 18px; font-weight: 600; margin-bottom: 6px; color: #fff; }
+.info-panel .meta { font-size: 12px; color: rgba(255,255,255,0.4); line-height: 1.7; }
+.info-panel .meta b { color: rgba(255,255,255,0.7); font-weight: 500; }
+.breadcrumb {
+  top: 24px; left: 50%; transform: translateX(-50%);
+  padding: 7px 18px; display: flex; align-items: center; gap: 6px; font-size: 12px;
+}
+.bc-item { color: rgba(255,255,255,0.35); cursor: pointer; transition: color .2s; }
+.bc-item:hover { color: rgba(255,255,255,0.8); }
+.bc-item.active { color: #fff; cursor: default; }
+.bc-sep { color: rgba(255,255,255,0.15); font-size: 9px; }
+.legend-panel { bottom: 24px; left: 24px; padding: 14px 18px; font-size: 11px; }
+.legend-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; color: rgba(255,255,255,0.45); }
+.legend-row:last-child { margin-bottom: 0; }
+.legend-star { width: 8px; height: 8px; border-radius: 50%; }
+.lg { width: 12px; height: 12px; }
+.lm { width: 9px; height: 9px; }
+.ls { width: 6px; height: 6px; }
+.hint-panel {
+  bottom: 24px; right: 24px; padding: 12px 16px;
+  font-size: 11px; color: rgba(255,255,255,0.3); line-height: 1.8;
+}
+.hint-panel kbd {
+  background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px; padding: 1px 5px; font-family: inherit; font-size: 10px;
+}
+.tooltip {
+  position: fixed; z-index: 20;
+  background: rgba(10,14,30,0.88); backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+  padding: 10px 14px; pointer-events: none;
+  opacity: 0; transition: opacity 0.15s; max-width: 280px; color: #dde4f0;
+}
+.tooltip.show { opacity: 1; }
+.tooltip .t-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.tooltip .t-type { font-size: 10px; color: rgba(255,255,255,0.35); margin-bottom: 6px; }
+.tooltip .t-detail { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.5; }
+.search-box { position: fixed; top: 24px; right: 24px; z-index: 10; }
+.search-box input {
+  background: rgba(10,14,30,0.7); backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 20px;
+  padding: 8px 16px 8px 36px; color: #fff; font-size: 12px;
+  width: 200px; outline: none; transition: all .3s;
+}
+.search-box input:focus { border-color: rgba(255,255,255,0.2); width: 260px; }
+.search-box input::placeholder { color: rgba(255,255,255,0.25); }
+.search-box svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); opacity: 0.35; }
+
+/* ★ 确认对话框 — 匹配星空风格 */
+.confirm-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(4,6,16,0.6); backdrop-filter: blur(6px);
+  z-index: 100; display: none; align-items: center; justify-content: center;
+}
+.confirm-overlay.show { display: flex; }
+.confirm-dialog {
+  background: rgba(12,16,36,0.92); backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;
+  padding: 28px 32px; min-width: 300px; max-width: 400px;
+  text-align: center; color: #dde4f0;
+  box-shadow: 0 0 40px rgba(80,100,200,0.15), 0 0 80px rgba(60,40,120,0.1);
+}
+.confirm-dialog .cd-title {
+  font-size: 15px; font-weight: 600; margin-bottom: 8px; color: #fff;
+}
+.confirm-dialog .cd-sub {
+  font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 20px; line-height: 1.6;
+}
+.confirm-dialog .cd-btns { display: flex; gap: 12px; justify-content: center; }
+.confirm-dialog .cd-btn {
+  padding: 7px 22px; border-radius: 8px; font-size: 12px;
+  border: 1px solid rgba(255,255,255,0.12); cursor: pointer;
+  transition: all .2s; background: transparent; color: rgba(255,255,255,0.6);
+}
+.confirm-dialog .cd-btn:hover {
+  background: rgba(255,255,255,0.06); color: #fff;
+}
+.confirm-dialog .cd-btn.primary {
+  background: rgba(100,130,220,0.25); border-color: rgba(120,150,240,0.3);
+  color: rgba(180,200,255,0.9);
+}
+.confirm-dialog .cd-btn.primary:hover {
+  background: rgba(100,130,220,0.4); color: #fff;
+}
+</style>
+</head>
+<body>
+<canvas id="nebula"></canvas>
+<svg id="graph"></svg>
+
+<div class="panel info-panel">
+  <div class="label">业务星图</div>
+  <div class="title" id="infoTitle">华东数据中心项目</div>
+  <div class="meta" id="infoMeta">点击星点展开关联 · 双击切换视角</div>
+</div>
+<div class="panel breadcrumb" id="breadcrumb">
+  <span class="bc-item active">华东数据中心项目</span>
+</div>
+<div class="panel legend-panel">
+  <div class="legend-row"><div class="legend-star lg" style="background:#fff;box-shadow:0 0 8px 3px rgba(180,200,255,0.8)"></div>项目</div>
+  <div class="legend-row"><div class="legend-star lm" style="background:#d0dcff;box-shadow:0 0 5px 2px rgba(160,180,255,0.6)"></div>企业</div>
+  <div class="legend-row"><div class="legend-star lm" style="background:#ffdca0;box-shadow:0 0 5px 2px rgba(255,220,160,0.6)"></div>报价单</div>
+  <div class="legend-row"><div class="legend-star ls" style="background:#b4d2f5;box-shadow:0 0 3px 1px rgba(180,210,245,0.5)"></div>联系人</div>
+  <div class="legend-row"><div class="legend-star ls" style="background:#e8dcc0;box-shadow:0 0 3px 1px rgba(255,230,180,0.5)"></div>内部成员</div>
+  <div class="legend-row"><div class="legend-star ls" style="background:#b0c8e8;box-shadow:0 0 2px 1px rgba(176,200,232,0.4)"></div>工作活动</div>
+  <div class="legend-row"><div class="legend-star ls" style="background:#b4e6c8;box-shadow:0 0 2px 1px rgba(180,230,200,0.4)"></div>任务</div>
+  <div class="legend-row"><div class="legend-star ls" style="background:#c8b4e6;box-shadow:0 0 2px 1px rgba(200,180,230,0.4)"></div>产品</div>
+</div>
+<div class="panel hint-panel">
+  <kbd>点击</kbd> 展开关联 &nbsp; <kbd>双击</kbd> 切换中心<br>
+  <kbd>滚轮</kbd> 缩放 &nbsp; <kbd>拖拽</kbd> 移动<br>
+  已探索的路径始终保持亮度
+</div>
+<div class="search-box">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+  <input type="text" id="searchInput" placeholder="搜索节点...">
+</div>
+<div class="tooltip" id="tooltip">
+  <div class="t-name"></div><div class="t-type"></div><div class="t-detail"></div>
+</div>
+
+<!-- ★ 确认对话框 -->
+<div class="confirm-overlay" id="confirmOverlay">
+  <div class="confirm-dialog">
+    <div class="cd-title" id="confirmTitle">切换中心项目？</div>
+    <div class="cd-sub" id="confirmSub">将以此项目为中心重新展开星图</div>
+    <div class="cd-btns">
+      <button class="cd-btn" id="confirmCancel">取消</button>
+      <button class="cd-btn primary" id="confirmOk">确认切换</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 星空背景
+// ============================================================
+const W = window.innerWidth, H = window.innerHeight;
+const nebulaCanvas = document.getElementById('nebula');
+nebulaCanvas.width = W; nebulaCanvas.height = H;
+const nctx = nebulaCanvas.getContext('2d');
+
+function paintNebula() {
+  nctx.fillStyle = '#080b18'; nctx.fillRect(0,0,W,H);
+  [
+    { x:W*0.15,y:H*0.3,r:W*0.45,c:['rgba(80,40,120,0.18)','rgba(40,20,80,0.06)','transparent'] },
+    { x:W*0.7,y:H*0.25,r:W*0.5,c:['rgba(30,50,130,0.2)','rgba(20,30,90,0.08)','transparent'] },
+    { x:W*0.5,y:H*0.7,r:W*0.4,c:['rgba(60,30,100,0.12)','rgba(30,20,70,0.04)','transparent'] },
+    { x:W*0.85,y:H*0.65,r:W*0.35,c:['rgba(40,50,140,0.15)','rgba(25,30,100,0.05)','transparent'] },
+    { x:W*0.3,y:H*0.8,r:W*0.3,c:['rgba(90,40,110,0.1)','rgba(50,25,75,0.03)','transparent'] },
+  ].forEach(n => {
+    const g = nctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);
+    g.addColorStop(0,n.c[0]); g.addColorStop(0.5,n.c[1]); g.addColorStop(1,n.c[2]);
+    nctx.fillStyle = g; nctx.fillRect(0,0,W,H);
+  });
+  nctx.save(); nctx.translate(W*0.1,H*0.9); nctx.rotate(-0.6);
+  const mg = nctx.createLinearGradient(0,-80,0,80);
+  mg.addColorStop(0,'transparent'); mg.addColorStop(0.3,'rgba(120,100,160,0.06)');
+  mg.addColorStop(0.5,'rgba(140,120,180,0.09)'); mg.addColorStop(0.7,'rgba(120,100,160,0.06)');
+  mg.addColorStop(1,'transparent');
+  nctx.fillStyle = mg; nctx.fillRect(-100,-120,W*1.6,240); nctx.restore();
+}
+const bgStars = Array.from({length:500},()=>({
+  x:Math.random()*W, y:Math.random()*H,
+  r:Math.random()<0.92?Math.random()*0.8+0.2:Math.random()*1.5+0.8,
+  base:Math.random()*0.4+0.15, speed:Math.random()*0.015+0.003,
+  phase:Math.random()*Math.PI*2, hasCross:Math.random()<0.04,
+}));
+function animateBg() {
+  nctx.clearRect(0,0,W,H); paintNebula();
+  const t = Date.now()/1000;
+  bgStars.forEach(s=>{
+    const f=Math.sin(t*s.speed*8+s.phase)*0.25+0.75, a=s.base*f;
+    nctx.beginPath(); nctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    nctx.fillStyle=`rgba(200,210,255,${a})`; nctx.fill();
+    if(s.hasCross){
+      const len=s.r*6*f;
+      nctx.strokeStyle=`rgba(210,220,255,${a*0.3})`; nctx.lineWidth=0.5;
+      nctx.beginPath(); nctx.moveTo(s.x-len,s.y); nctx.lineTo(s.x+len,s.y);
+      nctx.moveTo(s.x,s.y-len); nctx.lineTo(s.x,s.y+len); nctx.stroke();
+    }
+  });
+  requestAnimationFrame(animateBg);
+}
+animateBg();
+
+// ============================================================
+// 数据 — 星点大小：项目>企业>人
+// ============================================================
+const ALL_NODES = {}, ALL_LINKS = [];
+const BASE_R = { project: 10, company: 6, quotation: 5, contact: 2.8, member: 3, workitem: 2.2, task: 2.5, product: 2 };
+
+function addNode(id,name,nodeType,extra={}){ ALL_NODES[id]={id,name,nodeType,...extra}; }
+function link(s,t,label){ ALL_LINKS.push({source:s,target:t,label:label||''}); }
+
+// --- 项目 ---
+addNode('p1','华东数据中心项目','project',{stage:'投标中',amount:'¥285万'});
+addNode('p2','深圳智慧园区项目','project',{stage:'已中标',amount:'¥520万'});
+addNode('p3','成都医院扩建项目','project',{stage:'方案阶段',amount:'¥180万'});
+addNode('p4','上海金融中心改造','project',{stage:'跟进中',amount:'¥390万'});
+
+// --- 企业 ---
+addNode('c1','华东云计算科技','company',{role:'终端用户'}); addNode('c2','国信达集成系统','company',{role:'集成商'});
+addNode('c3','恒通科技经销','company',{role:'经销商'}); addNode('c4','远东设计研究院','company',{role:'设计院'});
+addNode('c5','深圳万科地产','company',{role:'终端用户'}); addNode('c6','中建三局','company',{role:'集成商'});
+addNode('c7','成都华西医院','company',{role:'终端用户'}); addNode('c8','上海浦发银行','company',{role:'终端用户'});
+
+// --- 联系人 ---
+addNode('ct1','张总监','contact',{position:'技术总监',parentCompany:'c1'});
+addNode('ct2','李工','contact',{position:'项目经理',parentCompany:'c1'});
+addNode('ct3','王经理','contact',{position:'销售经理',parentCompany:'c2'});
+addNode('ct4','赵总','contact',{position:'总经理',parentCompany:'c3'});
+addNode('ct5','钱工','contact',{position:'主任工程师',parentCompany:'c4'});
+addNode('ct6','孙总','contact',{position:'采购总监',parentCompany:'c5'});
+addNode('ct7','周经理','contact',{position:'项目经理',parentCompany:'c6'});
+addNode('ct8','吴院长','contact',{position:'副院长',parentCompany:'c7'});
+addNode('ct9','陈经理','contact',{position:'IT经理',parentCompany:'c8'});
+addNode('ct10','林工','contact',{position:'技术经理',parentCompany:'c2'});
+
+// --- 内部成员 ---
+addNode('m1','刘明','member',{role:'销售负责人',dept:'华东区'});
+addNode('m2','陈华','member',{role:'解决方案经理',dept:'技术部'});
+addNode('m3','黄磊','member',{role:'产品经理',dept:'产品部'});
+addNode('m4','杨洋','member',{role:'售前工程师',dept:'技术部'});
+
+// --- 报价单（从 event 中拆分出来）---
+addNode('q1','QU202602-003','quotation',{amount:'¥285万',status:'待确认',date:'02-10',detail:'UPS+配电方案'});
+addNode('q2','QU202601-012','quotation',{amount:'¥520万',status:'已确认',date:'01-20',detail:'智慧园区整体方案'});
+addNode('q3','QU202602-008','quotation',{amount:'¥180万',status:'草稿',date:'02-14',detail:'医院UPS扩容方案'});
+
+// --- 工作活动（替代 event，对应 WorkItem）---
+addNode('w1','拜访华东云计算','workitem',{workType:'客户拜访',date:'02-15',detail:'需求沟通，讨论UPS方案'});
+addNode('w2','与张总监电话','workitem',{workType:'电话沟通',date:'02-12',detail:'确认项目预算和时间节点'});
+addNode('w3','技术方案评审会','workitem',{workType:'内部会议',date:'02-08',detail:'内部方案评审'});
+addNode('w4','拜访国信达','workitem',{workType:'客户拜访',date:'02-06',detail:'集成合作讨论'});
+addNode('w5','与赵总午餐','workitem',{workType:'商务宴请',date:'02-14',detail:'渠道价格协商'});
+addNode('w6','现场勘察','workitem',{workType:'现场勘察',date:'02-16',detail:'深圳园区现场测量'});
+addNode('w7','与孙总视频会议','workitem',{workType:'视频会议',date:'02-17',detail:'确认交付时间'});
+
+// --- 任务 ---
+addNode('t1','准备招标文件','task',{assignee:'刘明',status:'进行中',dueDate:'02-20',detail:'整理技术规格书和商务标'});
+addNode('t2','编制预算清单','task',{assignee:'黄磊',status:'待开始',dueDate:'02-22',detail:'产品选型和价格汇总'});
+addNode('t3','安排样品寄送','task',{assignee:'杨洋',status:'已完成',dueDate:'02-10',detail:'寄送UPS样机到客户现场'});
+
+// --- 产品（可选，通过报价关联）---
+addNode('pd1','Galaxy VX 500kVA','product',{category:'UPS',brand:'施耐德'});
+addNode('pd2','Symmetra PX 250kW','product',{category:'UPS',brand:'施耐德'});
+addNode('pd3','NetShelter SX 42U','product',{category:'机柜',brand:'APC'});
+
+// ============================================================
+// 关系
+// ============================================================
+// --- 项目 ↔ 企业（含角色）---
+link('p1','c1','终端用户'); link('p1','c2','集成商'); link('p1','c3','经销商'); link('p1','c4','设计院');
+link('c5','p2','终端用户'); link('c6','p2','集成商'); link('c2','p2','集成商');
+link('c7','p3','终端用户'); link('c8','p4','终端用户'); link('c2','p4','集成商');
+
+// --- 项目 ↔ 成员 ---
+link('p1','m1','销售负责'); link('p1','m2','方案支持'); link('p1','m3','产品支持');
+link('m1','p2','销售负责'); link('m2','p3','方案支持'); link('m4','p2','售前支持'); link('m4','p4','售前支持');
+
+// --- 企业 → 联系人 ---
+link('c1','ct1'); link('c1','ct2'); link('c2','ct3'); link('c2','ct10');
+link('c3','ct4'); link('c4','ct5'); link('c5','ct6'); link('c6','ct7');
+link('c7','ct8'); link('c8','ct9');
+
+// --- 项目 → 报价单 ---
+link('p1','q1','报价'); link('p2','q2','报价'); link('p3','q3','报价');
+
+// --- 报价单 → 企业/联系人/负责人 ---
+link('q1','c1','客户'); link('q1','ct1','联系人'); link('q1','m1','负责人');
+link('q2','c5','客户'); link('q2','ct6','联系人'); link('q2','m1','负责人');
+link('q3','c7','客户'); link('q3','ct8','联系人'); link('q3','m2','负责人');
+
+// --- 报价单 → 产品 ---
+link('q1','pd1','包含'); link('q1','pd3','包含');
+link('q2','pd2','包含'); link('q2','pd3','包含');
+link('q3','pd1','包含');
+
+// --- 工作活动 → 项目/企业/联系人/负责人 ---
+link('w1','p1','相关项目'); link('w1','c1','拜访客户'); link('w1','ct1','联系人'); link('w1','m1','负责人');
+link('w2','p1','相关项目'); link('w2','ct1','联系人'); link('w2','m1','负责人');
+link('w3','p1','相关项目'); link('w3','m2','组织人');
+link('w4','c2','拜访客户'); link('w4','ct3','联系人'); link('w4','m1','负责人');
+link('w5','c3','拜访客户'); link('w5','ct4','联系人'); link('w5','m1','负责人');
+link('w6','p2','相关项目'); link('w6','c5','拜访客户'); link('w6','ct6','联系人'); link('w6','m4','负责人');
+link('w7','p2','相关项目'); link('w7','ct6','联系人'); link('w7','m1','负责人');
+
+// --- 任务 → 项目/指派人/创建人 ---
+link('t1','p1','相关项目'); link('t1','m1','指派给'); link('t1','m2','创建人');
+link('t2','p1','相关项目'); link('t2','m3','指派给'); link('t2','m1','创建人');
+link('t3','p2','相关项目'); link('t3','m4','指派给'); link('t3','m1','创建人');
+
+// --- 跨项目联系人关系 ---
+link('ct1','p4','顾问');
+
+// ============================================================
+// 状态
+// ============================================================
+let selectedId = null;
+let hoveredId = null;
+let centerId = 'p1';
+const expanded = new Set(['p1']);
+let navHistory = [{ id:'p1', name:'华东数据中心项目' }];
+
+// ★ 已激活集 — 只有被点击过的节点才加入
+const activated = new Set(['p1']);
+
+// ★ 位置记忆 — 防止 render 时已探索节点跳动
+const savedPositions = {};
+
+let selectedNeighbors = new Set();
+
+function getNeighbors(nodeId) {
+  const ids = new Set();
+  ALL_LINKS.forEach(l => {
+    const s = typeof l.source==='object'?l.source.id:l.source;
+    const t = typeof l.target==='object'?l.target.id:l.target;
+    if (s===nodeId) ids.add(t);
+    if (t===nodeId) ids.add(s);
+  });
+  return ids;
+}
+
+function refreshSelectedNeighbors() {
+  selectedNeighbors = selectedId ? getNeighbors(selectedId) : new Set();
+}
+
+// ★ 判断节点是否为非中心项目
+function isOtherProject(d) {
+  return d.nodeType === 'project' && d.id !== centerId;
+}
+
+// 判断一条连线是否连向非中心项目
+function linkTouchesOtherProject(d) {
+  const s = typeof d.source==='object'?d.source.id:d.source;
+  const t = typeof d.target==='object'?d.target.id:d.target;
+  const sn = ALL_NODES[s], tn = ALL_NODES[t];
+  return (sn?.nodeType==='project' && s!==centerId) || (tn?.nodeType==='project' && t!==centerId);
+}
+
+// 判断一条连线两端是否都被激活过
+function isLinkActivated(d) {
+  const s = typeof d.source==='object'?d.source.id:d.source;
+  const t = typeof d.target==='object'?d.target.id:d.target;
+  return activated.has(s) && activated.has(t);
+}
+
+// ============================================================
+// 构建可见图
+// ============================================================
+function buildGraph() {
+  const vis = new Set();
+  const visLinks = [];
+  vis.add(centerId);
+  expanded.forEach(nid => {
+    vis.add(nid);
+    ALL_LINKS.forEach(l => {
+      const s = typeof l.source==='object'?l.source.id:l.source;
+      const t = typeof l.target==='object'?l.target.id:l.target;
+      if (s===nid) { vis.add(t); visLinks.push({source:s,target:t,label:l.label}); }
+      if (t===nid) { vis.add(s); visLinks.push({source:s,target:t,label:l.label}); }
+    });
+  });
+  const seen = new Set();
+  const uLinks = visLinks.filter(l => {
+    const k=[l.source,l.target].sort().join('|');
+    if(seen.has(k)) return false; seen.add(k); return true;
+  });
+  const nodes = [...vis].map(id=>ALL_NODES[id]).filter(Boolean).map(n=>({
+    ...n,
+    isCenter: n.id===centerId,
+    hasMore: ALL_LINKS.some(l=>{
+      const s=typeof l.source==='object'?l.source.id:l.source;
+      const t=typeof l.target==='object'?l.target.id:l.target;
+      const other = s===n.id?t:(t===n.id?s:null);
+      return other && !vis.has(other);
+    }),
+  }));
+  return { nodes, links: uLinks };
+}
+
+// ============================================================
+// 视觉状态计算
+// ★ 改动: 1) otherProj 优先分支  2) 删除 isNb 分支  3) 暗淡默认值
+// ============================================================
+function isLeafNode(d) {
+  if (d.nodeType === 'workitem' || d.nodeType === 'task' || d.nodeType === 'product') return true;
+  return !d.hasMore;
+}
+
+function calcState(d) {
+  const isSel    = d.id === selectedId;
+  const isAct    = activated.has(d.id);
+  const isHov    = d.id === hoveredId;
+  const isCtr    = d.isCenter;
+  const isOtherP = isOtherProject(d);
+  const base     = BASE_R[d.nodeType] || 3;
+  const leaf     = isLeafNode(d);
+
+  let r, opacity, labelOp, subOp, crossScale, crossOp, filter, labelWeight, labelSize;
+
+  // ★ 优先级 1: 非中心项目 — 始终暗淡
+  if (isOtherP && !isSel && !isHov) {
+    r = base * 0.25;
+    opacity = 0.12; labelOp = 0.12; subOp = 0;
+    crossScale = 0.8; crossOp = 0.02;
+    filter = 'url(#starGlow)';
+    labelWeight = 400; labelSize = 9;
+  } else if (isOtherP && isHov) {
+    // hover 时亮起，提示可切换
+    r = base * 0.7;
+    opacity = 0.65; labelOp = 0.7; subOp = 0.3;
+    crossScale = 2; crossOp = 0.15;
+    filter = 'url(#starGlowMid)';
+    labelWeight = 600; labelSize = 11;
+  } else if (isSel && !leaf) {
+    // ★ 选中（有子项可展开）：明显放大
+    r = base * 2.2;
+    opacity = 1; labelOp = 1; subOp = 0.6;
+    crossScale = 4.5; crossOp = 0.5;
+    filter = 'url(#starGlowBig)';
+    labelWeight = 700; labelSize = 13;
+  } else if (isSel && leaf) {
+    // ★ 末级选中：不放大，只高亮
+    r = base;
+    opacity = 1; labelOp = 1; subOp = 0.6;
+    crossScale = 3; crossOp = 0.4;
+    filter = 'url(#starGlowMid)';
+    labelWeight = 700; labelSize = 12;
+  } else if (isAct) {
+    // ★ 曾点击过：保持亮度，大小 = 基础的 0.8
+    r = base * 0.8;
+    opacity = 0.82; labelOp = 0.65; subOp = 0.25;
+    crossScale = 2; crossOp = 0.15;
+    filter = 'url(#starGlowMid)';
+    labelWeight = 500; labelSize = 10;
+  } else if (isCtr && !selectedId) {
+    // ★ 无选中时的中心节点
+    r = base * 1.5;
+    opacity = 0.95; labelOp = 0.85; subOp = 0.4;
+    crossScale = 3.5; crossOp = 0.3;
+    filter = 'url(#starGlowBig)';
+    labelWeight = 600; labelSize = 12;
+  } else {
+    // ★ 未激活普通节点：暗淡
+    r = base * 0.5;
+    opacity = 0.4; labelOp = 0.25; subOp = 0;
+    crossScale = 1; crossOp = 0.04;
+    filter = 'url(#starGlow)';
+    labelWeight = 400; labelSize = 9;
+  }
+
+  // Hover 叠加 — 非 otherProject 的普通 hover（otherProject 已在上方处理）
+  if (isHov && !isSel && !isOtherP) {
+    r = Math.max(r * 1.4, base * 1.1);
+    opacity = Math.min(opacity + 0.2, 1);
+    labelOp = Math.min(labelOp + 0.35, 1);
+    subOp = Math.max(subOp, 0.45);
+    crossScale *= 1.3;
+    crossOp = Math.min(crossOp + 0.18, 0.45);
+    filter = 'url(#starGlowMid)';
+    labelWeight = Math.max(labelWeight, 600);
+    labelSize = Math.max(labelSize, 11);
+  }
+
+  return { r, opacity, labelOp, subOp, crossScale, crossOp, filter, labelWeight, labelSize };
+}
+
+function starColor(d) {
+  if (d.nodeType==='member') return '#ffe8c0';     // 暖黄色
+  if (d.nodeType==='quotation') return '#ffdca0';   // 淡金色
+  if (d.nodeType==='workitem') return '#b0c8e8';    // 淡蓝灰色
+  if (d.nodeType==='task') return '#b4e6c8';        // 淡绿色
+  if (d.nodeType==='product') return '#c8b4e6';     // 淡紫色
+  if (d.nodeType==='contact') return '#b4d2f5';     // 浅蓝色
+  return '#d8e4ff'; // project, company
+}
+
+// ============================================================
+// SVG
+// ============================================================
+const svg = d3.select('#graph').attr('width',W).attr('height',H);
+const defs = svg.append('defs');
+
+function makeGlow(id, blurs) {
+  const f = defs.append('filter').attr('id',id)
+    .attr('x','-300%').attr('y','-300%').attr('width','700%').attr('height','700%');
+  blurs.forEach((b,i)=>f.append('feGaussianBlur').attr('in','SourceGraphic').attr('stdDeviation',b).attr('result','b'+i));
+  const m = f.append('feMerge');
+  blurs.forEach((_,i)=>m.append('feMergeNode').attr('in','b'+i));
+  m.append('feMergeNode').attr('in','SourceGraphic');
+}
+makeGlow('starGlow',[3,6]);
+makeGlow('starGlowMid',[4,10,16]);
+makeGlow('starGlowBig',[6,14,24]);
+
+const zoomG = svg.append('g');
+const zoomBehavior = d3.zoom().scaleExtent([0.15,5])
+  .on('zoom',e=>zoomG.attr('transform',e.transform));
+svg.call(zoomBehavior);
+svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(W/2,H/2));
+
+const linkLayer = zoomG.append('g');
+const nodeLayer = zoomG.append('g');
+
+let sim = d3.forceSimulation()
+  .force('charge', d3.forceManyBody().strength(d=>d.isCenter?-600:-250))
+  .force('center', d3.forceCenter(0,0).strength(0.04))
+  .force('collision', d3.forceCollide().radius(d=>(BASE_R[d.nodeType]||3)*4+35))
+  .force('link', d3.forceLink().id(d=>d.id)
+    .distance(d=>{
+      const sn=ALL_NODES[typeof d.source==='object'?d.source.id:d.source];
+      const tn=ALL_NODES[typeof d.target==='object'?d.target.id:d.target];
+      if(sn?.nodeType==='project'||tn?.nodeType==='project') return 200;
+      if(sn?.nodeType==='company'||tn?.nodeType==='company') return 130;
+      if(sn?.nodeType==='quotation'||tn?.nodeType==='quotation') return 110;
+      return 85;
+    }).strength(0.35)
+  ).alphaDecay(0.025).velocityDecay(0.45);
+
+// ============================================================
+// 持久引用
+// ============================================================
+let linkAll, lblAll, nodeAll;
+
+// ============================================================
+// 确认对话框逻辑
+// ============================================================
+let pendingSwitchId = null;
+const confirmOverlay = document.getElementById('confirmOverlay');
+const confirmTitle = document.getElementById('confirmTitle');
+const confirmSub = document.getElementById('confirmSub');
+
+function showConfirmSwitch(id) {
+  const nd = ALL_NODES[id];
+  if (!nd) return;
+  pendingSwitchId = id;
+  confirmTitle.textContent = `切换到「${nd.name}」？`;
+  confirmSub.textContent = `将以此项目为中心重新展开星图，当前探索进度会重置`;
+  confirmOverlay.classList.add('show');
+}
+
+document.getElementById('confirmCancel').addEventListener('click', () => {
+  confirmOverlay.classList.remove('show');
+  pendingSwitchId = null;
+});
+
+document.getElementById('confirmOk').addEventListener('click', () => {
+  confirmOverlay.classList.remove('show');
+  if (pendingSwitchId) {
+    switchCenter(pendingSwitchId);
+    pendingSwitchId = null;
+  }
+});
+
+// ESC 关闭
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && confirmOverlay.classList.contains('show')) {
+    confirmOverlay.classList.remove('show');
+    pendingSwitchId = null;
+  }
+});
+
+// ============================================================
+// 全量渲染 — ★ 位置保存/恢复
+// ============================================================
+function render() {
+  // ★ 保存当前所有节点位置
+  if (nodeAll) {
+    nodeAll.each(d => {
+      if (d.x != null && d.y != null) {
+        savedPositions[d.id] = { x: d.x, y: d.y };
+      }
+    });
+  }
+
+  const graph = buildGraph();
+
+  // ★ 恢复已保存的位置
+  graph.nodes.forEach(n => {
+    if (savedPositions[n.id]) {
+      n.x = savedPositions[n.id].x;
+      n.y = savedPositions[n.id].y;
+      // 已激活节点固定位置（pinned）
+      if (activated.has(n.id)) {
+        n.fx = n.x;
+        n.fy = n.y;
+      }
+    }
+  });
+
+  // Links
+  const linkSel = linkLayer.selectAll('.cline')
+    .data(graph.links, d=>`${typeof d.source==='object'?d.source.id:d.source}-${typeof d.target==='object'?d.target.id:d.target}`);
+  linkSel.exit().transition().duration(400).attr('opacity',0).remove();
+  const linkEnter = linkSel.enter().append('line')
+    .attr('class','cline').attr('stroke-linecap','round').attr('opacity',0);
+  linkAll = linkEnter.merge(linkSel);
+
+  // Link labels
+  const lblData = graph.links.filter(d=>d.label);
+  const lblSel = linkLayer.selectAll('.clbl').data(lblData,
+    d=>`${typeof d.source==='object'?d.source.id:d.source}-${typeof d.target==='object'?d.target.id:d.target}-l`);
+  lblSel.exit().remove();
+  const lblEnter = lblSel.enter().append('text')
+    .attr('class','clbl').attr('font-size',9).attr('text-anchor','middle').attr('pointer-events','none');
+  lblAll = lblEnter.merge(lblSel);
+  lblAll.text(d=>d.label);
+
+  // Nodes
+  const nodeSel = nodeLayer.selectAll('.snode').data(graph.nodes, d=>d.id);
+  nodeSel.exit().transition().duration(400).attr('opacity',0).remove();
+
+  const nodeEnter = nodeSel.enter().append('g')
+    .attr('class','snode').attr('opacity',0)
+    .call(d3.drag()
+      .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
+      .on('end',(e,d)=>{
+        if(!e.active)sim.alphaTarget(0);
+        // ★ 已激活节点拖拽结束后保持 pinned 并保存位置
+        if (activated.has(d.id)) {
+          d.fx = d.x; d.fy = d.y;
+          savedPositions[d.id] = { x: d.x, y: d.y };
+        } else {
+          d.fx=null;d.fy=null;
+        }
+      })
+    );
+
+  nodeEnter.append('circle').attr('class','halo');
+  nodeEnter.append('line').attr('class','crH');
+  nodeEnter.append('line').attr('class','crV');
+  nodeEnter.append('circle').attr('class','core');
+  nodeEnter.append('text').attr('class','slbl').attr('text-anchor','middle').attr('pointer-events','none');
+  nodeEnter.append('text').attr('class','ssub').attr('text-anchor','middle').attr('pointer-events','none');
+  nodeEnter.append('circle').attr('class','ring');
+
+  nodeAll = nodeEnter.merge(nodeSel);
+  nodeAll.transition().duration(500).attr('opacity',1);
+
+  // ★ 非中心项目和非末级节点都用 pointer
+  nodeAll.style('cursor', d => {
+    if (isOtherProject(d)) return 'pointer';
+    return isLeafNode(d) ? 'default' : 'pointer';
+  });
+
+  nodeAll
+    .on('click', (ev,d)=>{ev.stopPropagation(); handleClick(d.id);})
+    .on('dblclick', (ev,d)=>{
+      ev.stopPropagation();
+      // ★ 非中心项目：走确认框
+      if (isOtherProject(d)) { showConfirmSwitch(d.id); return; }
+      if(!isLeafNode(d)) switchCenter(d.id);
+    })
+    .on('mouseenter', (ev,d)=>{hoveredId=d.id; updateVisuals(); showTip(ev,d);})
+    .on('mousemove', (ev)=>moveTip(ev))
+    .on('mouseleave', ()=>{hoveredId=null; updateVisuals(); hideTip();});
+
+  sim.nodes(graph.nodes);
+  sim.force('link').links(graph.links);
+  sim.alpha(0.5).restart();
+
+  sim.on('tick',()=>{
+    linkAll.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+           .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    lblAll.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2-4);
+    nodeAll.attr('transform',d=>`translate(${d.x},${d.y})`);
+  });
+
+  updateVisuals();
+}
+
+// ============================================================
+// 视觉更新（快速，不重建结构）
+// ★ 改动: 连线区分已探索/未探索/连向其他项目
+// ============================================================
+function updateVisuals() {
+  if(!nodeAll||!linkAll) return;
+  const dur = 250;
+
+  // 节点
+  nodeAll.each(function(d) {
+    const g = d3.select(this);
+    const st = calcState(d);
+    const color = starColor(d);
+    const cLen = st.r * st.crossScale;
+
+    g.select('.halo').transition().duration(dur)
+      .attr('r', st.r*3).attr('fill',color)
+      .attr('opacity', st.opacity*0.12).attr('filter', st.filter);
+
+    g.select('.crH').transition().duration(dur)
+      .attr('x1',-cLen).attr('x2',cLen).attr('y1',0).attr('y2',0)
+      .attr('stroke',color).attr('stroke-width', st.r>8?1:0.5)
+      .attr('opacity', st.crossOp);
+
+    g.select('.crV').transition().duration(dur)
+      .attr('x1',0).attr('x2',0).attr('y1',-cLen).attr('y2',cLen)
+      .attr('stroke',color).attr('stroke-width', st.r>8?1:0.5)
+      .attr('opacity', st.crossOp);
+
+    g.select('.core').transition().duration(dur)
+      .attr('r', st.r).attr('fill','#fff')
+      .attr('opacity', st.opacity).attr('filter', st.filter);
+
+    g.select('.slbl').text(d.name)
+      .transition().duration(dur)
+      .attr('dy', st.r+14)
+      .attr('font-size', st.labelSize)
+      .attr('font-weight', st.labelWeight)
+      .attr('fill', `rgba(255,255,255,${st.labelOp})`);
+
+    const sub = st.subOp > 0 ? (
+      d.nodeType==='project'?d.stage||'':
+      d.nodeType==='company'?d.role||'':
+      d.nodeType==='contact'?d.position||'':
+      d.nodeType==='member'?d.role||'':
+      d.nodeType==='quotation'?(d.status?d.amount+' · '+d.status:d.amount||''):
+      d.nodeType==='workitem'?d.workType||'':
+      d.nodeType==='task'?(d.status||''):
+      d.nodeType==='product'?(d.category||''):
+      d.date||''
+    ) : '';
+    g.select('.ssub').text(sub)
+      .transition().duration(dur)
+      .attr('dy', st.r+27).attr('font-size',9)
+      .attr('fill', `rgba(255,255,255,${st.subOp})`);
+
+    g.select('.ring').transition().duration(dur)
+      .attr('r', st.r+5).attr('fill','none')
+      .attr('stroke', d.hasMore?`rgba(200,215,255,${st.opacity*0.35})`:'none')
+      .attr('stroke-width',0.5)
+      .attr('stroke-dasharray', d.hasMore?'2,3':'none');
+  });
+
+  // ★ 连线 — 区分：已探索路径(暖金色) / 连向其他项目(极暗虚线) / 选中直连 / 未探索
+  linkAll.transition().duration(dur)
+    .attr('stroke', d => {
+      const s=typeof d.source==='object'?d.source.id:d.source;
+      const t=typeof d.target==='object'?d.target.id:d.target;
+      const touchesOtherP = linkTouchesOtherProject(d);
+
+      // 连向非中心项目的线：极暗
+      if (touchesOtherP) {
+        // hover 时稍亮
+        if (hoveredId && (s===hoveredId||t===hoveredId)) return 'rgba(160,180,220,0.2)';
+        return 'rgba(120,140,180,0.04)';
+      }
+      // 选中节点的直连线（不含连向其他项目的）
+      if (selectedId && (s===selectedId||t===selectedId)) return 'rgba(200,215,255,0.5)';
+      // hover 节点的直连线
+      if (hoveredId && (s===hoveredId||t===hoveredId)) return 'rgba(200,215,255,0.35)';
+      // ★ 已探索路径（两端都被激活过）：暖金色
+      if (activated.has(s) && activated.has(t)) return 'rgba(255,220,150,0.55)';
+      // 至少一端激活
+      if (activated.has(s) || activated.has(t)) return 'rgba(160,180,220,0.1)';
+      // 默认：更暗的虚线色
+      return 'rgba(120,140,180,0.04)';
+    })
+    .attr('stroke-width', d => {
+      const s=typeof d.source==='object'?d.source.id:d.source;
+      const t=typeof d.target==='object'?d.target.id:d.target;
+      const touchesOtherP = linkTouchesOtherProject(d);
+
+      if (touchesOtherP) return 0.5;
+      if (selectedId && (s===selectedId||t===selectedId)) return 1.5;
+      if (hoveredId && (s===hoveredId||t===hoveredId)) return 1.2;
+      // ★ 已探索路径：更粗
+      if (activated.has(s) && activated.has(t)) return 1.8;
+      return 0.5;
+    })
+    .attr('stroke-dasharray', d => {
+      const s=typeof d.source==='object'?d.source.id:d.source;
+      const t=typeof d.target==='object'?d.target.id:d.target;
+      const touchesOtherP = linkTouchesOtherProject(d);
+
+      // 连向其他项目：虚线
+      if (touchesOtherP) return '3,5';
+      // 已探索路径：实线
+      if (activated.has(s) && activated.has(t)) return 'none';
+      // 选中/hover 的直连线：实线
+      if (selectedId && (s===selectedId||t===selectedId)) return 'none';
+      if (hoveredId && (s===hoveredId||t===hoveredId)) return 'none';
+      // 未探索：虚线
+      return '2,4';
+    })
+    .attr('opacity',1);
+
+  // 连线标签
+  lblAll.transition().duration(dur)
+    .attr('fill', d => {
+      const s=typeof d.source==='object'?d.source.id:d.source;
+      const t=typeof d.target==='object'?d.target.id:d.target;
+      if (linkTouchesOtherProject(d)) return 'rgba(255,255,255,0.06)';
+      if (selectedId && (s===selectedId||t===selectedId)) return 'rgba(255,255,255,0.55)';
+      if (hoveredId && (s===hoveredId||t===hoveredId)) return 'rgba(255,255,255,0.45)';
+      if (activated.has(s) && activated.has(t)) return 'rgba(255,220,150,0.5)';
+      return 'rgba(255,255,255,0.08)';
+    });
+}
+
+// ============================================================
+// 交互
+// ★ 改动: 1) 只激活被点击的节点  2) 拦截非中心项目 → 弹确认
+// ============================================================
+function handleClick(id) {
+  const nd = ALL_NODES[id];
+  const nodeData = nodeAll ? nodeAll.data().find(n => n.id === id) : null;
+
+  // ★ 非中心项目：弹确认框
+  if (nd && nd.nodeType === 'project' && id !== centerId) {
+    showConfirmSwitch(id);
+    return;
+  }
+
+  // ★ 末级节点：点击无效
+  if (nd && nodeData && isLeafNode(nodeData)) return;
+
+  // ★ 只激活被点击的节点（不自动激活邻居）
+  activated.add(id);
+
+  if (selectedId === id) {
+    // 再次点击：切换展开/收起
+    if (expanded.has(id)) {
+      expanded.delete(id);
+      getNeighbors(id).forEach(nid => { if(nid!==centerId) expanded.delete(nid); });
+    } else {
+      expanded.add(id);
+    }
+    selectedId = null;
+    refreshSelectedNeighbors();
+    render();
+  } else {
+    selectedId = id;
+    if (!expanded.has(id)) expanded.add(id);
+    refreshSelectedNeighbors();
+    updateInfo(id);
+    render();
+  }
+}
+
+svg.on('click', ()=>{
+  if(selectedId){ selectedId=null; refreshSelectedNeighbors(); updateVisuals(); }
+});
+
+// ★ switchCenter 重置状态
+function switchCenter(id) {
+  const nd=ALL_NODES[id]; if(!nd) return;
+  centerId=id; selectedId=null;
+  // ★ 清空已激活集和位置记忆，全新开始
+  activated.clear(); activated.add(id);
+  Object.keys(savedPositions).forEach(k => delete savedPositions[k]);
+  expanded.clear(); expanded.add(id);
+  refreshSelectedNeighbors();
+  navHistory.push({id,name:nd.name});
+  updateBreadcrumb(); updateInfo(id); render();
+  svg.transition().duration(800).call(zoomBehavior.transform, d3.zoomIdentity.translate(W/2,H/2));
+}
+
+function updateInfo(id) {
+  const nd=ALL_NODES[id]; if(!nd) return;
+  document.getElementById('infoTitle').textContent = nd.name;
+  let m='';
+  if(nd.nodeType==='project') m=`阶段: <b>${nd.stage}</b> &nbsp; 金额: <b>${nd.amount}</b>`;
+  else if(nd.nodeType==='company') m=`角色: <b>${nd.role}</b>`;
+  else if(nd.nodeType==='contact'){ const co=ALL_NODES[nd.parentCompany]; m=`职位: <b>${nd.position}</b> &nbsp; 企业: <b>${co?.name||''}</b>`; }
+  else if(nd.nodeType==='member') m=`角色: <b>${nd.role}</b> &nbsp; 部门: <b>${nd.dept}</b>`;
+  else if(nd.nodeType==='quotation') m=`金额: <b>${nd.amount}</b> &nbsp; 状态: <b>${nd.status}</b> &nbsp; ${nd.detail||''}`;
+  else if(nd.nodeType==='workitem') m=`类型: <b>${nd.workType}</b> &nbsp; 日期: <b>${nd.date||''}</b> &nbsp; ${nd.detail||''}`;
+  else if(nd.nodeType==='task') m=`状态: <b>${nd.status}</b> &nbsp; 指派: <b>${nd.assignee||''}</b> &nbsp; 截止: <b>${nd.dueDate||''}</b>`;
+  else if(nd.nodeType==='product') m=`品类: <b>${nd.category||''}</b> &nbsp; 品牌: <b>${nd.brand||''}</b>`;
+  else m=`日期: <b>${nd.date||''}</b> &nbsp; <b>${nd.detail||''}</b>`;
+  document.getElementById('infoMeta').innerHTML = m;
+}
+
+function updateBreadcrumb() {
+  const el=document.getElementById('breadcrumb');
+  el.innerHTML = navHistory.map((h,i)=>{
+    const cls = i===navHistory.length-1?'bc-item active':'bc-item';
+    const sep = i<navHistory.length-1?'<span class="bc-sep">›</span>':'';
+    return `<span class="${cls}" data-id="${h.id}">${h.name}</span>${sep}`;
+  }).join('');
+  el.querySelectorAll('.bc-item:not(.active)').forEach(e=>{
+    e.addEventListener('click',()=>{
+      const tid=e.dataset.id;
+      const idx=navHistory.findIndex(h=>h.id===tid);
+      if(idx>=0){
+        navHistory=navHistory.slice(0,idx+1);
+        centerId=tid; selectedId=null;
+        activated.clear(); activated.add(tid);
+        Object.keys(savedPositions).forEach(k => delete savedPositions[k]);
+        expanded.clear(); expanded.add(tid);
+        refreshSelectedNeighbors();
+        updateBreadcrumb(); updateInfo(tid); render();
+      }
+    });
+  });
+}
+
+// ★ Tooltip — 非中心项目显示"点击切换"
+const tip = document.getElementById('tooltip');
+function showTip(ev,d) {
+  tip.querySelector('.t-name').textContent = d.name;
+  const types={project:'项目',company:'企业',contact:'联系人',member:'内部成员',quotation:'报价单',workitem:'工作活动',task:'任务',product:'产品'};
+  tip.querySelector('.t-type').textContent = types[d.nodeType]||'';
+  let dt='';
+  if(d.nodeType==='project') dt=`${d.stage} · ${d.amount}`;
+  else if(d.nodeType==='company') dt=d.role;
+  else if(d.nodeType==='contact') dt=`${d.position} · ${ALL_NODES[d.parentCompany]?.name||''}`;
+  else if(d.nodeType==='member') dt=`${d.role} · ${d.dept}`;
+  else if(d.nodeType==='quotation') dt=`${d.amount} · ${d.status}${d.detail?'<br>'+d.detail:''}`;
+  else if(d.nodeType==='workitem') dt=`${d.workType} · ${d.date}${d.detail?'<br>'+d.detail:''}`;
+  else if(d.nodeType==='task') dt=`${d.status} · 指派: ${d.assignee||''}${d.detail?'<br>'+d.detail:''}`;
+  else if(d.nodeType==='product') dt=`${d.category||''} · ${d.brand||''}`;
+  else dt=d.detail||'';
+  // ★ 非中心项目提示可切换
+  if (isOtherProject(d)) {
+    dt+='<br><span style="color:rgba(180,200,255,0.5)">点击切换为中心项目</span>';
+  } else if(d.hasMore) {
+    dt+='<br><span style="color:rgba(255,255,255,0.25)">点击展开更多</span>';
+  }
+  tip.querySelector('.t-detail').innerHTML = dt;
+  tip.classList.add('show'); moveTip(ev);
+}
+function moveTip(ev){ tip.style.left=(ev.clientX+14)+'px'; tip.style.top=(ev.clientY-8)+'px'; }
+function hideTip(){ tip.classList.remove('show'); }
+
+// 搜索
+document.getElementById('searchInput').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase().trim();
+  nodeLayer.selectAll('.snode').transition().duration(300)
+    .attr('opacity',d=>!q||d.name.toLowerCase().includes(q)?1:0.06);
+  linkLayer.selectAll('.cline').transition().duration(300).attr('opacity',d=>!q?1:0.02);
+});
+
+window.addEventListener('resize',()=>{
+  const w=window.innerWidth,h=window.innerHeight;
+  svg.attr('width',w).attr('height',h);
+  nebulaCanvas.width=w; nebulaCanvas.height=h;
+  sim.alpha(0.3).restart();
+});
+
+// ============================================================
+// 启动
+// ============================================================
+render();
+</script>
+</body>
+</html>

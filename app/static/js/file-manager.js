@@ -79,6 +79,10 @@ function fileManager() {
             this.loadFolderTree();
             this.loadFiles();
             this.loadKbTags();
+            // 监听分享成功事件
+            window.addEventListener('share-to-chat-success', (e) => {
+                this.showToast('success', e.detail?.message || '分享成功');
+            });
         },
 
         // ------------------------------------------------------------------
@@ -440,6 +444,23 @@ function fileManager() {
 
         isAllSelected() {
             return this.files.length > 0 && this.selectedFiles.length === this.files.length;
+        },
+
+        getSelectedFileObjects() {
+            return this.files.filter(f => this.selectedFiles.includes(f.id));
+        },
+
+        shareFilesToChat(files) {
+            if (!files || files.length === 0) return;
+            window.dispatchEvent(new CustomEvent('open-share-to-chat', {
+                detail: {
+                    files: files.map(f => ({
+                        id: f.id,
+                        display_name: f.display_name,
+                        file_size: f.file_size,
+                    }))
+                }
+            }));
         },
 
         // ------------------------------------------------------------------

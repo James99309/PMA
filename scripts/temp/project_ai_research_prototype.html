@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目 AI 调研 - 前端原型</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" />
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#10b981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .animate-pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+        /* 信息丰富度指示器 */
+        .richness-bar { height: 4px; border-radius: 2px; background: #e2e8f0; overflow: hidden; }
+        .richness-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-50">
+
+<!-- ====== 模拟项目详情页顶部 ====== -->
+<div class="max-w-6xl mx-auto px-4 pt-6 pb-2">
+    <!-- 面包屑 -->
+    <div class="flex items-center gap-2 text-sm text-slate-500 mb-1">
+        <span>项目管理</span>
+        <span>/</span>
+        <span class="text-slate-700">上海市皮肤病医院科研综合楼</span>
+    </div>
+    <!-- 标题 + 操作按钮 -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-slate-900">上海市皮肤病医院科研综合楼</h1>
+        <div class="flex items-center gap-2">
+            <!-- AI 调研按钮 - 3种状态演示 -->
+            <div x-data="{}" class="flex items-center gap-2">
+                <button id="aiResearchBtn" @click="window.dispatchEvent(new CustomEvent('toggle-ai-research'))"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-all cursor-pointer border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+                    <span class="material-symbols-outlined text-lg">travel_explore</span>
+                    AI 调研
+                </button>
+                <button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-100 cursor-pointer">
+                    <span class="material-symbols-outlined text-lg">hub</span>
+                    星图
+                </button>
+                <button class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-100 cursor-pointer">
+                    <span class="material-symbols-outlined text-lg">arrow_back</span>
+                    返回
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====== AI 调研区域（可折叠） ====== -->
+<div class="max-w-6xl mx-auto px-4 mt-4" x-data="projectResearch">
+    <div x-show="isOpen" x-collapse.duration.300ms>
+        <div class="space-y-4 mb-6">
+
+            <!-- ======= 状态：加载中 ======= -->
+            <template x-if="state === 'loading'">
+                <div class="bg-white rounded-2xl border border-emerald-200 p-8 text-center">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 mb-4">
+                        <span class="material-symbols-outlined text-3xl text-emerald-500 animate-spin">progress_activity</span>
+                    </div>
+                    <p class="text-slate-700 font-medium mb-1" x-text="loadingMsg">正在搜索项目基本信息...</p>
+                    <p class="text-sm text-slate-400">通常需要 30-60 秒，请稍候</p>
+                    <div class="flex justify-center gap-1.5 mt-4">
+                        <template x-for="i in 4" :key="i">
+                            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse-dot"
+                                 :style="`animation-delay: ${i * 0.3}s`"></div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ======= 状态：已加载 ======= -->
+            <template x-if="state === 'loaded'">
+                <div class="space-y-4">
+                    <!-- 头部：标题 + 信息丰富度 + 更新时间 -->
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-outlined text-primary">psychology</span>
+                            <h3 class="font-semibold text-slate-900">AI 项目调研</h3>
+                            <!-- 信息丰富度指示 -->
+                            <div class="flex items-center gap-2 px-2.5 py-1 bg-slate-100 rounded-full">
+                                <span class="text-xs text-slate-500">信息丰富度</span>
+                                <div class="richness-bar w-16">
+                                    <div class="richness-fill bg-emerald-500" :style="`width: ${richness}%`"></div>
+                                </div>
+                                <span class="text-xs font-medium" :class="richness >= 70 ? 'text-emerald-600' : richness >= 40 ? 'text-amber-600' : 'text-red-500'" x-text="richnessLabel"></span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 text-sm text-slate-500">
+                            <span x-text="updatedAt"></span>
+                            <button @click="runResearch()" class="inline-flex items-center gap-1 text-primary hover:text-emerald-700 cursor-pointer">
+                                <span class="material-symbols-outlined text-sm">refresh</span>
+                                刷新
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ===== 卡片1: 项目概况 ===== -->
+                    <div class="bg-white rounded-2xl border border-slate-200/60 overflow-hidden">
+                        <div class="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100">
+                            <span class="material-symbols-outlined text-primary">domain</span>
+                            <span class="font-medium text-slate-900">项目概况</span>
+                        </div>
+                        <div class="px-5 py-4">
+                            <!-- 描述 -->
+                            <template x-if="data.project_overview.description">
+                                <p class="text-base text-slate-800 mb-3 leading-relaxed" x-text="data.project_overview.description"></p>
+                            </template>
+                            <!-- 核心指标 - 大字展示 -->
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                                <template x-if="data.project_overview.total_investment">
+                                    <div class="bg-emerald-50 rounded-xl p-3 text-center">
+                                        <div class="text-xs text-emerald-600 mb-1">总投资</div>
+                                        <div class="text-lg font-bold text-emerald-700" x-text="data.project_overview.total_investment"></div>
+                                    </div>
+                                </template>
+                                <template x-if="data.project_overview.total_area">
+                                    <div class="bg-blue-50 rounded-xl p-3 text-center">
+                                        <div class="text-xs text-blue-600 mb-1">建筑面积</div>
+                                        <div class="text-lg font-bold text-blue-700" x-text="data.project_overview.total_area"></div>
+                                    </div>
+                                </template>
+                                <template x-if="data.project_overview.start_date">
+                                    <div class="bg-amber-50 rounded-xl p-3 text-center">
+                                        <div class="text-xs text-amber-600 mb-1">开工时间</div>
+                                        <div class="text-sm font-bold text-amber-700" x-text="data.project_overview.start_date"></div>
+                                    </div>
+                                </template>
+                                <template x-if="data.project_overview.completion_date">
+                                    <div class="bg-purple-50 rounded-xl p-3 text-center">
+                                        <div class="text-xs text-purple-600 mb-1">预计竣工</div>
+                                        <div class="text-sm font-bold text-purple-700" x-text="data.project_overview.completion_date"></div>
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- 其他信息 -->
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                                <template x-if="data.project_overview.land_area">
+                                    <div class="flex gap-2"><span class="text-slate-500">占地面积:</span><span class="text-slate-800" x-text="data.project_overview.land_area"></span></div>
+                                </template>
+                                <template x-if="data.project_overview.address">
+                                    <div class="flex gap-2"><span class="text-slate-500">项目地址:</span><span class="text-slate-800" x-text="data.project_overview.address"></span></div>
+                                </template>
+                                <template x-if="data.project_overview.city">
+                                    <div class="flex gap-2"><span class="text-slate-500">所在城市:</span><span class="text-slate-800" x-text="data.project_overview.city"></span></div>
+                                </template>
+                                <template x-if="data.project_overview.project_phase">
+                                    <div class="flex gap-2"><span class="text-slate-500">当前阶段:</span>
+                                        <span class="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-xs font-medium" x-text="data.project_overview.project_phase"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== 卡片2: 项目角色 ===== -->
+                    <div class="bg-white rounded-2xl border border-slate-200/60 overflow-hidden">
+                        <div class="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100">
+                            <span class="material-symbols-outlined text-indigo-500">groups</span>
+                            <span class="font-medium text-slate-900">项目角色</span>
+                        </div>
+                        <div class="px-5 py-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <!-- 投资方/业主 -->
+                                <template x-if="data.stakeholders.investor">
+                                    <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50">
+                                        <div class="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                                            <span class="material-symbols-outlined text-emerald-600 text-lg">account_balance</span>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs text-slate-500 mb-0.5">投资方 / 业主</div>
+                                            <div class="text-sm font-medium text-slate-900" x-text="data.stakeholders.investor"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <!-- 总承包 -->
+                                <template x-if="data.stakeholders.general_contractor">
+                                    <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50">
+                                        <div class="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                            <span class="material-symbols-outlined text-blue-600 text-lg">engineering</span>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs text-slate-500 mb-0.5">总承包商</div>
+                                            <div class="text-sm font-medium text-slate-900" x-text="data.stakeholders.general_contractor"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <!-- 设计院 -->
+                                <template x-if="data.stakeholders.design_institute">
+                                    <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50">
+                                        <div class="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+                                            <span class="material-symbols-outlined text-purple-600 text-lg">architecture</span>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs text-slate-500 mb-0.5">设计院</div>
+                                            <div class="text-sm font-medium text-slate-900" x-text="data.stakeholders.design_institute"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                                <!-- 顾问/监理 -->
+                                <template x-if="data.stakeholders.consultant">
+                                    <div class="flex items-start gap-3 p-3 rounded-xl bg-slate-50">
+                                        <div class="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                            <span class="material-symbols-outlined text-amber-600 text-lg">verified</span>
+                                        </div>
+                                        <div>
+                                            <div class="text-xs text-slate-500 mb-0.5">顾问 / 监理</div>
+                                            <div class="text-sm font-medium text-slate-900" x-text="data.stakeholders.consultant"></div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- 分包商 -->
+                            <template x-if="data.stakeholders.subcontractors && data.stakeholders.subcontractors.length">
+                                <div class="mt-3 pt-3 border-t border-slate-100">
+                                    <div class="text-xs text-slate-500 mb-2">已知分包</div>
+                                    <div class="flex flex-wrap gap-1.5">
+                                        <template x-for="sub in data.stakeholders.subcontractors" :key="sub">
+                                            <span class="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs" x-text="sub"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                            <!-- 无数据提示 -->
+                            <template x-if="!data.stakeholders.investor && !data.stakeholders.general_contractor && !data.stakeholders.design_institute">
+                                <p class="text-sm text-slate-400 py-2">暂无公开的参与方信息</p>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- ===== 卡片3: 近期动态 (时间线) ===== -->
+                    <div class="bg-white rounded-2xl border border-slate-200/60 overflow-hidden">
+                        <div class="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100">
+                            <span class="material-symbols-outlined text-amber-500">update</span>
+                            <span class="font-medium text-slate-900">近期动态</span>
+                            <template x-if="data.recent_updates && data.recent_updates.length">
+                                <span class="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full" x-text="data.recent_updates.length"></span>
+                            </template>
+                        </div>
+                        <div class="px-5 py-4">
+                            <template x-if="data.recent_updates && data.recent_updates.length">
+                                <div class="relative">
+                                    <!-- 时间线竖线 -->
+                                    <div class="absolute left-[7px] top-2 bottom-2 w-0.5 bg-slate-200"></div>
+                                    <div class="space-y-3">
+                                        <template x-for="(upd, idx) in data.recent_updates" :key="idx">
+                                            <div class="flex items-start gap-3 relative">
+                                                <!-- 时间线圆点 -->
+                                                <div class="w-4 h-4 rounded-full flex-shrink-0 mt-0.5 z-10 flex items-center justify-center"
+                                                     :class="idx === 0 ? 'bg-primary ring-4 ring-emerald-100' : 'bg-slate-300'">
+                                                    <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                                                </div>
+                                                <div class="flex-1 pb-1">
+                                                    <div class="flex items-center gap-2 flex-wrap">
+                                                        <span class="text-sm font-medium text-slate-900" x-text="upd.content"></span>
+                                                        <template x-if="upd.type">
+                                                            <span class="px-1.5 py-0.5 text-xs rounded-full"
+                                                                :class="{
+                                                                    '招标': 'bg-blue-100 text-blue-700',
+                                                                    '中标': 'bg-emerald-100 text-emerald-700',
+                                                                    '开工': 'bg-amber-100 text-amber-700',
+                                                                    '批复': 'bg-purple-100 text-purple-700',
+                                                                    '公示': 'bg-slate-100 text-slate-700'
+                                                                }[upd.type] || 'bg-slate-100 text-slate-600'"
+                                                                x-text="upd.type"></span>
+                                                        </template>
+                                                    </div>
+                                                    <template x-if="upd.date">
+                                                        <span class="text-xs text-slate-400" x-text="upd.date"></span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                            <template x-if="!data.recent_updates || !data.recent_updates.length">
+                                <p class="text-sm text-slate-400">暂无公开动态信息</p>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- ===== 卡片4: AI 销售建议 ===== -->
+                    <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200/60 overflow-hidden">
+                        <div class="flex items-center gap-2 px-5 py-3.5 border-b border-emerald-100">
+                            <span class="material-symbols-outlined text-primary">lightbulb</span>
+                            <span class="font-medium text-slate-900">AI 销售建议</span>
+                        </div>
+                        <div class="px-5 py-4">
+                            <template x-if="data.sales_suggestions && data.sales_suggestions.length">
+                                <ol class="space-y-2.5">
+                                    <template x-for="(sug, idx) in data.sales_suggestions" :key="idx">
+                                        <li class="flex items-start gap-2.5 text-sm text-slate-700">
+                                            <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary/15 text-primary text-xs flex items-center justify-center font-bold mt-0.5" x-text="idx + 1"></span>
+                                            <span class="leading-relaxed" x-text="sug"></span>
+                                        </li>
+                                    </template>
+                                </ol>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ======= 状态：空 (首次) ======= -->
+            <template x-if="state === 'empty'">
+                <div class="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center">
+                    <span class="material-symbols-outlined text-5xl text-slate-300 mb-3">travel_explore</span>
+                    <p class="text-slate-600 font-medium mb-2">尚未进行 AI 调研</p>
+                    <p class="text-sm text-slate-400 mb-4">AI 将搜索该项目的公开信息，包括投资规模、参与方、进展动态等</p>
+                    <button @click="runResearch()"
+                        class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined text-lg">search</span>
+                        开始 AI 调研
+                    </button>
+                </div>
+            </template>
+
+        </div>
+    </div>
+</div>
+
+<!-- ====== 模拟项目阶段时间线 ====== -->
+<div class="max-w-6xl mx-auto px-4 mb-4">
+    <div class="bg-white rounded-2xl border border-slate-200/60 p-6">
+        <h3 class="font-semibold text-slate-900 mb-4">项目阶段</h3>
+        <div class="flex items-center justify-between relative">
+            <div class="absolute top-4 left-8 right-8 h-0.5 bg-emerald-300"></div>
+            <div class="flex items-center justify-between w-full relative z-10">
+                <div class="flex flex-col items-center" x-data>
+                    <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-1">
+                        <span class="material-symbols-outlined text-sm">search</span>
+                    </div>
+                    <span class="text-xs font-medium text-emerald-600">发现</span>
+                    <span class="text-xs text-slate-400">7个月前</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-1">
+                        <span class="material-symbols-outlined text-sm">download</span>
+                    </div>
+                    <span class="text-xs font-medium text-emerald-600">植入</span>
+                    <span class="text-xs text-slate-400">5个月前</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center mb-1">
+                        <span class="material-symbols-outlined text-sm">description</span>
+                    </div>
+                    <span class="text-xs font-medium text-emerald-600">标前</span>
+                    <span class="text-xs text-slate-400">3个月前</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full bg-slate-300 text-white flex items-center justify-center mb-1">
+                        <span class="material-symbols-outlined text-sm">gavel</span>
+                    </div>
+                    <span class="text-xs text-slate-400">标中</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full bg-slate-300 text-white flex items-center justify-center mb-1">
+                        <span class="material-symbols-outlined text-sm">emoji_events</span>
+                    </div>
+                    <span class="text-xs text-slate-400">中标</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full bg-slate-300 text-white flex items-center justify-center mb-1">
+                        <span class="material-symbols-outlined text-sm">receipt_long</span>
+                    </div>
+                    <span class="text-xs text-slate-400">批价</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="w-8 h-8 rounded-full bg-slate-300 text-white flex items-center justify-center mb-1">
+                        <span class="material-symbols-outlined text-sm">handshake</span>
+                    </div>
+                    <span class="text-xs text-slate-400">签约</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====== 模拟项目信息 + 行动记录 ====== -->
+<div class="max-w-6xl mx-auto px-4 pb-12">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <!-- 项目信息 -->
+        <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200/60 p-6">
+            <h3 class="font-semibold text-slate-900 mb-4">项目信息</h3>
+            <div class="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+                <div>
+                    <div class="text-slate-500 mb-1">项目名称</div>
+                    <div class="text-slate-900 font-medium">上海市皮肤病医院科研综合楼</div>
+                </div>
+                <div>
+                    <div class="text-slate-500 mb-1">授权编号</div>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-mono">
+                        <span class="material-symbols-outlined text-xs">verified</span>
+                        CPJ202408-003
+                    </span>
+                </div>
+                <div>
+                    <div class="text-slate-500 mb-1">报备时间</div>
+                    <div class="text-slate-900">2024-06-15</div>
+                </div>
+                <div>
+                    <div class="text-slate-500 mb-1">报备源</div>
+                    <span class="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs">渠道</span>
+                </div>
+                <div>
+                    <div class="text-slate-500 mb-1">品牌植入</div>
+                    <span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs">入围</span>
+                </div>
+                <div>
+                    <div class="text-slate-500 mb-1">行业</div>
+                    <span class="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs">医疗</span>
+                </div>
+                <div>
+                    <div class="text-slate-500 mb-1">创建人</div>
+                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold mr-1">李</span>
+                    <span class="text-slate-900">李博</span>
+                </div>
+                <div>
+                    <div class="text-slate-500 mb-1">厂商销售负责人</div>
+                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold mr-1">童</span>
+                    <span class="text-slate-900">童蕾</span>
+                </div>
+            </div>
+        </div>
+        <!-- 行动记录 -->
+        <div class="bg-white rounded-2xl border border-slate-200/60 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-semibold text-slate-900">行动记录</h3>
+                <button class="text-sm text-primary hover:underline cursor-pointer">添加记录</button>
+            </div>
+            <div class="space-y-3">
+                <div class="text-sm">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">李</span>
+                        <span class="font-medium text-slate-900">李博</span>
+                    </div>
+                    <p class="text-slate-600 ml-8">与设计院华建集团对接，确认产品规格要求，消防分包招标预计10月发布</p>
+                    <span class="text-xs text-slate-400 ml-8">2个月前</span>
+                </div>
+                <div class="text-sm">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-bold">童</span>
+                        <span class="font-medium text-slate-900">童蕾</span>
+                    </div>
+                    <p class="text-slate-600 ml-8">拜访终端用户上海市皮肤病医院，了解实验室建设需求</p>
+                    <span class="text-xs text-slate-400 ml-8">5个月前</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ====== 底部状态切换器（仅演示用） ====== -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white rounded-full px-4 py-2 flex items-center gap-3 shadow-xl z-50">
+    <span class="text-xs text-slate-400">演示状态切换:</span>
+    <button onclick="window.dispatchEvent(new CustomEvent('demo-switch', {detail:'empty'}))"
+        class="px-3 py-1 text-xs rounded-full bg-slate-700 hover:bg-slate-600 cursor-pointer">空状态</button>
+    <button onclick="window.dispatchEvent(new CustomEvent('demo-switch', {detail:'loading'}))"
+        class="px-3 py-1 text-xs rounded-full bg-slate-700 hover:bg-slate-600 cursor-pointer">加载中</button>
+    <button onclick="window.dispatchEvent(new CustomEvent('demo-switch', {detail:'loaded'}))"
+        class="px-3 py-1 text-xs rounded-full bg-emerald-600 hover:bg-emerald-500 cursor-pointer">已加载</button>
+</div>
+
+<script>
+// 必须在 Alpine 初始化前注册组件
+document.addEventListener('alpine:init', () => {
+
+    // 真实搜索数据 - 上海市皮肤病医院科研综合楼
+    const MOCK_DATA = {
+        project_overview: {
+            description: `新建高品质科研创新教学大楼，涵盖重点实验室、图书馆、会议报告厅、专业教学实训平台、宿舍及地下停车库等功能区域。旨在响应上海建设「具有全球影响力的科技创新中心」目标。`,
+            total_investment: '3.49 亿元',
+            total_area: '37,556 ㎡',
+            land_area: '约 3.86 万㎡',
+            start_date: '2024年8月30日',
+            completion_date: '2026年',
+            city: '上海市',
+            address: '静安区保德路1278号（医院东北角地块）',
+            project_phase: '主体施工'
+        },
+        stakeholders: {
+            investor: '上海市皮肤病医院（上海申康医院发展中心管辖）',
+            general_contractor: '上海建工集团有限公司',
+            design_institute: '华建集团上海建筑设计研究院有限公司',
+            consultant: '',
+            supervisor: '',
+            subcontractors: ['消防工程（2025年10月招标中）']
+        },
+        recent_updates: [
+            { date: '2025-10-09', content: '科研综合楼消防工程公开招标', type: '招标' },
+            { date: '2024-09-13', content: '项目进入主体施工阶段', type: '开工' },
+            { date: '2024-08-30', content: '科研综合楼项目举行奠基仪式', type: '开工' },
+            { date: '2024-05-10', content: '设计方案经静安区规划公示', type: '公示' },
+            { date: '2024-03-27', content: '上海市发改委批复项目可行性研究报告', type: '批复' }
+        ],
+        sales_suggestions: [
+            '项目正处于主体施工阶段，消防工程已开始招标，暖通、电气等分包预计将陆续启动，建议密切关注后续招标公告。',
+            '总包为上海建工集团，建议通过建工集团项目经理建立沟通渠道，了解分包采购计划和产品选型窗口。',
+            '设计院为华建集团上海院，该院也设计了前一期门急诊综合楼，建议维护设计院关系以获取产品植入机会。',
+            '业主为公立三甲医院+同济大学附属，政府财政拨款项目，付款信用良好，项目确定性高。',
+            '科研综合楼包含重点实验室，实验室设备和环境控制系统需求量大，建议针对性准备实验室产品方案。'
+        ]
+    };
+
+    Alpine.data('projectResearch', () => ({
+        isOpen: true,
+        state: 'loaded',
+        data: MOCK_DATA,
+        updatedAt: '更新于 2025-10-15',
+        loadingMsg: '正在搜索项目基本信息...',
+        loadingStep: 0,
+        richness: 0,
+        richnessLabel: '',
+
+        init() {
+            this.calculateRichness();
+            window.addEventListener('toggle-ai-research', () => {
+                this.isOpen = !this.isOpen;
+            });
+            window.addEventListener('demo-switch', (e) => {
+                this.switchState(e.detail);
+            });
+        },
+
+        calculateRichness() {
+            let score = 0, total = 0;
+            const ov = this.data.project_overview;
+            ['description', 'total_investment', 'total_area', 'start_date', 'completion_date', 'address'].forEach(f => {
+                total++; if (ov[f]) score++;
+            });
+            const sh = this.data.stakeholders;
+            ['investor', 'general_contractor', 'design_institute', 'consultant'].forEach(f => {
+                total++; if (sh[f]) score++;
+            });
+            total += 2;
+            if (this.data.recent_updates && this.data.recent_updates.length) score += 2;
+            this.richness = Math.round((score / total) * 100);
+            this.richnessLabel = this.richness >= 70 ? '丰富' : this.richness >= 40 ? '一般' : '有限';
+        },
+
+        switchState(newState) {
+            this.isOpen = true;
+            if (newState === 'loading') {
+                this.state = 'loading';
+                this.simulateLoading();
+            } else if (newState === 'loaded') {
+                this.state = 'loaded';
+                this.data = MOCK_DATA;
+                this.calculateRichness();
+            } else {
+                this.state = newState;
+            }
+        },
+
+        runResearch() {
+            this.state = 'loading';
+            this.simulateLoading();
+        },
+
+        simulateLoading() {
+            const steps = [
+                '正在搜索项目基本信息...',
+                '正在搜索项目参与方...',
+                '正在查询官方批文...',
+                '正在搜索近期动态...',
+                'AI 正在结构化分析...'
+            ];
+            this.loadingStep = 0;
+            this.loadingMsg = steps[0];
+            const interval = setInterval(() => {
+                this.loadingStep++;
+                if (this.loadingStep < steps.length) {
+                    this.loadingMsg = steps[this.loadingStep];
+                } else {
+                    clearInterval(interval);
+                    this.data = MOCK_DATA;
+                    this.state = 'loaded';
+                    this.calculateRichness();
+                }
+            }, 2000);
+        }
+    }));
+});
+</script>
+
+</body>
+</html>

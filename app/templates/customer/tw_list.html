@@ -161,12 +161,57 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
         no_top_radius=true
         ) %}
         {% for company in companies %}
+        {% if company._is_pending %}
+        {# 请求中行：半透明 + 沙漏在徽章右下角 #}
+        <tr class="border-l-2 border-l-amber-400/60">
+            <td class="p-3 whitespace-nowrap">
+                <div class="relative inline-flex">
+                    {{ render_tw_owner_badge(company.owner) }}
+                    <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-amber-600 animate-pulse" style="font-size:10px;font-variation-settings:'FILL' 1">hourglass_top</span>
+                    </span>
+                </div>
+            </td>
+            <td class="p-3 whitespace-nowrap">
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ company.company_name }}</span>
+            </td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_company_type_badge(company.company_type) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_industry_badge(company.industry) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">-</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+        </tr>
+        {% elif company._is_restricted %}
+        {# 受限行：锁图标在徽章右下角 + 点击弹请求框 #}
+        <tr class="cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors"
+            onclick="console.log('[TR] restricted row clicked, dispatching open-access-request-modal'); window.dispatchEvent(new CustomEvent('open-access-request-modal', {detail: {entityType:'customer', entityId:{{ company.id }}, ownerName:'{{ company._owner_name|e }}', entityName:'{{ company.company_name|e }}', companyType:'{{ company.company_type|company_type_label if company.company_type else "" }}'}}))">
+            <td class="p-3 whitespace-nowrap">
+                <div class="relative inline-flex">
+                    {{ render_tw_owner_badge(company.owner) }}
+                    <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-amber-600" style="font-size:10px;font-variation-settings:'FILL' 1">lock</span>
+                    </span>
+                </div>
+            </td>
+            <td class="p-3 whitespace-nowrap">
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ company.company_name }}</span>
+            </td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_company_type_badge(company.company_type) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_industry_badge(company.industry) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">-</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+        </tr>
+        {% else %}
+        {# 正常行 #}
         <tr class="table-row-hover transition-colors">
-            <!-- 负责人 -->
             <td class="p-3 whitespace-nowrap">
                 {{ render_tw_owner_badge(company.owner) }}
             </td>
-            <!-- 企业名称 -->
             <td class="p-3 whitespace-nowrap">
                 <a href="{{ url_for('customer.view_company', company_id=company.id) }}"
                     class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
@@ -174,23 +219,18 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
                     {{ company.company_name }}
                 </a>
             </td>
-            <!-- 企业类型 -->
             <td class="p-3 whitespace-nowrap overflow-hidden">
                 {{ render_tw_company_type_badge(company.company_type) }}
             </td>
-            <!-- 行业 -->
             <td class="p-3 whitespace-nowrap overflow-hidden">
                 {{ render_tw_industry_badge(company.industry) }}
             </td>
-            <!-- 来源 -->
             <td class="p-3 whitespace-nowrap overflow-hidden">
                 {{ render_tw_source_badge(company.source) }}
             </td>
-            <!-- 状态 -->
             <td class="p-3 whitespace-nowrap overflow-hidden">
                 {{ render_tw_customer_status_badge(company.status) }}
             </td>
-            <!-- 国家/地区 -->
             <td class="p-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-300 truncate"
                 title="{% if company.country %}{{ country_code_to_name.get(company.country, company.country) }}{% if company.region %} / {{ company.region }}{% endif %}{% endif %}">
                 {% if company.country %}
@@ -200,15 +240,14 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
                 <span class="text-slate-400 dark:text-slate-500">-</span>
                 {% endif %}
             </td>
-            <!-- 更新时间 -->
             <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                 {{ company.updated_at.strftime('%Y-%m-%d') if company.updated_at else '-' }}
             </td>
-            <!-- 创建时间 -->
             <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                 {{ company.created_at.strftime('%Y-%m-%d') if company.created_at else '-' }}
             </td>
         </tr>
+        {% endif %}
         {% else %}
         {{ render_empty_row(list_config.table.columns|length, _('暂无数据'), 'inbox') }}
         {% endfor %}

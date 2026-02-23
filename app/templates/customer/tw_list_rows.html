@@ -2,9 +2,60 @@
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_company_type_badge, render_tw_industry_badge, render_tw_source_badge, render_tw_customer_status_badge %}
 {% from 'components/tw_table_cells.html' import tw_cell_link, tw_cell_badge, tw_cell_text, tw_cell_date %}
 {% for company in companies %}
+{% if company._is_pending %}
+<tr class="border-l-2 border-l-amber-400/60">
+    <td class="p-3 whitespace-nowrap overflow-hidden">
+        <div class="relative inline-flex">
+            {{ render_tw_owner_badge(company.owner) }}
+            <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                <span class="material-symbols-outlined text-amber-600 animate-pulse" style="font-size:10px;font-variation-settings:'FILL' 1">hourglass_top</span>
+            </span>
+        </div>
+    </td>
+    <td class="p-3 whitespace-nowrap">
+        <span class="text-sm text-slate-700 dark:text-slate-300">{{ company.company_name }}</span>
+    </td>
+    {{ tw_cell_badge(render_tw_company_type_badge(company.company_type)) }}
+    {{ tw_cell_badge(render_tw_industry_badge(company.industry)) }}
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+</tr>
+{% elif company._is_restricted %}
+<tr class="cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors"
+    onclick="window.dispatchEvent(new CustomEvent('open-access-request-modal', {detail: {entityType:'customer', entityId:{{ company.id }}, ownerName:'{{ company._owner_name|e }}', entityName:'{{ company.company_name|e }}', companyType:'{{ company.company_type|company_type_label if company.company_type else "" }}'}}))">
+    <td class="p-3 whitespace-nowrap overflow-hidden">
+        <div class="relative inline-flex">
+            {{ render_tw_owner_badge(company.owner) }}
+            <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                <span class="material-symbols-outlined text-amber-600" style="font-size:10px;font-variation-settings:'FILL' 1">lock</span>
+            </span>
+        </div>
+    </td>
+    <td class="p-3 whitespace-nowrap">
+        <span class="text-sm text-slate-700 dark:text-slate-300">{{ company.company_name }}</span>
+    </td>
+    {{ tw_cell_badge(render_tw_company_type_badge(company.company_type)) }}
+    {{ tw_cell_badge(render_tw_industry_badge(company.industry)) }}
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+    <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+</tr>
+{% else %}
 <tr class="table-row-hover transition-colors">
     {{ tw_cell_badge(render_tw_owner_badge(company.owner)) }}
-    {{ tw_cell_link(url_for('customer.view_company', company_id=company.id), company.company_name, title=company.company_name) }}
+    <td class="p-3 whitespace-nowrap">
+        <a href="{{ url_for('customer.view_company', company_id=company.id) }}" class="text-sm font-medium text-primary hover:underline" title="{{ company.company_name }}">{{ company.company_name }}</a>
+        {% if company.ai_research_status == 'completed' %}
+        <span class="inline-block w-2 h-2 rounded-full bg-green-500 ml-1" title="{{ _('AI 调研完成') }}"></span>
+        {% elif company.ai_research_status in ('pre_searching', 'researching', 'needs_input') %}
+        <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse ml-1" title="{{ _('AI 调研中') }}"></span>
+        {% endif %}
+    </td>
     {{ tw_cell_badge(render_tw_company_type_badge(company.company_type)) }}
     {{ tw_cell_badge(render_tw_industry_badge(company.industry)) }}
     {{ tw_cell_badge(render_tw_source_badge(company.source)) }}
@@ -14,4 +65,5 @@
     {{ tw_cell_date(company.updated_at) }}
     {{ tw_cell_date(company.created_at) }}
 </tr>
+{% endif %}
 {% endfor %}

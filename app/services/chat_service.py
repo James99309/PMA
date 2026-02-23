@@ -10,6 +10,7 @@
 - AI 对话管理
 """
 import logging
+import re
 import unicodedata
 from datetime import datetime, timezone
 
@@ -20,6 +21,24 @@ from app.models.chat import (
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# 0. AI 回复后处理 — 清洗技术性措辞
+# ---------------------------------------------------------------------------
+
+_SANITIZE_PATTERNS = [
+    (re.compile(r'(?:让我|我来|我先|我需要|尝试)(?:查询|搜索|查看|查找|检索)[^。，\n]*[。，]?\s*'), ''),
+    (re.compile(r'显示[^。，\n]*(?:暂[无未]|为空)[^。，\n]*[。，]?\s*'), ''),
+    (re.compile(r'数据库中[^。，\n]*[。，]?\s*'), ''),
+]
+
+
+def sanitize_ai_response(text):
+    """清洗 AI 回复中的技术性措辞，用于 DB 存储版本。"""
+    for pattern, replacement in _SANITIZE_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +203,21 @@ def get_user_conversations(user_id, viewer_language=None):
             else:
                 display_name = conv.name or '群聊'
 
+            # AI 对话：检查上下文 token 用量
+            context_exhausted = False
+            context_tokens = 0
+            if conv.type == 'ai':
+                _last_ai = (
+                    ChatMessage.query
+                    .filter_by(conversation_id=conv.id, is_ai_response=True)
+                    .order_by(ChatMessage.id.desc())
+                    .first()
+                )
+                if _last_ai:
+                    context_tokens = _last_ai.ai_prompt_tokens or 0
+                    if context_tokens > 6000:
+                        context_exhausted = True
+
             conversations.append({
                 'id': conv.id,
                 'type': conv.type,
@@ -194,6 +228,8 @@ def get_user_conversations(user_id, viewer_language=None):
                 'participants': participants,
                 'created_at': conv.created_at.isoformat() if conv.created_at else None,
                 'updated_at': conv.updated_at.isoformat() if conv.updated_at else None,
+                'context_exhausted': context_exhausted,
+                'context_tokens': context_tokens,
             })
 
         # 按 updated_at 倒序排列（最近活动在前）
@@ -1066,6 +1102,97 @@ def forward_message(message_id, sender_id, target_conversation_ids, note=None):
         db.session.rollback()
         logger.error(f"转发消息失败: {e}", exc_info=True)
         return {'success': False, 'message': f'转发消息失败: {str(e)}'}
+
+
+# ---------------------------------------------------------------------------
+# 14b. 分享文件管理器文件到对话
+# ---------------------------------------------------------------------------
+
+def share_files_to_conversations(sender_id, file_refs_with_libs, target_conversation_ids, note=None):
+    """
+    将文件管理器文件分享到一个或多个聊天对话。
+
+    Args:
+        sender_id: 发送者用户 ID
+        file_refs_with_libs: list of (UserFileRef, FileLibrary) 元组
+        target_conversation_ids: 目标对话 ID 列表
+        note: 可选的留言文本
+
+    Returns:
+        dict: {'success': True, 'data': {'shared_count': N, 'conversation_ids': [...]}}
+    """
+    try:
+        shared_ids = []
+
+        for conv_id in target_conversation_ids:
+            # 验证操作者是目标对话的参与者
+            participant = ChatParticipant.query.filter_by(
+                conversation_id=conv_id,
+                user_id=sender_id,
+            ).first()
+            if not participant:
+                continue
+
+            # 为每个文件创建一条消息
+            for ref, lib in file_refs_with_libs:
+                # 根据 mime_type 判断消息类型
+                mime = (lib.mime_type or '').lower()
+                if mime.startswith('image/'):
+                    msg_type = 'image'
+                elif mime.startswith('video/'):
+                    msg_type = 'video'
+                else:
+                    msg_type = 'file'
+
+                msg = ChatMessage(
+                    conversation_id=conv_id,
+                    sender_id=sender_id,
+                    content=None,
+                    message_type=msg_type,
+                    file_url=f'fm:{ref.id}',
+                    file_name=ref.display_name,
+                    file_size=lib.file_size,
+                    source_language=detect_language(ref.display_name),
+                )
+                db.session.add(msg)
+
+            # 如果有留言，追加一条文本消息
+            if note and note.strip():
+                note_msg = ChatMessage(
+                    conversation_id=conv_id,
+                    sender_id=sender_id,
+                    content=note.strip(),
+                    source_language=detect_language(note),
+                )
+                db.session.add(note_msg)
+
+            # 更新目标对话 updated_at 和发送者 last_read_at
+            conv = ChatConversation.query.get(conv_id)
+            if conv:
+                conv.updated_at = datetime.now(timezone.utc)
+            participant.last_read_at = datetime.now(timezone.utc)
+
+            shared_ids.append(conv_id)
+
+        db.session.commit()
+
+        logger.info(
+            f"用户 {sender_id} 分享 {len(file_refs_with_libs)} 个文件到 {len(shared_ids)} 个对话: {shared_ids}"
+        )
+
+        return {
+            'success': True,
+            'data': {
+                'shared_count': len(shared_ids),
+                'conversation_ids': shared_ids,
+            },
+            'message': f'成功分享到 {len(shared_ids)} 个对话',
+        }
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"分享文件到对话失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'分享文件失败: {str(e)}'}
 
 
 # ---------------------------------------------------------------------------

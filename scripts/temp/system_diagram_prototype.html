@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMA 工程系统图 - 折线路由增强版</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;overflow:hidden;height:100vh}
+  .panel{width:280px;background:#1e293b;border-right:1px solid #334155;display:flex;flex-direction:column;height:100vh;flex-shrink:0}
+  .panel-header{padding:16px;border-bottom:1px solid #334155}
+  .panel-search{width:100%;padding:8px 12px;background:#0f172a;border:1px solid #475569;border-radius:8px;color:#e2e8f0;font-size:13px;outline:none}
+  .panel-search:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.2)}
+  .panel-body{flex:1;overflow-y:auto;padding:8px}
+  .panel-body::-webkit-scrollbar{width:4px}
+  .panel-body::-webkit-scrollbar-thumb{background:#475569;border-radius:2px}
+  .category-group{margin-bottom:4px}
+  .category-header{display:flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;border-radius:6px;font-size:13px;font-weight:600;color:#94a3b8;transition:all .15s;user-select:none}
+  .category-header:hover{background:#334155;color:#e2e8f0}
+  .category-header .arrow{transition:transform .2s;font-size:10px}
+  .category-header.open .arrow{transform:rotate(90deg)}
+  .category-items{display:none;padding:2px 0 2px 8px}
+  .category-header.open+.category-items{display:block}
+  .product-item{display:flex;align-items:center;gap:8px;padding:6px 10px;margin:1px 0;cursor:grab;border-radius:6px;font-size:12px;color:#cbd5e1;transition:all .15s;user-select:none}
+  .product-item:hover{background:#334155;color:#fff}
+  .product-item:active{cursor:grabbing;opacity:.6}
+  .product-item .item-icon{width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .product-item .item-icon svg{width:28px;height:28px}
+  .canvas-wrapper{flex:1;position:relative;overflow:hidden;background:#0f172a}
+  .canvas-toolbar{position:absolute;top:12px;left:12px;display:flex;gap:6px;z-index:20}
+  .canvas-toolbar button{padding:6px 10px;background:#1e293b;border:1px solid #475569;border-radius:6px;color:#94a3b8;font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px;white-space:nowrap}
+  .canvas-toolbar button:hover{background:#334155;color:#e2e8f0;border-color:#64748b}
+  .canvas-toolbar button.active{background:#1e40af;border-color:#3b82f6;color:#fff}
+  .canvas-info{position:absolute;bottom:12px;left:12px;font-size:11px;color:#475569;z-index:20}
+  .canvas-actions{position:absolute;top:12px;right:12px;display:flex;gap:6px;z-index:20}
+  .canvas-actions button{padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;transition:all .15s;border:1px solid}
+  .btn-export{background:#1e293b;border-color:#475569!important;color:#94a3b8}
+  .btn-export:hover{background:#334155;color:#e2e8f0}
+  .btn-save{background:#1d4ed8;border-color:#2563eb!important;color:#fff}
+  .btn-save:hover{background:#2563eb}
+  #diagramCanvas{width:100%;height:100%}
+  .node-group{cursor:move}
+  .node-group:hover .node-glow{opacity:.3}
+  .node-group.selected .node-glow{opacity:.5}
+  .node-label{font-size:11px;fill:#e2e8f0;font-weight:500;pointer-events:none;text-anchor:middle}
+  .node-sublabel{font-size:9px;fill:#64748b;pointer-events:none;text-anchor:middle}
+  .node-qty-badge{font-size:9px;fill:#fbbf24;font-weight:700;pointer-events:none}
+  .port{r:5;fill:#1e293b;stroke:#475569;stroke-width:1.5;cursor:crosshair;transition:all .15s;opacity:0}
+  .node-group:hover .port,.node-group.selected .port{opacity:1}
+  .port:hover{r:7;fill:#3b82f6;stroke:#60a5fa;opacity:1}
+  .edge-line{fill:none;cursor:pointer}
+  .edge-line:hover{filter:brightness(1.3)}
+  .edge-hit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
+  .edge-label-bg{fill:#0f172a;opacity:.9}
+  .edge-label{font-size:9px;pointer-events:none;text-anchor:middle;dominant-baseline:central}
+  .edge-temp{stroke:#3b82f6;stroke-width:2;stroke-dasharray:6 3;fill:none;pointer-events:none}
+  /* Drag handle for ortho3 mid-segment */
+  .mid-handle{cursor:ew-resize;transition:opacity .15s}
+  .mid-handle:hover .mid-handle-bar{stroke:#60a5fa;stroke-width:3}
+  .mid-handle:hover .mid-handle-grip{fill:#3b82f6;r:5}
+  .mid-handle-bar{stroke:#3b82f6;stroke-width:2;stroke-dasharray:4 2;opacity:.5}
+  .mid-handle-grip{fill:#1e293b;stroke:#3b82f6;stroke-width:1.5;r:4;transition:all .15s}
+  .props-panel{width:280px;background:#1e293b;border-left:1px solid #334155;padding:16px;display:none;flex-direction:column;gap:10px;overflow-y:auto;flex-shrink:0}
+  .props-panel.visible{display:flex}
+  .props-panel::-webkit-scrollbar{width:4px}
+  .props-panel::-webkit-scrollbar-thumb{background:#475569;border-radius:2px}
+  .props-title{font-size:14px;font-weight:600;color:#e2e8f0;padding-bottom:8px;border-bottom:1px solid #334155}
+  .props-field{display:flex;flex-direction:column;gap:4px}
+  .props-label{font-size:11px;color:#94a3b8;font-weight:500}
+  .props-input{padding:6px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;outline:none}
+  .props-input:focus{border-color:#3b82f6}
+  .props-select{padding:6px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#e2e8f0;font-size:12px;outline:none}
+  .props-row{display:flex;gap:8px;align-items:center}
+  .props-color{width:32px;height:32px;border:1px solid #475569;border-radius:6px;cursor:pointer;background:#0f172a;padding:2px}
+  .props-color::-webkit-color-swatch-wrapper{padding:0}
+  .props-color::-webkit-color-swatch{border:none;border-radius:4px}
+  .props-range{flex:1;accent-color:#3b82f6}
+  .props-range-val{font-size:11px;color:#64748b;min-width:28px;text-align:right}
+  .props-section{font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;padding-top:8px;border-top:1px solid #1e293b}
+  .route-mode-btns{display:flex;gap:4px}
+  .route-mode-btn{flex:1;padding:6px 4px;background:#0f172a;border:1px solid #334155;border-radius:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;color:#94a3b8}
+  .route-mode-btn:hover{border-color:#64748b;color:#e2e8f0}
+  .route-mode-btn.active{border-color:#3b82f6;color:#60a5fa;background:rgba(59,130,246,.06)}
+  .route-mode-btn svg{width:28px;height:16px}
+  .drop-indicator{position:absolute;pointer-events:none;z-index:15;display:none}
+  .conn-type-popup{position:absolute;background:#1e293b;border:1px solid #475569;border-radius:10px;padding:6px;z-index:30;display:none;box-shadow:0 12px 40px rgba(0,0,0,.5);min-width:200px}
+  .conn-type-popup-title{font-size:11px;color:#64748b;padding:4px 8px 6px;font-weight:600}
+  .conn-type-option{padding:7px 10px;border-radius:6px;font-size:12px;cursor:pointer;color:#cbd5e1;display:flex;align-items:center;gap:10px}
+  .conn-type-option:hover{background:#334155}
+  .zoom-controls{position:absolute;bottom:12px;right:184px;display:flex;gap:4px;z-index:20}
+  .zoom-controls button{width:32px;height:32px;background:#1e293b;border:1px solid #475569;border-radius:6px;color:#94a3b8;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .zoom-controls button:hover{background:#334155;color:#e2e8f0}
+  .zoom-level{padding:4px 8px;font-size:11px;color:#64748b;background:#1e293b;border:1px solid #334155;border-radius:4px;min-width:48px;text-align:center;display:flex;align-items:center;justify-content:center}
+  .diagram-name{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:8px}
+  .diagram-name input{background:transparent;border:none;color:#e2e8f0;font-size:15px;font-weight:600;text-align:center;outline:none;border-bottom:1px solid transparent;padding:4px 8px}
+  .diagram-name input:hover{border-bottom-color:#475569}
+  .diagram-name input:focus{border-bottom-color:#3b82f6}
+  .diagram-badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:500}
+  .minimap{position:absolute;bottom:12px;right:12px;width:160px;height:100px;background:#1e293b;border:1px solid #334155;border-radius:8px;z-index:20;overflow:hidden}
+  .minimap-viewport{stroke:#3b82f6;stroke-width:2;fill:rgba(59,130,246,.08)}
+  .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#1e293b;border:1px solid #334155;padding:10px 20px;border-radius:8px;font-size:13px;color:#e2e8f0;z-index:100;opacity:0;transition:opacity .3s;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+  .toast.show{opacity:1}
+  .legend{position:absolute;bottom:50px;left:12px;background:#1e293bdd;border:1px solid #334155;border-radius:8px;padding:10px 14px;z-index:20;font-size:11px;backdrop-filter:blur(8px)}
+  .legend-title{color:#94a3b8;font-weight:600;margin-bottom:6px;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
+  .legend-item{display:flex;align-items:center;gap:8px;color:#cbd5e1;margin:4px 0}
+</style>
+</head>
+<body>
+<div style="display:flex;height:100vh;">
+  <div class="panel">
+    <div class="panel-header">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:14px;font-weight:600;">产品库</span>
+        <span style="font-size:11px;color:#64748b;">拖拽添加</span>
+      </div>
+      <input class="panel-search" placeholder="搜索产品名称或型号..." id="productSearch" oninput="filterProducts()">
+    </div>
+    <div class="panel-body" id="productPanel"></div>
+  </div>
+  <div class="canvas-wrapper" id="canvasWrapper">
+    <div class="canvas-toolbar">
+      <button id="btnSelect" class="active" onclick="setTool('select')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>选择</button>
+      <button id="btnConnect" onclick="setTool('connect')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>连线</button>
+      <button id="btnText" onclick="addTextNode()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>标注</button>
+      <div style="width:1px;height:24px;background:#334155;margin:0 2px;"></div>
+      <button onclick="undoAction()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg></button>
+      <button onclick="deleteSelected()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
+    </div>
+    <div class="diagram-name"><input value="5G室分覆盖系统方案图" id="diagramNameInput" style="width:280px;"><span class="diagram-badge" style="background:#1e3a5f;color:#60a5fa;">内部</span></div>
+    <div class="canvas-actions">
+      <button class="btn-export" onclick="showToast('已导出为 PNG')">导出PNG</button>
+      <button class="btn-export" onclick="showToast('已导出为 PDF')">导出PDF</button>
+      <button class="btn-save" onclick="showToast('✓ 系统图已保存')">保存</button>
+    </div>
+    <svg id="diagramCanvas" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="gridSmall" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="#141e2e" stroke-width="0.5"/></pattern>
+        <pattern id="gridLarge" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#gridSmall)"/><path d="M 100 0 L 0 0 0 100" fill="none" stroke="#1a2538" stroke-width="0.8"/></pattern>
+        <filter id="glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="iconShadow"><feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.4"/></filter>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#gridLarge)"/>
+      <g id="canvasGroup" transform="translate(0,0) scale(1)">
+        <g id="edgesLayer"></g>
+        <g id="handlesLayer"></g>
+        <g id="nodesLayer"></g>
+        <g id="tempLayer"></g>
+      </g>
+    </svg>
+    <div class="canvas-info" id="canvasInfo">节点: 0 | 连线: 0</div>
+    <div class="legend" id="legendPanel"></div>
+    <div class="zoom-controls">
+      <button onclick="zoomCanvas(-0.1)">−</button>
+      <div class="zoom-level" id="zoomLevel">100%</div>
+      <button onclick="zoomCanvas(0.1)">+</button>
+      <button onclick="fitView()">⊡</button>
+    </div>
+    <div class="minimap"><svg id="minimapSvg" width="160" height="100" viewBox="-100 -100 1400 900"><rect x="-100" y="-100" width="1400" height="900" fill="#0f172a"/><g id="minimapNodes"></g><rect class="minimap-viewport" id="minimapViewport" x="0" y="0" width="400" height="250"/></svg></div>
+    <div class="drop-indicator" id="dropIndicator"></div>
+    <div class="conn-type-popup" id="connTypePopup"><div id="connTypeList"></div></div>
+  </div>
+  <div class="props-panel" id="propsPanel"><div class="props-title" id="propsTitle">属性</div><div id="propsContent"></div></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ====== CABLE TYPES ======
+const CABLE_TYPES = {
+  coax_half:{name:'1/2" 同轴电缆',shortName:'1/2" 同轴',color:'#f59e0b',width:2,dash:'',category:'同轴电缆',desc:'室内馈线'},
+  coax_78:{name:'7/8" 同轴电缆',shortName:'7/8" 同轴',color:'#f59e0b',width:4,dash:'',category:'同轴电缆',desc:'主干馈线'},
+  coax_114:{name:'1-1/4" 同轴电缆',shortName:'1¼" 同轴',color:'#d97706',width:6,dash:'',category:'同轴电缆',desc:'超粗主干'},
+  coax_flex:{name:'柔性同轴电缆',shortName:'柔性同轴',color:'#fbbf24',width:2,dash:'8 4',category:'同轴电缆',desc:'跳线连接'},
+  fiber_single:{name:'单模光纤',shortName:'单模光纤',color:'#a855f7',width:2,dash:'',category:'光纤',desc:'长距离传输'},
+  fiber_multi:{name:'多模光纤',shortName:'多模光纤',color:'#c084fc',width:2.5,dash:'6 2',category:'光纤',desc:'短距离高带宽'},
+  fiber_armored:{name:'铠装光缆',shortName:'铠装光缆',color:'#7c3aed',width:4,dash:'',category:'光纤',desc:'室外敷设'},
+  power_ac:{name:'AC 电源线',shortName:'AC电源',color:'#ef4444',width:3,dash:'',category:'电源',desc:'交流 220V/380V'},
+  power_dc48:{name:'DC -48V 电源线',shortName:'DC-48V',color:'#f87171',width:2.5,dash:'10 3',category:'电源',desc:'直流供电'},
+  power_gnd:{name:'接地线',shortName:'接地线',color:'#fca5a5',width:1.5,dash:'4 4',category:'电源',desc:'保护接地'},
+  signal_rf:{name:'RF 射频信号',shortName:'RF信号',color:'#3b82f6',width:2,dash:'',category:'信号',desc:'射频传输'},
+  data_eth:{name:'以太网线 CAT6',shortName:'网线CAT6',color:'#22c55e',width:2,dash:'',category:'数据',desc:'网络/PoE'},
+  data_serial:{name:'控制线',shortName:'控制线',color:'#4ade80',width:1,dash:'3 3',category:'数据',desc:'设备管理'},
+  gps:{name:'GPS 天馈线',shortName:'GPS天馈',color:'#06b6d4',width:1.5,dash:'5 5',category:'其他',desc:'GPS馈线'},
+};
+const CONN_LABELS = Object.fromEntries(Object.entries(CABLE_TYPES).map(([k,v])=>[k,v.shortName]));
+
+// ====== DEVICE ICONS (same as before) ======
+const DEVICE_ICONS = {
+  rru:{viewBox:'0 0 64 64',paths:[{d:'M14 16h36v36H14z',fill:'none',stroke:'#3b82f6',strokeWidth:2},{d:'M18 22h28M18 28h28M18 34h28',fill:'none',stroke:'#3b82f6',strokeWidth:1,opacity:.4},{d:'M10 18v28M12 20v24',fill:'none',stroke:'#3b82f6',strokeWidth:1.5,opacity:.6},{d:'M24 10v6M32 10v6M40 10v6',fill:'none',stroke:'#60a5fa',strokeWidth:2},{d:'M24 10a2 2 0 1 1 0-.01M32 10a2 2 0 1 1 0-.01M40 10a2 2 0 1 1 0-.01',fill:'#60a5fa',stroke:'none'},{d:'M20 40a1.5 1.5 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},{d:'M26 40a1.5 1.5 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},{d:'M28 52v6M36 52v6',fill:'none',stroke:'#ef4444',strokeWidth:2},{d:'M18 44h28v4H18z',fill:'#3b82f6',opacity:.15,stroke:'none'}]},
+  bbu:{viewBox:'0 0 64 64',paths:[{d:'M8 12h48v44H8z',fill:'none',stroke:'#3b82f6',strokeWidth:2},{d:'M12 16h16v8H12zM32 16h20v8H32z',fill:'#3b82f6',opacity:.12,stroke:'#3b82f6',strokeWidth:1},{d:'M12 28h16v8H12zM32 28h20v8H32z',fill:'#3b82f6',opacity:.12,stroke:'#3b82f6',strokeWidth:1},{d:'M12 40h16v8H12zM32 40h20v8H32z',fill:'#3b82f6',opacity:.12,stroke:'#3b82f6',strokeWidth:1},{d:'M14 18v4M16 18v4M34 18v4M36 18v4',fill:'none',stroke:'#60a5fa',strokeWidth:1},{d:'M46 20a2 2 0 1 1 0-.01',fill:'#22c55e',stroke:'none'},{d:'M46 32a2 2 0 1 1 0-.01',fill:'#22c55e',stroke:'none'}]},
+  repeater:{viewBox:'0 0 64 64',paths:[{d:'M12 18h40v28H12z',fill:'none',stroke:'#3b82f6',strokeWidth:2},{d:'M32 24v14',fill:'none',stroke:'#60a5fa',strokeWidth:2},{d:'M26 28a8 8 0 0 1 12 0',fill:'none',stroke:'#60a5fa',strokeWidth:1.5},{d:'M6 32h6M52 32h6',fill:'none',stroke:'#3b82f6',strokeWidth:2},{d:'M54 30l4 2-4 2',fill:'#3b82f6',stroke:'none'}]},
+  combiner:{viewBox:'0 0 64 64',paths:[{d:'M8 18h12l24 0h12v28H44L20 46H8z',fill:'none',stroke:'#3b82f6',strokeWidth:2},{d:'M2 24h6M2 32h6M2 40h6',fill:'none',stroke:'#60a5fa',strokeWidth:2},{d:'M56 32h6',fill:'none',stroke:'#60a5fa',strokeWidth:2.5}]},
+  antenna_omni:{viewBox:'0 0 64 64',paths:[{d:'M32 14a16 10 0 0 1 16 10v4a16 10 0 0 1-32 0v-4a16 10 0 0 1 16-10z',fill:'#22c55e',opacity:.12,stroke:'#22c55e',strokeWidth:2},{d:'M32 18v12',fill:'none',stroke:'#22c55e',strokeWidth:2},{d:'M20 20a14 6 0 0 1 24 0',fill:'none',stroke:'#4ade80',strokeWidth:1,opacity:.5},{d:'M24 34h16v4H24z',fill:'#22c55e',opacity:.2,stroke:'#22c55e',strokeWidth:1},{d:'M32 38v18',fill:'none',stroke:'#64748b',strokeWidth:1.5},{d:'M30 54h4v4h-4z',fill:'#64748b',stroke:'none'}]},
+  antenna_dir:{viewBox:'0 0 64 64',paths:[{d:'M18 10h28v36H18z',fill:'#22c55e',opacity:.1,stroke:'#22c55e',strokeWidth:2},{d:'M22 14h20M22 20h20M22 26h20M22 32h20',fill:'none',stroke:'#22c55e',strokeWidth:.6,opacity:.3},{d:'M32 4l-6 6h12z',fill:'#4ade80',opacity:.5,stroke:'none'},{d:'M28 46v8h8v-8',fill:'none',stroke:'#64748b',strokeWidth:1.5}]},
+  antenna_out:{viewBox:'0 0 64 64',paths:[{d:'M31 8h2v48h-2z',fill:'#64748b',stroke:'none'},{d:'M20 14h24M18 20h28M16 26h32',fill:'none',stroke:'#22c55e',strokeWidth:2},{d:'M48 12a20 20 0 0 1 0 20',fill:'none',stroke:'#4ade80',strokeWidth:1,opacity:.4},{d:'M24 56h16',fill:'none',stroke:'#64748b',strokeWidth:2}]},
+  antenna_con:{viewBox:'0 0 64 64',paths:[{d:'M20 8h24v48H20z',fill:'#22c55e',opacity:.08,stroke:'#22c55e',strokeWidth:2},{d:'M18 8h28v4H18z',fill:'#22c55e',opacity:.15,stroke:'#22c55e',strokeWidth:1},{d:'M28 16h8v28h-8z',fill:'none',stroke:'#4ade80',strokeWidth:1,strokeDasharray:'3 2'},{d:'M44 24a8 8 0 0 1 0 12',fill:'none',stroke:'#4ade80',strokeWidth:.8,opacity:.35}]},
+  splitter_2:{viewBox:'0 0 64 64',paths:[{d:'M12 20h16v24H12zM28 20l18-6v36l-18-6z',fill:'#a855f7',opacity:.08,stroke:'#a855f7',strokeWidth:2},{d:'M2 32h10',fill:'none',stroke:'#a855f7',strokeWidth:2.5},{d:'M46 20h12M46 44h12',fill:'none',stroke:'#c084fc',strokeWidth:2},{d:'M22 32h8l14-12M30 32l14 12',fill:'none',stroke:'#a855f7',strokeWidth:1,opacity:.5}]},
+  splitter_3:{viewBox:'0 0 64 64',paths:[{d:'M12 18h16v28H12zM28 18l18-6v40l-18-6z',fill:'#a855f7',opacity:.08,stroke:'#a855f7',strokeWidth:2},{d:'M2 32h10',fill:'none',stroke:'#a855f7',strokeWidth:2.5},{d:'M46 16h12M46 32h12M46 48h12',fill:'none',stroke:'#c084fc',strokeWidth:2}]},
+  coupler:{viewBox:'0 0 64 64',paths:[{d:'M4 24h56',fill:'none',stroke:'#a855f7',strokeWidth:2.5},{d:'M20 18h24v28H20z',fill:'#a855f7',opacity:.08,stroke:'#a855f7',strokeWidth:2},{d:'M32 46v12',fill:'none',stroke:'#c084fc',strokeWidth:2},{d:'M26 30c4-4 8 4 12 0',fill:'none',stroke:'#c084fc',strokeWidth:1.5,opacity:.6}]},
+  load:{viewBox:'0 0 64 64',paths:[{d:'M8 32h8l4-10 8 20 8-20 8 20 4-10h8',fill:'none',stroke:'#a855f7',strokeWidth:2},{d:'M54 32v14',fill:'none',stroke:'#64748b',strokeWidth:1.5},{d:'M50 46h12M52 50h8M54 54h4',fill:'none',stroke:'#64748b',strokeWidth:1.5,opacity:.5}]},
+  psu:{viewBox:'0 0 64 64',paths:[{d:'M10 14h44v36H10z',fill:'#ef4444',opacity:.08,stroke:'#ef4444',strokeWidth:2},{d:'M2 26h8M2 38h8',fill:'none',stroke:'#ef4444',strokeWidth:2},{d:'M54 26h8M54 38h8',fill:'none',stroke:'#f87171',strokeWidth:2},{d:'M36 28h14v8H36z',fill:'#ef4444',opacity:.12,stroke:'none'},{d:'M16 44a2 2 0 1 1 0-.01',fill:'#22c55e',stroke:'none'}]},
+  poi:{viewBox:'0 0 64 64',paths:[{d:'M6 8h52v48H6z',fill:'#ef4444',opacity:.06,stroke:'#ef4444',strokeWidth:2},{d:'M10 12h18v12H10zM32 12h22v12H32z',fill:'none',stroke:'#ef4444',strokeWidth:1,opacity:.5},{d:'M10 28h18v12H10zM32 28h22v12H32z',fill:'none',stroke:'#ef4444',strokeWidth:1,opacity:.5},{d:'M16 4v8M24 4v8M40 4v8M48 4v8',fill:'none',stroke:'#f87171',strokeWidth:1.5}]},
+  ups:{viewBox:'0 0 64 64',paths:[{d:'M10 12h44v40H10z',fill:'#ef4444',opacity:.06,stroke:'#ef4444',strokeWidth:2},{d:'M16 18h32v16H16z',fill:'#0f172a',stroke:'#ef4444',strokeWidth:1},{d:'M26 24h10v4H26z',fill:'#22c55e',opacity:.4,stroke:'none'},{d:'M20 40a3 3 0 1 1 0-.01',fill:'#ef4444',opacity:.3,stroke:'#ef4444',strokeWidth:1}]},
+  spd:{viewBox:'0 0 64 64',paths:[{d:'M18 12h28v40H18z',fill:'#ef4444',opacity:.08,stroke:'#ef4444',strokeWidth:2},{d:'M36 16l-8 14h8l-8 14',fill:'none',stroke:'#fbbf24',strokeWidth:2.5},{d:'M32 52v6M26 58h12M28 61h8',fill:'none',stroke:'#64748b',strokeWidth:1.5},{d:'M32 6v6',fill:'none',stroke:'#ef4444',strokeWidth:2}]},
+  text_note:{viewBox:'0 0 64 64',paths:[{d:'M12 12h40v40H12z',fill:'#475569',opacity:.08,stroke:'#64748b',strokeWidth:1.5,strokeDasharray:'4 2'},{d:'M20 24h24M20 32h20M20 40h16',fill:'none',stroke:'#64748b',strokeWidth:1.5,opacity:.5}]},
+};
+
+const PRODUCTS = [
+  {id:1,name:'RRU 射频拉远单元',model:'RRU-5258',category:'基站系统',color:'#3b82f6',iconKey:'rru'},
+  {id:2,name:'BBU 基带处理单元',model:'BBU-6900',category:'基站系统',color:'#3b82f6',iconKey:'bbu'},
+  {id:3,name:'直放站',model:'REP-2600',category:'基站系统',color:'#3b82f6',iconKey:'repeater'},
+  {id:4,name:'合路器',model:'CMB-4IN1',category:'基站系统',color:'#3b82f6',iconKey:'combiner'},
+  {id:10,name:'室内全向吸顶天线',model:'ANT-C360',category:'天线系统',color:'#22c55e',iconKey:'antenna_omni'},
+  {id:11,name:'室内定向壁挂天线',model:'ANT-D90',category:'天线系统',color:'#22c55e',iconKey:'antenna_dir'},
+  {id:12,name:'室外抱杆天线',model:'ANT-O65',category:'天线系统',color:'#22c55e',iconKey:'antenna_out'},
+  {id:13,name:'美化天线',model:'ANT-DEC',category:'天线系统',color:'#22c55e',iconKey:'antenna_con'},
+  {id:30,name:'二功分器',model:'SPL-2W',category:'分布系统',color:'#a855f7',iconKey:'splitter_2'},
+  {id:31,name:'三功分器',model:'SPL-3W',category:'分布系统',color:'#a855f7',iconKey:'splitter_3'},
+  {id:32,name:'耦合器 (10dB)',model:'CPL-10',category:'分布系统',color:'#a855f7',iconKey:'coupler'},
+  {id:33,name:'耦合器 (20dB)',model:'CPL-20',category:'分布系统',color:'#a855f7',iconKey:'coupler'},
+  {id:34,name:'负载',model:'LOAD-50',category:'分布系统',color:'#a855f7',iconKey:'load'},
+  {id:40,name:'开关电源',model:'PSU-48V',category:'电源系统',color:'#ef4444',iconKey:'psu'},
+  {id:41,name:'POI 多系统接入平台',model:'POI-3S',category:'电源系统',color:'#ef4444',iconKey:'poi'},
+  {id:42,name:'UPS 不间断电源',model:'UPS-3K',category:'电源系统',color:'#ef4444',iconKey:'ups'},
+  {id:43,name:'防雷器',model:'SPD-N',category:'电源系统',color:'#ef4444',iconKey:'spd'},
+];
+
+const NODE_SIZE=64, LABEL_OFFSET=12;
+let nodes=[],edges=[],nodeIdCounter=100,edgeIdCounter=200;
+let selectedNodeId=null,selectedEdgeId=null,currentTool='select';
+let viewX=0,viewY=0,scale=1;
+let isDragging=false,dragNodeId=null,dragOffsetX=0,dragOffsetY=0;
+let isPanning=false,panStartX=0,panStartY=0,panViewX=0,panViewY=0;
+let isConnecting=false,connSourceId=null,connSourcePort='';
+let pendingEdge=null,defaultRouteMode='ortho3';
+// Mid-segment drag state
+let isDraggingMid=false,dragMidEdgeId=null,dragMidStartX=0,dragMidStartOffset=0;
+
+// ====== SVG HELPERS ======
+function renderIconSVG(k,sz,x,y){const d=DEVICE_ICONS[k];if(!d)return '';let p='';d.paths.forEach(a=>{const at=[`d="${a.d}"`,a.fill?`fill="${a.fill}"`:'',a.stroke?`stroke="${a.stroke}"`:'',a.strokeWidth?`stroke-width="${a.strokeWidth}"`:'',a.opacity!==undefined?`opacity="${a.opacity}"`:'',a.strokeDasharray?`stroke-dasharray="${a.strokeDasharray}"`:''].filter(Boolean).join(' ');p+=`<path ${at}/>`});return `<svg x="${x}" y="${y}" width="${sz}" height="${sz}" viewBox="${d.viewBox}" filter="url(#iconShadow)">${p}</svg>`}
+function renderIconPanel(k){const d=DEVICE_ICONS[k];if(!d)return '';let p='';d.paths.forEach(a=>{const at=[`d="${a.d}"`,a.fill?`fill="${a.fill}"`:'',a.stroke?`stroke="${a.stroke}"`:'',a.strokeWidth?`stroke-width="${a.strokeWidth}"`:'',a.opacity!==undefined?`opacity="${a.opacity}"`:'',a.strokeDasharray?`stroke-dasharray="${a.strokeDasharray}"`:''].filter(Boolean).join(' ');p+=`<path ${at}/>`});return `<svg viewBox="${d.viewBox}">${p}</svg>`}
+function cableLineSVG(k,w,h){const c=CABLE_TYPES[k];if(!c)return '';return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><line x1="2" y1="${h/2}" x2="${w-2}" y2="${h/2}" stroke="${c.color}" stroke-width="${Math.min(c.width,h-2)}" ${c.dash?`stroke-dasharray="${c.dash}"`:''} stroke-linecap="round"/></svg>`}
+
+// ====== PRODUCT PANEL ======
+function buildProductPanel(){const panel=document.getElementById('productPanel');const cats=[...new Set(PRODUCTS.map(p=>p.category))];let h='';cats.forEach(cat=>{const items=PRODUCTS.filter(p=>p.category===cat);h+=`<div class="category-group"><div class="category-header open" onclick="this.classList.toggle('open')"><span class="arrow">▶</span><span style="color:${items[0].color}">●</span><span>${cat}</span><span style="margin-left:auto;font-size:11px;color:#475569;">${items.length}</span></div><div class="category-items" style="display:block">${items.map(p=>`<div class="product-item" draggable="true" ondragstart="onDragStart(event,${p.id})" data-name="${p.name}" data-model="${p.model}"><div class="item-icon">${renderIconPanel(p.iconKey)}</div><div style="flex:1;min-width:0;"><div style="font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div><div style="font-size:10px;color:#64748b;">${p.model}</div></div></div>`).join('')}</div></div>`});panel.innerHTML=h}
+function filterProducts(){const q=document.getElementById('productSearch').value.toLowerCase();document.querySelectorAll('.product-item').forEach(el=>{const n=el.dataset.name.toLowerCase(),m=el.dataset.model.toLowerCase();el.style.display=(n.includes(q)||m.includes(q))?'':'none'});if(q){document.querySelectorAll('.category-header').forEach(h=>h.classList.add('open'));document.querySelectorAll('.category-items').forEach(c=>c.style.display='block')}}
+
+// ====== DRAG & DROP ======
+function onDragStart(e,pid){e.dataTransfer.setData('text/plain',pid);e.dataTransfer.effectAllowed='copy'}
+const wrapper=document.getElementById('canvasWrapper');
+wrapper.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='copy';const di=document.getElementById('dropIndicator'),r=wrapper.getBoundingClientRect();di.style.display='block';di.style.left=(e.clientX-r.left-36)+'px';di.style.top=(e.clientY-r.top-36)+'px';di.style.width='72px';di.style.height='72px';di.innerHTML='<div style="width:72px;height:72px;border:2px dashed #3b82f6;border-radius:12px;background:rgba(59,130,246,.06);"></div>'});
+wrapper.addEventListener('dragleave',()=>{document.getElementById('dropIndicator').style.display='none'});
+wrapper.addEventListener('drop',e=>{e.preventDefault();document.getElementById('dropIndicator').style.display='none';const p=PRODUCTS.find(p=>p.id===parseInt(e.dataTransfer.getData('text/plain')));if(!p)return;const r=wrapper.getBoundingClientRect(),cx=(e.clientX-r.left-viewX)/scale,cy=(e.clientY-r.top-viewY)/scale;addNode(p,cx-NODE_SIZE/2,cy-NODE_SIZE/2)});
+
+// ====== NODE MANAGEMENT ======
+function addNode(product,x,y){const node={id:nodeIdCounter++,productId:product.id,name:product.name,model:product.model,category:product.category,color:product.color,iconKey:product.iconKey,x:Math.round(x/10)*10,y:Math.round(y/10)*10,w:NODE_SIZE,h:NODE_SIZE,qty:1,label:''};nodes.push(node);renderAll();selectNode(node.id);return node}
+function renderAll(){renderEdges();renderMidHandles();renderNodes();updateInfo();updateMinimap();buildLegend()}
+
+function renderNodes(){
+  const layer=document.getElementById('nodesLayer');layer.innerHTML='';
+  nodes.forEach(n=>{
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class',`node-group ${selectedNodeId===n.id?'selected':''}`);g.setAttribute('transform',`translate(${n.x},${n.y})`);g.dataset.nodeId=n.id;
+    const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');glow.setAttribute('class','node-glow');glow.setAttribute('cx',n.w/2);glow.setAttribute('cy',n.h/2);glow.setAttribute('r',n.w/2+8);glow.setAttribute('fill',n.color);glow.setAttribute('opacity',selectedNodeId===n.id?'0.15':'0');glow.style.transition='opacity .2s';g.appendChild(glow);
+    const hit=document.createElementNS('http://www.w3.org/2000/svg','rect');hit.setAttribute('x',-8);hit.setAttribute('y',-8);hit.setAttribute('width',n.w+16);hit.setAttribute('height',n.h+LABEL_OFFSET+28);hit.setAttribute('fill','transparent');g.appendChild(hit);
+    const ig=document.createElementNS('http://www.w3.org/2000/svg','g');ig.innerHTML=renderIconSVG(n.iconKey,n.w,0,0);g.appendChild(ig);
+    if(selectedNodeId===n.id){const ring=document.createElementNS('http://www.w3.org/2000/svg','rect');ring.setAttribute('x',-6);ring.setAttribute('y',-6);ring.setAttribute('width',n.w+12);ring.setAttribute('height',n.h+12);ring.setAttribute('rx',10);ring.setAttribute('fill','none');ring.setAttribute('stroke',n.color);ring.setAttribute('stroke-width',1.5);ring.setAttribute('stroke-dasharray','4 2');ring.setAttribute('opacity',.6);g.appendChild(ring)}
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');lbl.setAttribute('class','node-label');lbl.setAttribute('x',n.w/2);lbl.setAttribute('y',n.h+LABEL_OFFSET+4);lbl.textContent=n.label||n.name;g.appendChild(lbl);
+    const sub=document.createElementNS('http://www.w3.org/2000/svg','text');sub.setAttribute('class','node-sublabel');sub.setAttribute('x',n.w/2);sub.setAttribute('y',n.h+LABEL_OFFSET+16);sub.textContent=n.model;g.appendChild(sub);
+    if(n.qty>1){const bx=n.w-4,by=-4;const bg=document.createElementNS('http://www.w3.org/2000/svg','circle');bg.setAttribute('cx',bx);bg.setAttribute('cy',by);bg.setAttribute('r',11);bg.setAttribute('fill','#1e293b');bg.setAttribute('stroke','#f59e0b');bg.setAttribute('stroke-width',1.5);g.appendChild(bg);const qt=document.createElementNS('http://www.w3.org/2000/svg','text');qt.setAttribute('class','node-qty-badge');qt.setAttribute('x',bx);qt.setAttribute('y',by+3.5);qt.setAttribute('text-anchor','middle');qt.textContent=`×${n.qty}`;g.appendChild(qt)}
+    [{name:'top',cx:n.w/2,cy:-4},{name:'right',cx:n.w+4,cy:n.h/2},{name:'bottom',cx:n.w/2,cy:n.h+4},{name:'left',cx:-4,cy:n.h/2}].forEach(p=>{const port=document.createElementNS('http://www.w3.org/2000/svg','circle');port.setAttribute('class','port');port.setAttribute('cx',p.cx);port.setAttribute('cy',p.cy);port.setAttribute('r',5);port.dataset.nodeId=n.id;port.dataset.port=p.name;port.addEventListener('mousedown',onPortMouseDown);g.appendChild(port)});
+    g.addEventListener('mousedown',onNodeMouseDown);layer.appendChild(g)})
+}
+
+function selectNode(id){selectedNodeId=id;selectedEdgeId=null;renderAll();showNodeProps(id)}
+function selectEdge(id){selectedEdgeId=id;selectedNodeId=null;renderAll();showEdgeProps(id)}
+function deleteSelected(){if(selectedNodeId){edges=edges.filter(e=>e.sourceId!==selectedNodeId&&e.targetId!==selectedNodeId);nodes=nodes.filter(n=>n.id!==selectedNodeId);selectedNodeId=null;renderAll();hideProps();showToast('已删除节点')}else if(selectedEdgeId){edges=edges.filter(e=>e.id!==selectedEdgeId);selectedEdgeId=null;renderAll();hideProps();showToast('已删除连线')}}
+
+// ====== NODE DRAG ======
+function onNodeMouseDown(e){if(currentTool!=='select')return;if(e.target.classList.contains('port'))return;e.stopPropagation();const nid=parseInt(e.currentTarget.dataset.nodeId);const node=nodes.find(n=>n.id===nid);if(!node)return;selectNode(nid);isDragging=true;dragNodeId=nid;const pt=svgPoint(e);dragOffsetX=pt.x-node.x;dragOffsetY=pt.y-node.y}
+
+document.addEventListener('mousemove',e=>{
+  if(isDragging&&dragNodeId){const pt=svgPoint(e);const n=nodes.find(n=>n.id===dragNodeId);if(n){n.x=Math.round((pt.x-dragOffsetX)/10)*10;n.y=Math.round((pt.y-dragOffsetY)/10)*10;renderAll()}}
+  if(isPanning){viewX=panViewX+(e.clientX-panStartX);viewY=panViewY+(e.clientY-panStartY);updateTransform()}
+  if(isConnecting&&connSourceId){const pt=svgPoint(e);renderTempEdge(pt.x,pt.y)}
+  // Mid-segment drag
+  if(isDraggingMid&&dragMidEdgeId!==null){
+    const pt=svgPoint(e);
+    const edge=edges.find(e=>e.id===dragMidEdgeId);
+    if(edge){
+      const src=nodes.find(n=>n.id===edge.sourceId),tgt=nodes.find(n=>n.id===edge.targetId);
+      if(src&&tgt){
+        const sp=getPortPos(src,edge.sourcePort),tp=getPortPos(tgt,edge.targetPort);
+        const isH=(edge.sourcePort==='left'||edge.sourcePort==='right');
+        if(isH){
+          // Dragging midX: constrain between source and target X
+          const newMidX=Math.round(pt.x/10)*10;
+          edge.midPos=newMidX;
+        } else {
+          const newMidY=Math.round(pt.y/10)*10;
+          edge.midPos=newMidY;
+        }
+        renderAll();
+      }
+    }
+  }
+});
+
+document.addEventListener('mouseup',e=>{
+  isDragging=false;dragNodeId=null;isPanning=false;isDraggingMid=false;dragMidEdgeId=null;
+  if(isConnecting){if(e.target.classList&&e.target.classList.contains('port')){const tid=parseInt(e.target.dataset.nodeId),tp=e.target.dataset.port;if(tid!==connSourceId){pendingEdge={sourceId:connSourceId,sourcePort:connSourcePort,targetId:tid,targetPort:tp};showConnTypePopup(e.clientX,e.clientY)}}isConnecting=false;connSourceId=null;document.getElementById('tempLayer').innerHTML=''}
+});
+
+// ====== PORT POSITIONS ======
+function getPortPos(node,port){const cx=node.x+node.w/2,cy=node.y+node.h/2;switch(port){case'top':return{x:cx,y:node.y-4};case'right':return{x:node.x+node.w+4,y:cy};case'bottom':return{x:cx,y:node.y+node.h+4};case'left':return{x:node.x-4,y:cy};default:return{x:cx,y:cy}}}
+function portDir(port){switch(port){case'top':return{x:0,y:-1};case'right':return{x:1,y:0};case'bottom':return{x:0,y:1};case'left':return{x:-1,y:0};default:return{x:0,y:0}}}
+
+// ====================================================================
+// EDGE PATH BUILDING - bezier, ortho2, ortho3, straight
+// ====================================================================
+function roundedOrthoPath(pts,r){
+  let d=`M${pts[0].x},${pts[0].y}`;
+  for(let i=1;i<pts.length-1;i++){
+    const prev=pts[i-1],cur=pts[i],next=pts[i+1];
+    const d1x=cur.x-prev.x,d1y=cur.y-prev.y;
+    const d2x=next.x-cur.x,d2y=next.y-cur.y;
+    const len1=Math.abs(d1x)+Math.abs(d1y);
+    const len2=Math.abs(d2x)+Math.abs(d2y);
+    const cr=Math.min(r,len1/2,len2/2); // clamp radius
+    const s1x=Math.sign(d1x),s1y=Math.sign(d1y);
+    const s2x=Math.sign(d2x),s2y=Math.sign(d2y);
+    const bx=cur.x-s1x*cr,by=cur.y-s1y*cr;
+    const ax=cur.x+s2x*cr,ay=cur.y+s2y*cr;
+    d+=` L${bx},${by} Q${cur.x},${cur.y} ${ax},${ay}`;
+  }
+  d+=` L${pts[pts.length-1].x},${pts[pts.length-1].y}`;
+  return d;
+}
+
+function buildEdgePath(edge){
+  const src=nodes.find(n=>n.id===edge.sourceId),tgt=nodes.find(n=>n.id===edge.targetId);
+  if(!src||!tgt)return '';
+  const sp=getPortPos(src,edge.sourcePort),tp=getPortPos(tgt,edge.targetPort);
+  const mode=edge.routeMode||'bezier';
+  const R=12; // corner radius
+
+  if(mode==='straight'){
+    return {path:`M${sp.x},${sp.y} L${tp.x},${tp.y}`,sp,tp,pts:null};
+  }
+
+  if(mode==='bezier'){
+    const tension=Math.max(40,Math.min(Math.abs(tp.x-sp.x),Math.abs(tp.y-sp.y),120)*.5);
+    const sd=portDir(edge.sourcePort),td=portDir(edge.targetPort);
+    return {path:`M${sp.x},${sp.y} C${sp.x+sd.x*tension},${sp.y+sd.y*tension} ${tp.x+td.x*tension},${tp.y+td.y*tension} ${tp.x},${tp.y}`,sp,tp,pts:null};
+  }
+
+  const isH=(edge.sourcePort==='left'||edge.sourcePort==='right');
+
+  if(mode==='ortho2'){
+    // 2-fold: L-shape. One corner.
+    let corner;
+    if(isH){
+      corner={x:tp.x,y:sp.y}; // horizontal first, then vertical
+    } else {
+      corner={x:sp.x,y:tp.y}; // vertical first, then horizontal
+    }
+    const pts=[sp,corner,tp];
+    return {path:roundedOrthoPath(pts,R),sp,tp,pts};
+  }
+
+  if(mode==='ortho3'){
+    // 3-fold: Z-shape. Two corners. Middle segment is draggable.
+    let c1,c2;
+    if(isH){
+      const defaultMid=(sp.x+tp.x)/2;
+      const midX=edge.midPos!==undefined?edge.midPos:defaultMid;
+      c1={x:midX,y:sp.y};
+      c2={x:midX,y:tp.y};
+    } else {
+      const defaultMid=(sp.y+tp.y)/2;
+      const midY=edge.midPos!==undefined?edge.midPos:defaultMid;
+      c1={x:sp.x,y:midY};
+      c2={x:tp.x,y:midY};
+    }
+    const pts=[sp,c1,c2,tp];
+    return {path:roundedOrthoPath(pts,R),sp,tp,pts,c1,c2,isH};
+  }
+
+  return {path:`M${sp.x},${sp.y} L${tp.x},${tp.y}`,sp,tp,pts:null};
+}
+
+// ====== CONNECTION DRAWING ======
+function onPortMouseDown(e){e.stopPropagation();if(currentTool==='select')setTool('connect');isConnecting=true;connSourceId=parseInt(e.target.dataset.nodeId);connSourcePort=e.target.dataset.port}
+function renderTempEdge(mx,my){const layer=document.getElementById('tempLayer');const src=nodes.find(n=>n.id===connSourceId);if(!src)return;const sp=getPortPos(src,connSourcePort);layer.innerHTML=`<line class="edge-temp" x1="${sp.x}" y1="${sp.y}" x2="${mx}" y2="${my}"/>`}
+function showConnTypePopup(x,y){const popup=document.getElementById('connTypePopup');const cats=[...new Set(Object.values(CABLE_TYPES).map(c=>c.category))];let html='<div class="conn-type-popup-title">选择线缆类型</div>';cats.forEach(cat=>{html+=`<div style="font-size:10px;color:#475569;padding:4px 10px 2px;font-weight:600;">${cat}</div>`;Object.entries(CABLE_TYPES).filter(([,c])=>c.category===cat).forEach(([key,c])=>{html+=`<div class="conn-type-option" onclick="setConnType('${key}')"><div>${cableLineSVG(key,36,12)}</div><div style="flex:1"><div>${c.shortName}</div><div style="font-size:10px;color:#64748b;">${c.desc}</div></div></div>`})});document.getElementById('connTypeList').innerHTML=html;popup.style.display='block';popup.style.left=Math.min(x,window.innerWidth-220)+'px';popup.style.top=Math.min(y,window.innerHeight-popup.offsetHeight-20)+'px';popup.style.maxHeight=(window.innerHeight-40)+'px';popup.style.overflowY='auto'}
+function setConnType(cableKey){if(pendingEdge){const c=CABLE_TYPES[cableKey];edges.push({id:edgeIdCounter++,...pendingEdge,cableType:cableKey,color:c.color,width:c.width,dash:c.dash,label:c.shortName,routeMode:defaultRouteMode});pendingEdge=null;renderAll()}document.getElementById('connTypePopup').style.display='none'}
+document.addEventListener('click',e=>{if(!e.target.closest('.conn-type-popup')){document.getElementById('connTypePopup').style.display='none';pendingEdge=null}});
+
+// ====== RENDER EDGES ======
+function renderEdges(){
+  const layer=document.getElementById('edgesLayer');layer.innerHTML='';
+  edges.forEach(edge=>{
+    const result=buildEdgePath(edge);if(!result||!result.path)return;
+    const w=edge.width||2;const isSelected=selectedEdgeId===edge.id;
+    // Hit area
+    const hitPath=document.createElementNS('http://www.w3.org/2000/svg','path');hitPath.setAttribute('class','edge-hit');hitPath.setAttribute('d',result.path);hitPath.setAttribute('stroke-width',Math.max(w+10,14));hitPath.dataset.edgeId=edge.id;hitPath.addEventListener('click',e=>{e.stopPropagation();selectEdge(edge.id)});layer.appendChild(hitPath);
+    // Visible
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('class','edge-line');path.setAttribute('d',result.path);path.setAttribute('stroke',edge.color||'#64748b');path.setAttribute('stroke-width',isSelected?w+1.5:w);if(edge.dash)path.setAttribute('stroke-dasharray',edge.dash);path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');if(isSelected)path.setAttribute('filter','url(#glow)');layer.appendChild(path);
+    // Label
+    if(edge.label){const mx=(result.sp.x+result.tp.x)/2,my=(result.sp.y+result.tp.y)/2;const tl=edge.label.length*8+12;const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');bg.setAttribute('class','edge-label-bg');bg.setAttribute('x',mx-tl/2);bg.setAttribute('y',my-9);bg.setAttribute('width',tl);bg.setAttribute('height',18);bg.setAttribute('rx',4);layer.appendChild(bg);const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');lbl.setAttribute('class','edge-label');lbl.setAttribute('x',mx);lbl.setAttribute('y',my);lbl.setAttribute('fill',edge.color||'#64748b');lbl.textContent=edge.label;layer.appendChild(lbl)}
+  })
+}
+
+// ====== MID-SEGMENT DRAG HANDLES (only for ortho3 selected edges) ======
+function renderMidHandles(){
+  const layer=document.getElementById('handlesLayer');layer.innerHTML='';
+  edges.forEach(edge=>{
+    if(edge.routeMode!=='ortho3')return;
+    if(selectedEdgeId!==edge.id)return;
+    const result=buildEdgePath(edge);
+    if(!result||!result.c1||!result.c2)return;
+
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','mid-handle');
+
+    if(result.isH){
+      // Vertical middle segment — drag left/right (ew-resize)
+      g.style.cursor='ew-resize';
+      // Draw the middle segment highlight
+      const bar=document.createElementNS('http://www.w3.org/2000/svg','line');
+      bar.setAttribute('class','mid-handle-bar');
+      bar.setAttribute('x1',result.c1.x);bar.setAttribute('y1',result.c1.y);
+      bar.setAttribute('x2',result.c2.x);bar.setAttribute('y2',result.c2.y);
+      g.appendChild(bar);
+      // Grip diamond at midpoint
+      const midY=(result.c1.y+result.c2.y)/2;
+      const grip=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      grip.setAttribute('class','mid-handle-grip');
+      grip.setAttribute('cx',result.c1.x);grip.setAttribute('cy',midY);
+      g.appendChild(grip);
+      // Arrows indicator
+      const arr=document.createElementNS('http://www.w3.org/2000/svg','text');
+      arr.setAttribute('x',result.c1.x);arr.setAttribute('y',midY-12);
+      arr.setAttribute('text-anchor','middle');arr.setAttribute('fill','#3b82f6');arr.setAttribute('font-size','10');arr.setAttribute('opacity','0.7');
+      arr.textContent='◀ ▶';g.appendChild(arr);
+    } else {
+      // Horizontal middle segment — drag up/down (ns-resize)
+      g.style.cursor='ns-resize';
+      const bar=document.createElementNS('http://www.w3.org/2000/svg','line');
+      bar.setAttribute('class','mid-handle-bar');
+      bar.setAttribute('x1',result.c1.x);bar.setAttribute('y1',result.c1.y);
+      bar.setAttribute('x2',result.c2.x);bar.setAttribute('y2',result.c2.y);
+      g.appendChild(bar);
+      const midX=(result.c1.x+result.c2.x)/2;
+      const grip=document.createElementNS('http://www.w3.org/2000/svg','circle');
+      grip.setAttribute('class','mid-handle-grip');
+      grip.setAttribute('cx',midX);grip.setAttribute('cy',result.c1.y);
+      g.appendChild(grip);
+      const arr=document.createElementNS('http://www.w3.org/2000/svg','text');
+      arr.setAttribute('x',midX+14);arr.setAttribute('y',result.c1.y+4);
+      arr.setAttribute('text-anchor','middle');arr.setAttribute('fill','#3b82f6');arr.setAttribute('font-size','10');arr.setAttribute('opacity','0.7');
+      arr.textContent='▲▼';g.appendChild(arr);
+    }
+
+    // Drag events on the entire handle group
+    g.addEventListener('mousedown',e=>{
+      e.stopPropagation();
+      isDraggingMid=true;
+      dragMidEdgeId=edge.id;
+    });
+    layer.appendChild(g);
+  })
+}
+
+// ====== PROPERTIES PANEL ======
+function showNodeProps(id){const n=nodes.find(n=>n.id===id);if(!n)return;const panel=document.getElementById('propsPanel');panel.classList.add('visible');document.getElementById('propsTitle').innerHTML=`<div style="display:flex;align-items:center;gap:8px;">${renderIconPanel(n.iconKey).replace('<svg','<svg width="24" height="24"')} 节点属性</div>`;document.getElementById('propsContent').innerHTML=`
+  <div class="props-field"><span class="props-label">产品名称</span><input class="props-input" value="${n.name}" disabled></div>
+  <div class="props-field"><span class="props-label">型号</span><input class="props-input" value="${n.model}" disabled></div>
+  <div class="props-field"><span class="props-label">自定义标签</span><input class="props-input" value="${n.label||''}" placeholder="如：1F-A区" oninput="updateNodeProp(${id},'label',this.value)"></div>
+  <div class="props-field"><span class="props-label">数量</span><input class="props-input" type="number" min="1" value="${n.qty}" oninput="updateNodeProp(${id},'qty',parseInt(this.value)||1)"></div>
+  <button onclick="deleteSelected()" style="margin-top:12px;width:100%;padding:8px;background:#7f1d1d;border:1px solid #991b1b;border-radius:6px;color:#fca5a5;font-size:12px;cursor:pointer;">删除节点</button>`}
+
+function showEdgeProps(id){
+  const edge=edges.find(e=>e.id===id);if(!edge)return;
+  const srcN=nodes.find(n=>n.id===edge.sourceId),tgtN=nodes.find(n=>n.id===edge.targetId);
+  const c=CABLE_TYPES[edge.cableType]||{};
+  document.getElementById('propsPanel').classList.add('visible');
+  document.getElementById('propsTitle').textContent='连线属性';
+
+  let cableOpts='';
+  [...new Set(Object.values(CABLE_TYPES).map(c=>c.category))].forEach(cat=>{
+    cableOpts+=`<optgroup label="${cat}">`;
+    Object.entries(CABLE_TYPES).filter(([,ct])=>ct.category===cat).forEach(([key,ct])=>{
+      cableOpts+=`<option value="${key}" ${edge.cableType===key?'selected':''}>${ct.name}</option>`});
+    cableOpts+='</optgroup>'});
+
+  // Route mode mini SVG previews
+  const routePreview=(mode)=>{
+    const active=(edge.routeMode||'bezier')===mode?'active':'';
+    const svgs={
+      bezier:`<svg viewBox="0 0 28 16"><path d="M2 14 C10 14 18 2 26 2" fill="none" stroke="${active?'#60a5fa':'#64748b'}" stroke-width="2"/></svg>`,
+      ortho2:`<svg viewBox="0 0 28 16"><path d="M2 14 L2 2 L26 2" fill="none" stroke="${active?'#60a5fa':'#64748b'}" stroke-width="2" stroke-linejoin="round"/></svg>`,
+      ortho3:`<svg viewBox="0 0 28 16"><path d="M2 14 L14 14 L14 2 L26 2" fill="none" stroke="${active?'#60a5fa':'#64748b'}" stroke-width="2" stroke-linejoin="round"/>${active?'<circle cx="14" cy="8" r="2" fill="#3b82f6"/>':''}</svg>`,
+      straight:`<svg viewBox="0 0 28 16"><line x1="2" y1="14" x2="26" y2="2" stroke="${active?'#60a5fa':'#64748b'}" stroke-width="2"/></svg>`,
+    };
+    return `<div class="route-mode-btn ${active}" onclick="updateEdgeRoute(${id},'${mode}')">${svgs[mode]}<span>${{bezier:'弧线',ortho2:'2折',ortho3:'3折',straight:'直线'}[mode]}</span></div>`;
+  };
+
+  document.getElementById('propsContent').innerHTML=`
+    <div class="props-section">线缆类型</div>
+    <div class="props-field"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">${cableLineSVG(edge.cableType,40,12)}<span style="font-size:12px;color:${edge.color};">${c.name||'未知'}</span></div>
+    <select class="props-select" onchange="updateEdgeCableType(${id},this.value)">${cableOpts}</select></div>
+
+    <div class="props-section">路由模式</div>
+    <div class="props-field"><div class="route-mode-btns">${routePreview('bezier')}${routePreview('ortho2')}${routePreview('ortho3')}${routePreview('straight')}</div></div>
+    ${edge.routeMode==='ortho3'?'<div style="font-size:10px;color:#475569;padding:2px 0;">提示：选中后拖动中间段 ◀▶ 调整位置</div>':''}
+    ${edge.routeMode==='ortho3'?`<div class="props-field"><span class="props-label">中间段位置</span><div class="props-row"><button onclick="resetMidPos(${id})" style="padding:4px 10px;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer;">重置居中</button></div></div>`:''}
+
+    <div class="props-section">线路样式</div>
+    <div class="props-field"><span class="props-label">线宽 <span class="props-range-val" id="widthVal">${edge.width||2}px</span></span><input type="range" class="props-range" min="1" max="8" step="0.5" value="${edge.width||2}" oninput="updateEdgeProp(${id},'width',parseFloat(this.value));document.getElementById('widthVal').textContent=this.value+'px'"></div>
+    <div class="props-field"><span class="props-label">颜色</span><div class="props-row"><input type="color" class="props-color" value="${edge.color||'#3b82f6'}" oninput="updateEdgeProp(${id},'color',this.value)"><input class="props-input" style="flex:1;font-family:monospace;font-size:11px;" value="${edge.color||'#3b82f6'}" oninput="updateEdgeProp(${id},'color',this.value)"></div></div>
+    <div class="props-field"><span class="props-label">虚线样式</span><select class="props-select" onchange="updateEdgeProp(${id},'dash',this.value)"><option value="" ${!edge.dash?'selected':''}>实线 ────────</option><option value="8 4" ${edge.dash==='8 4'?'selected':''}>长虚线 ── ── ──</option><option value="4 4" ${edge.dash==='4 4'?'selected':''}>中虚线 ─ ─ ─ ─</option><option value="2 4" ${edge.dash==='2 4'?'selected':''}>短虚线 · · · · ·</option><option value="10 3 2 3" ${edge.dash==='10 3 2 3'?'selected':''}>点划线 ──·──·──</option></select></div>
+
+    <div class="props-section">标签</div>
+    <div class="props-field"><input class="props-input" value="${edge.label||''}" placeholder="连线标签" oninput="updateEdgeProp(${id},'label',this.value)"></div>
+
+    <div class="props-section">连接</div>
+    <div class="props-field"><span class="props-label">起点</span><input class="props-input" value="${srcN?srcN.name:'?'}" disabled style="color:#64748b;"></div>
+    <div class="props-field"><span class="props-label">终点</span><input class="props-input" value="${tgtN?tgtN.name:'?'}" disabled style="color:#64748b;"></div>
+    <button onclick="deleteSelected()" style="margin-top:12px;width:100%;padding:8px;background:#7f1d1d;border:1px solid #991b1b;border-radius:6px;color:#fca5a5;font-size:12px;cursor:pointer;">删除连线</button>`
+}
+
+function hideProps(){document.getElementById('propsPanel').classList.remove('visible')}
+function updateNodeProp(id,p,v){const n=nodes.find(n=>n.id===id);if(n){n[p]=v;renderAll()}}
+function updateEdgeProp(id,p,v){const e=edges.find(e=>e.id===id);if(e){e[p]=v;renderAll();if(selectedEdgeId===id)showEdgeProps(id)}}
+function updateEdgeCableType(id,ck){const e=edges.find(e=>e.id===id);if(!e)return;const c=CABLE_TYPES[ck];if(!c)return;e.cableType=ck;e.color=c.color;e.width=c.width;e.dash=c.dash;e.label=c.shortName;renderAll();showEdgeProps(id)}
+function updateEdgeRoute(id,mode){const e=edges.find(e=>e.id===id);if(!e)return;e.routeMode=mode;if(mode!=='ortho3')delete e.midPos;renderAll();showEdgeProps(id)}
+function resetMidPos(id){const e=edges.find(e=>e.id===id);if(e){delete e.midPos;renderAll();showEdgeProps(id)}}
+
+// ====== LEGEND ======
+function buildLegend(){const used=[...new Set(edges.map(e=>e.cableType).filter(Boolean))];if(!used.length){document.getElementById('legendPanel').innerHTML='';return}let h='<div class="legend-title">图例</div>';used.forEach(k=>{const c=CABLE_TYPES[k];if(!c)return;h+=`<div class="legend-item"><div style="width:36px;height:12px;">${cableLineSVG(k,36,12)}</div><span>${c.shortName}</span></div>`});document.getElementById('legendPanel').innerHTML=h}
+
+// ====== CANVAS CONTROLS ======
+function setTool(tool){currentTool=tool;document.getElementById('btnSelect').classList.toggle('active',tool==='select');document.getElementById('btnConnect').classList.toggle('active',tool==='connect');document.getElementById('diagramCanvas').style.cursor=tool==='connect'?'crosshair':'default'}
+const svg=document.getElementById('diagramCanvas');
+svg.addEventListener('mousedown',e=>{if(e.target===svg||(e.target.tagName==='rect'&&!e.target.closest('.node-group')&&!e.target.closest('.mid-handle'))){if(currentTool==='select'){isPanning=true;panStartX=e.clientX;panStartY=e.clientY;panViewX=viewX;panViewY=viewY;selectedNodeId=null;selectedEdgeId=null;renderAll();hideProps()}}});
+svg.addEventListener('wheel',e=>{e.preventDefault();zoomCanvas(e.deltaY>0?-.08:.08,e.clientX,e.clientY)},{passive:false});
+function zoomCanvas(d,cx,cy){const old=scale;scale=Math.max(.2,Math.min(3,scale+d));if(cx!==undefined){const r=wrapper.getBoundingClientRect();const mx=cx-r.left,my=cy-r.top;viewX=mx-(mx-viewX)*(scale/old);viewY=my-(my-viewY)*(scale/old)}updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%'}
+function fitView(){if(!nodes.length)return resetZoom();const pad=80;let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;nodes.forEach(n=>{x1=Math.min(x1,n.x);y1=Math.min(y1,n.y);x2=Math.max(x2,n.x+n.w);y2=Math.max(y2,n.y+n.h+30)});const cw=wrapper.clientWidth,ch=wrapper.clientHeight,dw=x2-x1+pad*2,dh=y2-y1+pad*2;scale=Math.min(cw/dw,ch/dh,1.5);viewX=(cw-dw*scale)/2-x1*scale+pad*scale;viewY=(ch-dh*scale)/2-y1*scale+pad*scale;updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%'}
+function resetZoom(){scale=1;viewX=0;viewY=0;updateTransform();document.getElementById('zoomLevel').textContent='100%'}
+function updateTransform(){document.getElementById('canvasGroup').setAttribute('transform',`translate(${viewX},${viewY}) scale(${scale})`);updateMinimap()}
+function svgPoint(e){const r=wrapper.getBoundingClientRect();return{x:(e.clientX-r.left-viewX)/scale,y:(e.clientY-r.top-viewY)/scale}}
+function updateInfo(){document.getElementById('canvasInfo').textContent=`节点: ${nodes.length} | 连线: ${edges.length}`}
+function updateMinimap(){const mn=document.getElementById('minimapNodes');mn.innerHTML='';nodes.forEach(n=>{const r=document.createElementNS('http://www.w3.org/2000/svg','rect');r.setAttribute('x',n.x);r.setAttribute('y',n.y);r.setAttribute('width',n.w);r.setAttribute('height',n.h);r.setAttribute('fill',n.color);r.setAttribute('opacity',.6);r.setAttribute('rx',4);mn.appendChild(r)});edges.forEach(edge=>{const s=nodes.find(n=>n.id===edge.sourceId),t=nodes.find(n=>n.id===edge.targetId);if(!s||!t)return;const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',s.x+s.w/2);l.setAttribute('y1',s.y+s.h/2);l.setAttribute('x2',t.x+t.w/2);l.setAttribute('y2',t.y+t.h/2);l.setAttribute('stroke',edge.color);l.setAttribute('stroke-width',Math.max(edge.width||2,2));l.setAttribute('opacity',.4);mn.appendChild(l)});const cw=wrapper.clientWidth,ch=wrapper.clientHeight,vp=document.getElementById('minimapViewport');vp.setAttribute('x',-viewX/scale);vp.setAttribute('y',-viewY/scale);vp.setAttribute('width',cw/scale);vp.setAttribute('height',ch/scale)}
+
+function addTextNode(){const cx=(wrapper.clientWidth/2-viewX)/scale,cy=(wrapper.clientHeight/2-viewY)/scale;nodes.push({id:nodeIdCounter++,productId:null,name:'文本标注',model:'双击编辑',category:'标注',color:'#64748b',iconKey:'text_note',x:cx-32,y:cy-32,w:NODE_SIZE,h:NODE_SIZE,qty:1,label:''});renderAll();selectNode(nodeIdCounter-1)}
+function undoAction(){showToast('撤销（原型演示）')}
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
+
+document.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='v'||e.key==='V')setTool('select');if(e.key==='c'||e.key==='C')setTool('connect');if(e.key==='t'||e.key==='T')addTextNode();if(e.key==='Delete'||e.key==='Backspace')deleteSelected();if(e.key==='Escape'){selectedNodeId=null;selectedEdgeId=null;renderAll();hideProps();setTool('select')}});
+
+// ====== DEMO ======
+function loadDemo(){
+  const bbu=addNode(PRODUCTS.find(p=>p.id===2),80,260);
+  const rru1=addNode(PRODUCTS.find(p=>p.id===1),340,100);
+  const rru2=addNode(PRODUCTS.find(p=>p.id===1),340,420);
+  const spl1=addNode(PRODUCTS.find(p=>p.id===30),580,30);
+  const spl2=addNode(PRODUCTS.find(p=>p.id===30),580,190);
+  const spl3=addNode(PRODUCTS.find(p=>p.id===31),580,340);
+  const cpl1=addNode(PRODUCTS.find(p=>p.id===32),580,500);
+  const ant1=addNode(PRODUCTS.find(p=>p.id===10),820,0);ant1.qty=2;ant1.label='1F-A区';
+  const ant2=addNode(PRODUCTS.find(p=>p.id===10),820,110);ant2.qty=3;ant2.label='2F-B区';
+  const ant3=addNode(PRODUCTS.find(p=>p.id===11),820,220);ant3.label='3F走廊';
+  const ant4=addNode(PRODUCTS.find(p=>p.id===10),820,340);ant4.qty=4;ant4.label='4F-C区';
+  const ant5=addNode(PRODUCTS.find(p=>p.id===10),820,460);ant5.qty=2;ant5.label='5F大厅';
+  const ant6=addNode(PRODUCTS.find(p=>p.id===13),820,580);ant6.label='B1停车场';
+  const psu=addNode(PRODUCTS.find(p=>p.id===40),80,500);
+  const spd=addNode(PRODUCTS.find(p=>p.id===43),80,60);
+
+  const ae=(src,sp,tgt,tp,ck,rm,mid)=>{const c=CABLE_TYPES[ck];const e={id:edgeIdCounter++,sourceId:src.id,sourcePort:sp,targetId:tgt.id,targetPort:tp,cableType:ck,color:c.color,width:c.width,dash:c.dash,label:c.shortName,routeMode:rm||'ortho3'};if(mid!==undefined)e.midPos=mid;edges.push(e)};
+
+  // BBU→RRU: fiber, bezier curves
+  ae(bbu,'right',rru1,'left','fiber_single','bezier');
+  ae(bbu,'right',rru2,'left','fiber_single','bezier');
+  // RRU→Splitters: 7/8" coax, 3-fold with different mid positions
+  ae(rru1,'right',spl1,'left','coax_78','ortho3',460);
+  ae(rru1,'right',spl2,'left','coax_78','ortho3',480);
+  // RRU2→Splitters: 3-fold and 2-fold mix
+  ae(rru2,'right',spl3,'left','coax_78','ortho3',480);
+  ae(rru2,'right',cpl1,'left','coax_78','ortho2');
+  // Splitters→Antennas: 1/2" coax, 2-fold L-shape
+  ae(spl1,'right',ant1,'left','coax_half','ortho2');
+  ae(spl1,'right',ant2,'left','coax_half','straight');
+  ae(spl2,'right',ant3,'left','coax_half','ortho2');
+  ae(spl3,'right',ant4,'left','coax_half','straight');
+  ae(spl3,'right',ant5,'left','coax_half','ortho2');
+  ae(cpl1,'right',ant6,'left','coax_half','ortho3');
+  // Power
+  ae(psu,'top',bbu,'bottom','power_ac','ortho3');
+  ae(psu,'right',rru2,'bottom','power_dc48','bezier');
+  ae(spd,'bottom',bbu,'top','power_gnd','ortho2');
+  // Ethernet
+  ae(spd,'right',rru1,'top','data_eth','bezier');
+
+  selectedNodeId=null;selectedEdgeId=null;
+  renderAll();
+  setTimeout(fitView,100);
+}
+
+buildProductPanel();
+loadDemo();
+</script>
+</body>
+</html>

@@ -174,38 +174,132 @@
 
     {# Tab: 排名分析 #}
     <div x-show="activeTab === 'ranking'" x-transition>
-        <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        {# 统计卡片 #}
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4" x-show="coeffStats">
+            <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center">
+                <p class="text-2xl font-bold text-slate-800 dark:text-white" x-text="coeffStats?.total_active || 0"></p>
+                <p class="text-xs text-slate-500 mt-1">{{ _('活跃产品') }}</p>
+            </div>
+            <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center">
+                <p class="text-2xl font-bold text-blue-600 dark:text-blue-400" x-text="coeffStats?.with_citations || 0"></p>
+                <p class="text-xs text-slate-500 mt-1">{{ _('有引用产品') }}</p>
+            </div>
+            <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center">
+                <p class="text-2xl font-bold text-violet-600 dark:text-violet-400" x-text="coeffStats?.median_citations || 0"></p>
+                <p class="text-xs text-slate-500 mt-1">{{ _('引用中位数') }}</p>
+            </div>
+            <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center">
+                <p class="text-2xl font-bold text-emerald-600 dark:text-emerald-400" x-text="coeffStats?.avg_coefficient || 0"></p>
+                <p class="text-xs text-slate-500 mt-1">{{ _('平均系数') }}</p>
+            </div>
+            <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-center">
+                <p class="text-2xl font-bold text-orange-600 dark:text-orange-400" x-text="coeffStats?.attention_count || 0"></p>
+                <p class="text-xs text-slate-500 mt-1">{{ _('需关注') }}</p>
+            </div>
+        </div>
+
+        {# 筛选栏 #}
+        <div class="flex flex-wrap gap-3 mb-4">
+            <input type="text" x-model="rankSearch" placeholder="{{ _('搜索产品/型号...') }}"
+                   class="h-9 px-3 w-52 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm">
+            <select x-model="rankCategoryFilter" class="h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm">
+                <option value="">{{ _('全部品类') }}</option>
+                <template x-for="cat in rankCategories" :key="cat">
+                    <option :value="cat" x-text="cat"></option>
+                </template>
+            </select>
+            <select x-model="rankCitationFilter" class="h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm">
+                <option value="">{{ _('全部引用状态') }}</option>
+                <option value="with">{{ _('有引用') }}</option>
+                <option value="without">{{ _('无引用') }}</option>
+            </select>
+            <label class="inline-flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300 cursor-pointer">
+                <input type="checkbox" x-model="rankShowWarningOnly" class="rounded border-slate-300 dark:border-slate-600 text-orange-500 focus:ring-orange-500">
+                <span>{{ _('仅显示需关注') }}</span>
+            </label>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+            <div class="overflow-x-auto">
             <table class="w-full text-sm text-left" x-show="ranking.length">
-                <thead class="border-b border-slate-200 dark:border-slate-700">
+                <thead class="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
                     <tr>
                         <th class="p-3 text-slate-500 font-medium" style="width:40px">#</th>
                         <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleRankSort('name')">
-                            <span class="inline-flex items-center gap-1">{{ _('产品') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='name'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='name'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                            <span class="inline-flex items-center gap-1">{{ _('产品') }}+{{ _('型号') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='name'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='name'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                         </th>
-                        <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleRankSort('model')">
-                            <span class="inline-flex items-center gap-1">{{ _('型号') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='model'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='model'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleRankSort('category')">
+                            <span class="inline-flex items-center gap-1">{{ _('品类') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='category'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='category'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                         </th>
-                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleRankSort('amount')">
-                            <span class="inline-flex items-center gap-1 justify-end">{{ _('金额') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='amount'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='amount'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none hidden md:table-cell" @click="toggleRankSort('retail_price')">
+                            <span class="inline-flex items-center gap-1 justify-end">{{ _('零售价') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='retail_price'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='retail_price'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                         </th>
                         <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleRankSort('quantity')">
                             <span class="inline-flex items-center gap-1 justify-end">{{ _('数量') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='quantity'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='quantity'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                         </th>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none hidden md:table-cell" @click="toggleRankSort('amount')">
+                            <span class="inline-flex items-center gap-1 justify-end">{{ _('金额') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='amount'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='amount'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleRankSort('citations')">
+                            <span class="inline-flex items-center gap-1 justify-end">{{ _('引用次数') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='citations'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='citations'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleRankSort('coefficient')" style="min-width:120px">
+                            <span class="inline-flex items-center gap-1">{{ _('系数') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='coefficient'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='coefficient'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        </th>
+                        <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleRankSort('points')">
+                            <span class="inline-flex items-center gap-1 justify-end">{{ _('积分') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="rankSort==='points'&&rankSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="rankSort==='points'&&rankSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-for="(item, idx) in sortedRanking" :key="idx">
-                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <template x-for="(item, idx) in filteredRanking" :key="idx">
+                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800"
+                            :class="item.warning ? 'bg-orange-50/50 dark:bg-orange-900/10' : ''">
                             <td class="p-3 text-slate-400" x-text="idx + 1"></td>
-                            <td class="p-3 font-medium text-slate-800 dark:text-white" x-text="item.name"></td>
-                            <td class="p-3 text-slate-600 dark:text-slate-300 font-mono text-xs" x-text="item.model"></td>
-                            <td class="p-3 text-right font-medium" x-text="formatAmount(item.amount)"></td>
-                            <td class="p-3 text-right" x-text="item.quantity"></td>
+                            <td class="p-3">
+                                <div class="font-medium text-slate-800 dark:text-white" x-text="item.name"></div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400 font-mono" x-text="item.model"></div>
+                            </td>
+                            <td class="p-3 text-xs text-slate-600 dark:text-slate-300" x-text="item.category"></td>
+                            <td class="p-3 text-right font-mono text-xs text-slate-600 dark:text-slate-300 hidden md:table-cell" x-text="item.retail_price ? formatRetailPrice(item.retail_price) : '-'"></td>
+                            <td class="p-3 text-right font-mono" x-text="item.quantity"></td>
+                            <td class="p-3 text-right font-mono font-medium hidden md:table-cell" x-text="formatAmount(item.amount)"></td>
+                            <td class="p-3 text-right font-mono" x-text="item.citations"></td>
+                            <td class="p-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden" style="max-width:60px">
+                                        <div class="h-full rounded-full transition-all"
+                                             :class="item.coefficient < 1.0 ? 'bg-emerald-500' : item.coefficient < 2.0 ? 'bg-blue-500' : 'bg-orange-500'"
+                                             :style="'width:' + Math.min(100, (item.coefficient / 3.0) * 100) + '%'"></div>
+                                    </div>
+                                    <span class="text-xs font-mono font-medium whitespace-nowrap"
+                                          :class="item.coefficient < 1.0 ? 'text-emerald-600 dark:text-emerald-400' : item.coefficient < 2.0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'"
+                                          x-text="item.coefficient.toFixed(2) + 'x'"></span>
+                                    <template x-if="item.warning">
+                                        <svg class="w-4 h-4 text-orange-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                                    </template>
+                                </div>
+                            </td>
+                            <td class="p-3 text-right">
+                                <span class="font-mono font-medium" :class="getPointsTierClass(item.points)" x-text="formatPoints(item.points)"></span>
+                            </td>
                         </tr>
                     </template>
                 </tbody>
             </table>
+            </div>
             <div x-show="!ranking.length" class="text-center py-8 text-slate-400 text-sm">{{ _('暂无数据') }}</div>
+
+            {# 图例 #}
+            <div class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30 text-xs text-slate-500 dark:text-slate-400" x-show="ranking.length">
+                <div class="flex flex-wrap gap-4 items-center">
+                    <span class="inline-flex items-center gap-1"><span class="w-3 h-2 rounded-sm bg-emerald-500"></span> &lt;1.0 {{ _('高频引用') }}</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-3 h-2 rounded-sm bg-blue-500"></span> 1.0~2.0 {{ _('正常') }}</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-3 h-2 rounded-sm bg-orange-500"></span> &ge;2.0 {{ _('低频/无引用') }}</span>
+                    <span class="text-slate-400">|</span>
+                    <span>{{ _('公式') }}: log({{ _('中位数') }}+1) / log({{ _('引用次数') }}+1)</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -323,6 +417,11 @@ function productAnalysisDashboard() {
         ranking: [],
         rankSort: 'quantity',
         rankSortDir: 'desc',
+        coeffStats: null,
+        rankSearch: '',
+        rankCategoryFilter: '',
+        rankCitationFilter: '',
+        rankShowWarningOnly: false,
         detailData: [],
         detailSearch: '',
         detailPage: 1,
@@ -332,6 +431,9 @@ function productAnalysisDashboard() {
         detailSort: 'created_at',
         detailSortDir: 'desc',
         viewScope: {{ view_scope | tojson }},
+        currencySymbol: '{{ currency_config.symbol }}',
+        amountUnit: '{{ currency_config.amount_unit }}',
+        amountDivisor: {{ currency_config.divisor }},
 
         async init() {
             window.dashboard = this;
@@ -352,6 +454,7 @@ function productAnalysisDashboard() {
             this.distribution = { categories: [], stages: [] };
             this.expandedCategory = null;
             this.ranking = [];
+            this.coeffStats = null;
             this.detailData = [];
             this.loadOverview();
             if (this.activeTab === 'distribution') this.loadDistribution();
@@ -360,10 +463,15 @@ function productAnalysisDashboard() {
         },
 
         formatAmount(val) {
-            if (!val) return '¥0';
-            const wan = val / 10000;
-            if (wan >= 1) return '¥' + wan.toFixed(2) + '万';
-            return '¥' + parseFloat(val).toLocaleString('zh-CN', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+            if (!val) return this.currencySymbol + '0';
+            const big = val / this.amountDivisor;
+            if (big >= 1) return this.currencySymbol + big.toFixed(2) + this.amountUnit;
+            return this.currencySymbol + parseFloat(val).toLocaleString('zh-CN', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+        },
+
+        formatRetailPrice(val) {
+            if (!val) return this.currencySymbol + '0';
+            return this.currencySymbol + parseFloat(val).toLocaleString('zh-CN', {minimumFractionDigits: 0, maximumFractionDigits: 0});
         },
 
         async fetchApi(url) {
@@ -399,11 +507,11 @@ function productAnalysisDashboard() {
                 }
                 return d.label;
             });
-            const amounts = this.trendData.map(d => d.amount / 10000);
+            const amounts = this.trendData.map(d => d.amount / this.amountDivisor);
             const qtys = this.trendData.map(d => d.quantity);
             const currentIdx = this.trendData.findIndex(d => d.is_current);
 
-            this.drawBarChart('trendAmountChart', labels, amounts, '万元', '#137fec', currentIdx);
+            this.drawBarChart('trendAmountChart', labels, amounts, this.amountUnit, '#137fec', currentIdx);
             this.drawBarChart('trendQtyChart', labels, qtys, '个', '#f59e0b', currentIdx);
         },
 
@@ -467,17 +575,53 @@ function productAnalysisDashboard() {
 
         async loadRanking() {
             try {
-                const result = await this.fetchApi('/product_analysis/api/v2/ranking');
-                if (result.success) this.ranking = result.data;
+                const [rankResult, statsResult] = await Promise.all([
+                    this.fetchApi('/product_analysis/api/v2/ranking'),
+                    fetch('/product_analysis/api/v2/coefficient-stats').then(r => r.json())
+                ]);
+                if (rankResult.success) this.ranking = rankResult.data;
+                if (statsResult.success) this.coeffStats = statsResult.data;
             } catch(e) { console.error(e); }
         },
 
-        get sortedRanking() {
-            return [...this.ranking].sort((a, b) => {
+        get rankCategories() {
+            const cats = new Set(this.ranking.map(r => r.category).filter(Boolean));
+            return [...cats].sort((a, b) => a.localeCompare(b, 'zh'));
+        },
+
+        get filteredRanking() {
+            let data = [...this.ranking];
+            if (this.rankSearch) {
+                const q = this.rankSearch.toLowerCase();
+                data = data.filter(r => (r.name || '').toLowerCase().includes(q) || (r.model || '').toLowerCase().includes(q) || (r.mn || '').toLowerCase().includes(q));
+            }
+            if (this.rankCategoryFilter) {
+                data = data.filter(r => r.category === this.rankCategoryFilter);
+            }
+            if (this.rankCitationFilter === 'with') {
+                data = data.filter(r => r.citations > 0);
+            } else if (this.rankCitationFilter === 'without') {
+                data = data.filter(r => r.citations === 0);
+            }
+            if (this.rankShowWarningOnly) {
+                data = data.filter(r => r.warning);
+            }
+            return data.sort((a, b) => {
                 let va = a[this.rankSort], vb = b[this.rankSort];
-                let cmp = typeof va === 'string' ? va.localeCompare(vb, 'zh') : va - vb;
+                let cmp = typeof va === 'string' ? va.localeCompare(vb, 'zh') : (va || 0) - (vb || 0);
                 return this.rankSortDir === 'desc' ? -cmp : cmp;
             });
+        },
+
+        formatPoints(pts) {
+            return pts.toLocaleString();
+        },
+
+        getPointsTierClass(pts) {
+            if (pts >= 10000000) return 'text-yellow-600 dark:text-yellow-400';
+            if (pts >= 1000000) return 'text-zinc-500 dark:text-zinc-400';
+            if (pts >= 100000) return 'text-orange-500 dark:text-orange-400';
+            return 'text-slate-600 dark:text-slate-300';
         },
 
         toggleRankSort(field) {

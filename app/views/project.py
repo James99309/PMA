@@ -149,12 +149,32 @@ def list_projects():
     t1 = time.time()
     logger.info(f"⏱️ [性能] 参数解析: {(t1-start_time)*1000:.0f}ms")
 
-    # 使用数据访问控制，预加载owner关系
-    query = get_viewable_data(Project, current_user).options(joinedload(Project.owner))
-
     # 使用公共筛选工具提取参数并应用筛选（支持 filter_ 前缀的旧版参数）
     from app.utils.query_filters import apply_default_owner_filter
     filters = extract_filter_params(request.args, PROJECT_FILTER_CONFIG, prefix='filter_')
+
+    # 提取搜索参数
+    search = filters.get('search', '')
+
+    # 资源池搜索：有搜索时查全部项目，无搜索保持原逻辑
+    viewable_query = get_viewable_data(Project, current_user).options(joinedload(Project.owner))
+    restricted_ids = None
+    pending_request_ids = set()
+
+    if search:
+        query = Project.query.options(joinedload(Project.owner))
+        viewable_id_set = set(
+            r[0] for r in get_viewable_data(Project, current_user).with_entities(Project.id).all()
+        )
+        restricted_ids = viewable_id_set
+        from app.models.access_request import AccessRequest
+        pending_request_ids = set(
+            r.entity_id for r in AccessRequest.query.filter_by(
+                requester_id=current_user.id, entity_type='project', status='pending'
+            ).all()
+        )
+    else:
+        query = viewable_query
 
     # 默认筛选：首次加载时只显示当前用户的项目
     # 注意：system/company级别权限用户不应用默认过滤
@@ -167,9 +187,6 @@ def list_projects():
     )
 
     query = apply_filters_to_query(query, Project, filters, PROJECT_FILTER_CONFIG)
-
-    # 提取搜索和排序参数（用于模板显示）
-    search = filters.get('search', '')
     sort, order = extract_sort_params(request.args, default_sort='updated_at', default_order='desc')
     
     # 添加排序条件
@@ -199,6 +216,15 @@ def list_projects():
         # 错误情况下也使用分页
         initial_page_size = 30
         projects = query.order_by(Project.id.desc()).limit(initial_page_size).all()
+
+    # 标记受限行和请求中状态（资源池搜索模式）
+    for project in projects:
+        project._is_restricted = (restricted_ids is not None and project.id not in restricted_ids)
+        project._is_pending = (project.id in pending_request_ids)
+        if project._is_restricted and project.owner:
+            project._owner_name = project.owner.real_name or project.owner.username
+        else:
+            project._owner_name = ''
 
     t2 = time.time()
     logger.info(f"⏱️ [性能] 项目列表查询(前30条): {(t2-t1)*1000:.0f}ms")
@@ -593,15 +619,35 @@ def project_list_ajax():
 
         current_app.logger.info(f"筛选参数: {filters}")
 
-        # 基础查询
-        query = get_viewable_data(Project, current_user).options(
+        # 资源池搜索：有搜索时查全部项目，无搜索保持原逻辑
+        viewable_query = get_viewable_data(Project, current_user).options(
             joinedload(Project.owner),
             joinedload(Project.vendor_sales_manager)
         )
+        restricted_ids = None
+        pending_request_ids = set()
+
+        if search:
+            query = Project.query.options(
+                joinedload(Project.owner),
+                joinedload(Project.vendor_sales_manager)
+            )
+            viewable_id_set = set(
+                r[0] for r in get_viewable_data(Project, current_user).with_entities(Project.id).all()
+            )
+            restricted_ids = viewable_id_set
+            from app.models.access_request import AccessRequest
+            pending_request_ids = set(
+                r.entity_id for r in AccessRequest.query.filter_by(
+                    requester_id=current_user.id, entity_type='project', status='pending'
+                ).all()
+            )
+        else:
+            query = viewable_query
 
         # 使用公共工具应用筛选
         query = apply_filters_to_query(query, Project, filters, PROJECT_FILTER_CONFIG)
-        
+
         # 计算总数
         total_count = query.count()
         
@@ -633,7 +679,16 @@ def project_list_ajax():
         except Exception as e:
             current_app.logger.error(f"查询项目失败: {e}")
             raise
-        
+
+        # 标记受限行和请求中状态
+        for project in projects:
+            project._is_restricted = (restricted_ids is not None and project.id not in restricted_ids)
+            project._is_pending = (project.id in pending_request_ids)
+            if project._is_restricted and project.owner:
+                project._owner_name = project.owner.real_name or project.owner.username
+            else:
+                project._owner_name = ''
+
         # 响应式渲染 - 根据设备类型返回不同格式
         try:
             from app.utils.mobile_helpers import is_mobile_request
@@ -4770,13 +4825,20 @@ def api_create_project():
         
         db.session.add(new_project)
         db.session.commit()
-        
+
         # 记录创建历史
         try:
             ChangeTracker.log_create(new_project)
         except Exception as track_err:
             logger.warning(f"记录项目创建历史失败: {str(track_err)}")
-        
+
+        # 触发 AI 网络调研（后台线程）
+        try:
+            from app.services.ai_research_service import AIResearchService
+            AIResearchService.trigger_project_research(new_project.id)
+        except Exception as e:
+            logger.warning(f"触发项目AI调研失败: {e}")
+
         return jsonify({
             'success': True,
             'message': _('项目创建成功'),
@@ -4839,14 +4901,25 @@ def api_update_project(project_id):
             except ValueError:
                 return jsonify({'success': False, 'message': _('出货时间格式不正确')}), 400
         
+        # 检测项目名称是否变更（用于触发 AI 调研）
+        project_name_changed = old_values.get('project_name') and old_values['project_name'] != proj.project_name
+
         db.session.commit()
-        
+
         # 记录修改历史
         try:
             ChangeTracker.log_update(proj, old_values)
         except Exception as track_err:
             logger.warning(f"记录项目修改历史失败: {str(track_err)}")
-        
+
+        # 项目名称变更时重新触发 AI 调研
+        if project_name_changed:
+            try:
+                from app.services.ai_research_service import AIResearchService
+                AIResearchService.trigger_project_research(proj.id)
+            except Exception as e:
+                logger.warning(f"触发项目AI调研失败: {e}")
+
         return jsonify({
             'success': True,
             'message': _('项目更新成功')
@@ -4924,5 +4997,43 @@ def api_search_projects():
     except Exception as e:
         logger.error(f"搜索项目失败: {str(e)}")
         return jsonify({'results': []}), 500
+
+
+@project.route('/api/<int:project_id>/ai-research', methods=['GET'])
+@login_required
+@permission_required('project', 'view')
+def api_get_project_ai_research(project_id):
+    """获取项目 AI 调研状态和数据（权限由装饰器控制）"""
+    try:
+        proj = Project.query.filter_by(id=project_id).first()
+        if not proj:
+            return jsonify({'success': False, 'message': _('项目不存在')}), 404
+
+        from app.services.ai_research_service import AIResearchService
+        result = AIResearchService.get_project_status(project_id)
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"获取项目AI调研数据失败: {str(e)}")
+        return jsonify({'success': False, 'status': 'error', 'error': str(e)}), 500
+
+
+@project.route('/api/<int:project_id>/ai-research/retry', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def api_retry_project_ai_research(project_id):
+    """手动重试项目 AI 调研（权限由装饰器控制）"""
+    try:
+        proj = Project.query.filter_by(id=project_id).first()
+        if not proj:
+            return jsonify({'success': False, 'message': _('项目不存在')}), 404
+
+        from app.services.ai_research_service import AIResearchService
+        AIResearchService.trigger_project_research(project_id)
+        return jsonify({'success': True, 'message': _('已触发 AI 调研')})
+
+    except Exception as e:
+        logger.error(f"重试项目AI调研失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 

@@ -168,156 +168,227 @@ def _build_device_auth(identity, client_id, client_mode, role, scopes, token, no
     }
 
 
-# ── Keyword detection for DB prompt injection ───────────────────────
+# ── Keyword categories for layered prompt injection ──────────────────
+# 按意图分类关键词，按需注入对应 prompt 层级，避免每次都塞全套
 
-_DB_KEYWORDS = {
-    '数据', '查询', '统计', '多少', '报销', '项目', '客户', '报价',
-    '订单', '产品', '销售', '业绩', '金额', '合同', '人员', '任务',
-    '部门', '公司', '联系人', '费用', '预算', '排名', '对比', '汇总',
-    '分析', '趋势', '增长', '下降', '同比', '环比', '利润', '成本',
-    '跟进', '新建', '创建', '添加', '修改', '记录',
-    'data', 'query', 'report', 'sales', 'project', 'customer',
-    'expense', 'quotation', 'product', 'order', 'task',
+_FORM_KEYWORDS = {'新建', '创建', '添加', '报销', '记一笔'}
+_EDIT_KEYWORDS = {'修改', '编辑', '更新', '改一下'}  # 需要 DB 查找 + 表单
+_QUERY_KEYWORDS = {
+    '查询', '统计', '多少', '排名', '对比', '汇总', '分析',
+    '趋势', '增长', '下降', '同比', '环比', '数据',
+    'query', 'report', 'data',
+}
+_ENTITY_KEYWORDS = {
+    '项目', '客户', '报价', '订单', '产品', '公司', '联系人',
+    '费用', '预算', '合同', '人员', '任务', '部门', '销售',
+    '业绩', '金额', '利润', '成本', '跟进', '记录',
+    'project', 'customer', 'expense', 'quotation', 'product',
+    'order', 'task', 'sales',
 }
 
 
-def _needs_db_prompt(message):
-    """判断用户消息是否可能需要数据库查询"""
-    msg_lower = message.lower()
-    return any(kw in msg_lower for kw in _DB_KEYWORDS)
+def _detect_prompt_needs(message):
+    """检测消息需要哪些 prompt 层级: 'form' / 'query' / 两者 / 空"""
+    msg = message.lower()
+    needs = set()
+
+    if any(kw in msg for kw in _FORM_KEYWORDS):
+        needs.add('form')
+    if any(kw in msg for kw in _QUERY_KEYWORDS):
+        needs.add('query')
+    if any(kw in msg for kw in _EDIT_KEYWORDS):
+        needs.add('form')
+        needs.add('query')
+
+    # "跟进" 需要先查客户/联系人再创建表单
+    if '跟进' in msg and any(kw in msg for kw in ('新', '添', '创', '记', '做')):
+        needs.add('form')
+        needs.add('query')
+
+    # 实体关键词不带动作词 → 推断为查询意图
+    if not needs and any(kw in msg for kw in _ENTITY_KEYWORDS):
+        needs.add('query')
+
+    return needs
+
+
+def _build_form_prompt(include_query_sql=False):
+    """构建精简的表单交互工具提示（~700字 vs 旧版 ~3,500字）"""
+    prompt = (
+        '[表单工具] 用户要求创建/修改数据时，回复末尾插入标记，系统自动转为交互式表单。\n'
+        '回复只需简短一句+标记。禁止暴露表名/字段名/SQL/ID编号/技术术语。\n'
+        '标记格式（必须在回复最后一行）：\n'
+        '- 新建客户: [[FORM:create_customer|{"company_name":"从对话提取","country":"如有","company_type":"如有","address":"如有"}]]\n'
+        '- 修改客户: [[FORM:edit_customer|{"id":客户ID,"company_name":"如需修改","address":"如需修改"}]]\n'
+        '- 新建联系人: [[FORM:create_contact|{"company_id":公司ID,"name":"姓名","phone":"如有","email":"如有"}]]\n'
+        '- 修改联系人: [[FORM:edit_contact|{"id":联系人ID,"company_id":公司ID,"name":"如需修改","phone":"如需修改"}]]\n'
+        '- 新建项目: [[FORM:create_project|{"project_name":"项目名","project_type":"channel_follow/sales_focus/business_opportunity","report_source":"channel/sales/marketing","industry":"如有"}]]\n'
+        '- 修改项目: [[FORM:edit_project|{"id":项目ID,"project_name":"如需修改"}]]\n'
+        '- 报销单: [[FORM:create_expense|{}]]（无需填字段，系统自动打开报销页面）\n'
+        '- 跟进记录: [[FORM:create_action|{"company_id":公司ID,"contact_id":联系人ID,"communication":"跟进内容"}]]\n'
+        'prefill JSON只填对话中已知信息，未知留空。标记必须在回复最后一行。\n'
+        '匹配多个结果时用选项标记: [[CHOICES:动作|名称1:ID1|名称2:ID2]]，系统自动渲染为按钮。\n'
+    )
+
+    if include_query_sql:
+        prompt += (
+            '内部查询SQL（不展示给用户）：\n'
+            "查客户: SELECT id,company_name FROM companies WHERE company_name ILIKE '%关键词%' AND is_deleted=false\n"
+            "查联系人: SELECT c.id,c.name,c.company_id,co.company_name FROM contacts c JOIN companies co ON c.company_id=co.id WHERE c.name ILIKE '%关键词%'\n"
+            "查项目: SELECT id,project_name FROM projects WHERE project_name ILIKE '%关键词%' AND is_deleted=false\n"
+            '修改前必须先查DB获取ID，但查询过程不展示给用户。\n'
+        )
+
+    return prompt
 
 
 # ── Main entry point ─────────────────────────────────────────────────
 
-def _build_db_tool_prompt(user, conversation_id=None):
-    """构建数据库查询工具、文件上传工具和表单交互工具说明，注入到发送给 OpenClaw 的消息中。
+def _build_tool_prompt(user, conversation_id=None, needs=None):
+    """按需构建工具提示，只注入必要的层级。
 
-    数据库查询通过原生 query_pma_database tool 执行（OpenClaw Extension），
-    不再需要 exec/curl。此处仅注入 schema 和权限上下文供 AI 参考。
+    needs: set containing 'form' and/or 'query'
+    - form only:  ~700字  (创建类操作)
+    - query only: ~1,200字 (数据查询)
+    - form+query: ~1,900字 (修改类操作，需先查后改)
+    - 旧版全量:   ~4,900字 (每次都塞)
     """
-    try:
-        from app.services.chat_db_query import get_db_schema, get_permission_context
+    if not needs:
+        return ''
 
+    try:
+        parts = []
         user_id = user.id
         pma_base_url = os.environ.get('PMA_API_BASE_URL', '').rstrip('/')
 
-        db_schema = get_db_schema()
-        permission_context = get_permission_context(user)
-
-        prompt = (
-            '[系统提示] 查询数据库时请使用 query_pma_database 工具，'
-            f'传入 sql、user_id={user_id} 和 api_base_url="{pma_base_url}" 三个参数。'
-            f'api_base_url 必须使用 "{pma_base_url}"，不可修改。'
-            '禁止使用 exec/curl 调用数据库 API。\n'
-            f'\n'
-            f'{db_schema}\n'
-            f'\n'
-            f'{permission_context}\n'
-        )
-
-        # 文件上传工具说明（仍需 exec/curl，需要 pma_base_url + ai_token）
-        ai_token = os.environ.get('PMA_AI_QUERY_TOKEN', '')
-        if conversation_id and pma_base_url and ai_token:
-            prompt += (
-                f'\n[文件分享工具] 当你生成了文件（Excel、CSV、PDF、图片等）需要分享给用户下载时，'
-                f'请使用以下 API 上传文件到聊天对话中，用户即可在聊天界面直接点击下载。\n'
-                f'API: POST {pma_base_url}/chat/api/ai/upload-file\n'
-                f'Header: Authorization: Bearer {ai_token}\n'
-                f'Content-Type: multipart/form-data\n'
-                f'curl 示例:\n'
-                f'curl -X POST {pma_base_url}/chat/api/ai/upload-file \\\n'
-                f'  -H "Authorization: Bearer {ai_token}" \\\n'
-                f'  -F "file=@/path/to/generated_file.xlsx" \\\n'
-                f'  -F "conversation_id={conversation_id}" \\\n'
-                f'  -F "user_id={user_id}"\n'
-                f'\n'
-                f'上传成功后文件会自动出现在聊天对话中，请在回复中告知用户"文件已上传到对话中，可直接下载"。\n'
-                f'重要：请务必在生成文件后主动调用此 API 上传，不要告诉用户"无法提供下载链接"。\n'
+        # 层级: DB 查询工具（schema + 权限 + 文件上传）
+        if 'query' in needs:
+            from app.services.chat_db_query import get_db_schema, get_permission_context
+            db_schema = get_db_schema()
+            permission_context = get_permission_context(user)
+            parts.append(
+                '[核心规则] 你是业务助理，不是程序员。回复只包含最终结果：\n'
+                '- 涉及公司、项目、报价等业务数据时，必须使用 query_pma_database 查询，禁止凭记忆或之前的查询结果回答\n'
+                '- 禁止展示查询步骤（"先查看X表"、"让我重新查询"、"尝试使用web_search"）\n'
+                '- 禁止提及技术术语（表名、字段名、SQL、ID编号、权限规则）\n'
+                '- 查不到就换方式查或简短告知，不要解释内部过程\n'
+                '[回复风格] 用一条SQL尽量获取完整信息，避免多轮查询。回复简短直接，用数据说话。'
+                '除非用户明确要求，不要主动做额外查询或展开分析。\n'
+                '[外部搜索] 当用户询问公开信息（公司地址、行业资料、产品参数、新闻等），如果数据库查不到或查到的字段为空，'
+                '必须自动调用 web_search 搜索互联网补充。禁止回复"暂无"、"暂未记录"、"无法查到"。\n'
+                '[系统提示] 查询数据库时请使用 query_pma_database 工具，'
+                f'传入 sql、user_id={user_id} 和 api_base_url="{pma_base_url}" 三个参数。'
+                f'api_base_url 必须使用 "{pma_base_url}"，不可修改。'
+                '禁止使用 exec/curl 调用数据库 API。\n'
+                f'\n{db_schema}\n\n{permission_context}\n'
             )
 
-        # 表单交互工具说明（不依赖 PMA_API_BASE_URL，始终注入）
-        if conversation_id:
-            prompt += (
-                '\n\n=== [表单交互工具 - 最高优先级] ===\n'
-                '当用户要求添加、新建、创建、修改客户、联系人、项目、报销单或跟进记录时，'
-                '你必须在回复末尾插入表单标记。系统会自动将标记转换为交互式表单。\n'
-                '\n'
-                '【最重要 - 回复格式要求（违反任何一条都是严重错误）】\n'
-                '- 回复正文只需简短的一句话（如"好的，请在表单中确认信息"），然后紧跟标记\n'
-                '- 绝对禁止在回复中出现以下任何内容：\n'
-                '  * 数据库表名（projects, companies, contacts 等）\n'
-                '  * 字段名（is_deleted, id, company_name 等技术字段名）\n'
-                '  * SQL语句或查询过程\n'
-                '  * 数据库ID编号（如 "ID: 642"、"(id=528)" 等）\n'
-                '  * 你的推理过程或思考步骤\n'
-                '  * "根据规则"、"表单交互工具"、"标记" 等内部术语\n'
-                '  * "查询结果显示"、"数据库中" 等技术表述\n'
-                '- 用户看到的是一个智能助手，不是数据库管理员\n'
-                '\n'
-                '【重要行为准则】\n'
-                '- 新建客户：用户说"添加/新建/创建客户XXX" → 立即附上 [[FORM:create_customer|{...}]]\n'
-                '- 修改客户：查到客户后，立即附上 [[FORM:edit_customer|{...}]]\n'
-                '- 添加联系人：查到公司后，立即附上 [[FORM:create_contact|{...}]]\n'
-                '- 修改联系人：查到联系人后，立即附上 [[FORM:edit_contact|{...}]]\n'
-                '- 新建项目：用户说"新建/创建项目" → 立即附上 [[FORM:create_project|{...}]]\n'
-                '- 修改项目：查到项目后，立即附上 [[FORM:edit_project|{...}]]\n'
-                '- 新建报销单：用户说"报销/记一笔费用" → 立即附上 [[FORM:create_expense|{}]]（系统会自动打开报销单页面）\n'
-                '- 快速跟进：查到客户和联系人后，立即附上 [[FORM:create_action|{...}]]\n'
-                '\n'
-                '【标记格式 - 严格遵守，标记必须在回复最末尾】\n'
-                '- 新建客户: [[FORM:create_customer|{"company_name":"从对话提取","country":"如有","company_type":"如有","address":"如有"}]]\n'
-                '- 修改客户: [[FORM:edit_customer|{"id":客户ID,"company_name":"如需修改","address":"如需修改"}]]\n'
-                '- 新建联系人: [[FORM:create_contact|{"company_id":公司ID,"name":"姓名","phone":"如有","email":"如有"}]]\n'
-                '- 修改联系人: [[FORM:edit_contact|{"id":联系人ID,"company_id":公司ID,"name":"如需修改","phone":"如需修改"}]]\n'
-                '- 新建项目: [[FORM:create_project|{"project_name":"项目名","project_type":"channel_follow/sales_focus/business_opportunity","report_source":"channel/sales/marketing","industry":"如有"}]]\n'
-                '- 修改项目: [[FORM:edit_project|{"id":项目ID,"project_name":"如需修改"}]]\n'
-                '  (修改前必须先查数据库确认项目ID，但查询过程和结果不要展示给用户)\n'
-                '- 新建报销单: [[FORM:create_expense|{}]]（无需填充字段，系统自动打开完整报销单页面）\n'
-                '- 快速跟进: [[FORM:create_action|{"company_id":公司ID,"contact_id":联系人ID,"communication":"跟进内容"}]]\n'
-                '  (必须先查数据库确认公司和联系人ID，但查询过程不要展示给用户)\n'
-                '\n'
-                '【规则】\n'
-                '1. 只在用户明确要求新增/修改/添加数据时触发，纯查询搜索不触发\n'
-                '2. prefill JSON 中只填对话中已知的信息，未知字段留空或不填\n'
-                '3. 不要提及标记本身，用户看不到标记，只会看到表单\n'
-                '4. 标记必须是回复的最后一行\n'
-                '\n'
-                '【内部查询SQL（仅供你内部使用，绝不展示给用户）】\n'
-                '查客户: SELECT id, company_name FROM companies WHERE company_name ILIKE \'%关键词%\' AND is_deleted = false\n'
-                '查联系人: SELECT c.id, c.name, c.company_id, co.company_name FROM contacts c JOIN companies co ON c.company_id = co.id WHERE c.name ILIKE \'%关键词%\'\n'
-                '查项目: SELECT id, project_name FROM projects WHERE project_name ILIKE \'%关键词%\' AND is_deleted = false\n'
-                '\n'
-                '【查询结果处理规则】\n'
-                '精确匹配1个 → 直接附上表单标记，简短告知用户（如"找到了XXX项目，请确认修改"）\n'
-                '匹配多个 → 简短说明，然后在回复末尾附上选项标记 [[CHOICES:选项1|选项2|...]]，系统会自动渲染为可点击按钮\n'
-                '匹配0个 → 自然语言告知"没有找到包含XXX的项目"\n'
-                '绝对不要猜测ID，绝对不要在回复中显示ID编号\n'
-                '\n'
-                '【选项标记格式 - 匹配多个时使用】\n'
-                '当查询到多个结果需要用户选择时，在回复末尾附上带ID的选项标记：\n'
-                '[[CHOICES:表单动作|名称1:ID1|名称2:ID2|名称3:ID3]]\n'
-                '第一个参数是表单动作（edit_project/edit_customer/edit_contact等），后面是"名称:数据库ID"对\n'
-                '选项文本只放实体名称（客户名/项目名/联系人名），不要带"修改""新建"等动作词\n'
-                '动作上下文放在回复正文中（如"找到多个相关项目，请选择要修改的："）\n'
-                '标记会被系统自动转换为可点击按钮，用户点击后直接打开表单，无需再次等待\n'
-                '\n'
-                '【正确回复示例】\n'
-                '用户: "帮我添加客户 ABC Corp" → "好的，请在表单中完善信息。\\n\\n[[FORM:create_customer|{...}]]"\n'
-                '用户: "修改赵东来的电话" → 查到1个 → "找到了赵东来，请确认修改。\\n\\n[[FORM:edit_contact|{\\"id\\":695,\\"company_id\\":528}]]"\n'
-                '用户: "修改上海建筑的地址" → 查到1个 → "找到了上海建筑工程公司，请确认修改。\\n\\n[[FORM:edit_customer|{\\"id\\":528}]]"\n'
-                '用户: "我要修改武汉中心项目" → 查到2个(id=642和id=701) → "找到多个相关项目，请选择要修改的：\\n\\n[[CHOICES:edit_project|武汉中心辅助楼:642|武汉中心主楼:701]]"\n'
-                '\n'
-                '【错误回复示例 - 绝对禁止】\n'
-                '❌ "查询projects表，发现is_deleted字段..."\n'
-                '❌ "找到以下项目：武汉中心辅助楼 (ID: 642)"\n'
-                '❌ "根据数据库查询结果，共有2条记录..."\n'
-                '❌ "我需要先查询数据库确认项目信息..."\n'
+            # 可视化标记（多结果选项 + 单项目卡片）
+            parts.append(
+                '[可视化标记] 查询匹配多个客户/项目等实体时，用选项标记让用户选择：'
+                '[[CHOICES:名称1:ID1|名称2:ID2]]，系统渲染为可点击链接。'
+                '查询明确指向单个项目时，末尾插入 [[PROJECT_CARD:项目ID]]，系统渲染为项目卡片（含阶段进度条）。'
+                '使用PROJECT_CARD时，卡片已包含项目核心信息，文字部分只需一句简短总结，不要重复列出卡片中已有的字段。\n'
             )
 
-        return prompt
+            # 文件上传工具（仅查询场景可能生成文件需要上传）
+            ai_token = os.environ.get('PMA_AI_QUERY_TOKEN', '')
+            if conversation_id and pma_base_url and ai_token:
+                parts.append(
+                    f'[文件分享工具] 生成文件后用 POST {pma_base_url}/chat/api/ai/upload-file 上传到对话中'
+                    f'（Header: Authorization: Bearer {ai_token}，'
+                    f'multipart form-data: file, conversation_id={conversation_id}, user_id={user_id}）。'
+                    f'文件名必须用中文描述性命名（如"李华伟活跃项目.xlsx"），禁止用系统编号命名。'
+                    f'重要：读取和上传文件时必须使用二进制模式（open(path, "rb")），禁止用文本模式读取二进制文件，否则会导致文件损坏。'
+                    f'上传成功后，必须将返回的 download_url 以 Markdown 链接格式写入回复，例如：[点击下载文件名](download_url)。\n'
+                )
+
+        # 层级: 表单交互工具
+        if 'form' in needs and conversation_id:
+            include_sql = 'query' in needs  # 修改类需要查询 SQL
+            parts.append(_build_form_prompt(include_sql))
+
+        return '\n'.join(parts)
     except Exception as e:
         logger.warning(f'构建工具提示失败: {e}')
         return ''
+
+
+def send_openclaw_request(message, timeout=180):
+    """发送请求到 OpenClaw 并等待完整响应（非流式）
+
+    用于 AI 调研等不需要流式输出的场景。复用 _ws_chat WebSocket 连接，
+    不注入用户身份和 DB 工具提示（纯净研究请求）。
+
+    Args:
+        message: 发送给 AI 的完整提示词
+        timeout: 超时秒数（默认 180 秒，调研任务较慢）
+
+    Returns:
+        str: AI 的完整文本响应
+
+    Raises:
+        RuntimeError: 连接失败或超时
+    """
+    gateway_url = os.environ.get('OPENCLAW_GATEWAY_URL', '')
+    if not gateway_url:
+        raise RuntimeError('未配置 OPENCLAW_GATEWAY_URL')
+
+    token = os.environ.get('OPENCLAW_GATEWAY_TOKEN', '')
+    session_id = f'pma-research-{uuid.uuid4().hex[:8]}'
+
+    result_queue = queue.Queue()
+
+    def _run():
+        try:
+            asyncio.run(_ws_chat(gateway_url, token, message, session_id, result_queue))
+        except Exception as e:
+            logger.error(f'OpenClaw research 线程异常: {e}', exc_info=True)
+            result_queue.put({'type': 'error', 'text': str(e)})
+        finally:
+            result_queue.put(None)  # sentinel
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    # 收集所有 content 事件的文本
+    collected = []
+    start_time = time.time()
+
+    while True:
+        remaining = timeout - (time.time() - start_time)
+        if remaining <= 0:
+            raise RuntimeError(f'OpenClaw 请求超时（{timeout}s）')
+        try:
+            item = result_queue.get(timeout=min(remaining, 2.0))
+        except queue.Empty:
+            continue
+        if item is None:
+            break
+        item_type = item.get('type', '')
+        if item_type == 'content':
+            text = item.get('text', '')
+            # _ws_chat 连接失败时会发送 ⚠️ 开头的 content 事件
+            if text.startswith('⚠️') and not collected:
+                raise RuntimeError(text)
+            collected.append(text)
+        elif item_type == 'agent_status':
+            # 记录工具调用状态，便于排查 web_search 等工具是否被调用
+            msg = item.get('message', '')
+            if msg:
+                logger.info(f'[OpenClaw-Research] agent_status: {msg}')
+        elif item_type == 'error':
+            raise RuntimeError(f'OpenClaw 请求失败: {item.get("text", "")}')
+        elif item_type == 'done':
+            # _ws_chat 完成，不再等待
+            break
+
+    result = ''.join(collected)
+    if not result.strip():
+        raise RuntimeError('OpenClaw 返回了空响应')
+
+    logger.info(f'[OpenClaw-Research] 完成, 响应长度={len(result)}')
+    return result
 
 
 def get_openclaw_response_stream(message, session_id=None,
@@ -363,17 +434,21 @@ def get_openclaw_response_stream(message, session_id=None,
     else:
         user_identity = ''
 
-    # 仅当消息可能涉及数据查询时，才注入 DB 工具说明（减少非数据问题的思考延迟）
-    if user and _needs_db_prompt(message):
-        db_prompt = _build_db_tool_prompt(user, conversation_id=conversation_id)
-        if db_prompt:
+    # 按需注入工具提示（分层：form / query / 两者），避免每次都塞全套 ~4,900 字
+    needs = _detect_prompt_needs(message) if user else set()
+    if needs:
+        tool_prompt = _build_tool_prompt(user, conversation_id=conversation_id, needs=needs)
+        if tool_prompt:
             _perf_db_injected = True
-            _perf_prompt_len = len(db_prompt)
-            message = f'{user_identity}\n{db_prompt}\n[用户消息] {message}'
-            logger.info(f'[OpenClaw-Perf] DB提示已注入, prompt_chars={_perf_prompt_len}, msg="{_perf_msg_preview}"')
+            _perf_prompt_len = len(tool_prompt)
+            message = f'{user_identity}\n{tool_prompt}\n[用户消息] {message}'
+            logger.info(f'[OpenClaw-Perf] 提示已注入 layers={needs}, prompt_chars={_perf_prompt_len}, msg="{_perf_msg_preview}"')
+        elif user_identity:
+            message = f'{user_identity}\n[用户消息] {message}'
+            logger.info(f'[OpenClaw-Perf] 用户标识已注入(构建失败), msg="{_perf_msg_preview}"')
     elif user_identity:
         message = f'{user_identity}\n[用户消息] {message}'
-        logger.info(f'[OpenClaw-Perf] 用户标识已注入(无DB提示), msg="{_perf_msg_preview}"')
+        logger.info(f'[OpenClaw-Perf] 用户标识已注入(无工具提示), msg="{_perf_msg_preview}"')
 
     # ② 连接阶段
     yield {'type': 'status', 'message': '正在连接 AI 服务...'}
@@ -678,41 +753,81 @@ async def _ws_chat(url, token, message, session_key, q,
                 elif stream_type not in ('assistant', 'compaction', 'error', ''):
                     logger.debug(f'[OpenClaw-Agent] unhandled stream={stream_type}')
 
-        # ------ Step 5: Retrieve per-response model info via chat.history RPC ------
-        # Chat final events don't always include model/usage; chat.history transcript does.
-        if model_name == 'openclaw':
+        # ------ Step 5: 获取 session token 数据 ------
+        # 优先: chat final event 中的 usage
+        # 补充: sessions.status RPC 获取 session 级别累计数据
+        if model_name == 'openclaw' or not prompt_tokens:
+            # 方法 1: sessions.status RPC (session 级累计 token)
             try:
-                hist_rpc_id = _req_id()
+                ss_id = _req_id()
                 await ws.send(json.dumps({
                     'type': 'req',
-                    'id': hist_rpc_id,
-                    'method': 'chat.history',
+                    'id': ss_id,
+                    'method': 'sessions.status',
                     'params': {'sessionKey': session_key},
                 }))
-                hist_res = await asyncio.wait_for(_recv_response(ws, hist_rpc_id), timeout=5)
-                if hist_res.get('ok'):
-                    hist_data = hist_res.get('payload', {})
-                    # payload 可能是 {messages: [...]} 或直接是 [...]
-                    messages = hist_data if isinstance(hist_data, list) else hist_data.get('messages', hist_data.get('history', []))
-                    if isinstance(messages, list) and messages:
-                        for msg in reversed(messages):
-                            if isinstance(msg, dict) and msg.get('role') == 'assistant':
-                                if msg.get('model'):
-                                    model_name = msg['model']
-                                    provider = msg.get('provider', '')
-                                    if provider and '/' not in model_name:
-                                        model_name = f'{provider}/{model_name}'
-                                msg_usage = msg.get('usage', {})
-                                if isinstance(msg_usage, dict) and not prompt_tokens:
-                                    prompt_tokens = msg_usage.get('inputTokens', msg_usage.get('input', msg_usage.get('input_tokens', 0)))
-                                    completion_tokens = msg_usage.get('outputTokens', msg_usage.get('output', msg_usage.get('output_tokens', 0)))
-                                if model_name != 'openclaw':
-                                    break
+                ss_res = await asyncio.wait_for(_recv_response(ws, ss_id), timeout=5)
+                if ss_res.get('ok'):
+                    ss = ss_res.get('payload', {})
+                    # contextTokens = 当前上下文大小 (用于耗尽检查)
+                    ctx_tokens = ss.get('contextTokens', 0)
+                    in_tokens = ss.get('inputTokens', 0)
+                    out_tokens = ss.get('outputTokens', 0)
+                    if not prompt_tokens and (ctx_tokens or in_tokens):
+                        prompt_tokens = ctx_tokens or in_tokens
+                    if not completion_tokens and out_tokens:
+                        completion_tokens = out_tokens
+                    # 提取 model（如果 session status 提供）
+                    if model_name == 'openclaw':
+                        m = ss.get('model') or ss.get('modelOverride', '')
+                        if m:
+                            model_name = m
+                    logger.info(f'[OpenClaw-SessionStatus] ctx={ctx_tokens} in={in_tokens} out={out_tokens} model={ss.get("model")}')
                 else:
-                    error_info = hist_res.get('error', {})
-                    logger.warning(f'[OpenClaw-ChatHistory] error: {json.dumps(error_info, ensure_ascii=False)[:200]}')
+                    logger.warning(f'[OpenClaw-SessionStatus] error: {ss_res.get("error", {})}')
             except Exception as e:
-                logger.warning(f'[OpenClaw-ChatHistory] failed: {e}')
+                logger.warning(f'[OpenClaw-SessionStatus] failed: {e}')
+
+            # 方法 2: chat.history fallback (应对 sessions.status 不可用)
+            if model_name == 'openclaw' or not prompt_tokens:
+                try:
+                    hist_rpc_id = _req_id()
+                    await ws.send(json.dumps({
+                        'type': 'req',
+                        'id': hist_rpc_id,
+                        'method': 'chat.history',
+                        'params': {'sessionKey': session_key},
+                    }))
+                    hist_res = await asyncio.wait_for(_recv_response(ws, hist_rpc_id), timeout=5)
+                    if hist_res.get('ok'):
+                        hist_data = hist_res.get('payload', {})
+                        # payload 可能是 {messages: [...]} 或直接是 [...]
+                        messages = hist_data if isinstance(hist_data, list) else hist_data.get('messages', hist_data.get('history', []))
+                        if isinstance(messages, list) and messages:
+                            # 只取最后一个 assistant message 的 usage（不累加）
+                            for msg in reversed(messages):
+                                if not isinstance(msg, dict):
+                                    continue
+                                if msg.get('role') == 'assistant':
+                                    if model_name == 'openclaw' and msg.get('model'):
+                                        model_name = msg['model']
+                                        provider = msg.get('provider', '')
+                                        if provider and '/' not in model_name:
+                                            model_name = f'{provider}/{model_name}'
+                                    msg_usage = msg.get('usage', {})
+                                    if isinstance(msg_usage, dict):
+                                        hist_in = msg_usage.get('inputTokens', msg_usage.get('input', msg_usage.get('input_tokens', 0))) or 0
+                                        hist_out = msg_usage.get('outputTokens', msg_usage.get('output', msg_usage.get('output_tokens', 0))) or 0
+                                        if hist_in > prompt_tokens:
+                                            prompt_tokens = hist_in
+                                        if hist_out > completion_tokens:
+                                            completion_tokens = hist_out
+                                    break  # 只取最后一个 assistant
+                    else:
+                        error_info = hist_res.get('error', {})
+                        logger.warning(f'[OpenClaw-ChatHistory] error: {json.dumps(error_info, ensure_ascii=False)[:200]}')
+                except Exception as e:
+                    logger.warning(f'[OpenClaw-ChatHistory] failed: {e}')
 
         final_model = f'openclaw/{model_name}' if '/' not in model_name else model_name
         logger.info(f'[OpenClaw-Done] final_model={final_model} tokens={prompt_tokens}/{completion_tokens}')

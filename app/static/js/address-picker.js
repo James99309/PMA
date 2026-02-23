@@ -77,6 +77,10 @@ window.AddressPicker = (function() {
         var addressInput = document.getElementById(fieldId);
         if (addressInput && locationData.formatted_address) {
             addressInput.value = locationData.formatted_address;
+            // 定位成功后解锁输入框，允许用户手动修正地址（如补充楼栋/楼层）
+            addressInput.removeAttribute('readonly');
+            addressInput.removeAttribute('onclick');
+            addressInput.classList.remove('cursor-pointer');
             console.log('[AddressPicker] 显示地址:', locationData.formatted_address);
         }
 

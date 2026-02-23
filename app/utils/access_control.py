@@ -1424,6 +1424,57 @@ def can_view_quotation(user, quotation):
             logger.debug(f"[权限检查] 报价单共享权限 - 允许访问")
             return True
 
+    # 判断是否通过项目共享获得权限（需区分主动共享 vs 资源池审批共享）
+    if quotation.project_id:
+        project = quotation.project
+        if project and hasattr(project, 'shared_with_users') and project.shared_with_users:
+            if user.id in project.shared_with_users:
+                from app.models.access_request import AccessRequest
+                # 检查是否通过资源池审批获得的项目共享
+                access_req = AccessRequest.query.filter_by(
+                    requester_id=user.id,
+                    entity_type='project',
+                    entity_id=project.id,
+                    status='approved'
+                ).order_by(AccessRequest.resolved_at.desc()).first()
+
+                if access_req:
+                    # 资源池项目审批 → 按 share_options 控制
+                    if access_req.share_options and access_req.share_options.get('quotations'):
+                        logger.debug(f"[权限检查] 资源池项目审批共享(含报价单) - 允许访问")
+                        return True
+                    else:
+                        logger.debug(f"[权限检查] 资源池项目审批共享(未勾选报价单) - 拒绝访问")
+                        # 不 return True，继续后续检查
+                else:
+                    # 无项目级 AccessRequest → 检查客户审批路径
+                    from app.models.project_customer_association import ProjectCustomerAssociation
+                    assoc_company_ids = [a.company_id for a in
+                        ProjectCustomerAssociation.query.filter_by(project_id=project.id).all()]
+                    if assoc_company_ids:
+                        customer_req = AccessRequest.query.filter(
+                            AccessRequest.requester_id == user.id,
+                            AccessRequest.entity_type == 'customer',
+                            AccessRequest.entity_id.in_(assoc_company_ids),
+                            AccessRequest.status == 'approved'
+                        ).order_by(AccessRequest.resolved_at.desc()).first()
+                        if customer_req:
+                            # 客户审批路径 → 按 share_options 控制
+                            if customer_req.share_options and customer_req.share_options.get('quotations'):
+                                logger.debug(f"[权限检查] 资源池客户审批共享(含报价单) - 允许访问")
+                                return True
+                            else:
+                                logger.debug(f"[权限检查] 资源池客户审批共享(未勾选报价单) - 拒绝访问")
+                                # 不 return True，继续后续检查
+                        else:
+                            # 无 AccessRequest 记录 → 主动共享（全量权限）
+                            logger.debug(f"[权限检查] 主动项目共享权限 - 允许访问关联报价单")
+                            return True
+                    else:
+                        # 无 AccessRequest 且无客户关联 → 主动共享
+                        logger.debug(f"[权限检查] 主动项目共享权限 - 允许访问关联报价单")
+                        return True
+
     # 注：财务总监、渠道经理、营销总监、服务经理等角色的报价单查看权限
     # 通过权限配置系统控制：
     # - 配置 quotation 模块的 system/company 级权限
@@ -1622,7 +1673,8 @@ def can_view_contact(user, contact):
     # 检查公司共享设置
     if hasattr(company, 'shared_with_users') and company.shared_with_users:
         if user.id in company.shared_with_users:
-            if hasattr(company, 'share_contacts') and company.share_contacts:
+            # share_contacts 默认值为 True，NULL(旧数据未backfill)视同 True
+            if not hasattr(company, 'share_contacts') or company.share_contacts is not False:
                 return True
     # 判断是否通过归属关系获得权限
     affiliations = Affiliation.query.filter_by(viewer_id=user.id).all()

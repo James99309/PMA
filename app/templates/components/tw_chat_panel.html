@@ -132,7 +132,10 @@
                     <!-- 对话信息 -->
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center justify-between">
-                            <span class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="conv.name"></span>
+                            <span class="flex items-center gap-1 text-sm font-medium text-slate-900 dark:text-white truncate">
+                                <span x-text="conv.name"></span>
+                                <span x-show="conv.contextExhausted" class="material-symbols-outlined text-amber-500 text-xs flex-shrink-0" title="{{ _('上下文已满') }}">lock</span>
+                            </span>
                             <span class="text-[11px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-2" x-text="conv.time"></span>
                         </div>
                         <div class="flex items-center justify-between mt-0.5">
@@ -488,8 +491,59 @@
                     </div>
                     </template>
 
+                    <!-- ====== 操作链接消息 ====== -->
+                    <template x-if="msg.message_type === 'action_link'">
+                    <div class="py-1">
+                        <div class="flex items-center gap-2 mb-2">
+                            <span class="text-[11px] font-semibold text-violet-600 dark:text-violet-400"
+                                  x-text="msg.sender_name || '{{ _('AI 助手') }}'"></span>
+                        </div>
+                        <p class="text-sm text-slate-700 dark:text-slate-300 mb-2" x-text="msg.content"></p>
+                        <!-- 手机: <a> 链接 -->
+                        <a :href="msg._actionUrl" target="_blank"
+                           class="md:hidden inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-white">
+                            <span class="material-symbols-outlined text-base" x-text="msg._actionIcon || 'open_in_new'"></span>
+                            <span x-text="msg._actionLabel"></span>
+                        </a>
+                        <!-- PC: 分屏按钮 -->
+                        <button @click="enterSplitMode(msg._actionUrl)"
+                                class="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-white cursor-pointer">
+                            <span class="material-symbols-outlined text-base" x-text="msg._actionIcon || 'open_in_new'"></span>
+                            <span x-text="msg._actionLabel"></span>
+                            <span class="material-symbols-outlined text-sm ml-1">vertical_split</span>
+                        </button>
+                    </div>
+                    </template>
+
+                    <!-- ====== 上下文耗尽系统消息 ====== -->
+                    <template x-if="msg.message_type === 'context_exhausted'">
+                    <div class="flex justify-center py-3">
+                        <div class="max-w-sm w-full bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 border border-amber-200 dark:border-amber-700/50 rounded-xl px-4 py-3 text-center">
+                            <div class="flex items-center justify-center gap-2 mb-1.5">
+                                <span class="material-symbols-outlined text-amber-500 text-lg">lock</span>
+                                <span class="text-sm font-medium text-amber-700 dark:text-amber-400">{{ _('上下文已满') }}</span>
+                            </div>
+                            <p class="text-xs text-amber-600/80 dark:text-amber-400/70 mb-2.5" x-text="msg.content"></p>
+                            <button @click="startNewChat()" class="inline-flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors cursor-pointer">
+                                <span class="material-symbols-outlined text-sm">add_comment</span>
+                                {{ _('开启新对话') }}
+                            </button>
+                        </div>
+                    </div>
+                    </template>
+
+                    <!-- ====== 上下文警告消息 ====== -->
+                    <template x-if="msg.message_type === 'context_warning'">
+                    <div class="flex justify-center py-2">
+                        <div class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700/50 rounded-full">
+                            <span class="material-symbols-outlined text-yellow-500 text-sm">warning</span>
+                            <span class="text-xs text-yellow-600 dark:text-yellow-400" x-text="msg.content"></span>
+                        </div>
+                    </div>
+                    </template>
+
                     <!-- ====== AI 消息：Claude 风格 ====== -->
-                    <template x-if="(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card'">
+                    <template x-if="(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card' && msg.message_type !== 'action_link' && msg.message_type !== 'context_exhausted' && msg.message_type !== 'context_warning'">
                     <div class="group py-1"
                          @touchstart.passive="onMsgTouchStart($event, msg)"
                          @touchend="onMsgTouchEnd()"
@@ -517,6 +571,59 @@
                                     <div class="truncate text-slate-500 dark:text-slate-400" x-text="msg.reply_to?.content || ''"></div>
                                 </div>
                             </template>
+                            <!-- AI 文件附件 -->
+                            <template x-if="msg.message_type === 'file' && msg.file_url">
+                            <div class="rounded-xl px-4 py-3 min-w-[200px] max-w-[320px] bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                                         :class="getFileIconBg(msg.file_name)">
+                                        <span class="material-symbols-outlined text-lg"
+                                              :class="getFileIconColor(msg.file_name)"
+                                              x-text="getFileIcon(msg.file_name)"></span>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm font-medium truncate" x-text="msg.file_name"></div>
+                                        <div class="text-xs mt-0.5 text-slate-400"
+                                             x-text="formatFileSize(msg.file_size)"></div>
+                                    </div>
+                                    <a :href="getFileDownloadUrl(msg.file_url, msg.file_name)"
+                                       :download="msg.file_name"
+                                       class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500"
+                                       @click.stop>
+                                        <span class="material-symbols-outlined text-lg">download</span>
+                                    </a>
+                                </div>
+                            </div>
+                            </template>
+                            <!-- AI 图片附件 -->
+                            <template x-if="msg.message_type === 'image' && msg.file_url">
+                            <div class="rounded-xl overflow-hidden cursor-pointer max-w-[280px]"
+                                 @click="previewImage = getFileAccessUrl(msg.file_url)">
+                                <img :src="getFileAccessUrl(msg.file_url)"
+                                     :alt="msg.file_name || ''"
+                                     class="max-w-[280px] max-h-[200px] object-cover rounded-xl"
+                                     loading="lazy">
+                            </div>
+                            </template>
+                            <!-- AI 视频附件 -->
+                            <template x-if="msg.message_type === 'video' && msg.file_url">
+                            <div class="max-w-[280px]">
+                                <div class="rounded-xl overflow-hidden">
+                                    <video :src="getFileAccessUrl(msg.file_url)"
+                                           class="w-full max-h-[200px]"
+                                           controls preload="metadata"></video>
+                                </div>
+                                <div class="mt-1 flex items-center justify-between px-1">
+                                    <span class="text-[10px] text-slate-400 truncate" x-text="msg.file_name"></span>
+                                    <a :href="getFileDownloadUrl(msg.file_url, msg.file_name)"
+                                       :download="msg.file_name"
+                                       class="text-slate-400 hover:text-primary transition-colors flex-shrink-0"
+                                       @click.stop>
+                                        <span class="material-symbols-outlined text-sm">download</span>
+                                    </a>
+                                </div>
+                            </div>
+                            </template>
                             <!-- Markdown 内容（无气泡） -->
                             <div class="prose prose-sm prose-slate dark:prose-invert max-w-none text-sm leading-relaxed"
                                  x-html="renderMarkdown(msg.content)"></div>
@@ -528,6 +635,75 @@
                                                 class="text-sm text-violet-600 dark:text-violet-400 underline underline-offset-2 decoration-violet-300 dark:decoration-violet-600 hover:text-violet-800 dark:hover:text-violet-300 hover:decoration-violet-500 transition-colors cursor-pointer">
                                             <span x-text="choice.label || choice"></span>
                                         </button>
+                                    </template>
+                                </div>
+                            </template>
+                            <!-- AI 回复中附带的项目卡片 -->
+                            <template x-if="msg._projectCards && msg._projectCards.length">
+                                <div class="mt-2 space-y-2">
+                                    <template x-for="card in msg._projectCards" :key="card.project_id">
+                                        <div class="rounded-xl border border-slate-200 dark:border-slate-600 overflow-hidden cursor-pointer hover:shadow-md transition-all max-w-[320px] bg-gradient-to-br from-white to-slate-50 dark:from-slate-700 dark:to-slate-800"
+                                             @click="openEntityDetail('project', card)">
+                                            <!-- 头部：项目名 + 阶段徽章 -->
+                                            <div class="px-3.5 pt-3 pb-2">
+                                                <div class="flex items-start justify-between gap-2">
+                                                    <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                                                        <span class="material-symbols-outlined text-emerald-500 dark:text-emerald-400 text-[16px] flex-shrink-0">folder_open</span>
+                                                        <span class="text-[13px] font-semibold text-slate-800 dark:text-slate-100 leading-tight line-clamp-2" x-text="card.project_name"></span>
+                                                    </div>
+                                                    <span x-show="card.current_stage"
+                                                          class="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/50"
+                                                          x-text="card.current_stage"></span>
+                                                </div>
+                                            </div>
+                                            <!-- 报价信息 -->
+                                            <div x-show="card.quotation_number" class="px-3.5 pb-2.5">
+                                                <div class="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                                    <span class="material-symbols-outlined text-[13px]">receipt_long</span>
+                                                    <span x-text="card.quotation_number"></span>
+                                                    <span class="font-semibold text-slate-700 dark:text-slate-200" x-text="'¥' + (card.quotation_amount || 0).toLocaleString()"></span>
+                                                </div>
+                                            </div>
+                                            <!-- 阶段进度条 -->
+                                            <template x-if="card.stages && card.stages.length">
+                                                <div class="px-3.5 pb-2 pt-1 border-t border-slate-100 dark:border-slate-600/50">
+                                                    <div class="flex items-center">
+                                                        <template x-for="(stg, idx) in card.stages" :key="stg.key">
+                                                            <div class="contents">
+                                                                <div x-show="idx > 0" class="chat-stage-line"
+                                                                     :class="stg.status === 'completed' || stg.status === 'current'
+                                                                       ? 'bg-teal-400 dark:bg-teal-500'
+                                                                       : 'bg-slate-200 dark:bg-slate-600'"></div>
+                                                                <div class="rounded-full flex-shrink-0"
+                                                                     :class="{
+                                                                       'w-2 h-2 bg-teal-500 dark:bg-teal-400': stg.status === 'completed',
+                                                                       'w-3 h-3 bg-lime-500 chat-stage-current': stg.status === 'current',
+                                                                       'w-2 h-2 bg-slate-200 dark:bg-slate-600': stg.status === 'pending',
+                                                                     }"
+                                                                     :title="stg.label"></div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                    <!-- 阶段文字标签 -->
+                                                    <div class="flex justify-between mt-1 select-none">
+                                                        <template x-for="stg in card.stages" :key="stg.key + '_lbl'">
+                                                            <span class="text-[8px]"
+                                                                  :class="stg.status === 'current'
+                                                                    ? 'font-semibold text-emerald-600 dark:text-emerald-400'
+                                                                    : 'text-slate-400 dark:text-slate-500'"
+                                                                  x-text="stg.label"></span>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <!-- 底部查看详情 -->
+                                            <div class="flex items-center justify-end px-3.5 pb-2 pt-0.5">
+                                                <div class="flex items-center gap-0.5 text-[10px] text-slate-400 dark:text-slate-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
+                                                    <span class="material-symbols-outlined text-[12px]">open_in_new</span>
+                                                    <span x-text="_chatI18n.entityViewDetail"></span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </template>
                                 </div>
                             </template>
@@ -552,7 +728,7 @@
                     </template>
 
                     <!-- ====== 普通消息：气泡样式 ====== -->
-                    <template x-if="!(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card'">
+                    <template x-if="!(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card' && msg.message_type !== 'action_link' && msg.message_type !== 'context_exhausted' && msg.message_type !== 'context_warning'">
                     <div :class="msg.is_mine ? 'flex justify-start' : 'flex justify-end'">
                     <div class="max-w-[75%]" :class="msg.is_mine ? 'items-start' : 'items-end'">
 
@@ -673,7 +849,7 @@
                             <!-- 视频下载条 -->
                             <div class="mt-1 flex items-center justify-between px-1">
                                 <span class="text-[10px] text-slate-400 truncate" x-text="msg.file_name"></span>
-                                <a :href="getFileAccessUrl(msg.file_url)"
+                                <a :href="getFileDownloadUrl(msg.file_url, msg.file_name)"
                                    :download="msg.file_name"
                                    class="text-slate-400 hover:text-primary transition-colors flex-shrink-0"
                                    @click.stop>
@@ -702,7 +878,7 @@
                                          :class="msg.is_mine ? 'text-white/70' : 'text-slate-400'"
                                          x-text="formatFileSize(msg.file_size)"></div>
                                 </div>
-                                <a :href="getFileAccessUrl(msg.file_url)"
+                                <a :href="getFileAccessUrl(msg.file_url, msg.file_name)"
                                    :download="msg.file_name"
                                    class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
                                    :class="msg.is_mine ? 'hover:bg-white/20 text-white' : 'hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500'"
@@ -745,34 +921,88 @@
 
                         <!-- 项目卡片消息 -->
                         <template x-if="msg.message_type === 'project_card'">
-                        <div class="rounded-2xl px-4 py-3 min-w-[220px] max-w-[280px] cursor-pointer transition-shadow hover:shadow-md"
+                        <div class="rounded-xl overflow-hidden min-w-[220px] max-w-[320px] transition-shadow hover:shadow-md cursor-pointer"
                              :class="msg.is_mine
                                  ? 'bg-primary text-white rounded-bl-md'
-                                 : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-br-md border border-slate-200 dark:border-slate-700'"
+                                 : 'border border-slate-200 dark:border-slate-600 bg-gradient-to-br from-white to-slate-50 dark:from-slate-700 dark:to-slate-800 rounded-br-md'"
                              @click="openEntityDetail('project', msg.card_data)">
-                            <div class="flex items-center gap-1.5 mb-2 text-[10px] font-medium"
-                                 :class="msg.is_mine ? 'text-white/70' : 'text-emerald-500 dark:text-emerald-400'">
-                                <span class="material-symbols-outlined text-[14px]">folder_open</span>
-                                <span x-text="_chatI18n.entityProject"></span>
+                            <!-- 头部：项目名 + 阶段徽章 -->
+                            <div class="px-3.5 pt-3 pb-2">
+                                <div class="flex items-start justify-between gap-2">
+                                    <div class="flex items-center gap-1.5 min-w-0 flex-1">
+                                        <span class="material-symbols-outlined text-[16px] flex-shrink-0"
+                                              :class="msg.is_mine ? 'text-white/70' : 'text-emerald-500 dark:text-emerald-400'">folder_open</span>
+                                        <span class="text-[13px] font-semibold leading-tight line-clamp-2"
+                                              :class="msg.is_mine ? 'text-white' : 'text-slate-800 dark:text-slate-100'"
+                                              x-text="msg.card_data?.project_name || ''"></span>
+                                    </div>
+                                    <span x-show="msg.card_data?.current_stage"
+                                          class="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                                          :class="msg.is_mine
+                                            ? 'bg-white/20 text-white border border-white/30'
+                                            : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/50'"
+                                          x-text="msg.card_data?.current_stage"></span>
+                                </div>
                             </div>
-                            <div class="text-sm font-semibold truncate" x-text="msg.card_data?.project_name || ''"></div>
-                            <div class="flex items-center gap-1.5 mt-1.5">
-                                <span class="material-symbols-outlined text-[14px]"
-                                      :class="msg.is_mine ? 'text-white/60' : 'text-slate-400'">flag</span>
-                                <span class="text-xs" x-text="msg.card_data?.current_stage || '—'"></span>
+                            <!-- 报价信息 -->
+                            <div x-show="msg.card_data?.quotation_number" class="px-3.5 pb-2.5">
+                                <div class="flex items-center gap-2 text-xs"
+                                     :class="msg.is_mine ? 'text-white/70' : 'text-slate-500 dark:text-slate-400'">
+                                    <span class="material-symbols-outlined text-[13px]">receipt_long</span>
+                                    <span x-text="msg.card_data?.quotation_number"></span>
+                                    <span class="font-semibold"
+                                          :class="msg.is_mine ? 'text-white' : 'text-slate-700 dark:text-slate-200'"
+                                          x-text="'¥' + (msg.card_data?.quotation_amount || 0).toLocaleString()"></span>
+                                </div>
                             </div>
-                            <div x-show="msg.card_data?.quotation_number"
-                                 class="flex items-center gap-1.5 mt-1">
-                                <span class="material-symbols-outlined text-[14px]"
-                                      :class="msg.is_mine ? 'text-white/60' : 'text-slate-400'">receipt_long</span>
-                                <span class="text-xs" x-text="msg.card_data?.quotation_number"></span>
-                                <span class="text-xs font-medium"
-                                      x-text="'¥' + (msg.card_data?.quotation_amount || 0).toLocaleString()"></span>
+                            <!-- 阶段进度条 -->
+                            <template x-if="msg.card_data?.stages && msg.card_data.stages.length">
+                            <div class="px-3.5 pb-2 pt-1 border-t"
+                                 :class="msg.is_mine ? 'border-white/20' : 'border-slate-100 dark:border-slate-600/50'">
+                              <div class="flex items-center">
+                                <template x-for="(stg, idx) in msg.card_data.stages" :key="stg.key">
+                                  <div class="contents">
+                                    <div x-show="idx > 0" class="chat-stage-line"
+                                         :class="stg.status === 'completed' || stg.status === 'current'
+                                           ? (msg.is_mine ? 'bg-white/40' : 'bg-teal-400 dark:bg-teal-500')
+                                           : (msg.is_mine ? 'bg-white/15' : 'bg-slate-200 dark:bg-slate-600')"></div>
+                                    <button class="rounded-full transition-all duration-200 focus:outline-none flex-shrink-0"
+                                      :class="{
+                                        'w-2.5 h-2.5 bg-teal-500 dark:bg-teal-400': stg.status === 'completed' && !msg.is_mine,
+                                        'w-2.5 h-2.5 bg-white/60': stg.status === 'completed' && msg.is_mine,
+                                        'w-3.5 h-3.5 bg-lime-500 chat-stage-current': stg.status === 'current' && !msg.is_mine,
+                                        'w-3.5 h-3.5 bg-white chat-stage-current': stg.status === 'current' && msg.is_mine,
+                                        'w-2.5 h-2.5 bg-slate-200 dark:bg-slate-600': stg.status === 'pending' && !stg.clickable && !msg.is_mine,
+                                        'w-2.5 h-2.5 bg-white/20': stg.status === 'pending' && !stg.clickable && msg.is_mine,
+                                        'w-2.5 h-2.5 border-2 border-teal-400 bg-slate-100 dark:bg-slate-700 cursor-pointer hover:scale-150': stg.clickable && !msg.is_mine,
+                                        'w-2.5 h-2.5 border-2 border-white/60 bg-white/20 cursor-pointer hover:scale-150': stg.clickable && msg.is_mine,
+                                      }"
+                                      :title="stg.clickable ? ('推进到「' + stg.label + '」') : stg.label"
+                                      :disabled="!stg.clickable"
+                                      @click.stop="stg.clickable && handleStageClick(msg, stg)">
+                                    </button>
+                                  </div>
+                                </template>
+                              </div>
+                              <!-- 阶段文字标签 -->
+                              <div class="flex justify-between mt-1 select-none">
+                                <template x-for="stg in msg.card_data.stages" :key="stg.key + '_lbl'">
+                                    <span class="text-[8px]"
+                                          :class="stg.status === 'current'
+                                            ? (msg.is_mine ? 'font-semibold text-white/80' : 'font-semibold text-emerald-600 dark:text-emerald-400')
+                                            : (msg.is_mine ? 'text-white/30' : 'text-slate-400 dark:text-slate-500')"
+                                          x-text="stg.label"></span>
+                                </template>
+                              </div>
                             </div>
-                            <div class="flex items-center justify-end mt-2 text-[10px]"
-                                 :class="msg.is_mine ? 'text-white/40' : 'text-slate-300 dark:text-slate-600'">
-                                <span class="material-symbols-outlined text-[12px] mr-0.5">open_in_new</span>
-                                <span x-text="_chatI18n.entityViewDetail"></span>
+                            </template>
+                            <!-- 底部查看详情 -->
+                            <div class="flex items-center justify-end px-3.5 pb-2 pt-0.5">
+                                <div class="flex items-center gap-0.5 text-[10px]"
+                                     :class="msg.is_mine ? 'text-white/40' : 'text-slate-400 dark:text-slate-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors'">
+                                    <span class="material-symbols-outlined text-[12px]">open_in_new</span>
+                                    <span x-text="_chatI18n.entityViewDetail"></span>
+                                </div>
                             </div>
                         </div>
                         </template>
@@ -957,6 +1187,23 @@
                 </div>
             </div>
 
+            <!-- 上下文耗尽：替换输入区 -->
+            <template x-if="contextExhausted">
+            <div class="px-4 py-3">
+                <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+                        <span class="material-symbols-outlined text-base">lock</span>
+                        {{ _('对话上下文已满') }}
+                    </div>
+                    <button @click="startNewChat()" class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary text-white hover:bg-primary/90 transition-colors cursor-pointer flex-shrink-0">
+                        <span class="material-symbols-outlined text-sm">add_comment</span>
+                        {{ _('新对话') }}
+                    </button>
+                </div>
+            </div>
+            </template>
+
+            <template x-if="!contextExhausted">
             <div class="px-4 py-3">
             <div class="bg-slate-100 dark:bg-slate-800 rounded-2xl">
                 <!-- Row 1: 文本输入 -->
@@ -1023,14 +1270,26 @@
                                     <span class="material-symbols-outlined text-lg text-amber-500">attach_file</span>
                                     <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('文件') }}</span>
                                 </button>
+                                <hr class="my-1 border-slate-100 dark:border-slate-800">
+                                <button @click="openFileBrowser(); showAttachMenu = false"
+                                        class="w-full px-3 py-2.5 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer">
+                                    <span class="material-symbols-outlined text-lg text-indigo-500">folder_open</span>
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('文件夹') }}</span>
+                                </button>
                             </div>
                             <!-- 隐藏的 file input -->
                             <input type="file" x-ref="fileInput" class="hidden" @change="handleFilePick($event)">
                         </div>
                     </div>
 
-                    <!-- 右侧：[↑ 发送按钮] -->
-                    <div class="flex items-center gap-2">
+                    <!-- 右侧：[token 用量] [↑ 发送按钮] -->
+                    <div class="flex items-end gap-2">
+                        <!-- AI 对话 token 用量指示器 -->
+                        <template x-if="contextTokens > 0 && (activeConv?.type === 'ai' || isNewChat)">
+                            <span class="text-[10px] font-mono select-none"
+                                  :class="contextTokens > 4800 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'"
+                                  x-text="`${contextTokens} / 6000`"></span>
+                        </template>
                         <!-- 发送按钮（向上箭头圆圈） -->
                         <button @click="sendMessage()"
                                 :disabled="!inputText.trim() && pendingFiles.length === 0"
@@ -1044,6 +1303,7 @@
                 </div>
             </div>
             </div>
+            </template>
         </div>
 
         <!-- iOS 键盘占位 -->
@@ -1327,6 +1587,72 @@
         </div>
     </div>
 
+    <!-- 文件夹浏览器模态框 -->
+    <div x-show="showFileBrowser" x-transition.opacity
+         class="fixed inset-0 z-[60] flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/30" @click="showFileBrowser = false"></div>
+        <div class="relative bg-white dark:bg-slate-900 rounded-none md:rounded-2xl shadow-2xl flex flex-col overflow-hidden w-full h-full md:w-[480px] md:h-[520px]"
+             @click.stop>
+            <!-- 标题栏 -->
+            <div class="flex items-center justify-between px-4 pt-4 pb-2">
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('选择文件') }}</h3>
+                <button @click="showFileBrowser = false"
+                        class="w-7 h-7 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+            <!-- 面包屑导航 -->
+            <div class="flex items-center gap-1 px-4 pb-2 text-sm overflow-x-auto flex-shrink-0">
+                <button @click="browseTo(null)"
+                        class="text-primary hover:underline cursor-pointer whitespace-nowrap">{{ _('全部文件') }}</button>
+                <template x-for="(bc, idx) in fileBrowserBreadcrumbs" :key="'fbc_' + idx">
+                    <div class="flex items-center gap-1">
+                        <span class="text-slate-300">/</span>
+                        <button @click="browseTo(bc.id)"
+                                class="text-primary hover:underline cursor-pointer whitespace-nowrap truncate max-w-[120px]"
+                                x-text="bc.name"></button>
+                    </div>
+                </template>
+            </div>
+            <!-- 文件列表 -->
+            <div class="flex-1 overflow-y-auto px-2 pb-2">
+                <!-- 加载状态 -->
+                <div x-show="fileBrowserLoading" class="flex justify-center py-12">
+                    <span class="material-symbols-outlined text-slate-300 animate-spin text-2xl">progress_activity</span>
+                </div>
+                <!-- 空状态 -->
+                <div x-show="!fileBrowserLoading && fileBrowserFolders.length === 0 && fileBrowserFiles.length === 0"
+                     class="text-sm text-slate-400 py-12 text-center">
+                    <span class="material-symbols-outlined text-3xl text-slate-200 block mb-2">folder_off</span>
+                    {{ _('此文件夹为空') }}
+                </div>
+                <!-- 文件夹 -->
+                <template x-for="folder in fileBrowserFolders" :key="'fbf_' + folder.id">
+                    <button @click="browseTo(folder.id)"
+                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors text-left">
+                        <span class="material-symbols-outlined text-xl text-amber-400">folder</span>
+                        <span class="text-sm text-slate-700 dark:text-slate-300 truncate" x-text="folder.name"></span>
+                        <span class="material-symbols-outlined text-sm text-slate-300 ml-auto">chevron_right</span>
+                    </button>
+                </template>
+                <!-- 文件 -->
+                <template x-for="file in fileBrowserFiles" :key="'fbfi_' + file.id">
+                    <button @click="selectBrowsedFile(file)"
+                            class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors text-left group/fbfile">
+                        <span class="material-symbols-outlined text-xl"
+                              :class="file.mime_type?.startsWith('image/') ? 'text-green-500' : file.mime_type?.startsWith('video/') ? 'text-blue-500' : 'text-slate-400'"
+                              x-text="file.mime_type?.startsWith('image/') ? 'image' : file.mime_type?.startsWith('video/') ? 'videocam' : 'description'"></span>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm text-slate-700 dark:text-slate-300 truncate" x-text="file.display_name"></div>
+                            <div class="text-xs text-slate-400" x-text="formatFileSize(file.file_size)"></div>
+                        </div>
+                        <span class="material-symbols-outlined text-sm text-primary opacity-0 group-hover/fbfile:opacity-100 transition-opacity">send</span>
+                    </button>
+                </template>
+            </div>
+        </div>
+    </div>
+
     <!-- 实体选择器模态框 -->
     <div x-show="showEntitySelector" x-transition.opacity
          class="fixed inset-0 z-[60] flex items-center justify-center">
@@ -1579,6 +1905,15 @@
         font-weight: normal;
     }
 
+    /* 项目阶段进度条 - 当前阶段脉冲 */
+    @keyframes chatStagePulse {
+        0% { box-shadow: 0 0 0 0 rgba(132, 204, 22, 0.5); }
+        70% { box-shadow: 0 0 0 4px rgba(132, 204, 22, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(132, 204, 22, 0); }
+    }
+    .chat-stage-current { animation: chatStagePulse 2s ease-in-out infinite; }
+    .chat-stage-line { height: 2px; flex: 1; min-width: 4px; }
+
     /* AI markdown 表格样式 */
     .prose table {
         font-size: 12px;
@@ -1686,6 +2021,8 @@ function chatPanel() {
         _slowTimerStart: 0,
         _aiAbortController: null,
         sending: false,
+        contextExhausted: false,  // 当前对话上下文已耗尽
+        contextTokens: 0,         // 当前对话已用 prompt tokens
         searchQuery: '',
         loadingConversations: false,
         loadingMessages: false,
@@ -1715,6 +2052,13 @@ function chatPanel() {
         forwardTab: 'conversations',  // 'conversations' | 'users'
         forwardUserResults: [],
         _forwardSearchDebounce: null,
+        // 文件夹浏览器
+        showFileBrowser: false,
+        fileBrowserFolderId: null,
+        fileBrowserFolders: [],
+        fileBrowserFiles: [],
+        fileBrowserBreadcrumbs: [],
+        fileBrowserLoading: false,
         // 实体选择器
         showEntitySelector: false,
         entityTab: 'customer',
@@ -1989,12 +2333,15 @@ function chatPanel() {
                 lastMsg: lm ? (lm.message_type === 'customer_card' ? this._chatI18n.customerCardLabel
                     : lm.message_type === 'project_card' ? this._chatI18n.projectCardLabel
                     : lm.message_type === 'form_result_card' ? this._chatI18n.formResultLabel
+                    : lm.message_type === 'context_exhausted' ? '🔒 {{ _("上下文已满") }}'
                     : lm.content || '') : '',
                 time: lm && lm.created_at ? this.formatMsgTime(lm.created_at) : '',
                 unread: c.unread_count || 0,
                 online: false,
                 memberCount: c.participants ? c.participants.length : 0,
                 participants: c.participants || [],
+                contextExhausted: c.context_exhausted || false,
+                contextTokens: c.context_tokens || 0,
             };
         },
 
@@ -2003,6 +2350,8 @@ function chatPanel() {
             this.activeConv = conv;
             this.mobileView = 'chat';
             this.isNewChat = false;
+            this.contextExhausted = conv.contextExhausted || false;
+            this.contextTokens = conv.contextTokens || 0;
             this.aiStreamingMsg = '';
             this.aiTyping = false;
             this.aiThinkingText = '';
@@ -2041,6 +2390,8 @@ function chatPanel() {
             this.mobileView = 'chat';
             this.activeConv = null;
             this.messages = [];
+            this.contextExhausted = false;
+            this.contextTokens = 0;
             this.newChatParticipants = [];
             this.recipientQuery = '';
             this.showMentionDropdown = false;
@@ -2199,6 +2550,11 @@ function chatPanel() {
                     } else {
                         this.lastMessageTimestamp = null;
                     }
+                    // 检查消息中是否有上下文耗尽标记
+                    if (this.messages.some(m => m.message_type === 'context_exhausted')) {
+                        this.contextExhausted = true;
+                        if (this.activeConv) this.activeConv.contextExhausted = true;
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load messages:', e);
@@ -2209,6 +2565,11 @@ function chatPanel() {
 
         // ----- 发送消息 -----
         async sendMessage() {
+            // 上下文耗尽：阻止发送，引导新建对话
+            if (this.contextExhausted) {
+                this.startNewChat();
+                return;
+            }
             const text = this.inputText.trim();
             const hasFiles = this.pendingFiles.length > 0;
             if ((!text && !hasFiles) || this.sending) return;
@@ -2263,13 +2624,24 @@ function chatPanel() {
                     const result = await resp.json();
                     if (result.success && result.form_schema) {
                         const schema = result.form_schema;
-                        // 报销单太复杂，直接分屏打开新建页面
+                        // 报销单太复杂，PC直接分屏打开，手机推送链接消息避免弹窗拦截
                         if (schema.form_type === 'create_expense' || (schema.entity_type === 'expense' && schema.action === 'create')) {
                             const url = '{{ url_for("expense.expense_list", action="create") }}';
-                            if (window.innerWidth < 768) {
-                                window.open(url, '_blank');
-                            } else {
+                            if (window.innerWidth >= 768) {
                                 this.enterSplitMode(url);
+                            } else {
+                                this.messages.push({
+                                    id: 'expense_link_' + Date.now(),
+                                    message_type: 'action_link',
+                                    is_ai: true, is_ai_response: true,
+                                    sender_name: '{{ _("AI 助手") }}',
+                                    created_at: new Date().toISOString(),
+                                    content: '{{ _("报销单创建页面已准备好，请点击下方按钮打开：") }}',
+                                    _actionUrl: url,
+                                    _actionLabel: '{{ _("创建报销单") }}',
+                                    _actionIcon: 'receipt_long',
+                                });
+                                this.$nextTick(() => this.scrollToBottom());
                             }
                             return;
                         }
@@ -2482,7 +2854,32 @@ function chatPanel() {
                         if (!line.startsWith('data: ')) continue;
                         try {
                             const payload = JSON.parse(line.slice(6));
-                            if (payload.type === 'status') {
+                            if (payload.type === 'context_exhausted') {
+                                // 上下文耗尽阻断：显示系统卡片，标记对话
+                                this.aiTyping = false;
+                                this.aiStreamingMsg = '';
+                                this.aiThinkingText = '';
+                                this.aiStatusMsg = '';
+                                this._clearSlowTimer();
+                                this.messages.push({
+                                    id: payload.message_id || ('ctx_' + Date.now()),
+                                    content: payload.message,
+                                    message_type: 'context_exhausted',
+                                    is_ai: false,
+                                    created_at: new Date().toISOString(),
+                                });
+                                this.contextExhausted = true;
+                                if (this.activeConv) this.activeConv.contextExhausted = true;
+                                // 同步更新对话列表中的状态
+                                const _convItem = this.conversations.find(c => c.id === (convId || this.activeConv?.id));
+                                if (_convItem) {
+                                    _convItem.contextExhausted = true;
+                                    _convItem.lastMsg = '🔒 {{ _("上下文已满") }}';
+                                }
+                                this.scrollToBottom();
+                                streamDone = true;
+                                break;
+                            } else if (payload.type === 'status') {
                                 // AI 处理阶段状态
                                 this.aiStatusMsg = payload.message;
                                 this.aiTyping = false;
@@ -2516,6 +2913,8 @@ function chatPanel() {
                                     if (_fmIdx !== -1) this.aiStreamingMsg = this.aiStreamingMsg.substring(0, _fmIdx).trimEnd();
                                     const _chIdx = this.aiStreamingMsg.indexOf('[[CHOICES:');
                                     if (_chIdx !== -1) this.aiStreamingMsg = this.aiStreamingMsg.substring(0, _chIdx).trimEnd();
+                                    const _pcIdx = this.aiStreamingMsg.indexOf('[[PROJECT_CARD:');
+                                    if (_pcIdx !== -1) this.aiStreamingMsg = this.aiStreamingMsg.substring(0, _pcIdx).trimEnd();
                                 }
                                 if (this.aiStreamingMsg) {
                                     this.messages.push({
@@ -2535,6 +2934,11 @@ function chatPanel() {
                                     if (tempMsg) tempMsg.id = payload.user_message_id;
                                 }
                                 this.aiStreamingMsg = '';
+                                // 更新上下文 token 用量
+                                if (payload.prompt_tokens) {
+                                    this.contextTokens = payload.prompt_tokens;
+                                    if (this.activeConv) this.activeConv.contextTokens = payload.prompt_tokens;
+                                }
                                 this.scrollToBottom();
 
                                 // 如果没有 activeConv（新建的 AI 对话），立即构建本地对话对象
@@ -2562,6 +2966,17 @@ function chatPanel() {
                                         this.isNewChat = false;
                                     }
                                 }
+                                // 上下文接近上限警告
+                                if (payload.context_warning) {
+                                    this.messages.push({
+                                        id: 'warn_' + Date.now(),
+                                        content: '{{ _("对话即将达到上下文上限，建议开启新对话以获得更快响应。") }}',
+                                        message_type: 'context_warning',
+                                        is_ai: false,
+                                        created_at: new Date().toISOString(),
+                                    });
+                                    this.scrollToBottom();
+                                }
                                 streamDone = true;
                             } else if (payload.type === 'form_request') {
                                 // AI 返回了表单请求 — 清除流式消息中可能残留的表单标记
@@ -2573,13 +2988,24 @@ function chatPanel() {
                                 }
                                 const schema = payload.form_schema;
                                 if (schema) {
-                                    // 报销单太复杂，直接分屏打开新建页面
+                                    // 报销单太复杂，PC直接分屏打开，手机推送链接消息避免弹窗拦截
                                     if (schema.form_type === 'create_expense' || (schema.entity_type === 'expense' && schema.action === 'create')) {
                                         const url = '{{ url_for("expense.expense_list", action="create") }}';
-                                        if (window.innerWidth < 768) {
-                                            window.open(url, '_blank');
-                                        } else {
+                                        if (window.innerWidth >= 768) {
                                             this.enterSplitMode(url);
+                                        } else {
+                                            this.messages.push({
+                                                id: 'expense_link_' + Date.now(),
+                                                message_type: 'action_link',
+                                                is_ai: true, is_ai_response: true,
+                                                sender_name: '{{ _("AI 助手") }}',
+                                                created_at: new Date().toISOString(),
+                                                content: '{{ _("报销单创建页面已准备好，请点击下方按钮打开：") }}',
+                                                _actionUrl: url,
+                                                _actionLabel: '{{ _("创建报销单") }}',
+                                                _actionIcon: 'receipt_long',
+                                            });
+                                            this.$nextTick(() => this.scrollToBottom());
                                         }
                                     } else {
                                         // 确保表单选项已加载
@@ -2619,6 +3045,17 @@ function chatPanel() {
                                         if (this.messages[i].is_ai) {
                                             this.messages[i]._choices = payload.options;
                                             this.messages[i]._choicesActionKey = payload.action_key || null;
+                                            break;
+                                        }
+                                    }
+                                    this.scrollToBottom();
+                                }
+                            } else if (payload.type === 'project_cards') {
+                                // AI 查询到具体项目，附带项目卡片到最近的 AI 消息
+                                if (payload.cards && payload.cards.length > 0) {
+                                    for (let i = this.messages.length - 1; i >= 0; i--) {
+                                        if (this.messages[i].is_ai) {
+                                            this.messages[i]._projectCards = payload.cards;
                                             break;
                                         }
                                     }
@@ -2700,7 +3137,9 @@ function chatPanel() {
                     this.aiStreamingMsg = '';
                     this.scrollToBottom();
                 }
-                // AI 流结束，恢复轮询
+                // AI 流结束，立即拉取一次新消息（捕获流期间 AI 上传的文件等）
+                await this._pollNewMessages();
+                // 恢复定时轮询
                 console.log('[AI-DEBUG] before startPolling()');
                 this.startPolling();
                 console.log('[AI-DEBUG] after startPolling()');
@@ -2877,13 +3316,64 @@ function chatPanel() {
             }
         },
 
+        // ----- 项目阶段进度条：点击切换 -----
+        async handleStageClick(msg, stage) {
+            const projectId = msg.card_data?.project_id;
+            if (!projectId || !stage.clickable) return;
+
+            if (!confirm(`确认将项目阶段推进到「${stage.label}」？`)) return;
+
+            try {
+                const resp = await fetch('/project/api/update_stage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '',
+                    },
+                    body: JSON.stringify({ project_id: projectId, current_stage: stage.key }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    // 刷新卡片中的阶段状态
+                    this._refreshStageDots(msg, stage.key);
+                    window.success?.('阶段已更新');
+                } else {
+                    window.error?.(data.message || '更新失败');
+                }
+            } catch (e) {
+                window.error?.('网络错误');
+            }
+        },
+
+        _refreshStageDots(msg, newStageKey) {
+            const MAIN = ['discover','embed','pre_tender','tendering','awarded','quoted','signed'];
+            const newIdx = MAIN.indexOf(newStageKey);
+            if (newIdx < 0) return;
+            // 更新显示文字
+            const stgObj = (msg.card_data.stages || []).find(s => s.key === newStageKey);
+            if (stgObj) msg.card_data.current_stage = stgObj.label;
+            msg.card_data.stage_key = newStageKey;
+            // 重算每个节点状态
+            msg.card_data.stages.forEach((s, idx) => {
+                if (idx < newIdx) {
+                    s.status = 'completed'; s.clickable = false;
+                } else if (idx === newIdx) {
+                    s.status = 'current'; s.clickable = false;
+                } else {
+                    s.status = 'pending';
+                    s.clickable = msg.card_data.can_edit && idx === newIdx + 1 && newStageKey !== 'signed';
+                }
+            });
+            // signed 后锁定
+            if (newStageKey === 'signed') msg.card_data.can_edit = false;
+        },
+
         openEntityDetail(type, cardData) {
             if (!cardData) return;
             let url = '';
             if (type === 'customer') url = `/customer/${cardData.company_id}/view`;
             else if (type === 'project') url = `/project/view/${cardData.project_id}`;
             if (!url) return;
-            if (window.innerWidth < 768) { window.open(url, '_blank'); return; }
             this.enterSplitMode(url);
         },
 
@@ -2898,7 +3388,6 @@ function chatPanel() {
             };
             const url = urlMap[cardData.entity_type];
             if (!url) return;
-            if (window.innerWidth < 768) { window.open(url, '_blank'); return; }
             this.enterSplitMode(url);
         },
 
@@ -2981,9 +3470,30 @@ function chatPanel() {
             this.pendingFiles.push(pf);
         },
 
-        getFileAccessUrl(fileUrl) {
+        getFileAccessUrl(fileUrl, fileName) {
             if (!fileUrl) return '';
+            // 文件管理器文件走 /files/api/ 路由
+            if (fileUrl.startsWith('fm:')) {
+                const fileId = fileUrl.substring(3);
+                return '/files/api/files/' + fileId + '/preview';
+            }
+            // 本地存储的文件直接走 /storage/ 路由
+            if (fileUrl.startsWith('chat_files/')) {
+                let url = '/storage/' + fileUrl;
+                if (fileName) url += '?name=' + encodeURIComponent(fileName);
+                return url;
+            }
+            // NAS 存储的文件走代理路由
             return '/storage/nas/chat?path=' + encodeURIComponent(fileUrl);
+        },
+
+        getFileDownloadUrl(fileUrl, fileName) {
+            if (!fileUrl) return '';
+            if (fileUrl.startsWith('fm:')) {
+                const fileId = fileUrl.substring(3);
+                return '/files/api/files/' + fileId + '/download';
+            }
+            return this.getFileAccessUrl(fileUrl, fileName);
         },
 
         getFileIcon(fileName) {
@@ -3329,6 +3839,70 @@ function chatPanel() {
                 this.showToast(this._chatI18n.forwardFailed);
             } finally {
                 this.forwarding = false;
+            }
+        },
+
+        // ----- 文件夹浏览器 -----
+        openFileBrowser() {
+            this.showFileBrowser = true;
+            this.fileBrowserFolderId = null;
+            this.fileBrowserBreadcrumbs = [];
+            this.browseTo(null);
+        },
+
+        async browseTo(folderId) {
+            this.fileBrowserFolderId = folderId;
+            this.fileBrowserLoading = true;
+            this.fileBrowserFolders = [];
+            this.fileBrowserFiles = [];
+            try {
+                const url = folderId ? `/files/api/list?folder_id=${folderId}` : '/files/api/list';
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (data.success) {
+                    this.fileBrowserFolders = data.data.folders || [];
+                    this.fileBrowserFiles = data.data.files || [];
+                    this.fileBrowserBreadcrumbs = data.breadcrumbs || [];
+                }
+            } catch (e) {
+                console.error('Browse files failed:', e);
+            } finally {
+                this.fileBrowserLoading = false;
+            }
+        },
+
+        formatFileSize(bytes) {
+            if (!bytes) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+        },
+
+        async selectBrowsedFile(file) {
+            this.showFileBrowser = false;
+            if (!this.activeConv) return;
+            try {
+                const resp = await fetch('/chat/api/share-files', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || '',
+                    },
+                    body: JSON.stringify({
+                        file_ids: [file.id],
+                        conversation_ids: [this.activeConv.id],
+                    }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    // 刷新消息
+                    await this.loadMessages(this.activeConv.id);
+                } else {
+                    this.showToast(data.message || '{{ _("发送失败") }}');
+                }
+            } catch (e) {
+                console.error('Send file from browser failed:', e);
+                this.showToast('{{ _("发送失败") }}');
             }
         },
 

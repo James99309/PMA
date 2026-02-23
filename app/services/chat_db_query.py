@@ -40,8 +40,9 @@ _schema_cache = None
 _schema_cache_time = 0
 
 _CORE_TABLES = [
-    'companies', 'contacts', 'projects', 'quotations', 'quotation_details',
-    'products', 'expenses', 'pricing_orders', 'users', 'tasks',
+    'companies', 'contacts', 'projects', 'project_customer_associations',
+    'quotations', 'quotation_details', 'products', 'expenses',
+    'pricing_orders', 'users', 'tasks',
 ]
 
 _HIDDEN_COLUMNS = {
@@ -51,45 +52,60 @@ _HIDDEN_COLUMNS = {
 _BUSINESS_NOTES = """
 业务标注：
 - 金额字段单位均为元（projects.quotation_customer, quotations.amount, quotation_details.unit_price/total_price, expenses.total_amount）
-- 并非所有表都有 is_deleted 字段，请根据实际字段列表判断
-- 枚举字段的中文含义可通过 SELECT DISTINCT column_name FROM table 查询获取，展示时请用中文标签
+- 枚举字段展示时请用中文标签
 """.strip()
 
-# 表名→中文描述映射（精简版 schema 使用）
-_TABLE_DESCRIPTIONS = {
-    'companies': '客户公司',
-    'contacts': '联系人',
-    'projects': '项目',
-    'quotations': '报价单',
-    'quotation_details': '报价明细',
-    'products': '产品',
-    'expenses': '报销单',
-    'pricing_orders': '批价单',
-    'users': '用户',
-    'tasks': '任务',
+# 精简字段定义：表名→(中文描述, 关键字段列表)
+_TABLE_SCHEMA = {
+    'companies': ('客户公司', 'id, company_name, company_type, country, region, address, city, industry, status, owner_id, is_deleted'),
+    'contacts': ('联系人', 'id, company_id, name, department, position, phone, email, is_primary, owner_id'),
+    'projects': ('项目', 'id, project_name, project_type, report_source, current_stage, end_user, dealer, contractor, status, owner_id, created_by, is_deleted'),
+    'project_customer_associations': ('项目客户关联', 'id, project_id, company_id, created_by'),
+    'quotations': ('报价单', 'id, quotation_number, project_id, customer_id, contact_id, amount, currency, approval_status, owner_id'),
+    'quotation_details': ('报价明细', 'id, quotation_id, product_name, product_model, brand, quantity, unit_price, total_price, product_mn'),
+    'products': ('产品', 'id, product_name, model, brand, category, type, retail_price, currency, status'),
+    'expenses': ('报销单', 'id, expense_number, title, customer_id, project_id, total_amount, currency, status, owner_id, is_deleted'),
+    'pricing_orders': ('批价单', 'id, order_number, project_id, quotation_id, status, pricing_total_amount, currency, created_by'),
+    'users': ('用户', 'id, username, real_name, company_name, department, role'),
+    'tasks': ('任务', 'id, title, assignee_id, creator_id, status, priority, due_date, project_id, customer_id, is_deleted'),
 }
+
+_TABLE_RELATIONS = """
+表关系:
+- 项目↔客户: 通过 project_customer_associations(project_id, company_id) 多对多关联
+- 联系人→公司: contacts.company_id
+- 报价→项目: quotations.project_id，报价→客户: quotations.customer_id
+- 报价明细→报价: quotation_details.quotation_id
+- 费用→项目: expenses.project_id
+- 批价单→项目: pricing_orders.project_id
+- 任务→项目: tasks.project_id，任务→客户: tasks.customer_id
+""".strip()
+
+_QUERY_EXAMPLES = """
+常见查询模板（直接使用，替换关键词即可）：
+- 查某公司关联的项目: SELECT p.project_name, p.current_stage, p.status FROM projects p JOIN project_customer_associations pca ON pca.project_id=p.id JOIN companies c ON pca.company_id=c.id WHERE c.company_name ILIKE '%关键词%' AND p.is_deleted=false
+- 查某项目的报价: SELECT q.quotation_number, q.amount, q.currency FROM quotations q JOIN projects p ON q.project_id=p.id WHERE p.project_name ILIKE '%关键词%'
+- 查某公司的联系人: SELECT name, position, phone, email FROM contacts WHERE company_id=(SELECT id FROM companies WHERE company_name ILIKE '%关键词%' LIMIT 1)
+""".strip()
 
 
 def get_db_schema():
-    """返回精简版数据库 schema（仅表名+描述），缓存 1 小时
+    """返回精简版数据库 schema（表名+关键字段），缓存 1 小时
 
-    AI 可通过查询 information_schema.columns 获取具体字段，
-    通过 SELECT DISTINCT 获取枚举值。这样大幅减少注入 token 数。
+    直接提供字段列表和表关系，AI 无需查询 information_schema 即可写出正确 SQL。
     """
     global _schema_cache, _schema_cache_time
     if _schema_cache and (time.time() - _schema_cache_time) < 3600:
         return _schema_cache
 
-    table_list = ', '.join(
-        f'{t}({_TABLE_DESCRIPTIONS.get(t, t)})' for t in _CORE_TABLES
-    )
-    _schema_cache = (
-        f'可查询的 PostgreSQL 数据库表: {table_list}\n'
-        f'获取表字段: SELECT column_name, data_type FROM information_schema.columns '
-        f"WHERE table_schema='public' AND table_name='表名'\n"
-        f'获取枚举值: SELECT DISTINCT 字段名 FROM 表名 WHERE 字段名 IS NOT NULL\n'
-        f'\n{_BUSINESS_NOTES}'
-    )
+    lines = ['数据库表（关键字段）:\n']
+    for table, (desc, fields) in _TABLE_SCHEMA.items():
+        lines.append(f'{table}({desc}): {fields}')
+    lines.append(f'\n{_TABLE_RELATIONS}')
+    lines.append(f'\n{_BUSINESS_NOTES}')
+    lines.append(f'\n{_QUERY_EXAMPLES}')
+
+    _schema_cache = '\n'.join(lines)
     _schema_cache_time = time.time()
     return _schema_cache
 
@@ -264,6 +280,30 @@ def _get_allowed_ids_for_module(user, module):
 
 
 # ---------------------------------------------------------------------------
+# 子查询剥离（权限注入辅助）
+# ---------------------------------------------------------------------------
+
+def _strip_subqueries(sql):
+    """移除 SQL 中括号内的子查询，只保留主查询结构
+
+    用于权限注入时确定主查询中引用了哪些表，
+    避免将子查询内的表别名误注入到外层 WHERE。
+    """
+    result = []
+    depth = 0
+    for char in sql:
+        if char == '(':
+            depth += 1
+            if depth == 1:
+                result.append('()')
+        elif char == ')':
+            depth -= 1
+        elif depth == 0:
+            result.append(char)
+    return ''.join(result)
+
+
+# ---------------------------------------------------------------------------
 # 权限注入（替代旧的验证方式）
 # ---------------------------------------------------------------------------
 
@@ -302,9 +342,10 @@ def _inject_permission_filters(sql, user):
             )
         return sql, False
 
-    # 提取表引用
-    table_refs = _extract_table_refs(sql)
-    logger.info(f'[AI DB Debug] 提取到的表引用: {table_refs}')
+    # 只提取主查询的表引用（忽略子查询内的表，避免作用域错误）
+    main_query_sql = _strip_subqueries(sql)
+    table_refs = _extract_table_refs(main_query_sql)
+    logger.info(f'[AI DB Debug] 提取到的表引用(主查询): {table_refs}')
 
     # 构建权限条件
     conditions = []
@@ -470,12 +511,20 @@ def execute_safe_query(sql, user):
                         'error': '权限不足: 您无权查看目标数据，查询结果已被权限过滤',
                     }
 
-            return {
+            # 检测空值并添加 web_search 提示
+            has_empty = any(
+                val is None or val == '' or val == '暂无'
+                for row in rows for val in row
+            )
+            result = {
                 'success': True,
                 'columns': columns,
                 'rows': rows,
                 'row_count': len(rows),
             }
+            if has_empty:
+                result['hint'] = '部分字段为空，如用户需要该信息，请用 web_search 搜索公开信息补充'
+            return result
 
     except Exception as e:
         logger.error(f'[AI DB Query] 执行失败: {e}')
@@ -542,11 +591,18 @@ def get_permission_context(user):
         f'数据权限摘要：\n'
         f'{permissions_block}\n'
         f'\n'
-        f'权限规则：\n'
-        f'- 如果用户请求的数据超出上述权限范围，直接告知无权访问，不要执行查询\n'
-        f'- 对 companies/projects/quotations/expenses 表的查询必须包含 owner_id 过滤\n'
-        f'- 查询自己的数据：WHERE owner_id = (SELECT id FROM users WHERE username=\'{username}\')\n'
+        f'数据库权限规则（仅限制数据库查询，不限制外部搜索）：\n'
+        f'- 系统会自动对查询结果进行权限过滤，无需手动添加 owner_id 条件\n'
+        f'- 如果用户请求的数据超出上述权限范围，告知该数据不在你的可查范围内\n'
         f'- products 表无访问限制\n'
         f'- users 表仅允许查询 id, username, real_name, department, role 字段\n'
-        f'- 所有支持 is_deleted 的表必须添加 AND is_deleted = FALSE'
+        f'- 所有支持 is_deleted 的表必须添加 AND is_deleted = FALSE\n'
+        f'\n'
+        f'回复规范（严格遵守）：\n'
+        f'- 只输出最终答案，禁止展示思考过程、查询步骤、重试过程\n'
+        f'- 禁止出现：表名(companies/projects等)、字段名(owner_id/is_deleted等)、SQL语句、ID编号、权限规则\n'
+        f'- 禁止说"让我查询一下"、"先查看X表"、"尝试使用web_search"、"重新查询"、"暂未记录"、"数据库中"\n'
+        f'- 数据库查不到或返回字段为空时，静默使用 web_search 补充，不解释切换原因\n'
+        f'- 都查不到就简短告知"暂无该信息"，不解释内部原因\n'
+        f'- 用自然语言回复，像一个业务助理而非程序员'
     )

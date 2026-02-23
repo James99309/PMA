@@ -229,6 +229,14 @@ render_tw_expense_status_badge with context %}
         extra_actions=[
             {
                 'show': true,
+                'label': _('AI 调研'),
+                'onclick': "window._handleProjectResearchClick()",
+                'icon': 'travel_explore',
+                'color': 'slate',
+                'id': 'projectResearchBtn'
+            },
+            {
+                'show': true,
                 'label': _('星图'),
                 'onclick': "window.location.href='" ~ url_for('star_graph.project_graph', project_id=project.id) ~ "'",
                 'icon': 'hub',
@@ -416,6 +424,262 @@ render_tw_expense_status_badge with context %}
                             {% endfor %}
                     </div>
                 </div>
+            </div>
+
+            <!-- AI 网络调研区域 (默认折叠，点击头部按钮展开) -->
+            <div x-data="{researchOpen: false}" @toggle-project-research.window="researchOpen = !researchOpen" @set-project-research.window="researchOpen = $event.detail">
+            <div x-show="researchOpen" x-collapse.duration.300ms>
+            <div x-data="projectResearch()" x-init="init()">
+
+                <!-- 已加载但数据为空 -->
+                <template x-if="status === 'completed' && isEmptyResult">
+                    <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-8 text-center">
+                        <span class="material-symbols-outlined text-5xl text-slate-400 dark:text-slate-500 mb-3">search_off</span>
+                        <p class="text-slate-600 dark:text-slate-400 mb-2 font-medium">{{ _('未找到该项目的公开信息') }}</p>
+                        <p class="text-sm text-slate-400 dark:text-slate-500 mb-4">{{ _('可能是项目信息尚未公开或网络公开信息较少，您可以尝试重新调研') }}</p>
+                        <button @click="retry()"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-lg">refresh</span>
+                            {{ _('重新调研') }}
+                        </button>
+                    </div>
+                </template>
+
+                <!-- 已加载数据 -->
+                <template x-if="status === 'completed' && !isEmptyResult">
+                    <div class="space-y-4">
+                        <!-- 头部：标题 + 更新时间 -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">psychology</span>
+                                <h3 class="font-semibold text-slate-900 dark:text-white">{{ _('AI 网络调研') }}</h3>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                                <span x-text="formatUpdatedAt(updatedAt)"></span>
+                                <button @click="retry()" class="text-primary hover:underline text-xs cursor-pointer" title="{{ _('重新调研') }}">
+                                    <span class="material-symbols-outlined text-sm">refresh</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 项目概况 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-primary">apartment</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('项目概况') }}</span>
+                            </div>
+                            <div class="px-5 pb-4">
+                                <template x-if="data.project_overview">
+                                    <div class="space-y-3">
+                                        <template x-if="data.project_overview.description">
+                                            <p class="text-sm text-slate-700 dark:text-slate-300" x-text="data.project_overview.description"></p>
+                                        </template>
+                                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                            <template x-if="data.project_overview.total_investment">
+                                                <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-center">
+                                                    <p class="text-xs text-emerald-600 dark:text-emerald-400">{{ _('总投资') }}</p>
+                                                    <p class="font-semibold text-emerald-700 dark:text-emerald-300 mt-0.5" x-text="data.project_overview.total_investment"></p>
+                                                </div>
+                                            </template>
+                                            <template x-if="data.project_overview.total_area">
+                                                <div class="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-center">
+                                                    <p class="text-xs text-blue-600 dark:text-blue-400">{{ _('建筑面积') }}</p>
+                                                    <p class="font-semibold text-blue-700 dark:text-blue-300 mt-0.5" x-text="data.project_overview.total_area"></p>
+                                                </div>
+                                            </template>
+                                            <template x-if="data.project_overview.start_date">
+                                                <div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-center">
+                                                    <p class="text-xs text-amber-600 dark:text-amber-400">{{ _('开工时间') }}</p>
+                                                    <p class="font-semibold text-amber-700 dark:text-amber-300 mt-0.5" x-text="data.project_overview.start_date"></p>
+                                                </div>
+                                            </template>
+                                            <template x-if="data.project_overview.completion_date">
+                                                <div class="p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-center">
+                                                    <p class="text-xs text-purple-600 dark:text-purple-400">{{ _('竣工时间') }}</p>
+                                                    <p class="font-semibold text-purple-700 dark:text-purple-300 mt-0.5" x-text="data.project_overview.completion_date"></p>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                            <template x-if="data.project_overview.land_area">
+                                                <div class="flex gap-2"><span class="text-slate-500">{{ _('占地面积') }}:</span><span x-text="data.project_overview.land_area"></span></div>
+                                            </template>
+                                            <template x-if="data.project_overview.city">
+                                                <div class="flex gap-2"><span class="text-slate-500">{{ _('城市') }}:</span><span x-text="data.project_overview.city"></span></div>
+                                            </template>
+                                            <template x-if="data.project_overview.address">
+                                                <div class="flex gap-2"><span class="text-slate-500">{{ _('地址') }}:</span><span x-text="data.project_overview.address"></span></div>
+                                            </template>
+                                            <template x-if="data.project_overview.project_phase">
+                                                <div class="flex gap-2"><span class="text-slate-500">{{ _('项目阶段') }}:</span><span x-text="data.project_overview.project_phase"></span></div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="!data.project_overview">
+                                    <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- 项目参与方 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-indigo-500">group</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('项目参与方') }}</span>
+                            </div>
+                            <div class="px-5 pb-4">
+                                <template x-if="data.stakeholders">
+                                    <div class="space-y-3 text-sm">
+                                        <template x-if="data.stakeholders.investor">
+                                            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                <div class="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
+                                                    <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-sm">account_balance</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('投资方/建设单位') }}</span>
+                                                    <p class="font-medium text-slate-900 dark:text-white" x-text="data.stakeholders.investor"></p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="data.stakeholders.general_contractor">
+                                            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+                                                    <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 text-sm">engineering</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('总承包') }}</span>
+                                                    <p class="font-medium text-slate-900 dark:text-white" x-text="data.stakeholders.general_contractor"></p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="data.stakeholders.design_institute">
+                                            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                <div class="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+                                                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">architecture</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('设计院') }}</span>
+                                                    <p class="font-medium text-slate-900 dark:text-white" x-text="data.stakeholders.design_institute"></p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="data.stakeholders.consultant">
+                                            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                <div class="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0">
+                                                    <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 text-sm">support_agent</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('顾问公司') }}</span>
+                                                    <p class="font-medium text-slate-900 dark:text-white" x-text="data.stakeholders.consultant"></p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="data.stakeholders.subcontractors && data.stakeholders.subcontractors.length">
+                                            <div>
+                                                <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('分包方') }}</span>
+                                                <div class="flex flex-wrap gap-1.5 mt-1">
+                                                    <template x-for="sub in data.stakeholders.subcontractors" :key="sub">
+                                                        <span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full text-xs" x-text="sub"></span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="!data.stakeholders">
+                                    <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- 近期动向 + AI 销售建议 并排 -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- 近期动向 -->
+                            <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                                <div class="flex items-center gap-2 px-5 py-3.5">
+                                    <span class="material-symbols-outlined text-teal-500">update</span>
+                                    <span class="font-medium text-slate-900 dark:text-white">{{ _('近期动向') }}</span>
+                                    <template x-if="data.recent_updates && data.recent_updates.length">
+                                        <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-full" x-text="data.recent_updates.length"></span>
+                                    </template>
+                                </div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.recent_updates && data.recent_updates.length">
+                                        <div class="space-y-2">
+                                            <template x-for="(upd, idx) in data.recent_updates" :key="idx">
+                                                <div class="flex items-start gap-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-700/40">
+                                                    <span class="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-2 bg-teal-500"></span>
+                                                    <div class="flex-1 min-w-0">
+                                                        <p class="text-sm text-slate-700 dark:text-slate-300" x-text="upd.content"></p>
+                                                        <div class="flex items-center gap-2 mt-0.5">
+                                                            <template x-if="upd.date">
+                                                                <span class="text-xs text-slate-400" x-text="upd.date"></span>
+                                                            </template>
+                                                            <template x-if="upd.type">
+                                                                <span class="text-xs px-1.5 py-0.5 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-full" x-text="upd.type"></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!data.recent_updates || !data.recent_updates.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- AI 销售建议 -->
+                            <div class="bg-gradient-to-r from-primary/5 to-indigo-500/5 dark:from-primary/10 dark:to-indigo-500/10 rounded-2xl border border-primary/20 dark:border-primary/30 overflow-hidden">
+                                <div class="flex items-center gap-2 px-5 py-3.5">
+                                    <span class="material-symbols-outlined text-primary">lightbulb</span>
+                                    <span class="font-medium text-slate-900 dark:text-white">{{ _('AI 销售切入建议') }}</span>
+                                </div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.sales_suggestions && data.sales_suggestions.length">
+                                        <ol class="space-y-2">
+                                            <template x-for="(sug, idx) in data.sales_suggestions" :key="idx">
+                                                <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 dark:bg-primary/20 text-primary text-xs flex items-center justify-center font-medium" x-text="idx + 1"></span>
+                                                    <span x-text="sug"></span>
+                                                </li>
+                                            </template>
+                                        </ol>
+                                    </template>
+                                    <template x-if="!data.sales_suggestions || !data.sales_suggestions.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- 加载中 -->
+                <template x-if="status === 'researching'">
+                    <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-8 text-center">
+                        <span class="material-symbols-outlined text-4xl text-primary animate-spin mb-3">progress_activity</span>
+                        <p class="text-slate-600 dark:text-slate-400 font-medium">{{ _('AI 正在调研中...') }}</p>
+                        <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">{{ _('通常需要 30-60 秒，请稍候') }}</p>
+                    </div>
+                </template>
+
+                <!-- 错误状态 -->
+                <template x-if="status === 'error'">
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-6 text-center">
+                        <span class="material-symbols-outlined text-3xl text-red-400 mb-2">error</span>
+                        <p class="text-red-600 dark:text-red-400 text-sm" x-text="errorMsg"></p>
+                        <button @click="retry()"
+                            class="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-sm">refresh</span>
+                            {{ _('重试') }}
+                        </button>
+                    </div>
+                </template>
+            </div>
+            </div>
             </div>
 
         {% elif detail_slot == 'main' %}
@@ -2242,6 +2506,136 @@ render_tw_expense_status_badge with context %}
     })();
     </script>
     {% endif %}
+
+    <!-- AI 项目调研 Alpine 组件 -->
+    <script>
+    function projectResearch() {
+        return {
+            status: 'none',      // none | researching | completed | error
+            data: null,
+            updatedAt: null,
+            errorMsg: '',
+            projectId: {{ project.id }},
+            _pollTimer: null,
+
+            init() {
+                window._handleProjectResearchClick = () => this.handleBtnClick();
+                this.$watch('status', () => this.updateBtn());
+                this.fetchStatus();
+            },
+
+            updateBtn() {
+                const btn = document.getElementById('projectResearchBtn');
+                if (!btn) return;
+                const icon = btn.querySelector('.material-symbols-outlined');
+                const label = btn.querySelector('span:last-child');
+
+                const styles = {
+                    none: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg', icon: 'travel_explore', spin: false, text: '{{ _("AI 调研") }}' },
+                    researching: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg cursor-wait', icon: 'progress_activity', spin: true, text: '{{ _("调研中...") }}' },
+                    completed: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer', icon: 'check_circle', spin: false, text: '{{ _("AI 调研") }}' },
+                    error: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-lg cursor-pointer', icon: 'error', spin: false, text: '{{ _("调研失败") }}' },
+                };
+                const s = styles[this.status] || styles.none;
+                btn.className = s.cls;
+                if (icon) { icon.textContent = s.icon; s.spin ? icon.classList.add('animate-spin') : icon.classList.remove('animate-spin'); }
+                if (label) label.textContent = s.text;
+            },
+
+            handleBtnClick() {
+                if (this.status === 'researching') return;
+                if (this.status === 'completed' || this.status === 'error') {
+                    window.dispatchEvent(new CustomEvent('toggle-project-research'));
+                }
+                if (this.status === 'none') {
+                    this.retry();
+                }
+            },
+
+            async fetchStatus() {
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    const resp = await fetch(`/project/api/${this.projectId}/ai-research`, {
+                        headers: { 'X-CSRFToken': csrfToken }
+                    });
+                    if (!resp.ok) {
+                        // 权限不足或其他错误，停止轮询
+                        if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
+                        return;
+                    }
+                    const json = await resp.json();
+
+                    this.status = json.status || 'none';
+                    this.data = json.data;
+                    this.updatedAt = json.updated_at;
+                    this.errorMsg = json.error || '';
+
+                    if (this.status === 'researching') {
+                        this.startPolling();
+                    }
+                } catch (e) {
+                    console.error('获取项目 AI 调研状态失败:', e);
+                    if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
+                }
+            },
+
+            startPolling() {
+                if (this._pollTimer) return;
+                this._pollTimer = setInterval(async () => {
+                    await this.fetchStatus();
+                    if (this.status !== 'researching') {
+                        clearInterval(this._pollTimer);
+                        this._pollTimer = null;
+                        if (this.status === 'completed') {
+                            window.dispatchEvent(new CustomEvent('set-project-research', { detail: true }));
+                        }
+                    }
+                }, 5000);
+            },
+
+            async retry() {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                try {
+                    await fetch(`/project/api/${this.projectId}/ai-research/retry`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+                    });
+                    this.status = 'researching';
+                    window.dispatchEvent(new CustomEvent('set-project-research', { detail: false }));
+                    this.startPolling();
+                } catch (e) {
+                    console.error('重试失败:', e);
+                }
+            },
+
+            get isEmptyResult() {
+                if (!this.data) return true;
+                const d = this.data;
+                const ov = d.project_overview || {};
+                const hasOverview = ov.description || ov.total_investment || ov.total_area || ov.start_date || ov.completion_date;
+                const sh = d.stakeholders || {};
+                const hasStakeholders = sh.investor || sh.general_contractor || sh.design_institute || sh.consultant ||
+                    (sh.subcontractors && sh.subcontractors.length);
+                const hasUpdates = d.recent_updates && d.recent_updates.length;
+                const hasSuggestions = d.sales_suggestions && d.sales_suggestions.length;
+                return !hasOverview && !hasStakeholders && !hasUpdates && !hasSuggestions;
+            },
+
+            formatUpdatedAt(isoStr) {
+                if (!isoStr) return '';
+                const d = new Date(isoStr);
+                const now = new Date();
+                const diffMs = now - d;
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 0) return '{{ _("更新于") }} {{ _("今天") }}';
+                if (diffDays === 1) return '{{ _("更新于") }} {{ _("昨天") }}';
+                if (diffDays < 30) return '{{ _("更新于") }} ' + diffDays + ' {{ _("天前") }}';
+                return '{{ _("更新于") }} ' + d.toLocaleDateString();
+            }
+        };
+    }
+    </script>
 
 </body>
 
