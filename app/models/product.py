@@ -19,7 +19,8 @@ class Product(db.Model):
     status = db.Column(db.String(20), default='active')  # 产品状态：'active'(生产中), 'discontinued'(已停产), 'upcoming'(待上市)
     image_path = db.Column(db.String(255))  # 产品图片路径
     pdf_path = db.Column(db.String(255))  # 产品PDF文件路径
-    
+    icon_svg = db.Column(db.Text, comment='产品SVG图标数据')
+
     # 厂商产品标记字段
     is_vendor_product = db.Column(db.Boolean, default=False)  # 是否为厂商产品（用于植入合计统计）
 
@@ -43,9 +44,13 @@ class Product(db.Model):
     source_configuration_id = db.Column(db.Integer, db.ForeignKey('product_configurations.id'))  # 来源配置版本ID
     productized_at = db.Column(db.DateTime)  # 产品化时间
 
-    # 积分系数 - Admin手动设置起始值，设置后仍按时间衰减
-    points_coefficient_override = db.Column(db.Numeric(3, 1), nullable=True, comment='手动积分系数起始值(Admin设置,NULL=按created_at自动)')
-    points_coefficient_override_at = db.Column(db.DateTime, nullable=True, comment='手动系数设置时间(衰减起点)')
+    # 积分系数
+    points_coefficient_override = db.Column(db.Numeric(3, 1), nullable=True, comment='手动积分系数(Admin设置,NULL=按引用频次自动)')
+    points_coefficient_override_at = db.Column(db.DateTime, nullable=True, comment='手动系数设置时间')
+
+    # 引用频次系数（批量预计算）
+    citation_coefficient = db.Column(db.Numeric(4, 2), nullable=True, comment='引用频率积分系数')
+    citation_count = db.Column(db.Integer, nullable=True, comment='过去12个月引用次数')
 
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
@@ -212,14 +217,12 @@ class Product(db.Model):
 
     @property
     def points_coefficient(self):
-        """积分系数：以起始值为基点，按时间衰减"""
-        from app.helpers.product_points import calculate_decaying_coefficient
+        """积分系数：手动覆盖 > 预计算引用系数 > 回退默认值"""
         if self.points_coefficient_override is not None:
-            return calculate_decaying_coefficient(
-                start_value=float(self.points_coefficient_override),
-                start_time=self.points_coefficient_override_at
-            )
-        return calculate_decaying_coefficient(start_time=self.created_at)
+            return float(self.points_coefficient_override)
+        if self.citation_coefficient is not None:
+            return float(self.citation_coefficient)
+        return 3.0
 
     @property
     def points(self):

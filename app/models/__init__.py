@@ -55,6 +55,10 @@ from app.models.user_points_ledger import UserPointsLedger
 from app.models.file_manager import FileLibrary, UserFolder, UserFileRef
 # 知识库模块
 from app.models.knowledge import KnowledgeTag, KnowledgeDocument, KnowledgeChunk
+# 资源池访问请求
+from app.models.access_request import AccessRequest
+# 系统图模块
+from app.models.system_diagram import SystemDiagram
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
@@ -89,4 +93,6 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'Task', 'TaskAttachment', 'TaskReply',
            'UserPointsLedger',
            'FileLibrary', 'UserFolder', 'UserFileRef',
-           'KnowledgeTag', 'KnowledgeDocument', 'KnowledgeChunk']
+           'KnowledgeTag', 'KnowledgeDocument', 'KnowledgeChunk',
+           'AccessRequest',
+           'SystemDiagram']

@@ -207,6 +207,30 @@ def get_panel_data():
             if gt.status in ('pending', 'in_progress'):
                 pending_todo_count += 1
 
+        # 4.6 获取待审批的访问请求
+        from app.models.access_request import AccessRequest
+        access_requests = AccessRequest.query.filter_by(
+            approver_id=current_user.id, status='pending'
+        ).order_by(AccessRequest.created_at.desc()).all()
+
+        for req in access_requests:
+            entity_label = '客户' if req.entity_type == 'customer' else '项目'
+            todo_list.append({
+                'id': f'access_req_{req.id}',
+                'type': 'access_request',
+                'status': 'pending',
+                'title': f'{req.requester.real_name or req.requester.username} 请求访问{entity_label}',
+                'message': req.request_message or '',
+                'requester_name': req.requester.real_name or req.requester.username if req.requester else '',
+                'due_date': None,
+                'created_at': req.created_at.isoformat() if req.created_at else None,
+                'detail_url': '#',
+                'request_id': req.id,
+                'entity_type': req.entity_type,
+                'entity_id': req.entity_id,
+            })
+            pending_todo_count += 1
+
         # 4.9 混合排序：pending/in_progress 在前，confirmed/completed 在后，各组内按创建时间倒序
         def todo_sort_key(item):
             s = item.get('status', '')
@@ -290,6 +314,12 @@ def get_unread_count():
             GeneralTask.status.in_(['pending', 'in_progress'])
         ).count()
 
+        # 访问请求待审批
+        from app.models.access_request import AccessRequest
+        pending_todo_count += AccessRequest.query.filter_by(
+            approver_id=current_user.id, status='pending'
+        ).count()
+
         return jsonify({
             'success': True,
             'data': {
@@ -326,6 +356,12 @@ def has_unread():
             GeneralTask.assignee_id == current_user.id,
             GeneralTask.is_deleted == False,
             GeneralTask.status.in_(['pending', 'in_progress'])
+        ).count()
+
+        # 访问请求待审批
+        from app.models.access_request import AccessRequest
+        pending_todo_count += AccessRequest.query.filter_by(
+            approver_id=current_user.id, status='pending'
         ).count()
 
         total = unread_mention_count + unread_announcement_count + pending_approval_count + pending_todo_count

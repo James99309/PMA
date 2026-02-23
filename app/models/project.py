@@ -67,6 +67,12 @@ class Project(SharingMixin, db.Model):
     region = Column(String(100), nullable=True)   # 省/州
     city = Column(String(100), nullable=True)     # 城市
 
+    # AI 网络调研字段
+    ai_research_data = Column(JSON, nullable=True)  # 结构化调研结果
+    ai_research_updated_at = Column(DateTime, nullable=True)  # 最后调研时间
+    ai_research_status = Column(String(20), default='none')  # none/researching/completed/error
+    ai_research_error = Column(String(500), nullable=True)  # 错误信息
+
     # 通用共享字段
     shared_with_users = Column(JSON, default=list, nullable=True)  # 共享给的用户ID列表
     share_enabled = Column(Boolean, default=False, nullable=False)  # 是否启用共享

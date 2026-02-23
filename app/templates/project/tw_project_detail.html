@@ -229,6 +229,14 @@ render_tw_expense_status_badge with context %}
         extra_actions=[
             {
                 'show': true,
+                'label': _('AI 调研'),
+                'onclick': "window._handleProjectResearchClick()",
+                'icon': 'travel_explore',
+                'color': 'slate',
+                'id': 'projectResearchBtn'
+            },
+            {
+                'show': true,
                 'label': _('星图'),
                 'onclick': "window.location.href='" ~ url_for('star_graph.project_graph', project_id=project.id) ~ "'",
                 'icon': 'hub',
@@ -416,6 +424,262 @@ render_tw_expense_status_badge with context %}
                             {% endfor %}
                     </div>
                 </div>
+            </div>
+
+            <!-- AI 网络调研区域 (默认折叠，点击头部按钮展开) -->
+            <div x-data="{researchOpen: false}" @toggle-project-research.window="researchOpen = !researchOpen" @set-project-research.window="researchOpen = $event.detail">
+            <div x-show="researchOpen" x-collapse.duration.300ms>
+            <div x-data="projectResearch()" x-init="init()">
+
+                <!-- 已加载但数据为空 -->
+                <template x-if="status === 'completed' && isEmptyResult">
+                    <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-8 text-center">
+                        <span class="material-symbols-outlined text-5xl text-slate-400 dark:text-slate-500 mb-3">search_off</span>
+                        <p class="text-slate-600 dark:text-slate-400 mb-2 font-medium">{{ _('未找到该项目的公开信息') }}</p>
+                        <p class="text-sm text-slate-400 dark:text-slate-500 mb-4">{{ _('可能是项目信息尚未公开或网络公开信息较少，您可以尝试重新调研') }}</p>
+                        <button @click="retry()"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-lg">refresh</span>
+                            {{ _('重新调研') }}
+                        </button>
+                    </div>
+                </template>
+
+                <!-- 已加载数据 -->
+                <template x-if="status === 'completed' && !isEmptyResult">
+                    <div class="space-y-4">
+                        <!-- 头部：标题 + 更新时间 -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">psychology</span>
+                                <h3 class="font-semibold text-slate-900 dark:text-white">{{ _('AI 网络调研') }}</h3>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                                <span x-text="formatUpdatedAt(updatedAt)"></span>
+                                <button @click="retry()" class="text-primary hover:underline text-xs cursor-pointer" title="{{ _('重新调研') }}">
+                                    <span class="material-symbols-outlined text-sm">refresh</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 项目概况 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-primary">apartment</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('项目概况') }}</span>
+                            </div>
+                            <div class="px-5 pb-4">
+                                <template x-if="data.project_overview">
+                                    <div class="space-y-3">
+                                        <template x-if="data.project_overview.description">
+                                            <p class="text-sm text-slate-700 dark:text-slate-300" x-text="data.project_overview.description"></p>
+                                        </template>
+                                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                            <template x-if="data.project_overview.total_investment">
+                                                <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-center">
+                                                    <p class="text-xs text-emerald-600 dark:text-emerald-400">{{ _('总投资') }}</p>
+                                                    <p class="font-semibold text-emerald-700 dark:text-emerald-300 mt-0.5" x-text="data.project_overview.total_investment"></p>
+                                                </div>
+                                            </template>
+                                            <template x-if="data.project_overview.total_area">
+                                                <div class="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-center">
+                                                    <p class="text-xs text-blue-600 dark:text-blue-400">{{ _('建筑面积') }}</p>
+                                                    <p class="font-semibold text-blue-700 dark:text-blue-300 mt-0.5" x-text="data.project_overview.total_area"></p>
+                                                </div>
+                                            </template>
+                                            <template x-if="data.project_overview.start_date">
+                                                <div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 text-center">
+                                                    <p class="text-xs text-amber-600 dark:text-amber-400">{{ _('开工时间') }}</p>
+                                                    <p class="font-semibold text-amber-700 dark:text-amber-300 mt-0.5" x-text="data.project_overview.start_date"></p>
+                                                </div>
+                                            </template>
+                                            <template x-if="data.project_overview.completion_date">
+                                                <div class="p-3 rounded-xl bg-purple-50 dark:bg-purple-900/20 text-center">
+                                                    <p class="text-xs text-purple-600 dark:text-purple-400">{{ _('竣工时间') }}</p>
+                                                    <p class="font-semibold text-purple-700 dark:text-purple-300 mt-0.5" x-text="data.project_overview.completion_date"></p>
+                                                </div>
+                                            </template>
+                                        </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                            <template x-if="data.project_overview.land_area">
+                                                <div class="flex gap-2"><span class="text-slate-500">{{ _('占地面积') }}:</span><span x-text="data.project_overview.land_area"></span></div>
+                                            </template>
+                                            <template x-if="data.project_overview.city">
+                                                <div class="flex gap-2"><span class="text-slate-500">{{ _('城市') }}:</span><span x-text="data.project_overview.city"></span></div>
+                                            </template>
+                                            <template x-if="data.project_overview.address">
+                                                <div class="flex gap-2"><span class="text-slate-500">{{ _('地址') }}:</span><span x-text="data.project_overview.address"></span></div>
+                                            </template>
+                                            <template x-if="data.project_overview.project_phase">
+                                                <div class="flex gap-2"><span class="text-slate-500">{{ _('项目阶段') }}:</span><span x-text="data.project_overview.project_phase"></span></div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="!data.project_overview">
+                                    <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- 项目参与方 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-indigo-500">group</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('项目参与方') }}</span>
+                            </div>
+                            <div class="px-5 pb-4">
+                                <template x-if="data.stakeholders">
+                                    <div class="space-y-3 text-sm">
+                                        <template x-if="data.stakeholders.investor">
+                                            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                <div class="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
+                                                    <span class="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-sm">account_balance</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('投资方/建设单位') }}</span>
+                                                    <p class="font-medium text-slate-900 dark:text-white" x-text="data.stakeholders.investor"></p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="data.stakeholders.general_contractor">
+                                            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+                                                    <span class="material-symbols-outlined text-blue-600 dark:text-blue-400 text-sm">engineering</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('总承包') }}</span>
+                                                    <p class="font-medium text-slate-900 dark:text-white" x-text="data.stakeholders.general_contractor"></p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="data.stakeholders.design_institute">
+                                            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                <div class="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0">
+                                                    <span class="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">architecture</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('设计院') }}</span>
+                                                    <p class="font-medium text-slate-900 dark:text-white" x-text="data.stakeholders.design_institute"></p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="data.stakeholders.consultant">
+                                            <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                <div class="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0">
+                                                    <span class="material-symbols-outlined text-purple-600 dark:text-purple-400 text-sm">support_agent</span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('顾问公司') }}</span>
+                                                    <p class="font-medium text-slate-900 dark:text-white" x-text="data.stakeholders.consultant"></p>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        <template x-if="data.stakeholders.subcontractors && data.stakeholders.subcontractors.length">
+                                            <div>
+                                                <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('分包方') }}</span>
+                                                <div class="flex flex-wrap gap-1.5 mt-1">
+                                                    <template x-for="sub in data.stakeholders.subcontractors" :key="sub">
+                                                        <span class="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-full text-xs" x-text="sub"></span>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="!data.stakeholders">
+                                    <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- 近期动向 + AI 销售建议 并排 -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- 近期动向 -->
+                            <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                                <div class="flex items-center gap-2 px-5 py-3.5">
+                                    <span class="material-symbols-outlined text-teal-500">update</span>
+                                    <span class="font-medium text-slate-900 dark:text-white">{{ _('近期动向') }}</span>
+                                    <template x-if="data.recent_updates && data.recent_updates.length">
+                                        <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-full" x-text="data.recent_updates.length"></span>
+                                    </template>
+                                </div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.recent_updates && data.recent_updates.length">
+                                        <div class="space-y-2">
+                                            <template x-for="(upd, idx) in data.recent_updates" :key="idx">
+                                                <div class="flex items-start gap-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-700/40">
+                                                    <span class="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-2 bg-teal-500"></span>
+                                                    <div class="flex-1 min-w-0">
+                                                        <p class="text-sm text-slate-700 dark:text-slate-300" x-text="upd.content"></p>
+                                                        <div class="flex items-center gap-2 mt-0.5">
+                                                            <template x-if="upd.date">
+                                                                <span class="text-xs text-slate-400" x-text="upd.date"></span>
+                                                            </template>
+                                                            <template x-if="upd.type">
+                                                                <span class="text-xs px-1.5 py-0.5 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-full" x-text="upd.type"></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!data.recent_updates || !data.recent_updates.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- AI 销售建议 -->
+                            <div class="bg-gradient-to-r from-primary/5 to-indigo-500/5 dark:from-primary/10 dark:to-indigo-500/10 rounded-2xl border border-primary/20 dark:border-primary/30 overflow-hidden">
+                                <div class="flex items-center gap-2 px-5 py-3.5">
+                                    <span class="material-symbols-outlined text-primary">lightbulb</span>
+                                    <span class="font-medium text-slate-900 dark:text-white">{{ _('AI 销售切入建议') }}</span>
+                                </div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.sales_suggestions && data.sales_suggestions.length">
+                                        <ol class="space-y-2">
+                                            <template x-for="(sug, idx) in data.sales_suggestions" :key="idx">
+                                                <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 dark:bg-primary/20 text-primary text-xs flex items-center justify-center font-medium" x-text="idx + 1"></span>
+                                                    <span x-text="sug"></span>
+                                                </li>
+                                            </template>
+                                        </ol>
+                                    </template>
+                                    <template x-if="!data.sales_suggestions || !data.sales_suggestions.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- 加载中 -->
+                <template x-if="status === 'researching'">
+                    <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 p-8 text-center">
+                        <span class="material-symbols-outlined text-4xl text-primary animate-spin mb-3">progress_activity</span>
+                        <p class="text-slate-600 dark:text-slate-400 font-medium">{{ _('AI 正在调研中...') }}</p>
+                        <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">{{ _('通常需要 30-60 秒，请稍候') }}</p>
+                    </div>
+                </template>
+
+                <!-- 错误状态 -->
+                <template x-if="status === 'error'">
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-6 text-center">
+                        <span class="material-symbols-outlined text-3xl text-red-400 mb-2">error</span>
+                        <p class="text-red-600 dark:text-red-400 text-sm" x-text="errorMsg"></p>
+                        <button @click="retry()"
+                            class="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-sm">refresh</span>
+                            {{ _('重试') }}
+                        </button>
+                    </div>
+                </template>
+            </div>
+            </div>
             </div>
 
         {% elif detail_slot == 'main' %}
@@ -646,6 +910,61 @@ render_tw_expense_status_badge with context %}
                     min_height='600px'
                 ) }}
 
+                <!-- 系统图 -->
+                <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                    <div class="p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                {{ _('系统图') }}
+                            </h4>
+                            {% if project_diagram %}
+                            <div class="flex items-center gap-1 relative">
+                                <a href="{{ url_for('system_diagram.edit_editor', diagram_id=project_diagram.id) }}"
+                                   class="p-1 text-slate-400 hover:text-blue-500 transition-colors" title="{{ _('编辑') }}">
+                                    <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+                                </a>
+                                <button onclick="openDiagramExportMenu(event)"
+                                        class="p-1 text-slate-400 hover:text-blue-500 transition-colors" title="{{ _('导出') }}">
+                                    <span class="material-symbols-outlined" style="font-size:16px;">download</span>
+                                </button>
+                                <button onclick="deleteProjectDiagram({{ project_diagram.id }}, '{{ project_diagram.name | e }}')"
+                                        class="p-1 text-slate-400 hover:text-red-500 transition-colors" title="{{ _('删除') }}">
+                                    <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+                                </button>
+                                <div id="diagramExportMenu" class="hidden absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-20 min-w-[120px]">
+                                    <button onclick="exportDiagramSVG()" class="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">SVG {{ _('矢量图') }}</button>
+                                    <button onclick="exportDiagramPNG()" class="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">PNG {{ _('位图') }}</button>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% if project_diagram and project_diagram.thumbnail_svg %}
+                        <div class="cursor-pointer rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                             onclick="openDiagramViewer()">
+                            <div class="diagram-thumbnail bg-slate-50 dark:bg-slate-800 p-2" style="max-height:200px;overflow:hidden;">
+                                {{ project_diagram.thumbnail_svg|safe }}
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-2 truncate">{{ project_diagram.name }}</p>
+                        {% elif project_diagram %}
+                        <div class="flex flex-col items-center justify-center py-4 text-slate-400">
+                            <span class="material-symbols-outlined text-2xl mb-1">schema</span>
+                            <span class="text-xs">{{ project_diagram.name }}</span>
+                        </div>
+                        {% else %}
+                        <div class="flex flex-col items-center justify-center py-6 text-slate-400">
+                            <span class="material-symbols-outlined text-3xl mb-2">schema</span>
+                            <span class="text-xs mb-3">{{ _('暂无系统图') }}</span>
+                            <a href="{{ url_for('system_diagram.template_gallery', project_id=project.id) }}"
+                               class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors">
+                                <span class="material-symbols-outlined" style="font-size:14px;">add</span>
+                                {{ _('创建系统图') }}
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
                 <!-- 支持人员（自动衍生） -->
                 <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
                     <div class="p-4">
@@ -758,6 +1077,16 @@ render_tw_expense_status_badge with context %}
     title=_('移除关联客户'),
     message=_('确定要移除此客户的关联吗？'),
     confirm_text=_('移除'),
+    cancel_text=_('取消'),
+    variant='danger'
+    ) }}
+
+    <!-- 删除系统图确认模态框 -->
+    {{ tw_confirm_modal(
+    modal_id='deleteDiagramModal',
+    title=_('确认删除系统图'),
+    message=_('删除后系统图将不再显示，确认删除吗？'),
+    confirm_text=_('确认删除'),
     cancel_text=_('取消'),
     variant='danger'
     ) }}
@@ -2240,6 +2569,322 @@ render_tw_expense_status_badge with context %}
             );
         };
     })();
+    </script>
+    {% endif %}
+
+    <!-- AI 项目调研 Alpine 组件 -->
+    <script>
+    function projectResearch() {
+        return {
+            status: 'none',      // none | researching | completed | error
+            data: null,
+            updatedAt: null,
+            errorMsg: '',
+            projectId: {{ project.id }},
+            _pollTimer: null,
+
+            init() {
+                window._handleProjectResearchClick = () => this.handleBtnClick();
+                this.$watch('status', () => this.updateBtn());
+                this.fetchStatus();
+            },
+
+            updateBtn() {
+                const btn = document.getElementById('projectResearchBtn');
+                if (!btn) return;
+                const icon = btn.querySelector('.material-symbols-outlined');
+                const label = btn.querySelector('span:last-child');
+
+                const styles = {
+                    none: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg', icon: 'travel_explore', spin: false, text: '{{ _("AI 调研") }}' },
+                    researching: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg cursor-wait', icon: 'progress_activity', spin: true, text: '{{ _("调研中...") }}' },
+                    completed: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer', icon: 'check_circle', spin: false, text: '{{ _("AI 调研") }}' },
+                    error: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-lg cursor-pointer', icon: 'error', spin: false, text: '{{ _("调研失败") }}' },
+                };
+                const s = styles[this.status] || styles.none;
+                btn.className = s.cls;
+                if (icon) { icon.textContent = s.icon; s.spin ? icon.classList.add('animate-spin') : icon.classList.remove('animate-spin'); }
+                if (label) label.textContent = s.text;
+            },
+
+            handleBtnClick() {
+                if (this.status === 'researching') return;
+                if (this.status === 'completed' || this.status === 'error') {
+                    window.dispatchEvent(new CustomEvent('toggle-project-research'));
+                }
+                if (this.status === 'none') {
+                    this.retry();
+                }
+            },
+
+            async fetchStatus() {
+                try {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    const resp = await fetch(`/project/api/${this.projectId}/ai-research`, {
+                        headers: { 'X-CSRFToken': csrfToken }
+                    });
+                    if (!resp.ok) {
+                        // 权限不足或其他错误，停止轮询
+                        if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
+                        return;
+                    }
+                    const json = await resp.json();
+
+                    this.status = json.status || 'none';
+                    this.data = json.data;
+                    this.updatedAt = json.updated_at;
+                    this.errorMsg = json.error || '';
+
+                    if (this.status === 'researching') {
+                        this.startPolling();
+                    }
+                } catch (e) {
+                    console.error('获取项目 AI 调研状态失败:', e);
+                    if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
+                }
+            },
+
+            startPolling() {
+                if (this._pollTimer) return;
+                this._pollTimer = setInterval(async () => {
+                    await this.fetchStatus();
+                    if (this.status !== 'researching') {
+                        clearInterval(this._pollTimer);
+                        this._pollTimer = null;
+                        if (this.status === 'completed') {
+                            window.dispatchEvent(new CustomEvent('set-project-research', { detail: true }));
+                        }
+                    }
+                }, 5000);
+            },
+
+            async retry() {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                try {
+                    await fetch(`/project/api/${this.projectId}/ai-research/retry`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+                    });
+                    this.status = 'researching';
+                    window.dispatchEvent(new CustomEvent('set-project-research', { detail: false }));
+                    this.startPolling();
+                } catch (e) {
+                    console.error('重试失败:', e);
+                }
+            },
+
+            get isEmptyResult() {
+                if (!this.data) return true;
+                const d = this.data;
+                const ov = d.project_overview || {};
+                const hasOverview = ov.description || ov.total_investment || ov.total_area || ov.start_date || ov.completion_date;
+                const sh = d.stakeholders || {};
+                const hasStakeholders = sh.investor || sh.general_contractor || sh.design_institute || sh.consultant ||
+                    (sh.subcontractors && sh.subcontractors.length);
+                const hasUpdates = d.recent_updates && d.recent_updates.length;
+                const hasSuggestions = d.sales_suggestions && d.sales_suggestions.length;
+                return !hasOverview && !hasStakeholders && !hasUpdates && !hasSuggestions;
+            },
+
+            formatUpdatedAt(isoStr) {
+                if (!isoStr) return '';
+                const d = new Date(isoStr);
+                const now = new Date();
+                const diffMs = now - d;
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 0) return '{{ _("更新于") }} {{ _("今天") }}';
+                if (diffDays === 1) return '{{ _("更新于") }} {{ _("昨天") }}';
+                if (diffDays < 30) return '{{ _("更新于") }} ' + diffDays + ' {{ _("天前") }}';
+                return '{{ _("更新于") }} ' + d.toLocaleDateString();
+            }
+        };
+    }
+    </script>
+
+    {% if project_diagram and project_diagram.thumbnail_svg %}
+    <!-- 系统图查看模态框 -->
+    <div id="diagramViewerModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeDiagramViewer()"></div>
+        <div class="absolute inset-4 md:inset-8 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <!-- 头部 -->
+            <div class="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-blue-500">schema</span>
+                    <span class="text-sm font-medium text-slate-900 dark:text-white">{{ project_diagram.name }}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="diagramViewerZoom(-0.2)" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('缩小') }}">
+                        <span class="material-symbols-outlined" style="font-size:18px;">remove</span>
+                    </button>
+                    <span id="diagramViewerZoomLevel" class="text-xs text-slate-400 min-w-[40px] text-center">100%</span>
+                    <button onclick="diagramViewerZoom(0.2)" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('放大') }}">
+                        <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+                    </button>
+                    <button onclick="diagramViewerFit()" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('适应窗口') }}">
+                        <span class="material-symbols-outlined" style="font-size:18px;">fit_screen</span>
+                    </button>
+                    <div class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                    <a href="{{ url_for('system_diagram.edit_editor', diagram_id=project_diagram.id) }}"
+                       class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('编辑') }}">
+                        <span class="material-symbols-outlined" style="font-size:18px;">edit</span>
+                    </a>
+                    <button onclick="closeDiagramViewer()" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('关闭') }}">
+                        <span class="material-symbols-outlined" style="font-size:18px;">close</span>
+                    </button>
+                </div>
+            </div>
+            <!-- 画布区域 -->
+            <div id="diagramViewerCanvas" class="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-800 cursor-grab active:cursor-grabbing"
+                 style="position:relative;">
+                <div id="diagramViewerContent" style="position:absolute;transform-origin:0 0;transition:transform .15s ease;">
+                    {{ project_diagram.thumbnail_svg|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ── 系统图查看器 ──
+    (function(){
+        let viewerScale = 1, viewerX = 0, viewerY = 0, isDragging = false, startX, startY;
+        const modal = document.getElementById('diagramViewerModal');
+        const content = document.getElementById('diagramViewerContent');
+        const canvas = document.getElementById('diagramViewerCanvas');
+
+        window.openDiagramViewer = function(){
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => diagramViewerFit(), 50);
+        };
+        window.closeDiagramViewer = function(){
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        };
+        window.diagramViewerZoom = function(delta){
+            viewerScale = Math.max(0.1, Math.min(5, viewerScale + delta));
+            updateViewerTransform();
+        };
+        window.diagramViewerFit = function(){
+            const svg = content.querySelector('svg');
+            if(!svg) return;
+            const cw = canvas.clientWidth, ch = canvas.clientHeight;
+            const sw = parseFloat(svg.getAttribute('width')) || svg.viewBox.baseVal.width || 1200;
+            const sh = parseFloat(svg.getAttribute('height')) || svg.viewBox.baseVal.height || 800;
+            viewerScale = Math.min(cw / sw, ch / sh, 2) * 0.9;
+            viewerX = (cw - sw * viewerScale) / 2;
+            viewerY = (ch - sh * viewerScale) / 2;
+            updateViewerTransform();
+        };
+        function updateViewerTransform(){
+            content.style.transform = `translate(${viewerX}px,${viewerY}px) scale(${viewerScale})`;
+            const el = document.getElementById('diagramViewerZoomLevel');
+            if(el) el.textContent = Math.round(viewerScale * 100) + '%';
+        }
+        // Pan
+        canvas.addEventListener('mousedown', e => {
+            isDragging = true; startX = e.clientX - viewerX; startY = e.clientY - viewerY;
+            content.style.transition = 'none';
+        });
+        window.addEventListener('mousemove', e => {
+            if(!isDragging) return;
+            viewerX = e.clientX - startX; viewerY = e.clientY - startY;
+            updateViewerTransform();
+        });
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+            content.style.transition = 'transform .15s ease';
+        });
+        // Zoom with wheel
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            const rect = canvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+            const oldScale = viewerScale;
+            viewerScale = Math.max(0.1, Math.min(5, viewerScale + delta));
+            viewerX = mx - (mx - viewerX) * (viewerScale / oldScale);
+            viewerY = my - (my - viewerY) * (viewerScale / oldScale);
+            updateViewerTransform();
+        }, {passive: false});
+        // ESC to close
+        document.addEventListener('keydown', e => {
+            if(e.key === 'Escape' && !modal.classList.contains('hidden')) closeDiagramViewer();
+        });
+    })();
+
+    // ── 系统图导出 ──
+    window.openDiagramExportMenu = function(e){
+        e.stopPropagation();
+        const menu = document.getElementById('diagramExportMenu');
+        menu.classList.toggle('hidden');
+        if(!menu.classList.contains('hidden')){
+            setTimeout(() => document.addEventListener('click', function close(){ menu.classList.add('hidden'); document.removeEventListener('click', close); }), 0);
+        }
+    };
+    window.exportDiagramSVG = function(){
+        const container = document.querySelector('.diagram-thumbnail');
+        if(!container) return;
+        const svg = container.querySelector('svg');
+        if(!svg) return;
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const blob = new Blob([svgData], {type: 'image/svg+xml'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = '{{ project_diagram.name|e }}.svg';
+        a.click(); URL.revokeObjectURL(url);
+    };
+    window.exportDiagramPNG = function(){
+        const container = document.querySelector('.diagram-thumbnail');
+        if(!container) return;
+        const svg = container.querySelector('svg');
+        if(!svg) return;
+        const dpr = 2;
+        const w = parseFloat(svg.getAttribute('width')) || 1200;
+        const h = parseFloat(svg.getAttribute('height')) || 800;
+        const canvas = document.createElement('canvas');
+        canvas.width = w * dpr; canvas.height = h * dpr;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+        const svgData = new XMLSerializer().serializeToString(svg);
+        const img = new Image();
+        img.onload = function(){
+            ctx.drawImage(img, 0, 0, w, h);
+            canvas.toBlob(function(blob){
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url;
+                a.download = '{{ project_diagram.name|e }}.png';
+                a.click(); URL.revokeObjectURL(url);
+            }, 'image/png');
+        };
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+    };
+    </script>
+
+    <style>
+    .diagram-thumbnail svg { width: 100%; height: auto; display: block; }
+    #diagramViewerContent svg { display: block; }
+    </style>
+    {% endif %}
+
+    {% if project_diagram %}
+    <script>
+    window.deleteProjectDiagram = function(id, name){
+        window.openConfirmModal('deleteDiagramModal', {
+            onConfirm: function(){
+                fetch('/system-diagram/api/' + id, {
+                    method: 'DELETE',
+                    headers: {'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if(data.success) location.reload();
+                    else alert(data.message || '{{ _("删除失败") }}');
+                })
+                .catch(() => alert('{{ _("删除失败") }}'));
+            }
+        });
+    };
     </script>
     {% endif %}
 

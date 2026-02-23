@@ -166,7 +166,7 @@
                             <span class="material-symbols-outlined"
                                   :class="item.status === 'confirmed' ? 'text-green-600 dark:text-green-400'
                                          : 'text-orange-600 dark:text-orange-400'"
-                                  x-text="item.status === 'confirmed' ? 'check_circle' : (item.type === 'general_task' ? 'task_alt' : 'assignment')"></span>
+                                  x-text="item.status === 'confirmed' ? 'check_circle' : (item.type === 'access_request' ? 'person_add' : (item.type === 'general_task' ? 'task_alt' : 'assignment'))"></span>
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center justify-between gap-2">
@@ -323,6 +323,12 @@ function messagePanel() {
                     sessionStorage.removeItem('justLoggedIn');
                     Alpine.store('message').checkAndShowPanel();
                 }
+            });
+
+            // 监听资源池审批完成，刷新面板数据
+            window.addEventListener('refresh-message-panel', () => {
+                this.fetchData();
+                Alpine.store('message').fetchUnreadCount();
             });
 
             // 监听日志预览关闭事件，移除对应消息
@@ -662,7 +668,13 @@ function messagePanel() {
 
         // 处理待办点击
         handleTodoClick(item) {
-            if (item.type === 'general_task' && item.task_id) {
+            if (item.type === 'access_request') {
+                // 访问请求 → 打开审批模态框
+                this.close();
+                window.dispatchEvent(new CustomEvent('open-access-approval-modal', {
+                    detail: { requestId: item.request_id, entityType: item.entity_type, entityId: item.entity_id }
+                }));
+            } else if (item.type === 'general_task' && item.task_id) {
                 // 通用任务 → 打开任务详情模态框
                 this.close();
                 window.dispatchEvent(new CustomEvent('open-task-detail-modal', {

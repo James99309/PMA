@@ -246,12 +246,14 @@ document.addEventListener('submit', function(e) {
                 </div>
             </div>
 
-            <!-- 帮助/引导按钮 -->
-            <button onclick="window.startOnboardingManually && window.startOnboardingManually()"
-                    class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    title="{{ _('功能引导') }}">
+            <!-- 帮助/新功能说明书 -->
+            <a href="{{ url_for('guide.whats_new') }}"
+               onclick="localStorage.setItem('guide_seen','2026Q1')"
+               class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+               title="{{ _('新功能说明书') }}">
                 <span class="material-symbols-outlined">help_outline</span>
-            </button>
+                <script>if(localStorage.getItem('guide_seen')!=='2026Q1')document.write('<span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-primary rounded-full ring-2 ring-white dark:ring-slate-900 animate-pulse"></span>')</script>
+            </a>
 
             <!-- 工作日历入口 -->
             <a id="onboarding-calendar-btn"
@@ -389,6 +391,9 @@ document.addEventListener('submit', function(e) {
 
     <!-- 消息通知面板 -->
     {{ render_message_panel() }}
+
+    <!-- 资源池访问请求/审批模态框 -->
+    {% include 'components/tw_access_request_modal.html' %}
 
     <!-- 聊天面板 -->
     {{ render_chat_button() }}

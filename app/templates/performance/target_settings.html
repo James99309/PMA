@@ -2,9 +2,6 @@
 {% from 'macros/ui_helpers.html' import render_button, render_three_choice_dialog, render_top_notification %}
 {% from 'macros/filter_search.html' import render_filter_search_form %}
 
-{# 设置语言变量，使用session语言设置 #}
-{% set is_chinese = session.get('language', 'zh') == 'zh' %}
-
 {% block title %}绩效目标设置{% endblock %}
 
 {% block content %}
@@ -66,8 +63,8 @@
                         <thead>
                             <tr>
                                 <th width="100px">月份</th>
-                                <th width="150px">植入目标额 {% if is_chinese %}万元{% else %}M{% endif %}</th>
-                                <th width="150px">销售额目标 {% if is_chinese %}万元{% else %}M{% endif %}</th>
+                                <th width="150px">植入目标额 {{ currency_config.amount_unit }}</th>
+                                <th width="150px">销售额目标 {{ currency_config.amount_unit }}</th>
                                 <th width="150px">客户新增数</th>
                                 <th width="150px">项目新增数</th>
                             </tr>
@@ -99,7 +96,7 @@
                                            class="form-control target-input" 
                                            data-field="implant_amount_target"
                                            data-month="{{ month }}"
-                                           value="{% if target and target.implant_amount_target %}{% if is_chinese %}{{ (target.implant_amount_target / 10000) | round(2) }}{% else %}{{ (target.implant_amount_target / 1000000) | round(2) }}{% endif %}{% endif %}"
+                                           value="{% if target and target.implant_amount_target %}{{ (target.implant_amount_target / currency_config.divisor) | round(2) }}{% endif %}"
                                            placeholder="0.00"
                                            step="0.01">
                                 </td>
@@ -108,7 +105,7 @@
                                            class="form-control target-input" 
                                            data-field="sales_amount_target"
                                            data-month="{{ month }}"
-                                           value="{% if target and target.sales_amount_target %}{% if is_chinese %}{{ (target.sales_amount_target / 10000) | round(2) }}{% else %}{{ (target.sales_amount_target / 1000000) | round(2) }}{% endif %}{% endif %}"
+                                           value="{% if target and target.sales_amount_target %}{{ (target.sales_amount_target / currency_config.divisor) | round(2) }}{% endif %}"
                                            placeholder="0.00"
                                            step="0.01">
                                 </td>
@@ -674,7 +671,7 @@ function saveAllTargets(event) {
         const targets = [];
         const userId = {{ selected_user.id }};
         const year = {{ selected_year }};
-        const isChinese = {{ 'true' if is_chinese else 'false' }};
+        const currencyDivisor = {{ currency_config.divisor }};
         
         // 收集合格值数据
         const rateData = {
@@ -701,10 +698,9 @@ function saveAllTargets(event) {
                 user_id: userId,
                 year: year,
                 month: month,
-                // 转换为数据库存储的元单位
-                // 中文：万元 * 10000 = 元，英文：M * 1000000 = 元
-                implant_amount_target: isChinese ? (implantValue * 10000) : (implantValue * 1000000),
-                sales_amount_target: isChinese ? (salesValue * 10000) : (salesValue * 1000000),
+                // 转换为数据库存储的元单位（乘以 divisor 还原）
+                implant_amount_target: implantValue * currencyDivisor,
+                sales_amount_target: salesValue * currencyDivisor,
                 new_customers_target: parseInt(customersInput?.value) || 0,
                 new_projects_target: parseInt(projectsInput?.value) || 0,
                 // 合格值数据

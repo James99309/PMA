@@ -200,14 +200,22 @@ class ChatMessage(db.Model):
                 result['card_data'] = json.loads(self.content) if self.content else {}
             except (json.JSONDecodeError, TypeError):
                 result['card_data'] = {}
-            # 项目卡片：翻译阶段 key → 中文标签（兼容旧快照中存储的英文 key）
-            if self.message_type == 'project_card' and result['card_data'].get('current_stage'):
+            # 项目卡片：翻译阶段 key + 注入阶段进度条数据
+            if self.message_type == 'project_card':
                 try:
                     from app.utils.dictionary_helpers import project_stage_label
-                    stage = result['card_data']['current_stage']
-                    translated = project_stage_label(stage)
-                    if translated != stage:  # 如果翻译成功（不等于原值），使用翻译结果
-                        result['card_data']['current_stage'] = translated
+                    stage = result['card_data'].get('current_stage', '')
+                    if stage:
+                        translated = project_stage_label(stage)
+                        if translated != stage:
+                            result['card_data']['current_stage'] = translated
+                    # 注入阶段进度条数据（实时从数据库读取）
+                    project_id = result['card_data'].get('project_id')
+                    if project_id:
+                        from app.models.chat import _build_project_stages_for_card
+                        stages_info = _build_project_stages_for_card(project_id)
+                        if stages_info:
+                            result['card_data'].update(stages_info)
                 except Exception:
                     pass
 
@@ -239,3 +247,108 @@ class ChatTranslation(db.Model):
     __table_args__ = (
         UniqueConstraint('message_id', 'target_language', name='uq_chat_translation_msg_lang'),
     )
+
+
+# ---------------------------------------------------------------------------
+# 项目阶段进度条数据构建（供 project_card 消息使用）
+# ---------------------------------------------------------------------------
+
+_MAIN_STAGES = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed']
+
+
+def _build_project_stages_for_card(project_id):
+    """构建项目阶段进度条数据，包含权限判断
+
+    Returns:
+        dict with keys: stages, can_edit, stage_key; or None on failure
+    """
+    try:
+        from flask_login import current_user
+        from app.models.project import Project
+        from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS
+        from app.utils.i18n import get_current_language
+
+        project = Project.query.get(project_id)
+        if not project:
+            return None
+
+        lang = get_current_language()
+        current = project.current_stage or 'discover'
+        is_terminal = current in ('lost', 'paused')
+        current_idx = _MAIN_STAGES.index(current) if current in _MAIN_STAGES else -1
+
+        # 权限判断
+        can_edit = False
+        try:
+            if current_user and current_user.is_authenticated:
+                from app.permissions import is_admin_or_ceo
+                if is_admin_or_ceo():
+                    can_edit = True
+                elif project.owner_id == current_user.id:
+                    can_edit = True
+                elif hasattr(project, 'vendor_sales_manager_id') and project.vendor_sales_manager_id == current_user.id:
+                    can_edit = True
+                else:
+                    viewable_ids = current_user.get_viewable_user_ids() if hasattr(current_user, 'get_viewable_user_ids') else [current_user.id]
+                    can_edit = project.owner_id in viewable_ids
+
+                # signed 阶段锁定
+                if current == 'signed':
+                    can_edit = False
+                # 项目锁定检查
+                if can_edit and current != 'signed':
+                    from app.helpers.project_helpers import is_project_editable
+                    is_editable, _ = is_project_editable(project.id, current_user.id)
+                    if not is_editable and not is_admin_or_ceo():
+                        can_edit = False
+        except Exception:
+            can_edit = False
+
+        # 终端状态：找最后活跃阶段
+        last_active_idx = -1
+        if is_terminal:
+            try:
+                from app.models.projectpm_stage_history import ProjectStageHistory
+                histories = ProjectStageHistory.query.filter_by(project_id=project_id).order_by(
+                    ProjectStageHistory.change_date.desc()
+                ).all()
+                for h in histories:
+                    stage_key = h.to_stage
+                    if stage_key in _MAIN_STAGES:
+                        last_active_idx = _MAIN_STAGES.index(stage_key)
+                        break
+            except Exception:
+                pass
+
+        # 构建 stages 数组
+        stages = []
+        for idx, key in enumerate(_MAIN_STAGES):
+            label = PROJECT_STAGE_LABELS.get(key, {}).get(lang, key)
+            if is_terminal:
+                status = 'completed' if idx <= last_active_idx else 'pending'
+                clickable = False
+            elif idx < current_idx:
+                status = 'completed'
+                clickable = False
+            elif idx == current_idx:
+                status = 'current'
+                clickable = False
+            else:
+                status = 'pending'
+                # 只有下一个阶段可点击
+                clickable = can_edit and idx == current_idx + 1
+
+            stages.append({
+                'key': key,
+                'label': label,
+                'status': status,
+                'clickable': clickable,
+            })
+
+        return {
+            'stages': stages,
+            'can_edit': can_edit,
+            'stage_key': current,  # 原始英文 key，供前端更新使用
+        }
+    except Exception:
+        return None

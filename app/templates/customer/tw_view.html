@@ -177,6 +177,14 @@
         extra_actions=[
             {
                 'show': true,
+                'label': _('AI 调研'),
+                'onclick': "window._handleAiResearchClick(this)",
+                'icon': 'travel_explore',
+                'color': 'slate',
+                'id': 'aiResearchBtn'
+            },
+            {
+                'show': true,
                 'label': _('星图'),
                 'onclick': "window.location.href='" ~ url_for('star_graph.company_graph', company_id=company.id) ~ "'",
                 'icon': 'hub',
@@ -188,7 +196,351 @@
         sidebar_cols=2,
         content_gap='8'
     ) %}
-        {% if detail_slot == 'main' %}
+        {% if detail_slot == 'full_width' %}
+            <!-- AI 网络调研区域 (默认折叠，点击头部按钮展开) -->
+            <div x-data="{researchOpen: false}" @toggle-ai-research.window="researchOpen = !researchOpen" @set-ai-research.window="researchOpen = $event.detail">
+            <div x-show="researchOpen" x-collapse.duration.300ms>
+            <div x-data="aiResearch()" x-init="init()">
+
+                <!-- 已加载但数据为空 -->
+                <template x-if="status === 'completed' && isEmptyResult">
+                    <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-8 text-center">
+                        <span class="material-symbols-outlined text-5xl text-slate-400 dark:text-slate-500 mb-3">search_off</span>
+                        <p class="text-slate-600 dark:text-slate-400 mb-2 font-medium">{{ _('未找到该公司的公开信息') }}</p>
+                        <p class="text-sm text-slate-400 dark:text-slate-500 mb-4">{{ _('可能是小型企业或网络公开信息较少，您可以尝试重新调研') }}</p>
+                        <button @click="retry()"
+                            class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-lg">refresh</span>
+                            {{ _('重新调研') }}
+                        </button>
+                    </div>
+                </template>
+
+                <!-- 已加载数据 -->
+                <template x-if="status === 'completed' && !isEmptyResult">
+                    <div class="space-y-4">
+                        <!-- 头部：标题 + 更新时间 -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">psychology</span>
+                                <h3 class="font-semibold text-slate-900 dark:text-white">{{ _('AI 网络调研') }}</h3>
+                            </div>
+                            <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                                <template x-if="isStale">
+                                    <span class="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        <span class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                                        {{ _('数据已超过30天，正在自动刷新...') }}
+                                    </span>
+                                </template>
+                                <template x-if="!isStale">
+                                    <span x-text="formatUpdatedAt(updatedAt)"></span>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- 公司概况 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-primary">domain</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('公司概况') }}</span>
+                            </div>
+                            <div>
+                                <div class="px-5 pb-4 space-y-2 text-sm text-slate-700 dark:text-slate-300">
+                                    <template x-if="data.company_profile">
+                                        <div class="space-y-2">
+                                            <template x-if="data.company_profile.positioning">
+                                                <p class="text-base font-medium text-slate-900 dark:text-white" x-text="data.company_profile.positioning"></p>
+                                            </template>
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                <template x-if="data.company_profile.founded">
+                                                    <div class="flex gap-2"><span class="text-slate-500">{{ _('成立') }}:</span><span x-text="data.company_profile.founded"></span></div>
+                                                </template>
+                                                <template x-if="data.company_profile.headquarters">
+                                                    <div class="flex gap-2"><span class="text-slate-500">{{ _('总部') }}:</span><span x-text="data.company_profile.headquarters"></span></div>
+                                                </template>
+                                                <template x-if="data.company_profile.revenue">
+                                                    <div class="flex gap-2"><span class="text-slate-500">{{ _('营收') }}:</span><span x-text="data.company_profile.revenue"></span></div>
+                                                </template>
+                                            </div>
+                                            <template x-if="data.company_profile.main_business && data.company_profile.main_business.length">
+                                                <div>
+                                                    <span class="text-slate-500">{{ _('主营业务') }}:</span>
+                                                    <div class="flex flex-wrap gap-1.5 mt-1">
+                                                        <template x-for="biz in data.company_profile.main_business" :key="biz">
+                                                            <span class="px-2 py-0.5 bg-primary/10 text-primary dark:bg-primary/20 rounded-full text-xs" x-text="biz"></span>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                            <template x-if="data.company_profile.strategy">
+                                                <div><span class="text-slate-500">{{ _('战略方向') }}:</span> <span x-text="data.company_profile.strategy"></span></div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 关键人物 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-indigo-500">group</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('关键人物') }}</span>
+                                <template x-if="data.executives && data.executives.length">
+                                    <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-full" x-text="data.executives.length"></span>
+                                </template>
+                            </div>
+                            <div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.executives && data.executives.length">
+                                        <div class="space-y-2">
+                                            <template x-for="exec in data.executives" :key="exec.name">
+                                                <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                    <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center flex-shrink-0">
+                                                        <span class="material-symbols-outlined text-indigo-600 dark:text-indigo-400 text-sm">person</span>
+                                                    </div>
+                                                    <div class="flex-1 min-w-0">
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="font-medium text-sm text-slate-900 dark:text-white" x-text="exec.name"></span>
+                                                            <span class="text-xs text-slate-500 dark:text-slate-400" x-text="exec.title"></span>
+                                                            <template x-if="exec.risk_tag">
+                                                                <span class="px-1.5 py-0.5 text-xs bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 rounded-full" x-text="exec.risk_tag"></span>
+                                                            </template>
+                                                        </div>
+                                                        <template x-if="exec.background">
+                                                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5" x-text="exec.background"></p>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!data.executives || !data.executives.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 在建项目 -->
+                        <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-emerald-500">engineering</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('在建/近期项目') }}</span>
+                                <template x-if="data.active_projects && data.active_projects.length">
+                                    <span class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded-full" x-text="data.active_projects.length"></span>
+                                </template>
+                            </div>
+                            <div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.active_projects && data.active_projects.length">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            <template x-for="proj in data.active_projects" :key="proj.name">
+                                                <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-700/40">
+                                                    <div class="flex items-start justify-between">
+                                                        <span class="font-medium text-sm text-slate-900 dark:text-white" x-text="proj.name"></span>
+                                                        <template x-if="proj.amount">
+                                                            <span class="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex-shrink-0 ml-2" x-text="proj.amount"></span>
+                                                        </template>
+                                                    </div>
+                                                    <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                        <template x-if="proj.type"><span x-text="proj.type"></span></template>
+                                                        <template x-if="proj.partner"><span>{{ _('合作方') }}: <span x-text="proj.partner"></span></span></template>
+                                                        <template x-if="proj.status"><span x-text="proj.status"></span></template>
+                                                    </div>
+                                                    <template x-if="proj.detail">
+                                                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2" x-text="proj.detail"></p>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!data.active_projects || !data.active_projects.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 风险预警 + 合作伙伴并排 -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- 风险预警 -->
+                            <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                                <div class="flex items-center gap-2 px-5 py-3.5">
+                                    <span class="material-symbols-outlined text-red-500">warning</span>
+                                    <span class="font-medium text-slate-900 dark:text-white">{{ _('风险预警') }}</span>
+                                    <template x-if="data.risk_alerts && data.risk_alerts.length">
+                                        <span class="text-xs bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full" x-text="data.risk_alerts.length"></span>
+                                    </template>
+                                </div>
+                                <div>
+                                    <div class="px-5 pb-4">
+                                        <template x-if="data.risk_alerts && data.risk_alerts.length">
+                                            <div class="space-y-2">
+                                                <template x-for="alert in data.risk_alerts" :key="alert.content">
+                                                    <div class="flex items-start gap-2 p-2 rounded-lg"
+                                                         :class="alert.level === 'high' ? 'bg-red-50 dark:bg-red-900/20' : alert.level === 'medium' ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-slate-50 dark:bg-slate-700/40'">
+                                                        <span class="flex-shrink-0 w-1.5 h-1.5 rounded-full mt-1.5"
+                                                              :class="alert.level === 'high' ? 'bg-red-500' : alert.level === 'medium' ? 'bg-amber-500' : 'bg-slate-400'"></span>
+                                                        <div class="flex-1">
+                                                            <p class="text-sm" x-text="alert.content"></p>
+                                                            <template x-if="alert.date">
+                                                                <p class="text-xs text-slate-400 mt-0.5" x-text="alert.date"></p>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!data.risk_alerts || !data.risk_alerts.length">
+                                            <p class="text-sm text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                                <span class="material-symbols-outlined text-sm">check_circle</span>
+                                                {{ _('暂无风险预警') }}
+                                            </p>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 合作伙伴 -->
+                            <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden">
+                                <div class="flex items-center gap-2 px-5 py-3.5">
+                                    <span class="material-symbols-outlined text-blue-500">handshake</span>
+                                    <span class="font-medium text-slate-900 dark:text-white">{{ _('合作伙伴') }}</span>
+                                </div>
+                                <div>
+                                    <div class="px-5 pb-4 space-y-3 text-sm">
+                                        <template x-if="data.partners">
+                                            <div class="space-y-3">
+                                                <template x-if="data.partners.general_contractors && data.partners.general_contractors.length">
+                                                    <div>
+                                                        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('总包方') }}</span>
+                                                        <div class="flex flex-wrap gap-1.5 mt-1">
+                                                            <template x-for="gc in data.partners.general_contractors" :key="gc">
+                                                                <span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs" x-text="gc"></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                                <template x-if="data.partners.ecosystem && data.partners.ecosystem.length">
+                                                    <div>
+                                                        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('生态伙伴') }}</span>
+                                                        <div class="flex flex-wrap gap-1.5 mt-1">
+                                                            <template x-for="ep in data.partners.ecosystem" :key="ep">
+                                                                <span class="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-full text-xs" x-text="ep"></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                                <template x-if="data.partners.key_customers && data.partners.key_customers.length">
+                                                    <div>
+                                                        <span class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">{{ _('重要客户') }}</span>
+                                                        <div class="flex flex-wrap gap-1.5 mt-1">
+                                                            <template x-for="kc in data.partners.key_customers" :key="kc">
+                                                                <span class="px-2 py-0.5 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full text-xs" x-text="kc"></span>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!data.partners || (!data.partners.general_contractors?.length && !data.partners.ecosystem?.length && !data.partners.key_customers?.length)">
+                                            <p class="text-slate-400">{{ _('暂无数据') }}</p>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI 销售建议 -->
+                        <div class="bg-gradient-to-r from-primary/5 to-indigo-500/5 dark:from-primary/10 dark:to-indigo-500/10 rounded-2xl border border-primary/20 dark:border-primary/30 overflow-hidden">
+                            <div class="flex items-center gap-2 px-5 py-3.5">
+                                <span class="material-symbols-outlined text-primary">lightbulb</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ _('AI 销售切入建议') }}</span>
+                            </div>
+                            <div>
+                                <div class="px-5 pb-4">
+                                    <template x-if="data.sales_suggestions && data.sales_suggestions.length">
+                                        <ol class="space-y-2">
+                                            <template x-for="(sug, idx) in data.sales_suggestions" :key="idx">
+                                                <li class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-primary/10 dark:bg-primary/20 text-primary text-xs flex items-center justify-center font-medium" x-text="idx + 1"></span>
+                                                    <span x-text="sug"></span>
+                                                </li>
+                                            </template>
+                                        </ol>
+                                    </template>
+                                    <template x-if="!data.sales_suggestions || !data.sales_suggestions.length">
+                                        <p class="text-sm text-slate-400">{{ _('暂无数据') }}</p>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- 候选选择状态 -->
+                <template x-if="status === 'needs_input'">
+                    <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-amber-200 dark:border-amber-700/60 p-6">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="material-symbols-outlined text-amber-500">help</span>
+                            <h3 class="font-semibold text-slate-900 dark:text-white">{{ _('确认调研对象') }}</h3>
+                        </div>
+
+                        <!-- 有候选列表 -->
+                        <template x-if="candidates && candidates.length > 0">
+                            <div>
+                                <p class="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                                    {{ _('未找到与当前客户名完全匹配的结果，以下是搜索到的相关公司：') }}
+                                </p>
+                                <div class="space-y-2 mb-4">
+                                    <template x-for="(name, idx) in candidates" :key="idx">
+                                        <button @click="confirmCandidate(name)"
+                                            class="w-full text-left px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer">
+                                            <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="name"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                                <div class="flex items-center gap-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                                    <button @click="confirmCandidate(null)"
+                                        class="text-sm text-primary hover:underline cursor-pointer">
+                                        {{ _('仍使用原始名称调研') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- 无候选 -->
+                        <template x-if="!candidates || candidates.length === 0">
+                            <div>
+                                <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">{{ _('未找到匹配的候选公司') }}</p>
+                                <button @click="confirmCandidate(null)"
+                                    class="inline-flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm transition-colors cursor-pointer">
+                                    <span class="material-symbols-outlined text-sm">search</span>
+                                    {{ _('继续调研') }}
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- 错误状态 -->
+                <template x-if="status === 'error'">
+                    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-6 text-center">
+                        <span class="material-symbols-outlined text-3xl text-red-400 mb-2">error</span>
+                        <p class="text-red-600 dark:text-red-400 text-sm" x-text="errorMsg"></p>
+                        <button @click="retry()"
+                            class="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined text-sm">refresh</span>
+                            {{ _('重试') }}
+                        </button>
+                    </div>
+                </template>
+            </div>
+            </div>
+            </div>
+
+        {% elif detail_slot == 'main' %}
                             <!-- 客户档案卡片 -->
                             {{ tw_info_card(
                                 title=_('客户档案'),
@@ -714,6 +1066,153 @@
                     }
                 }
             });
+        }
+
+        // AI 网络调研 Alpine.js 组件（后台自动调研，前端仅查看）
+        function aiResearch() {
+            return {
+                status: 'none',      // none | pre_searching | needs_input | researching | completed | error
+                data: null,
+                updatedAt: null,
+                isStale: false,
+                errorMsg: '',
+                candidates: [],
+                companyId: {{ company.id }},
+                _pollTimer: null,
+
+                init() {
+                    window._handleAiResearchClick = () => this.handleBtnClick();
+                    this.$watch('status', () => this.updateBtn());
+                    this.fetchStatus();
+                },
+
+                updateBtn() {
+                    const btn = document.getElementById('aiResearchBtn');
+                    if (!btn) return;
+                    const icon = btn.querySelector('.material-symbols-outlined');
+                    const label = btn.querySelector('span:last-child');
+
+                    const styles = {
+                        none: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg', icon: 'search', spin: false, text: '{{ _("AI 调研") }}' },
+                        pre_searching: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg cursor-wait', icon: 'progress_activity', spin: true, text: '{{ _("调研中...") }}' },
+                        researching: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg cursor-wait', icon: 'progress_activity', spin: true, text: '{{ _("调研中...") }}' },
+                        needs_input: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg animate-pulse cursor-pointer', icon: 'warning', spin: false, text: '{{ _("待确认") }}' },
+                        completed: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer', icon: 'check_circle', spin: false, text: '{{ _("AI 调研") }}' },
+                        error: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-lg cursor-pointer', icon: 'error', spin: false, text: '{{ _("调研失败") }}' },
+                    };
+                    const s = styles[this.status] || styles.none;
+                    btn.className = s.cls;
+                    if (icon) { icon.textContent = s.icon; s.spin ? icon.classList.add('animate-spin') : icon.classList.remove('animate-spin'); }
+                    if (label) label.textContent = s.text;
+                },
+
+                handleBtnClick() {
+                    if (this.status === 'pre_searching' || this.status === 'researching') return;
+                    if (this.status === 'completed' || this.status === 'error' || this.status === 'needs_input') {
+                        window.dispatchEvent(new CustomEvent('toggle-ai-research'));
+                    }
+                    // none 状态不触发调研（后台自动）
+                },
+
+                async fetchStatus() {
+                    try {
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                        const resp = await fetch(`/customer/api/company/${this.companyId}/ai-research`, {
+                            headers: { 'X-CSRFToken': csrfToken }
+                        });
+                        const json = await resp.json();
+
+                        if (json.success && json.data) {
+                            this.status = json.data.status || 'none';
+                            this.data = json.data.research_data;
+                            this.updatedAt = json.data.updated_at;
+                            this.isStale = json.data.is_stale || false;
+                            this.candidates = json.data.candidates || [];
+                            this.errorMsg = json.data.error || '';
+
+                            // 进行中 → 启动轮询
+                            if (this.status === 'pre_searching' || this.status === 'researching') {
+                                this.startPolling();
+                            }
+                        }
+                    } catch (e) {
+                        console.error('获取 AI 调研状态失败:', e);
+                    }
+                },
+
+                startPolling() {
+                    if (this._pollTimer) return;
+                    this._pollTimer = setInterval(async () => {
+                        await this.fetchStatus();
+                        if (this.status !== 'pre_searching' && this.status !== 'researching') {
+                            clearInterval(this._pollTimer);
+                            this._pollTimer = null;
+                        }
+                    }, 5000);
+                },
+
+                // 用户选择候选公司
+                async confirmCandidate(name) {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    try {
+                        await fetch(`/customer/api/company/${this.companyId}/ai-research/continue`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                            body: JSON.stringify({ confirmed_name: name })
+                        });
+                        this.status = 'researching';
+                        window.dispatchEvent(new CustomEvent('set-ai-research', { detail: false }));
+                        this.startPolling();
+                    } catch (e) {
+                        console.error('确认候选失败:', e);
+                    }
+                },
+
+                // 手动重试
+                async retry() {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    try {
+                        await fetch(`/customer/api/company/${this.companyId}/ai-research/retry`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
+                        });
+                        this.status = 'pre_searching';
+                        window.dispatchEvent(new CustomEvent('set-ai-research', { detail: false }));
+                        this.startPolling();
+                    } catch (e) {
+                        console.error('重试失败:', e);
+                    }
+                },
+
+                get isEmptyResult() {
+                    if (!this.data) return true;
+                    const d = this.data;
+                    const cp = d.company_profile || {};
+                    const hasProfile = cp.founded || cp.headquarters || cp.positioning ||
+                        (cp.main_business && cp.main_business.length) || cp.revenue || cp.strategy;
+                    const hasExecs = d.executives && d.executives.length;
+                    const hasProjects = d.active_projects && d.active_projects.length;
+                    const hasRisks = d.risk_alerts && d.risk_alerts.length;
+                    const hasSuggestions = d.sales_suggestions && d.sales_suggestions.length;
+                    const p = d.partners || {};
+                    const hasPartners = (p.general_contractors && p.general_contractors.length) ||
+                        (p.ecosystem && p.ecosystem.length) || (p.key_customers && p.key_customers.length);
+                    return !hasProfile && !hasExecs && !hasProjects && !hasRisks && !hasSuggestions && !hasPartners;
+                },
+
+                formatUpdatedAt(isoStr) {
+                    if (!isoStr) return '';
+                    const d = new Date(isoStr);
+                    const now = new Date();
+                    const diffMs = now - d;
+                    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                    if (diffDays === 0) return '{{ _("更新于") }} {{ _("今天") }}';
+                    if (diffDays === 1) return '{{ _("更新于") }} {{ _("昨天") }}';
+                    if (diffDays < 30) return '{{ _("更新于") }} ' + diffDays + ' {{ _("天前") }}';
+                    return '{{ _("更新于") }} ' + d.toLocaleDateString();
+                }
+            };
         }
 
     </script>

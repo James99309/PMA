@@ -1,15 +1,19 @@
 """产品积分计算工具函数
 
 积分 = 系数 × retail_price
-系数从初始值按时间衰减至底线值
+系数基于引用频次：log(中位数+1) / log(引用次数+1)，clamp(0.3, 3.0)
 """
-from datetime import datetime, timezone
+import math
+import statistics
+import logging
+from datetime import datetime, timedelta
 
-# === 硬编码算法参数 ===
-INITIAL_COEFFICIENT = 3.0        # 默认初始系数
-DECAY_RATE = 0.5                 # 每周期衰减量
-DECAY_INTERVAL_MONTHS = 3        # 衰减周期(月)
-FLOOR_COEFFICIENT = 1.0          # 系数底线
+logger = logging.getLogger(__name__)
+
+# === 引用频次系数参数 ===
+CITATION_COEFF_MIN = 0.3         # 系数下限（高频引用产品）
+CITATION_COEFF_MAX = 3.0         # 系数上限（零引用或低频产品）
+CITATION_LOOKBACK_MONTHS = 12    # 引用回溯月数
 
 # 积分等级阈值
 TIER_GOLD_MIN = 10_000_000
@@ -17,27 +21,82 @@ TIER_SILVER_MIN = 1_000_000
 TIER_BRONZE_MIN = 100_000
 
 
-def calculate_decaying_coefficient(start_value=None, start_time=None):
-    """统一衰减计算：从start_value开始，按时间衰减至floor
+def calculate_citation_coefficient(citation_count, median_citations):
+    """根据引用次数和中位数计算系数
+
+    公式: log(median+1) / log(citations+1)
+    零引用返回 MAX (3.0)
+    结果 clamp 到 [CITATION_COEFF_MIN, CITATION_COEFF_MAX]
 
     Args:
-        start_value: 起始系数(None则用INITIAL_COEFFICIENT)
-        start_time: 衰减起始时间(None则不衰减，返回start_value)
+        citation_count: 该产品的引用次数
+        median_citations: 所有有引用产品的引用次数中位数
+    Returns:
+        float: 引用频次系数
     """
-    if start_value is None:
-        start_value = INITIAL_COEFFICIENT
-    if not start_time:
-        return max(start_value, FLOOR_COEFFICIENT)
+    if citation_count is None or citation_count <= 0:
+        return CITATION_COEFF_MAX
+    if median_citations is None or median_citations <= 0:
+        return 1.0
 
-    # 处理 timezone-naive datetime
-    now = datetime.now(timezone.utc)
-    if start_time.tzinfo is None:
-        start_time = start_time.replace(tzinfo=timezone.utc)
+    coeff = math.log(median_citations + 1) / math.log(citation_count + 1)
+    return max(CITATION_COEFF_MIN, min(CITATION_COEFF_MAX, round(coeff, 2)))
 
-    months = (now - start_time).days / 30.44
-    periods = int(months / DECAY_INTERVAL_MONTHS)
-    coeff = start_value - DECAY_RATE * periods
-    return max(coeff, FLOOR_COEFFICIENT)
+
+def batch_update_citation_coefficients():
+    """批量计算并更新所有产品的引用频次系数
+
+    流程:
+    1. 统计每个 product_mn 近12个月在报价单中被引用的次数（去重 quotation_id）
+    2. 计算有引用产品的引用次数中位数
+    3. 遍历所有活跃产品，按公式计算系数并写入数据库
+
+    Returns:
+        (updated_count, total_count)
+    """
+    from app.models.product import Product
+    from app.models.quotation import QuotationDetail, Quotation
+    from app.extensions import db
+    from sqlalchemy import func
+
+    cutoff = datetime.now() - timedelta(days=CITATION_LOOKBACK_MONTHS * 30)
+
+    # 统计每个 product_mn 的引用次数（COUNT DISTINCT quotation_id）
+    citation_stats = db.session.query(
+        QuotationDetail.product_mn,
+        func.count(func.distinct(QuotationDetail.quotation_id)).label('cnt')
+    ).join(
+        Quotation, QuotationDetail.quotation_id == Quotation.id
+    ).filter(
+        QuotationDetail.product_mn.isnot(None),
+        QuotationDetail.created_at >= cutoff
+    ).group_by(
+        QuotationDetail.product_mn
+    ).all()
+
+    citation_map = {r.product_mn: r.cnt for r in citation_stats}
+
+    # 计算有引用产品的中位数
+    counts = [r.cnt for r in citation_stats if r.cnt > 0]
+    median_val = statistics.median(counts) if counts else 1
+
+    # 更新所有活跃产品
+    products = Product.query.filter(Product.status != 'discontinued').all()
+    updated = 0
+    for p in products:
+        cnt = citation_map.get(p.product_mn, 0)
+        p.citation_count = cnt
+
+        if p.points_coefficient_override is not None:
+            # 手动覆盖的产品不更新 citation_coefficient
+            pass
+        else:
+            p.citation_coefficient = calculate_citation_coefficient(cnt, median_val)
+        updated += 1
+
+    db.session.commit()
+    logger.info(f"引用系数批量更新完成: {updated}/{len(products)} 产品, 中位数={median_val}")
+    return updated, len(products)
 
 
 def get_points_tier(points):
@@ -117,17 +176,40 @@ def calculate_points_for_quotation_details(details):
     return detail_points_map, total_points
 
 
+def _get_already_counted_mns(quotation):
+    """查询同项目+同owner中更早报价单已使用的 product_mn 集合（用于去重）"""
+    from app.models.quotation import Quotation, QuotationDetail
+    from app.extensions import db
+
+    project_id = quotation.project_id
+    user_id = quotation.owner_id
+    if not project_id:
+        return set()
+
+    earlier = db.session.query(QuotationDetail.product_mn).join(
+        Quotation, QuotationDetail.quotation_id == Quotation.id
+    ).filter(
+        Quotation.project_id == project_id,
+        Quotation.owner_id == user_id,
+        Quotation.id < quotation.id,
+        QuotationDetail.product_mn.isnot(None)
+    ).distinct().all()
+    return {r[0] for r in earlier}
+
+
 def sync_quotation_points(quotation):
     """报价单积分快照 → 按明细年份分组写入/更新 ledger
 
     同一报价单可在不同年份各有一条 ledger 记录，
     年份取自 QuotationDetail.created_at.year。
+    同项目+同owner中更早报价单已使用的 product_mn 不重复计分。
     """
     from app.models.product import Product
     from app.models.user_points_ledger import UserPointsLedger
     from app.extensions import db
 
     user_id = quotation.owner_id
+    already_counted_mns = _get_already_counted_mns(quotation)
 
     # 按 detail.created_at.year 分组计算积分
     year_points = {}  # {year: total_points}
@@ -137,8 +219,10 @@ def sync_quotation_points(quotation):
             products = Product.query.filter(Product.product_mn.in_(mn_set)).all()
             product_map = {p.product_mn: p for p in products}
             for d in quotation.details:
+                if not d.product_mn or d.product_mn in already_counted_mns:
+                    continue
                 yr = d.created_at.year if d.created_at else quotation.created_at.year
-                pts = product_map[d.product_mn].points if (d.product_mn and d.product_mn in product_map) else 0
+                pts = product_map[d.product_mn].points if d.product_mn in product_map else 0
                 year_points[yr] = year_points.get(yr, 0) + pts
 
     # 查出该报价单已有的所有 ledger 条目
@@ -179,6 +263,7 @@ def sync_pm_category_points(quotation):
 
     先按 detail.created_at.year 分组，再按 category → PM 汇总，
     每个 (PM user, year) 一条 ledger。
+    同项目+同owner中更早报价单已使用的 product_mn 不重复计分。
     """
     from app.models.product import Product
     from app.models.product_code import ProductCategory
@@ -186,13 +271,11 @@ def sync_pm_category_points(quotation):
     from app.extensions import db
 
     if not quotation.details:
-        # 无明细则清除该报价单所有旧 PM 积分
         UserPointsLedger.query.filter_by(
             source_type='pm_category', source_id=quotation.id
         ).delete()
         return
 
-    # 收集所有 product_mn
     mn_set = {d.product_mn for d in quotation.details if d.product_mn}
     if not mn_set:
         UserPointsLedger.query.filter_by(
@@ -200,14 +283,17 @@ def sync_pm_category_points(quotation):
         ).delete()
         return
 
-    # 批量查产品 → 拿到 category_id 和 points
+    already_counted_mns = _get_already_counted_mns(quotation)
+
     products = Product.query.filter(Product.product_mn.in_(mn_set)).all()
     product_map = {p.product_mn: p for p in products}
 
     # 按 (year, category_id) 汇总积分
     year_cat_points = {}  # {(year, category_id): total_points}
     for d in quotation.details:
-        if d.product_mn and d.product_mn in product_map:
+        if not d.product_mn or d.product_mn in already_counted_mns:
+            continue
+        if d.product_mn in product_map:
             p = product_map[d.product_mn]
             if p.category_id:
                 yr = d.created_at.year if d.created_at else quotation.created_at.year
@@ -350,10 +436,14 @@ def sync_se_project_points(quotation):
     ).all()
     product_map = {p.product_mn: p for p in products}
 
-    # 按年份汇总厂商产品积分
+    already_counted_mns = _get_already_counted_mns(quotation)
+
+    # 按年份汇总厂商产品积分（去重）
     year_points = {}
     for d in quotation.details:
-        if d.product_mn and d.product_mn in product_map:
+        if not d.product_mn or d.product_mn in already_counted_mns:
+            continue
+        if d.product_mn in product_map:
             yr = d.created_at.year if d.created_at else quotation.created_at.year
             year_points[yr] = year_points.get(yr, 0) + product_map[d.product_mn].points
 

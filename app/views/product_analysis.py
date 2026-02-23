@@ -1048,11 +1048,13 @@ def api_v2_distribution():
 @login_required
 @permission_required('quotation', 'view')
 def api_v2_ranking():
-    """排名数据"""
+    """排名数据（含引用次数、系数、积分）— 显示所有活跃产品"""
     try:
         from app.services.product_attribution import get_analysis_view_scope
         scope = get_analysis_view_scope(current_user)
         year = int(request.args.get('year', datetime.now().year))
+
+        # 1. 构建当年报价明细聚合子查询（保留权限过滤）
         q = _build_base_detail_query()
         q = _apply_scope_filter(q, scope)
 
@@ -1060,25 +1062,84 @@ def api_v2_ranking():
         year_end = datetime(year + 1, 1, 1)
         q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
 
-        ranking = q_year.with_entities(
-            QuotationDetail.product_name,
-            QuotationDetail.product_model,
+        detail_stats = q_year.with_entities(
+            QuotationDetail.product_mn,
             func.sum(QuotationDetail.total_price).label('amount'),
-            func.sum(QuotationDetail.quantity).label('qty')
-        ).group_by(
-            QuotationDetail.product_name, QuotationDetail.product_model
-        ).order_by(func.sum(QuotationDetail.quantity).desc()).all()
+            func.sum(QuotationDetail.quantity).label('qty'),
+            func.count(func.distinct(QuotationDetail.quotation_id)).label('citation_count')
+        ).group_by(QuotationDetail.product_mn).subquery()
 
-        data = [{
-            'name': r.product_name or '',
-            'model': r.product_model or '',
-            'amount': float(r.amount or 0),
-            'quantity': int(r.qty or 0)
-        } for r in ranking]
+        # 2. 执行子查询并转为 dict
+        stats_rows = db.session.query(
+            detail_stats.c.product_mn,
+            detail_stats.c.amount,
+            detail_stats.c.qty,
+            detail_stats.c.citation_count
+        ).all()
+        stats_map = {r.product_mn: r for r in stats_rows if r.product_mn}
+
+        # 3. 查所有活跃产品
+        products = Product.query.filter(Product.status != 'discontinued').all()
+
+        # 4. 遍历所有产品，合并数据
+        data = []
+        for p in products:
+            s = stats_map.get(p.product_mn)
+            coeff = p.points_coefficient
+            points = p.points
+            retail_price = float(p.retail_price) if p.retail_price else 0
+            category = p.category_name
+            warning = coeff >= 2.0 and retail_price >= 50000
+            data.append({
+                'name': p.name or '',
+                'model': p.model or '',
+                'mn': p.product_mn or '',
+                'amount': float(s.amount or 0) if s else 0,
+                'quantity': int(s.qty or 0) if s else 0,
+                'citations': int(s.citation_count or 0) if s else 0,
+                'coefficient': round(coeff, 2),
+                'points': points,
+                'retail_price': retail_price,
+                'category': category,
+                'warning': warning
+            })
 
         return jsonify({'success': True, 'data': data})
     except Exception as e:
         logger.error(f"v2 ranking 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@product_analysis.route('/api/v2/coefficient-stats')
+@login_required
+@permission_required('quotation', 'view')
+def api_v2_coefficient_stats():
+    """引用系数统计卡片数据"""
+    try:
+        active_products = Product.query.filter(Product.status != 'discontinued').all()
+        total_active = len(active_products)
+        with_citations = sum(1 for p in active_products if p.citation_count and p.citation_count > 0)
+        citation_counts = [p.citation_count for p in active_products if p.citation_count and p.citation_count > 0]
+
+        import statistics as stats_mod
+        median_citations = stats_mod.median(citation_counts) if citation_counts else 0
+
+        coefficients = [p.points_coefficient for p in active_products if p.citation_coefficient is not None or p.points_coefficient_override is not None]
+        avg_coefficient = round(sum(coefficients) / len(coefficients), 2) if coefficients else 0
+
+        attention_count = sum(1 for p in active_products
+                             if p.points_coefficient >= 2.0
+                             and p.retail_price and float(p.retail_price) >= 50000)
+
+        return jsonify({'success': True, 'data': {
+            'total_active': total_active,
+            'with_citations': with_citations,
+            'median_citations': median_citations,
+            'avg_coefficient': avg_coefficient,
+            'attention_count': attention_count
+        }})
+    except Exception as e:
+        logger.error(f"v2 coefficient-stats 失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 

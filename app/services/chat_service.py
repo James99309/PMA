@@ -10,6 +10,7 @@
 - AI 对话管理
 """
 import logging
+import re
 import unicodedata
 from datetime import datetime, timezone
 
@@ -20,6 +21,24 @@ from app.models.chat import (
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# 0. AI 回复后处理 — 清洗技术性措辞
+# ---------------------------------------------------------------------------
+
+_SANITIZE_PATTERNS = [
+    (re.compile(r'(?:让我|我来|我先|我需要|尝试)(?:查询|搜索|查看|查找|检索)[^。，\n]*[。，]?\s*'), ''),
+    (re.compile(r'显示[^。，\n]*(?:暂[无未]|为空)[^。，\n]*[。，]?\s*'), ''),
+    (re.compile(r'数据库中[^。，\n]*[。，]?\s*'), ''),
+]
+
+
+def sanitize_ai_response(text):
+    """清洗 AI 回复中的技术性措辞，用于 DB 存储版本。"""
+    for pattern, replacement in _SANITIZE_PATTERNS:
+        text = pattern.sub(replacement, text)
+    return text.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +203,21 @@ def get_user_conversations(user_id, viewer_language=None):
             else:
                 display_name = conv.name or '群聊'
 
+            # AI 对话：检查上下文 token 用量
+            context_exhausted = False
+            context_tokens = 0
+            if conv.type == 'ai':
+                _last_ai = (
+                    ChatMessage.query
+                    .filter_by(conversation_id=conv.id, is_ai_response=True)
+                    .order_by(ChatMessage.id.desc())
+                    .first()
+                )
+                if _last_ai:
+                    context_tokens = _last_ai.ai_prompt_tokens or 0
+                    if context_tokens > 6000:
+                        context_exhausted = True
+
             conversations.append({
                 'id': conv.id,
                 'type': conv.type,
@@ -194,6 +228,8 @@ def get_user_conversations(user_id, viewer_language=None):
                 'participants': participants,
                 'created_at': conv.created_at.isoformat() if conv.created_at else None,
                 'updated_at': conv.updated_at.isoformat() if conv.updated_at else None,
+                'context_exhausted': context_exhausted,
+                'context_tokens': context_tokens,
             })
 
         # 按 updated_at 倒序排列（最近活动在前）

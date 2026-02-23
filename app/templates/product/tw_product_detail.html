@@ -92,6 +92,10 @@
         ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
         .dark ::-webkit-scrollbar-thumb { background-color: #4b5563; }
 
+        /* SVG 图标容器 - 强制缩放到容器内 */
+        .svg-icon-box { width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .svg-icon-box svg { width: 48px !important; height: 48px !important; max-width: 48px; max-height: 48px; }
+
         /* QR码打印样式 */
         @media print {
             .no-print { display: none !important; }
@@ -176,6 +180,31 @@
                                                 </button>
                                             </div>
                                             {% endif %}
+
+                                            <!-- SVG 图标容器 -->
+                                            <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                                                <div id="svgPreviewArea" class="relative group w-16 h-16 rounded-lg flex items-center justify-center cursor-pointer transition-all {% if product.icon_svg %}bg-white dark:bg-slate-800 hover:ring-2 hover:ring-primary/30{% else %}border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-primary hover:bg-slate-50 dark:hover:bg-slate-700/50{% endif %}"
+                                                     onclick="{% if has_permission('product', 'edit') %}document.getElementById('svgFileInput').click(){% endif %}">
+                                                    {% if product.icon_svg %}
+                                                    <div class="svg-icon-box">{{ product.icon_svg | safe }}</div>
+                                                    {% if has_permission('product', 'edit') %}
+                                                    <div class="absolute inset-0 bg-black/40 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <span class="material-symbols-outlined text-white text-lg">edit</span>
+                                                    </div>
+                                                    {% endif %}
+                                                    {% else %}
+                                                    <span class="material-symbols-outlined text-2xl text-slate-300 dark:text-slate-600">add_photo_alternate</span>
+                                                    {% endif %}
+                                                </div>
+                                                {% if has_permission('product', 'edit') %}
+                                                <input type="file" id="svgFileInput" accept=".svg" class="hidden">
+                                                {% if product.icon_svg %}
+                                                <button onclick="event.stopPropagation(); deleteSvgIcon()" class="mt-1 text-xs text-slate-400 hover:text-red-500 transition-colors">
+                                                    {{ _('清除') }}
+                                                </button>
+                                                {% endif %}
+                                                {% endif %}
+                                            </div>
                                         </div>
 
                                         <!-- 产品信息 -->
@@ -375,8 +404,10 @@
                                         <div class="flex justify-between items-center mb-1">
                                             <p class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide font-semibold">{{ _('产品积分') }}</p>
                                             <span class="text-xs text-slate-400 dark:text-slate-500" id="coeffDisplay">
-                                                {{ _('系数') }}: {{ '{:.1f}'.format(product.points_coefficient) }}X
-                                                {% if product.points_coefficient_override is not none %}<span class="text-orange-400">({{ _('手动') }})</span>{% endif %}
+                                                {{ _('系数') }}: {{ '{:.2f}'.format(product.points_coefficient) }}x
+                                                {% if product.points_coefficient_override is not none %}<span class="text-orange-400">({{ _('手动') }})</span>
+                                                {% elif product.citation_count is not none %}<span class="text-slate-400">({{ product.citation_count }}{{ _('次引用') }})</span>
+                                                {% endif %}
                                                 {% if current_user.role == 'admin' %}
                                                 <button onclick="toggleCoeffEdit(true)" class="ml-1 text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 align-middle" title="{{ _('编辑系数') }}">
                                                     <svg class="w-3 h-3 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
@@ -406,7 +437,7 @@
                                             </span>
                                         </div>
                                         <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                                            = {{ '{:.1f}'.format(product.points_coefficient) }} &times; {{ product.currency_symbol or currency_config.symbol }}{{ '{:,.2f}'.format(product.retail_price) }}
+                                            = {{ '{:.2f}'.format(product.points_coefficient) }} &times; {{ product.currency_symbol or currency_config.symbol }}{{ '{:,.2f}'.format(product.retail_price) }}
                                         </p>
                                     </div>
                                     {% endif %}
@@ -741,6 +772,42 @@
                 checkCategoryFileAndUpload(file, 'pdf');
             });
         }
+
+        // SVG图标上传
+        const svgFileInput = document.getElementById('svgFileInput');
+        if (svgFileInput) {
+            svgFileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                if (file.size > 512 * 1024) {
+                    alert('{{ _("SVG文件不能超过512KB") }}');
+                    this.value = '';
+                    return;
+                }
+                const formData = new FormData();
+                formData.append('svg', file);
+                formData.append('csrf_token', csrfToken);
+                fetch(`/api/products/${productId}/upload-svg`, {
+                    method: 'POST', body: formData
+                }).then(r => r.json()).then(data => {
+                    if (data.success) { location.reload(); }
+                    else { alert(data.error || i18n.uploadError); }
+                }).catch(() => alert(i18n.uploadError));
+                this.value = '';
+            });
+        }
+
+        // 删除SVG图标
+        window.deleteSvgIcon = function() {
+            if (!confirm('{{ _("确定删除SVG图标？") }}')) return;
+            fetch(`/api/products/${productId}/delete-svg`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            }).then(r => r.json()).then(data => {
+                if (data.success) location.reload();
+                else alert(data.error || i18n.clearError);
+            }).catch(() => alert(i18n.clearError));
+        };
 
         // 检查分类文件状态并决定上传方式
         async function checkCategoryFileAndUpload(file, type) {

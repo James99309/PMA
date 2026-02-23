@@ -135,8 +135,10 @@ Tailwind SVG 月度折线图组件
                 return (val / divisor).toFixed(val % divisor === 0 ? 0 : 1) + unit;
             }
         }
-        // 回退逻辑
-        if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
+        // 回退逻辑 - 使用 currency_config 注入的值
+        const fbDivisor = {% if currency_config is defined %}{{ currency_config.divisor }}{% else %}10000{% endif %};
+        const fbUnit = '{% if currency_config is defined %}{{ currency_config.amount_unit }}{% else %}万{% endif %}';
+        if (val >= fbDivisor) return (val / fbDivisor).toFixed(val % fbDivisor === 0 ? 0 : 1) + fbUnit;
         if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
         return Number.isInteger(val) ? val.toString() : val.toFixed(1);
     }
@@ -352,8 +354,10 @@ window.initSvgLineChart = function(chartId, monthlyData, options = {}) {
                 return (val / divisor).toFixed(val % divisor === 0 ? 0 : 1) + unitStr;
             }
         }
-        // 回退逻辑
-        if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
+        // 回退逻辑 - 使用 currency_config 注入的值
+        const fbDivisor = {% if currency_config is defined %}{{ currency_config.divisor }}{% else %}10000{% endif %};
+        const fbUnit = '{% if currency_config is defined %}{{ currency_config.amount_unit }}{% else %}万{% endif %}';
+        if (val >= fbDivisor) return (val / fbDivisor).toFixed(val % fbDivisor === 0 ? 0 : 1) + fbUnit;
         if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
         return Number.isInteger(val) ? val.toString() : val.toFixed(1);
     }
@@ -537,8 +541,10 @@ window.initDualLineChart = function(chartId, personalData, teamData, options = {
                 return (val / divisor).toFixed(val % divisor === 0 ? 0 : 1) + unitStr;
             }
         }
-        // 回退逻辑
-        if (val >= 10000) return (val / 10000).toFixed(val % 10000 === 0 ? 0 : 1) + '万';
+        // 回退逻辑 - 使用 currency_config 注入的值
+        const fbDivisor = {% if currency_config is defined %}{{ currency_config.divisor }}{% else %}10000{% endif %};
+        const fbUnit = '{% if currency_config is defined %}{{ currency_config.amount_unit }}{% else %}万{% endif %}';
+        if (val >= fbDivisor) return (val / fbDivisor).toFixed(val % fbDivisor === 0 ? 0 : 1) + fbUnit;
         if (val >= 1000) return (val / 1000).toFixed(val % 1000 === 0 ? 0 : 1) + 'k';
         return Number.isInteger(val) ? val.toString() : val.toFixed(1);
     }

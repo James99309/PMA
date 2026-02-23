@@ -14,6 +14,7 @@ class ProductCategory(db.Model):
     description = Column(Text)  # 描述
     display_order = Column(Integer, default=0, nullable=False)  # 显示顺序
     manager_id = Column(Integer, ForeignKey('users.id'), nullable=True, comment='产品经理ID')
+    icon_key = Column(String(30), comment='系统图图标标识')
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -41,6 +42,7 @@ class ProductSubcategory(db.Model):
     code_letter = Column(String(1), nullable=False)  # 子分类标识符
     description = Column(Text)  # 描述
     display_order = Column(Integer, default=0)  # 在所属分类中的排序位置（从1开始）
+    icon_key = Column(String(30), comment='系统图图标标识')
     image_path = Column(String(500))  # 子分类共享图片
     pdf_path = Column(String(500))    # 子分类共享PDF
     created_at = Column(DateTime, default=datetime.utcnow)

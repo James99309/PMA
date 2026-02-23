@@ -167,12 +167,63 @@ with context %}
         no_top_radius=true
         ) %}
         {% for project in projects %}
+        {% if project._is_pending %}
+        {# 请求中行 #}
+        <tr class="border-l-2 border-l-amber-400/60">
+            <td class="p-3 whitespace-nowrap">
+                <div class="relative inline-flex">
+                    {{ render_tw_owner_badge(project.owner) }}
+                    <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-amber-600 animate-pulse" style="font-size:10px;font-variation-settings:'FILL' 1">hourglass_top</span>
+                    </span>
+                </div>
+            </td>
+            <td class="p-3 whitespace-nowrap">
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ project.project_name }}</span>
+            </td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap">{{ render_tw_customer_status_badge(project.activity_status) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_project_stage_badge_key(project.current_stage) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_project_type_badge(project.project_type) }}</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_industry_badge(project.industry) }}</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+        </tr>
+        {% elif project._is_restricted %}
+        {# 受限行 #}
+        <tr class="cursor-pointer hover:bg-amber-50/50 dark:hover:bg-amber-900/10 transition-colors"
+            onclick="window.dispatchEvent(new CustomEvent('open-access-request-modal', {detail: {entityType:'project', entityId:{{ project.id }}, ownerName:'{{ project._owner_name|e }}', entityName:'{{ project.project_name|e }}', companyType:''}}))">
+            <td class="p-3 whitespace-nowrap">
+                <div class="relative inline-flex">
+                    {{ render_tw_owner_badge(project.owner) }}
+                    <span class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-amber-100 border-2 border-white dark:border-slate-800 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-amber-600" style="font-size:10px;font-variation-settings:'FILL' 1">lock</span>
+                    </span>
+                </div>
+            </td>
+            <td class="p-3 whitespace-nowrap">
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ project.project_name }}</span>
+            </td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap">{{ render_tw_customer_status_badge(project.activity_status) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_project_stage_badge_key(project.current_stage) }}</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_project_type_badge(project.project_type) }}</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap overflow-hidden">{{ render_tw_industry_badge(project.industry) }}</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+            <td class="p-3 whitespace-nowrap text-sm text-slate-400">-</td>
+        </tr>
+        {% else %}
+        {# 正常行 #}
         <tr class="table-row-hover transition-colors">
-            <!-- 负责人 -->
             <td class="p-3 whitespace-nowrap">
                 {{ render_tw_owner_badge(project.owner) }}
             </td>
-            <!-- 项目名称 -->
             <td class="p-3 whitespace-nowrap">
                 <a href="{{ url_for('project.view_project', project_id=project.id) }}"
                     class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
@@ -180,7 +231,6 @@ with context %}
                     {{ project.project_name }}
                 </a>
             </td>
-            <!-- 授权编号 -->
             <td class="p-3 whitespace-nowrap" style="min-width: 140px; width: 160px;">
                 {% if project.authorization_code %}
                 <span class="text-sm font-mono text-slate-700 dark:text-slate-300">{{ project.authorization_code }}</span>
@@ -188,19 +238,15 @@ with context %}
                 <span class="text-slate-400 dark:text-slate-500">-</span>
                 {% endif %}
             </td>
-            <!-- 活跃状态 -->
             <td class="p-3 whitespace-nowrap">
                 {{ render_tw_customer_status_badge(project.activity_status) }}
             </td>
-            <!-- 项目阶段 -->
             <td class="p-3 whitespace-nowrap overflow-hidden">
                 {{ render_tw_project_stage_badge_key(project.current_stage) }}
             </td>
-            <!-- 项目类型 -->
             <td class="p-3 whitespace-nowrap overflow-hidden">
                 {{ render_tw_project_type_badge(project.project_type) }}
             </td>
-            <!-- 报价金额 -->
             <td class="p-3 whitespace-nowrap text-right">
                 {% if project.quotation_customer %}
                 <span class="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -210,27 +256,23 @@ with context %}
                 <span class="text-slate-400 dark:text-slate-500">-</span>
                 {% endif %}
             </td>
-            <!-- 行业 -->
             <td class="p-3 whitespace-nowrap overflow-hidden">
                 {{ render_tw_industry_badge(project.industry) }}
             </td>
-            <!-- 报告来源 -->
             <td class="p-3 whitespace-nowrap overflow-hidden">
                 {{ render_tw_report_source_badge(project.report_source) }}
             </td>
-            <!-- 交付预测 -->
             <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                 {{ project.delivery_forecast.strftime('%Y-%m-%d') if project.delivery_forecast else '-' }}
             </td>
-            <!-- 更新时间 -->
             <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                 {{ project.updated_at.strftime('%Y-%m-%d') if project.updated_at else '-' }}
             </td>
-            <!-- 创建时间 -->
             <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                 {{ project.created_at.strftime('%Y-%m-%d') if project.created_at else '-' }}
             </td>
         </tr>
+        {% endif %}
         {% else %}
         {{ render_empty_row(list_config.table.columns|length, _('暂无数据'), 'inbox') }}
         {% endfor %}

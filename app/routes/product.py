@@ -1403,6 +1403,36 @@ def clear_product_pdf(product_id):
     return jsonify(result), status_code
 
 
+@bp.route('/api/products/<int:product_id>/upload-svg', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def upload_product_svg(product_id):
+    """上传产品SVG图标（直接存入数据库TEXT字段）"""
+    product = Product.query.get_or_404(product_id)
+    svg_file = request.files.get('svg')
+    if not svg_file or not svg_file.filename:
+        return jsonify({'success': False, 'error': '请选择SVG文件'}), 400
+    if not svg_file.filename.lower().endswith('.svg'):
+        return jsonify({'success': False, 'error': '仅支持SVG格式'}), 400
+    svg_content = svg_file.read().decode('utf-8')
+    if '<svg' not in svg_content.lower():
+        return jsonify({'success': False, 'error': '无效的SVG文件'}), 400
+    product.icon_svg = svg_content
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'SVG图标已上传'})
+
+
+@bp.route('/api/products/<int:product_id>/delete-svg', methods=['DELETE'])
+@login_required
+@permission_required('product', 'edit')
+def delete_product_svg(product_id):
+    """删除产品SVG图标"""
+    product = Product.query.get_or_404(product_id)
+    product.icon_svg = None
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'SVG图标已删除'})
+
+
 @bp.route('/api/products/<int:product_id>/category-file-status', methods=['GET'])
 @login_required
 @permission_required('product', 'view')

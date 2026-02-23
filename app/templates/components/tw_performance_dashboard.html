@@ -1449,7 +1449,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 if (typeof CurrencyHelpers !== 'undefined') {
                     return CurrencyHelpers.convertFromCNYYuan(valueInYuan, this.userCurrency);
                 }
-                return valueInYuan / 10000;  // 回退逻辑
+                return valueInYuan / {% if currency_config is defined %}{{ currency_config.divisor }}{% else %}10000{% endif %};  // 回退逻辑
             };
 
             // 获取货币单位
@@ -2302,7 +2302,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     const converted = CurrencyHelpers.convertFromCNYYuan(value, this.userCurrency);
                     return CurrencyHelpers.formatWithSmartUnit(Math.round(converted), this.userCurrency, { withSymbol: false });
                 }
-                return (value / 10000).toFixed(2);  // 回退逻辑
+                return (value / {{ currency_config.divisor }}).toFixed(2);  // 回退逻辑
             }
             // 数量类指标：直接显示
             return value;

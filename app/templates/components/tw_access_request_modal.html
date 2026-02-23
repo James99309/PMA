@@ -1,0 +1,415 @@
+{# 资源池 — 请求访问模态框 + 审批模态框 + 二次确认 #}
+
+<!-- 请求访问模态框 (Alpine.js) -->
+<div x-data="accessRequestModal()" x-cloak
+     @open-access-request-modal.window="openRequest($event.detail)"
+     @open-access-approval-modal.window="openApproval($event.detail)">
+
+    {# ===== 请求访问模态框 ===== #}
+    <div x-show="showRequest" style="display:none" class="fixed inset-0 z-[60] flex items-center justify-center p-4" @click.stop>
+            <div class="fixed inset-0 bg-black/50" @click="closeRequest()"></div>
+            <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md" @click.stop>
+                <!-- 标题 -->
+                <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-amber-500">lock_open</span>
+                        <span x-text="requestData.entityType === 'customer' ? '{{ _("请求访问客户资源") }}' : '{{ _("请求访问项目资源") }}'"></span>
+                    </h3>
+                    <button @click="closeRequest()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <span class="material-symbols-outlined text-slate-400">close</span>
+                    </button>
+                </div>
+                <!-- 内容 -->
+                <div class="p-5 space-y-4">
+                    <!-- 实体信息卡片 -->
+                    <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                        <div class="flex items-start gap-3">
+                            <span class="material-symbols-outlined text-slate-400 mt-0.5"
+                                  x-text="requestData.entityType === 'customer' ? 'business' : 'folder_open'"></span>
+                            <div>
+                                <div class="text-sm font-medium text-slate-700 dark:text-slate-200" x-text="requestData.entityName"></div>
+                                <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                    {{ _('归属人') }}: <span x-text="requestData.ownerName"></span>
+                                </div>
+                                <template x-if="requestData.companyType">
+                                    <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                        {{ _('类型') }}: <span x-text="requestData.companyType"></span>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 请求说明 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('请求说明') }} <span class="text-slate-400">({{ _('选填') }})</span></label>
+                        <textarea x-model="requestMessage" rows="3"
+                                  class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  :placeholder="'{{ _("请简要说明请求访问的原因...") }}'"></textarea>
+                    </div>
+                    <!-- 希望获取的数据 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('希望获取的数据') }}</label>
+                        <template x-if="requestData.entityType === 'customer'">
+                            <div class="space-y-2">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="requestedOptions.contacts" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('联系人') }}</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="requestedOptions.projects" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('关联项目') }}</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="requestedOptions.quotations" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('报价单') }}</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="requestedOptions.actions" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('跟进记录') }}</span>
+                                </label>
+                            </div>
+                        </template>
+                        <template x-if="requestData.entityType === 'project'">
+                            <div class="space-y-2">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="requestedOptions.quotations" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('报价单') }}</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" x-model="requestedOptions.actions" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('跟进记录') }}</span>
+                                </label>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <!-- 按钮 -->
+                <div class="flex justify-end gap-3 px-5 pb-5">
+                    <button @click="closeRequest()" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                        {{ _('取消') }}
+                    </button>
+                    <button @click="submitRequest()" :disabled="submitting"
+                            class="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-1.5">
+                        <span class="material-symbols-outlined" style="font-size:16px" x-show="!submitting">send</span>
+                        <span x-show="submitting" class="animate-spin material-symbols-outlined" style="font-size:16px">progress_activity</span>
+                        <span>{{ _('发送请求') }}</span>
+                    </button>
+                </div>
+            </div>
+    </div>
+
+    {# ===== 审批模态框 ===== #}
+    <div x-show="showApproval" style="display:none" class="fixed inset-0 z-[60] flex items-center justify-center p-4" @click.stop>
+            <div class="fixed inset-0 bg-black/50" @click="closeApproval()"></div>
+            <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md" @click.stop>
+                <!-- 标题 -->
+                <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-blue-500">person_add</span>
+                        {{ _('访问权限请求') }}
+                    </h3>
+                    <button @click="closeApproval()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                        <span class="material-symbols-outlined text-slate-400">close</span>
+                    </button>
+                </div>
+                <!-- 加载中 -->
+                <template x-if="approvalLoading">
+                    <div class="p-10 text-center">
+                        <span class="animate-spin material-symbols-outlined text-blue-500 text-3xl">progress_activity</span>
+                    </div>
+                </template>
+                <!-- 内容 -->
+                <template x-if="!approvalLoading && approvalData">
+                    <div>
+                        <div class="p-5 space-y-4">
+                            <!-- 请求者信息 -->
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-blue-600 dark:text-blue-400">person</span>
+                                </div>
+                                <div>
+                                    <div class="text-sm font-medium text-slate-700 dark:text-slate-200" x-text="approvalData.requester_name"></div>
+                                    <div class="text-xs text-slate-500" x-text="approvalData.requester_department || ''"></div>
+                                </div>
+                            </div>
+                            <!-- 请求说明 -->
+                            <template x-if="approvalData.request_message">
+                                <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                                    <p class="text-sm text-slate-600 dark:text-slate-300" x-text="approvalData.request_message"></p>
+                                </div>
+                            </template>
+                            <!-- 实体信息 -->
+                            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4">
+                                <div class="flex items-start gap-3">
+                                    <span class="material-symbols-outlined text-slate-400 mt-0.5"
+                                          x-text="approvalData.entity_type === 'customer' ? 'business' : 'folder_open'"></span>
+                                    <div>
+                                        <div class="text-sm font-medium text-slate-700 dark:text-slate-200"
+                                             x-text="approvalData.entity_info ? approvalData.entity_info.name : ''"></div>
+                                        <template x-if="approvalData.entity_info && approvalData.entity_info.type">
+                                            <div class="text-xs text-slate-500 mt-0.5" x-text="'{{ _("类型") }}: ' + approvalData.entity_info.type"></div>
+                                        </template>
+                                        <template x-if="approvalData.entity_info && approvalData.entity_info.industry">
+                                            <div class="text-xs text-slate-500 mt-0.5" x-text="'{{ _("行业") }}: ' + approvalData.entity_info.industry"></div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- 共享内容选择 -->
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('选择共享内容') }}</label>
+                                <template x-if="approvalData.entity_type === 'customer'">
+                                    <div class="space-y-2">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" x-model="shareOptions.contacts" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('联系人') }}</span>
+                                            <span x-show="approvalData.requested_options && approvalData.requested_options.contacts"
+                                                  class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{{ _('申请人请求') }}</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" x-model="shareOptions.projects" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('关联项目') }}</span>
+                                            <span x-show="approvalData.requested_options && approvalData.requested_options.projects"
+                                                  class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{{ _('申请人请求') }}</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" x-model="shareOptions.quotations" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('报价单') }}</span>
+                                            <span x-show="approvalData.requested_options && approvalData.requested_options.quotations"
+                                                  class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{{ _('申请人请求') }}</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" x-model="shareOptions.actions" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('跟进记录') }}</span>
+                                            <span x-show="approvalData.requested_options && approvalData.requested_options.actions"
+                                                  class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{{ _('申请人请求') }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                                <template x-if="approvalData.entity_type === 'project'">
+                                    <div class="space-y-2">
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" x-model="shareOptions.quotations" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('报价单') }}</span>
+                                            <span x-show="approvalData.requested_options && approvalData.requested_options.quotations"
+                                                  class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{{ _('申请人请求') }}</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 cursor-pointer">
+                                            <input type="checkbox" x-model="shareOptions.actions" class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('跟进记录') }}</span>
+                                            <span x-show="approvalData.requested_options && approvalData.requested_options.actions"
+                                                  class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">{{ _('申请人请求') }}</span>
+                                        </label>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        <!-- 按钮 -->
+                        <div class="flex justify-end gap-3 px-5 pb-5">
+                            <button @click="resolveApproval('reject')" :disabled="submitting"
+                                    class="px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                                {{ _('拒绝') }}
+                            </button>
+                            <button @click="showConfirmDialog()" :disabled="submitting"
+                                    class="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-1.5">
+                                <span x-show="submitting" class="animate-spin material-symbols-outlined" style="font-size:16px">progress_activity</span>
+                                <span>{{ _('确认共享') }}</span>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+    </div>
+
+    {# ===== 二次确认弹框 ===== #}
+    <div x-show="showConfirm" style="display:none" class="fixed inset-0 z-[70] flex items-center justify-center p-4" @click.stop>
+        <div class="fixed inset-0 bg-black/50" @click="showConfirm = false"></div>
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-sm" @click.stop>
+            <div class="p-5 space-y-4">
+                <!-- 警告图标 + 标题 -->
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-amber-500">warning</span>
+                    <h4 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('确认共享以下内容') }}</h4>
+                </div>
+                <!-- 共享内容列表 -->
+                <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 space-y-1.5">
+                    <p class="text-sm text-slate-600 dark:text-slate-300 mb-2">
+                        {{ _('即将向') }} <span class="font-medium text-slate-800 dark:text-slate-100" x-text="approvalData ? approvalData.requester_name : ''"></span> {{ _('共享') }}:
+                    </p>
+                    <template x-if="shareOptions.contacts">
+                        <div class="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                            <span class="material-symbols-outlined text-green-500" style="font-size:16px">check_circle</span>
+                            {{ _('联系人') }}
+                        </div>
+                    </template>
+                    <template x-if="shareOptions.projects">
+                        <div class="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                            <span class="material-symbols-outlined text-green-500" style="font-size:16px">check_circle</span>
+                            {{ _('关联项目') }}
+                        </div>
+                    </template>
+                    <template x-if="shareOptions.quotations">
+                        <div class="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                            <span class="material-symbols-outlined text-green-500" style="font-size:16px">check_circle</span>
+                            {{ _('报价单') }}
+                        </div>
+                    </template>
+                    <template x-if="shareOptions.actions">
+                        <div class="flex items-center gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                            <span class="material-symbols-outlined text-green-500" style="font-size:16px">check_circle</span>
+                            {{ _('跟进记录') }}
+                        </div>
+                    </template>
+                    <template x-if="!shareOptions.contacts && !shareOptions.projects && !shareOptions.quotations && !shareOptions.actions">
+                        <p class="text-sm text-slate-500 italic">{{ _('未选择任何数据') }}</p>
+                    </template>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ _('共享后对方可查看上述数据。') }}</p>
+            </div>
+            <!-- 按钮 -->
+            <div class="flex justify-end gap-3 px-5 pb-5">
+                <button @click="showConfirm = false" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                    {{ _('取消') }}
+                </button>
+                <button @click="confirmApprove()" :disabled="submitting"
+                        class="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-1.5">
+                    <span x-show="submitting" class="animate-spin material-symbols-outlined" style="font-size:16px">progress_activity</span>
+                    <span>{{ _('确认共享') }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function accessRequestModal() {
+    return {
+        // 请求模态框
+        showRequest: false,
+        requestData: { entityType: '', entityId: 0, ownerName: '', entityName: '', companyType: '' },
+        requestMessage: '',
+        requestedOptions: { contacts: false, projects: false, actions: false, quotations: false },
+        submitting: false,
+
+        // 审批模态框
+        showApproval: false,
+        approvalLoading: false,
+        approvalData: null,
+        approvalRequestId: null,
+        shareOptions: { contacts: false, projects: false, actions: false, quotations: false },
+
+        // 二次确认
+        showConfirm: false,
+
+        openRequest(detail) {
+            this.requestData = detail;
+            this.requestMessage = '';
+            if (detail.entityType === 'customer') {
+                this.requestedOptions = { contacts: false, projects: false, quotations: false, actions: false };
+            } else {
+                this.requestedOptions = { quotations: false, actions: false };
+            }
+            this.showRequest = true;
+        },
+        closeRequest() {
+            this.showRequest = false;
+        },
+        async submitRequest() {
+            if (this.submitting) return;
+            this.submitting = true;
+            try {
+                const resp = await fetch('/api/v1/resource-pool/request-access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        entity_type: this.requestData.entityType,
+                        entity_id: this.requestData.entityId,
+                        message: this.requestMessage,
+                        requested_options: this.requestedOptions
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.closeRequest();
+                    window.location.reload();
+                } else {
+                    alert(data.message || '{{ _("请求失败") }}');
+                }
+            } catch (e) {
+                alert('{{ _("网络错误，请重试") }}');
+            } finally {
+                this.submitting = false;
+            }
+        },
+
+        async openApproval(detail) {
+            this.approvalRequestId = detail.requestId;
+            this.showApproval = true;
+            this.approvalLoading = true;
+            this.approvalData = null;
+            this.shareOptions = { contacts: false, projects: false, actions: false, quotations: false };
+            try {
+                const resp = await fetch(`/api/v1/resource-pool/request/${detail.requestId}`);
+                const data = await resp.json();
+                if (data.success) {
+                    this.approvalData = data.data;
+                    // 用请求方的 requested_options 预填 shareOptions
+                    const ro = data.data.requested_options;
+                    if (ro) {
+                        this.shareOptions = {
+                            contacts: !!ro.contacts,
+                            projects: !!ro.projects,
+                            quotations: !!ro.quotations,
+                            actions: !!ro.actions
+                        };
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                this.approvalLoading = false;
+            }
+        },
+        closeApproval() {
+            this.showApproval = false;
+            this.approvalData = null;
+            this.showConfirm = false;
+        },
+
+        showConfirmDialog() {
+            this.showConfirm = true;
+        },
+        async confirmApprove() {
+            this.showConfirm = false;
+            await this.resolveApproval('approve');
+        },
+
+        async resolveApproval(action) {
+            if (this.submitting) return;
+            this.submitting = true;
+            try {
+                const resp = await fetch('/api/v1/resource-pool/resolve-access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        request_id: this.approvalRequestId,
+                        action: action,
+                        share_options: this.shareOptions
+                    })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.closeApproval();
+                    window.dispatchEvent(new CustomEvent('refresh-message-panel'));
+                } else {
+                    alert(data.message || '{{ _("操作失败") }}');
+                }
+            } catch (e) {
+                alert('{{ _("网络错误，请重试") }}');
+            } finally {
+                this.submitting = false;
+            }
+        }
+    };
+}
+</script>

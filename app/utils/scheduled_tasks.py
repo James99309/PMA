@@ -222,6 +222,60 @@ def _run_schedule():
         time.sleep(60)  # 每分钟检查一次
 
 
+def run_ai_research_batch():
+    """
+    每日批量处理未调研/调研失败的客户
+
+    在每日 06:00 执行，批量处理 status=none/error 的公司。
+    每批最多 50 个，每个间隔 10 秒避免 API 限流。
+    """
+    from flask import current_app
+    from app import create_app
+
+    logger.info(f"[{datetime.now()}] 开始执行 AI 调研批量任务...")
+
+    try:
+        try:
+            app = current_app._get_current_object()
+        except RuntimeError:
+            app = create_app()
+
+        from app.services.ai_research_service import AIResearchService
+        count = AIResearchService.batch_research_pending(app=app, limit=50, interval=10)
+        logger.info(f"[{datetime.now()}] AI 调研批量任务完成: 处理 {count} 个客户")
+
+        # 项目 AI 调研批量处理
+        project_count = AIResearchService.batch_project_research_pending(app=app, limit=50, interval=10)
+        logger.info(f"[{datetime.now()}] 项目 AI 调研批量任务完成: 处理 {project_count} 个项目")
+
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] AI 调研批量任务失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+
+def run_weekly_citation_coefficient_update():
+    """每周更新产品引用频次系数"""
+    from flask import current_app
+    from app import create_app
+
+    logger.info(f"[{datetime.now()}] 开始执行每周引用系数更新...")
+
+    try:
+        try:
+            app = current_app._get_current_object()
+        except RuntimeError:
+            app = create_app()
+
+        with app.app_context():
+            from app.helpers.product_points import batch_update_citation_coefficients
+            updated, total = batch_update_citation_coefficients()
+            logger.info(f"[{datetime.now()}] 引用系数更新完成: {updated}/{total} 产品")
+
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] 引用系数更新失败: {str(e)}")
+
+
 def start_scheduler(run_time="01:00"):
     """
     启动定时任务调度器
@@ -249,6 +303,14 @@ def start_scheduler(run_time="01:00"):
     schedule.every().day.at("01:30").do(run_project_activity_correction)
     schedule.every().day.at("02:00").do(run_monthly_activity_snapshot)
 
+    # AI 调研批量任务
+    schedule.every().day.at("06:00").do(run_ai_research_batch)
+    logger.info("AI 调研批量任务已注册: 每日 06:00")
+
+    # 引用系数每周更新
+    schedule.every().monday.at("05:00").do(run_weekly_citation_coefficient_update)
+    logger.info("引用系数更新任务已注册: 每周一 05:00")
+
     # 备份相关任务
     backup_time = os.getenv('BACKUP_AUTO_TIME', '03:00')
     if os.getenv('BACKUP_AUTO_ENABLED', 'true').lower() == 'true':
@@ -262,7 +324,7 @@ def start_scheduler(run_time="01:00"):
     _scheduler_thread = threading.Thread(target=_run_schedule, daemon=True)
     _scheduler_thread.start()
 
-    logger.info(f"定时任务调度器已启动: {run_time} 客户活跃度, 01:30 项目活跃度, 02:00 快照, {backup_time} 备份")
+    logger.info(f"定时任务调度器已启动: {run_time} 客户活跃度, 01:30 项目活跃度, 02:00 快照, {backup_time} 备份, 06:00 AI调研")
 
 
 def stop_scheduler():
