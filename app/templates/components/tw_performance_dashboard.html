@@ -274,10 +274,13 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-stone-50 dark:divide-stone-800/50">
-                    <template x-for="row in goalAchievement" :key="row.month">
-                        <tr class="transition-colors duration-150 hover:bg-[rgba(180,160,140,0.04)] dark:hover:bg-white/[0.02]">
+                    {# 月度行 + 季度汇总行交替 — 用 getTableRows() 生成交替数据 #}
+                    <template x-for="row in getTableRows()" :key="row._key">
+                        {# 月度数据行 #}
+                        <tr x-show="row._type === 'month'"
+                            class="transition-colors duration-150 hover:bg-[rgba(180,160,140,0.04)] dark:hover:bg-white/[0.02]">
                             <td class="py-5 px-8 font-medium text-stone-700 dark:text-stone-300" x-text="getMonthLabel(row.month)"></td>
-                            <template x-for="item in configuredItems" :key="item + '_' + row.month">
+                            <template x-for="item in configuredItems" :key="item + '_' + row._key">
                                 <td class="py-5 px-4 text-right whitespace-nowrap">
                                     <span class="text-stone-800 dark:text-stone-200 font-medium" x-text="formatMetricValue(item, row[item]?.actual)"></span>
                                     <template x-if="row[item]?.target > 0">
@@ -290,6 +293,50 @@
                             </template>
                         </tr>
                     </template>
+                    {# 季度汇总行（表格底部） #}
+                    <template x-for="q in [1,2,3,4]" :key="'q'+q">
+                        <tr class="bg-stone-50/70 dark:bg-stone-800/30 font-semibold border-t border-stone-200 dark:border-stone-700"
+                            x-show="goalAchievement.length >= q*3" x-cloak>
+                            <td class="py-4 px-8 text-stone-600 dark:text-stone-400" x-text="'Q'+q+' {{ _('小计') }}'"></td>
+                            <template x-for="item in configuredItems" :key="'q'+q+'_'+item">
+                                <td class="py-4 px-4 text-right whitespace-nowrap">
+                                    <span class="text-stone-700 dark:text-stone-300"
+                                          x-text="formatMetricValue(item, getQuarterlyTotal(q, item))"></span>
+                                    <template x-if="getQuarterlyTarget(q, item) > 0">
+                                        <span>
+                                            <span class="text-stone-300 dark:text-stone-600 mx-0.5">/</span>
+                                            <span class="text-stone-400 dark:text-stone-500 text-[13px]"
+                                                  x-text="formatMetricValue(item, getQuarterlyTarget(q, item))"></span>
+                                            <span class="ml-1 text-[12px]"
+                                                  :class="getQuarterlyRate(q, item) >= 100 ? 'text-green-500' : 'text-orange-500'"
+                                                  x-text="getQuarterlyRate(q, item) + '%'"></span>
+                                        </span>
+                                    </template>
+                                </td>
+                            </template>
+                        </tr>
+                    </template>
+                    {# 年度合计行 #}
+                    <tr class="bg-stone-100/70 dark:bg-stone-800/50 font-bold border-t-2 border-stone-300 dark:border-stone-600"
+                        x-show="goalAchievement.length > 0" x-cloak>
+                        <td class="py-5 px-8 text-stone-800 dark:text-stone-200">{{ _('年度合计') }}</td>
+                        <template x-for="item in configuredItems" :key="'total_'+item">
+                            <td class="py-5 px-4 text-right whitespace-nowrap">
+                                <span class="text-stone-800 dark:text-stone-200"
+                                      x-text="formatMetricValue(item, getYearlyTotal(item))"></span>
+                                <template x-if="getYearlyTarget(item) > 0">
+                                    <span>
+                                        <span class="text-stone-300 dark:text-stone-600 mx-0.5">/</span>
+                                        <span class="text-stone-400 text-[13px]"
+                                              x-text="formatMetricValue(item, getYearlyTarget(item))"></span>
+                                        <span class="ml-1 text-[13px] font-bold"
+                                              :class="getYearlyRate(item) >= 100 ? 'text-green-600' : 'text-orange-600'"
+                                              x-text="getYearlyRate(item) + '%'"></span>
+                                    </span>
+                                </template>
+                            </td>
+                        </template>
+                    </tr>
                     {# 无数据提示 #}
                     <template x-if="!goalAchievement || goalAchievement.length === 0">
                         <tr>
@@ -2283,6 +2330,84 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             }
             // 中文显示：1月, 2月...
             return monthNum + '月';
+        },
+
+        // 生成月度表格行数据（用于统一 x-for 循环）
+        getTableRows() {
+            return this.goalAchievement.map(row => ({...row, _type: 'month', _key: 'm' + row.month}));
+        },
+
+        // 季度/年度汇总方法
+        getQuarterlyTotal(quarter, metricCode) {
+            const startMonth = (quarter - 1) * 3;
+            let total = 0;
+            for (let i = startMonth; i < startMonth + 3 && i < this.goalAchievement.length; i++) {
+                total += this.goalAchievement[i][metricCode]?.actual || 0;
+            }
+            return total;
+        },
+        getQuarterlyTarget(quarter, metricCode) {
+            const startMonth = (quarter - 1) * 3;
+            let total = 0;
+            for (let i = startMonth; i < startMonth + 3 && i < this.goalAchievement.length; i++) {
+                total += this.goalAchievement[i][metricCode]?.target || 0;
+            }
+            return total;
+        },
+        getQuarterlyRate(quarter, metricCode) {
+            const actual = this.getQuarterlyTotal(quarter, metricCode);
+            const target = this.getQuarterlyTarget(quarter, metricCode);
+            return target > 0 ? Math.round(actual / target * 100) : 0;
+        },
+        getYearlyTotal(metricCode) {
+            return this.goalAchievement.reduce((sum, row) => sum + (row[metricCode]?.actual || 0), 0);
+        },
+        getYearlyTarget(metricCode) {
+            return this.goalAchievement.reduce((sum, row) => sum + (row[metricCode]?.target || 0), 0);
+        },
+        getYearlyRate(metricCode) {
+            const actual = this.getYearlyTotal(metricCode);
+            const target = this.getYearlyTarget(metricCode);
+            return target > 0 ? Math.round(actual / target * 100) : 0;
+        },
+
+        // 季度汇总：actual 合计
+        getQuarterlyTotal(quarter, metricCode) {
+            const startMonth = (quarter - 1) * 3;
+            let total = 0;
+            for (let i = startMonth; i < startMonth + 3 && i < this.goalAchievement.length; i++) {
+                total += this.goalAchievement[i][metricCode]?.actual || 0;
+            }
+            return total;
+        },
+        // 季度汇总：target 合计
+        getQuarterlyTarget(quarter, metricCode) {
+            const startMonth = (quarter - 1) * 3;
+            let total = 0;
+            for (let i = startMonth; i < startMonth + 3 && i < this.goalAchievement.length; i++) {
+                total += this.goalAchievement[i][metricCode]?.target || 0;
+            }
+            return total;
+        },
+        // 季度完成率
+        getQuarterlyRate(quarter, metricCode) {
+            const actual = this.getQuarterlyTotal(quarter, metricCode);
+            const target = this.getQuarterlyTarget(quarter, metricCode);
+            return target > 0 ? Math.round(actual / target * 100) : 0;
+        },
+        // 年度合计：actual
+        getYearlyTotal(metricCode) {
+            return this.goalAchievement.reduce((sum, row) => sum + (row[metricCode]?.actual || 0), 0);
+        },
+        // 年度合计：target
+        getYearlyTarget(metricCode) {
+            return this.goalAchievement.reduce((sum, row) => sum + (row[metricCode]?.target || 0), 0);
+        },
+        // 年度完成率
+        getYearlyRate(metricCode) {
+            const actual = this.getYearlyTotal(metricCode);
+            const target = this.getYearlyTarget(metricCode);
+            return target > 0 ? Math.round(actual / target * 100) : 0;
         },
 
         // 格式化指标值（用于月度数据表格的紧凑显示）

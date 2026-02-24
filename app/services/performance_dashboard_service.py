@@ -1352,22 +1352,67 @@ class PerformanceDashboardService:
     @staticmethod
     def get_user_kpi_targets(user_id, year):
         """
-        获取用户的所有KPI目标
+        获取用户的所有KPI目标（从 UserPerformanceTarget 读取）
 
-        注意：旧的 RolePerformanceTarget/UserPerformanceTarget 系统已废弃
-        现在统一使用 EmployeeSalaryConfig 系统配置目标
-        返回空字典让调用方回退到薪资配置
+        优先从 UserPerformanceTarget 读取目标值，按优先级拆分到每月：
+        月度配置 > 季度÷3 > 年度÷12
+
+        如果无数据，返回空字典让调用方回退到 EmployeeSalaryConfig
 
         Args:
             user_id: 用户ID
             year: 年份
 
         Returns:
-            dict: 空字典，让系统回退到 EmployeeSalaryConfig
+            dict: {month: {target_field: value}} 或空字典
         """
-        # 2026-01-08: 废弃旧的 KPI 目标系统，统一使用薪资配置
-        # 直接返回空字典，让 get_dashboard_data() 回退到 EmployeeSalaryConfig
-        return {}
+        from app.models.performance_config import UserPerformanceTarget
+
+        user_targets = UserPerformanceTarget.query.filter_by(
+            user_id=user_id, year=year
+        ).all()
+
+        if not user_targets:
+            return {}
+
+        # 金额类 item_code 需要从万元转换为元（与 EmployeeSalaryConfig 回退逻辑一致）
+        amount_item_codes = {
+            'sales_target', 'implant_amount',
+            'pm_implant_amount', 'pm_sales_amount',
+            'se_implant_amount', 'se_sales_amount',
+        }
+
+        targets_dict = {}
+        for month in range(1, 13):
+            targets_dict[month] = {}
+
+        for target in user_targets:
+            target_key = PerformanceDashboardService._map_item_code_to_target_key(target.item_code)
+            if not target_key:
+                continue
+
+            # 金额类目标存储单位为万元，需要 * 10000 转为元
+            is_amount = target.item_code in amount_item_codes
+            multiplier = 10000 if is_amount else 1
+
+            annual = float(target.annual_target_override or 0)
+
+            for month in range(1, 13):
+                monthly_val = 0
+
+                # 优先级: 月度配置 > 季度配置 > 年度平摊
+                if target.enable_monthly_override and target.monthly_targets_override:
+                    monthly_val = float(target.monthly_targets_override.get(str(month), 0) or 0)
+                elif target.enable_quarterly_override:
+                    quarter = (month - 1) // 3 + 1
+                    q_val = float(getattr(target, f'q{quarter}_target_override', 0) or 0)
+                    monthly_val = q_val / 3
+                elif annual > 0:
+                    monthly_val = annual / 12
+
+                targets_dict[month][target_key] = monthly_val * multiplier
+
+        return targets_dict
 
     # 2026-01-08: 删除 _get_user_kpi_targets_legacy 方法，旧的 KPI 目标系统已废弃
 
