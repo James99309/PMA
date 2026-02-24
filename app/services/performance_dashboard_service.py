@@ -212,18 +212,31 @@ class PerformanceDashboardService:
 
             # === 以下为完整模式的重型查询 ===
 
-            # 行业分布使用全局模式（不按年份过滤，显示最近12个月）
-            industry_stats = PerformanceService.get_monthly_industry_statistics(user_id)  # 全局模式
+            # 方案经理和产品经理不需要活跃度、行业分布和客户分布数据
+            target_user = User.query.get(user_id)
+            skip_activity_tabs = target_user and target_user.role in ('solution_manager', 'product_manager')
 
-            # 活跃度使用全局模式（不按年份过滤，显示最近12个月）
-            activity_score = PerformanceDashboardService.get_activity_score(user_id)  # 全局模式
-            activity_monthly_trend = PerformanceDashboardService.get_monthly_activity_trend(user_id)  # 全局模式
+            if skip_activity_tabs:
+                industry_stats = {}
+                activity_score = PerformanceDashboardService._empty_activity_score()
+                activity_monthly_trend = []
+                customer_type_stats = {}
+                customer_trend = {}
+                customer_activity = []
+                customer_value = []
+            else:
+                # 行业分布使用全局模式（不按年份过滤，显示最近12个月）
+                industry_stats = PerformanceService.get_monthly_industry_statistics(user_id)  # 全局模式
 
-            # 客户分布数据（全局模式，最近12个月）
-            customer_type_stats = PerformanceService.calculate_customer_type_statistics(user_id)  # 全局模式
-            customer_trend = PerformanceService.get_monthly_customer_statistics(user_id)  # 全局模式
-            customer_activity = PerformanceDashboardService.get_customer_activity_trend(user_id)
-            customer_value = PerformanceDashboardService.get_customer_value_ranking(user_id)
+                # 活跃度使用全局模式（不按年份过滤，显示最近12个月）
+                activity_score = PerformanceDashboardService.get_activity_score(user_id)  # 全局模式
+                activity_monthly_trend = PerformanceDashboardService.get_monthly_activity_trend(user_id)  # 全局模式
+
+                # 客户分布数据（全局模式，最近12个月）
+                customer_type_stats = PerformanceService.calculate_customer_type_statistics(user_id)  # 全局模式
+                customer_trend = PerformanceService.get_monthly_customer_statistics(user_id)  # 全局模式
+                customer_activity = PerformanceDashboardService.get_customer_activity_trend(user_id)
+                customer_value = PerformanceDashboardService.get_customer_value_ranking(user_id)
 
             # 计算月度增长
             monthly_growth = PerformanceDashboardService._calculate_monthly_growth(yearly_stats)
@@ -1002,6 +1015,137 @@ class PerformanceDashboardService:
         except Exception as e:
             logger.error(f"获取客户价值排名失败: {e}")
             return []
+
+    @staticmethod
+    def get_se_detail_data(user_id, year):
+        """获取 SE 绩效明细数据（方案植入明细 + 方案批价明细）
+
+        Args:
+            user_id: 用户ID
+            year: 年份
+
+        Returns:
+            dict: {implant_details: [...], pricing_details: [...]}
+        """
+        try:
+            from app.models.relation import ProjectMember
+            from app.models.pricing_order import PricingOrder
+            from sqlalchemy import text
+
+            # 植入明细 SQL — 查所有 SE 有参与的项目（含未正式计入的）
+            # is_counted = SE 在 project_members 中被登记为 solution_engineer
+            implant_sql = text("""
+                SELECT p.id, p.project_name,
+                    CASE WHEN pm_se.id IS NOT NULL THEN true ELSE false END as is_counted,
+                    COALESCE(wi.cnt, 0) as work_item_count,
+                    COALESCE(swi.cnt, 0) as shared_work_item_count,
+                    COALESCE(act.cnt, 0) as action_count,
+                    COALESCE(imp.amount, 0) as implant_amount
+                FROM (
+                    SELECT DISTINCT project_id FROM (
+                        SELECT project_id FROM project_members
+                            WHERE user_id = :user_id AND role = 'solution_engineer'
+                        UNION
+                        SELECT project_id FROM work_items
+                            WHERE owner_id = :user_id AND project_id IS NOT NULL
+                        UNION
+                        SELECT wi2.project_id FROM work_items wi2
+                            WHERE wi2.shared_with_users IS NOT NULL
+                              AND CAST(wi2.shared_with_users AS text) LIKE '%' || CAST(:user_id AS text) || '%'
+                              AND wi2.project_id IS NOT NULL
+                        UNION
+                        SELECT project_id FROM actions
+                            WHERE owner_id = :user_id AND project_id IS NOT NULL
+                    ) all_projects
+                ) involved
+                JOIN projects p ON involved.project_id = p.id
+                LEFT JOIN project_members pm_se ON pm_se.project_id = p.id
+                    AND pm_se.user_id = :user_id AND pm_se.role = 'solution_engineer'
+                LEFT JOIN (
+                    SELECT project_id, COUNT(*) as cnt
+                    FROM work_items WHERE owner_id = :user_id
+                    GROUP BY project_id
+                ) wi ON wi.project_id = p.id
+                LEFT JOIN (
+                    SELECT wi2.project_id, COUNT(*) as cnt
+                    FROM work_items wi2
+                    WHERE wi2.shared_with_users IS NOT NULL
+                      AND CAST(wi2.shared_with_users AS text) LIKE '%' || CAST(:user_id AS text) || '%'
+                    GROUP BY wi2.project_id
+                ) swi ON swi.project_id = p.id
+                LEFT JOIN (
+                    SELECT project_id, COUNT(*) as cnt
+                    FROM actions WHERE owner_id = :user_id
+                    GROUP BY project_id
+                ) act ON act.project_id = p.id
+                LEFT JOIN (
+                    SELECT q.project_id, SUM(qd.quantity * qd.market_price) as amount
+                    FROM quotation_details qd
+                    JOIN quotations q ON qd.quotation_id = q.id
+                    JOIN products prod ON qd.product_mn = prod.product_mn
+                    WHERE prod.is_vendor_product = true
+                      AND EXTRACT(year FROM q.created_at) = :year
+                    GROUP BY q.project_id
+                ) imp ON imp.project_id = p.id
+                ORDER BY (pm_se.id IS NOT NULL) DESC, COALESCE(imp.amount, 0) DESC, p.id DESC
+            """)
+
+            implant_rows = db.session.execute(implant_sql, {'user_id': user_id, 'year': year}).fetchall()
+
+            implant_details = []
+            for row in implant_rows:
+                # Columns: 0=id, 1=project_name, 2=is_counted, 3=work_item_count, 4=shared_work_item_count, 5=action_count, 6=implant_amount
+                total_interactions = row[3] + row[4] + row[5]
+                if total_interactions >= 10:
+                    badge_level = 'core'       # 核心
+                elif total_interactions >= 3:
+                    badge_level = 'active'     # 活跃
+                else:
+                    badge_level = 'engaged'    # 参与
+
+                implant_details.append({
+                    'project_id': row[0],
+                    'project_name': row[1],
+                    'is_counted': bool(row[2]),
+                    'work_item_count': row[3],
+                    'shared_work_item_count': row[4],
+                    'action_count': row[5],
+                    'total_interactions': total_interactions,
+                    'badge_level': badge_level,
+                    'implant_amount': float(row[6]),
+                })
+
+            # 批价明细 SQL（仅 approved + 当年）
+            pricing_sql = text("""
+                SELECT po.order_number, p.project_name,
+                    po.pricing_total_amount, po.approved_at
+                FROM pricing_orders po
+                JOIN project_members pm ON po.project_id = pm.project_id
+                JOIN projects p ON po.project_id = p.id
+                WHERE pm.user_id = :user_id AND pm.role = 'solution_engineer'
+                  AND po.status = 'approved'
+                  AND EXTRACT(year FROM po.approved_at) = :year
+                ORDER BY po.approved_at DESC
+            """)
+
+            pricing_rows = db.session.execute(pricing_sql, {'user_id': user_id, 'year': year}).fetchall()
+
+            pricing_details = []
+            for row in pricing_rows:
+                pricing_details.append({
+                    'order_no': row[0],
+                    'project_name': row[1],
+                    'amount': float(row[2]) if row[2] else 0,
+                    'approved_at': row[3].strftime('%Y-%m-%d') if row[3] else '',
+                })
+
+            return {
+                'implant_details': implant_details,
+                'pricing_details': pricing_details,
+            }
+        except Exception as e:
+            logger.error(f"获取SE绩效明细失败: {e}")
+            return {'implant_details': [], 'pricing_details': []}
 
     @staticmethod
     def _calculate_yearly_summary(yearly_stats, targets_dict, user_id=None):

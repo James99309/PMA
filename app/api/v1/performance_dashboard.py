@@ -106,6 +106,7 @@ def get_performance_dashboard(user_id):
         response_data = {
             'user_id': user_id,
             'year': year,
+            'user_role': target_user.role if target_user else '',
             'currency_config': {
                 'currency': user_currency,
                 'exchange_rate': user_exchange_rate
@@ -327,4 +328,40 @@ def get_activity_trend(user_id):
         )
     except Exception as e:
         logger.error(f"获取活跃度趋势失败: {e}")
+        return api_response(success=False, code=500, message=f"获取数据失败: {str(e)}")
+
+
+@api_v1_bp.route('/performance/se-details/<int:user_id>', methods=['GET'])
+@flexible_auth
+def get_se_details(user_id):
+    """获取 SE 绩效明细数据（方案植入明细 + 方案批价明细）
+
+    Args:
+        user_id: 目标用户ID
+
+    Query Params:
+        year: 年份（默认当前年）
+
+    Returns:
+        JSON: SE 明细数据
+    """
+    auth_user = get_current_user_flexible()
+    if not auth_user:
+        return api_response(success=False, code=401, message="未认证")
+
+    if not check_user_access(auth_user, user_id):
+        return api_response(success=False, code=403, message="无权限访问该用户数据")
+
+    year = request.args.get('year', datetime.now().year, type=int)
+
+    try:
+        detail_data = PerformanceDashboardService.get_se_detail_data(user_id, year)
+
+        return api_response(
+            success=True,
+            message="获取成功",
+            data=detail_data
+        )
+    except Exception as e:
+        logger.error(f"获取SE绩效明细失败: {e}")
         return api_response(success=False, code=500, message=f"获取数据失败: {str(e)}")

@@ -1354,35 +1354,35 @@ def get_default_metrics_definitions():
         },
         {
             'metric_code': 'se_implant_amount',
-            'metric_name': '支持项目植入额',
-            'metric_name_en': 'Supported Project Implant Amount',
+            'metric_name': '方案植入额',
+            'metric_name_en': 'Solution Implant Amount',
             'metric_category': '技术支持',
             'data_type': 'amount',
-            'description': '解决方案经理支持的活跃项目的报价单植入金额（互动>=3次）',
-            'description_en': 'Quotation implant amount for actively supported projects (interactions >= 3)',
+            'description': '解决方案经理支持项目的报价单植入金额',
+            'description_en': 'Quotation implant amount for supported projects',
             'is_system_metric': True,
             'available_sources': {
                 'model': 'QuotationDetail',
                 'field': 'quantity * market_price',
                 'aggregate': 'sum',
-                'filter': {'project_member.role': 'solution_engineer', 'interactions': '>=3'},
+                'filter': {'project_member.role': 'solution_engineer'},
                 'date_field': 'quotation.created_at'
             }
         },
         {
             'metric_code': 'se_sales_amount',
-            'metric_name': '支持项目批价额',
-            'metric_name_en': 'Supported Project Pricing Amount',
+            'metric_name': '方案批价额',
+            'metric_name_en': 'Solution Pricing Amount',
             'metric_category': '技术支持',
             'data_type': 'amount',
-            'description': '解决方案经理支持的活跃项目的已审批批价单金额（互动>=3次）',
-            'description_en': 'Approved pricing order amount for actively supported projects (interactions >= 3)',
+            'description': '解决方案经理支持项目的已审批批价单金额',
+            'description_en': 'Approved pricing order amount for supported projects',
             'is_system_metric': True,
             'available_sources': {
                 'model': 'PricingOrder',
                 'field': 'pricing_total_amount',
                 'aggregate': 'sum',
-                'filter': {'project_member.role': 'solution_engineer', 'interactions': '>=3', 'status': 'approved'},
+                'filter': {'project_member.role': 'solution_engineer', 'status': 'approved'},
                 'date_field': 'approved_at'
             }
         }

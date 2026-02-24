@@ -8101,11 +8101,11 @@ msgstr "Product Implant Amount"
 msgid "产品批价额"
 msgstr "Product Sales Amount"
 
-msgid "支持项目植入额"
-msgstr "Support Implant Amount"
+msgid "方案植入额"
+msgstr "Solution Implant Amount"
 
-msgid "支持项目批价额"
-msgstr "Support Sales Amount"
+msgid "方案批价额"
+msgstr "Solution Pricing Amount"
 
 msgid "批价目标"
 msgstr "Pricing Target"
@@ -10848,3 +10848,45 @@ msgstr "Select Countries"
 
 msgid "清除全部"
 msgstr "Clear All"
+
+msgid "月度汇总"
+msgstr "Monthly Summary"
+
+msgid "方案植入明细"
+msgstr "SE Implant Details"
+
+msgid "方案批价明细"
+msgstr "SE Pricing Details"
+
+msgid "计入"
+msgstr "Counted"
+
+msgid "未计入"
+msgstr "Not Counted"
+
+msgid "计入状态"
+msgstr "Status"
+
+msgid "无参与"
+msgstr "None"
+
+msgid "共享工作项"
+msgstr "Shared Items"
+
+msgid "共享任务"
+msgstr "Shared Tasks"
+
+msgid "跟进"
+msgstr "Follow-ups"
+
+msgid "审批日期"
+msgstr "Approval Date"
+
+msgid "当年植入额"
+msgstr "Implant Amount"
+
+msgid "暂无方案植入数据"
+msgstr "No SE implant data"
+
+msgid "暂无方案批价数据"
+msgstr "No SE pricing data"

@@ -40,6 +40,9 @@
                             @click="activeTab = '{{ tab.key }}'"
                             role="tab"
                             :aria-selected="activeTab === '{{ tab.key }}'"
+                            {% if tab.key in ('activity', 'industry', 'customer') %}
+                            x-show="!['solution_manager', 'product_manager'].includes(userRole)"
+                            {% endif %}
                             class="inline-flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium rounded-t-lg -mb-px transition-colors focus:outline-none"
                             :class="activeTab === '{{ tab.key }}'
                                 ? 'text-primary border-b-2 border-primary bg-white dark:bg-black'
@@ -74,7 +77,7 @@
 
         {# 全局分析提示 - 在活跃度、行业分布和客户分布标签页显示 #}
         <div class="flex items-center text-sm text-slate-500 dark:text-slate-400"
-             x-show="activeTab === 'activity' || activeTab === 'industry' || activeTab === 'customer'"
+             x-show="(activeTab === 'activity' || activeTab === 'industry' || activeTab === 'customer') && !['solution_manager', 'product_manager'].includes(userRole)"
              x-transition:enter="transition ease-out duration-200"
              x-transition:enter-start="opacity-0"
              x-transition:enter-end="opacity-100"
@@ -96,17 +99,17 @@
         </div>
 
         {# ======================== 活跃度标签页 ======================== #}
-        <div x-show="activeTab === 'activity'" x-cloak>
+        <div x-show="activeTab === 'activity' && !['solution_manager', 'product_manager'].includes(userRole)" x-cloak>
             {{ render_activity_section() }}
         </div>
 
         {# ======================== 行业分布标签页 ======================== #}
-        <div x-show="activeTab === 'industry'" x-cloak>
+        <div x-show="activeTab === 'industry' && !['solution_manager', 'product_manager'].includes(userRole)" x-cloak>
             {{ render_industry_section() }}
         </div>
 
         {# ======================== 客户分布标签页 ======================== #}
-        <div x-show="activeTab === 'customer'" x-cloak>
+        <div x-show="activeTab === 'customer' && !['solution_manager', 'product_manager'].includes(userRole)" x-cloak>
             {{ render_customer_section() }}
         </div>
 
@@ -253,8 +256,38 @@
         </div>
     </div>
 
+    {# 子页签导航 — 仅当有 SE 指标时显示 #}
+    <template x-if="hasSEMetrics()">
+        <div class="mt-6 flex items-center gap-1 bg-stone-100 dark:bg-stone-800/50 rounded-xl p-1 w-fit">
+            <button @click="goalsSubTab = 'monthly'"
+                    class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
+                    :class="goalsSubTab === 'monthly'
+                        ? 'bg-white dark:bg-neutral-900 text-stone-800 dark:text-stone-100 shadow-sm'
+                        : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'">
+                <span class="material-symbols-outlined text-base align-middle mr-1">table_chart</span>
+                {{ _('月度汇总') }}
+            </button>
+            <button @click="goalsSubTab = 'se_implant'; loadSeDetails()"
+                    class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
+                    :class="goalsSubTab === 'se_implant'
+                        ? 'bg-white dark:bg-neutral-900 text-stone-800 dark:text-stone-100 shadow-sm'
+                        : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'">
+                <span class="material-symbols-outlined text-base align-middle mr-1">engineering</span>
+                {{ _('方案植入明细') }}
+            </button>
+            <button @click="goalsSubTab = 'se_pricing'; loadSeDetails()"
+                    class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
+                    :class="goalsSubTab === 'se_pricing'
+                        ? 'bg-white dark:bg-neutral-900 text-stone-800 dark:text-stone-100 shadow-sm'
+                        : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'">
+                <span class="material-symbols-outlined text-base align-middle mr-1">handshake</span>
+                {{ _('方案批价明细') }}
+            </button>
+        </div>
+    </template>
+
     {# 月度数据表格 — 暖色调呼吸感风格 #}
-    <div class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-sm overflow-hidden mt-6">
+    <div x-show="goalsSubTab === 'monthly'" class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-sm overflow-hidden mt-6">
         {# 标题区 #}
         <div class="px-8 py-6 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
             <h3 class="text-xl font-semibold text-stone-800 dark:text-stone-100 flex items-center gap-3 tracking-tight">
@@ -356,6 +389,126 @@
             </p>
         </div>
     </div>
+
+    {# ===== 方案植入明细表格 ===== #}
+    <div x-show="goalsSubTab === 'se_implant'" class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-sm overflow-hidden mt-6">
+        <div class="px-8 py-6 border-b border-stone-100 dark:border-stone-800">
+            <h3 class="text-xl font-semibold text-stone-800 dark:text-stone-100 flex items-center gap-3 tracking-tight">
+                <span class="material-symbols-outlined text-2xl text-rose-500">engineering</span>
+                {{ _('方案植入明细') }}
+            </h3>
+        </div>
+        {# 加载状态 #}
+        <div x-show="seDetailsLoading" class="px-8 py-12 text-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500 mx-auto"></div>
+        </div>
+        {# 表格 #}
+        <div x-show="!seDetailsLoading && seDetails" class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-[13px] uppercase tracking-wider text-stone-400 dark:text-stone-500 font-medium">
+                        <th class="py-5 px-8">{{ _('项目名称') }}</th>
+                        <th class="py-5 px-4 text-center">{{ _('计入状态') }}</th>
+                        <th class="py-5 px-4 text-center">{{ _('参与度') }}</th>
+                        <th class="py-5 px-4 text-right">{{ _('任务') }}</th>
+                        <th class="py-5 px-4 text-right">{{ _('共享任务') }}</th>
+                        <th class="py-5 px-4 text-right">{{ _('跟进') }}</th>
+                        <th class="py-5 px-4 text-right">{{ _('当年植入额') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-stone-50 dark:divide-stone-800/50">
+                    <template x-for="item in (seDetails?.implant_details || [])" :key="item.project_id">
+                        <tr class="transition-colors duration-150"
+                            :class="item.is_counted
+                                ? 'bg-green-50/40 dark:bg-green-900/10 hover:bg-green-50/80 dark:hover:bg-green-900/20'
+                                : 'bg-stone-50/30 dark:bg-stone-800/10 hover:bg-stone-50/60 dark:hover:bg-stone-800/20'">
+                            <td class="py-4 px-8 font-medium text-stone-700 dark:text-stone-300 max-w-[300px] truncate" x-text="item.project_name"></td>
+                            <td class="py-4 px-4 text-center">
+                                <span x-show="item.is_counted" class="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-sm font-medium">
+                                    <span class="material-symbols-outlined text-base">check_circle</span>{{ _('计入') }}
+                                </span>
+                                <span x-show="!item.is_counted" class="inline-flex items-center gap-1 text-stone-400 dark:text-stone-500 text-sm">
+                                    <span class="material-symbols-outlined text-base">cancel</span>{{ _('未计入') }}
+                                </span>
+                            </td>
+                            <td class="py-4 px-4 text-center">
+                                <span x-show="item.badge_level === 'core'" class="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                    {{ _('核心') }}
+                                </span>
+                                <span x-show="item.badge_level === 'active'" class="text-xs px-1.5 py-0.5 rounded font-medium bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                                    {{ _('活跃') }}
+                                </span>
+                                <span x-show="item.badge_level === 'engaged'" class="text-xs px-1.5 py-0.5 rounded font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                    {{ _('参与') }}
+                                </span>
+                            </td>
+                            <td class="py-4 px-4 text-right text-stone-600 dark:text-stone-400" x-text="item.work_item_count"></td>
+                            <td class="py-4 px-4 text-right text-stone-600 dark:text-stone-400" x-text="item.shared_work_item_count"></td>
+                            <td class="py-4 px-4 text-right text-stone-600 dark:text-stone-400" x-text="item.action_count"></td>
+                            <td class="py-4 px-4 text-right font-medium"
+                                :class="item.implant_amount > 0 ? 'text-stone-800 dark:text-stone-200' : 'text-stone-400 dark:text-stone-500'">
+                                <span x-text="item.implant_amount > 0 ? (typeof CurrencyHelpers !== 'undefined' ? CurrencyHelpers.formatFromCNYYuan(item.implant_amount, userCurrency) : (item.implant_amount / 10000).toFixed(2)) : '—'"></span>
+                            </td>
+                        </tr>
+                    </template>
+                    <template x-if="!seDetails?.implant_details || seDetails.implant_details.length === 0">
+                        <tr>
+                            <td colspan="7" class="px-8 py-12 text-center text-stone-400 dark:text-stone-500">
+                                <span class="material-symbols-outlined text-3xl mb-2 block">inbox</span>
+                                {{ _('暂无方案植入数据') }}
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# ===== 方案批价明细表格 ===== #}
+    <div x-show="goalsSubTab === 'se_pricing'" class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-sm overflow-hidden mt-6">
+        <div class="px-8 py-6 border-b border-stone-100 dark:border-stone-800">
+            <h3 class="text-xl font-semibold text-stone-800 dark:text-stone-100 flex items-center gap-3 tracking-tight">
+                <span class="material-symbols-outlined text-2xl text-orange-500">handshake</span>
+                {{ _('方案批价明细') }}
+            </h3>
+        </div>
+        <div x-show="seDetailsLoading" class="px-8 py-12 text-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
+        </div>
+        <div x-show="!seDetailsLoading && seDetails" class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="text-[13px] uppercase tracking-wider text-stone-400 dark:text-stone-500 font-medium">
+                        <th class="py-5 px-8">{{ _('批价单号') }}</th>
+                        <th class="py-5 px-4">{{ _('项目名称') }}</th>
+                        <th class="py-5 px-4 text-right">{{ _('批价金额') }}</th>
+                        <th class="py-5 px-4 text-right">{{ _('审批日期') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-stone-50 dark:divide-stone-800/50">
+                    <template x-for="(item, idx) in (seDetails?.pricing_details || [])" :key="idx">
+                        <tr class="transition-colors duration-150 hover:bg-[rgba(180,160,140,0.04)] dark:hover:bg-white/[0.02]">
+                            <td class="py-4 px-8 font-medium text-stone-700 dark:text-stone-300" x-text="item.order_no"></td>
+                            <td class="py-4 px-4 text-stone-600 dark:text-stone-400 max-w-[300px] truncate" x-text="item.project_name"></td>
+                            <td class="py-4 px-4 text-right font-medium text-stone-800 dark:text-stone-200">
+                                <span x-text="typeof CurrencyHelpers !== 'undefined' ? CurrencyHelpers.formatFromCNYYuan(item.amount, userCurrency) : (item.amount / 10000).toFixed(2)"></span>
+                            </td>
+                            <td class="py-4 px-4 text-right text-stone-600 dark:text-stone-400" x-text="item.approved_at"></td>
+                        </tr>
+                    </template>
+                    <template x-if="!seDetails?.pricing_details || seDetails.pricing_details.length === 0">
+                        <tr>
+                            <td colspan="4" class="px-8 py-12 text-center text-stone-400 dark:text-stone-500">
+                                <span class="material-symbols-outlined text-3xl mb-2 block">inbox</span>
+                                {{ _('暂无方案批价数据') }}
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     </div>
     </template>
 </div>
@@ -1248,7 +1401,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 isAmount: true
             },
             'se_implant_amount': {
-                label: '{{ _("支持项目植入额") }}',
+                label: '{{ _("方案植入额") }}',
                 icon: 'engineering',
                 colors: {
                     active: 'border-rose-500 bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300',
@@ -1266,7 +1419,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 isAmount: true
             },
             'se_sales_amount': {
-                label: '{{ _("支持项目批价额") }}',
+                label: '{{ _("方案批价额") }}',
                 icon: 'handshake',
                 colors: {
                     active: 'border-orange-500 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300',
@@ -1324,6 +1477,11 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         ],
         industryTrend: {},
         configuredItems: [],  // 配置的绩效项目代码列表（用于动态列显示）
+        userRole: '',  // 用户角色（用于控制标签页可见性）
+        // SE 明细数据
+        goalsSubTab: 'monthly',  // 'monthly' | 'se_implant' | 'se_pricing'
+        seDetails: null,
+        seDetailsLoading: false,
         // 客户分布数据
         customerTypeStats: {},
         customerTrend: {},
@@ -1378,12 +1536,36 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             if (typeof Alpine !== 'undefined' && Alpine.store && Alpine.store('detailYear')) {
                 Alpine.store('detailYear').setYear(this.selectedYear);
             }
+            this.seDetails = null;  // 年份变更时重置 SE 明细缓存
+            this.goalsSubTab = 'monthly';
             this.loadDashboard();
+        },
+
+        hasSEMetrics() {
+            return this.configuredItems.some(c => c.startsWith('se_'));
+        },
+
+        async loadSeDetails() {
+            if (this.seDetails) return;
+            this.seDetailsLoading = true;
+            try {
+                const url = `/api/v1/performance/se-details/${this.userId}?year=${this.selectedYear}`;
+                const resp = await fetch(url);
+                const result = await resp.json();
+                if (result.success) {
+                    this.seDetails = result.data;
+                }
+            } catch (e) {
+                console.error('SE details load error:', e);
+            } finally {
+                this.seDetailsLoading = false;
+            }
         },
 
         async loadDashboard() {
             this.loading = true;
             this.error = null;
+            this.seDetails = null;  // 重新加载时重置 SE 明细缓存
 
             try {
                 const url = `${dashboardUrl}?year=${this.selectedYear}`;
@@ -1410,6 +1592,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     this.activityMonthlyTrend = result.data.activity_monthly_trend || [];
                     this.industryTrend = result.data.industry_trend || {};
                     this.configuredItems = result.data.configured_items || ['implant_amount', 'sales_amount', 'new_customers', 'new_projects'];
+                    this.userRole = result.data.user_role || '';
                     // 客户分布数据
                     this.customerTypeStats = result.data.customer_type_stats || {};
                     this.customerTrend = result.data.customer_trend || {};
@@ -2162,8 +2345,8 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 customer_activity_rate: '{{ _("客户活跃度") }}',
                 pm_implant_amount: '{{ _("产品植入额") }}/{{ _("植入目标") }}',
                 pm_sales_amount: '{{ _("产品批价额") }}/{{ _("批价目标") }}',
-                se_implant_amount: '{{ _("支持项目植入额") }}/{{ _("植入目标") }}',
-                se_sales_amount: '{{ _("支持项目批价额") }}/{{ _("批价目标") }}'
+                se_implant_amount: '{{ _("方案植入额") }}/{{ _("植入目标") }}',
+                se_sales_amount: '{{ _("方案批价额") }}/{{ _("批价目标") }}'
             };
             return labels[key] || key;
         },
