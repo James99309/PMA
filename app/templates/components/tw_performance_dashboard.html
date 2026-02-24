@@ -2337,40 +2337,6 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             return this.goalAchievement.map(row => ({...row, _type: 'month', _key: 'm' + row.month}));
         },
 
-        // 季度/年度汇总方法
-        getQuarterlyTotal(quarter, metricCode) {
-            const startMonth = (quarter - 1) * 3;
-            let total = 0;
-            for (let i = startMonth; i < startMonth + 3 && i < this.goalAchievement.length; i++) {
-                total += this.goalAchievement[i][metricCode]?.actual || 0;
-            }
-            return total;
-        },
-        getQuarterlyTarget(quarter, metricCode) {
-            const startMonth = (quarter - 1) * 3;
-            let total = 0;
-            for (let i = startMonth; i < startMonth + 3 && i < this.goalAchievement.length; i++) {
-                total += this.goalAchievement[i][metricCode]?.target || 0;
-            }
-            return total;
-        },
-        getQuarterlyRate(quarter, metricCode) {
-            const actual = this.getQuarterlyTotal(quarter, metricCode);
-            const target = this.getQuarterlyTarget(quarter, metricCode);
-            return target > 0 ? Math.round(actual / target * 100) : 0;
-        },
-        getYearlyTotal(metricCode) {
-            return this.goalAchievement.reduce((sum, row) => sum + (row[metricCode]?.actual || 0), 0);
-        },
-        getYearlyTarget(metricCode) {
-            return this.goalAchievement.reduce((sum, row) => sum + (row[metricCode]?.target || 0), 0);
-        },
-        getYearlyRate(metricCode) {
-            const actual = this.getYearlyTotal(metricCode);
-            const target = this.getYearlyTarget(metricCode);
-            return target > 0 ? Math.round(actual / target * 100) : 0;
-        },
-
         // 季度汇总：actual 合计
         getQuarterlyTotal(quarter, metricCode) {
             const startMonth = (quarter - 1) * 3;
