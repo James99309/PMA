@@ -454,7 +454,7 @@ class PerformanceService:
 
         SE归属逻辑：
         - 通过 project_members 表 role='solution_engineer' 关联项目
-        - 门槛：互动量 >= 3（工作项 + 共享工作项 + 跟进记录）才算活跃项目
+        - 只要在 project_members 中有记录就计入，无互动门槛
         - 仅计算 is_vendor_product=true 的产品植入额
         - 批价额使用整单金额
         """
@@ -467,28 +467,12 @@ class PerformanceService:
                     SELECT project_id FROM project_members
                     WHERE user_id = :user_id AND role = 'solution_engineer'
                 ),
-                se_interactions AS (
-                    SELECT sp.project_id,
-                        (SELECT COUNT(*) FROM work_items wi
-                         WHERE wi.project_id = sp.project_id AND wi.owner_id = :user_id)
-                        + (SELECT COUNT(*) FROM work_items wi
-                           WHERE wi.project_id = sp.project_id
-                             AND wi.shared_with_users IS NOT NULL
-                             AND CAST(wi.shared_with_users AS jsonb) @> to_jsonb(CAST(:user_id AS int)))
-                        + (SELECT COUNT(*) FROM actions a
-                           WHERE a.project_id = sp.project_id AND a.owner_id = :user_id)
-                        AS total
-                    FROM se_projects sp
-                ),
-                qualified_projects AS (
-                    SELECT project_id FROM se_interactions WHERE total >= 3
-                ),
                 se_implant AS (
                     SELECT EXTRACT(month FROM q.created_at)::int AS month,
                            COALESCE(SUM(qd.quantity * qd.market_price), 0) AS amount
                     FROM quotation_details qd
                     JOIN quotations q ON qd.quotation_id = q.id
-                    JOIN qualified_projects qp ON q.project_id = qp.project_id
+                    JOIN se_projects sp ON q.project_id = sp.project_id
                     JOIN products p ON qd.product_mn = p.product_mn
                     WHERE p.is_vendor_product = true
                       AND EXTRACT(year FROM q.created_at) = :year
@@ -498,7 +482,7 @@ class PerformanceService:
                     SELECT EXTRACT(month FROM po.approved_at)::int AS month,
                            COALESCE(SUM(po.pricing_total_amount), 0) AS amount
                     FROM pricing_orders po
-                    JOIN qualified_projects qp ON po.project_id = qp.project_id
+                    JOIN se_projects sp ON po.project_id = sp.project_id
                     WHERE po.status = 'approved'
                       AND EXTRACT(year FROM po.approved_at) = :year
                     GROUP BY 1
