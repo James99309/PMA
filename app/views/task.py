@@ -14,6 +14,7 @@ from sqlalchemy.orm import joinedload
 
 from app import db, csrf
 from app.models.task import Task, TaskAttachment, TaskReply
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,19 @@ def create_task():
                 logger.warning(f"发送任务通知失败: {e}")
 
         db.session.commit()
+
+        # 跨系统推送任务通知（异步，不阻塞）
+        if new_task.assignee_id != current_user.id:
+            try:
+                from app.services.cross_sync_service import is_cross_sync_enabled, push_task_to_peer
+                if is_cross_sync_enabled():
+                    assignee = User.query.get(new_task.assignee_id)
+                    if assignee and assignee.email:
+                        creator_name = current_user.real_name or current_user.username
+                        due_str = new_task.due_date.strftime('%Y-%m-%d') if new_task.due_date else None
+                        push_task_to_peer(assignee.email, creator_name, title, due_str)
+            except Exception as e:
+                logger.warning(f"跨系统任务推送失败: {e}")
 
         return jsonify({
             'success': True,

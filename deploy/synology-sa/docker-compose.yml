@@ -97,6 +97,13 @@ services:
       SP8D_API_BASE_URL: ${SP8D_API_BASE_URL:-https://pma.jamesgpone.win/api/v1}
       SP8D_API_KEY: ${SP8D_API_KEY}
 
+      # 跨系统聊天同步（SG → CN，走 Tailscale）
+      CROSS_SYNC_ENABLED: "true"
+      CROSS_SYNC_PEER_URL: ${CROSS_SYNC_PEER_URL:-http://100.118.231.15:5001/api/v1}
+      CROSS_SYNC_API_KEY: ${CROSS_SYSTEM_API_KEY}
+      CROSS_SYNC_SELF_LABEL: ${CROSS_SYNC_SELF_LABEL:-新加坡 PMA}
+      CROSS_SYSTEM_API_KEY: ${CROSS_SYSTEM_API_KEY}
+
       # 邮件配置（新加坡环境使用 Gmail SMTP）
       MAIL_SERVER: ${MAIL_SERVER:-smtp.gmail.com}
       MAIL_PORT: ${MAIL_PORT:-587}

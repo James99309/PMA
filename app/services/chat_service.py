@@ -119,9 +119,13 @@ def get_user_conversations(user_id, viewer_language=None):
                 continue
 
             # --- 计算未读消息数 ---
+            # cross_system 消息 sender_id 为 NULL，需特殊处理
             unread_query = ChatMessage.query.filter(
                 ChatMessage.conversation_id == conv.id,
-                ChatMessage.sender_id != user_id,
+                db.or_(
+                    ChatMessage.sender_id != user_id,
+                    ChatMessage.sender_id.is_(None)
+                ),
                 ChatMessage.is_deleted == False
             )
             if part.last_read_at:
@@ -144,7 +148,17 @@ def get_user_conversations(user_id, viewer_language=None):
             if last_msg:
                 # 卡片消息显示类型标签而非 JSON 内容
                 msg_type = last_msg.message_type or 'text'
-                if msg_type == 'customer_card':
+                if msg_type == 'cross_system':
+                    # 跨系统消息：解析 JSON 提取预览
+                    try:
+                        import json
+                        cs_data = json.loads(last_msg.content or '{}')
+                        cs_sender = cs_data.get('sender_name', '')
+                        cs_text = cs_data.get('text', '')[:30]
+                        lm_content = f'{cs_sender}: {cs_text}' if cs_sender else cs_text
+                    except Exception:
+                        lm_content = last_msg.content[:50] if last_msg.content else ''
+                elif msg_type == 'customer_card':
                     lm_content = '[客户卡片]'
                 elif msg_type == 'project_card':
                     lm_content = '[项目卡片]'
@@ -169,15 +183,25 @@ def get_user_conversations(user_id, viewer_language=None):
                     if trans and trans.translated_content:
                         display_content = trans.translated_content[:50]
 
+                # 发送者名称：跨系统消息从 JSON 提取，AI 消息显示 'AI'
+                if msg_type == 'cross_system':
+                    try:
+                        import json
+                        _cs = json.loads(last_msg.content or '{}')
+                        lm_sender_name = _cs.get('sender_name', '')
+                    except Exception:
+                        lm_sender_name = ''
+                elif last_msg.sender:
+                    lm_sender_name = last_msg.sender.real_name or last_msg.sender.username
+                else:
+                    lm_sender_name = 'AI'
+
                 last_message = {
                     'id': last_msg.id,
                     'content': display_content,
                     'message_type': msg_type,
                     'sender_id': last_msg.sender_id,
-                    'sender_name': (
-                        last_msg.sender.real_name or last_msg.sender.username
-                        if last_msg.sender else 'AI'
-                    ),
+                    'sender_name': lm_sender_name,
                     'created_at': last_msg.created_at.isoformat() if last_msg.created_at else None,
                 }
 
@@ -194,7 +218,9 @@ def get_user_conversations(user_id, viewer_language=None):
                 })
 
             # --- 显示名称 ---
-            if conv.type == 'ai':
+            if conv.type == 'cross_system':
+                display_name = conv.name or '跨系统消息'
+            elif conv.type == 'ai':
                 display_name = conv.topic or 'AI 助手'
             elif conv.type == 'private':
                 # 私聊：显示对方名称
@@ -568,6 +594,25 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None):
             # 翻译失败不影响消息发送
             logger.warning(f"触发翻译失败: {te}")
 
+        # 跨系统推送（仅私聊，异步不阻塞）
+        if conv and conv.type == 'private':
+            try:
+                from app.services.cross_sync_service import is_cross_sync_enabled, push_message_to_peer
+                if is_cross_sync_enabled():
+                    sender_user = User.query.get(sender_id)
+                    sender_display = (sender_user.real_name or sender_user.username) if sender_user else ''
+                    # 找到私聊对方的邮箱
+                    other_part = ChatParticipant.query.filter(
+                        ChatParticipant.conversation_id == conversation_id,
+                        ChatParticipant.user_id != sender_id,
+                    ).first()
+                    if other_part:
+                        other_user = User.query.get(other_part.user_id)
+                        if other_user and other_user.email:
+                            push_message_to_peer(other_user.email, sender_display, content.strip())
+            except Exception as ce:
+                logger.warning(f"跨系统推送失败: {ce}")
+
         # 返回消息数据
         sender = User.query.get(sender_id)
         data = {
@@ -743,7 +788,10 @@ def get_total_unread_count(user_id):
         for part in participations:
             unread_query = ChatMessage.query.filter(
                 ChatMessage.conversation_id == part.conversation_id,
-                ChatMessage.sender_id != user_id,
+                db.or_(
+                    ChatMessage.sender_id != user_id,
+                    ChatMessage.sender_id.is_(None)
+                ),
                 ChatMessage.is_deleted == False,
             )
             if part.last_read_at:

@@ -172,7 +172,8 @@ class ChatMessage(db.Model):
             'id': self.id,
             'conversation_id': self.conversation_id,
             'sender_id': self.sender_id,
-            'sender_name': self.sender.real_name or self.sender.username if self.sender else 'AI',
+            'sender_name': (self.sender.real_name or self.sender.username if self.sender
+                            else '' if self.message_type == 'cross_system' else 'AI'),
             'content': self.content,
             'message_type': self.message_type or 'text',
             'file_url': self.file_url,

@@ -117,9 +117,11 @@
                     <!-- 头像 -->
                     <div class="relative flex-shrink-0">
                         <div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
-                             :class="conv.type === 'ai' ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white'
+                             :class="conv.type === 'cross_system' ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white'
+                                    : conv.type === 'ai' ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white'
                                     : conv.type === 'group' ? 'bg-gradient-to-br from-blue-500 to-cyan-500 text-white'
                                     : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'">
+                            <span x-show="conv.type === 'cross_system'" class="material-symbols-outlined text-lg">language</span>
                             <span x-show="conv.type === 'ai'" class="material-symbols-outlined text-lg">auto_awesome</span>
                             <span x-show="conv.type === 'group'" class="material-symbols-outlined text-lg">group</span>
                             <span x-show="conv.type === 'private'" x-text="conv.avatar"></span>
@@ -186,6 +188,8 @@
                           x-text="activeConv.memberCount + _chatI18n.memberUnit"></span>
                     <span x-show="activeConv.type === 'ai'"
                           class="text-[10px] bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded font-medium">AI</span>
+                    <span x-show="activeConv.type === 'cross_system'"
+                          class="text-[10px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded font-medium">{{ _('跨系统') }}</span>
                     <span x-show="splitMode" x-cloak
                           class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">{{ _('分屏') }}</span>
                 </div>
@@ -199,7 +203,7 @@
                 <div class="flex-1"></div>
             </template>
             <div class="flex items-center gap-1">
-                <button x-show="activeConv && activeConv.type !== 'ai'"
+                <button x-show="activeConv && activeConv.type !== 'ai' && activeConv.type !== 'cross_system'"
                         @click="toggleMemberPanel()"
                         class="w-8 h-8 flex items-center justify-center rounded-lg transition-colors cursor-pointer"
                         :class="showMemberPanel
@@ -542,8 +546,29 @@
                     </div>
                     </template>
 
+                    <!-- ====== 跨系统消息 ====== -->
+                    <template x-if="msg.message_type === 'cross_system'">
+                    <div class="py-1">
+                        <div class="max-w-[85%] rounded-2xl px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50">
+                            <!-- 发送者 + 时间 -->
+                            <div class="flex items-center gap-2 mb-1.5">
+                                <span class="material-symbols-outlined text-emerald-500 text-sm">language</span>
+                                <span class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400"
+                                      x-text="msg._cs_sender || ''"></span>
+                                <span x-show="msg._cs_type === 'task'"
+                                      class="text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">{{ _('任务') }}</span>
+                                <span class="text-[10px] text-slate-400 dark:text-slate-500 ml-auto"
+                                      x-text="formatMsgTime(msg.created_at)"></span>
+                            </div>
+                            <!-- 消息正文 -->
+                            <div class="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-wrap break-words"
+                                 x-text="msg._cs_text || msg.content"></div>
+                        </div>
+                    </div>
+                    </template>
+
                     <!-- ====== AI 消息：Claude 风格 ====== -->
-                    <template x-if="(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card' && msg.message_type !== 'action_link' && msg.message_type !== 'context_exhausted' && msg.message_type !== 'context_warning'">
+                    <template x-if="(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card' && msg.message_type !== 'action_link' && msg.message_type !== 'context_exhausted' && msg.message_type !== 'context_warning' && msg.message_type !== 'cross_system'">
                     <div class="group py-1"
                          @touchstart.passive="onMsgTouchStart($event, msg)"
                          @touchend="onMsgTouchEnd()"
@@ -728,7 +753,7 @@
                     </template>
 
                     <!-- ====== 普通消息：气泡样式 ====== -->
-                    <template x-if="!(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card' && msg.message_type !== 'action_link' && msg.message_type !== 'context_exhausted' && msg.message_type !== 'context_warning'">
+                    <template x-if="!(msg.is_ai || msg.is_ai_response) && msg.message_type !== 'active_form' && msg.message_type !== 'form_result_card' && msg.message_type !== 'action_link' && msg.message_type !== 'context_exhausted' && msg.message_type !== 'context_warning' && msg.message_type !== 'cross_system'">
                     <div :class="msg.is_mine ? 'flex justify-start' : 'flex justify-end'">
                     <div class="max-w-[75%]" :class="msg.is_mine ? 'items-start' : 'items-end'">
 
@@ -1187,8 +1212,25 @@
                 </div>
             </div>
 
+            <!-- 跨系统只读提示条 -->
+            <template x-if="activeConv && activeConv.type === 'cross_system'">
+            <div class="px-4 py-3">
+                <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+                        <span class="material-symbols-outlined text-base">info</span>
+                        {{ _('此对话为只读，无法回复') }}
+                    </div>
+                    <a href="https://sg-pma.jamesgpone.win" target="_blank" rel="noopener"
+                       class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex-shrink-0">
+                        <span class="material-symbols-outlined text-sm">open_in_new</span>
+                        {{ _('打开 SG PMA') }}
+                    </a>
+                </div>
+            </div>
+            </template>
+
             <!-- 上下文耗尽：替换输入区 -->
-            <template x-if="contextExhausted">
+            <template x-if="contextExhausted && !(activeConv && activeConv.type === 'cross_system')">
             <div class="px-4 py-3">
                 <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
                     <div class="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
@@ -1203,7 +1245,7 @@
             </div>
             </template>
 
-            <template x-if="!contextExhausted">
+            <template x-if="!contextExhausted && !(activeConv && activeConv.type === 'cross_system')">
             <div class="px-4 py-3">
             <div class="bg-slate-100 dark:bg-slate-800 rounded-2xl">
                 <!-- Row 1: 文本输入 -->
@@ -2334,6 +2376,7 @@ function chatPanel() {
                     : lm.message_type === 'project_card' ? this._chatI18n.projectCardLabel
                     : lm.message_type === 'form_result_card' ? this._chatI18n.formResultLabel
                     : lm.message_type === 'context_exhausted' ? '🔒 {{ _("上下文已满") }}'
+                    : lm.message_type === 'cross_system' ? this._parseCrossSystemPreview(lm.content)
                     : lm.content || '') : '',
                 time: lm && lm.created_at ? this.formatMsgTime(lm.created_at) : '',
                 unread: c.unread_count || 0,
@@ -2541,10 +2584,10 @@ function chatPanel() {
                 const resp = await fetch(`/chat/api/conversations/${convId}/messages`);
                 const data = await resp.json();
                 if (data.success) {
-                    this.messages = (data.data || []).map(m => ({
-                        ...m,
-                        is_ai: m.is_ai || m.is_ai_response || false,
-                    }));
+                    this.messages = (data.data || []).map(m => {
+                        m.is_ai = m.is_ai || m.is_ai_response || false;
+                        return this._parseCrossSystemMsg(m);
+                    });
                     if (this.messages.length > 0) {
                         this.lastMessageTimestamp = this.messages[this.messages.length - 1].created_at;
                     } else {
@@ -2565,6 +2608,8 @@ function chatPanel() {
 
         // ----- 发送消息 -----
         async sendMessage() {
+            // 跨系统对话：只读，不能发送
+            if (this.activeConv && this.activeConv.type === 'cross_system') return;
             // 上下文耗尽：阻止发送，引导新建对话
             if (this.contextExhausted) {
                 this.startNewChat();
@@ -3524,6 +3569,32 @@ function chatPanel() {
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         },
 
+        // ----- 跨系统消息 JSON 解析 -----
+        _parseCrossSystemPreview(content) {
+            try {
+                const d = JSON.parse(content || '{}');
+                const sender = d.sender_name || '';
+                const text = (d.text || '').substring(0, 30);
+                return sender ? `${sender}: ${text}` : text;
+            } catch { return (content || '').substring(0, 50); }
+        },
+
+        _parseCrossSystemMsg(msg) {
+            // 为跨系统消息添加解析后的快捷属性
+            if (msg.message_type !== 'cross_system') return msg;
+            try {
+                const d = JSON.parse(msg.content || '{}');
+                msg._cs_sender = d.sender_name || '';
+                msg._cs_text = d.text || '';
+                msg._cs_type = d.msg_type || 'chat';
+            } catch {
+                msg._cs_sender = '';
+                msg._cs_text = msg.content || '';
+                msg._cs_type = 'chat';
+            }
+            return msg;
+        },
+
         // ----- 标记已读 -----
         async markAsRead(convId) {
             try {
@@ -3587,13 +3658,16 @@ function chatPanel() {
                         for (const msg of data.data) {
                             if (!existingIds.has(msg.id)) {
                                 msg.is_ai = msg.is_ai || msg.is_ai_response || false;
+                                this._parseCrossSystemMsg(msg);
                                 this.messages.push(msg);
                             }
                         }
                         this.lastMessageTimestamp = data.data[data.data.length - 1].created_at;
                         // 更新对话列表预览（优先使用翻译内容）
                         const lastNew = data.data[data.data.length - 1];
-                        const preview = lastNew.translation || lastNew.content || '';
+                        const preview = lastNew.message_type === 'cross_system'
+                            ? this._parseCrossSystemPreview(lastNew.content)
+                            : (lastNew.translation || lastNew.content || '');
                         this._updateConvLastMsg(this.activeConv.id, preview);
                         this.scrollToBottom();
                         this.markAsRead(this.activeConv.id);
@@ -3745,6 +3819,7 @@ function chatPanel() {
 
         getReplyPreviewText(msg) {
             if (!msg) return '';
+            if (msg.message_type === 'cross_system') return this._parseCrossSystemPreview(msg.content);
             if (msg.message_type === 'image') return this._chatI18n.imageLabel;
             if (msg.message_type === 'video') return this._chatI18n.videoLabel;
             if (msg.message_type === 'file') return this._chatI18n.fileLabel + ' ' + (msg.file_name || '');
