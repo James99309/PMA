@@ -143,6 +143,32 @@ class PerformanceDashboardService:
                         yearly_stats[i].se_implant_amount_actual = rs.se_implant_amount_actual
                         yearly_stats[i].se_sales_amount_actual = rs.se_sales_amount_actual
 
+            # 从手工录入表加载辅助指标（替代自动采集）
+            manual_codes = {'se_response_rate', 'se_training_count', 'se_content_output', 'se_satisfaction'}
+            if configured_items and manual_codes & configured_set:
+                from app.models.performance_manual_entry import PerformanceManualEntry
+                entries = PerformanceManualEntry.query.filter_by(
+                    user_id=user_id, year=year
+                ).filter(
+                    PerformanceManualEntry.metric_code.in_(manual_codes & configured_set)
+                ).all()
+
+                monthly_map = {}   # code → {month: value}
+                quarterly_map = {} # code → {quarter: value}
+                for e in entries:
+                    if e.period_type == 'monthly':
+                        monthly_map.setdefault(e.metric_code, {})[e.period] = float(e.value or 0)
+                    else:
+                        quarterly_map.setdefault(e.metric_code, {})[e.period] = float(e.value or 0)
+
+                for code in manual_codes & configured_set:
+                    for i in range(12):
+                        month = i + 1
+                        quarter = (i // 3) + 1
+                        val = monthly_map.get(code, {}).get(month, 0) or quarterly_map.get(code, {}).get(quarter, 0)
+                        if i < len(yearly_stats):
+                            setattr(yearly_stats[i], f'{code}_actual', val)
+
             # 从绩效目标配置获取目标数据（使用新的目标表）
             targets_dict = PerformanceDashboardService.get_user_kpi_targets(user_id, year)
             logger.info(f"[DEBUG] get_user_kpi_targets returned: {bool(targets_dict)}, keys: {list(targets_dict.keys()) if targets_dict else []}")
@@ -1033,18 +1059,22 @@ class PerformanceDashboardService:
             from sqlalchemy import text
 
             # 植入明细 SQL — 查所有 SE 有参与的项目（含未正式计入的）
-            # is_counted = SE 在 project_members 中被登记为 solution_engineer
+            # is_counted = SE 有任何参与记录（project_members/报价确认/work_items/actions）
             implant_sql = text("""
                 SELECT p.id, p.project_name,
-                    CASE WHEN pm_se.id IS NOT NULL THEN true ELSE false END as is_counted,
+                    true as is_counted,
                     COALESCE(wi.cnt, 0) as work_item_count,
                     COALESCE(swi.cnt, 0) as shared_work_item_count,
                     COALESCE(act.cnt, 0) as action_count,
-                    COALESCE(imp.amount, 0) as implant_amount
+                    COALESCE(imp.amount, 0) as implant_amount,
+                    COALESCE(qc.cnt, 0) as confirmation_count
                 FROM (
                     SELECT DISTINCT project_id FROM (
                         SELECT project_id FROM project_members
                             WHERE user_id = :user_id AND role = 'solution_engineer'
+                        UNION
+                        SELECT project_id FROM quotations
+                            WHERE confirmed_by = :user_id AND project_id IS NOT NULL
                         UNION
                         SELECT project_id FROM work_items
                             WHERE owner_id = :user_id AND project_id IS NOT NULL
@@ -1059,8 +1089,6 @@ class PerformanceDashboardService:
                     ) all_projects
                 ) involved
                 JOIN projects p ON involved.project_id = p.id
-                LEFT JOIN project_members pm_se ON pm_se.project_id = p.id
-                    AND pm_se.user_id = :user_id AND pm_se.role = 'solution_engineer'
                 LEFT JOIN (
                     SELECT project_id, COUNT(*) as cnt
                     FROM work_items WHERE owner_id = :user_id
@@ -1079,6 +1107,11 @@ class PerformanceDashboardService:
                     GROUP BY project_id
                 ) act ON act.project_id = p.id
                 LEFT JOIN (
+                    SELECT project_id, COUNT(*) as cnt
+                    FROM quotations WHERE confirmed_by = :user_id
+                    GROUP BY project_id
+                ) qc ON qc.project_id = p.id
+                LEFT JOIN (
                     SELECT q.project_id, SUM(qd.quantity * qd.market_price) as amount
                     FROM quotation_details qd
                     JOIN quotations q ON qd.quotation_id = q.id
@@ -1087,15 +1120,15 @@ class PerformanceDashboardService:
                       AND EXTRACT(year FROM q.created_at) = :year
                     GROUP BY q.project_id
                 ) imp ON imp.project_id = p.id
-                ORDER BY (pm_se.id IS NOT NULL) DESC, COALESCE(imp.amount, 0) DESC, p.id DESC
+                ORDER BY COALESCE(imp.amount, 0) DESC, p.id DESC
             """)
 
             implant_rows = db.session.execute(implant_sql, {'user_id': user_id, 'year': year}).fetchall()
 
             implant_details = []
             for row in implant_rows:
-                # Columns: 0=id, 1=project_name, 2=is_counted, 3=work_item_count, 4=shared_work_item_count, 5=action_count, 6=implant_amount
-                total_interactions = row[3] + row[4] + row[5]
+                # Columns: 0=id, 1=project_name, 2=is_counted, 3=work_item_count, 4=shared_work_item_count, 5=action_count, 6=implant_amount, 7=confirmation_count
+                total_interactions = row[3] + row[4] + row[5] + row[7]
                 if total_interactions >= 10:
                     badge_level = 'core'       # 核心
                 elif total_interactions >= 3:
@@ -1113,17 +1146,32 @@ class PerformanceDashboardService:
                     'total_interactions': total_interactions,
                     'badge_level': badge_level,
                     'implant_amount': float(row[6]),
+                    'confirmation_count': row[7],
                 })
 
             # 批价明细 SQL（仅 approved + 当年）
             pricing_sql = text("""
+                WITH se_projects AS (
+                    SELECT DISTINCT project_id FROM (
+                        SELECT project_id FROM project_members
+                            WHERE user_id = :user_id AND role = 'solution_engineer'
+                        UNION
+                        SELECT project_id FROM quotations
+                            WHERE confirmed_by = :user_id AND project_id IS NOT NULL
+                        UNION
+                        SELECT project_id FROM work_items
+                            WHERE owner_id = :user_id AND project_id IS NOT NULL
+                        UNION
+                        SELECT project_id FROM actions
+                            WHERE owner_id = :user_id AND project_id IS NOT NULL
+                    ) all_se_projects
+                )
                 SELECT po.order_number, p.project_name,
                     po.pricing_total_amount, po.approved_at
                 FROM pricing_orders po
-                JOIN project_members pm ON po.project_id = pm.project_id
+                JOIN se_projects sp ON po.project_id = sp.project_id
                 JOIN projects p ON po.project_id = p.id
-                WHERE pm.user_id = :user_id AND pm.role = 'solution_engineer'
-                  AND po.status = 'approved'
+                WHERE po.status = 'approved'
                   AND EXTRACT(year FROM po.approved_at) = :year
                 ORDER BY po.approved_at DESC
             """)
@@ -1166,7 +1214,8 @@ class PerformanceDashboardService:
 
             # 动态检测已启用的角色指标（通过 yearly_stats 上的属性存在性判断）
             extra_keys = []
-            for key in ['pm_implant_amount', 'pm_sales_amount', 'se_implant_amount', 'se_sales_amount']:
+            for key in ['pm_implant_amount', 'pm_sales_amount', 'se_implant_amount', 'se_sales_amount',
+                         'se_response_rate', 'se_training_count', 'se_content_output', 'se_satisfaction']:
                 if yearly_stats and hasattr(yearly_stats[0], f'{key}_actual'):
                     extra_keys.append(key)
                     totals[key] = 0
@@ -1312,6 +1361,10 @@ class PerformanceDashboardService:
                 'pm_sales_amount': ('pm_sales_amount_actual', 'pm_sales_amount_target'),
                 'se_implant_amount': ('se_implant_amount_actual', 'se_implant_amount_target'),
                 'se_sales_amount': ('se_sales_amount_actual', 'se_sales_amount_target'),
+                'se_response_rate': ('se_response_rate_actual', 'se_response_rate_target'),
+                'se_training_count': ('se_training_count_actual', 'se_training_count_target'),
+                'se_content_output': ('se_content_output_actual', 'se_content_output_target'),
+                'se_satisfaction': ('se_satisfaction_actual', 'se_satisfaction_target'),
             }
 
             # 客户活跃度：优先从快照取历史数据，当前月用实时计算
@@ -1572,6 +1625,10 @@ class PerformanceDashboardService:
             'pm_sales_amount': 'pm_sales_amount_target',
             'se_implant_amount': 'se_implant_amount_target',
             'se_sales_amount': 'se_sales_amount_target',
+            'se_response_rate': 'se_response_rate_target',
+            'se_training_count': 'se_training_count_target',
+            'se_content_output': 'se_content_output_target',
+            'se_satisfaction': 'se_satisfaction_target',
         }
         return mapping.get(item_code)
 
@@ -1604,6 +1661,10 @@ class PerformanceDashboardService:
             'pm_sales_amount': 'pm_sales_amount',
             'se_implant_amount': 'se_implant_amount',
             'se_sales_amount': 'se_sales_amount',
+            'se_response_rate': 'se_response_rate',
+            'se_training_count': 'se_training_count',
+            'se_content_output': 'se_content_output',
+            'se_satisfaction': 'se_satisfaction',
         }
 
         try:
@@ -1706,6 +1767,134 @@ class PerformanceDashboardService:
         except Exception as e:
             logger.error(f"获取团队目标失败: user_id={user_id}, year={year}, error={e}")
             return None
+
+    # === 季度绩效得分 ===
+
+    @staticmethod
+    def get_quarterly_scores(user_id, year):
+        """计算用户按季度的绩效得分
+
+        从 role_performance_items 获取权重，从 yearly_stats 获取实际值，
+        对比目标值计算达成率和加权得分。
+
+        Returns:
+            dict: {Q1: {total_score, total_weight, items: [...]}, Q2: ..., Q3: ..., Q4: ...}
+        """
+        from app.models.performance_config import RolePerformanceConfig, RolePerformanceItem
+
+        try:
+            # 获取用户角色
+            user = User.query.get(user_id)
+            if not user:
+                return {}
+
+            # 获取角色绩效配置（含权重）
+            role_config = RolePerformanceConfig.query.filter_by(
+                role=user.role, is_active=True
+            ).first()
+
+            if not role_config:
+                return {}
+
+            items = RolePerformanceItem.query.filter_by(
+                role_config_id=role_config.id, is_enabled=True
+            ).order_by(RolePerformanceItem.sort_order).all()
+
+            if not items:
+                return {}
+
+            # 获取完整看板数据（含所有指标的月度数据）
+            dashboard_data = PerformanceDashboardService.get_dashboard_data(user_id, year, lite=False)
+            goal_achievement = dashboard_data.get('goal_achievement', [])
+
+            # 获取目标数据
+            targets_dict = PerformanceDashboardService.get_user_kpi_targets(user_id, year)
+
+            # item_code 到看板 metric_code 的映射
+            code_mapping = {
+                'sales_target': 'sales_amount',
+                'implant_amount': 'implant_amount',
+                'new_customers': 'new_customers',
+                'new_projects': 'new_projects',
+                'customer_activity_rate': 'customer_activity_rate',
+                'pm_implant_amount': 'pm_implant_amount',
+                'pm_sales_amount': 'pm_sales_amount',
+                'se_implant_amount': 'se_implant_amount',
+                'se_sales_amount': 'se_sales_amount',
+                'se_response_rate': 'se_response_rate',
+                'se_training_count': 'se_training_count',
+                'se_content_output': 'se_content_output',
+                'se_satisfaction': 'se_satisfaction',
+            }
+
+            result = {}
+            for quarter in range(1, 5):
+                start_month = (quarter - 1) * 3  # 0-indexed into goal_achievement list
+                quarter_items = []
+                total_score = 0
+                total_weight = 0
+
+                for item in items:
+                    metric_code = code_mapping.get(item.item_code, item.item_code)
+                    weight = float(item.weight or 0)
+                    total_weight += weight
+
+                    # 汇总季度3个月的实际值和目标值
+                    q_actual = 0
+                    q_target = 0
+                    for m_idx in range(start_month, min(start_month + 3, len(goal_achievement))):
+                        month_data = goal_achievement[m_idx].get(metric_code, {})
+                        q_actual += month_data.get('actual', 0) or 0
+                        q_target += month_data.get('target', 0) or 0
+
+                    # 百分比类指标取平均值而非累加
+                    is_percentage = metric_code in ('se_response_rate', 'customer_activity_rate')
+                    is_score = metric_code in ('se_satisfaction',)
+                    if is_percentage or is_score:
+                        months_with_data = sum(
+                            1 for m_idx in range(start_month, min(start_month + 3, len(goal_achievement)))
+                            if (goal_achievement[m_idx].get(metric_code, {}).get('actual', 0) or 0) > 0
+                        )
+                        if months_with_data > 0:
+                            q_actual = q_actual / months_with_data
+                        q_target_vals = [
+                            goal_achievement[m_idx].get(metric_code, {}).get('target', 0) or 0
+                            for m_idx in range(start_month, min(start_month + 3, len(goal_achievement)))
+                        ]
+                        non_zero = [v for v in q_target_vals if v > 0]
+                        q_target = non_zero[0] if non_zero else 0  # 目标取第一个非零值
+
+                    # 计算达成率（封顶100%）
+                    if q_target > 0:
+                        achievement_rate = min(q_actual / q_target * 100, 100)
+                    else:
+                        achievement_rate = 100 if q_actual > 0 else 0
+
+                    # 加权得分
+                    weighted_score = achievement_rate * weight / 100
+                    total_score += weighted_score
+
+                    quarter_items.append({
+                        'code': metric_code,
+                        'name': item.item_name,
+                        'weight': weight,
+                        'target': round(q_target, 2),
+                        'actual': round(q_actual, 2),
+                        'achievement_rate': round(achievement_rate, 1),
+                        'weighted_score': round(weighted_score, 1),
+                    })
+
+                result[f'Q{quarter}'] = {
+                    'total_score': round(total_score, 1),
+                    'total_weight': round(total_weight, 1),
+                    'items': quarter_items,
+                }
+
+            return result
+
+        except Exception as e:
+            logger.error(f"计算季度绩效得分失败: {e}")
+            return {}
 
     # === 月度活跃度快照 ===
 

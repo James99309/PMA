@@ -2351,3 +2351,202 @@ def save_user_ai_config(user_id):
         db.session.rollback()
         logger.error(f"保存用户AI配置失败: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# =============================================
+# 绩效数据手工录入 API
+# =============================================
+
+@config_management_bp.route('/api/manual-entries/<int:user_id>/<int:year>')
+@login_required
+@permission_required('config_management', 'view')
+def api_get_manual_entries(user_id, year):
+    """获取用户某年所有手工录入数据（含附件URL）"""
+    try:
+        from app.models.performance_manual_entry import PerformanceManualEntry
+        from app.models.performance_config import PerformanceMetricsDefinition, RolePerformanceItem
+
+        entries = PerformanceManualEntry.query.filter_by(
+            user_id=user_id, year=year
+        ).all()
+
+        # 获取该用户已配置的绩效指标
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 404
+
+        # 查找用户角色的绩效配置中包含的指标
+        from app.models.performance_config import RolePerformanceConfig
+        config = RolePerformanceConfig.query.filter_by(role=user.role, is_active=True).first()
+        configured_codes = set()
+        if config:
+            items = RolePerformanceItem.query.filter_by(
+                config_id=config.id, is_active=True
+            ).all()
+            configured_codes = {item.item_code for item in items}
+
+        # 获取指标定义（只返回该用户已配置的）
+        metrics = PerformanceMetricsDefinition.query.filter(
+            PerformanceMetricsDefinition.is_active == True,
+            PerformanceMetricsDefinition.metric_code.in_(configured_codes)
+        ).all() if configured_codes else []
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'entries': [e.to_dict() for e in entries],
+                'metrics': [m.to_dict() for m in metrics],
+                'user': {
+                    'id': user.id,
+                    'real_name': user.real_name or user.username,
+                    'role': user.role,
+                }
+            }
+        })
+    except Exception as e:
+        logger.error(f"获取手工录入数据失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@config_management_bp.route('/api/manual-entries/<int:user_id>/<int:year>', methods=['POST'])
+@login_required
+@permission_required('config_management', 'edit')
+def api_save_manual_entries(user_id, year):
+    """批量保存手工录入数据（UPSERT）"""
+    try:
+        from app.models.performance_manual_entry import PerformanceManualEntry
+        data = request.get_json()
+        entries_data = data.get('entries', [])
+
+        saved_count = 0
+        for item in entries_data:
+            metric_code = item.get('metric_code')
+            period_type = item.get('period_type')
+            period = item.get('period')
+            value = item.get('value')
+            note = item.get('note', '')
+
+            if not metric_code or not period_type or not period:
+                continue
+
+            # UPSERT
+            entry = PerformanceManualEntry.query.filter_by(
+                user_id=user_id,
+                metric_code=metric_code,
+                year=year,
+                period_type=period_type,
+                period=period
+            ).first()
+
+            if entry:
+                entry.value = value
+                entry.note = note
+                entry.entered_by = current_user.id
+                entry.updated_at = datetime.utcnow()
+            else:
+                entry = PerformanceManualEntry(
+                    user_id=user_id,
+                    metric_code=metric_code,
+                    year=year,
+                    period_type=period_type,
+                    period=period,
+                    value=value,
+                    note=note,
+                    entered_by=current_user.id,
+                )
+                db.session.add(entry)
+            saved_count += 1
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'已保存{saved_count}条数据'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"保存手工录入数据失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@config_management_bp.route('/api/manual-entries/upload', methods=['POST'])
+@login_required
+@permission_required('config_management', 'edit')
+def api_upload_manual_attachment():
+    """上传手工录入附件"""
+    try:
+        from app.models.performance_manual_entry import PerformanceManualEntry, PerformanceManualAttachment
+
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': '请选择文件'}), 400
+
+        file = request.files['file']
+        if not file.filename:
+            return jsonify({'success': False, 'message': '文件名为空'}), 400
+
+        entry_id = request.form.get('entry_id')
+        if not entry_id:
+            return jsonify({'success': False, 'message': '缺少录入记录ID'}), 400
+
+        entry = PerformanceManualEntry.query.get(int(entry_id))
+        if not entry:
+            return jsonify({'success': False, 'message': '录入记录不存在'}), 404
+
+        filename = file.filename
+        file_ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+
+        from app.utils.smart_storage_manager import get_smart_storage
+        smart_storage = get_smart_storage()
+        result = smart_storage.upload_file(
+            object_id=entry_id,
+            file=file,
+            filename=filename,
+            file_type='attachment',
+            bucket_type='performance',
+            business_type='performance_manual'
+        )
+
+        if not result:
+            return jsonify({'success': False, 'message': '文件上传失败'}), 500
+
+        attachment = PerformanceManualAttachment(
+            entry_id=int(entry_id),
+            filename=filename,
+            storage_path=result.get('storage_path', ''),
+            file_size=file_size,
+            file_type=file_ext,
+            uploaded_by=current_user.id,
+        )
+        db.session.add(attachment)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': '附件上传成功',
+            'data': attachment.to_dict()
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"上传手工录入附件失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@config_management_bp.route('/api/manual-entries/attachment/<int:attachment_id>', methods=['DELETE'])
+@login_required
+@permission_required('config_management', 'edit')
+def api_delete_manual_attachment(attachment_id):
+    """删除手工录入附件"""
+    try:
+        from app.models.performance_manual_entry import PerformanceManualAttachment
+
+        attachment = PerformanceManualAttachment.query.get(attachment_id)
+        if not attachment:
+            return jsonify({'success': False, 'message': '附件不存在'}), 404
+
+        db.session.delete(attachment)
+        db.session.commit()
+        return jsonify({'success': True, 'message': '附件已删除'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除附件失败: {e}", exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500

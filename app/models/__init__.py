@@ -59,6 +59,8 @@ from app.models.knowledge import KnowledgeTag, KnowledgeDocument, KnowledgeChunk
 from app.models.access_request import AccessRequest
 # 系统图模块
 from app.models.system_diagram import SystemDiagram
+# 手工录入
+from app.models.performance_manual_entry import PerformanceManualEntry, PerformanceManualAttachment
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
@@ -95,4 +97,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'FileLibrary', 'UserFolder', 'UserFileRef',
            'KnowledgeTag', 'KnowledgeDocument', 'KnowledgeChunk',
            'AccessRequest',
-           'SystemDiagram']
+           'SystemDiagram',
+           'PerformanceManualEntry', 'PerformanceManualAttachment']

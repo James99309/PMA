@@ -2338,8 +2338,8 @@ def api_create_company():
             region=data.get('region'),
             address=data.get('address', ''),
             city=data.get('city', ''),
-            latitude=data.get('latitude'),
-            longitude=data.get('longitude'),
+            latitude=data.get('latitude') or None,
+            longitude=data.get('longitude') or None,
             industry=data.get('industry', ''),
             company_type=data.get('company_type'),
             source=data.get('source'),
@@ -2414,7 +2414,10 @@ def api_update_company(company_id):
 
         for field in allowed_fields:
             if field in data:
-                setattr(company, field, data[field])
+                value = data[field]
+                if field in ('latitude', 'longitude') and value == '':
+                    value = None
+                setattr(company, field, value)
 
         # 如果类型变为供应商且没有供应商编码，自动生成
         if company.company_type == 'supplier' and not company.supplier_code:

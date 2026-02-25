@@ -331,6 +331,7 @@ def create_app(config_class=Config):
     # 导入配置管理蓝图
     from app.views.config_management import config_management_bp
 
+
     # 导入工作日历蓝图
     from app.views.worklog import worklog
 
@@ -849,6 +850,7 @@ def create_app(config_class=Config):
     from app.views.system_diagram import system_diagram as system_diagram_bp
     app.register_blueprint(system_diagram_bp)
     csrf.exempt(system_diagram_bp)
+
 
     # 添加审批相关函数到模板上下文
     from app.context_processors import inject_approval_functions

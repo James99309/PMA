@@ -331,6 +331,37 @@ def get_activity_trend(user_id):
         return api_response(success=False, code=500, message=f"获取数据失败: {str(e)}")
 
 
+@api_v1_bp.route('/performance/quarterly-scores/<int:user_id>', methods=['GET'])
+@flexible_auth
+def get_quarterly_scores(user_id):
+    """获取用户季度绩效得分
+
+    Args:
+        user_id: 目标用户ID
+
+    Query Params:
+        year: 年份（默认当前年）
+
+    Returns:
+        JSON: 季度绩效得分数据 {Q1: {...}, Q2: {...}, Q3: {...}, Q4: {...}}
+    """
+    auth_user = get_current_user_flexible()
+    if not auth_user:
+        return api_response(success=False, code=401, message="未认证")
+
+    if not check_user_access(auth_user, user_id):
+        return api_response(success=False, code=403, message="无权限访问该用户数据")
+
+    year = request.args.get('year', datetime.now().year, type=int)
+
+    try:
+        scores = PerformanceDashboardService.get_quarterly_scores(user_id, year)
+        return api_response(success=True, message="获取成功", data=scores)
+    except Exception as e:
+        logger.error(f"获取季度绩效得分失败: {e}")
+        return api_response(success=False, code=500, message=f"获取数据失败: {str(e)}")
+
+
 @api_v1_bp.route('/performance/se-details/<int:user_id>', methods=['GET'])
 @flexible_auth
 def get_se_details(user_id):

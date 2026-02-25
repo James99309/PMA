@@ -454,7 +454,8 @@ class PerformanceService:
 
         SE归属逻辑：
         - 通过 project_members 表 role='solution_engineer' 关联项目
-        - 只要在 project_members 中有记录就计入，无互动门槛
+        - 通过 quotations 表 confirmed_by 关联项目（报价确认）
+        - 通过 work_items/actions 关联项目（互动参与）
         - 仅计算 is_vendor_product=true 的产品植入额
         - 批价额使用整单金额
         """
@@ -464,8 +465,19 @@ class PerformanceService:
                     SELECT generate_series(1, 12) AS month
                 ),
                 se_projects AS (
-                    SELECT project_id FROM project_members
-                    WHERE user_id = :user_id AND role = 'solution_engineer'
+                    SELECT DISTINCT project_id FROM (
+                        SELECT project_id FROM project_members
+                            WHERE user_id = :user_id AND role = 'solution_engineer'
+                        UNION
+                        SELECT project_id FROM quotations
+                            WHERE confirmed_by = :user_id AND project_id IS NOT NULL
+                        UNION
+                        SELECT project_id FROM work_items
+                            WHERE owner_id = :user_id AND project_id IS NOT NULL
+                        UNION
+                        SELECT project_id FROM actions
+                            WHERE owner_id = :user_id AND project_id IS NOT NULL
+                    ) all_se_projects
                 ),
                 se_implant AS (
                     SELECT EXTRACT(month FROM q.created_at)::int AS month,

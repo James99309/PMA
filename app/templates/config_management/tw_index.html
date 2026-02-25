@@ -997,7 +997,8 @@
                 {{ render_tw_alpine_tabs(
                     tabs=[
                         {'key': 'targets', 'label': _('目标配置'), 'icon': 'track_changes'},
-                        {'key': 'metrics', 'label': _('项目管理'), 'icon': 'assessment'}
+                        {'key': 'metrics', 'label': _('项目管理'), 'icon': 'assessment'},
+                        {'key': 'data-entry', 'label': _('数据录入'), 'icon': 'edit_note'}
                     ],
                     model='perfSubTab'
                 ) }}
@@ -1284,6 +1285,260 @@
                 <div x-show="perfSubTab === 'metrics'">
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
                         {% include "config_management/_performance_metrics.html" ignore missing %}
+                    </div>
+                </div>
+
+                <!-- 数据录入子页签 -->
+                <div x-show="perfSubTab === 'data-entry'" x-data="manualEntryConfig()">
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                        <!-- 左侧：用户选择器 -->
+                        <div class="lg:col-span-1">
+                            {{ render_tw_vendor_user_selector(
+                                multi_select=false,
+                                show_year_selector=true,
+                                title=_('选择用户'),
+                                container_id='entryUserSelector'
+                            ) }}
+                        </div>
+
+                        <!-- 右侧：数据录入面板 -->
+                        <div class="lg:col-span-3">
+                            <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+                                <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
+                                    <div>
+                                        <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-primary">edit_note</span>
+                                            <span>{{ _('绩效数据录入') }}</span>
+                                        </h3>
+                                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                            <template x-if="entryUserId">
+                                                <span>{{ _('正在管理') }} <strong class="text-primary" x-text="entryUserName"></strong> {{ _('的辅助指标数据') }}</span>
+                                            </template>
+                                            <template x-if="!entryUserId">
+                                                <span>{{ _('请从左侧选择用户，然后录入辅助指标数据') }}</span>
+                                            </template>
+                                        </p>
+                                    </div>
+                                    <div x-show="entryUserId && entryMetrics.length > 0">
+                                        {% if can_edit %}
+                                        <button @click="openEntryModal()"
+                                                class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors shadow-sm">
+                                            <span class="material-symbols-outlined text-lg">add_circle</span>
+                                            {{ _('录入数据') }}
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <!-- 未选择用户 -->
+                                <template x-if="!entryUserId">
+                                    <div class="text-center py-12">
+                                        <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4 block">person_search</span>
+                                        <p class="text-slate-500 dark:text-slate-400">{{ _('请从左侧选择用户') }}</p>
+                                    </div>
+                                </template>
+
+                                <!-- 无可录入指标 -->
+                                <template x-if="entryUserId && entryMetrics.length === 0 && !entryLoading">
+                                    <div class="text-center py-12">
+                                        <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4 block">info</span>
+                                        <p class="text-slate-500 dark:text-slate-400">{{ _('该用户没有需要手工录入的辅助指标') }}</p>
+                                    </div>
+                                </template>
+
+                                <!-- 加载中 -->
+                                <template x-if="entryLoading">
+                                    <div class="text-center py-12">
+                                        <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4 block animate-spin">progress_activity</span>
+                                        <p class="text-slate-500 dark:text-slate-400">{{ _('加载中...') }}</p>
+                                    </div>
+                                </template>
+
+                                <!-- 已录入数据概览 -->
+                                <template x-if="entryUserId && entryMetrics.length > 0 && !entryLoading">
+                                    <div>
+                                        <div class="mb-4 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                                            <span class="material-symbols-outlined text-lg">summarize</span>
+                                            <span>{{ _('已录入') }} <strong class="text-primary" x-text="existingEntries.length"></strong> {{ _('条数据') }}</span>
+                                        </div>
+                                        <!-- 数据概览表格 -->
+                                        <div class="overflow-x-auto">
+                                            <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('指标') }}</th>
+                                                        <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('周期') }}</th>
+                                                        <th class="px-4 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('数值') }}</th>
+                                                        <th class="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('备注') }}</th>
+                                                        <th class="px-4 py-3 text-center text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">{{ _('附件') }}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                                    <template x-for="entry in existingEntries" :key="entry.id">
+                                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                                            <td class="px-4 py-3 text-sm text-slate-900 dark:text-white" x-text="getMetricName(entry.metric_code)"></td>
+                                                            <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-400" x-text="formatPeriod(entry)"></td>
+                                                            <td class="px-4 py-3 text-sm text-right font-medium text-slate-900 dark:text-white" x-text="formatEntryValue(entry)"></td>
+                                                            <td class="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 max-w-[200px] truncate" x-text="entry.note || '-'"></td>
+                                                            <td class="px-4 py-3 text-sm text-center">
+                                                                <span x-show="entry.attachments && entry.attachments.length > 0" class="inline-flex items-center gap-1 text-primary">
+                                                                    <span class="material-symbols-outlined text-sm">attach_file</span>
+                                                                    <span x-text="entry.attachments.length"></span>
+                                                                </span>
+                                                                <span x-show="!entry.attachments || entry.attachments.length === 0" class="text-slate-400">-</span>
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 数据录入 Modal -->
+                    <div x-show="showEntryModal"
+                         x-cloak
+                         x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100"
+                         x-transition:leave-end="opacity-0"
+                         class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+                         @click.self="closeEntryModal()">
+                        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
+                             @click.stop>
+                            <!-- Modal 头部 -->
+                            <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-primary">edit_note</span>
+                                    {{ _('绩效数据录入') }} — <span x-text="entryUserName"></span> <span x-text="entryYear + '{{ _('年') }}'"></span>
+                                </h3>
+                                <button @click="closeEntryModal()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                    <span class="material-symbols-outlined text-slate-500">close</span>
+                                </button>
+                            </div>
+
+                            <!-- Modal 页签 -->
+                            <div class="px-6 pt-4 border-b border-slate-200 dark:border-slate-700">
+                                <div class="flex gap-1">
+                                    <button @click="entryTab = 'monthly'"
+                                            :class="entryTab === 'monthly' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                                            class="px-4 py-2 text-sm font-medium border-b-2 transition-colors">
+                                        {{ _('月度录入') }}
+                                    </button>
+                                    <button @click="entryTab = 'quarterly'"
+                                            :class="entryTab === 'quarterly' ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                                            class="px-4 py-2 text-sm font-medium border-b-2 transition-colors">
+                                        {{ _('季度录入') }}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Modal 内容（可滚动） -->
+                            <div class="flex-1 overflow-y-auto p-6">
+                                <!-- 月度录入 -->
+                                <div x-show="entryTab === 'monthly'">
+                                    <template x-if="monthlyMetrics.length === 0">
+                                        <p class="text-center py-8 text-slate-500 dark:text-slate-400">{{ _('无需月度录入的指标') }}</p>
+                                    </template>
+                                    <template x-if="monthlyMetrics.length > 0">
+                                        <div class="overflow-x-auto">
+                                            <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700 text-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">{{ _('月份 - 指标') }}</th>
+                                                        <th class="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 w-32">{{ _('数值') }}</th>
+                                                        <th class="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">{{ _('备注') }}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                                    <template x-for="row in monthlyRows" :key="row.key">
+                                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                                            <td class="px-3 py-2 text-slate-900 dark:text-white whitespace-nowrap">
+                                                                <span x-text="row.month + '{{ _('月') }} - ' + row.metricName"></span>
+                                                                <span class="text-xs text-slate-400 ml-1" x-text="'(' + row.unit + ')'"></span>
+                                                            </td>
+                                                            <td class="px-3 py-2">
+                                                                <input type="number" step="0.01"
+                                                                       x-model.number="row.value"
+                                                                       class="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-right text-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                                                                       :placeholder="row.unit">
+                                                            </td>
+                                                            <td class="px-3 py-2">
+                                                                <input type="text"
+                                                                       x-model="row.note"
+                                                                       class="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                                                                       placeholder="{{ _('备注') }}">
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- 季度录入 -->
+                                <div x-show="entryTab === 'quarterly'">
+                                    <template x-if="quarterlyMetrics.length === 0">
+                                        <p class="text-center py-8 text-slate-500 dark:text-slate-400">{{ _('无需季度录入的指标') }}</p>
+                                    </template>
+                                    <template x-if="quarterlyMetrics.length > 0">
+                                        <div class="overflow-x-auto">
+                                            <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700 text-sm">
+                                                <thead>
+                                                    <tr>
+                                                        <th class="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">{{ _('季度 - 指标') }}</th>
+                                                        <th class="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400 w-32">{{ _('数值') }}</th>
+                                                        <th class="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">{{ _('备注') }}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                                    <template x-for="row in quarterlyRows" :key="row.key">
+                                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                                            <td class="px-3 py-2 text-slate-900 dark:text-white whitespace-nowrap">
+                                                                <span x-text="'Q' + row.quarter + ' - ' + row.metricName"></span>
+                                                                <span class="text-xs text-slate-400 ml-1" x-text="'(' + row.unit + ')'"></span>
+                                                            </td>
+                                                            <td class="px-3 py-2">
+                                                                <input type="number" step="0.01"
+                                                                       x-model.number="row.value"
+                                                                       class="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-right text-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                                                                       :placeholder="row.unit">
+                                                            </td>
+                                                            <td class="px-3 py-2">
+                                                                <input type="text"
+                                                                       x-model="row.note"
+                                                                       class="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-primary"
+                                                                       placeholder="{{ _('备注') }}">
+                                                            </td>
+                                                        </tr>
+                                                    </template>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- Modal 底部 -->
+                            <div class="px-6 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-3">
+                                <button @click="closeEntryModal()"
+                                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors">
+                                    {{ _('取消') }}
+                                </button>
+                                <button @click="saveEntries()"
+                                        :disabled="entrySaving"
+                                        class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors">
+                                    <span x-show="entrySaving" class="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                                    <span x-text="entrySaving ? '{{ _('保存中...') }}' : '{{ _('保存') }}'"></span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -4685,6 +4940,186 @@
         if (perfTab && perfTab._x_dataStack) {
             perfTab._x_dataStack[0].saveTargets();
         }
+    }
+
+    // =============================================
+    // 绩效数据手工录入 (Alpine.js)
+    // =============================================
+    function manualEntryConfig() {
+        return {
+            ...vendorUserSelectorMixin({ configType: 'entry', useYear: true }),
+
+            entryUserId: null,
+            entryUserName: '',
+            selectedYear: new Date().getFullYear(),
+            entryLoading: false,
+            entryMetrics: [],       // 该用户可录入的指标
+            existingEntries: [],    // 已录入数据
+            showEntryModal: false,
+            entryTab: 'monthly',
+            entrySaving: false,
+            monthlyRows: [],
+            quarterlyRows: [],
+
+            get entryYear() { return this.selectedYear; },
+
+            get filteredUsers() {
+                return this.getFilteredUsers();
+            },
+
+            get monthlyMetrics() {
+                return this.entryMetrics.filter(m => (m.entry_frequency || 'monthly') === 'monthly');
+            },
+            get quarterlyMetrics() {
+                return this.entryMetrics.filter(m => (m.entry_frequency || 'monthly') === 'quarterly');
+            },
+
+            async init() {
+                this.selectedYear = Alpine.store('configYear').year;
+                window.addEventListener('config-year-changed', (e) => {
+                    if (this.selectedYear !== e.detail.year) {
+                        this.selectedYear = e.detail.year;
+                        if (this.entryUserId) this.loadEntries();
+                    }
+                });
+                await this.loadVendorUsers();
+            },
+
+            selectUser(userId) {
+                if (this.selectedUserId === userId) return;
+                this.selectedUserId = userId;
+                this.entryUserId = userId;
+                const u = this.vendorUsers.find(u => u.id === userId);
+                this.entryUserName = u ? (u.real_name || u.username) : '';
+                this.loadEntries();
+            },
+
+            async loadEntries() {
+                if (!this.entryUserId) return;
+                this.entryLoading = true;
+                try {
+                    const resp = await fetch(`/config-management/api/manual-entries/${this.entryUserId}/${this.entryYear}`);
+                    const data = await resp.json();
+                    if (data.success) {
+                        this.entryMetrics = data.data.metrics || [];
+                        this.existingEntries = data.data.entries || [];
+                    }
+                } catch (e) {
+                    console.error('加载录入数据失败:', e);
+                } finally {
+                    this.entryLoading = false;
+                }
+            },
+
+            getMetricName(code) {
+                const m = this.entryMetrics.find(m => m.metric_code === code);
+                return m ? m.metric_name : code;
+            },
+
+            getMetricUnit(code) {
+                const m = this.entryMetrics.find(m => m.metric_code === code);
+                return m ? (m.default_unit || '') : '';
+            },
+
+            formatPeriod(entry) {
+                if (entry.period_type === 'monthly') return entry.period + '{{ _("月") }}';
+                return 'Q' + entry.period;
+            },
+
+            formatEntryValue(entry) {
+                if (entry.value === null || entry.value === undefined) return '-';
+                const unit = this.getMetricUnit(entry.metric_code);
+                return entry.value + (unit ? unit : '');
+            },
+
+            openEntryModal() {
+                this.buildRows();
+                this.showEntryModal = true;
+                this.entryTab = this.monthlyMetrics.length > 0 ? 'monthly' : 'quarterly';
+            },
+
+            closeEntryModal() {
+                this.showEntryModal = false;
+            },
+
+            buildRows() {
+                // 构建月度行
+                this.monthlyRows = [];
+                for (const m of this.monthlyMetrics) {
+                    for (let month = 1; month <= 12; month++) {
+                        const existing = this.existingEntries.find(
+                            e => e.metric_code === m.metric_code && e.period_type === 'monthly' && e.period === month
+                        );
+                        this.monthlyRows.push({
+                            key: `${m.metric_code}_m${month}`,
+                            metric_code: m.metric_code,
+                            metricName: m.metric_name,
+                            unit: m.default_unit || '',
+                            month: month,
+                            period_type: 'monthly',
+                            period: month,
+                            value: existing ? existing.value : null,
+                            note: existing ? (existing.note || '') : '',
+                        });
+                    }
+                }
+                // 构建季度行
+                this.quarterlyRows = [];
+                for (const m of this.quarterlyMetrics) {
+                    for (let q = 1; q <= 4; q++) {
+                        const existing = this.existingEntries.find(
+                            e => e.metric_code === m.metric_code && e.period_type === 'quarterly' && e.period === q
+                        );
+                        this.quarterlyRows.push({
+                            key: `${m.metric_code}_q${q}`,
+                            metric_code: m.metric_code,
+                            metricName: m.metric_name,
+                            unit: m.default_unit || '',
+                            quarter: q,
+                            period_type: 'quarterly',
+                            period: q,
+                            value: existing ? existing.value : null,
+                            note: existing ? (existing.note || '') : '',
+                        });
+                    }
+                }
+            },
+
+            async saveEntries() {
+                this.entrySaving = true;
+                try {
+                    const entries = [];
+                    for (const row of [...this.monthlyRows, ...this.quarterlyRows]) {
+                        if (row.value !== null && row.value !== '' && row.value !== undefined) {
+                            entries.push({
+                                metric_code: row.metric_code,
+                                period_type: row.period_type,
+                                period: row.period,
+                                value: row.value,
+                                note: row.note || '',
+                            });
+                        }
+                    }
+                    const resp = await fetch(`/config-management/api/manual-entries/${this.entryUserId}/${this.entryYear}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ entries }),
+                    });
+                    const data = await resp.json();
+                    if (data.success) {
+                        this.closeEntryModal();
+                        this.loadEntries();
+                    } else {
+                        alert(data.message || '{{ _("保存失败") }}');
+                    }
+                } catch (e) {
+                    console.error('保存失败:', e);
+                    alert('{{ _("保存失败") }}');
+                } finally {
+                    this.entrySaving = false;
+                }
+            },
+        };
     }
 
     // =============================================

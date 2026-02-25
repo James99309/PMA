@@ -283,6 +283,14 @@
                 <span class="material-symbols-outlined text-base align-middle mr-1">handshake</span>
                 {{ _('方案批价明细') }}
             </button>
+            <button @click="goalsSubTab = 'score'; loadQuarterlyScores()"
+                    class="px-4 py-2 text-sm font-medium rounded-lg transition-all"
+                    :class="goalsSubTab === 'score'
+                        ? 'bg-white dark:bg-neutral-900 text-stone-800 dark:text-stone-100 shadow-sm'
+                        : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300'">
+                <span class="material-symbols-outlined text-base align-middle mr-1">scoreboard</span>
+                {{ _('绩效得分') }}
+            </button>
         </div>
     </template>
 
@@ -408,29 +416,18 @@
                 <thead>
                     <tr class="text-[13px] uppercase tracking-wider text-stone-400 dark:text-stone-500 font-medium">
                         <th class="py-5 px-8">{{ _('项目名称') }}</th>
-                        <th class="py-5 px-4 text-center">{{ _('计入状态') }}</th>
                         <th class="py-5 px-4 text-center">{{ _('参与度') }}</th>
                         <th class="py-5 px-4 text-right">{{ _('任务') }}</th>
                         <th class="py-5 px-4 text-right">{{ _('共享任务') }}</th>
                         <th class="py-5 px-4 text-right">{{ _('跟进') }}</th>
+                        <th class="py-5 px-4 text-right">{{ _('确认') }}</th>
                         <th class="py-5 px-4 text-right">{{ _('当年植入额') }}</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-stone-50 dark:divide-stone-800/50">
                     <template x-for="item in (seDetails?.implant_details || [])" :key="item.project_id">
-                        <tr class="transition-colors duration-150"
-                            :class="item.is_counted
-                                ? 'bg-green-50/40 dark:bg-green-900/10 hover:bg-green-50/80 dark:hover:bg-green-900/20'
-                                : 'bg-stone-50/30 dark:bg-stone-800/10 hover:bg-stone-50/60 dark:hover:bg-stone-800/20'">
+                        <tr class="transition-colors duration-150 hover:bg-stone-50/60 dark:hover:bg-stone-800/20">
                             <td class="py-4 px-8 font-medium text-stone-700 dark:text-stone-300 max-w-[300px] truncate" x-text="item.project_name"></td>
-                            <td class="py-4 px-4 text-center">
-                                <span x-show="item.is_counted" class="inline-flex items-center gap-1 text-green-600 dark:text-green-400 text-sm font-medium">
-                                    <span class="material-symbols-outlined text-base">check_circle</span>{{ _('计入') }}
-                                </span>
-                                <span x-show="!item.is_counted" class="inline-flex items-center gap-1 text-stone-400 dark:text-stone-500 text-sm">
-                                    <span class="material-symbols-outlined text-base">cancel</span>{{ _('未计入') }}
-                                </span>
-                            </td>
                             <td class="py-4 px-4 text-center">
                                 <span x-show="item.badge_level === 'core'" class="text-xs px-1.5 py-0.5 rounded font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                                     {{ _('核心') }}
@@ -445,6 +442,7 @@
                             <td class="py-4 px-4 text-right text-stone-600 dark:text-stone-400" x-text="item.work_item_count"></td>
                             <td class="py-4 px-4 text-right text-stone-600 dark:text-stone-400" x-text="item.shared_work_item_count"></td>
                             <td class="py-4 px-4 text-right text-stone-600 dark:text-stone-400" x-text="item.action_count"></td>
+                            <td class="py-4 px-4 text-right text-stone-600 dark:text-stone-400" x-text="item.confirmation_count"></td>
                             <td class="py-4 px-4 text-right font-medium"
                                 :class="item.implant_amount > 0 ? 'text-stone-800 dark:text-stone-200' : 'text-stone-400 dark:text-stone-500'">
                                 <span x-text="item.implant_amount > 0 ? (typeof CurrencyHelpers !== 'undefined' ? CurrencyHelpers.formatFromCNYYuan(item.implant_amount, userCurrency) : (item.implant_amount / 10000).toFixed(2)) : '—'"></span>
@@ -507,6 +505,96 @@
                 </tbody>
             </table>
         </div>
+    </div>
+
+    {# ==================== 绩效得分页签 ==================== #}
+    <div x-show="goalsSubTab === 'score'" class="mt-6 space-y-6">
+        <div x-show="quarterlyScoresLoading" class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-sm px-8 py-12 text-center">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+        </div>
+        <template x-if="!quarterlyScoresLoading && quarterlyScores">
+            <div class="space-y-6">
+                <template x-for="q in [1,2,3,4]" :key="q">
+                    <div class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-sm overflow-hidden">
+                        {# 季度标题 + 综合得分 #}
+                        <div class="px-8 py-5 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-stone-800 dark:text-stone-100 flex items-center gap-2">
+                                <span class="material-symbols-outlined text-xl text-primary">scoreboard</span>
+                                <span x-text="'Q' + q + ' {{ _('绩效得分') }}'"></span>
+                            </h3>
+                            <div class="flex items-center gap-2">
+                                <span class="text-3xl font-bold"
+                                      :class="(quarterlyScores['Q'+q]?.total_score || 0) >= 80 ? 'text-green-600 dark:text-green-400' :
+                                              (quarterlyScores['Q'+q]?.total_score || 0) >= 60 ? 'text-amber-600 dark:text-amber-400' :
+                                              'text-red-600 dark:text-red-400'"
+                                      x-text="(quarterlyScores['Q'+q]?.total_score || 0).toFixed(1)"></span>
+                                <span class="text-sm text-stone-400">{{ _('分') }}</span>
+                            </div>
+                        </div>
+                        {# 分项明细表 #}
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="text-[13px] uppercase tracking-wider text-stone-400 dark:text-stone-500 font-medium">
+                                        <th class="py-4 px-8">{{ _('指标') }}</th>
+                                        <th class="py-4 px-4 text-center">{{ _('权重') }}</th>
+                                        <th class="py-4 px-4 text-right">{{ _('目标') }}</th>
+                                        <th class="py-4 px-4 text-right">{{ _('实际') }}</th>
+                                        <th class="py-4 px-4 text-right">{{ _('达成率') }}</th>
+                                        <th class="py-4 px-4 text-right">{{ _('加权得分') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-stone-50 dark:divide-stone-800/50">
+                                    <template x-for="(item, idx) in (quarterlyScores['Q'+q]?.items || [])" :key="idx">
+                                        <tr class="transition-colors duration-150 hover:bg-[rgba(180,160,140,0.04)] dark:hover:bg-white/[0.02]">
+                                            <td class="py-3.5 px-8 font-medium text-stone-700 dark:text-stone-300 flex items-center gap-2">
+                                                <span class="material-symbols-outlined text-base"
+                                                      :style="'color:'+(metricConfigs[item.code]?.chartColor || '#666')"
+                                                      x-text="metricConfigs[item.code]?.icon || 'analytics'"></span>
+                                                <span x-text="item.name"></span>
+                                            </td>
+                                            <td class="py-3.5 px-4 text-center text-stone-500 dark:text-stone-400" x-text="item.weight + '%'"></td>
+                                            <td class="py-3.5 px-4 text-right text-stone-500 dark:text-stone-400" x-text="formatMetricValue(item.code, item.target)"></td>
+                                            <td class="py-3.5 px-4 text-right font-medium text-stone-800 dark:text-stone-200" x-text="formatMetricValue(item.code, item.actual)"></td>
+                                            <td class="py-3.5 px-4 text-right">
+                                                <span class="px-2 py-0.5 rounded-full text-xs font-medium"
+                                                      :class="item.achievement_rate >= 100 ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300' :
+                                                              item.achievement_rate >= 80 ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300' :
+                                                              'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'"
+                                                      x-text="item.achievement_rate.toFixed(1) + '%'"></span>
+                                            </td>
+                                            <td class="py-3.5 px-4 text-right font-semibold"
+                                                :style="'color:'+(metricConfigs[item.code]?.chartColor || '#666')"
+                                                x-text="item.weighted_score.toFixed(1)"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                                <tfoot>
+                                    <tr class="border-t-2 border-stone-200 dark:border-stone-700 font-semibold text-stone-800 dark:text-stone-100">
+                                        <td class="py-4 px-8">{{ _('合计') }}</td>
+                                        <td class="py-4 px-4 text-center" x-text="(quarterlyScores['Q'+q]?.total_weight || 0) + '%'"></td>
+                                        <td class="py-4 px-4"></td>
+                                        <td class="py-4 px-4"></td>
+                                        <td class="py-4 px-4"></td>
+                                        <td class="py-4 px-4 text-right text-lg"
+                                            :class="(quarterlyScores['Q'+q]?.total_score || 0) >= 80 ? 'text-green-600 dark:text-green-400' :
+                                                    (quarterlyScores['Q'+q]?.total_score || 0) >= 60 ? 'text-amber-600 dark:text-amber-400' :
+                                                    'text-red-600 dark:text-red-400'"
+                                            x-text="(quarterlyScores['Q'+q]?.total_score || 0).toFixed(1)"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+        <template x-if="!quarterlyScoresLoading && !quarterlyScores">
+            <div class="bg-white dark:bg-neutral-900 rounded-2xl border border-stone-200/60 dark:border-stone-800 shadow-sm px-8 py-12 text-center text-stone-400 dark:text-stone-500">
+                <span class="material-symbols-outlined text-3xl mb-2 block">scoreboard</span>
+                {{ _('暂无绩效得分数据') }}
+            </div>
+        </template>
     </div>
 
     </div>
@@ -1435,6 +1523,81 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 chartColorDeep: '#fb923c',
                 isPercentage: false,
                 isAmount: true
+            },
+            'se_response_rate': {
+                label: '{{ _("响应时效达标率") }}',
+                icon: 'speed',
+                colors: {
+                    active: 'border-sky-500 bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300',
+                    inactive: 'border-sky-300 dark:border-sky-600 bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/50'
+                },
+                textColor: 'text-sky-600 dark:text-sky-400',
+                lightTextColor: 'text-sky-400/70 dark:text-sky-300/70',
+                barColor: 'bg-sky-500',
+                barColorLight: 'bg-sky-300 dark:bg-sky-400/50',
+                barColorDeep: 'bg-sky-600 dark:bg-sky-500',
+                chartColor: '#0ea5e9',
+                chartColorLight: '#0ea5e960',
+                chartColorDeep: '#0ea5e9',
+                isPercentage: true,
+                isAmount: false
+            },
+            'se_training_count': {
+                label: '{{ _("培训次数") }}',
+                icon: 'school',
+                colors: {
+                    active: 'border-violet-500 bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300',
+                    inactive: 'border-violet-300 dark:border-violet-600 bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-900/50'
+                },
+                textColor: 'text-violet-600 dark:text-violet-400',
+                lightTextColor: 'text-violet-400/70 dark:text-violet-300/70',
+                barColor: 'bg-violet-500',
+                barColorLight: 'bg-violet-300 dark:bg-violet-400/50',
+                barColorDeep: 'bg-violet-600 dark:bg-violet-500',
+                chartColor: '#8b5cf6',
+                chartColorLight: '#8b5cf660',
+                chartColorDeep: '#8b5cf6',
+                isPercentage: false,
+                isAmount: false,
+                unit: '{{ _("次") }}'
+            },
+            'se_content_output': {
+                label: '{{ _("内容产出") }}',
+                icon: 'article',
+                colors: {
+                    active: 'border-emerald-500 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300',
+                    inactive: 'border-emerald-300 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
+                },
+                textColor: 'text-emerald-600 dark:text-emerald-400',
+                lightTextColor: 'text-emerald-400/70 dark:text-emerald-300/70',
+                barColor: 'bg-emerald-500',
+                barColorLight: 'bg-emerald-300 dark:bg-emerald-400/50',
+                barColorDeep: 'bg-emerald-600 dark:bg-emerald-500',
+                chartColor: '#10b981',
+                chartColorLight: '#10b98160',
+                chartColorDeep: '#10b981',
+                isPercentage: false,
+                isAmount: false,
+                unit: '{{ _("份") }}'
+            },
+            'se_satisfaction': {
+                label: '{{ _("满意度评分") }}',
+                icon: 'sentiment_satisfied',
+                colors: {
+                    active: 'border-pink-500 bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300',
+                    inactive: 'border-pink-300 dark:border-pink-600 bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 hover:bg-pink-100 dark:hover:bg-pink-900/50'
+                },
+                textColor: 'text-pink-600 dark:text-pink-400',
+                lightTextColor: 'text-pink-400/70 dark:text-pink-300/70',
+                barColor: 'bg-pink-500',
+                barColorLight: 'bg-pink-300 dark:bg-pink-400/50',
+                barColorDeep: 'bg-pink-600 dark:bg-pink-500',
+                chartColor: '#ec4899',
+                chartColorLight: '#ec489960',
+                chartColorDeep: '#ec4899',
+                isPercentage: false,
+                isAmount: false,
+                unit: '{{ _("分") }}'
             }
         },
 
@@ -1479,7 +1642,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
         configuredItems: [],  // 配置的绩效项目代码列表（用于动态列显示）
         userRole: '',  // 用户角色（用于控制标签页可见性）
         // SE 明细数据
-        goalsSubTab: 'monthly',  // 'monthly' | 'se_implant' | 'se_pricing'
+        goalsSubTab: 'monthly',  // 'monthly' | 'se_implant' | 'se_pricing' | 'score'
+        quarterlyScores: null,  // 季度绩效得分数据
+        quarterlyScoresLoading: false,
         seDetails: null,
         seDetailsLoading: false,
         // 客户分布数据
@@ -1545,6 +1710,23 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             return this.configuredItems.some(c => c.startsWith('se_'));
         },
 
+        async loadQuarterlyScores() {
+            if (this.quarterlyScores) return;
+            this.quarterlyScoresLoading = true;
+            try {
+                const url = `/api/v1/performance/quarterly-scores/${this.userId}?year=${this.selectedYear}`;
+                const resp = await fetch(url);
+                const result = await resp.json();
+                if (result.success) {
+                    this.quarterlyScores = result.data;
+                }
+            } catch (e) {
+                console.error('Quarterly scores load error:', e);
+            } finally {
+                this.quarterlyScoresLoading = false;
+            }
+        },
+
         async loadSeDetails() {
             if (this.seDetails) return;
             this.seDetailsLoading = true;
@@ -1566,6 +1748,7 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             this.loading = true;
             this.error = null;
             this.seDetails = null;  // 重新加载时重置 SE 明细缓存
+            this.quarterlyScores = null;  // 重置季度得分缓存
 
             try {
                 const url = `${dashboardUrl}?year=${this.selectedYear}`;
@@ -2346,7 +2529,11 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                 pm_implant_amount: '{{ _("产品植入额") }}/{{ _("植入目标") }}',
                 pm_sales_amount: '{{ _("产品批价额") }}/{{ _("批价目标") }}',
                 se_implant_amount: '{{ _("方案植入额") }}/{{ _("植入目标") }}',
-                se_sales_amount: '{{ _("方案批价额") }}/{{ _("批价目标") }}'
+                se_sales_amount: '{{ _("方案批价额") }}/{{ _("批价目标") }}',
+                se_response_rate: '{{ _("响应时效达标率") }}/{{ _("目标") }}',
+                se_training_count: '{{ _("培训次数") }}/{{ _("目标") }}',
+                se_content_output: '{{ _("内容产出") }}/{{ _("目标") }}',
+                se_satisfaction: '{{ _("满意度评分") }}/{{ _("目标") }}'
             };
             return labels[key] || key;
         },
@@ -2450,6 +2637,9 @@ function performanceDashboardData(userId, year, dashboardUrl) {
             }
             if (config?.isAmount || key.includes('amount')) {
                 return this.formatAmount(value);
+            }
+            if (config?.unit) {
+                return (value || 0) + config.unit;
             }
             return value;
         },
@@ -2577,6 +2767,10 @@ function performanceDashboardData(userId, year, dashboardUrl) {
                     return CurrencyHelpers.formatWithSmartUnit(Math.round(converted), this.userCurrency, { withSymbol: false });
                 }
                 return (value / {{ currency_config.divisor }}).toFixed(2);  // 回退逻辑
+            }
+            // 带单位的指标（培训次数、内容产出、满意度分）
+            if (config?.unit) {
+                return value + config.unit;
             }
             // 数量类指标：直接显示
             return value;

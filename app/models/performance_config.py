@@ -23,15 +23,16 @@ class PerformanceMetricsDefinition(db.Model):
     available_sources = Column(JSON)  # 可用数据源配置
     is_system_metric = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
+    entry_frequency = Column(String(10), default='monthly')  # 'monthly' / 'quarterly'
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     def __init__(self, **kwargs):
         super(PerformanceMetricsDefinition, self).__init__(**kwargs)
         if not self.created_at:
             self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
-    
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -43,7 +44,8 @@ class PerformanceMetricsDefinition(db.Model):
             'description': self.description,
             'available_sources': self.available_sources,
             'is_system_metric': self.is_system_metric,
-            'is_active': self.is_active
+            'is_active': self.is_active,
+            'entry_frequency': self.entry_frequency or 'monthly'
         }
 
 class RolePerformanceConfig(db.Model):
