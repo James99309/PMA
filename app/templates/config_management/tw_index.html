@@ -4952,6 +4952,10 @@
             entryUserId: null,
             entryUserName: '',
             selectedYear: new Date().getFullYear(),
+            availableYears: (() => {
+                const current = new Date().getFullYear();
+                return [current - 1, current, current + 1];
+            })(),
             entryLoading: false,
             entryMetrics: [],       // 该用户可录入的指标
             existingEntries: [],    // 已录入数据

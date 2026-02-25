@@ -385,7 +385,16 @@ function performanceMetricsManager() {
                 const response = await fetch('/performance/config/api/metrics/data-source-presets');
                 const data = await response.json();
                 if (data.success) {
-                    this.dataSourcePresets = data.data || [];
+                    // API 返回字典 {ModelName: {...}}, 转换为数组 [{model: 'ModelName', ...}]
+                    const raw = data.data || {};
+                    if (Array.isArray(raw)) {
+                        this.dataSourcePresets = raw;
+                    } else {
+                        this.dataSourcePresets = Object.entries(raw).map(([model, preset]) => ({
+                            model,
+                            ...preset
+                        }));
+                    }
                 }
             } catch (error) {
                 console.error('加载数据源预设失败:', error);
