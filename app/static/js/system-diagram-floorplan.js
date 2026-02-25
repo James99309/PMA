@@ -109,7 +109,7 @@ function restoreFloorPlans(data){
 }
 
 // ====== FLOOR PLAN RENDERING ======
-function renderFloorPlanView(viewId){
+function renderFloorPlanView(viewId, isDragging){
   const fp=getFloorPlan(viewId);
   if(!fp){renderTopologyView();return}
 
@@ -118,22 +118,24 @@ function renderFloorPlanView(viewId){
   const handlesLayer=document.getElementById('handlesLayer');
   nodesLayer.innerHTML='';edgesLayer.innerHTML='';handlesLayer.innerHTML='';
 
-  // 1. Render background image
+  // 1. Render background image (cached, fast even during drag)
   renderFloorBackground(fp);
 
   // 2. Render areas
   renderFloorAreas(fp);
 
-  // 3. Render calibration line
-  if(fp.calibration&&fp.calibration.ref_line){
+  // 3. Render calibration line (skip during drag)
+  if(!isDragging && fp.calibration&&fp.calibration.ref_line){
     renderCalibrationLine(fp);
   }
 
-  // 4. Render coverage (behind routes)
-  if (displaySettings.coverageMode === 'heatmap') {
-    renderCoverageHeatmap(fp);
-  } else {
-    renderCoverageCircles(fp);
+  // 4. Render coverage (skip during drag — expensive)
+  if(!isDragging){
+    if (displaySettings.coverageMode === 'heatmap') {
+      renderCoverageHeatmap(fp);
+    } else {
+      renderCoverageCircles(fp);
+    }
   }
 
   // 5. Render manual routes (floor plan connections)
@@ -148,21 +150,41 @@ function renderFloorPlanView(viewId){
   // 7b. Floor route endpoint handles (reconnect drag)
   renderFloorRouteEndpoints(fp);
 
-  // 8. Legend & scale indicator
-  buildFloorLegend(fp);
-  updateScaleIndicator();
+  // 8. Legend & scale indicator (skip during drag)
+  if(!isDragging){
+    buildFloorLegend(fp);
+    updateScaleIndicator();
+  }
 }
 
 // ====== BACKGROUND ======
-function renderFloorBackground(fp){
-  // Remove any existing background image element
-  const existing=document.getElementById('floorBgImage');
-  if(existing)existing.remove();
+let cachedFloorBgImg=null;
+let _cachedBgUrl=null;
 
-  if(!fp.background||!fp.background.url)return;
+function renderFloorBackground(fp){
+  if(!fp.background||!fp.background.url){
+    // No background — remove cached element if present
+    if(cachedFloorBgImg&&cachedFloorBgImg.parentNode){cachedFloorBgImg.remove()}
+    cachedFloorBgImg=null;_cachedBgUrl=null;
+    return;
+  }
 
   const bg=fp.background;
   const canvasGroup=document.getElementById('canvasGroup');
+
+  // Reuse existing element if URL unchanged
+  if(cachedFloorBgImg && _cachedBgUrl===bg.url && cachedFloorBgImg.parentNode===canvasGroup){
+    // Only update attributes that may have changed
+    cachedFloorBgImg.setAttribute('x',bg.offset_x||0);
+    cachedFloorBgImg.setAttribute('y',bg.offset_y||0);
+    cachedFloorBgImg.setAttribute('width',bg.width);
+    cachedFloorBgImg.setAttribute('height',bg.height);
+    cachedFloorBgImg.setAttribute('opacity',bg.opacity||0.3);
+    return;
+  }
+
+  // Create new element (first render or URL changed)
+  if(cachedFloorBgImg&&cachedFloorBgImg.parentNode){cachedFloorBgImg.remove()}
 
   const img=document.createElementNS('http://www.w3.org/2000/svg','image');
   img.setAttribute('id','floorBgImage');
@@ -177,6 +199,8 @@ function renderFloorBackground(fp){
   // Insert before all layers so it appears behind everything
   const firstLayer=canvasGroup.querySelector('#edgesLayer')||canvasGroup.firstChild;
   canvasGroup.insertBefore(img,firstLayer);
+  cachedFloorBgImg=img;
+  _cachedBgUrl=bg.url;
 }
 
 // ====== AREAS ======
@@ -236,10 +260,10 @@ function renderFloorAreas(fp){
     // Click to select area
     g.addEventListener('mousedown',e=>{
       if(currentTool==='area')return;
-      e.stopPropagation();
       selectedAreaId=area.id;selectedNodeIds=new Set();selectedEdgeId=null;
       showAreaProps(area.id);renderAll();
-      if(area.locked)return; // don't drag locked areas
+      if(area.locked)return; // don't drag locked areas — let event propagate for panning
+      e.stopPropagation(); // only block panning when starting area drag
       const pt=svgPoint(e);
       isDraggingArea=true;dragAreaId=area.id;
       areaDragOffset={x:pt.x-area.x,y:pt.y-area.y};
@@ -588,6 +612,7 @@ function renderCoverageCircles(fp) {
   const defs = document.createElementNS(svgNS, 'defs');
   const coverageG = document.createElementNS(svgNS, 'g');
   coverageG.setAttribute('class', 'coverage-layer');
+  coverageG.style.pointerEvents = 'none';
 
   let pathIdCounter = 0;
 
@@ -805,6 +830,7 @@ function renderCoverageHeatmap(fp) {
   // Insert SVG <image>
   const coverageG = document.createElementNS(svgNS, 'g');
   coverageG.setAttribute('class', 'coverage-layer');
+  coverageG.style.pointerEvents = 'none';
 
   const img = document.createElementNS(svgNS, 'image');
   img.setAttribute('href', dataUrl);
@@ -1943,7 +1969,7 @@ function onAreaMouseMove(e){
     const pt=svgPoint(e);
     area.x=Math.round((pt.x-areaDragOffset.x)/10)*10;
     area.y=Math.round((pt.y-areaDragOffset.y)/10)*10;
-    hasUnsavedChanges=true;renderAll();
+    hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled();
   }
   if(isResizingArea&&resizeAreaId!=null){
     const fp=getFloorPlan(currentView);if(!fp)return;
@@ -1953,7 +1979,7 @@ function onAreaMouseMove(e){
     if(resizeHandle.includes('b')){area.height=Math.max(40,s.h+(pt.y-s.my))}
     if(resizeHandle.includes('l')){const dx=pt.x-s.mx;area.x=s.x+dx;area.width=Math.max(40,s.w-dx)}
     if(resizeHandle.includes('t')){const dy=pt.y-s.my;area.y=s.y+dy;area.height=Math.max(40,s.h-dy)}
-    hasUnsavedChanges=true;renderAll();
+    hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled();
   }
 }
 
@@ -1977,8 +2003,14 @@ function onAreaMouseUp(e){
     // Auto focus name input for immediate editing
     setTimeout(()=>{const inp=document.querySelector('#propsContent .props-input');if(inp){inp.focus();inp.select()}},50);
   }
-  if(isDraggingArea){isDraggingArea=false;dragAreaId=null;syncFloorAreaLabels()}
-  if(isResizingArea){isResizingArea=false;resizeAreaId=null;resizeAreaStart=null;syncFloorAreaLabels()}
+  if(isDraggingArea){
+    isDraggingArea=false;dragAreaId=null;syncFloorAreaLabels();
+    isDraggingOperation=false;if(pendingRenderFrame){cancelAnimationFrame(pendingRenderFrame);pendingRenderFrame=null}renderAll();
+  }
+  if(isResizingArea){
+    isResizingArea=false;resizeAreaId=null;resizeAreaStart=null;syncFloorAreaLabels();
+    isDraggingOperation=false;if(pendingRenderFrame){cancelAnimationFrame(pendingRenderFrame);pendingRenderFrame=null}renderAll();
+  }
 }
 
 // Hook area events into SVG

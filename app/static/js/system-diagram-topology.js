@@ -226,7 +226,7 @@ document.addEventListener('mousemove',e=>{
         selectedNodeIds.forEach(id=>{const n=nodes.find(n=>n.id===id);const s=dragStartPositions.get(id);if(n&&s){n.x=s.x+dx;n.y=s.y+dy}});
       }else{dn.x=nx;dn.y=ny}
     }
-    hasUnsavedChanges=true;renderAll()}}
+    hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled()}}
   if(isPanning){viewX=panViewX+(e.clientX-panStartX);viewY=panViewY+(e.clientY-panStartY);updateTransform()}
   if(isConnecting&&connSourceId){const pt=svgPoint(e);if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor)renderFloorReconnectLine(pt.x,pt.y);else renderTempEdge(pt.x,pt.y)}
   if(isDraggingMid&&dragMidEdgeId!==null){
@@ -234,7 +234,7 @@ document.addEventListener('mousemove',e=>{
     if(edge){const src=nodes.find(n=>n.id===edge.sourceId),tgt=nodes.find(n=>n.id===edge.targetId);
       if(src&&tgt){const isH=(edge.sourcePort==='left'||edge.sourcePort==='right');
         edge.midPos=isH?Math.round(pt.x/10)*10:Math.round(pt.y/10)*10;
-        hasUnsavedChanges=true;renderAll();}}
+        hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled();}}
   }
   // Floor route mid-handle drag
   if(typeof isDraggingFloorMid!=='undefined'&&isDraggingFloorMid&&dragFloorMidRouteId!==null){
@@ -247,11 +247,12 @@ document.addEventListener('mousemove',e=>{
           const sp=autoP?autoP.srcPort:(route.sourcePort||'right');
           const isH=(sp==='left'||sp==='right'||sp==='top-left'||sp==='bottom-left'||sp==='top-right'||sp==='bottom-right');
           route.midPos=isH?Math.round(pt.x/10)*10:Math.round(pt.y/10)*10;
-          hasUnsavedChanges=true;renderAll()}}}
+          hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled()}}}
   }
 });
 
 document.addEventListener('mouseup',e=>{
+  const wasDraggingOp=isDraggingOperation;
   if(isDragging&&dragMoved&&currentView!=='topology'){
     if(typeof snapToRiserIfNeeded==='function'){const fp=getFloorPlan(currentView);if(fp){selectedNodeIds.forEach(id=>{const pl=fp.placements.find(p=>p.node_id===id);if(pl)snapToRiserIfNeeded(pl,fp)})}}
     if(typeof syncRiserNodes==='function'){const fp=getFloorPlan(currentView);if(fp)syncRiserNodes(fp)}
@@ -259,6 +260,10 @@ document.addEventListener('mouseup',e=>{
   }
   isDragging=false;dragNodeId=null;isPanning=false;isDraggingMid=false;dragMidEdgeId=null;
   if(typeof isDraggingFloorMid!=='undefined'){isDraggingFloorMid=false;dragFloorMidRouteId=null}
+  // Reset drag optimization state and force full render to restore skipped elements
+  isDraggingOperation=false;
+  if(pendingRenderFrame){cancelAnimationFrame(pendingRenderFrame);pendingRenderFrame=null}
+  if(wasDraggingOp)renderAll();
   if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor&&!isConnecting){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
   if(isConnecting){
     let reconnected=false;

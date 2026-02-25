@@ -1139,39 +1139,62 @@ def view_company(company_id):
     # 提取项目对象（排除已删除的项目）
     projects = [assoc.project for assoc in project_associations if assoc.project]
 
-    # 筛选用户有权限查看的项目
-    viewable_project_ids = [p.id for p in get_viewable_data(Project, current_user).all()]
-    viewable_projects = [p for p in projects if p.id in viewable_project_ids]
-    
-    # 获取公司的行动记录
+    # 筛选用户有权限查看的项目（只查该公司的项目ID，避免全表扫描）
+    company_project_ids = [p.id for p in projects if p]
+    if company_project_ids:
+        viewable_project_ids = set(
+            row[0] for row in get_viewable_data(
+                Project, current_user,
+                [Project.id.in_(company_project_ids)]
+            ).with_entities(Project.id).all()
+        )
+        viewable_projects = [p for p in projects if p.id in viewable_project_ids]
+    else:
+        viewable_project_ids = set()
+        viewable_projects = []
+
+    # 获取公司的行动记录（在数据库层面同时过滤 company_id 和权限）
     page = request.args.get('page', 1, type=int)
-    query = Action.query.filter_by(company_id=company_id)
-    pagination = query.order_by(Action.created_at.desc()).paginate(
+    viewable_actions_query = get_viewable_data(
+        Action, current_user,
+        [Action.company_id == company_id]
+    )
+    # 🔒 额外过滤：移除关联到用户无权查看的项目的行动记录
+    if viewable_project_ids:
+        viewable_actions_query = viewable_actions_query.filter(
+            db.or_(
+                Action.project_id == None,
+                Action.project_id.in_(viewable_project_ids)
+            )
+        )
+    else:
+        viewable_actions_query = viewable_actions_query.filter(Action.project_id == None)
+
+    viewable_actions = viewable_actions_query.order_by(Action.created_at.desc()).all()
+
+    # 分页使用已过滤的查询
+    pagination = viewable_actions_query.order_by(Action.created_at.desc()).paginate(
         page=page, per_page=10, error_out=False
     )
     actions = pagination.items
-    
-    # 使用新的权限控制系统筛选用户有权限查看的行动记录
-    all_viewable_actions = get_viewable_data(Action, current_user).all()
-    # 只显示属于当前公司的行动记录，并按时间降序排序（最新的在最前面）
-    viewable_actions = [a for a in all_viewable_actions if a.company_id == company_id]
 
-    # 🔒 额外过滤：移除关联到用户无权查看的项目的行动记录
-    # 这确保了共享客户时，用户无法看到关联到未共享项目的行动记录
-    viewable_actions = [
-        action for action in viewable_actions
-        if not action.project_id or action.project_id in viewable_project_ids
-    ]
-
-    viewable_actions.sort(key=lambda x: x.created_at, reverse=True)
-    
     # 提前加载行动记录所有者信息，避免N+1查询
-    action_user_ids = [action.owner_id for action in actions if action.owner_id]
-    users = User.query.filter(User.id.in_(set(action_user_ids))).all()
-    user_map = {user.id: user for user in users}
+    all_action_ids = set()
+    for action in viewable_actions:
+        if action.owner_id:
+            all_action_ids.add(action.owner_id)
     for action in actions:
-        if action.owner_id and action.owner_id in user_map:
-            action.owner = user_map[action.owner_id]
+        if action.owner_id:
+            all_action_ids.add(action.owner_id)
+    if all_action_ids:
+        users = User.query.filter(User.id.in_(all_action_ids)).all()
+        user_map = {user.id: user for user in users}
+        for action in viewable_actions:
+            if action.owner_id and action.owner_id in user_map:
+                action.owner = user_map[action.owner_id]
+        for action in actions:
+            if action.owner_id and action.owner_id in user_map:
+                action.owner = user_map[action.owner_id]
     
     # 获取共享相关数据
     from app.utils.sharing import SharingService, get_shareable_users_tree

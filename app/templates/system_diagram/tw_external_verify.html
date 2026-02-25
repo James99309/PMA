@@ -94,11 +94,7 @@ function handleVerify(e){
     if(data.success){
       window.location.href=data.redirectUrl;
     }else{
-      if(data.isInternal){
-        errBox.innerHTML=data.message+'<br><a class="login-link" href="/">前往登录 →</a>';
-      }else{
-        errBox.textContent=data.message;
-      }
+      errBox.textContent=data.message;
       errBox.classList.add('show');
       btn.disabled=false;btn.textContent='进入设计';
     }

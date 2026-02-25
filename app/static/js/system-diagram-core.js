@@ -510,7 +510,7 @@ function setTool(tool){
   document.getElementById('diagramCanvas').style.cursor=tool==='connect'||tool==='area'||tool==='calibrate'?'crosshair':'default';
 }
 const svg=document.getElementById('diagramCanvas');
-svg.addEventListener('mousedown',e=>{if(e.target===svg||(e.target.tagName==='rect'&&!e.target.closest('.node-group')&&!e.target.closest('.mid-handle'))){if(currentTool!=='select'&&currentTool!=='area'&&currentTool!=='calibrate')setTool('select');isPanning=true;panStartX=e.clientX;panStartY=e.clientY;panViewX=viewX;panViewY=viewY;if(!e.shiftKey){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedAreaId!=='undefined')selectedAreaId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}}});
+svg.addEventListener('mousedown',e=>{if(e.target===svg||(e.target.tagName==='rect'&&!e.target.closest('.node-group')&&!e.target.closest('.mid-handle'))){if(currentTool!=='select'&&currentTool!=='area'&&currentTool!=='calibrate')setTool('select');isPanning=true;panStartX=e.clientX;panStartY=e.clientY;panViewX=viewX;panViewY=viewY;const isAreaClick=e.target.closest&&e.target.closest('.floor-area');if(!e.shiftKey&&!isAreaClick){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedAreaId!=='undefined')selectedAreaId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}}});
 svg.addEventListener('wheel',e=>{e.preventDefault();zoomCanvas(e.deltaY>0?-.08:.08,e.clientX,e.clientY)},{passive:false});
 
 function zoomCanvas(d,cx,cy){const old=scale;scale=Math.max(.2,Math.min(3,scale+d));if(cx!==undefined){const r=wrapper.getBoundingClientRect();const mx=cx-r.left,my=cy-r.top;viewX=mx-(mx-viewX)*(scale/old);viewY=my-(my-viewY)*(scale/old)}updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%'}
@@ -998,14 +998,33 @@ async function loadDiagram(){
 }
 
 // ====== RENDER DISPATCH ======
+// ====== DRAG PERFORMANCE OPTIMIZATION ======
+let isDraggingOperation=false;
+let pendingRenderFrame=null;
+let _minimapTimer=null;
+
+function requestRenderThrottled(){
+  if(pendingRenderFrame)return;
+  pendingRenderFrame=requestAnimationFrame(()=>{
+    pendingRenderFrame=null;
+    renderAll();
+  });
+}
+
 function renderAll(){
   if(currentView==='topology'){
     renderTopologyView();
     const si=document.getElementById('scaleIndicator');if(si)si.style.display='none';
   } else {
-    renderFloorPlanView(currentView);
+    renderFloorPlanView(currentView, isDraggingOperation);
   }
-  updateInfo();updateMinimap();
+  updateInfo();
+  // Debounce minimap updates during drag operations
+  if(isDraggingOperation){
+    if(!_minimapTimer){_minimapTimer=setTimeout(()=>{_minimapTimer=null;updateMinimap()},200)}
+  } else {
+    updateMinimap();
+  }
 }
 
 // ====== VIEW SWITCHING ======
@@ -1037,6 +1056,8 @@ function switchView(viewId){
   if(btnRelayout)btnRelayout.style.display=viewId==='topology'?'':'none';
   selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;
   if(typeof syncFloorAreaLabels==='function')syncFloorAreaLabels();
+  // Clear cached background image when switching views
+  if(typeof cachedFloorBgImg!=='undefined')cachedFloorBgImg=null;
   renderAll();hideProps();
   if(typeof buildExistingDevicesPanel==='function')buildExistingDevicesPanel();
 }

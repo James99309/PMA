@@ -167,11 +167,11 @@
         back_url=url_for('customer.list_companies'),
         status_badges=render_tw_customer_status_badge(company.status),
         edit_btn={
-            'show': has_permission('customer', 'edit'),
+            'show': can_edit_company_info(current_user, company),
             'onclick': 'openCustomerEditModal()'
         },
         delete_btn={
-            'show': has_permission('customer', 'delete'),
+            'show': can_delete_company(current_user, company),
             'onclick': 'openDeleteConfirm()'
         },
         extra_actions=[

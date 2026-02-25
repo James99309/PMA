@@ -505,7 +505,8 @@ function submitShare(){
     if(data.success){
       document.getElementById('shareUrlDisplay').value=data.shareUrl;
       document.getElementById('shareResult').style.display='block';
-      showToast('✓ {{ _("分享链接已生成，邮件已发送") }}');
+      if(data.emailSent){showToast('✓ {{ _("分享链接已生成，邮件已发送") }}')}
+      else{showToast('✓ {{ _("分享链接已生成（邮件发送失败，请手动复制链接）") }}')}
     }else{
       document.getElementById('shareError').textContent=data.message||'{{ _("操作失败") }}';
       document.getElementById('shareError').style.display='block';

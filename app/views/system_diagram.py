@@ -478,6 +478,7 @@ def api_create_share():
     share_url = url_for('system_diagram.external_entry', token=token_str, _external=True)
 
     # 发送邮件
+    email_sent = False
     try:
         from app.utils.email import send_email
         creator_name = current_user.real_name or current_user.username
@@ -523,7 +524,7 @@ def api_create_share():
         </body>
         </html>
         """
-        send_email(subject, email, None, html=html_content)
+        email_sent = send_email(subject, email, None, html=html_content)
     except Exception as e:
         logger.error(f'发送分享邮件失败: {e}')
 
@@ -531,6 +532,7 @@ def api_create_share():
         'success': True,
         'shareUrl': share_url,
         'shareId': share.id,
+        'emailSent': bool(email_sent),
         'expiresAt': share.expires_at.isoformat()
     })
 
@@ -579,11 +581,11 @@ def _validate_share_token(token):
     """验证分享令牌，返回 (share, error_response)"""
     share = DiagramShareToken.query.filter_by(token=token).first()
     if not share:
-        return None, ('链接无效', 404)
+        return None, (_('链接无效'), 404)
     if not share.is_active:
-        return None, ('链接已失效', 410)
+        return None, (_('链接已失效'), 410)
     if share.is_expired:
-        return None, ('链接已过期', 410)
+        return None, (_('链接已过期'), 410)
     return share, None
 
 
@@ -608,17 +610,9 @@ def external_verify(token):
     data = request.get_json()
     email = (data.get('email') or '').strip().lower()
     if not email or '@' not in email:
-        return jsonify({'success': False, 'message': '请输入有效的邮箱地址'}), 400
+        return jsonify({'success': False, 'message': _('请输入有效的邮箱地址')}), 400
 
-    # 检查是否为内部用户
-    internal_user = User.query.filter_by(email=email).first()
-    if internal_user:
-        return jsonify({
-            'success': False,
-            'message': '该邮箱已注册 PMA 账户，请通过 PMA 系统登录后访问',
-            'isInternal': True
-        }), 403
-
+    # 开放模式：邮箱仅用于标识工作区，不校验是否为内部用户
     # 设置 session
     flask_session['external_email'] = email
     flask_session['external_token'] = token
@@ -678,11 +672,11 @@ def external_save(token):
 
     email = flask_session.get('external_email')
     if not email or flask_session.get('external_token') != token:
-        return jsonify({'success': False, 'message': '请先验证邮箱'}), 401
+        return jsonify({'success': False, 'message': _('请先验证邮箱')}), 401
 
     data = request.get_json()
     if not data:
-        return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+        return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
 
     diagram_data = data.get('diagramData', {})
     name = (data.get('name') or '').strip() or (share.project_name or '系统设计')
@@ -692,7 +686,7 @@ def external_save(token):
         share_token_id=share.id, email=email
     ).first()
     if not ext_session:
-        return jsonify({'success': False, 'message': '会话不存在'}), 404
+        return jsonify({'success': False, 'message': _('会话不存在')}), 404
 
     if ext_session.diagram_id:
         # 更新已有图
@@ -703,7 +697,7 @@ def external_save(token):
             diagram.thumbnail_svg = thumbnail_svg
             diagram.updated_at = datetime.now()
         else:
-            return jsonify({'success': False, 'message': '关联图已删除'}), 404
+            return jsonify({'success': False, 'message': _('关联图已删除')}), 404
     else:
         # 创建新图
         diagram = SystemDiagram(
@@ -720,7 +714,7 @@ def external_save(token):
     return jsonify({
         'success': True,
         'id': ext_session.diagram_id,
-        'message': '设计已保存'
+        'message': _('设计已保存')
     })
 
 
@@ -733,7 +727,7 @@ def external_load(token):
 
     email = flask_session.get('external_email')
     if not email or flask_session.get('external_token') != token:
-        return jsonify({'success': False, 'message': '请先验证邮箱'}), 401
+        return jsonify({'success': False, 'message': _('请先验证邮箱')}), 401
 
     ext_session = DiagramExternalSession.query.filter_by(
         share_token_id=share.id, email=email
@@ -774,5 +768,8 @@ def external_products(token):
     if error:
         return jsonify({'success': False, 'message': error[0]}), error[1]
 
-    # 不要求邮箱验证，产品列表是公开数据
+    email = flask_session.get('external_email')
+    if not email or flask_session.get('external_token') != token:
+        return jsonify({'success': False, 'message': _('请先验证邮箱')}), 401
+
     return jsonify({'success': True, 'categories': _get_products_data()})
