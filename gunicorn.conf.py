@@ -20,8 +20,10 @@ def post_fork(server, worker):
     dispose() 关闭继承的连接，让每个 worker 按需重建自己的独立连接。
     """
     try:
-        from app import db
-        db.engine.dispose()
+        from wsgi import app
+        with app.app_context():
+            from app import db
+            db.engine.dispose()
         server.log.info("Worker %s: disposed inherited DB connection pool", worker.pid)
     except Exception as e:
         server.log.warning("Worker %s: dispose failed: %s", worker.pid, e)
