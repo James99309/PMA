@@ -58,7 +58,7 @@ from app.models.knowledge import KnowledgeTag, KnowledgeDocument, KnowledgeChunk
 # 资源池访问请求
 from app.models.access_request import AccessRequest
 # 系统图模块
-from app.models.system_diagram import SystemDiagram
+from app.models.system_diagram import SystemDiagram, DiagramShareToken, DiagramExternalSession
 # 手工录入
 from app.models.performance_manual_entry import PerformanceManualEntry, PerformanceManualAttachment
 
@@ -97,5 +97,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'FileLibrary', 'UserFolder', 'UserFileRef',
            'KnowledgeTag', 'KnowledgeDocument', 'KnowledgeChunk',
            'AccessRequest',
-           'SystemDiagram',
+           'SystemDiagram', 'DiagramShareToken', 'DiagramExternalSession',
            'PerformanceManualEntry', 'PerformanceManualAttachment']

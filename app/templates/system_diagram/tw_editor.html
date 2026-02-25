@@ -345,10 +345,18 @@
     </div>
     <div class="diagram-name"><input value="{{ diagram_name }}" id="diagramNameInput"></div>
     <div class="canvas-actions">
+      {% if not external_mode|default(false) %}
       {% if project_id|default(0) %}
       <a class="btn-back" href="{{ url_for('project.view_project', project_id=project_id) }}" onclick="return confirmLeave(this)"><span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span>{{ _('返回项目') }}</a>
       {% else %}
       <a class="btn-back" href="{{ url_for('system_diagram.list_view') }}" onclick="return confirmLeave(this)"><span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span>{{ _('返回列表') }}</a>
+      {% endif %}
+      <button class="btn-export" onclick="openShareModal()" title="{{ _('分享') }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>{{ _('分享') }}</button>
+      {% else %}
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);border-radius:6px;font-size:12px;color:var(--text-secondary);box-shadow:0 1px 3px var(--toast-shadow);">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        {{ external_email }}
+      </div>
       {% endif %}
       <div style="position:relative;"><button class="btn-export" onclick="toggleExportMenu()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>{{ _('导出') }} ▾</button><div id="exportMenu" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--popup-bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--popup-shadow);min-width:160px;z-index:30;overflow:hidden;"><div style="padding:6px 14px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:11px;color:var(--text-muted);" onclick="event.stopPropagation()"><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="color" checked onchange="exportBlackMode=false" style="margin:0;width:12px;height:12px;">{{ _('原色') }}</label><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="black" onchange="exportBlackMode=true" style="margin:0;width:12px;height:12px;">{{ _('黑色') }}</label></div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="exportSVG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>SVG {{ _('矢量图') }}</div><div onclick="exportPNG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>PNG {{ _('位图') }} (2x)</div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="startCropExport()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="4,2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>{{ _('框选导出') }} PNG</div></div></div>
       <button class="btn-save" id="btnSave" onclick="saveDiagram()">{{ _('保存') }}</button>
@@ -428,17 +436,127 @@
   </div>
 </div>
 
+{% if not external_mode|default(false) %}
+<!-- 分享弹窗 -->
+<div id="shareModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;padding:28px 32px 24px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div style="font-size:16px;font-weight:600;color:var(--text-primary);">{{ _('分享系统设计图') }}</div>
+      <button onclick="closeShareModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;font-size:18px;">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px;font-weight:500;">{{ _('收件邮箱') }}</label>
+        <input type="email" id="shareEmail" placeholder="recipient@email.com" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px;font-weight:500;">{{ _('有效期') }}</label>
+        <select id="shareExpiry" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
+          <option value="24">24 {{ _('小时') }}</option>
+          <option value="48">48 {{ _('小时') }}</option>
+          <option value="72" selected>72 {{ _('小时') }} ({{ _('默认') }})</option>
+          <option value="168">7 {{ _('天') }}</option>
+          <option value="720">30 {{ _('天') }}</option>
+        </select>
+      </div>
+      <button id="shareSubmitBtn" onclick="submitShare()" style="width:100%;padding:11px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s;">{{ _('发送并生成链接') }}</button>
+      <div id="shareResult" style="display:none;">
+        <div style="height:1px;background:var(--border);margin:4px 0 12px;"></div>
+        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px;font-weight:500;">{{ _('分享链接') }}</label>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="shareUrlDisplay" readonly style="flex:1;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:monospace;">
+          <button onclick="copyShareUrl()" style="padding:10px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;cursor:pointer;white-space:nowrap;">{{ _('复制') }}</button>
+        </div>
+        <div id="shareCopiedMsg" style="display:none;font-size:11px;color:#22c55e;margin-top:4px;text-align:center;">✓ {{ _('已复制到剪贴板') }}</div>
+      </div>
+      <div id="shareError" style="display:none;font-size:12px;color:#dc2626;text-align:center;"></div>
+    </div>
+  </div>
+</div>
+<script>
+function openShareModal(){
+  document.getElementById('shareModal').style.display='flex';
+  document.getElementById('shareResult').style.display='none';
+  document.getElementById('shareError').style.display='none';
+  document.getElementById('shareEmail').value='';
+  document.getElementById('shareEmail').focus();
+}
+function closeShareModal(){document.getElementById('shareModal').style.display='none'}
+function submitShare(){
+  const email=document.getElementById('shareEmail').value.trim();
+  if(!email||!email.includes('@')){
+    document.getElementById('shareError').textContent='{{ _("请输入有效的邮箱地址") }}';
+    document.getElementById('shareError').style.display='block';return;
+  }
+  const btn=document.getElementById('shareSubmitBtn');
+  btn.disabled=true;btn.textContent='{{ _("发送中...") }}';
+  document.getElementById('shareError').style.display='none';
+  const projectName=document.getElementById('diagramNameInput').value.trim();
+  fetch('{{ url_for("system_diagram.api_create_share") }}',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':DIAGRAM_CONFIG.csrfToken},
+    body:JSON.stringify({
+      email:email,
+      expiresHours:parseInt(document.getElementById('shareExpiry').value),
+      projectName:projectName,
+      sourceDiagramId:DIAGRAM_CONFIG.diagramId||null
+    })
+  }).then(r=>r.json()).then(data=>{
+    if(data.success){
+      document.getElementById('shareUrlDisplay').value=data.shareUrl;
+      document.getElementById('shareResult').style.display='block';
+      showToast('✓ {{ _("分享链接已生成，邮件已发送") }}');
+    }else{
+      document.getElementById('shareError').textContent=data.message||'{{ _("操作失败") }}';
+      document.getElementById('shareError').style.display='block';
+    }
+  }).catch(err=>{
+    document.getElementById('shareError').textContent='{{ _("网络错误") }}: '+err.message;
+    document.getElementById('shareError').style.display='block';
+  }).finally(()=>{
+    btn.disabled=false;btn.textContent='{{ _("发送并生成链接") }}';
+  });
+}
+function copyShareUrl(){
+  const url=document.getElementById('shareUrlDisplay').value;
+  navigator.clipboard.writeText(url).then(()=>{
+    const msg=document.getElementById('shareCopiedMsg');
+    msg.style.display='block';
+    setTimeout(()=>{msg.style.display='none'},2000);
+  });
+}
+document.getElementById('shareModal').addEventListener('click',function(e){if(e.target===this)closeShareModal()});
+</script>
+{% endif %}
+
 <script>
 // Flask configuration injected
 const DIAGRAM_CONFIG = {
   diagramId: {{ diagram_id }},
   projectId: {{ project_id|default(0) }},
+  {% if external_mode|default(false) %}
+  externalMode: true,
+  shareToken: '{{ share_token|default("") }}',
+  externalEmail: '{{ external_email|default("") }}',
+  apiProducts: '{{ url_for("system_diagram.external_products", token=share_token) }}',
+  apiSave: '{{ url_for("system_diagram.external_save", token=share_token) }}',
+  apiLoad: '{{ url_for("system_diagram.external_load", token=share_token) }}',
+  apiLoadBase: '',
+  editorBase: '',
+  apiFloorBgBase: '',
+  csrfToken: ''
+  {% else %}
+  externalMode: false,
+  shareToken: '',
+  externalEmail: '',
   apiProducts: '{{ url_for("system_diagram.api_products") }}',
   apiSave: '{{ url_for("system_diagram.api_save") }}',
+  apiLoad: '',
   apiLoadBase: '{{ url_for("system_diagram.list_view") }}api/',
   editorBase: '{{ url_for("system_diagram.list_view") }}',
   apiFloorBgBase: '{{ url_for("system_diagram.list_view") }}api/',
   csrfToken: '{{ csrf_token() }}'
+  {% endif %}
 };
 /* ── System Diagram i18n dictionary (zh/en) ── */
 window.SD_I18N = {

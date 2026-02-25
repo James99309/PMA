@@ -951,14 +951,16 @@ async function saveDiagram(){
       tc.setAttribute('style','width:100%;height:100%;');
       thumbnailSvg=new XMLSerializer().serializeToString(tc);
     }catch(e){console.warn('缩略图生成失败:',e)}
-    const resp=await fetch(DIAGRAM_CONFIG.apiSave,{
-      method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':DIAGRAM_CONFIG.csrfToken},
-      body:JSON.stringify({id:DIAGRAM_CONFIG.diagramId,name,projectId:DIAGRAM_CONFIG.projectId||null,diagramData:serializeDiagram(),thumbnailSvg})
-    });
+    const headers={'Content-Type':'application/json'};
+    if(!DIAGRAM_CONFIG.externalMode&&DIAGRAM_CONFIG.csrfToken){headers['X-CSRFToken']=DIAGRAM_CONFIG.csrfToken}
+    const bodyData=DIAGRAM_CONFIG.externalMode
+      ?{name,diagramData:serializeDiagram(),thumbnailSvg}
+      :{id:DIAGRAM_CONFIG.diagramId,name,projectId:DIAGRAM_CONFIG.projectId||null,diagramData:serializeDiagram(),thumbnailSvg};
+    const resp=await fetch(DIAGRAM_CONFIG.apiSave,{method:'POST',headers,body:JSON.stringify(bodyData)});
     const result=await resp.json();
     if(result.success){
       hasUnsavedChanges=false;showToast('✓ '+_t('系统图已保存'));
-      if(!DIAGRAM_CONFIG.diagramId&&result.id){
+      if(!DIAGRAM_CONFIG.externalMode&&!DIAGRAM_CONFIG.diagramId&&result.id){
         DIAGRAM_CONFIG.diagramId=result.id;
         history.replaceState(null,'',DIAGRAM_CONFIG.editorBase+result.id);
       }
@@ -968,6 +970,21 @@ async function saveDiagram(){
 }
 
 async function loadDiagram(){
+  if(DIAGRAM_CONFIG.externalMode){
+    // 外部模式：从专用 load API 加载
+    try{
+      const resp=await fetch(DIAGRAM_CONFIG.apiLoad);
+      const result=await resp.json();
+      if(result.success&&result.diagram){
+        document.getElementById('diagramNameInput').value=result.diagram.name||'';
+        if(result.diagram.diagramData&&Object.keys(result.diagram.diagramData).length>0){
+          deserializeDiagram(result.diagram.diagramData);
+          setTimeout(fitView,100);
+        }
+      }
+    }catch(err){console.error('加载系统图失败:',err)}
+    return;
+  }
   if(!DIAGRAM_CONFIG.diagramId)return;
   try{
     const resp=await fetch(DIAGRAM_CONFIG.apiLoadBase+DIAGRAM_CONFIG.diagramId+'/data');
@@ -1213,7 +1230,8 @@ async function init(){
     else{document.getElementById('productPanel').innerHTML='<div style="padding:20px;text-align:center;color:var(--delete-text);font-size:12px;">'+_t('加载产品失败')+'</div>'}
   }catch(err){document.getElementById('productPanel').innerHTML='<div style="padding:20px;text-align:center;color:var(--delete-text);font-size:12px;">'+_t('加载产品失败')+': '+err.message+'</div>'}
 
-  if(DIAGRAM_CONFIG.diagramId){await loadDiagram()}
+  if(DIAGRAM_CONFIG.externalMode){await loadDiagram();rebuildViewTabs()}
+  else if(DIAGRAM_CONFIG.diagramId){await loadDiagram()}
   else{rebuildViewTabs()}
   pushHistory();
 }

@@ -22,3 +22,52 @@ class SystemDiagram(db.Model):
 
     def __repr__(self):
         return f'<SystemDiagram {self.id}: {self.name}>'
+
+
+class DiagramShareToken(db.Model):
+    """外部分享令牌"""
+    __tablename__ = 'diagram_share_tokens'
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    project_name = db.Column(db.String(200))
+    designated_email = db.Column(db.String(200), nullable=False)
+    source_diagram_id = db.Column(db.Integer, db.ForeignKey('system_diagrams.id'))
+    expires_at = db.Column(db.DateTime, nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    created_by = db.relationship('User', backref=db.backref('diagram_shares', lazy='dynamic'))
+    source_diagram = db.relationship('SystemDiagram', backref=db.backref('share_tokens', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<DiagramShareToken {self.token[:8]}...>'
+
+    @property
+    def is_expired(self):
+        return datetime.now() > self.expires_at
+
+    @property
+    def is_valid(self):
+        return self.is_active and not self.is_expired
+
+
+class DiagramExternalSession(db.Model):
+    """外部用户会话"""
+    __tablename__ = 'diagram_external_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    share_token_id = db.Column(db.Integer, db.ForeignKey('diagram_share_tokens.id'), nullable=False)
+    email = db.Column(db.String(200), nullable=False, index=True)
+    diagram_id = db.Column(db.Integer, db.ForeignKey('system_diagrams.id'))
+    access_count = db.Column(db.Integer, default=0)
+    last_accessed_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    share_token = db.relationship('DiagramShareToken', backref=db.backref('sessions', lazy='dynamic'))
+    diagram = db.relationship('SystemDiagram', backref=db.backref('external_sessions', lazy='dynamic'))
+
+    __table_args__ = (
+        db.UniqueConstraint('share_token_id', 'email', name='uq_share_token_email'),
+    )
