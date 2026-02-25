@@ -163,8 +163,9 @@ let _cachedBgUrl=null;
 
 function renderFloorBackground(fp){
   if(!fp.background||!fp.background.url){
-    // No background — remove cached element if present
+    // No background — remove cached element and any orphaned DOM element
     if(cachedFloorBgImg&&cachedFloorBgImg.parentNode){cachedFloorBgImg.remove()}
+    const orphan=document.getElementById('floorBgImage');if(orphan)orphan.remove();
     cachedFloorBgImg=null;_cachedBgUrl=null;
     return;
   }
@@ -184,7 +185,9 @@ function renderFloorBackground(fp){
   }
 
   // Create new element (first render or URL changed)
+  // Remove old cached element AND any orphaned DOM element (safety net)
   if(cachedFloorBgImg&&cachedFloorBgImg.parentNode){cachedFloorBgImg.remove()}
+  const orphan=document.getElementById('floorBgImage');if(orphan)orphan.remove();
 
   const img=document.createElementNS('http://www.w3.org/2000/svg','image');
   img.setAttribute('id','floorBgImage');

@@ -1057,7 +1057,10 @@ function switchView(viewId){
   selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;
   if(typeof syncFloorAreaLabels==='function')syncFloorAreaLabels();
   // Clear cached background image when switching views
-  if(typeof cachedFloorBgImg!=='undefined')cachedFloorBgImg=null;
+  if(typeof cachedFloorBgImg!=='undefined'){
+    if(cachedFloorBgImg&&cachedFloorBgImg.parentNode)cachedFloorBgImg.remove();
+    cachedFloorBgImg=null;_cachedBgUrl=null;
+  }
   renderAll();hideProps();
   if(typeof buildExistingDevicesPanel==='function')buildExistingDevicesPanel();
 }
