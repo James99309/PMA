@@ -246,7 +246,7 @@ def api_delete(diagram_id):
 
 # ── 平面图背景 API ────────────────────────────────────────
 
-ALLOWED_BG_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+ALLOWED_BG_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 MAX_BG_SIZE = 12 * 1024 * 1024  # 12MB
 
 
@@ -278,7 +278,7 @@ def upload_floor_bg(diagram_id):
 
     ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
     if ext not in ALLOWED_BG_EXTENSIONS:
-        return jsonify({'success': False, 'message': _('仅支持 PNG/JPG 格式')}), 400
+        return jsonify({'success': False, 'message': _('仅支持 PNG/JPG/PDF 格式')}), 400
 
     # 检查文件大小
     file.seek(0, 2)
@@ -332,12 +332,18 @@ def delete_floor_bg(diagram_id):
     if diagram.is_deleted or diagram.owner_id != current_user.id:
         return jsonify({'success': False, 'message': _('无权限')}), 403
 
-    data = request.get_json()
-    filename = data.get('filename', '') if data else ''
+    data = request.get_json() or {}
 
-    if filename:
-        upload_dir = _get_bg_upload_dir()
-        file_path = os.path.join(upload_dir, os.path.basename(filename))
+    # 支持多文件删除（多分辨率）和单文件删除（向后兼容）
+    filenames = data.get('filenames', [])
+    if not filenames:
+        filename = data.get('filename', '')
+        if filename:
+            filenames = [filename]
+
+    upload_dir = _get_bg_upload_dir()
+    for fn in filenames:
+        file_path = os.path.join(upload_dir, os.path.basename(fn))
         if os.path.exists(file_path):
             try:
                 os.remove(file_path)
@@ -345,6 +351,147 @@ def delete_floor_bg(diagram_id):
                 logger.warning(f"删除背景文件失败: {e}")
 
     return jsonify({'success': True})
+
+
+@system_diagram.route('/api/<int:diagram_id>/floor-plan/analyze-pdf', methods=['POST'])
+@login_required
+@permission_required('product', 'view')
+def analyze_pdf_api(diagram_id):
+    """分析 PDF 页面信息（缩略图 + 书签名称）"""
+    diagram = SystemDiagram.query.get_or_404(diagram_id)
+    if diagram.is_deleted or diagram.owner_id != current_user.id:
+        return jsonify({'success': False, 'message': _('无权限')}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': _('请选择文件')}), 400
+
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'success': False, 'message': _('缺少参数')}), 400
+
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext != 'pdf':
+        return jsonify({'success': False, 'message': _('仅支持 PDF 格式')}), 400
+
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+    if file_size > MAX_BG_SIZE:
+        return jsonify({'success': False, 'message': _('文件大小不能超过 12MB')}), 400
+
+    try:
+        from app.utils.pdf_converter import analyze_pdf
+        import time as _time
+
+        upload_dir = _get_bg_upload_dir()
+
+        # 清理超过 1 小时的临时 PDF（防止孤立文件堆积）
+        try:
+            now = _time.time()
+            for fn in os.listdir(upload_dir):
+                if fn.startswith('_temp_pdf_') and fn.endswith('.pdf'):
+                    fp = os.path.join(upload_dir, fn)
+                    if now - os.path.getmtime(fp) > 3600:
+                        os.remove(fp)
+        except Exception:
+            pass
+
+        # 临时保存 PDF，使用 session_id 标识
+        session_id = uuid.uuid4().hex[:12]
+        temp_path = os.path.join(upload_dir, f"_temp_pdf_{session_id}.pdf")
+        file.save(temp_path)
+
+        pages = analyze_pdf(temp_path)
+
+        return jsonify({
+            'success': True,
+            'page_count': len(pages),
+            'pages': pages,
+            'session_id': session_id
+        })
+    except ImportError:
+        return jsonify({'success': False, 'message': 'PyMuPDF 未安装'}), 500
+    except Exception as e:
+        logger.error(f"分析 PDF 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@system_diagram.route('/api/<int:diagram_id>/floor-plan/render-pdf-pages', methods=['POST'])
+@login_required
+@permission_required('product', 'view')
+def render_pdf_pages(diagram_id):
+    """批量渲染选中的 PDF 页面为多分辨率 PNG"""
+    diagram = SystemDiagram.query.get_or_404(diagram_id)
+    if diagram.is_deleted or diagram.owner_id != current_user.id:
+        return jsonify({'success': False, 'message': _('无权限')}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
+
+    session_id = data.get('session_id', '')
+    pages = data.get('pages', [])
+    if not session_id or not pages:
+        return jsonify({'success': False, 'message': _('缺少参数')}), 400
+
+    upload_dir = _get_bg_upload_dir()
+    temp_path = os.path.join(upload_dir, f"_temp_pdf_{session_id}.pdf")
+    if not os.path.exists(temp_path):
+        return jsonify({'success': False, 'message': _('PDF 文件已过期，请重新上传')}), 404
+
+    try:
+        from app.utils.pdf_converter import convert_pdf_page_to_images
+
+        results = []
+        for page_info in pages:
+            page_index = page_info.get('index', 0)
+            label = page_info.get('label', f'Page-{page_index + 1}')
+
+            # 生成安全的文件名前缀
+            safe_label = ''.join(c for c in label if c.isalnum() or c in '-_ ')[:20].strip()
+            base_name = f"{diagram_id}_{safe_label}_{uuid.uuid4().hex[:6]}"
+
+            resolutions = convert_pdf_page_to_images(
+                temp_path, page_index, upload_dir, base_name
+            )
+
+            # 构建 URL 映射
+            res_with_urls = {}
+            all_filenames = []
+            for dim_key, info in resolutions.items():
+                res_with_urls[dim_key] = {
+                    'url': url_for('system_diagram.serve_floor_bg', filename=info['filename']),
+                    'width': info['width'],
+                    'height': info['height']
+                }
+                all_filenames.append(info['filename'])
+
+            # 默认使用 2000px 分辨率
+            default_res = res_with_urls.get('2000', list(res_with_urls.values())[0])
+
+            results.append({
+                'page_index': page_index,
+                'label': label,
+                'is_multi_res': True,
+                'resolutions': res_with_urls,
+                'width': default_res['width'],
+                'height': default_res['height'],
+                'filenames': all_filenames
+            })
+
+        # 删除临时 PDF
+        try:
+            os.remove(temp_path)
+        except Exception:
+            pass
+
+        return jsonify({'success': True, 'results': results})
+
+    except ImportError:
+        return jsonify({'success': False, 'message': 'PyMuPDF 未安装'}), 500
+    except Exception as e:
+        logger.error(f"渲染 PDF 页面失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @system_diagram.route('/bg/<string:filename>')

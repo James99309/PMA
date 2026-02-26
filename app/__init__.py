@@ -585,6 +585,7 @@ def create_app(config_class=Config):
             '/api/external/',  # 外部API端点（供Stargirl等系统调用，使用API Key认证）
             '/chat/api/ai/',  # OpenClaw AI API（db-query, db-schema, upload-file，均使用 token 认证）
             '/health',  # 健康检查（Docker + OpenClaw 回调验证）
+            '/system-diagram/s/',  # 系统设计图外部分享页面（邮箱验证访问）
         ]
         
         # 检查当前路径是否需要登录

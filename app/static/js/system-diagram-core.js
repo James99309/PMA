@@ -510,10 +510,14 @@ function setTool(tool){
   document.getElementById('diagramCanvas').style.cursor=tool==='connect'||tool==='area'||tool==='calibrate'?'crosshair':'default';
 }
 const svg=document.getElementById('diagramCanvas');
-svg.addEventListener('mousedown',e=>{if(e.target===svg||(e.target.tagName==='rect'&&!e.target.closest('.node-group')&&!e.target.closest('.mid-handle'))){if(currentTool!=='select'&&currentTool!=='area'&&currentTool!=='calibrate')setTool('select');isPanning=true;panStartX=e.clientX;panStartY=e.clientY;panViewX=viewX;panViewY=viewY;const isAreaClick=e.target.closest&&e.target.closest('.floor-area');if(!e.shiftKey&&!isAreaClick){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedAreaId!=='undefined')selectedAreaId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}}});
+svg.addEventListener('mousedown',e=>{if(e.target===svg||(e.target.tagName==='rect'&&!e.target.closest('.node-group')&&!e.target.closest('.mid-handle')&&!e.target.closest('#edgeHitLayer'))){
+  // Click-persistent mode: during active connection, only allow panning — don't switch tools or clear selection
+  if(!isConnecting&&currentTool!=='select'&&currentTool!=='area'&&currentTool!=='calibrate')setTool('select');
+  isPanning=true;panStartX=e.clientX;panStartY=e.clientY;panViewX=viewX;panViewY=viewY;
+  if(!isConnecting){const isAreaClick=e.target.closest&&e.target.closest('.floor-area');if(!e.shiftKey&&!isAreaClick){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedAreaId!=='undefined')selectedAreaId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}}}});
 svg.addEventListener('wheel',e=>{e.preventDefault();zoomCanvas(e.deltaY>0?-.08:.08,e.clientX,e.clientY)},{passive:false});
 
-function zoomCanvas(d,cx,cy){const old=scale;scale=Math.max(.2,Math.min(3,scale+d));if(cx!==undefined){const r=wrapper.getBoundingClientRect();const mx=cx-r.left,my=cy-r.top;viewX=mx-(mx-viewX)*(scale/old);viewY=my-(my-viewY)*(scale/old)}updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%'}
+function zoomCanvas(d,cx,cy){const old=scale;scale=Math.max(.2,Math.min(3,scale+d));if(cx!==undefined){const r=wrapper.getBoundingClientRect();const mx=cx-r.left,my=cy-r.top;viewX=mx-(mx-viewX)*(scale/old);viewY=my-(my-viewY)*(scale/old)}updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale)}
 function fitView(){
   const pad=80;let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
   if(currentView==='topology'){
@@ -527,9 +531,9 @@ function fitView(){
     if(fp.placements&&fp.placements.length){fp.placements.forEach(pl=>{const n=nodes.find(nd=>nd.id===pl.node_id);if(n){x1=Math.min(x1,pl.x);y1=Math.min(y1,pl.y);x2=Math.max(x2,pl.x+n.w);y2=Math.max(y2,pl.y+n.h+30)}})}
     if(x1===Infinity)return resetZoom();
   }
-  const cw=wrapper.clientWidth,ch=wrapper.clientHeight,dw=x2-x1+pad*2,dh=y2-y1+pad*2;scale=Math.min(cw/dw,ch/dh,1.5);viewX=(cw-dw*scale)/2-x1*scale+pad*scale;viewY=(ch-dh*scale)/2-y1*scale+pad*scale;updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';
+  const cw=wrapper.clientWidth,ch=wrapper.clientHeight,dw=x2-x1+pad*2,dh=y2-y1+pad*2;scale=Math.min(cw/dw,ch/dh,1.5);viewX=(cw-dw*scale)/2-x1*scale+pad*scale;viewY=(ch-dh*scale)/2-y1*scale+pad*scale;updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale);
 }
-function resetZoom(){scale=1;viewX=0;viewY=0;updateTransform();document.getElementById('zoomLevel').textContent='100%'}
+function resetZoom(){scale=1;viewX=0;viewY=0;updateTransform();document.getElementById('zoomLevel').textContent='100%';if(typeof onScaleChanged==='function')onScaleChanged(scale)}
 function updateTransform(){document.getElementById('canvasGroup').setAttribute('transform',`translate(${viewX},${viewY}) scale(${scale})`);updateMinimap()}
 function updateInfo(){document.getElementById('canvasInfo').textContent=`${_t('节点')}: ${nodes.length} | ${_t('连线')}: ${edges.length}`}
 function updateMinimap(){const mn=document.getElementById('minimapNodes');mn.innerHTML='';nodes.forEach(n=>{const r=document.createElementNS('http://www.w3.org/2000/svg','rect');r.setAttribute('x',n.x);r.setAttribute('y',n.y);r.setAttribute('width',n.w);r.setAttribute('height',n.h);r.setAttribute('fill',n.color);r.setAttribute('opacity',.6);r.setAttribute('rx',4);mn.appendChild(r)});edges.forEach(edge=>{const s=nodes.find(n=>n.id===edge.sourceId),t=nodes.find(n=>n.id===edge.targetId);if(!s||!t)return;const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',s.x+s.w/2);l.setAttribute('y1',s.y+s.h/2);l.setAttribute('x2',t.x+t.w/2);l.setAttribute('y2',t.y+t.h/2);l.setAttribute('stroke',edge.color);l.setAttribute('stroke-width',Math.max(edge.width||2,2));l.setAttribute('opacity',.4);mn.appendChild(l)});const cw=wrapper.clientWidth,ch=wrapper.clientHeight,vp=document.getElementById('minimapViewport');vp.setAttribute('x',-viewX/scale);vp.setAttribute('y',-viewY/scale);vp.setAttribute('width',cw/scale);vp.setAttribute('height',ch/scale)}
@@ -543,6 +547,7 @@ function snapshotState(){
       x:n.x,y:n.y,w:n.w,h:n.h,qty:n.qty,label:n.label,hideLabel:n.hideLabel||false,
       floor_id:n.floor_id||null,area_label:n.area_label||'',floor_label:n.floor_label||'',
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
+      labelPosition:n.labelPosition||null,
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
     edges:edges.map(e=>({id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,
       cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,
@@ -594,48 +599,196 @@ document.addEventListener('keydown',e=>{
   if(e.key==='c'||e.key==='C')setTool('connect');
   if(e.key==='t'||e.key==='T')addTextNode();
   if(e.key==='Delete'||e.key==='Backspace')deleteSelected();
-  if(e.key==='Escape'){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();setTool('select');if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}
+  if(e.key==='Escape'){
+    if(isConnecting){isConnecting=false;connSourceId=null;if(isReconnecting){const re=edges.find(e2=>e2.id===reconnectEdgeId);if(re)delete re._hidden;isReconnecting=false;reconnectEdgeId=null;reconnectEnd=''}if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}document.getElementById('tempLayer').innerHTML='';setTool('select');renderAll();return}
+    selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();setTool('select');if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}
 });
+
+// ====== LABEL LAYOUT (shared by topology + floor plan) ======
+function computeBestLabelSide(connections, nodeId){
+  const dirCount={top:0,bottom:0,left:0,right:0};
+  const portToDir={top:'top','top-left':'top','top-right':'top',bottom:'bottom','bottom-left':'bottom','bottom-right':'bottom',left:'left',right:'right'};
+  connections.forEach(c=>{
+    if(c.sourceId===nodeId){const d=portToDir[c.sourcePort];if(d)dirCount[d]++}
+    if(c.targetId===nodeId){const d=portToDir[c.targetPort];if(d)dirCount[d]++}
+  });
+  const prio=['bottom','right','left','top'];
+  let best=prio[0],bestCount=dirCount[best];
+  for(let i=1;i<prio.length;i++){if(dirCount[prio[i]]<bestCount){best=prio[i];bestCount=dirCount[prio[i]]}}
+  return best;
+}
+
+function getLabelCoords(side, nw, nh, lblW, lblH){
+  const LO=LABEL_OFFSET;
+  switch(side){
+    case 'top': return {bgX:nw/2-lblW/2, bgY:-LO-lblH+2, textX:nw/2, firstLineY:-LO-lblH+12, anchor:'middle'};
+    case 'right': return {bgX:nw+LO-2, bgY:nh/2-lblH/2, textX:nw+LO+4, firstLineY:nh/2-lblH/2+10, anchor:'start'};
+    case 'left': return {bgX:-LO-lblW+2, bgY:nh/2-lblH/2, textX:-LO-4, firstLineY:nh/2-lblH/2+10, anchor:'end'};
+    default: return {bgX:nw/2-lblW/2, bgY:nh+LO-6, textX:nw/2, firstLineY:nh+LO+4, anchor:'middle'};
+  }
+}
+
+// ====== NODE CONTEXT MENU (label position + copy/paste/delete) ======
+function showNodeCtxMenu(x, y, nodeId){
+  hideContextMenu();
+  const n=nodes.find(nd=>nd.id===nodeId);
+  if(!n)return;
+
+  // Ensure this node is selected (right-click should select it)
+  if(!selectedNodeIds.has(nodeId)){
+    selectedNodeIds=new Set([nodeId]);selectedNodeId=nodeId;
+    selectedEdgeId=null;selectedEdgeIds=new Set();
+    renderAll();
+  }
+
+  let curPos='auto';
+  if(currentView!=='topology'){
+    const fp=getFloorPlan(currentView);
+    const pl=fp?fp.placements.find(p=>p.node_id===nodeId):null;
+    curPos=(pl&&pl.labelPosition)||'auto';
+  }else{
+    curPos=n.labelPosition||'auto';
+  }
+
+  const hasSel=selectedNodeIds.size>0||selectedEdgeIds.size>0;
+  const hasClip=clipboard&&clipboard.nodes&&clipboard.nodes.length>0;
+  const opts=[['auto',_t('自动')],['bottom',_t('下方')],['top',_t('上方')],['right',_t('右侧')],['left',_t('左侧')]];
+  const menu=document.getElementById('nodeCtxMenu');
+  menu.innerHTML=`
+    <div class="ctx-item${!hasSel?' disabled':''}" onclick="if(!this.classList.contains('disabled')){document.getElementById('nodeCtxMenu').style.display='none';copySelected()}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>${_t('复制')}<span class="ctx-shortcut">⌘C</span></div>
+    <div class="ctx-item${!hasClip?' disabled':''}" onclick="if(!this.classList.contains('disabled')){document.getElementById('nodeCtxMenu').style.display='none';pasteClipboard()}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>${_t('粘贴')}<span class="ctx-shortcut">⌘V</span></div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-sub">
+      <div class="ctx-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>${_t('标签位置')}</div>
+      <div class="ctx-submenu">${opts.map(([v,l])=>`<div class="ctx-item${curPos===v?' active':''}" onclick="updateNodeLabelPosition(${nodeId},'${v}')">${l}</div>`).join('')}</div>
+    </div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item" onclick="document.getElementById('nodeCtxMenu').style.display='none';deleteSelected()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>${_t('删除')}<span class="ctx-shortcut">⌫</span></div>
+    <div class="ctx-item" onclick="document.getElementById('nodeCtxMenu').style.display='none';selectAllNodes()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M9 12l2 2 4-4"/></svg>${_t('全选')}<span class="ctx-shortcut">⌘A</span></div>`;
+  menu.style.left=Math.min(x,window.innerWidth-200)+'px';
+  menu.style.top=Math.min(y,window.innerHeight-160)+'px';
+  menu.style.display='block';
+  const close=function(e){if(!menu.contains(e.target)){menu.style.display='none';document.removeEventListener('mousedown',close)}};
+  setTimeout(()=>document.addEventListener('mousedown',close),0);
+}
+
+function updateNodeLabelPosition(nodeId, value){
+  pushHistoryProp();
+  if(currentView!=='topology'){
+    const fp=getFloorPlan(currentView);
+    if(!fp)return;
+    const pl=fp.placements.find(p=>p.node_id===nodeId);
+    if(!pl)return;
+    pl.labelPosition=value==='auto'?null:value;
+  }else{
+    const n=nodes.find(nd=>nd.id===nodeId);
+    if(!n)return;
+    n.labelPosition=value==='auto'?null:value;
+  }
+  hasUnsavedChanges=true;renderAll();
+  document.getElementById('nodeCtxMenu').style.display='none';
+}
 
 // ====== COPY / PASTE ======
 function copySelected(){
   if(!selectedNodeIds.size&&!selectedEdgeIds.size)return;
-  const nodeArr=nodes.filter(n=>selectedNodeIds.has(n.id));
   const nodeIdSet=selectedNodeIds;
-  const edgeSet=new Set();
-  edges.forEach(e=>{if(nodeIdSet.has(e.sourceId)&&nodeIdSet.has(e.targetId))edgeSet.add(e.id)});
-  selectedEdgeIds.forEach(id=>edgeSet.add(id));
-  const edgeArr=edges.filter(e=>edgeSet.has(e.id));
-  const allNodeIds=new Set(nodeIdSet);
-  edgeArr.forEach(e=>{allNodeIds.add(e.sourceId);allNodeIds.add(e.targetId)});
-  const allNodes=nodes.filter(n=>allNodeIds.has(n.id));
-  clipboard={nodes:JSON.parse(JSON.stringify(allNodes)),edges:JSON.parse(JSON.stringify(edgeArr))};
-  const parts=[];
-  if(nodeArr.length)parts.push(`${nodeArr.length} ${_t('个节点')}`);
-  if(edgeArr.length)parts.push(`${edgeArr.length} ${_t('条连线')}`);
-  showToast(`${_t('已复制')} ${parts.join('、')}`);
+
+  if(currentView!=='topology'){
+    // Floor plan mode: copy nodes + placements + routes
+    const fp=typeof getFloorPlan==='function'?getFloorPlan(currentView):null;
+    if(!fp)return;
+    const nodeArr=nodes.filter(n=>nodeIdSet.has(n.id));
+    const plArr=fp.placements.filter(p=>nodeIdSet.has(p.node_id));
+    const routeArr=(fp.routes||[]).filter(r=>nodeIdSet.has(r.sourceNodeId)&&nodeIdSet.has(r.targetNodeId));
+    clipboard={mode:'floor',nodes:JSON.parse(JSON.stringify(nodeArr)),placements:JSON.parse(JSON.stringify(plArr)),routes:JSON.parse(JSON.stringify(routeArr))};
+    const parts=[];
+    if(plArr.length)parts.push(`${plArr.length} ${_t('个节点')}`);
+    if(routeArr.length)parts.push(`${routeArr.length} ${_t('条连线')}`);
+    showToast(`${_t('已复制')} ${parts.join('、')}`);
+  }else{
+    // Topology mode: copy nodes + edges
+    const nodeArr=nodes.filter(n=>nodeIdSet.has(n.id));
+    const edgeSet=new Set();
+    edges.forEach(e=>{if(nodeIdSet.has(e.sourceId)&&nodeIdSet.has(e.targetId))edgeSet.add(e.id)});
+    selectedEdgeIds.forEach(id=>edgeSet.add(id));
+    const edgeArr=edges.filter(e=>edgeSet.has(e.id));
+    const allNodeIds=new Set(nodeIdSet);
+    edgeArr.forEach(e=>{allNodeIds.add(e.sourceId);allNodeIds.add(e.targetId)});
+    const allNodes=nodes.filter(n=>allNodeIds.has(n.id));
+    clipboard={mode:'topology',nodes:JSON.parse(JSON.stringify(allNodes)),edges:JSON.parse(JSON.stringify(edgeArr))};
+    const parts=[];
+    if(nodeArr.length)parts.push(`${nodeArr.length} ${_t('个节点')}`);
+    if(edgeArr.length)parts.push(`${edgeArr.length} ${_t('条连线')}`);
+    showToast(`${_t('已复制')} ${parts.join('、')}`);
+  }
 }
 
 function pasteClipboard(){
   if(!clipboard||!clipboard.nodes.length)return;
   pushHistory();const idMap=new Map(),offset=30;
-  selectedNodeIds=new Set();selectedEdgeId=null;
-  clipboard.nodes.forEach(n=>{
-    const newId=nodeIdCounter++;idMap.set(n.id,newId);
-    const sub=SUBCATEGORIES[n.subcategoryId];
-    const newNode={...n,id:newId,x:n.x+offset,y:n.y+offset,
-      iconData:sub?sub.iconData:(n.subcategoryId===null?DEFAULT_DEVICE_ICONS.text_note:DEFAULT_DEVICE_ICONS.generic),
-      products:sub?sub.products:[]};
-    if(newNode.selectedProductId&&newNode.products.length){
-      const p=newNode.products.find(p=>p.id===newNode.selectedProductId);
-      if(p&&p.iconData)newNode.iconData=p.iconData;
-    }
-    nodes.push(newNode);selectedNodeIds.add(newId);
-  });
-  clipboard.edges.forEach(e=>{
-    const ns=idMap.get(e.sourceId),nt=idMap.get(e.targetId);
-    if(ns!==undefined&&nt!==undefined)edges.push({...e,id:edgeIdCounter++,sourceId:ns,targetId:nt});
-  });
+  selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedEdgeId=null;
+
+  if(clipboard.mode==='floor'&&currentView!=='topology'){
+    // Floor plan paste
+    const fp=typeof getFloorPlan==='function'?getFloorPlan(currentView):null;
+    if(!fp)return;
+
+    clipboard.nodes.forEach(n=>{
+      const newId=nodeIdCounter++;idMap.set(n.id,newId);
+      const sub=SUBCATEGORIES[n.subcategoryId];
+      const newNode={...n,id:newId,_floorCreated:true,
+        iconData:sub?sub.iconData:(n.subcategoryId===null?DEFAULT_DEVICE_ICONS.text_note:DEFAULT_DEVICE_ICONS.generic),
+        products:sub?sub.products:[]};
+      if(newNode.selectedProductId&&newNode.products.length){
+        const p=newNode.products.find(p=>p.id===newNode.selectedProductId);
+        if(p&&p.iconData)newNode.iconData=p.iconData;
+      }
+      nodes.push(newNode);selectedNodeIds.add(newId);
+
+      // Create placement
+      const origPl=(clipboard.placements||[]).find(p=>p.node_id===n.id);
+      if(origPl){
+        fp.placements.push({...JSON.parse(JSON.stringify(origPl)),node_id:newId,x:origPl.x+offset,y:origPl.y+offset});
+      }else{
+        fp.placements.push({node_id:newId,x:n.x+offset,y:n.y+offset,locked:false,rotation:0,qty:1,labelPosition:null});
+      }
+    });
+
+    // Copy routes (remap IDs)
+    (clipboard.routes||[]).forEach(r=>{
+      const ns=idMap.get(r.sourceNodeId),nt=idMap.get(r.targetNodeId);
+      if(ns!==undefined&&nt!==undefined){
+        const newEdgeId=edgeIdCounter++;
+        edges.push({id:newEdgeId,sourceId:ns,targetId:nt,sourcePort:r.sourcePort,targetPort:r.targetPort,
+          routeMode:r.routeMode||'ortho3',midPos:r.midPos,cableType:r.cableType||'',color:r.color||'',
+          width:r.width||2,dash:r.dash||'',label:r.label||''});
+        const newRouteId=typeof routeIdCounter!=='undefined'?routeIdCounter++:Date.now();
+        fp.routes.push({id:newRouteId,sourceNodeId:ns,targetNodeId:nt,sourcePort:r.sourcePort,targetPort:r.targetPort,
+          routeMode:r.routeMode||'ortho3',midPos:r.midPos,cableType:r.cableType,color:r.color,width:r.width,
+          dash:r.dash,label:r.label,linked_edge_id:newEdgeId,_userPorts:r._userPorts||false});
+      }
+    });
+  }else{
+    // Topology paste (original logic, also handles cross-view paste gracefully)
+    clipboard.nodes.forEach(n=>{
+      const newId=nodeIdCounter++;idMap.set(n.id,newId);
+      const sub=SUBCATEGORIES[n.subcategoryId];
+      const newNode={...n,id:newId,x:n.x+offset,y:n.y+offset,
+        iconData:sub?sub.iconData:(n.subcategoryId===null?DEFAULT_DEVICE_ICONS.text_note:DEFAULT_DEVICE_ICONS.generic),
+        products:sub?sub.products:[]};
+      if(newNode.selectedProductId&&newNode.products.length){
+        const p=newNode.products.find(p=>p.id===newNode.selectedProductId);
+        if(p&&p.iconData)newNode.iconData=p.iconData;
+      }
+      nodes.push(newNode);selectedNodeIds.add(newId);
+    });
+    (clipboard.edges||[]).forEach(e=>{
+      const ns=idMap.get(e.sourceId),nt=idMap.get(e.targetId);
+      if(ns!==undefined&&nt!==undefined)edges.push({...e,id:edgeIdCounter++,sourceId:ns,targetId:nt});
+    });
+  }
+
   selectedNodeId=selectedNodeIds.size===1?[...selectedNodeIds][0]:null;
   hasUnsavedChanges=true;renderAll();
   if(selectedNodeIds.size===1)showNodeProps([...selectedNodeIds][0]);
@@ -644,14 +797,23 @@ function pasteClipboard(){
 }
 
 // ====== CONTEXT MENU ======
-svg.addEventListener('contextmenu',e=>{e.preventDefault();showContextMenu(e.clientX,e.clientY)});
+svg.addEventListener('contextmenu',e=>{e.preventDefault();
+  // Click-persistent mode: right-click cancels active connection
+  if(isConnecting){
+    if(isReconnecting){const re=edges.find(e2=>e2.id===reconnectEdgeId);if(re)delete re._hidden;isReconnecting=false;reconnectEdgeId=null;reconnectEnd=''}
+    if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
+    isConnecting=false;connSourceId=null;document.getElementById('tempLayer').innerHTML='';
+    setTool('select');renderAll();return;
+  }
+  showContextMenu(e.clientX,e.clientY)});
 function showContextMenu(x,y){
   const menu=document.getElementById('ctxMenu');
   const hasSel=selectedNodeIds.size>0||selectedEdgeIds.size>0;
   const hasClip=clipboard&&clipboard.nodes.length>0;
   menu.querySelector('[data-action="copy"]').classList.toggle('disabled',!hasSel);
   menu.querySelector('[data-action="paste"]').classList.toggle('disabled',!hasClip);
-  menu.querySelector('[data-action="delete"]').classList.toggle('disabled',!hasSel&&selectedEdgeId===null);
+  const hasRoute=typeof selectedRouteId!=='undefined'&&selectedRouteId!==null;
+  menu.querySelector('[data-action="delete"]').classList.toggle('disabled',!hasSel&&selectedEdgeId===null&&!hasRoute);
   menu.style.left=Math.min(x,window.innerWidth-200)+'px';
   menu.style.top=Math.min(y,window.innerHeight-160)+'px';
   menu.style.display='block';
@@ -674,6 +836,7 @@ async function prepareExportSVG(cropBounds,blackMode){
   clone.querySelectorAll('.port, .edge-hit, .node-glow, .mid-handle, .mid-handle-bar, .mid-handle-grip').forEach(el=>el.remove());
   const tempL=clone.querySelector('#tempLayer');if(tempL)tempL.innerHTML='';
   const handlesL=clone.querySelector('#handlesLayer');if(handlesL)handlesL.innerHTML='';
+  const edgeHitL=clone.querySelector('#edgeHitLayer');if(edgeHitL)edgeHitL.innerHTML='';
   clone.querySelectorAll('.node-group').forEach(g=>{g.querySelectorAll('rect[stroke-dasharray]').forEach(r=>r.remove())});
   const cs=getComputedStyle(document.documentElement);
   const v=k=>cs.getPropertyValue(k).trim();
@@ -893,6 +1056,7 @@ function serializeDiagram(){
       x:n.x,y:n.y,w:n.w,h:n.h,qty:n.qty,label:n.label,hideLabel:n.hideLabel||false,
       floor_id:n.floor_id||null,area_label:n.area_label||'',floor_label:n.floor_label||'',
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
+      labelPosition:n.labelPosition||null,
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
     edges:edges.map(e=>({id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos})),
     viewX,viewY,scale,nodeIdCounter,edgeIdCounter,
@@ -1084,6 +1248,20 @@ function addFloorPlan(){
   hasUnsavedChanges=true;
   rebuildViewTabs();
   switchView(id);
+}
+
+function addFloorPlanWithBackground(label,background){
+  if(typeof floorPlans==='undefined')window.floorPlans=[];
+  const id='fp_'+floorPlanIdCounter++;
+  floorPlans.push({
+    id:id,label:label,sort_order:floorPlans.length+1,
+    background:background,calibration:null,
+    placements:[],routes:[],areas:[],
+    viewX:0,viewY:0,scale:1
+  });
+  hasUnsavedChanges=true;
+  rebuildViewTabs();
+  return id;
 }
 
 function renameFloorPlan(fpId,newLabel){

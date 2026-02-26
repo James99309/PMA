@@ -99,3 +99,6 @@ websockets>=12.0
 
 # AI 客户调研 — 网络搜索
 duckduckgo-search>=7.0.0
+
+# PDF 平面图导入（系统图编辑器）
+PyMuPDF>=1.25.0

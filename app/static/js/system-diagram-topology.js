@@ -25,31 +25,38 @@ function renderNodes(){
     const lines=[];if(nameText)lines.push(nameText);if(modelText)lines.push(modelText);if(tagText)lines.push(tagText);if(floorAreaText)lines.push(floorAreaText);
     if(!lines.length)lines.push(n.name);
     const lblW=Math.max(...lines.map(t=>t.length))*12+12,lblH=lines.length*12+4;
-    const lblBg=document.createElementNS('http://www.w3.org/2000/svg','rect');lblBg.setAttribute('class','node-label-bg');lblBg.setAttribute('x',n.w/2-lblW/2);lblBg.setAttribute('y',n.h+LABEL_OFFSET-6);lblBg.setAttribute('width',lblW);lblBg.setAttribute('height',lblH);lblBg.setAttribute('rx',4);g.appendChild(lblBg);
-    let ly=n.h+LABEL_OFFSET+4;
-    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');lbl.setAttribute('class','node-label');lbl.setAttribute('x',n.w/2);lbl.setAttribute('y',ly);lbl.textContent=nameText;g.appendChild(lbl);
-    if(modelText){ly+=12;const ml=document.createElementNS('http://www.w3.org/2000/svg','text');ml.setAttribute('class','node-sublabel');ml.setAttribute('x',n.w/2);ml.setAttribute('y',ly);ml.textContent=modelText;g.appendChild(ml)}
-    if(tagText){ly+=12;const tl=document.createElementNS('http://www.w3.org/2000/svg','text');tl.setAttribute('class','node-tag');tl.setAttribute('x',n.w/2);tl.setAttribute('y',ly);tl.textContent=tagText;g.appendChild(tl)}
-    if(floorAreaText){ly+=12;const fl=document.createElementNS('http://www.w3.org/2000/svg','text');fl.setAttribute('class','node-sublabel');fl.setAttribute('x',n.w/2);fl.setAttribute('y',ly);fl.setAttribute('fill','#64748b');fl.setAttribute('font-size','9');fl.textContent=floorAreaText;g.appendChild(fl)}}
+    const side=n.labelPosition||computeBestLabelSide(edges,n.id);
+    const lc=getLabelCoords(side,n.w,n.h,lblW,lblH);
+    const lblBg=document.createElementNS('http://www.w3.org/2000/svg','rect');lblBg.setAttribute('class','node-label-bg');lblBg.setAttribute('x',lc.bgX);lblBg.setAttribute('y',lc.bgY);lblBg.setAttribute('width',lblW);lblBg.setAttribute('height',lblH);lblBg.setAttribute('rx',4);g.appendChild(lblBg);
+    let ly=lc.firstLineY;
+    const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');lbl.setAttribute('class','node-label');lbl.setAttribute('x',lc.textX);lbl.setAttribute('y',ly);if(lc.anchor!=='middle')lbl.style.textAnchor=lc.anchor;lbl.textContent=nameText;g.appendChild(lbl);
+    if(modelText){ly+=12;const ml=document.createElementNS('http://www.w3.org/2000/svg','text');ml.setAttribute('class','node-sublabel');ml.setAttribute('x',lc.textX);ml.setAttribute('y',ly);if(lc.anchor!=='middle')ml.style.textAnchor=lc.anchor;ml.textContent=modelText;g.appendChild(ml)}
+    if(tagText){ly+=12;const tl=document.createElementNS('http://www.w3.org/2000/svg','text');tl.setAttribute('class','node-tag');tl.setAttribute('x',lc.textX);tl.setAttribute('y',ly);if(lc.anchor!=='middle')tl.style.textAnchor=lc.anchor;tl.textContent=tagText;g.appendChild(tl)}
+    if(floorAreaText){ly+=12;const fl=document.createElementNS('http://www.w3.org/2000/svg','text');fl.setAttribute('class','node-sublabel');fl.setAttribute('x',lc.textX);fl.setAttribute('y',ly);if(lc.anchor!=='middle')fl.style.textAnchor=lc.anchor;fl.setAttribute('fill','#64748b');fl.setAttribute('font-size','9');fl.textContent=floorAreaText;g.appendChild(fl)}}
     if(n.qty>1){const bx=n.w-4,by=-4;const bg=document.createElementNS('http://www.w3.org/2000/svg','circle');bg.setAttribute('class','qty-badge-bg');bg.setAttribute('cx',bx);bg.setAttribute('cy',by);bg.setAttribute('r',11);bg.style.fill='var(--bg-panel)';g.appendChild(bg);const qt=document.createElementNS('http://www.w3.org/2000/svg','text');qt.setAttribute('class','node-qty-badge');qt.setAttribute('x',bx);qt.setAttribute('y',by+3.5);qt.setAttribute('text-anchor','middle');qt.textContent=`×${n.qty}`;g.appendChild(qt)}
     const _R=n.w/2+8,_D=_R*.7071,_cx=n.w/2,_cy=n.h/2;
     [{name:'top',cx:_cx,cy:_cy-_R},{name:'right',cx:_cx+_R,cy:_cy},{name:'bottom',cx:_cx,cy:_cy+_R},{name:'left',cx:_cx-_R,cy:_cy},{name:'top-left',cx:_cx-_D,cy:_cy-_D},{name:'top-right',cx:_cx+_D,cy:_cy-_D},{name:'bottom-left',cx:_cx-_D,cy:_cy+_D},{name:'bottom-right',cx:_cx+_D,cy:_cy+_D}].forEach(p=>{const port=document.createElementNS('http://www.w3.org/2000/svg','circle');port.setAttribute('class','port');port.setAttribute('cx',p.cx);port.setAttribute('cy',p.cy);port.setAttribute('r',5);
       port.style.cursor='crosshair';
       if(selectedEdgeId!==null){const se=edges.find(e=>e.id===selectedEdgeId);if(se&&((se.sourceId===n.id&&se.sourcePort===p.name)||(se.targetId===n.id&&se.targetPort===p.name))){port.setAttribute('r',7);port.style.fill='#3b82f6';port.style.stroke='#1d4ed8';port.style.strokeWidth='2';port.style.cursor='grab';port.style.filter='drop-shadow(0 0 3px rgba(59,130,246,.5))'}}
       port.dataset.nodeId=n.id;port.dataset.port=p.name;port.addEventListener('mousedown',onPortMouseDown);g.appendChild(port)});
-    g.style.cursor='move';g.addEventListener('mousedown',onNodeMouseDown);layer.appendChild(g)});
+    g.style.cursor='move';g.addEventListener('mousedown',onNodeMouseDown);
+    g.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();showNodeCtxMenu(e.clientX,e.clientY,n.id)});
+    layer.appendChild(g)});
 }
 
 // ====== RENDER EDGES ======
 function renderEdges(){
   const layer=document.getElementById('edgesLayer');layer.innerHTML='';
+  const hitLayer=document.getElementById('edgeHitLayer');hitLayer.innerHTML='';
+  const labelEls=[];
   edges.forEach(edge=>{
     if(edge._hidden)return;
     const result=buildEdgePath(edge);if(!result||!result.path)return;
     const w=getEffectiveCableWidth(edge.width);const isSelected=selectedEdgeId===edge.id||selectedEdgeIds.has(edge.id);const ec=getEffectiveCableColor(edge.color);
     const edgeClickHandler=e=>{e.stopPropagation();if(e.shiftKey||e.metaKey||e.ctrlKey){toggleEdgeSelection(edge.id)}else{selectEdge(edge.id)}};
-    const hitPath=document.createElementNS('http://www.w3.org/2000/svg','path');hitPath.setAttribute('class','edge-hit');hitPath.setAttribute('d',result.path);hitPath.setAttribute('stroke-width',Math.max(w+12,18));hitPath.dataset.edgeId=edge.id;hitPath.addEventListener('click',edgeClickHandler);layer.appendChild(hitPath);
-    const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('class','edge-line');path.setAttribute('d',result.path);path.setAttribute('stroke',ec);path.setAttribute('stroke-width',isSelected?w+1.5:w);if(edge.dash)path.setAttribute('stroke-dasharray',edge.dash);path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');if(isSelected)path.setAttribute('filter','url(#glow)');layer.appendChild(path);
+    const hitPath=document.createElementNS('http://www.w3.org/2000/svg','path');hitPath.setAttribute('class','edge-hit');hitPath.setAttribute('d',result.path);hitPath.setAttribute('stroke-width',Math.max(w+12,18));hitPath.dataset.edgeId=edge.id;hitPath.addEventListener('click',edgeClickHandler);hitLayer.appendChild(hitPath);
+    if(isSelected){const selPath=document.createElementNS('http://www.w3.org/2000/svg','path');selPath.setAttribute('d',result.path);selPath.setAttribute('stroke','#3b82f6');selPath.setAttribute('stroke-width',w+6);selPath.setAttribute('stroke-opacity','0.3');selPath.setAttribute('fill','none');selPath.setAttribute('stroke-linecap','round');selPath.setAttribute('stroke-linejoin','round');layer.appendChild(selPath)}
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');path.setAttribute('class','edge-line');path.setAttribute('d',result.path);path.setAttribute('stroke',ec);path.setAttribute('stroke-width',isSelected?w+2:w);if(edge.dash)path.setAttribute('stroke-dasharray',edge.dash);path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');if(isSelected)path.setAttribute('filter','url(#glow)');layer.appendChild(path);
     // Build display: label + length from linked floor route
     const _showLbl=edge.label&&!edge.hideLabel&&displaySettings.cableLabel;
     let _lenStr='';
@@ -72,8 +79,10 @@ function renderEdges(){
       }
     }
     const _parts=[];if(_showLbl)_parts.push(edge.label);if(_lenStr)_parts.push(_lenStr);
-    if(_parts.length){const _txt=_parts.join(' · ');const mid=getPathMidpoint(result,edge);const mx=mid.x,my=mid.y;const tl=_txt.length*7+16;const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');bg.setAttribute('class','edge-label-bg');bg.setAttribute('x',mx-tl/2);bg.setAttribute('y',my-9);bg.setAttribute('width',tl);bg.setAttribute('height',18);bg.setAttribute('rx',4);bg.style.cursor='pointer';bg.addEventListener('click',edgeClickHandler);layer.appendChild(bg);const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');lbl.setAttribute('class','edge-label');lbl.setAttribute('x',mx);lbl.setAttribute('y',my);lbl.setAttribute('fill',ec);lbl.style.cursor='pointer';lbl.style.pointerEvents='auto';lbl.addEventListener('click',edgeClickHandler);lbl.textContent=_txt;layer.appendChild(lbl)}
+    if(_parts.length){const _txt=_parts.join(' · ');const mid=getPathMidpoint(result,edge);const mx=mid.x,my=mid.y;const tl=_txt.length*7+16;const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');bg.setAttribute('class','edge-label-bg');bg.setAttribute('x',mx-tl/2);bg.setAttribute('y',my-9);bg.setAttribute('width',tl);bg.setAttribute('height',18);bg.setAttribute('rx',4);bg.style.cursor='pointer';bg.addEventListener('click',edgeClickHandler);labelEls.push(bg);const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');lbl.setAttribute('class','edge-label');lbl.setAttribute('x',mx);lbl.setAttribute('y',my);lbl.setAttribute('fill',ec);lbl.style.cursor='pointer';lbl.style.pointerEvents='auto';lbl.addEventListener('click',edgeClickHandler);lbl.textContent=_txt;labelEls.push(lbl)}
   });
+  // Append labels after all hit paths so labels are always on top and clickable
+  labelEls.forEach(el=>hitLayer.appendChild(el));
 }
 
 // ====== MID-SEGMENT DRAG HANDLES ======
@@ -165,8 +174,17 @@ function deleteSelected(){
 }
 
 function selectAllNodes(){
-  selectedNodeIds=new Set(nodes.map(n=>n.id));
-  selectedEdgeIds=new Set(edges.map(e=>e.id));
+  if(currentView!=='topology'){
+    // Floor plan: only select nodes placed on current floor
+    const fp=typeof getFloorPlan==='function'?getFloorPlan(currentView):null;
+    if(fp){
+      selectedNodeIds=new Set(fp.placements.map(p=>p.node_id));
+      selectedEdgeIds=new Set();
+    }
+  }else{
+    selectedNodeIds=new Set(nodes.map(n=>n.id));
+    selectedEdgeIds=new Set(edges.map(e=>e.id));
+  }
   selectedEdgeId=null;
   selectedNodeId=selectedNodeIds.size===1?[...selectedNodeIds][0]:null;
   renderAll();
@@ -253,6 +271,8 @@ document.addEventListener('mousemove',e=>{
 
 document.addEventListener('mouseup',e=>{
   const wasDraggingOp=isDraggingOperation;
+  const wasPanning=isPanning;
+  const panMoved=isPanning&&(Math.abs(e.clientX-panStartX)>3||Math.abs(e.clientY-panStartY)>3);
   if(isDragging&&dragMoved&&currentView!=='topology'){
     if(typeof snapToRiserIfNeeded==='function'){const fp=getFloorPlan(currentView);if(fp){selectedNodeIds.forEach(id=>{const pl=fp.placements.find(p=>p.node_id===id);if(pl)snapToRiserIfNeeded(pl,fp)})}}
     if(typeof syncRiserNodes==='function'){const fp=getFloorPlan(currentView);if(fp)syncRiserNodes(fp)}
@@ -266,10 +286,12 @@ document.addEventListener('mouseup',e=>{
   if(wasDraggingOp)renderAll();
   if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor&&!isConnecting){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
   if(isConnecting){
-    let reconnected=false;
+    // Click-persistent mode: only complete connection when clicking a valid target port
+    let completed=false,reconnected=false;
     if(e.target.classList&&e.target.classList.contains('port')){
       const tid=parseInt(e.target.dataset.nodeId),tp=e.target.dataset.port;
       if(tid!==connSourceId){
+        completed=true;
         if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){
           const fp=typeof getFloorPlan==='function'?getFloorPlan(currentView):null;
           if(fp){const route=fp.routes.find(r=>r.id===reconnectFloorRouteId);
@@ -290,19 +312,25 @@ document.addEventListener('mouseup',e=>{
         }
       }
     }
-    if(isReconnecting&&!reconnected){const re=edges.find(e=>e.id===reconnectEdgeId);if(re)delete re._hidden}
-    isReconnecting=false;reconnectEdgeId=null;reconnectEnd='';
-    const _wasFloorReconnect=typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor;
-    if(_wasFloorReconnect){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
-    isConnecting=false;connSourceId=null;document.getElementById('tempLayer').innerHTML='';
-    setTool('select');renderAll();
-    if(reconnected&&typeof selectedRouteId!=='undefined'&&selectedRouteId!==null&&typeof showFloorRouteProps==='function')showFloorRouteProps(selectedRouteId);
+    // Only clean up state when connection was completed; otherwise keep the temp line following mouse
+    if(completed){
+      if(isReconnecting&&!reconnected){const re=edges.find(e=>e.id===reconnectEdgeId);if(re)delete re._hidden}
+      isReconnecting=false;reconnectEdgeId=null;reconnectEnd='';
+      const _wasFloorReconnect=typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor;
+      if(_wasFloorReconnect){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
+      isConnecting=false;connSourceId=null;document.getElementById('tempLayer').innerHTML='';
+      setTool('select');renderAll();
+      if(reconnected&&typeof selectedRouteId!=='undefined'&&selectedRouteId!==null&&typeof showFloorRouteProps==='function')showFloorRouteProps(selectedRouteId);
+    }
+    // Not completed → connection persists, temp line keeps following mouse
   }
 });
 
 // ====== CONNECTION DRAWING ======
 function onPortMouseDown(e){
   e.stopPropagation();const nid=parseInt(e.target.dataset.nodeId),port=e.target.dataset.port;
+  // Click-persistent mode: if already connecting, don't override source — let mouseup handle completion
+  if(isConnecting&&connSourceId!==null)return;
   if(selectedEdgeId!==null){
     const se=edges.find(e=>e.id===selectedEdgeId);
     if(se){

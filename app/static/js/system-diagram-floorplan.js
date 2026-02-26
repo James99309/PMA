@@ -83,9 +83,9 @@ let floorPlans = [];
 function getFloorPlansForSave(){
   return floorPlans.map(fp=>({
     id:fp.id, label:fp.label, sort_order:fp.sort_order,
-    background:fp.background?{url:fp.background.url,width:fp.background.width,height:fp.background.height,offset_x:fp.background.offset_x||0,offset_y:fp.background.offset_y||0,opacity:fp.background.opacity||0.3}:null,
+    background:fp.background?Object.assign({url:fp.background.url,width:fp.background.width,height:fp.background.height,offset_x:fp.background.offset_x||0,offset_y:fp.background.offset_y||0,opacity:fp.background.opacity||0.3},fp.background.is_multi_res?{is_multi_res:true,resolutions:fp.background.resolutions,filenames:fp.background.filenames}:{filename:fp.background.filename||''}):null,
     calibration:fp.calibration||null,
-    placements:fp.placements.map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1})),
+    placements:fp.placements.map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1,labelPosition:p.labelPosition||null})),
     routes:(fp.routes||[]).map(r=>({id:r.id,sourceNodeId:r.sourceNodeId,targetNodeId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort,cableType:r.cableType,routeMode:r.routeMode,midPos:r.midPos,color:r.color,width:r.width,dash:r.dash,label:r.label,linked_edge_id:r.linked_edge_id||null,_userPorts:r._userPorts||false})),
     areas:(fp.areas||[]).map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,is_riser:a.is_riser||false,_riser_node_id:a._riser_node_id||null})),
     risers:(fp.risers||[]).map(r=>({id:r.id,node_id:r.node_id,edge_id:r.edge_id,target_floor_label:r.target_floor_label,x:r.x,y:r.y})),
@@ -99,7 +99,7 @@ function restoreFloorPlans(data){
     id:fp.id, label:fp.label, sort_order:fp.sort_order||0,
     background:fp.background||null,
     calibration:fp.calibration||null,
-    placements:(fp.placements||[]).map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1})),
+    placements:(fp.placements||[]).map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1,labelPosition:p.labelPosition||null})),
     routes:fp.routes||[],
     areas:fp.areas||[],
     risers:fp.risers||[],
@@ -116,7 +116,8 @@ function renderFloorPlanView(viewId, isDragging){
   const nodesLayer=document.getElementById('nodesLayer');
   const edgesLayer=document.getElementById('edgesLayer');
   const handlesLayer=document.getElementById('handlesLayer');
-  nodesLayer.innerHTML='';edgesLayer.innerHTML='';handlesLayer.innerHTML='';
+  const edgeHitLayer=document.getElementById('edgeHitLayer');
+  nodesLayer.innerHTML='';edgesLayer.innerHTML='';handlesLayer.innerHTML='';edgeHitLayer.innerHTML='';
 
   // 1. Render background image (cached, fast even during drag)
   renderFloorBackground(fp);
@@ -185,9 +186,8 @@ function renderFloorBackground(fp){
   }
 
   // Create new element (first render or URL changed)
-  // Remove old cached element AND any orphaned DOM element (safety net)
-  if(cachedFloorBgImg&&cachedFloorBgImg.parentNode){cachedFloorBgImg.remove()}
-  const orphan=document.getElementById('floorBgImage');if(orphan)orphan.remove();
+  const oldImg=cachedFloorBgImg;
+  const orphan=document.getElementById('floorBgImage');
 
   const img=document.createElementNS('http://www.w3.org/2000/svg','image');
   img.setAttribute('id','floorBgImage');
@@ -196,12 +196,31 @@ function renderFloorBackground(fp){
   img.setAttribute('y',bg.offset_y||0);
   img.setAttribute('width',bg.width);
   img.setAttribute('height',bg.height);
-  img.setAttribute('opacity',bg.opacity||0.3);
   img.style.pointerEvents='none';
 
   // Insert before all layers so it appears behind everything
   const firstLayer=canvasGroup.querySelector('#edgesLayer')||canvasGroup.firstChild;
-  canvasGroup.insertBefore(img,firstLayer);
+
+  // Multi-res switch: keep old image visible until new one loads to avoid flicker
+  if(oldImg&&oldImg.parentNode&&bg.is_multi_res){
+    img.setAttribute('opacity','0');
+    img.onload=function(){
+      if(oldImg&&oldImg.parentNode)oldImg.remove();
+      if(orphan&&orphan!==oldImg&&orphan.parentNode)orphan.remove();
+      img.setAttribute('opacity',bg.opacity||0.3);
+    };
+    img.onerror=function(){
+      // Fallback: remove broken new image, keep old visible
+      if(img.parentNode)img.remove();
+      console.error('Failed to load multi-res image:',bg.url);
+    };
+    canvasGroup.insertBefore(img,firstLayer);
+  } else {
+    img.setAttribute('opacity',bg.opacity||0.3);
+    if(oldImg&&oldImg.parentNode)oldImg.remove();
+    if(orphan&&orphan!==oldImg)if(orphan&&orphan.parentNode)orphan.remove();
+    canvasGroup.insertBefore(img,firstLayer);
+  }
   cachedFloorBgImg=img;
   _cachedBgUrl=bg.url;
 }
@@ -867,6 +886,8 @@ function renderCoverageHeatmap(fp) {
 function renderFloorRoutes(fp){
   if(!fp.routes||!fp.routes.length)return;
   const layer=document.getElementById('edgesLayer');
+  const ehl=document.getElementById('edgeHitLayer');
+  const labelEls=[];
 
   fp.routes.forEach(route=>{
     const srcNode=nodes.find(n=>n.id===route.sourceNodeId);
@@ -890,13 +911,13 @@ function renderFloorRoutes(fp){
 
     const w=getEffectiveCableWidth(route.width);const rc=getEffectiveCableColor(route.color);
     const isSelected=selectedRouteId===route.id;
-    // Hit area — placed on handlesLayer (above edgesLayer, easier to click)
+    // Hit area — placed on edgeHitLayer (above nodesLayer, easy to click)
     const hitPath=document.createElementNS('http://www.w3.org/2000/svg','path');
     hitPath.setAttribute('class','edge-hit');hitPath.setAttribute('d',result.path);
     hitPath.setAttribute('stroke-width',Math.max(w+16,24));
     hitPath.style.pointerEvents='stroke';
     hitPath.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
-    document.getElementById('handlesLayer').appendChild(hitPath);
+    ehl.appendChild(hitPath);
 
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('class','edge-line');path.setAttribute('d',result.path);
@@ -925,13 +946,20 @@ function renderFloorRoutes(fp){
       const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
       bg.setAttribute('class','edge-label-bg');bg.setAttribute('x',mid.x-tl/2);bg.setAttribute('y',mid.y-9);
       bg.setAttribute('width',tl);bg.setAttribute('height',18);bg.setAttribute('rx',4);
-      layer.appendChild(bg);
+      bg.style.cursor='pointer';
+      bg.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
+      labelEls.push(bg);
       const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
       lbl.setAttribute('class','edge-label');lbl.setAttribute('x',mid.x);lbl.setAttribute('y',mid.y);
       lbl.setAttribute('fill',rc);lbl.textContent=txt;
-      layer.appendChild(lbl);
+      lbl.style.cursor='pointer';
+      lbl.style.pointerEvents='auto';
+      lbl.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
+      labelEls.push(lbl);
     }
   });
+  // Append labels after all hit paths so labels stay on top and clickable
+  labelEls.forEach(el=>ehl.appendChild(el));
 }
 
 // ====== FLOOR ROUTE CREATION ======
@@ -1215,6 +1243,9 @@ function highlightConnectedInPanel(nodeId){
   });
 }
 
+// ====== LABEL LAYOUT ======
+// computeBestLabelSide() and getLabelCoords() moved to core.js as shared functions
+
 // ====== FLOOR NODES ======
 function renderFloorNodes(fp){
   const nodesLayer=document.getElementById('nodesLayer');
@@ -1294,16 +1325,19 @@ function renderFloorNodes(fp){
       const lines=[];if(nameText)lines.push(nameText);if(modelText)lines.push(modelText);
       if(!lines.length)lines.push(n.name);
       const lblW=Math.max(...lines.map(t=>t.length))*12+12,lblH=lines.length*12+4;
+      const side=pl.labelPosition||computeBestLabelSide((fp.routes||[]).map(r=>({sourceId:r.sourceNodeId,targetId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort})),n.id);
+      const lc=getLabelCoords(side,n.w,n.h,lblW,lblH);
       const lblBg=document.createElementNS('http://www.w3.org/2000/svg','rect');
       lblBg.setAttribute('class','node-label-bg');
-      lblBg.setAttribute('x',n.w/2-lblW/2);lblBg.setAttribute('y',n.h+LABEL_OFFSET-6);
+      lblBg.setAttribute('x',lc.bgX);lblBg.setAttribute('y',lc.bgY);
       lblBg.setAttribute('width',lblW);lblBg.setAttribute('height',lblH);lblBg.setAttribute('rx',4);
       g.appendChild(lblBg);
-      let ly=n.h+LABEL_OFFSET+4;
+      let ly=lc.firstLineY;
       const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-      lbl.setAttribute('class','node-label');lbl.setAttribute('x',n.w/2);lbl.setAttribute('y',ly);
+      lbl.setAttribute('class','node-label');lbl.setAttribute('x',lc.textX);lbl.setAttribute('y',ly);
+      if(lc.anchor!=='middle')lbl.style.textAnchor=lc.anchor;
       lbl.textContent=nameText;g.appendChild(lbl);
-      if(modelText){ly+=12;const ml=document.createElementNS('http://www.w3.org/2000/svg','text');ml.setAttribute('class','node-sublabel');ml.setAttribute('x',n.w/2);ml.setAttribute('y',ly);ml.textContent=modelText;g.appendChild(ml)}
+      if(modelText){ly+=12;const ml=document.createElementNS('http://www.w3.org/2000/svg','text');ml.setAttribute('class','node-sublabel');ml.setAttribute('x',lc.textX);ml.setAttribute('y',ly);if(lc.anchor!=='middle')ml.style.textAnchor=lc.anchor;ml.textContent=modelText;g.appendChild(ml)}
     }
 
     // Ports
@@ -1319,6 +1353,7 @@ function renderFloorNodes(fp){
 
     g.style.cursor=pl.locked?'not-allowed':'move';
     g.addEventListener('mousedown',onNodeMouseDown);
+    g.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();showNodeCtxMenu(e.clientX,e.clientY,n.id)});
     nodesLayer.appendChild(g);
   });
 }
@@ -1383,16 +1418,39 @@ function updateScaleIndicator(){
 }
 
 // ====== BACKGROUND UPLOAD ======
+
+// Helper: delete old background files from server (fire-and-forget)
+function _cleanupOldBgFiles(fp){
+  if(!fp.background||!DIAGRAM_CONFIG.diagramId)return;
+  const body={};
+  if(fp.background.filenames&&fp.background.filenames.length){
+    body.filenames=fp.background.filenames;
+  } else if(fp.background.filename){
+    body.filename=fp.background.filename;
+  } else return;
+  fetch(DIAGRAM_CONFIG.apiFloorBgBase+DIAGRAM_CONFIG.diagramId+'/floor-plan/delete-bg',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-CSRFToken':DIAGRAM_CONFIG.csrfToken},
+    body:JSON.stringify(body)
+  }).catch(()=>{});
+}
+
 async function uploadFloorBg(fpId){
   const fp=getFloorPlan(fpId);if(!fp)return;
 
   const input=document.createElement('input');
-  input.type='file';input.accept='image/png,image/jpeg,image/jpg';
+  input.type='file';input.accept='image/png,image/jpeg,image/jpg,application/pdf';
   input.onchange=async function(){
     const file=input.files[0];if(!file)return;
-    if(file.size>12*1024*1024){showToast(_t('图片大小不能超过 12MB'));return}
+    if(file.size>12*1024*1024){showToast(_t('文件大小不能超过 12MB'));return}
 
-    // Client-side resize if too large
+    const isPdf=file.name.toLowerCase().endsWith('.pdf');
+    if(isPdf){
+      await _handlePdfUpload(file,fpId);
+      return;
+    }
+
+    // Image flow: client-side resize then upload
     const img=new Image();
     img.onload=async function(){
       let w=img.width,h=img.height;
@@ -1402,7 +1460,6 @@ async function uploadFloorBg(fpId){
         w=Math.round(w*ratio);h=Math.round(h*ratio);
       }
 
-      // Resize via canvas
       const canvas=document.createElement('canvas');
       canvas.width=w;canvas.height=h;
       const ctx=canvas.getContext('2d');
@@ -1410,7 +1467,8 @@ async function uploadFloorBg(fpId){
 
       canvas.toBlob(async function(blob){
         const formData=new FormData();
-        formData.append('file',blob,file.name);
+        const pngName=file.name.replace(/\.[^.]+$/,'.png');
+        formData.append('file',blob,pngName);
         formData.append('floor_id',fpId);
 
         showToast(_t('上传中...'));
@@ -1423,8 +1481,10 @@ async function uploadFloorBg(fpId){
           });
           const result=await resp.json();
           if(result.success){
+            _cleanupOldBgFiles(fp);
             fp.background={url:result.url,width:result.width,height:result.height,offset_x:0,offset_y:0,filename:result.filename||''};
             hasUnsavedChanges=true;renderAll();
+            showFloorPlanProps(fpId);
             showToast(_t('背景图已上传'));
           }else{showToast(_t('上传失败')+': '+(result.message||''))}
         }catch(err){showToast(_t('上传失败')+': '+err.message)}
@@ -1439,12 +1499,20 @@ async function deleteFloorBg(fpId){
   const fp=getFloorPlan(fpId);if(!fp||!fp.background)return;
   if(!confirm(_t('确定删除背景图？')))return;
 
+  // Build filenames list for multi-res or single file
+  const body={floor_id:fpId};
+  if(fp.background.filenames&&fp.background.filenames.length){
+    body.filenames=fp.background.filenames;
+  } else {
+    body.filename=fp.background.filename||'';
+  }
+
   try{
     if(!DIAGRAM_CONFIG.diagramId){showToast(_t('请先保存系统图'));return}
     const resp=await fetch(DIAGRAM_CONFIG.apiFloorBgBase+DIAGRAM_CONFIG.diagramId+'/floor-plan/delete-bg',{
       method:'POST',
       headers:{'Content-Type':'application/json','X-CSRFToken':DIAGRAM_CONFIG.csrfToken},
-      body:JSON.stringify({floor_id:fpId,filename:fp.background.filename||''})
+      body:JSON.stringify(body)
     });
     const result=await resp.json();
     if(result.success){
@@ -1452,6 +1520,187 @@ async function deleteFloorBg(fpId){
       showToast(_t('背景图已删除'));
     }else{showToast(_t('删除失败')+': '+(result.message||''))}
   }catch(err){showToast(_t('删除失败')+': '+err.message)}
+}
+
+// ====== PDF IMPORT ======
+
+async function _handlePdfUpload(file,fpId){
+  if(!DIAGRAM_CONFIG.diagramId){await saveDiagram();if(!DIAGRAM_CONFIG.diagramId){showToast(_t('保存失败，无法上传'));return}}
+
+  showToast(_t('分析 PDF 中...'));
+  const formData=new FormData();
+  formData.append('file',file,file.name);
+
+  try{
+    const resp=await fetch(DIAGRAM_CONFIG.apiFloorBgBase+DIAGRAM_CONFIG.diagramId+'/floor-plan/analyze-pdf',{
+      method:'POST',
+      headers:{'X-CSRFToken':DIAGRAM_CONFIG.csrfToken},
+      body:formData
+    });
+    const result=await resp.json();
+    if(!result.success){showToast(result.message||_t('PDF 分析失败'));return}
+
+    if(result.page_count===1){
+      await _renderAndSetPdfBackground(fpId,result.session_id,[{index:0,label:result.pages[0].name}]);
+    } else {
+      _showPdfPageSelector(result.pages,result.session_id,fpId);
+    }
+  }catch(err){showToast(_t('PDF 分析失败')+': '+err.message)}
+}
+
+async function _renderAndSetPdfBackground(fpId,sessionId,pages){
+  const fp=getFloorPlan(fpId);if(!fp)return;
+  showToast(_t('渲染中...'));
+
+  try{
+    const resp=await fetch(DIAGRAM_CONFIG.apiFloorBgBase+DIAGRAM_CONFIG.diagramId+'/floor-plan/render-pdf-pages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':DIAGRAM_CONFIG.csrfToken},
+      body:JSON.stringify({session_id:sessionId,pages:pages})
+    });
+    const result=await resp.json();
+    if(!result.success){showToast(result.message||_t('渲染失败'));return}
+
+    if(result.results.length===1&&pages.length===1){
+      // Single page: set as current floor background
+      _cleanupOldBgFiles(fp);
+      const r=result.results[0];
+      const defaultRes=r.resolutions['2000']||Object.values(r.resolutions)[0];
+      fp.background={
+        is_multi_res:true,
+        url:defaultRes.url,
+        width:defaultRes.width,height:defaultRes.height,
+        resolutions:r.resolutions,
+        filenames:r.filenames,
+        offset_x:0,offset_y:0,opacity:0.3
+      };
+      hasUnsavedChanges=true;renderAll();
+      showFloorPlanProps(fpId);
+      showToast(_t('背景图已导入'));
+    } else {
+      // Multiple pages: create new floor plans for each
+      let firstNewId=null;
+      for(const r of result.results){
+        const defaultRes=r.resolutions['2000']||Object.values(r.resolutions)[0];
+        const newId=addFloorPlanWithBackground(r.label,{
+          is_multi_res:true,
+          url:defaultRes.url,
+          width:defaultRes.width,height:defaultRes.height,
+          resolutions:r.resolutions,
+          filenames:r.filenames,
+          offset_x:0,offset_y:0,opacity:0.3
+        });
+        if(!firstNewId)firstNewId=newId;
+      }
+      if(firstNewId)switchView(firstNewId);
+      showToast(_t('已导入')+' '+result.results.length+' '+_t('个楼层'));
+    }
+  }catch(err){showToast(_t('渲染失败')+': '+err.message)}
+}
+
+function _showPdfPageSelector(pages,sessionId,fpId){
+  const overlay=document.getElementById('pdfPageSelector');
+  if(!overlay)return;
+  overlay.dataset.sessionId=sessionId;
+  overlay.dataset.fpId=fpId;
+
+  const grid=document.getElementById('pdfPageGrid');
+  grid.innerHTML='';
+  pages.forEach(p=>{
+    const card=document.createElement('div');
+    card.className='pdf-page-card';
+    card.innerHTML=`
+      <label class="pdf-page-thumb-wrap">
+        <input type="checkbox" checked data-page-index="${p.index}">
+        <img src="${p.thumbnail}" alt="Page ${p.index+1}">
+        <span class="pdf-page-check">\u2713</span>
+      </label>
+      <input type="text" class="pdf-page-name" value="${p.name}" placeholder="${_t('楼层名称')}" data-page-index="${p.index}">
+    `;
+    grid.appendChild(card);
+  });
+
+  const selectAll=document.getElementById('pdfSelectAll');
+  selectAll.checked=true;
+  selectAll.onchange=function(){
+    grid.querySelectorAll('input[type=checkbox]').forEach(cb=>{cb.checked=selectAll.checked});
+  };
+
+  document.getElementById('pdfProgress').style.display='none';
+  overlay.style.display='flex';
+}
+
+function closePdfSelector(){
+  const overlay=document.getElementById('pdfPageSelector');
+  if(overlay)overlay.style.display='none';
+}
+
+async function importSelectedPdfPages(){
+  const overlay=document.getElementById('pdfPageSelector');
+  const sessionId=overlay.dataset.sessionId;
+  const fpId=overlay.dataset.fpId;
+
+  const grid=document.getElementById('pdfPageGrid');
+  const selectedPages=[];
+  grid.querySelectorAll('.pdf-page-card').forEach(card=>{
+    const cb=card.querySelector('input[type=checkbox]');
+    if(cb&&cb.checked){
+      const nameInput=card.querySelector('.pdf-page-name');
+      selectedPages.push({
+        index:parseInt(cb.dataset.pageIndex),
+        label:nameInput?nameInput.value.trim():('Page-'+(parseInt(cb.dataset.pageIndex)+1))
+      });
+    }
+  });
+
+  if(!selectedPages.length){showToast(_t('请至少选择一个页面'));return}
+
+  const progress=document.getElementById('pdfProgress');
+  progress.style.display='flex';
+  document.getElementById('pdfProgressText').textContent=_t('渲染中...');
+  document.getElementById('pdfProgressBar').style.width='30%';
+
+  await _renderAndSetPdfBackground(fpId,sessionId,selectedPages);
+
+  document.getElementById('pdfProgressBar').style.width='100%';
+  document.getElementById('pdfProgressText').textContent=_t('完成');
+  setTimeout(()=>closePdfSelector(),500);
+}
+
+// ====== MULTI-RESOLUTION ZOOM SWITCHING ======
+
+function _getOptimalResolutionKey(currentScale){
+  if(currentScale>=1.8) return '4000';
+  if(currentScale>=0.8) return '2000';
+  return '1000';
+}
+
+function onScaleChanged(newScale){
+  if(currentView==='topology')return;
+  const fp=getFloorPlan(currentView);
+  if(!fp||!fp.background||!fp.background.is_multi_res)return;
+
+  const optimalKey=_getOptimalResolutionKey(newScale);
+  const res=fp.background.resolutions[optimalKey];
+  if(!res||res.url===_cachedBgUrl)return;
+
+  fp.background.url=res.url;
+  fp.background.width=res.width;
+  fp.background.height=res.height;
+  renderFloorBackground(fp);
+
+  _preloadAdjacentResolution(fp,newScale);
+}
+
+function _preloadAdjacentResolution(fp,currentScale){
+  let preloadKey=null;
+  if(currentScale>1.5&&currentScale<1.8) preloadKey='4000';
+  else if(currentScale>0.6&&currentScale<0.8) preloadKey='2000';
+
+  if(preloadKey&&fp.background.resolutions[preloadKey]){
+    const img=new Image();
+    img.src=fp.background.resolutions[preloadKey].url;
+  }
 }
 
 // ====== FLOOR PLAN PROPERTIES PANEL ======
@@ -1785,8 +2034,8 @@ function relayoutFloorNodesTopo(){
       delete e.midPos;
     });
 
-    // Next floor Y: equidistant spacing (gapV between bottommost antenna and next floor's top)
-    curY=chainY+tiersBelow*gapV+gapV;
+    // Next floor Y: 1.5x gapV between floors for clearer separation
+    curY=chainY+tiersBelow*gapV+gapV*1.5;
   });
 
   hasUnsavedChanges=true;
@@ -2038,6 +2287,7 @@ function showFloorNodeProps(id){
       const extra=document.createElement('div');
       extra.innerHTML=`${pl?`<div class="props-field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" ${pl.locked?'checked':''} onchange="toggleNodeLock(${id})"><span class="props-label" style="margin:0;">${_t('锁定位置')}</span></label></div>
       <div class="props-field"><span class="props-label">${_t('旋转角度')}</span><input class="props-input" type="number" min="0" max="360" step="15" value="${pl.rotation||0}" oninput="updatePlacementRotation(${id},parseInt(this.value)||0)"></div>`:''}`;
+
       while(extra.firstChild)content.insertBefore(extra.firstChild,delBtn);
       // Replace "删除节点" with "删除设备" using floor-specific delete
       delBtn.textContent=_t('删除设备');
@@ -2075,7 +2325,8 @@ function showFloorNodeProps(id){
     <div class="props-field"><span class="props-label">${_t('旋转角度')}</span>
       <input class="props-input" type="number" min="0" max="360" step="15" value="${pl.rotation||0}"
         oninput="updatePlacementRotation(${id},parseInt(this.value)||0)">
-    </div>`:''}
+    </div>
+    `:''}
     ${buildCoveragePropsHTML(id)}
     <button class="btn-delete" onclick="removeFromFloorPlan(${id})">${_t('从楼层移除')}</button>`;
 }
@@ -2106,6 +2357,9 @@ function updatePlacementRotation(nodeId,angle){
   hasUnsavedChanges=true;
   renderAll();
 }
+
+// updateLabelPosition, showFloorNodeCtxMenu, hideFloorNodeCtxMenu moved to core.js
+// as unified showNodeCtxMenu() and updateNodeLabelPosition()
 
 function updateCoverageRadius(nodeId, idx, val) {
   const n = nodes.find(nd => nd.id === nodeId);

@@ -168,10 +168,10 @@
   .edge-label{font-size:9px;pointer-events:none;text-anchor:middle;dominant-baseline:central}
   .edge-temp{stroke:#3b82f6;stroke-width:2;stroke-dasharray:6 3;fill:none;pointer-events:none}
   .mid-handle{cursor:ew-resize;transition:opacity .15s}
-  .mid-handle:hover .mid-handle-bar{stroke:#60a5fa;stroke-width:3}
-  .mid-handle:hover .mid-handle-grip{fill:#3b82f6;r:5}
-  .mid-handle-bar{stroke:#3b82f6;stroke-width:2;stroke-dasharray:4 2;opacity:.5}
-  .mid-handle-grip{fill:var(--handle-grip);stroke:#3b82f6;stroke-width:1.5;r:4;transition:all .15s}
+  .mid-handle:hover .mid-handle-bar{stroke:#60a5fa;stroke-width:4}
+  .mid-handle:hover .mid-handle-grip{fill:#3b82f6;r:8}
+  .mid-handle-bar{stroke:#3b82f6;stroke-width:3;stroke-dasharray:6 3;opacity:.7}
+  .mid-handle-grip{fill:var(--handle-grip);stroke:#3b82f6;stroke-width:2;r:6;transition:all .15s;filter:drop-shadow(0 0 2px rgba(59,130,246,.4))}
 
   /* ── Right Props Panel ── */
   .props-panel{width:280px;background:var(--bg-panel);border-left:1px solid var(--border);padding:16px;display:none;flex-direction:column;gap:10px;overflow-y:auto;flex-shrink:0}
@@ -245,6 +245,11 @@
   .ctx-item.disabled{opacity:.35;pointer-events:none}
   .ctx-shortcut{margin-left:auto;font-size:10px;color:var(--text-muted);font-family:system-ui}
   .ctx-divider{height:1px;background:var(--border);margin:4px 8px}
+  .ctx-sub{position:relative}
+  .ctx-sub>.ctx-submenu{display:none;position:absolute;left:100%;top:-4px;background:var(--popup-bg);border:1px solid var(--border);border-radius:10px;padding:4px;min-width:120px;box-shadow:0 12px 40px var(--popup-shadow);backdrop-filter:blur(12px)}
+  .ctx-sub:hover>.ctx-submenu{display:block}
+  .ctx-sub>.ctx-item::after{content:'›';margin-left:auto;font-size:14px;color:var(--text-muted)}
+  .ctx-item.active{color:var(--accent,#3b82f6);font-weight:600}
 
   /* ── View Tabs ── */
   .view-tabs{display:flex;gap:2px;padding:8px 12px;align-items:center;background:var(--bg-canvas);z-index:25;position:absolute;top:50px;left:12px;border-radius:8px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);box-shadow:0 1px 3px var(--toast-shadow)}
@@ -284,6 +289,17 @@
   .floor-area.selected rect{stroke-width:2;stroke-opacity:.8}
   .area-resize-handle{fill:var(--handle-grip);stroke:#3b82f6;stroke-width:1.5;cursor:nwse-resize}
   .area-tool-active{cursor:crosshair!important}
+
+  /* PDF page selector cards */
+  .pdf-page-card{display:flex;flex-direction:column;gap:6px}
+  .pdf-page-thumb-wrap{position:relative;cursor:pointer;border-radius:8px;overflow:hidden;border:2px solid var(--border);transition:border-color .15s,box-shadow .15s}
+  .pdf-page-thumb-wrap:has(input:checked){border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.2)}
+  .pdf-page-thumb-wrap input[type=checkbox]{position:absolute;top:8px;left:8px;z-index:2;width:16px;height:16px;accent-color:#3b82f6}
+  .pdf-page-thumb-wrap img{display:block;width:100%;aspect-ratio:3/4;object-fit:contain;background:var(--bg-input)}
+  .pdf-page-check{position:absolute;top:8px;right:8px;width:20px;height:20px;background:#3b82f6;color:#fff;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .pdf-page-thumb-wrap:has(input:checked) .pdf-page-check{display:flex}
+  .pdf-page-name{width:100%;padding:5px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:12px;outline:none;text-align:center}
+  .pdf-page-name:focus{border-color:#3b82f6}
 </style>
 </head>
 <body>
@@ -371,8 +387,9 @@
       <rect width="100%" height="100%" fill="url(#gridLarge)"/>
       <g id="canvasGroup" transform="translate(0,0) scale(1)">
         <g id="edgesLayer"></g>
-        <g id="handlesLayer"></g>
         <g id="nodesLayer"></g>
+        <g id="edgeHitLayer"></g>
+        <g id="handlesLayer"></g>
         <g id="tempLayer"></g>
       </g>
     </svg>
@@ -406,6 +423,7 @@
   <div class="ctx-item" data-action="delete" onclick="onCtxAction('delete')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>{{ _('删除') }}<span class="ctx-shortcut">⌫</span></div>
   <div class="ctx-item" data-action="selectAll" onclick="onCtxAction('selectAll')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M9 12l2 2 4-4"/></svg>{{ _('全选') }}<span class="ctx-shortcut">⌘A</span></div>
 </div>
+<div id="nodeCtxMenu" class="ctx-menu" style="display:none;"></div>
 
 <!-- 离开确认弹窗 -->
 <div id="deleteFloorModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
@@ -433,6 +451,30 @@
       <button onclick="leaveSaveFirst()" style="flex:1;padding:10px 16px;background:#3b82f6;border:none;border-radius:10px;color:#fff;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;">{{ _('保存并离开') }}</button>
     </div>
     <button onclick="leaveCancel()" style="margin-top:12px;background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;padding:4px 8px;">{{ _('取消') }}</button>
+  </div>
+</div>
+
+<!-- PDF 页面选择弹窗 -->
+<div id="pdfPageSelector" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;padding:0;max-width:680px;width:92%;max-height:85vh;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;">
+      <div style="font-size:16px;font-weight:600;color:var(--text-primary);">{{ _('选择要导入的 PDF 页面') }}</div>
+      <button onclick="closePdfSelector()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;font-size:18px;">✕</button>
+    </div>
+    <div style="padding:0 24px 12px;display:flex;align-items:center;gap:12px;">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary);cursor:pointer;"><input type="checkbox" id="pdfSelectAll" checked> {{ _('全选') }}</label>
+    </div>
+    <div id="pdfPageGrid" style="flex:1;overflow-y:auto;padding:0 24px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;"></div>
+    <div style="padding:16px 24px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px;">
+      <div id="pdfProgress" style="display:none;flex:1;align-items:center;gap:8px;">
+        <div style="flex:1;height:4px;background:var(--bg-input);border-radius:2px;overflow:hidden;"><div id="pdfProgressBar" style="height:100%;background:#3b82f6;border-radius:2px;width:0;transition:width .3s;"></div></div>
+        <span id="pdfProgressText" style="font-size:11px;color:var(--text-muted);white-space:nowrap;">{{ _('处理中...') }}</span>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;">
+        <button onclick="closePdfSelector()" style="padding:9px 18px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-secondary);font-size:13px;cursor:pointer;">{{ _('取消') }}</button>
+        <button onclick="importSelectedPdfPages()" style="padding:9px 18px;background:#3b82f6;border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:500;cursor:pointer;">{{ _('导入选中页面') }}</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -742,7 +784,24 @@ window.SD_I18N = {
   '连接点': {zh:'连接点',en:'Port'},
   '预估长度': {zh:'预估长度',en:'Est. Length'},
   '路径长度': {zh:'路径长度',en:'Path Length'},
-  '未标定': {zh:'未标定',en:'Not Calibrated'}
+  '未标定': {zh:'未标定',en:'Not Calibrated'},
+  '标签位置': {zh:'标签位置',en:'Label Position'},
+  '下方': {zh:'下方',en:'Below'},
+  '上方': {zh:'上方',en:'Above'},
+  '右侧': {zh:'右侧',en:'Right'},
+  '左侧': {zh:'左侧',en:'Left'},
+  '文件大小不能超过 12MB': {zh:'文件大小不能超过 12MB',en:'File must be under 12MB'},
+  '分析 PDF 中...': {zh:'分析 PDF 中...',en:'Analyzing PDF...'},
+  'PDF 分析失败': {zh:'PDF 分析失败',en:'PDF analysis failed'},
+  '渲染中...': {zh:'渲染中...',en:'Rendering...'},
+  '渲染失败': {zh:'渲染失败',en:'Render failed'},
+  '背景图已导入': {zh:'背景图已导入',en:'Background imported'},
+  '已导入': {zh:'已导入',en:'Imported'},
+  '个楼层': {zh:'个楼层',en:' floors'},
+  '楼层名称': {zh:'楼层名称',en:'Floor Name'},
+  '请至少选择一个页面': {zh:'请至少选择一个页面',en:'Select at least one page'},
+  '完成': {zh:'完成',en:'Done'},
+  '处理中...': {zh:'处理中...',en:'Processing...'}
 };
 const wrapper = document.getElementById('canvasWrapper');
 </script>
