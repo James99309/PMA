@@ -34,6 +34,7 @@ class DiagramShareToken(db.Model):
     designated_email = db.Column(db.String(200), nullable=False)
     source_diagram_id = db.Column(db.Integer, db.ForeignKey('system_diagrams.id'))
     expires_at = db.Column(db.DateTime, nullable=False)
+    permission = db.Column(db.String(10), default='edit', nullable=False)  # 'view' | 'edit'
     is_active = db.Column(db.Boolean, default=True)
     created_by_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)

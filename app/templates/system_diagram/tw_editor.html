@@ -305,7 +305,7 @@
 <body>
 <div style="display:flex;height:100vh;">
   <!-- 左侧产品面板 -->
-  <div class="panel">
+  <div class="panel" {% if read_only|default(false) %}style="display:none"{% endif %}>
     <div class="panel-header">
       <input class="panel-search" placeholder="{{ _('搜索产品名称或型号...') }}" id="productSearch">
       <!-- 页签（仅平面图模式显示） -->
@@ -334,7 +334,7 @@
 
   <!-- 中间画布 -->
   <div class="canvas-wrapper" id="canvasWrapper">
-    <div class="canvas-toolbar">
+    <div class="canvas-toolbar" {% if read_only|default(false) %}style="display:none"{% endif %}>
       <button id="btnSelect" class="active" onclick="setTool('select')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>{{ _('选择') }}</button>
       <button id="btnConnect" onclick="setTool('connect')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>{{ _('连线') }}</button>
       <button id="btnText" onclick="addTextNode()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>{{ _('标注') }}</button>
@@ -357,9 +357,9 @@
     <!-- 视图标签栏 -->
     <div class="view-tabs" id="viewTabs">
       <button class="view-tab active" data-view="topology" onclick="switchView('topology')">🔧 {{ _('系统图') }}</button>
-      <button class="view-tab-add" onclick="addFloorPlan()">+ {{ _('添加楼层') }}</button>
+      {% if not read_only|default(false) %}<button class="view-tab-add" onclick="addFloorPlan()">+ {{ _('添加楼层') }}</button>{% endif %}
     </div>
-    <div class="diagram-name"><input value="{{ diagram_name }}" id="diagramNameInput"></div>
+    <div class="diagram-name">{% if read_only|default(false) %}<span id="diagramNameInput" style="font-size:15px;font-weight:600;color:var(--text-primary);padding:4px 8px;">{{ diagram_name }}</span>{% else %}<input value="{{ diagram_name }}" id="diagramNameInput">{% endif %}</div>
     <div class="canvas-actions">
       {% if not external_mode|default(false) %}
       {% if project_id|default(0) %}
@@ -372,10 +372,13 @@
       <div style="display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);border-radius:6px;font-size:12px;color:var(--text-secondary);box-shadow:0 1px 3px var(--toast-shadow);">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         {{ external_email }}
+        {% if read_only|default(false) %}
+        <span style="padding:2px 8px;background:#fef3c7;color:#92400e;border-radius:4px;font-size:10px;font-weight:600;">{{ _('只读') }}</span>
+        {% endif %}
       </div>
       {% endif %}
       <div style="position:relative;"><button class="btn-export" onclick="toggleExportMenu()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>{{ _('导出') }} ▾</button><div id="exportMenu" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--popup-bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--popup-shadow);min-width:160px;z-index:30;overflow:hidden;"><div style="padding:6px 14px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:11px;color:var(--text-muted);" onclick="event.stopPropagation()"><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="color" checked onchange="exportBlackMode=false" style="margin:0;width:12px;height:12px;">{{ _('原色') }}</label><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="black" onchange="exportBlackMode=true" style="margin:0;width:12px;height:12px;">{{ _('黑色') }}</label></div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="exportSVG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>SVG {{ _('矢量图') }}</div><div onclick="exportPNG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>PNG {{ _('位图') }} (2x)</div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="startCropExport()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="4,2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>{{ _('框选导出') }} PNG</div></div></div>
-      <button class="btn-save" id="btnSave" onclick="saveDiagram()">{{ _('保存') }}</button>
+      {% if not read_only|default(false) %}<button class="btn-save" id="btnSave" onclick="saveDiagram()">{{ _('保存') }}</button>{% endif %}
     </div>
     <svg id="diagramCanvas" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -413,9 +416,10 @@
   </div>
 
   <!-- 右侧属性面板 -->
-  <div class="props-panel" id="propsPanel"><div class="props-title" id="propsTitle">{{ _('属性') }}</div><div id="propsContent"></div></div>
+  <div class="props-panel" id="propsPanel" {% if read_only|default(false) %}style="display:none !important"{% endif %}><div class="props-title" id="propsTitle">{{ _('属性') }}</div><div id="propsContent"></div></div>
 </div>
 <div class="toast" id="toast"></div>
+{% if not read_only|default(false) %}
 <div id="ctxMenu" class="ctx-menu" style="display:none;">
   <div class="ctx-item" data-action="copy" onclick="onCtxAction('copy')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>{{ _('复制') }}<span class="ctx-shortcut">⌘C</span></div>
   <div class="ctx-item" data-action="paste" onclick="onCtxAction('paste')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>{{ _('粘贴') }}<span class="ctx-shortcut">⌘V</span></div>
@@ -424,6 +428,10 @@
   <div class="ctx-item" data-action="selectAll" onclick="onCtxAction('selectAll')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M9 12l2 2 4-4"/></svg>{{ _('全选') }}<span class="ctx-shortcut">⌘A</span></div>
 </div>
 <div id="nodeCtxMenu" class="ctx-menu" style="display:none;"></div>
+{% else %}
+<div id="ctxMenu" class="ctx-menu" style="display:none;"></div>
+<div id="nodeCtxMenu" class="ctx-menu" style="display:none;"></div>
+{% endif %}
 
 <!-- 离开确认弹窗 -->
 <div id="deleteFloorModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
@@ -492,6 +500,13 @@
         <input type="email" id="shareEmail" placeholder="recipient@email.com" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
       </div>
       <div>
+        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px;font-weight:500;">{{ _('权限') }}</label>
+        <select id="sharePermission" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
+          <option value="edit" selected>{{ _('可编辑') }}</option>
+          <option value="view">{{ _('仅查看') }}</option>
+        </select>
+      </div>
+      <div>
         <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px;font-weight:500;">{{ _('有效期') }}</label>
         <select id="shareExpiry" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
           <option value="24">24 {{ _('小时') }}</option>
@@ -521,6 +536,7 @@ function openShareModal(){
   document.getElementById('shareResult').style.display='none';
   document.getElementById('shareError').style.display='none';
   document.getElementById('shareEmail').value='';
+  document.getElementById('sharePermission').value='edit';
   document.getElementById('shareEmail').focus();
 }
 function closeShareModal(){document.getElementById('shareModal').style.display='none'}
@@ -539,6 +555,7 @@ function submitShare(){
     headers:{'Content-Type':'application/json','X-CSRFToken':DIAGRAM_CONFIG.csrfToken},
     body:JSON.stringify({
       email:email,
+      permission:document.getElementById('sharePermission').value,
       expiresHours:parseInt(document.getElementById('shareExpiry').value),
       projectName:projectName,
       sourceDiagramId:DIAGRAM_CONFIG.diagramId||null
@@ -577,6 +594,7 @@ document.getElementById('shareModal').addEventListener('click',function(e){if(e.
 const DIAGRAM_CONFIG = {
   diagramId: {{ diagram_id }},
   projectId: {{ project_id|default(0) }},
+  readOnly: {{ 'true' if read_only|default(false) else 'false' }},
   {% if external_mode|default(false) %}
   externalMode: true,
   shareToken: '{{ share_token|default("") }}',

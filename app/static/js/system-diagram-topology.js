@@ -116,6 +116,7 @@ function toggleEdgeSelection(id){
   else hideProps();
 }
 function deleteSelected(){
+  if(DIAGRAM_CONFIG.readOnly)return;
   pushHistory();let cnt=0;
   if(selectedNodeIds.size){
     const ids=selectedNodeIds;
@@ -206,6 +207,7 @@ function onNodeMouseDown(e){
   } else {
     if(!selectedNodeIds.has(nid))selectNode(nid);
   }
+  if(DIAGRAM_CONFIG.readOnly)return; // allow selection but prevent drag
   isDragging=true;dragMoved=false;dragNodeId=nid;
   // Use placement coords in floor plan mode
   if(currentView!=='topology'){
@@ -328,6 +330,7 @@ document.addEventListener('mouseup',e=>{
 
 // ====== CONNECTION DRAWING ======
 function onPortMouseDown(e){
+  if(DIAGRAM_CONFIG.readOnly)return;
   e.stopPropagation();const nid=parseInt(e.target.dataset.nodeId),port=e.target.dataset.port;
   // Click-persistent mode: if already connecting, don't override source — let mouseup handle completion
   if(isConnecting&&connSourceId!==null)return;

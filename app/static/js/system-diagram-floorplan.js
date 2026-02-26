@@ -283,9 +283,10 @@ function renderFloorAreas(fp){
     g.addEventListener('mousedown',e=>{
       if(currentTool==='area')return;
       selectedAreaId=area.id;selectedNodeIds=new Set();selectedEdgeId=null;
-      showAreaProps(area.id);renderAll();
-      if(area.locked)return; // don't drag locked areas — let event propagate for panning
-      e.stopPropagation(); // only block panning when starting area drag
+      if(!DIAGRAM_CONFIG.readOnly)showAreaProps(area.id);
+      renderAll();
+      if(DIAGRAM_CONFIG.readOnly||area.locked)return;
+      e.stopPropagation();
       const pt=svgPoint(e);
       isDraggingArea=true;dragAreaId=area.id;
       areaDragOffset={x:pt.x-area.x,y:pt.y-area.y};
@@ -346,6 +347,7 @@ function updateAreaProp(areaId,prop,val){
 }
 
 function deleteArea(areaId){
+  if(DIAGRAM_CONFIG.readOnly)return;
   const fp=getFloorPlan(currentView);if(!fp)return;
   const area=fp.areas.find(a=>a.id===areaId);
   if(area&&area.is_riser)removeRiserNode(fp,area);
@@ -1436,6 +1438,7 @@ function _cleanupOldBgFiles(fp){
 }
 
 async function uploadFloorBg(fpId){
+  if(DIAGRAM_CONFIG.readOnly)return;
   const fp=getFloorPlan(fpId);if(!fp)return;
 
   const input=document.createElement('input');
@@ -1496,6 +1499,7 @@ async function uploadFloorBg(fpId){
 }
 
 async function deleteFloorBg(fpId){
+  if(DIAGRAM_CONFIG.readOnly)return;
   const fp=getFloorPlan(fpId);if(!fp||!fp.background)return;
   if(!confirm(_t('确定删除背景图？')))return;
 
@@ -2044,6 +2048,7 @@ function relayoutFloorNodesTopo(){
 }
 
 function addNodeToFloorPlan(sub,x,y){
+  if(DIAGRAM_CONFIG.readOnly)return null;
   const fpId=currentView;
   const fp=getFloorPlan(fpId);
   if(!fp)return null;
@@ -2173,6 +2178,7 @@ let isResizingArea=false,resizeAreaId=null,resizeHandle='',resizeAreaStart=null;
 let selectedRouteId=null;
 
 function onAreaMouseDown(e){
+  if(DIAGRAM_CONFIG.readOnly)return;
   if(currentTool==='calibrate'&&currentView!=='topology'){
     const pt=svgPoint(e);
     const fp=getFloorPlan(currentView);

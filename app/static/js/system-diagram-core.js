@@ -389,6 +389,7 @@ wrapper.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEf
 wrapper.addEventListener('dragleave',()=>{document.getElementById('dropIndicator').style.display='none'});
 wrapper.addEventListener('drop',e=>{
   e.preventDefault();document.getElementById('dropIndicator').style.display='none';
+  if(DIAGRAM_CONFIG.readOnly)return;
   const r=wrapper.getBoundingClientRect(),cx=(e.clientX-r.left-viewX)/scale,cy=(e.clientY-r.top-viewY)/scale;
 
   // Check for existing device drop (floor plan only)
@@ -411,6 +412,7 @@ wrapper.addEventListener('drop',e=>{
 
 // ====== NODE MANAGEMENT ======
 function addNode(sub,x,y){
+  if(DIAGRAM_CONFIG.readOnly)return null;
   const products=sub.products||[];
   const firstProduct=products[0];
   const node={
@@ -432,6 +434,7 @@ function addNode(sub,x,y){
 // addNodeToFloorPlan() is defined in system-diagram-floorplan.js
 
 function addTextNode(){
+  if(DIAGRAM_CONFIG.readOnly)return;
   pushHistory();
   const cx=(wrapper.clientWidth/2-viewX)/scale,cy=(wrapper.clientHeight/2-viewY)/scale;
   nodes.push({id:nodeIdCounter++,subcategoryId:null,selectedProductId:null,name:_t('文本标注'),model:_t('双击编辑'),category:_t('标注'),color:'#64748b',iconData:DEFAULT_DEVICE_ICONS.text_note,products:[],x:cx-32,y:cy-32,w:NODE_SIZE,h:NODE_SIZE,qty:1,label:'',hideLabel:false,floor_id:null,area_label:'',floor_label:''});
@@ -495,6 +498,7 @@ function svgPoint(e){const r=wrapper.getBoundingClientRect();return{x:(e.clientX
 
 // ====== CANVAS CONTROLS ======
 function setTool(tool){
+  if(DIAGRAM_CONFIG.readOnly&&tool!=='select')return;
   // Clean up calibration state when switching away
   if(currentTool==='calibrate'&&tool!=='calibrate'){
     if(typeof isCalibrating!=='undefined'){isCalibrating=false;calibrateStart=null}
@@ -559,8 +563,8 @@ function snapshotState(){
   });
 }
 function _doPush(){undoStack=undoStack.slice(0,undoIndex+1);undoStack.push(snapshotState());if(undoStack.length>MAX_UNDO)undoStack.shift();undoIndex=undoStack.length-1}
-function pushHistory(){_doPush()}
-function pushHistoryProp(){if(!_propEditing){_propEditing=true;_doPush()}clearTimeout(_propEditTimer);_propEditTimer=setTimeout(()=>{_propEditing=false},1000)}
+function pushHistory(){if(DIAGRAM_CONFIG.readOnly)return;_doPush()}
+function pushHistoryProp(){if(DIAGRAM_CONFIG.readOnly)return;if(!_propEditing){_propEditing=true;_doPush()}clearTimeout(_propEditTimer);_propEditTimer=setTimeout(()=>{_propEditing=false},1000)}
 function restoreSnapshot(snap){
   const data=JSON.parse(snap);
   nodes=data.nodes.map(n=>{
@@ -589,6 +593,11 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 document.addEventListener('keydown',e=>{
   if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;
   const mod=e.metaKey||e.ctrlKey;
+  if(DIAGRAM_CONFIG.readOnly){
+    // Read-only: only allow Escape
+    if(e.key==='Escape'){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;renderAll();hideProps()}
+    return;
+  }
   if(mod&&e.key==='z'){e.preventDefault();if(e.shiftKey)redoAction();else undoAction();return}
   if(mod&&e.key==='y'){e.preventDefault();redoAction();return}
   if(mod&&e.key==='c'){e.preventDefault();copySelected();return}
@@ -630,6 +639,7 @@ function getLabelCoords(side, nw, nh, lblW, lblH){
 
 // ====== NODE CONTEXT MENU (label position + copy/paste/delete) ======
 function showNodeCtxMenu(x, y, nodeId){
+  if(DIAGRAM_CONFIG.readOnly)return;
   hideContextMenu();
   const n=nodes.find(nd=>nd.id===nodeId);
   if(!n)return;
@@ -725,6 +735,7 @@ function copySelected(){
 }
 
 function pasteClipboard(){
+  if(DIAGRAM_CONFIG.readOnly)return;
   if(!clipboard||!clipboard.nodes.length)return;
   pushHistory();const idMap=new Map(),offset=30;
   selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedEdgeId=null;
@@ -807,6 +818,7 @@ svg.addEventListener('contextmenu',e=>{e.preventDefault();
   }
   showContextMenu(e.clientX,e.clientY)});
 function showContextMenu(x,y){
+  if(DIAGRAM_CONFIG.readOnly)return;
   const menu=document.getElementById('ctxMenu');
   const hasSel=selectedNodeIds.size>0||selectedEdgeIds.size>0;
   const hasClip=clipboard&&clipboard.nodes.length>0;
@@ -931,7 +943,8 @@ async function prepareExportSVG(cropBounds,blackMode){
 }
 
 function getExportName(){
-  const base=document.getElementById('diagramNameInput').value||_t('系统图');
+  const el=document.getElementById('diagramNameInput');
+  const base=(el.value||el.textContent||'').trim()||_t('系统图');
   if(currentView!=='topology'){const fp=getFloorPlan(currentView);if(fp)return base+'_'+fp.label}
   return base;
 }
@@ -1101,6 +1114,7 @@ function deserializeDiagram(data){
 }
 
 async function saveDiagram(){
+  if(DIAGRAM_CONFIG.readOnly)return;
   const btn=document.getElementById('btnSave');
   btn.classList.add('saving');btn.textContent=_t('保存中...');
   try{
@@ -1140,7 +1154,8 @@ async function loadDiagram(){
       const resp=await fetch(DIAGRAM_CONFIG.apiLoad);
       const result=await resp.json();
       if(result.success&&result.diagram){
-        document.getElementById('diagramNameInput').value=result.diagram.name||'';
+        const nameEl=document.getElementById('diagramNameInput');
+        if(nameEl.tagName==='INPUT')nameEl.value=result.diagram.name||'';else nameEl.textContent=result.diagram.name||'';
         if(result.diagram.diagramData&&Object.keys(result.diagram.diagramData).length>0){
           deserializeDiagram(result.diagram.diagramData);
           setTimeout(fitView,100);
@@ -1154,7 +1169,8 @@ async function loadDiagram(){
     const resp=await fetch(DIAGRAM_CONFIG.apiLoadBase+DIAGRAM_CONFIG.diagramId+'/data');
     const result=await resp.json();
     if(result.success&&result.diagram){
-      document.getElementById('diagramNameInput').value=result.diagram.name||'';
+      const nameEl2=document.getElementById('diagramNameInput');
+      if(nameEl2.tagName==='INPUT')nameEl2.value=result.diagram.name||'';else nameEl2.textContent=result.diagram.name||'';
       deserializeDiagram(result.diagram.diagramData);
       setTimeout(fitView,100);
     }
@@ -1236,6 +1252,7 @@ function getFloorPlan(id){
 }
 
 function addFloorPlan(){
+  if(DIAGRAM_CONFIG.readOnly)return;
   if(typeof floorPlans==='undefined')window.floorPlans=[];
   const id='fp_'+floorPlanIdCounter++;
   const label=(floorPlans.length+1)+'F';

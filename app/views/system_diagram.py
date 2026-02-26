@@ -609,6 +609,10 @@ def api_create_share():
         if not source or source.is_deleted:
             source_diagram_id = None
 
+    permission = data.get('permission', 'edit')
+    if permission not in ('view', 'edit'):
+        permission = 'edit'
+
     token_str = secrets.token_hex(16)
     share = DiagramShareToken(
         token=token_str,
@@ -616,6 +620,7 @@ def api_create_share():
         designated_email=email,
         source_diagram_id=source_diagram_id,
         expires_at=datetime.now() + timedelta(hours=expires_hours),
+        permission=permission,
         created_by_id=current_user.id
     )
     db.session.add(share)
@@ -630,7 +635,18 @@ def api_create_share():
         from app.utils.email import send_email
         creator_name = current_user.real_name or current_user.username
         creator_email = current_user.email or ''
-        subject = f'{creator_name} 邀请您参与系统设计'
+        if permission == 'view':
+            subject = f'{creator_name} 邀请您查看系统设计'
+            invite_verb = '查看'
+            invite_heading = '系统设计查看邀请'
+            invite_heading_en = 'SYSTEM DESIGN VIEW INVITATION'
+            invite_btn = '查看设计 →'
+        else:
+            subject = f'{creator_name} 邀请您参与系统设计'
+            invite_verb = '参与'
+            invite_heading = '系统设计邀请'
+            invite_heading_en = 'SYSTEM DESIGN INVITATION'
+            invite_btn = '进入设计 →'
         if project_name:
             subject += f' — {project_name}'
 
@@ -642,16 +658,16 @@ def api_create_share():
         <body style="margin:0;padding:0;background:#fff;font-family:'Inter','Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;">
             <div style="max-width:600px;margin:0 auto;padding:48px 24px;">
                 <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #a0a0a0;">
-                    <h1 style="font-size:24px;font-weight:300;margin:0 0 8px;color:#1a1a1a;">系统设计邀请</h1>
-                    <p style="font-size:14px;color:#545454;margin:0;">SYSTEM DESIGN INVITATION</p>
+                    <h1 style="font-size:24px;font-weight:300;margin:0 0 8px;color:#1a1a1a;">{invite_heading}</h1>
+                    <p style="font-size:14px;color:#545454;margin:0;">{invite_heading_en}</p>
                 </div>
                 <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #e8e8e8;">
                     <p style="font-size:16px;color:#404040;margin:0 0 8px;font-weight:300;">
-                        <strong>{creator_name}</strong> 邀请您参与{('项目「' + project_name + '」的') if project_name else ''}系统设计
+                        <strong>{creator_name}</strong> 邀请您{invite_verb}{('项目「' + project_name + '」的') if project_name else ''}系统设计
                     </p>
-                    <p style="font-size:13px;color:#888;margin:0 0 24px;">请点击下方按钮进入设计</p>
+                    <p style="font-size:13px;color:#888;margin:0 0 24px;">请点击下方按钮{invite_verb}设计</p>
                     <a href="{share_url}" style="display:inline-block;padding:14px 32px;background:#1d4ed8;color:#fff;text-decoration:none;font-weight:500;font-size:14px;border-radius:8px;">
-                        进入设计 →
+                        {invite_btn}
                     </a>
                 </div>
                 <div style="margin-bottom:32px;">
@@ -700,6 +716,7 @@ def api_list_shares():
             'token': s.token,
             'projectName': s.project_name or '',
             'email': s.designated_email,
+            'permission': s.permission or 'edit',
             'expiresAt': s.expires_at.isoformat(),
             'isActive': s.is_active,
             'isExpired': s.is_expired,
@@ -799,12 +816,14 @@ def external_editor(token):
     if not email or session_token != token:
         return redirect(url_for('system_diagram.external_entry', token=token))
 
+    read_only = (share.permission == 'view')
     return render_template('system_diagram/tw_editor.html',
                            diagram_id=0,
                            diagram_name=share.project_name or _('系统设计'),
                            project_id=0,
                            project_name=share.project_name or '',
                            external_mode=True,
+                           read_only=read_only,
                            share_token=token,
                            external_email=email,
                            active_page='system_diagram')
@@ -816,6 +835,9 @@ def external_save(token):
     share, error = _validate_share_token(token)
     if error:
         return jsonify({'success': False, 'message': error[0]}), error[1]
+
+    if share.permission == 'view':
+        return jsonify({'success': False, 'message': _('当前为只读权限，无法保存')}), 403
 
     email = flask_session.get('external_email')
     if not email or flask_session.get('external_token') != token:
