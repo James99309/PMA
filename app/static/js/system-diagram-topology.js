@@ -39,7 +39,8 @@ function renderNodes(){
       port.style.cursor='crosshair';
       if(selectedEdgeId!==null){const se=edges.find(e=>e.id===selectedEdgeId);if(se&&((se.sourceId===n.id&&se.sourcePort===p.name)||(se.targetId===n.id&&se.targetPort===p.name))){port.setAttribute('r',7);port.style.fill='#3b82f6';port.style.stroke='#1d4ed8';port.style.strokeWidth='2';port.style.cursor='grab';port.style.filter='drop-shadow(0 0 3px rgba(59,130,246,.5))'}}
       port.dataset.nodeId=n.id;port.dataset.port=p.name;port.addEventListener('mousedown',onPortMouseDown);g.appendChild(port)});
-    g.style.cursor='move';g.addEventListener('mousedown',onNodeMouseDown);
+    g.style.cursor=n.locked?'not-allowed':'move';
+    g.addEventListener('mousedown',onNodeMouseDown);
     g.addEventListener('contextmenu',e=>{e.preventDefault();e.stopPropagation();showNodeCtxMenu(e.clientX,e.clientY,n.id)});
     layer.appendChild(g)});
 }
@@ -69,7 +70,7 @@ function renderEdges(){
           if(sn&&tn&&sp&&tp){
             const _sx=sn.x,_sy=sn.y,_tx=tn.x,_ty=tn.y;
             sn.x=sp.x;sn.y=sp.y;tn.x=tp.x;tn.y=tp.y;
-            const rLike={sourceId:r.sourceNodeId,targetId:r.targetNodeId,sourcePort:r.sourcePort||'right',targetPort:r.targetPort||'left',routeMode:r.routeMode||'ortho3',midPos:r.midPos};
+            const rLike={sourceId:r.sourceNodeId,targetId:r.targetNodeId,sourcePort:r.sourcePort||'right',targetPort:r.targetPort||'left',routeMode:r.routeMode||'ortho3',midPos:r.midPos,waypoints:r.waypoints};
             const rr=buildEdgePath(rLike);
             sn.x=_sx;sn.y=_sy;tn.x=_tx;tn.y=_ty;
             if(rr&&rr.path){const tmp=document.createElementNS('http://www.w3.org/2000/svg','path');tmp.setAttribute('d',rr.path);const m=tmp.getTotalLength()/fp.calibration.px_per_meter;_lenStr=m>=1?m.toFixed(1)+'m':Math.round(m*100)+'cm'}
@@ -86,10 +87,24 @@ function renderEdges(){
 }
 
 // ====== MID-SEGMENT DRAG HANDLES ======
+let dragWaypointIdx=null;  // index of waypoint being dragged
 function renderMidHandles(){
   const layer=document.getElementById('handlesLayer');layer.innerHTML='';
   edges.forEach(edge=>{
-    if(edge.routeMode!=='ortho3'||selectedEdgeId!==edge.id)return;
+    if(selectedEdgeId!==edge.id)return;
+    // Polyline waypoint handles
+    if(edge.waypoints&&edge.waypoints.length){
+      edge.waypoints.forEach((wp,idx)=>{
+        const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','mid-handle');g.style.cursor='grab';
+        const grip=document.createElementNS('http://www.w3.org/2000/svg','circle');grip.setAttribute('class','mid-handle-grip');
+        grip.setAttribute('cx',wp.x);grip.setAttribute('cy',wp.y);grip.setAttribute('r',5);g.appendChild(grip);
+        g.addEventListener('mousedown',ev=>{ev.stopPropagation();isDraggingMid=true;midDragMoved=false;dragMidEdgeId=edge.id;dragWaypointIdx=idx});
+        layer.appendChild(g);
+      });
+      return;
+    }
+    // Ortho3 mid-handle (original logic)
+    if(edge.routeMode!=='ortho3')return;
     const result=buildEdgePath(edge);if(!result||!result.c1||!result.c2)return;
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','mid-handle');
     if(result.isH){g.style.cursor='ew-resize';
@@ -99,7 +114,7 @@ function renderMidHandles(){
       const bar=document.createElementNS('http://www.w3.org/2000/svg','line');bar.setAttribute('class','mid-handle-bar');bar.setAttribute('x1',result.c1.x);bar.setAttribute('y1',result.c1.y);bar.setAttribute('x2',result.c2.x);bar.setAttribute('y2',result.c2.y);g.appendChild(bar);
       const midX=(result.c1.x+result.c2.x)/2;const grip=document.createElementNS('http://www.w3.org/2000/svg','circle');grip.setAttribute('class','mid-handle-grip');grip.setAttribute('cx',midX);grip.setAttribute('cy',result.c1.y);g.appendChild(grip);
     }
-    g.addEventListener('mousedown',e=>{e.stopPropagation();isDraggingMid=true;midDragMoved=false;dragMidEdgeId=edge.id});
+    g.addEventListener('mousedown',e=>{e.stopPropagation();isDraggingMid=true;midDragMoved=false;dragMidEdgeId=edge.id;dragWaypointIdx=null});
     layer.appendChild(g);
   });
 }
@@ -208,6 +223,8 @@ function onNodeMouseDown(e){
     if(!selectedNodeIds.has(nid))selectNode(nid);
   }
   if(DIAGRAM_CONFIG.readOnly)return; // allow selection but prevent drag
+  // Check lock in topology mode
+  if(currentView==='topology'&&node.locked)return;
   isDragging=true;dragMoved=false;dragNodeId=nid;
   // Use placement coords in floor plan mode
   if(currentView!=='topology'){
@@ -251,23 +268,41 @@ document.addEventListener('mousemove',e=>{
   if(isConnecting&&connSourceId){const pt=svgPoint(e);if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor)renderFloorReconnectLine(pt.x,pt.y);else renderTempEdge(pt.x,pt.y)}
   if(isDraggingMid&&dragMidEdgeId!==null){
     if(!midDragMoved){pushHistory();midDragMoved=true}const pt=svgPoint(e);const edge=edges.find(e=>e.id===dragMidEdgeId);
-    if(edge){const src=nodes.find(n=>n.id===edge.sourceId),tgt=nodes.find(n=>n.id===edge.targetId);
-      if(src&&tgt){const isH=(edge.sourcePort==='left'||edge.sourcePort==='right');
-        edge.midPos=isH?Math.round(pt.x/10)*10:Math.round(pt.y/10)*10;
-        hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled();}}
+    if(edge){
+      // Polyline waypoint drag
+      if(dragWaypointIdx!==null&&edge.waypoints&&edge.waypoints[dragWaypointIdx]){
+        edge.waypoints[dragWaypointIdx]={x:Math.round(pt.x),y:Math.round(pt.y)};
+        hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled();
+      }else{
+        const src=nodes.find(n=>n.id===edge.sourceId),tgt=nodes.find(n=>n.id===edge.targetId);
+        if(src&&tgt){const isH=(edge.sourcePort==='left'||edge.sourcePort==='right');
+          edge.midPos=isH?Math.round(pt.x/10)*10:Math.round(pt.y/10)*10;
+          hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled();}
+      }
+    }
   }
   // Floor route mid-handle drag
   if(typeof isDraggingFloorMid!=='undefined'&&isDraggingFloorMid&&dragFloorMidRouteId!==null){
     if(!floorMidDragMoved){pushHistory();floorMidDragMoved=true}
     const pt=svgPoint(e);const fp=typeof getFloorPlan==='function'?getFloorPlan(currentView):null;
     if(fp){const route=fp.routes.find(r=>r.id===dragFloorMidRouteId);
-      if(route){const srcPl=fp.placements.find(p=>p.node_id===route.sourceNodeId);const tgtPl=fp.placements.find(p=>p.node_id===route.targetNodeId);
-        if(srcPl&&tgtPl){const rMode=route.routeMode||'ortho3';
-          const autoP=(!route._userPorts)?findBestPort(srcPl,tgtPl,(nodes.find(n=>n.id===route.sourceNodeId)||{}).w||NODE_SIZE,rMode):null;
-          const sp=autoP?autoP.srcPort:(route.sourcePort||'right');
-          const isH=(sp==='left'||sp==='right'||sp==='top-left'||sp==='bottom-left'||sp==='top-right'||sp==='bottom-right');
-          route.midPos=isH?Math.round(pt.x/10)*10:Math.round(pt.y/10)*10;
-          hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled()}}}
+      if(route){
+        // Polyline waypoint drag for floor routes
+        if(typeof dragFloorWaypointIdx==='number'&&route.waypoints&&route.waypoints[dragFloorWaypointIdx]){
+          route.waypoints[dragFloorWaypointIdx]={x:Math.round(pt.x),y:Math.round(pt.y)};
+          // Sync to linked edge
+          if(route.linked_edge_id){const le=edges.find(e2=>e2.id===route.linked_edge_id);if(le&&le.waypoints)le.waypoints[dragFloorWaypointIdx]={x:Math.round(pt.x),y:Math.round(pt.y)}}
+          hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled();
+        }else{
+          const srcPl=fp.placements.find(p=>p.node_id===route.sourceNodeId);const tgtPl=fp.placements.find(p=>p.node_id===route.targetNodeId);
+          if(srcPl&&tgtPl){const rMode=route.routeMode||'ortho3';
+            const autoP=(!route._userPorts)?findBestPort(srcPl,tgtPl,(nodes.find(n=>n.id===route.sourceNodeId)||{}).w||NODE_SIZE,rMode):null;
+            const sp=autoP?autoP.srcPort:(route.sourcePort||'right');
+            const isH=(sp==='left'||sp==='right'||sp==='top-left'||sp==='bottom-left'||sp==='top-right'||sp==='bottom-right');
+            route.midPos=isH?Math.round(pt.x/10)*10:Math.round(pt.y/10)*10;
+            hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled()}
+        }
+      }}
   }
 });
 
@@ -279,9 +314,10 @@ document.addEventListener('mouseup',e=>{
     if(typeof snapToRiserIfNeeded==='function'){const fp=getFloorPlan(currentView);if(fp){selectedNodeIds.forEach(id=>{const pl=fp.placements.find(p=>p.node_id===id);if(pl)snapToRiserIfNeeded(pl,fp)})}}
     if(typeof syncRiserNodes==='function'){const fp=getFloorPlan(currentView);if(fp)syncRiserNodes(fp)}
     if(typeof syncFloorAreaLabels==='function')syncFloorAreaLabels();
+    if(typeof tryInsertIntoRoute==='function')tryInsertIntoRoute(dragNodeId,currentView);
   }
-  isDragging=false;dragNodeId=null;isPanning=false;isDraggingMid=false;dragMidEdgeId=null;
-  if(typeof isDraggingFloorMid!=='undefined'){isDraggingFloorMid=false;dragFloorMidRouteId=null}
+  isDragging=false;dragNodeId=null;isPanning=false;isDraggingMid=false;dragMidEdgeId=null;dragWaypointIdx=null;
+  if(typeof isDraggingFloorMid!=='undefined'){isDraggingFloorMid=false;dragFloorMidRouteId=null;if(typeof dragFloorWaypointIdx!=='undefined')dragFloorWaypointIdx=null}
   // Reset drag optimization state and force full render to restore skipped elements
   isDraggingOperation=false;
   if(pendingRenderFrame){cancelAnimationFrame(pendingRenderFrame);pendingRenderFrame=null}
@@ -306,7 +342,7 @@ document.addEventListener('mouseup',e=>{
           if(re){pushHistory();if(reconnectEnd==='source'){re.sourceId=tid;re.sourcePort=tp}else{re.targetId=tid;re.targetPort=tp}
             delete re._hidden;if(re.routeMode==='ortho3')delete re.midPos;hasUnsavedChanges=true;reconnected=true}
         }else if(currentView==='topology'){
-          pushHistory();const defEdge={id:edgeIdCounter++,sourceId:connSourceId,sourcePort:connSourcePort,targetId:tid,targetPort:tp,cableType:null,color:'#94a3b8',width:1.5,dash:'6 4',label:'',routeMode:defaultRouteMode,hideLabel:false};
+          pushHistory();const defEdge={id:edgeIdCounter++,sourceId:connSourceId,sourcePort:connSourcePort,targetId:tid,targetPort:tp,cableType:null,color:'#94a3b8',width:1.5,dash:'6 4',label:'',routeMode:defaultRouteMode,hideLabel:false,waypoints:polylineWaypoints.length?[...polylineWaypoints]:undefined};
           edges.push(defEdge);pendingEdge=defEdge.id;showConnTypePopup(e.clientX,e.clientY);
         }else{
           // Floor plan mode: create edge + floor route
@@ -320,11 +356,15 @@ document.addEventListener('mouseup',e=>{
       isReconnecting=false;reconnectEdgeId=null;reconnectEnd='';
       const _wasFloorReconnect=typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor;
       if(_wasFloorReconnect){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
-      isConnecting=false;connSourceId=null;document.getElementById('tempLayer').innerHTML='';
+      polylineWaypoints=[];isConnecting=false;connSourceId=null;document.getElementById('tempLayer').innerHTML='';
       setTool('select');renderAll();
       if(reconnected&&typeof selectedRouteId!=='undefined'&&selectedRouteId!==null&&typeof showFloorRouteProps==='function')showFloorRouteProps(selectedRouteId);
     }
-    // Not completed → connection persists, temp line keeps following mouse
+    // Not completed: left-click on canvas (not drag/pan, not on a port) places a waypoint
+    if(!completed&&!panMoved&&e.button===0&&!isReconnecting&&!(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor)
+      &&!(e.target.classList&&e.target.classList.contains('port'))){
+      const pt=svgPoint(e);polylineWaypoints.push({x:Math.round(pt.x),y:Math.round(pt.y)});
+    }
   }
 });
 
@@ -348,9 +388,25 @@ function onPortMouseDown(e){
   isConnecting=true;connSourceId=nid;connSourcePort=port;
 }
 function renderTempEdge(mx,my){const layer=document.getElementById('tempLayer');const src=nodes.find(n=>n.id===connSourceId);if(!src)return;
+  const isFloor=currentView!=='topology';
+  const comp=(isFloor&&typeof getTempEdgeZoomCompensation==='function')?getTempEdgeZoomCompensation():1;
+  const sw=3*comp;const bsw=5*comp;const wr=5*comp;const wsw=2*comp;const da=`${8*comp} ${4*comp}`;
   let posObj=src;
   if(currentView!=='topology'&&typeof getFloorPlan==='function'){const fp=getFloorPlan(currentView);if(fp){const pl=fp.placements.find(p=>p.node_id===connSourceId);if(pl)posObj={x:pl.x,y:pl.y,w:src.w,h:src.h}}}
-  const sp=getPortPos(posObj,connSourcePort);layer.innerHTML=`<line class="edge-temp" x1="${sp.x}" y1="${sp.y}" x2="${mx}" y2="${my}"/>`}
+  const sp=getPortPos(posObj,connSourcePort);
+  if(polylineWaypoints.length===0){
+    let h='';
+    if(isFloor)h+=`<line x1="${sp.x}" y1="${sp.y}" x2="${mx}" y2="${my}" style="stroke:rgba(255,255,255,0.6);stroke-width:${bsw};stroke-dasharray:${da};fill:none"/>`;
+    h+=`<line class="edge-temp" x1="${sp.x}" y1="${sp.y}" x2="${mx}" y2="${my}" style="stroke:#3b82f6;stroke-width:${sw};stroke-dasharray:${da};fill:none"/>`;
+    layer.innerHTML=h;return}
+  const pts=[sp,...polylineWaypoints,{x:mx,y:my}];let html='';
+  if(isFloor){for(let i=0;i<pts.length-2;i++){html+=`<line x1="${pts[i].x}" y1="${pts[i].y}" x2="${pts[i+1].x}" y2="${pts[i+1].y}" style="stroke:rgba(255,255,255,0.6);stroke-width:${bsw};fill:none"/>`}
+    const bL=pts[pts.length-2],bC=pts[pts.length-1];html+=`<line x1="${bL.x}" y1="${bL.y}" x2="${bC.x}" y2="${bC.y}" style="stroke:rgba(255,255,255,0.6);stroke-width:${bsw};stroke-dasharray:${da};fill:none"/>`}
+  for(let i=0;i<pts.length-2;i++){html+=`<line class="edge-temp" x1="${pts[i].x}" y1="${pts[i].y}" x2="${pts[i+1].x}" y2="${pts[i+1].y}" style="stroke:#3b82f6;stroke-width:${sw};stroke-opacity:0.9;fill:none"/>`}
+  const last=pts[pts.length-2],cur=pts[pts.length-1];
+  html+=`<line class="edge-temp" x1="${last.x}" y1="${last.y}" x2="${cur.x}" y2="${cur.y}" style="stroke:#3b82f6;stroke-width:${sw};stroke-dasharray:${da};fill:none"/>`;
+  polylineWaypoints.forEach(wp=>{html+=`<circle cx="${wp.x}" cy="${wp.y}" r="${wr}" style="fill:#3b82f6;fill-opacity:0.8;stroke:#fff;stroke-width:${wsw}"/>`});
+  layer.innerHTML=html}
 
 function showConnTypePopup(x,y){
   const popup=document.getElementById('connTypePopup');

@@ -11,7 +11,7 @@ from app.models.user import User, Affiliation
 from app.utils.access_control import get_viewable_data
 from app.components.stage_analytics import StageAnalyticsComponent
 from app.utils.chinese_mapping_manager import mapping_manager
-from sqlalchemy import func, and_, or_, extract
+from sqlalchemy import func, and_, or_, extract, case
 from datetime import datetime, timedelta
 from app import db
 import logging
@@ -141,7 +141,7 @@ def apply_permission_based_filters(query, current_user, quotation_alias=Quotatio
         # 2. 归属关系 - 使用子查询优化
         affiliation_subquery = db.session.query(Affiliation.owner_id).filter(
             Affiliation.viewer_id == current_user.id
-        ).subquery()
+        ).scalar_subquery()
         permission_filters.append(quotation_alias.owner_id.in_(affiliation_subquery))
         
         # 3. 销售负责人相关项目
@@ -370,24 +370,39 @@ def get_analysis_data():
         if product_model and product_model.strip():
             query = query.filter(QuotationDetail.product_model == product_model)
         
-        # 获取总数（用于分页）
-        total_count = query.count()
-        
-        # 执行分页查询 - 默认按更新时间降序排序
+        # 性能优化：合并 count + stats + monthly 为单次聚合查询（原为4次独立查询）
+        current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        stats_result = query.with_entities(
+            func.count(QuotationDetail.id).label('total_count'),
+            func.sum(QuotationDetail.total_price).label('total_amount'),
+            func.sum(QuotationDetail.quantity).label('total_quantity'),
+            func.sum(
+                case(
+                    (QuotationDetail.created_at >= current_month, QuotationDetail.quantity),
+                    else_=0
+                )
+            ).label('monthly_quantity')
+        ).first()
+
+        total_count = int(stats_result.total_count) if stats_result.total_count else 0
+        total_amount = float(stats_result.total_amount) if stats_result.total_amount else 0
+        total_quantity = int(stats_result.total_quantity) if stats_result.total_quantity else 0
+        monthly_increase = int(stats_result.monthly_quantity) if stats_result.monthly_quantity else 0
+        avg_unit_price = (total_amount / 10000 / total_quantity) if total_quantity > 0 else 0
+
+        # 执行分页查询
         try:
             results = query.order_by(QuotationDetail.updated_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
         except Exception as e:
             logger.warning(f"使用updated_at排序失败: {str(e)}, 尝试使用id排序")
             try:
-                # 回滚失败的事务
                 db.session.rollback()
                 results = query.order_by(QuotationDetail.id.desc()).offset((page - 1) * per_page).limit(per_page).all()
             except Exception as e2:
                 logger.error(f"产品分析查询失败: {str(e2)}")
-                # 回滚失败的事务
                 db.session.rollback()
                 results = []
-        
+
         # 格式化数据
         data = []
         for row in results:
@@ -413,26 +428,6 @@ def get_analysis_data():
                 'created_at': row.created_at.strftime('%Y-%m-%d %H:%M') if row.created_at else ''
             }
             data.append(item)
-        
-        # 性能优化：为统计数据使用单独的聚合查询
-        stats_query = query.with_entities(
-            func.sum(QuotationDetail.total_price).label('total_amount'),
-            func.sum(QuotationDetail.quantity).label('total_quantity'),
-            func.count(QuotationDetail.id).label('record_count')
-        )
-        stats_result = stats_query.first()
-        
-        total_amount = float(stats_result.total_amount) if stats_result.total_amount else 0
-        total_quantity = int(stats_result.total_quantity) if stats_result.total_quantity else 0
-        
-        # 计算平均单价（转换为万元）
-        avg_unit_price = (total_amount / 10000 / total_quantity) if total_quantity > 0 else 0
-        
-        # 计算本月新增数量 - 使用单独的查询
-        current_month = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        monthly_query = query.filter(QuotationDetail.created_at >= current_month)
-        monthly_result = monthly_query.with_entities(func.sum(QuotationDetail.quantity)).scalar()
-        monthly_increase = int(monthly_result) if monthly_result else 0
         
         # 计算分页信息
         total_pages = (total_count + per_page - 1) // per_page

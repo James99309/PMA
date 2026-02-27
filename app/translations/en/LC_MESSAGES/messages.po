@@ -10890,3 +10890,42 @@ msgstr "No SE implant data"
 
 msgid "暂无方案批价数据"
 msgstr "No SE pricing data"
+
+msgid "分享空白设计"
+msgstr "Share Blank Design"
+
+msgid "收件邮箱"
+msgstr "Recipient Email"
+
+msgid "项目名称"
+msgstr "Project Name"
+
+msgid "可选，给分享命名"
+msgstr "Optional, name this share"
+
+msgid "可编辑"
+msgstr "Can Edit"
+
+msgid "仅查看"
+msgstr "View Only"
+
+msgid "创建分享链接"
+msgstr "Create Share Link"
+
+msgid "分享链接已创建"
+msgstr "Share link created"
+
+msgid "邮件已发送至"
+msgstr "Email sent to"
+
+msgid "手动将链接发送给"
+msgstr "Please send the link to"
+
+msgid "链接已复制"
+msgstr "Link copied"
+
+msgid "复制"
+msgstr "Copy"
+
+msgid "关闭"
+msgstr "Close"

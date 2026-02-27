@@ -74,7 +74,7 @@ def convert_pdf_page_to_images(pdf_path, page_index, output_dir, base_name,
     import fitz  # PyMuPDF
 
     if max_dims is None:
-        max_dims = [1000, 2000, 4000]
+        max_dims = [1000, 2000, 4000, 8000]
 
     doc = fitz.open(pdf_path)
     try:
@@ -84,13 +84,13 @@ def convert_pdf_page_to_images(pdf_path, page_index, output_dir, base_name,
         page = doc[page_index]
         page_rect = page.rect
         long_side = max(page_rect.width, page_rect.height)
-
         results = {}
         for max_dim in max_dims:
-            dpi = int(max_dim / long_side * 72)
-            dpi = max(72, min(dpi, 600))
+            scale_factor = max_dim / long_side
+            scale_factor = min(scale_factor, 600 / 72)  # cap ~8.33x to prevent memory issues
+            matrix = fitz.Matrix(scale_factor, scale_factor)
 
-            pix = page.get_pixmap(dpi=dpi)
+            pix = page.get_pixmap(matrix=matrix)
             out_name = f"{base_name}_{max_dim}px.png"
             out_path = os.path.join(output_dir, out_name)
             pix.save(out_path)

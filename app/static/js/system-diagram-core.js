@@ -110,6 +110,7 @@ let viewX=0,viewY=0,scale=1;
 let isDragging=false,dragNodeId=null,dragOffsetX=0,dragOffsetY=0;
 let isPanning=false,panStartX=0,panStartY=0,panViewX=0,panViewY=0;
 let isConnecting=false,connSourceId=null,connSourcePort='';
+let polylineWaypoints=[];  // waypoints being placed during polyline drawing
 let pendingEdge=null,defaultRouteMode='ortho3',popupShowTime=0;
 let isDraggingMid=false,dragMidEdgeId=null;
 let isReconnecting=false,reconnectEdgeId=null,reconnectEnd='';
@@ -189,7 +190,14 @@ function showTopologyProps(){
   document.getElementById('propsTitle').textContent=_t('系统图属性');
   const nodeCount=nodes.filter(n=>!n.floor_id).length;
   const edgeCount=edges.length;
+  const nameEl=document.getElementById('diagramNameInput');
+  const nameVal=nameEl?(nameEl.value||nameEl.textContent||'').trim():'';
+  const isRO=DIAGRAM_CONFIG.readOnly;
+  const nameHTML=isRO
+    ?`<div style="font-size:13px;font-weight:600;color:var(--text-primary)">${nameVal}</div>`
+    :`<input class="props-input" value="${nameVal.replace(/"/g,'&quot;')}" oninput="document.getElementById('diagramNameInput').value=this.value;hasUnsavedChanges=true">`;
   document.getElementById('propsContent').innerHTML=`
+    <div class="props-field"><span class="props-label">${_t('图纸名称')}</span>${nameHTML}</div>
     <div class="props-field"><span class="props-label">${_t('统计')}</span><div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">${_t('节点')}: ${nodeCount}  ${_t('连线')}: ${edgeCount}</div></div>`+renderDisplaySettingsHTML();
 }
 
@@ -459,12 +467,28 @@ function roundedOrthoPath(pts,r){
   d+=` L${pts[pts.length-1].x},${pts[pts.length-1].y}`;return d;
 }
 
+function polylinePath(pts,r){
+  if(pts.length<2)return'';
+  if(pts.length===2)return`M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
+  let d=`M${pts[0].x},${pts[0].y}`;
+  for(let i=1;i<pts.length-1;i++){
+    const prev=pts[i-1],cur=pts[i],next=pts[i+1];
+    const d1x=cur.x-prev.x,d1y=cur.y-prev.y,d2x=next.x-cur.x,d2y=next.y-cur.y;
+    const len1=Math.sqrt(d1x*d1x+d1y*d1y),len2=Math.sqrt(d2x*d2x+d2y*d2y);
+    if(len1===0||len2===0){d+=` L${cur.x},${cur.y}`;continue}
+    const cr=Math.min(r,len1/2,len2/2);
+    d+=` L${cur.x-d1x/len1*cr},${cur.y-d1y/len1*cr} Q${cur.x},${cur.y} ${cur.x+d2x/len2*cr},${cur.y+d2y/len2*cr}`;
+  }
+  d+=` L${pts[pts.length-1].x},${pts[pts.length-1].y}`;return d;
+}
+
 function buildEdgePath(edge){
   const src=nodes.find(n=>n.id===edge.sourceId),tgt=nodes.find(n=>n.id===edge.targetId);
   if(!src||!tgt)return '';
   const sp=getPortPos(src,edge.sourcePort),tp=getPortPos(tgt,edge.targetPort);
   const mode=edge.routeMode||'bezier',R=12;
   if(mode==='straight')return{path:`M${sp.x},${sp.y} L${tp.x},${tp.y}`,sp,tp,pts:null};
+  if(edge.waypoints&&edge.waypoints.length){const wpts=[sp,...edge.waypoints,tp];return{path:polylinePath(wpts,R),sp,tp,pts:wpts,waypoints:edge.waypoints}}
   if(mode==='bezier'){const tension=Math.max(40,Math.min(Math.abs(tp.x-sp.x),Math.abs(tp.y-sp.y),120)*.5);const sd=portDir(edge.sourcePort),td=portDir(edge.targetPort);const cp1={x:sp.x+sd.x*tension,y:sp.y+sd.y*tension},cp2={x:tp.x+td.x*tension,y:tp.y+td.y*tension};return{path:`M${sp.x},${sp.y} C${cp1.x},${cp1.y} ${cp2.x},${cp2.y} ${tp.x},${tp.y}`,sp,tp,pts:null,cp1,cp2}}
   const isH=(edge.sourcePort==='left'||edge.sourcePort==='right'||edge.sourcePort==='top-left'||edge.sourcePort==='bottom-left'||edge.sourcePort==='top-right'||edge.sourcePort==='bottom-right');
   if(mode==='ortho2'){let corner=isH?{x:tp.x,y:sp.y}:{x:sp.x,y:tp.y};return{path:roundedOrthoPath([sp,corner,tp],R),sp,tp,pts:[sp,corner,tp]}}
@@ -519,9 +543,25 @@ svg.addEventListener('mousedown',e=>{if(e.target===svg||(e.target.tagName==='rec
   if(!isConnecting&&currentTool!=='select'&&currentTool!=='area'&&currentTool!=='calibrate')setTool('select');
   isPanning=true;panStartX=e.clientX;panStartY=e.clientY;panViewX=viewX;panViewY=viewY;
   if(!isConnecting){const isAreaClick=e.target.closest&&e.target.closest('.floor-area');if(!e.shiftKey&&!isAreaClick){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedAreaId!=='undefined')selectedAreaId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}}}});
-svg.addEventListener('wheel',e=>{e.preventDefault();zoomCanvas(e.deltaY>0?-.08:.08,e.clientX,e.clientY)},{passive:false});
+svg.addEventListener('wheel',e=>{e.preventDefault();zoomCanvas(e.deltaY>0?1/1.06:1.06,e.clientX,e.clientY)},{passive:false});
 
-function zoomCanvas(d,cx,cy){const old=scale;scale=Math.max(.2,Math.min(3,scale+d));if(cx!==undefined){const r=wrapper.getBoundingClientRect();const mx=cx-r.left,my=cy-r.top;viewX=mx-(mx-viewX)*(scale/old);viewY=my-(my-viewY)*(scale/old)}updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale)}
+function getZoomLimits(){
+  if(typeof getFloorPlan!=='function'||typeof currentView==='undefined')return{min:0.05,max:5};
+  const fp=getFloorPlan(currentView);
+  if(!fp||!fp.background)return{min:0.05,max:5};
+  const bgW=fp.background.width;
+  if(fp.background.is_multi_res&&fp.background.resolutions){
+    const best=fp.background.resolutions['8000']||fp.background.resolutions['4000'];
+    if(best){
+      const highestRes=Math.max(best.width,best.height);
+      const maxZoom=Math.max(7,(highestRes*1.5)/bgW);
+      const minZoom=Math.max(0.02,600/bgW);
+      return{min:minZoom,max:Math.max(maxZoom,minZoom+0.01)};
+    }
+  }
+  return{min:0.05,max:5};
+}
+function zoomCanvas(f,cx,cy){const old=scale;const limits=getZoomLimits();scale=Math.max(limits.min,Math.min(limits.max,scale*f));if(cx!==undefined){const r=wrapper.getBoundingClientRect();const mx=cx-r.left,my=cy-r.top;viewX=mx-(mx-viewX)*(scale/old);viewY=my-(my-viewY)*(scale/old)}updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale)}
 function fitView(){
   const pad=80;let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
   if(currentView==='topology'){
@@ -535,7 +575,7 @@ function fitView(){
     if(fp.placements&&fp.placements.length){fp.placements.forEach(pl=>{const n=nodes.find(nd=>nd.id===pl.node_id);if(n){x1=Math.min(x1,pl.x);y1=Math.min(y1,pl.y);x2=Math.max(x2,pl.x+n.w);y2=Math.max(y2,pl.y+n.h+30)}})}
     if(x1===Infinity)return resetZoom();
   }
-  const cw=wrapper.clientWidth,ch=wrapper.clientHeight,dw=x2-x1+pad*2,dh=y2-y1+pad*2;scale=Math.min(cw/dw,ch/dh,1.5);viewX=(cw-dw*scale)/2-x1*scale+pad*scale;viewY=(ch-dh*scale)/2-y1*scale+pad*scale;updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale);
+  const cw=wrapper.clientWidth,ch=wrapper.clientHeight,dw=x2-x1+pad*2,dh=y2-y1+pad*2;const limits=getZoomLimits();scale=Math.max(limits.min,Math.min(cw/dw,ch/dh,limits.max));viewX=(cw-dw*scale)/2-x1*scale+pad*scale;viewY=(ch-dh*scale)/2-y1*scale+pad*scale;updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale);
 }
 function resetZoom(){scale=1;viewX=0;viewY=0;updateTransform();document.getElementById('zoomLevel').textContent='100%';if(typeof onScaleChanged==='function')onScaleChanged(scale)}
 function updateTransform(){document.getElementById('canvasGroup').setAttribute('transform',`translate(${viewX},${viewY}) scale(${scale})`);updateMinimap()}
@@ -551,7 +591,7 @@ function snapshotState(){
       x:n.x,y:n.y,w:n.w,h:n.h,qty:n.qty,label:n.label,hideLabel:n.hideLabel||false,
       floor_id:n.floor_id||null,area_label:n.area_label||'',floor_label:n.floor_label||'',
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
-      labelPosition:n.labelPosition||null,
+      labelPosition:n.labelPosition||null,locked:n.locked||false,
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
     edges:edges.map(e=>({id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,
       cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,
@@ -609,7 +649,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='t'||e.key==='T')addTextNode();
   if(e.key==='Delete'||e.key==='Backspace')deleteSelected();
   if(e.key==='Escape'){
-    if(isConnecting){isConnecting=false;connSourceId=null;if(isReconnecting){const re=edges.find(e2=>e2.id===reconnectEdgeId);if(re)delete re._hidden;isReconnecting=false;reconnectEdgeId=null;reconnectEnd=''}if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}document.getElementById('tempLayer').innerHTML='';setTool('select');renderAll();return}
+    if(isConnecting){polylineWaypoints=[];isConnecting=false;connSourceId=null;if(isReconnecting){const re=edges.find(e2=>e2.id===reconnectEdgeId);if(re)delete re._hidden;isReconnecting=false;reconnectEdgeId=null;reconnectEnd=''}if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}document.getElementById('tempLayer').innerHTML='';setTool('select');renderAll();return}
     selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();setTool('select');if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}
 });
 
@@ -809,8 +849,10 @@ function pasteClipboard(){
 
 // ====== CONTEXT MENU ======
 svg.addEventListener('contextmenu',e=>{e.preventDefault();
-  // Click-persistent mode: right-click cancels active connection
+  // Click-persistent mode: right-click undoes last waypoint or cancels active connection
   if(isConnecting){
+    if(polylineWaypoints.length>0){polylineWaypoints.pop();const _pt=svgPoint(e);renderTempEdge(_pt.x,_pt.y);return}
+    polylineWaypoints=[];
     if(isReconnecting){const re=edges.find(e2=>e2.id===reconnectEdgeId);if(re)delete re._hidden;isReconnecting=false;reconnectEdgeId=null;reconnectEnd=''}
     if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
     isConnecting=false;connSourceId=null;document.getElementById('tempLayer').innerHTML='';
@@ -1069,9 +1111,9 @@ function serializeDiagram(){
       x:n.x,y:n.y,w:n.w,h:n.h,qty:n.qty,label:n.label,hideLabel:n.hideLabel||false,
       floor_id:n.floor_id||null,area_label:n.area_label||'',floor_label:n.floor_label||'',
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
-      labelPosition:n.labelPosition||null,
+      labelPosition:n.labelPosition||null,locked:n.locked||false,
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
-    edges:edges.map(e=>({id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos})),
+    edges:edges.map(e=>{const o={id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos};if(e.waypoints&&e.waypoints.length)o.waypoints=e.waypoints;return o}),
     viewX,viewY,scale,nodeIdCounter,edgeIdCounter,
     floor_plans:fpData,
     floorPlanIdCounter,
@@ -1234,6 +1276,13 @@ function switchView(viewId){
   if(fpTools)fpTools.style.display=viewId==='topology'?'none':'flex';
   const btnRelayout=document.getElementById('btnRelayout');
   if(btnRelayout)btnRelayout.style.display=viewId==='topology'?'':'none';
+  // Update lock button icon
+  if(typeof _updateLockBtnIcon==='function'){
+    let allLocked=false;
+    if(viewId==='topology'){allLocked=nodes.length>0&&nodes.every(n=>n.locked)}
+    else{const fp=getFloorPlan(viewId);allLocked=fp&&fp.placements.length>0&&fp.placements.every(p=>p.locked)}
+    _updateLockBtnIcon(allLocked);
+  }
   selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;
   if(typeof syncFloorAreaLabels==='function')syncFloorAreaLabels();
   // Clear cached background image when switching views
@@ -1291,13 +1340,41 @@ function rebuildViewTabs(){
   if(!container)return;
   container.innerHTML='';
 
+  // Left arrow
+  const arrowL=document.createElement('button');
+  arrowL.className='view-tabs-arrow';
+  arrowL.innerHTML='&#9664;';
+  arrowL.addEventListener('click',()=>{inner.scrollLeft-=120});
+  container.appendChild(arrowL);
+
+  // Scrollable inner container
+  const inner=document.createElement('div');
+  inner.className='view-tabs-inner';
+  container.appendChild(inner);
+
+  // Right arrow
+  const arrowR=document.createElement('button');
+  arrowR.className='view-tabs-arrow';
+  arrowR.innerHTML='&#9654;';
+  arrowR.addEventListener('click',()=>{inner.scrollLeft+=120});
+  container.appendChild(arrowR);
+
+  // Update arrow visibility based on scroll state
+  function updateArrows(){
+    const canL=inner.scrollLeft>0;
+    const canR=inner.scrollLeft<inner.scrollWidth-inner.clientWidth-1;
+    arrowL.classList.toggle('visible',canL);
+    arrowR.classList.toggle('visible',canR);
+  }
+  inner.addEventListener('scroll',updateArrows);
+
   // Topology tab (not draggable)
   const topoTab=document.createElement('div');
   topoTab.className='view-tab'+(currentView==='topology'?' active':'');
   topoTab.dataset.view='topology';
   topoTab.textContent='🔧 '+_t('系统图');
   topoTab.addEventListener('click',()=>onTabClick('topology'));
-  container.appendChild(topoTab);
+  inner.appendChild(topoTab);
 
   // Floor plan tabs (draggable via pointer events)
   if(typeof floorPlans!=='undefined'){
@@ -1309,7 +1386,7 @@ function rebuildViewTabs(){
       tab.dataset.fpId=fp.id;
       tab.textContent=fp.label;
       tab.addEventListener('pointerdown',e=>_tabDragStart(e,fp.id));
-      container.appendChild(tab);
+      inner.appendChild(tab);
     });
   }
 
@@ -1318,7 +1395,14 @@ function rebuildViewTabs(){
   addBtn.className='view-tab-add';
   addBtn.textContent=_t('添加楼层');
   addBtn.addEventListener('click',()=>addFloorPlan());
-  container.appendChild(addBtn);
+  inner.appendChild(addBtn);
+
+  // Scroll active tab into view & update arrows after layout
+  requestAnimationFrame(()=>{
+    const activeTab=inner.querySelector('.view-tab.active');
+    if(activeTab)activeTab.scrollIntoView({block:'nearest',inline:'nearest'});
+    updateArrows();
+  });
 }
 
 // ====== TAB CLICK ======

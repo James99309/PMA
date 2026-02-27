@@ -130,7 +130,7 @@
 
   /* ── Canvas Area ── */
   .canvas-wrapper{flex:1;position:relative;overflow:hidden;background:var(--bg-canvas)}
-  .canvas-toolbar{position:absolute;top:12px;left:12px;display:flex;gap:6px;z-index:20}
+  .canvas-toolbar{position:absolute;top:12px;left:12px;display:flex;gap:6px;z-index:30}
   .canvas-toolbar button{padding:6px 10px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);border-radius:6px;color:var(--toolbar-text);font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px;white-space:nowrap;box-shadow:0 1px 3px var(--toast-shadow)}
   .canvas-toolbar button:hover{background:var(--toolbar-hover);color:var(--text-primary);border-color:var(--toolbar-border)}
   .canvas-toolbar button.active{background:var(--active-bg);border-color:var(--active-border);color:var(--active-text)}
@@ -226,13 +226,10 @@
   .zoom-controls button{width:32px;height:32px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);border-radius:6px;color:var(--toolbar-text);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px var(--toast-shadow)}
   .zoom-controls button:hover{background:var(--toolbar-hover);color:var(--text-primary)}
   .zoom-level{padding:4px 8px;font-size:11px;color:var(--text-muted);background:var(--toolbar-bg);border:1px solid var(--border);border-radius:4px;min-width:48px;text-align:center;display:flex;align-items:center;justify-content:center}
-  .diagram-name{position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:20;display:flex;align-items:center;gap:8px}
-  .diagram-name input{background:transparent;border:none;color:var(--text-primary);font-size:15px;font-weight:600;text-align:center;outline:none;border-bottom:1px solid transparent;padding:4px 8px;width:280px}
-  .diagram-name input:hover{border-bottom-color:var(--border)}
-  .diagram-name input:focus{border-bottom-color:#3b82f6}
+  .diagram-name{display:none}
   .minimap{position:absolute;bottom:12px;right:12px;width:160px;height:100px;background:var(--minimap-bg);border:1px solid var(--border);border-radius:8px;z-index:20;overflow:hidden}
   .minimap-viewport{stroke:#3b82f6;stroke-width:2;fill:rgba(59,130,246,.08)}
-  .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--toast-bg);border:1px solid var(--toast-border);padding:10px 20px;border-radius:8px;font-size:13px;color:var(--text-primary);z-index:100;opacity:0;transition:opacity .3s;box-shadow:0 8px 24px var(--toast-shadow)}
+  .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--toast-bg);border:1px solid var(--toast-border);padding:10px 20px;border-radius:8px;font-size:13px;color:var(--text-primary);z-index:100;opacity:0;transition:opacity .3s;box-shadow:0 8px 24px var(--toast-shadow);pointer-events:none}
   .toast.show{opacity:1}
   .legend{position:absolute;bottom:50px;left:12px;background:var(--legend-bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;z-index:20;font-size:11px;backdrop-filter:blur(8px)}
   .legend-title{color:var(--text-secondary);font-weight:600;margin-bottom:6px;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
@@ -252,11 +249,15 @@
   .ctx-item.active{color:var(--accent,#3b82f6);font-weight:600}
 
   /* ── View Tabs ── */
-  .view-tabs{display:flex;gap:2px;padding:8px 12px;align-items:center;background:var(--bg-canvas);z-index:25;position:absolute;top:50px;left:12px;border-radius:8px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);box-shadow:0 1px 3px var(--toast-shadow)}
-  .view-tab{padding:6px 14px;background:transparent;border:none;border-radius:6px;color:var(--text-secondary);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+  .view-tabs{display:flex;align-items:center;background:var(--bg-canvas);z-index:25;position:absolute;top:50px;left:12px;border-radius:8px;background:var(--toolbar-bg);border:1px solid var(--toolbar-border);box-shadow:0 1px 3px var(--toast-shadow);max-width:calc(100vw - 280px);padding:4px}
+  .view-tabs-inner{display:flex;gap:2px;align-items:center;overflow:hidden;padding:4px 4px;scroll-behavior:smooth}
+  .view-tabs-arrow{display:none;align-items:center;justify-content:center;width:22px;height:28px;background:transparent;border:none;border-radius:4px;color:var(--text-muted);font-size:14px;cursor:pointer;flex-shrink:0;padding:0}
+  .view-tabs-arrow:hover{background:var(--toolbar-hover);color:var(--text-primary)}
+  .view-tabs-arrow.visible{display:flex}
+  .view-tab{padding:6px 14px;background:transparent;border:none;border-radius:6px;color:var(--text-secondary);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
   .view-tab:hover{background:var(--toolbar-hover);color:var(--text-primary)}
   .view-tab.active{background:var(--active-bg);color:var(--active-text);font-weight:600}
-  .view-tab-add{padding:6px 10px;background:transparent;border:1px dashed var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;cursor:pointer;transition:all .15s}
+  .view-tab-add{padding:6px 10px;background:transparent;border:1px dashed var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;cursor:pointer;transition:all .15s;flex-shrink:0}
   .view-tab-add:hover{border-color:var(--active-border);color:var(--active-text);background:rgba(59,130,246,.06)}
   .view-tab[data-fp-id]{cursor:grab;user-select:none}
   .view-tab[data-fp-id]:active{cursor:grabbing}
@@ -343,12 +344,11 @@
       <button onclick="redoAction()" title="{{ _('重做 (Ctrl+Shift+Z)') }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.13-9.36L23 10"/></svg></button>
       <button onclick="deleteSelected()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>
       <button id="btnRelayout" onclick="relayoutFloorNodesTopo()" title="{{ _('按连线关系重排楼层节点') }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><line x1="10" y1="6.5" x2="14" y2="6.5"/><line x1="17.5" y1="10" x2="17.5" y2="14"/></svg>{{ _('自动布局') }}</button>
+      <button id="btnToggleLock" onclick="toggleAllLocks()" title="{{ _('锁定/解锁全部') }}"><svg id="lockIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></button>
       <div style="width:1px;height:24px;background:var(--border);margin:0 2px;"></div>
       <!-- 平面图工具（仅楼层视图时显示） -->
       <div class="floor-tools" id="floorPlanTools">
         <button onclick="uploadFloorBg(currentView)" title="{{ _('上传背景图') }}"><span class="material-symbols-outlined" style="font-size:16px;">image</span>{{ _('背景图') }}</button>
-        <button onclick="toggleAllLocks(true)" title="{{ _('锁定全部') }}"><span class="material-symbols-outlined" style="font-size:16px;">lock</span></button>
-        <button onclick="toggleAllLocks(false)" title="{{ _('解锁全部') }}"><span class="material-symbols-outlined" style="font-size:16px;">lock_open</span></button>
         <button id="btnAreaTool" onclick="setTool('area')" title="{{ _('绘制区域') }}"><span class="material-symbols-outlined" style="font-size:16px;">crop_free</span>{{ _('区域') }}</button>
         <button id="btnCalibrate" onclick="setTool('calibrate')" title="{{ _('标定尺寸') }}"><span class="material-symbols-outlined" style="font-size:16px;">straighten</span>{{ _('标定') }}</button>
         <button onclick="deleteFloorBg(currentView)" title="{{ _('删除背景图') }}"><span class="material-symbols-outlined" style="font-size:16px;">delete</span>{{ _('删除背景') }}</button>
@@ -405,9 +405,9 @@
     </div>
     <div class="legend" id="legendPanel"></div>
     <div class="zoom-controls">
-      <button onclick="zoomCanvas(-0.1)">−</button>
+      <button onclick="zoomCanvas(1/1.12)">−</button>
       <div class="zoom-level" id="zoomLevel">100%</div>
-      <button onclick="zoomCanvas(0.1)">+</button>
+      <button onclick="zoomCanvas(1.12)">+</button>
       <button onclick="fitView()">⊡</button>
     </div>
     <div class="minimap"><svg id="minimapSvg" width="160" height="100" viewBox="-100 -100 1400 900"><rect x="-100" y="-100" width="1400" height="900" style="fill:var(--minimap-canvas)"/><g id="minimapNodes"></g><rect class="minimap-viewport" id="minimapViewport" x="0" y="0" width="400" height="250"/></svg></div>
@@ -643,6 +643,7 @@ window.SD_I18N = {
   '外圈': {zh:'外圈',en:'Outer'},
   '环境在每个天线属性中单独设置': {zh:'环境在每个天线属性中单独设置',en:'Set per antenna in properties'},
   '系统图属性': {zh:'系统图属性',en:'Diagram Properties'},
+  '图纸名称': {zh:'图纸名称',en:'Diagram Name'},
   '统计': {zh:'统计',en:'Statistics'},
   '节点': {zh:'节点',en:'Nodes'},
   '连线': {zh:'连线',en:'Edges'},
@@ -819,7 +820,8 @@ window.SD_I18N = {
   '楼层名称': {zh:'楼层名称',en:'Floor Name'},
   '请至少选择一个页面': {zh:'请至少选择一个页面',en:'Select at least one page'},
   '完成': {zh:'完成',en:'Done'},
-  '处理中...': {zh:'处理中...',en:'Processing...'}
+  '处理中...': {zh:'处理中...',en:'Processing...'},
+  '已将设备插入走线': {zh:'已将设备插入走线',en:'Device inserted into cable'}
 };
 const wrapper = document.getElementById('canvasWrapper');
 </script>

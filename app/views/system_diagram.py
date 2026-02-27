@@ -452,7 +452,8 @@ def render_pdf_pages(diagram_id):
             base_name = f"{diagram_id}_{safe_label}_{uuid.uuid4().hex[:6]}"
 
             resolutions = convert_pdf_page_to_images(
-                temp_path, page_index, upload_dir, base_name
+                temp_path, page_index, upload_dir, base_name,
+                max_dims=[1000, 2000, 4000, 8000]
             )
 
             # 构建 URL 映射

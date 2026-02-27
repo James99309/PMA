@@ -76,6 +76,18 @@ function buildCoveragePropsHTML(nodeId) {
     </div>`;
 }
 
+// ====== FLOOR ZOOM COMPENSATION ======
+/** Floor plan zoom compensation – makes icons/cables bigger when zoomed out */
+function getFloorZoomCompensation() {
+  if (scale >= 1) return 1;
+  return Math.min(Math.pow(1 / scale, 0.5), 3);
+}
+/** Stronger compensation for temporary drawing lines – must stay visible at extreme zoom-out */
+function getTempEdgeZoomCompensation() {
+  if (scale >= 1) return 1;
+  return Math.min(1 / scale, 12);
+}
+
 // ====== FLOOR PLAN DATA ======
 let floorPlans = [];
 
@@ -86,7 +98,7 @@ function getFloorPlansForSave(){
     background:fp.background?Object.assign({url:fp.background.url,width:fp.background.width,height:fp.background.height,offset_x:fp.background.offset_x||0,offset_y:fp.background.offset_y||0,opacity:fp.background.opacity||0.3},fp.background.is_multi_res?{is_multi_res:true,resolutions:fp.background.resolutions,filenames:fp.background.filenames}:{filename:fp.background.filename||''}):null,
     calibration:fp.calibration||null,
     placements:fp.placements.map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1,labelPosition:p.labelPosition||null})),
-    routes:(fp.routes||[]).map(r=>({id:r.id,sourceNodeId:r.sourceNodeId,targetNodeId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort,cableType:r.cableType,routeMode:r.routeMode,midPos:r.midPos,color:r.color,width:r.width,dash:r.dash,label:r.label,linked_edge_id:r.linked_edge_id||null,_userPorts:r._userPorts||false})),
+    routes:(fp.routes||[]).map(r=>{const o={id:r.id,sourceNodeId:r.sourceNodeId,targetNodeId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort,cableType:r.cableType,routeMode:r.routeMode,midPos:r.midPos,color:r.color,width:r.width,dash:r.dash,label:r.label,linked_edge_id:r.linked_edge_id||null,_userPorts:r._userPorts||false};if(r.waypoints&&r.waypoints.length)o.waypoints=r.waypoints;return o}),
     areas:(fp.areas||[]).map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,is_riser:a.is_riser||false,_riser_node_id:a._riser_node_id||null})),
     risers:(fp.risers||[]).map(r=>({id:r.id,node_id:r.node_id,edge_id:r.edge_id,target_floor_label:r.target_floor_label,x:r.x,y:r.y})),
     viewX:fp.viewX||0, viewY:fp.viewY||0, scale:fp.scale||1
@@ -903,7 +915,7 @@ function renderFloorRoutes(fp){
     // Auto-pick best ports based on relative position if not user-set
     const rMode=route.routeMode||'ortho3';
     const autoP=(!route._userPorts)?findBestPort(srcPl,tgtPl,srcNode.w||NODE_SIZE,rMode):null;
-    const edgeLike={sourceId:route.sourceNodeId,targetId:route.targetNodeId,sourcePort:autoP?autoP.srcPort:(route.sourcePort||'right'),targetPort:autoP?autoP.tgtPort:(route.targetPort||'left'),routeMode:rMode,midPos:route.midPos};
+    const edgeLike={sourceId:route.sourceNodeId,targetId:route.targetNodeId,sourcePort:autoP?autoP.srcPort:(route.sourcePort||'right'),targetPort:autoP?autoP.tgtPort:(route.targetPort||'left'),routeMode:rMode,midPos:route.midPos,waypoints:route.waypoints};
     // Temporarily set node positions to placement coords for path calc
     const _sx=srcNode.x,_sy=srcNode.y,_tx=tgtNode.x,_ty=tgtNode.y;
     srcNode.x=srcPl.x;srcNode.y=srcPl.y;tgtNode.x=tgtPl.x;tgtNode.y=tgtPl.y;
@@ -911,7 +923,8 @@ function renderFloorRoutes(fp){
     srcNode.x=_sx;srcNode.y=_sy;tgtNode.x=_tx;tgtNode.y=_ty;
     if(!result||!result.path)return;
 
-    const w=getEffectiveCableWidth(route.width);const rc=getEffectiveCableColor(route.color);
+    const comp=getFloorZoomCompensation();
+    const w=getEffectiveCableWidth(route.width)*comp;const rc=getEffectiveCableColor(route.color);
     const isSelected=selectedRouteId===route.id;
     // Hit area — placed on edgeHitLayer (above nodesLayer, easy to click)
     const hitPath=document.createElementNS('http://www.w3.org/2000/svg','path');
@@ -924,7 +937,14 @@ function renderFloorRoutes(fp){
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('class','edge-line');path.setAttribute('d',result.path);
     path.setAttribute('stroke',rc);path.setAttribute('stroke-width',isSelected?w+1.5:w);
-    if(route.dash)path.setAttribute('stroke-dasharray',route.dash);
+    if(route.dash){
+      if(comp!==1){
+        path.setAttribute('stroke-dasharray',
+          route.dash.split(/[\s,]+/).map(v=>parseFloat(v)*comp).join(' '));
+      }else{
+        path.setAttribute('stroke-dasharray',route.dash);
+      }
+    }
     path.setAttribute('stroke-linecap','round');path.setAttribute('stroke-linejoin','round');
     if(isSelected)path.setAttribute('filter','url(#glow)');
     layer.appendChild(path);
@@ -944,24 +964,161 @@ function renderFloorRoutes(fp){
     if(parts.length){
       const txt=parts.join(' · ');
       const mid=getPathMidpoint(result,edgeLike);
-      const tl=txt.length*7+16;
-      const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
-      bg.setAttribute('class','edge-label-bg');bg.setAttribute('x',mid.x-tl/2);bg.setAttribute('y',mid.y-9);
-      bg.setAttribute('width',tl);bg.setAttribute('height',18);bg.setAttribute('rx',4);
-      bg.style.cursor='pointer';
-      bg.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
-      labelEls.push(bg);
-      const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
-      lbl.setAttribute('class','edge-label');lbl.setAttribute('x',mid.x);lbl.setAttribute('y',mid.y);
-      lbl.setAttribute('fill',rc);lbl.textContent=txt;
-      lbl.style.cursor='pointer';
-      lbl.style.pointerEvents='auto';
-      lbl.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
-      labelEls.push(lbl);
+      const baseTl=txt.length*7+16;
+      if(comp!==1){
+        const tl=baseTl*comp,lh=18*comp;
+        const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+        bg.setAttribute('class','edge-label-bg');bg.setAttribute('x',mid.x-tl/2);bg.setAttribute('y',mid.y-lh/2);
+        bg.setAttribute('width',tl);bg.setAttribute('height',lh);bg.setAttribute('rx',4*comp);
+        bg.style.cursor='pointer';
+        bg.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
+        labelEls.push(bg);
+        const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+        lbl.setAttribute('class','edge-label');lbl.setAttribute('x',mid.x);lbl.setAttribute('y',mid.y);
+        lbl.setAttribute('font-size',12*comp);
+        lbl.setAttribute('fill',rc);lbl.textContent=txt;
+        lbl.style.cursor='pointer';
+        lbl.style.pointerEvents='auto';
+        lbl.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
+        labelEls.push(lbl);
+      }else{
+        const tl=baseTl;
+        const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
+        bg.setAttribute('class','edge-label-bg');bg.setAttribute('x',mid.x-tl/2);bg.setAttribute('y',mid.y-9);
+        bg.setAttribute('width',tl);bg.setAttribute('height',18);bg.setAttribute('rx',4);
+        bg.style.cursor='pointer';
+        bg.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
+        labelEls.push(bg);
+        const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
+        lbl.setAttribute('class','edge-label');lbl.setAttribute('x',mid.x);lbl.setAttribute('y',mid.y);
+        lbl.setAttribute('fill',rc);lbl.textContent=txt;
+        lbl.style.cursor='pointer';
+        lbl.style.pointerEvents='auto';
+        lbl.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
+        labelEls.push(lbl);
+      }
     }
   });
   // Append labels after all hit paths so labels stay on top and clickable
   labelEls.forEach(el=>ehl.appendChild(el));
+}
+
+// ====== DROP-TO-INSERT (drag device onto cable) ======
+
+function pointToSegmentDist(px,py,ax,ay,bx,by){
+  const dx=bx-ax,dy=by-ay,lenSq=dx*dx+dy*dy;
+  if(lenSq===0)return Math.hypot(px-ax,py-ay);
+  const t=Math.max(0,Math.min(1,(dx*(px-ax)+dy*(py-ay))/lenSq));
+  return Math.hypot(px-(ax+t*dx),py-(ay+t*dy));
+}
+
+function getRoutePathPoints(route,fp){
+  const srcNode=nodes.find(n=>n.id===route.sourceNodeId);
+  const tgtNode=nodes.find(n=>n.id===route.targetNodeId);
+  if(!srcNode||!tgtNode)return null;
+  const srcPl=fp.placements.find(p=>p.node_id===route.sourceNodeId);
+  const tgtPl=fp.placements.find(p=>p.node_id===route.targetNodeId);
+  if(!srcPl||!tgtPl)return null;
+  const rMode=route.routeMode||'ortho3';
+  const autoP=(!route._userPorts)?findBestPort(srcPl,tgtPl,srcNode.w||NODE_SIZE,rMode):null;
+  const edgeLike={sourceId:route.sourceNodeId,targetId:route.targetNodeId,
+    sourcePort:autoP?autoP.srcPort:(route.sourcePort||'right'),
+    targetPort:autoP?autoP.tgtPort:(route.targetPort||'left'),
+    routeMode:rMode,midPos:route.midPos,waypoints:route.waypoints};
+  const _sx=srcNode.x,_sy=srcNode.y,_tx=tgtNode.x,_ty=tgtNode.y;
+  srcNode.x=srcPl.x;srcNode.y=srcPl.y;tgtNode.x=tgtPl.x;tgtNode.y=tgtPl.y;
+  const result=buildEdgePath(edgeLike);
+  srcNode.x=_sx;srcNode.y=_sy;tgtNode.x=_tx;tgtNode.y=_ty;
+  if(!result||!result.path)return null;
+  if(result.pts)return result.pts;
+  // Straight or bezier — approximate with start/end
+  return[result.sp,result.tp];
+}
+
+function tryInsertIntoRoute(nodeId,viewId){
+  if(!nodeId)return;
+  const nd=nodes.find(n=>n.id===nodeId);if(!nd)return;
+  // Check if device is a splitter or coupler
+  const sub=nd.subcategoryId?SUBCATEGORIES[nd.subcategoryId]:null;
+  if(!sub)return;
+  const ik=sub.iconKey||'';
+  let isSplitterOrCoupler=false;
+  if(ik==='splitter_2'||ik==='splitter_3'||ik==='coupler')isSplitterOrCoupler=true;
+  if(!isSplitterOrCoupler){
+    // Also check SUBCAT_ICON_MAP via sub.name
+    for(const k in SUBCAT_ICON_MAP){
+      if((sub.name||'').includes(k)){
+        const mapped=SUBCAT_ICON_MAP[k];
+        if(mapped==='splitter_2'||mapped==='splitter_3'||mapped==='coupler'){isSplitterOrCoupler=true;break}
+      }
+    }
+  }
+  if(!isSplitterOrCoupler)return;
+
+  const fp=getFloorPlan(viewId);if(!fp||!fp.routes||!fp.routes.length)return;
+  const pl=fp.placements.find(p=>p.node_id===nodeId);if(!pl)return;
+  const dropCx=pl.x+(nd.w||NODE_SIZE)/2,dropCy=pl.y+(nd.h||NODE_SIZE)/2;
+
+  let bestRoute=null,bestDist=Infinity,bestSegIdx=-1;
+  fp.routes.forEach(route=>{
+    // Skip routes already connected to this node
+    if(route.sourceNodeId===nodeId||route.targetNodeId===nodeId)return;
+    const pts=getRoutePathPoints(route,fp);if(!pts||pts.length<2)return;
+    for(let i=0;i<pts.length-1;i++){
+      const d=pointToSegmentDist(dropCx,dropCy,pts[i].x,pts[i].y,pts[i+1].x,pts[i+1].y);
+      if(d<bestDist){bestDist=d;bestRoute=route;bestSegIdx=i}
+    }
+  });
+  if(!bestRoute||bestDist>40)return;
+
+  // Found a close route — insert this device
+  pushHistory();
+
+  const origRoute=bestRoute;
+  const origEdgeId=origRoute.linked_edge_id;
+  const origSrc=origRoute.sourceNodeId,origTgt=origRoute.targetNodeId;
+  const cableProps={cableType:origRoute.cableType,color:origRoute.color,width:origRoute.width,dash:origRoute.dash,label:origRoute.label,routeMode:origRoute.routeMode||'ortho3'};
+
+  // Calculate best ports for the two new connections
+  const srcPl=fp.placements.find(p=>p.node_id===origSrc);
+  const tgtPl=fp.placements.find(p=>p.node_id===origTgt);
+  const nSize=nd.w||NODE_SIZE;
+  const rMode=cableProps.routeMode;
+  const ports1=findBestPort(srcPl||{x:0,y:0},pl,nSize,rMode);
+  const ports2=findBestPort(pl,tgtPl||{x:0,y:0},nSize,rMode);
+
+  // Remove original topology edge
+  const origEdgeIdx=edges.findIndex(e=>e.id===origEdgeId);
+  if(origEdgeIdx>=0)edges.splice(origEdgeIdx,1);
+
+  // Remove original floor route
+  const origRouteIdx=fp.routes.indexOf(origRoute);
+  if(origRouteIdx>=0)fp.routes.splice(origRouteIdx,1);
+
+  // Split waypoints: pts=[sp, wp0, wp1, ..., wpN, tp], waypoints[i]=pts[i+1]
+  const origWp=origRoute.waypoints;
+  const wp1=origWp&&origWp.length?origWp.slice(0,bestSegIdx):undefined;
+  const wp2=origWp&&origWp.length?origWp.slice(bestSegIdx):undefined;
+
+  // Create two new topology edges
+  const edge1={id:edgeIdCounter++,sourceId:origSrc,sourcePort:ports1.srcPort,targetId:nodeId,targetPort:ports1.tgtPort,
+    cableType:cableProps.cableType,color:cableProps.color,width:cableProps.width,dash:cableProps.dash,label:cableProps.label,routeMode:rMode,hideLabel:false};
+  const edge2={id:edgeIdCounter++,sourceId:nodeId,sourcePort:ports2.srcPort,targetId:origTgt,targetPort:ports2.tgtPort,
+    cableType:cableProps.cableType,color:cableProps.color,width:cableProps.width,dash:cableProps.dash,label:cableProps.label,routeMode:rMode,hideLabel:false};
+  edges.push(edge1,edge2);
+
+  // Create two new floor routes
+  const route1={id:routeIdCounter++,sourceNodeId:origSrc,targetNodeId:nodeId,sourcePort:ports1.srcPort,targetPort:ports1.tgtPort,
+    cableType:cableProps.cableType,color:cableProps.color,width:cableProps.width,dash:cableProps.dash,label:cableProps.label,
+    routeMode:rMode,linked_edge_id:edge1.id,_userPorts:false,waypoints:wp1&&wp1.length?wp1:undefined};
+  const route2={id:routeIdCounter++,sourceNodeId:nodeId,targetNodeId:origTgt,sourcePort:ports2.srcPort,targetPort:ports2.tgtPort,
+    cableType:cableProps.cableType,color:cableProps.color,width:cableProps.width,dash:cableProps.dash,label:cableProps.label,
+    routeMode:rMode,linked_edge_id:edge2.id,_userPorts:false,waypoints:wp2&&wp2.length?wp2:undefined};
+  fp.routes.push(route1,route2);
+
+  hasUnsavedChanges=true;
+  renderAll();
+  showToast(_t('已将设备插入走线'));
 }
 
 // ====== FLOOR ROUTE CREATION ======
@@ -972,12 +1129,14 @@ function createFloorRoute(srcId,srcPort,tgtId,tgtPort,cx,cy){
   const fp=getFloorPlan(currentView);if(!fp)return;
   pushHistory();
   // Create topology edge
+  const _wp=polylineWaypoints.length?[...polylineWaypoints]:undefined;
   const defEdge={id:edgeIdCounter++,sourceId:srcId,sourcePort:srcPort,targetId:tgtId,targetPort:tgtPort,cableType:null,color:'#94a3b8',width:1.5,dash:'6 4',label:'',routeMode:defaultRouteMode,hideLabel:false};
   edges.push(defEdge);
   // Create floor route linked to this edge
   if(!fp.routes)fp.routes=[];
-  const route={id:routeIdCounter++,sourceNodeId:srcId,targetNodeId:tgtId,sourcePort:srcPort,targetPort:tgtPort,cableType:null,routeMode:'ortho3',color:'#94a3b8',width:1.5,dash:'6 4',label:'',linked_edge_id:defEdge.id,_userPorts:true};
+  const route={id:routeIdCounter++,sourceNodeId:srcId,targetNodeId:tgtId,sourcePort:srcPort,targetPort:tgtPort,cableType:null,routeMode:'ortho3',color:'#94a3b8',width:1.5,dash:'6 4',label:'',linked_edge_id:defEdge.id,_userPorts:true,waypoints:_wp};
   fp.routes.push(route);
+  polylineWaypoints=[];
   pendingFloorRoute=route.id;pendingEdge=defEdge.id;
   showConnTypePopup(cx,cy);
 }
@@ -1010,10 +1169,11 @@ let isDraggingFloorMid=false,dragFloorMidRouteId=null,floorMidDragMoved=false;
 // ====== FLOOR ROUTE ENDPOINT RECONNECT ======
 let isReconnectingFloor=false,reconnectFloorRouteId=null,reconnectFloorEnd='',reconnectFloorFixedPos=null;
 
+let dragFloorWaypointIdx=null;  // index of floor route waypoint being dragged
 function renderFloorMidHandles(fp){
   if(!fp.routes||!selectedRouteId)return;
   const route=fp.routes.find(r=>r.id===selectedRouteId);
-  if(!route||route.routeMode!=='ortho3')return;
+  if(!route)return;
 
   const srcNode=nodes.find(n=>n.id===route.sourceNodeId);
   const tgtNode=nodes.find(n=>n.id===route.targetNodeId);
@@ -1021,6 +1181,23 @@ function renderFloorMidHandles(fp){
   const srcPl=fp.placements.find(p=>p.node_id===route.sourceNodeId);
   const tgtPl=fp.placements.find(p=>p.node_id===route.targetNodeId);
   if(!srcPl||!tgtPl)return;
+
+  const layer=document.getElementById('handlesLayer');
+
+  // Polyline waypoint handles for floor routes
+  if(route.waypoints&&route.waypoints.length){
+    route.waypoints.forEach((wp,idx)=>{
+      const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','mid-handle');g.style.cursor='grab';
+      const grip=document.createElementNS('http://www.w3.org/2000/svg','circle');grip.setAttribute('class','mid-handle-grip');
+      grip.setAttribute('cx',wp.x);grip.setAttribute('cy',wp.y);grip.setAttribute('r',5);g.appendChild(grip);
+      g.addEventListener('mousedown',ev=>{ev.stopPropagation();isDraggingFloorMid=true;floorMidDragMoved=false;dragFloorMidRouteId=route.id;dragFloorWaypointIdx=idx});
+      layer.appendChild(g);
+    });
+    return;
+  }
+
+  // Ortho3 mid-handle (original logic)
+  if(route.routeMode!=='ortho3')return;
 
   // Build path with placement coords
   const _sx=srcNode.x,_sy=srcNode.y,_tx=tgtNode.x,_ty=tgtNode.y;
@@ -1031,7 +1208,6 @@ function renderFloorMidHandles(fp){
   srcNode.x=_sx;srcNode.y=_sy;tgtNode.x=_tx;tgtNode.y=_ty;
   if(!result||!result.c1||!result.c2)return;
 
-  const layer=document.getElementById('handlesLayer');
   const g=document.createElementNS('http://www.w3.org/2000/svg','g');
   g.setAttribute('class','mid-handle');
   if(result.isH){
@@ -1047,7 +1223,7 @@ function renderFloorMidHandles(fp){
     const midX=(result.c1.x+result.c2.x)/2;const grip=document.createElementNS('http://www.w3.org/2000/svg','circle');
     grip.setAttribute('class','mid-handle-grip');grip.setAttribute('cx',midX);grip.setAttribute('cy',result.c1.y);g.appendChild(grip);
   }
-  g.addEventListener('mousedown',e=>{e.stopPropagation();isDraggingFloorMid=true;floorMidDragMoved=false;dragFloorMidRouteId=route.id});
+  g.addEventListener('mousedown',e=>{e.stopPropagation();isDraggingFloorMid=true;floorMidDragMoved=false;dragFloorMidRouteId=route.id;dragFloorWaypointIdx=null});
   layer.appendChild(g);
 }
 
@@ -1080,7 +1256,7 @@ function renderFloorRouteEndpoints(fp){
     });layer.appendChild(c);
   });
 }
-function renderFloorReconnectLine(mx,my){if(!reconnectFloorFixedPos)return;const p=reconnectFloorFixedPos;document.getElementById('tempLayer').innerHTML=`<line class="edge-temp" x1="${p.x}" y1="${p.y}" x2="${mx}" y2="${my}"/>`}
+function renderFloorReconnectLine(mx,my){if(!reconnectFloorFixedPos)return;const p=reconnectFloorFixedPos;const comp=getTempEdgeZoomCompensation();const sw=3*comp;const bsw=5*comp;const da=`${8*comp} ${4*comp}`;document.getElementById('tempLayer').innerHTML=`<line x1="${p.x}" y1="${p.y}" x2="${mx}" y2="${my}" style="stroke:rgba(255,255,255,0.6);stroke-width:${bsw};stroke-dasharray:${da};fill:none"/><line class="edge-temp" x1="${p.x}" y1="${p.y}" x2="${mx}" y2="${my}" style="stroke:#3b82f6;stroke-width:${sw};stroke-dasharray:${da};fill:none"/>`}
 
 function selectFloorRoute(routeId){
   selectedRouteId=routeId;selectedAreaId=null;selectedNodeIds=new Set();selectedEdgeId=null;
@@ -1211,7 +1387,7 @@ function calculateFloorRouteLength(route,fp){
   const sp=autoP?autoP.srcPort:(route.sourcePort||'right'),tp=autoP?autoP.tgtPort:(route.targetPort||'left');
   const _sx=srcN.x,_sy=srcN.y,_tx=tgtN.x,_ty=tgtN.y;
   srcN.x=srcPl.x;srcN.y=srcPl.y;tgtN.x=tgtPl.x;tgtN.y=tgtPl.y;
-  const edgeLike={sourceId:route.sourceNodeId,targetId:route.targetNodeId,sourcePort:sp,targetPort:tp,routeMode:rMode,midPos:route.midPos};
+  const edgeLike={sourceId:route.sourceNodeId,targetId:route.targetNodeId,sourcePort:sp,targetPort:tp,routeMode:rMode,midPos:route.midPos,waypoints:route.waypoints};
   const result=buildEdgePath(edgeLike);
   srcN.x=_sx;srcN.y=_sy;tgtN.x=_tx;tgtN.y=_ty;
   if(!result)return null;
@@ -1251,15 +1427,22 @@ function highlightConnectedInPanel(nodeId){
 // ====== FLOOR NODES ======
 function renderFloorNodes(fp){
   const nodesLayer=document.getElementById('nodesLayer');
-
   fp.placements.forEach(pl=>{
     const n=nodes.find(n=>n.id===pl.node_id);
     if(!n)return;
 
     const isSel=selectedNodeIds.has(n.id);
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
-    g.setAttribute('class',`node-group ${isSel?'selected':''} ${pl.locked?'node-locked':''}`);
-    g.setAttribute('transform',`translate(${pl.x},${pl.y})${pl.rotation?` rotate(${pl.rotation},${n.w/2},${n.h/2})`:''}`);
+    g.setAttribute('class',`node-group ${isSel?'selected':''}`);
+    const comp = getFloorZoomCompensation();
+    const rotStr = pl.rotation ? ` rotate(${pl.rotation},${n.w/2},${n.h/2})` : '';
+    if (comp !== 1) {
+      const cx = n.w / 2, cy = n.h / 2;
+      g.setAttribute('transform',
+        `translate(${pl.x + cx * (1 - comp)},${pl.y + cy * (1 - comp)}) scale(${comp})${rotStr}`);
+    } else {
+      g.setAttribute('transform', `translate(${pl.x},${pl.y})${rotStr}`);
+    }
     g.dataset.nodeId=n.id;
 
     // Glow
@@ -1288,21 +1471,7 @@ function renderFloorNodes(fp){
       g.appendChild(ring);
     }
 
-    // Lock icon
-    if(pl.locked){
-      const lockG=document.createElementNS('http://www.w3.org/2000/svg','g');
-      lockG.setAttribute('transform',`translate(${n.w-2},-6)`);
-      const lockBg=document.createElementNS('http://www.w3.org/2000/svg','circle');
-      lockBg.setAttribute('cx',0);lockBg.setAttribute('cy',0);lockBg.setAttribute('r',8);
-      lockBg.setAttribute('fill','var(--bg-panel,#1e293b)');lockBg.setAttribute('stroke','#f59e0b');lockBg.setAttribute('stroke-width',1);
-      lockG.appendChild(lockBg);
-      const lockIcon=document.createElementNS('http://www.w3.org/2000/svg','text');
-      lockIcon.setAttribute('x',0);lockIcon.setAttribute('y',3);
-      lockIcon.setAttribute('text-anchor','middle');lockIcon.setAttribute('font-size','9');
-      lockIcon.setAttribute('fill','#f59e0b');lockIcon.textContent='🔒';
-      lockG.appendChild(lockIcon);
-      g.appendChild(lockG);
-    }
+    // Lock: no per-node badge, only cursor change
 
     // Qty badge
     const plQty=pl.qty||1;
@@ -1485,7 +1654,7 @@ async function uploadFloorBg(fpId){
           const result=await resp.json();
           if(result.success){
             _cleanupOldBgFiles(fp);
-            fp.background={url:result.url,width:result.width,height:result.height,offset_x:0,offset_y:0,filename:result.filename||''};
+            fp.background={url:result.url,width:result.width,height:result.height,offset_x:0,offset_y:0,opacity:0.3,filename:result.filename||''};
             hasUnsavedChanges=true;renderAll();
             showFloorPlanProps(fpId);
             showToast(_t('背景图已上传'));
@@ -1674,13 +1843,21 @@ async function importSelectedPdfPages(){
 // ====== MULTI-RESOLUTION ZOOM SWITCHING ======
 
 function _getOptimalResolutionKey(currentScale){
-  if(currentScale>=1.8) return '4000';
-  if(currentScale>=0.8) return '2000';
+  const fp=getFloorPlan(currentView);
+  const bgW=fp?.background?.width||2000;
+  const displayPx=bgW*currentScale;
+  if(displayPx>4000) return '8000';
+  if(displayPx>2000) return '4000';
+  if(displayPx>1000) return '2000';
   return '1000';
 }
 
 function onScaleChanged(newScale){
   if(currentView==='topology')return;
+
+  // Re-render to apply zoom compensation on icons/cables
+  requestRenderThrottled();
+
   const fp=getFloorPlan(currentView);
   if(!fp||!fp.background||!fp.background.is_multi_res)return;
 
@@ -1688,18 +1865,21 @@ function onScaleChanged(newScale){
   const res=fp.background.resolutions[optimalKey];
   if(!res||res.url===_cachedBgUrl)return;
 
+  // Only swap image URL for better detail; keep SVG coordinate dimensions unchanged
+  // so that node positions and icon sizes remain proportionally correct
   fp.background.url=res.url;
-  fp.background.width=res.width;
-  fp.background.height=res.height;
   renderFloorBackground(fp);
 
   _preloadAdjacentResolution(fp,newScale);
 }
 
 function _preloadAdjacentResolution(fp,currentScale){
+  const bgW=fp?.background?.width||2000;
+  const displayPx=bgW*currentScale;
   let preloadKey=null;
-  if(currentScale>1.5&&currentScale<1.8) preloadKey='4000';
-  else if(currentScale>0.6&&currentScale<0.8) preloadKey='2000';
+  if(displayPx>3000&&displayPx<=4000) preloadKey='8000';
+  else if(displayPx>1500&&displayPx<=2000) preloadKey='4000';
+  else if(displayPx>700&&displayPx<=1000) preloadKey='2000';
 
   if(preloadKey&&fp.background.resolutions[preloadKey]){
     const img=new Image();
@@ -2140,14 +2320,39 @@ function toggleNodeLock(nodeId){
   showToast(pl.locked?_t('已锁定'):_t('已解锁'));
 }
 
-function toggleAllLocks(lock){
-  const fp=getFloorPlan(currentView);
-  if(!fp)return;
+function toggleAllLocks(){
   pushHistory();
-  fp.placements.forEach(p=>{p.locked=lock});
+  let anyUnlocked=false;
+  if(currentView==='topology'){
+    // Topology mode: toggle node.locked
+    anyUnlocked=nodes.some(n=>!n.locked);
+    nodes.forEach(n=>{n.locked=anyUnlocked});
+  } else {
+    const fp=getFloorPlan(currentView);
+    if(!fp)return;
+    anyUnlocked=fp.placements.some(p=>!p.locked);
+    fp.placements.forEach(p=>{p.locked=anyUnlocked});
+  }
   hasUnsavedChanges=true;
   renderAll();
-  showToast(lock?_t('全部已锁定'):_t('全部已解锁'));
+  _updateLockBtnIcon(anyUnlocked);
+  showToast(anyUnlocked?_t('全部已锁定'):_t('全部已解锁'));
+}
+function _updateLockBtnIcon(locked){
+  const btn=document.getElementById('btnToggleLock');
+  if(!btn)return;
+  const svg=btn.querySelector('svg');
+  if(svg){
+    // Locked: closed lock (no gap in shackle)
+    // Unlocked: open lock (shackle shifted up-right)
+    svg.innerHTML=locked
+      ?'<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>'
+      :'<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0"/>';
+  }
+  btn.style.background=locked?'#f59e0b':'';
+  btn.style.color=locked?'#fff':'';
+  if(locked){btn.querySelector('svg').setAttribute('stroke','#fff')}
+  else{btn.querySelector('svg').setAttribute('stroke','currentColor')}
 }
 
 // ====== FLOOR/AREA LABEL SYNC ======

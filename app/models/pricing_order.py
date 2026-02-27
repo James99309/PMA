@@ -1,8 +1,9 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from app import db
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, ForeignKey, Enum as SQLEnum, case
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql import func
 import enum
 
@@ -85,6 +86,23 @@ class PricingOrder(db.Model):
     creator = relationship('User', foreign_keys=[created_by], backref='created_pricing_orders')
     approver = relationship('User', foreign_keys=[approved_by], backref='approved_pricing_orders')
     
+    # 业务类型（从布尔字段推导）
+    @hybrid_property
+    def business_type(self):
+        if self.is_direct_contract:
+            return 'direct_contract'
+        elif self.is_factory_pickup:
+            return 'factory_pickup'
+        return 'channel'
+
+    @business_type.expression
+    def business_type(cls):
+        return case(
+            (cls.is_direct_contract == True, 'direct_contract'),
+            (cls.is_factory_pickup == True, 'factory_pickup'),
+            else_='channel'
+        )
+
     # 明细和审批记录关系
     pricing_details = relationship('PricingOrderDetail', backref='pricing_order', cascade='all, delete-orphan', order_by='PricingOrderDetail.id')
     settlement_details = relationship('SettlementOrderDetail', backref='pricing_order', cascade='all, delete-orphan', order_by='SettlementOrderDetail.id')
@@ -238,6 +256,23 @@ class SettlementOrder(db.Model):
     # 货币字段
     currency = Column(String(10), default='CNY', comment='货币类型')
 
+    # 业务类型（从布尔字段推导）
+    @hybrid_property
+    def business_type(self):
+        if self.is_direct_contract:
+            return 'direct_contract'
+        elif self.is_factory_pickup:
+            return 'factory_pickup'
+        return 'channel'
+
+    @business_type.expression
+    def business_type(cls):
+        return case(
+            (cls.is_direct_contract == True, 'direct_contract'),
+            (cls.is_factory_pickup == True, 'factory_pickup'),
+            else_='channel'
+        )
+
     # 关系定义
     project = relationship('Project', backref='settlement_orders')
     quotation = relationship('Quotation', backref='settlement_orders')
@@ -245,7 +280,7 @@ class SettlementOrder(db.Model):
     dealer = relationship('Company', foreign_keys=[dealer_id], backref='dealer_settlement_orders')
     creator = relationship('User', foreign_keys=[created_by], backref='created_settlement_orders')
     approver = relationship('User', foreign_keys=[approved_by], backref='approved_settlement_orders')
-    
+
     # 明细关系
     details = relationship('SettlementOrderDetail', backref='settlement_order', cascade='all, delete-orphan', order_by='SettlementOrderDetail.id')
     

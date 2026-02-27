@@ -11,6 +11,8 @@ from flask_login import login_required, current_user
 from flask_babel import gettext as _
 from zoneinfo import ZoneInfo
 
+from sqlalchemy import cast, text
+from sqlalchemy.dialects.postgresql import JSONB
 from app import db
 from app.models.meeting import (
     MeetingRecording, MeetingTranscript, MeetingSpeaker,
@@ -162,7 +164,7 @@ def api_list_recordings():
                 # 通过工作项关联的参与者
                 MeetingRecording.work_item_id.in_(
                     db.session.query(WorkItem.id).filter(
-                        WorkItem.shared_with_users.contains([current_user.id])
+                        cast(WorkItem.shared_with_users, JSONB).op('@>')(text(f"'[{current_user.id}]'::jsonb"))
                     )
                 )
             )
