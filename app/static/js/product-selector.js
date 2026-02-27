@@ -50,7 +50,12 @@ class ProductSelector {
                 merge_with_regular: true
             },
             // 跳过配置模态框（采购订单等场景使用）
-            skipConfigModal: config && config.skipConfigModal === true
+            skipConfigModal: config && config.skipConfigModal === true,
+            // 国际化配置
+            i18n: (config && config.i18n) || {
+                products: '个产品',
+                priceNegotiable: '价格面议',
+            }
         };
         
         this.cache = new Map();
@@ -1027,7 +1032,7 @@ class ProductSelector {
                 item.innerHTML = `
                     <div class="product-info">
                         <div class="product-title">${subcategory.name}</div>
-                        <div class="product-count">${subcategory.count} 个产品</div>
+                        <div class="product-count">${subcategory.count} ${this.config.i18n.products}</div>
                     </div>
                     <span class="material-symbols-outlined menu-arrow">chevron_right</span>
                 `;
@@ -1147,7 +1152,7 @@ class ProductSelector {
                     // 只有1个产品：显示型号、规格和价格
                     const product = modelGroup.products[0];
                     const price = product.retail_price ? parseFloat(product.retail_price) : null;
-                    const priceText = price ? this.formatPriceWithCurrency(price, product.currency) : '价格面议';
+                    const priceText = price ? this.formatPriceWithCurrency(price, product.currency) : this.config.i18n.priceNegotiable;
                     const isDiscontinued = product.status === 'discontinued' || product.status === '停产';
                     const priceClass = isDiscontinued ? 'product-price discontinued' : 'product-price';
 
@@ -1293,7 +1298,7 @@ class ProductSelector {
             const isDiscontinued = product.status === 'discontinued' || product.status === '停产';
             const price = product.retail_price
                 ? this.formatPriceWithCurrency(product.retail_price, product.currency)
-                : '价格面议';
+                : this.config.i18n.priceNegotiable;
             const priceClass = isDiscontinued ? 'product-price discontinued' : 'product-price';
 
             item.innerHTML = `
@@ -1412,7 +1417,7 @@ class ProductSelector {
                                      product.product_status === 'discontinued' ||
                                      product.product_status === '停产' ||
                                      (product.status && product.status.toLowerCase().includes('discontin'));
-                const priceText = marketPrice ? this.formatPriceWithCurrency(marketPrice, product.currency) : '价格面议';
+                const priceText = marketPrice ? this.formatPriceWithCurrency(marketPrice, product.currency) : this.config.i18n.priceNegotiable;
                 const priceClass = isDiscontinued ? 'product-price discontinued' : 'product-price';
 
                 // 处理规格文本

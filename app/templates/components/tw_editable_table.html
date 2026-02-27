@@ -492,7 +492,9 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             manualInput: {{ _("手动输入") | tojson | safe }},
             tempProduct: {{ _("临时") | tojson | safe }},
             confirmDelete: {{ _("确定要删除这一行吗？") | tojson | safe }},
-            addConfig: {{ _("添加配件") | tojson | safe }}
+            addConfig: {{ _("添加配件") | tojson | safe }},
+            products: {{ _("个产品") | tojson | safe }},
+            priceNegotiable: {{ _("价格面议") | tojson | safe }}
         }
     };
 
@@ -1016,6 +1018,10 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
                         position: 'after_price',
                         style: 'temp-product-indicator'
                     }
+                },
+                i18n: {
+                    products: instance.config.i18n.products,
+                    priceNegotiable: instance.config.i18n.priceNegotiable,
                 },
                 onSelect: null  // 稍后设置
             });

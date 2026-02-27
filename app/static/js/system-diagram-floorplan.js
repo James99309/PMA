@@ -2048,6 +2048,18 @@ function relayoutFloorNodesTopo(){
   floorPlans.forEach(fp=>{fp.placements.forEach(p=>placedNodeIds.add(p.node_id))});
   const floorNodes=nodes.filter(n=>placedNodeIds.has(n.id));
   if(!floorNodes.length)return;
+
+  // ═══ DEBUG: snapshot before layout ═══
+  const _dbgBefore={};
+  nodes.forEach(n=>{_dbgBefore[n.id]={name:n.name,x:n.x,y:n.y,floor_id:n.floor_id,placed:placedNodeIds.has(n.id)}});
+  console.group('🔧 relayoutFloorNodesTopo DEBUG');
+  console.log('All nodes:',nodes.length,'| Placed on floor:',floorNodes.length,'| Topology-only:',nodes.length-floorNodes.length);
+  console.log('Topology-only nodes (should NOT move):');
+  nodes.filter(n=>!placedNodeIds.has(n.id)).forEach(n=>console.log(`  [${n.id}] ${n.name} x=${n.x} y=${n.y} floor_id=${n.floor_id}`));
+  console.log('Floor nodes (WILL move):');
+  floorNodes.forEach(n=>console.log(`  [${n.id}] ${n.name} x=${n.x} y=${n.y} floor_id=${n.floor_id}`));
+  // ═══ END DEBUG BEFORE ═══
+
   pushHistory();
   // Sync floor_id for consistency
   syncFloorAreaLabels();
@@ -2266,27 +2278,32 @@ function relayoutFloorNodesTopo(){
     curY=chainY+tiersBelow*gapV+gapV*1.5;
   });
 
-  // Update ports for cross-view edges (floor node ↔ topology node like 主机/合路平台)
-  edges.forEach(e=>{
-    const sFloor=placedNodeIds.has(e.sourceId), tFloor=placedNodeIds.has(e.targetId);
-    if(sFloor===tFloor)return; // both floor (handled above) or both topo (not our concern)
-    const src=nodes.find(n=>n.id===e.sourceId);
-    const tgt=nodes.find(n=>n.id===e.targetId);
-    if(!src||!tgt)return;
-    // Topology node is above floor nodes → use top/bottom ports
-    const floorN=sFloor?src:tgt;
-    const topoN=sFloor?tgt:src;
-    if(topoN.y+NODE_SIZE<=floorN.y){
-      e.sourcePort=sFloor?'top':'bottom';
-      e.targetPort=sFloor?'bottom':'top';
-    }else{
-      const leftIsSource=src.x<=tgt.x;
-      e.sourcePort=leftIsSource?'right':'left';
-      e.targetPort=leftIsSource?'left':'right';
+  // ═══ DEBUG: snapshot after layout ═══
+  console.log('--- AFTER LAYOUT ---');
+  let movedTopo=0;
+  nodes.forEach(n=>{
+    const before=_dbgBefore[n.id];
+    if(!before)return;
+    const dx=Math.abs(n.x-before.x),dy=Math.abs(n.y-before.y);
+    if(dx>0.5||dy>0.5){
+      const tag=before.placed?'✅ FLOOR (expected)':'❌ TOPO (SHOULD NOT MOVE!)';
+      console.log(`  ${tag} [${n.id}] ${n.name}: (${before.x},${before.y}) → (${n.x},${n.y}) Δ=(${dx.toFixed(1)},${dy.toFixed(1)})`);
+      if(!before.placed)movedTopo++;
     }
-    e.routeMode='ortho2';
-    delete e.midPos;
   });
+  // Also check edges that changed
+  console.log('Edges connecting topo↔floor:');
+  edges.forEach(e=>{
+    const sPlaced=placedNodeIds.has(e.sourceId),tPlaced=placedNodeIds.has(e.targetId);
+    if(sPlaced!==tPlaced){
+      const sn=nodes.find(n=>n.id===e.sourceId),tn=nodes.find(n=>n.id===e.targetId);
+      console.log(`  edge ${sn?.name}→${tn?.name} ports: ${e.sourcePort}→${e.targetPort} route:${e.routeMode}`);
+    }
+  });
+  if(movedTopo)console.error(`⚠️ ${movedTopo} topology-only nodes were moved! This is a bug.`);
+  else console.log('✅ No topology-only nodes were moved.');
+  console.groupEnd();
+  // ═══ END DEBUG AFTER ═══
 
   hasUnsavedChanges=true;
   renderAll();

@@ -2322,13 +2322,14 @@ const ProductSpecModal = (function() {
     /**
      * 格式化价格
      */
-    function formatPrice(price, currency = 'CNY') {
+    function formatPrice(price, currency = '{{ currency_config.currency }}') {
         if (!price && price !== 0) return '--';
         const num = parseFloat(price);
         if (isNaN(num)) return '--';
 
         const symbol = currency === 'CNY' ? '¥' : '$';
-        return `${symbol}${num.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const locale = currency === 'CNY' ? 'zh-CN' : 'en-US';
+        return `${symbol}${num.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
     /**

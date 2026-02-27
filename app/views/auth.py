@@ -99,6 +99,14 @@ def login():
             from app.utils.i18n import set_current_language
             set_current_language(final_language)
             
+            # 更新最后登录时间和每日登录记录
+            try:
+                user.update_last_login()
+                from app.models.ai_analysis_cache import UserDailyLoginRecord
+                UserDailyLoginRecord.record_login(user.id)
+            except Exception as e:
+                logger.error(f"更新登录记录失败: {e}")
+
             # 记录登录日志
             logger.info(f"用户 {user.username} (ID: {user.id}, 角色: {user.role}) 成功登录")
             
