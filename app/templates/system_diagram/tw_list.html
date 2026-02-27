@@ -236,168 +236,25 @@
         .catch(() => alert('{{ _("操作失败") }}'));
     }
     </script>
-    {# ── 分享空白设计弹窗 ── #}
-    <div id="listShareModal" class="fixed inset-0 z-50 hidden">
-        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" onclick="closeListShareModal()"></div>
-        <div class="absolute inset-0 flex items-center justify-center p-4">
-            <div class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                {# 弹窗头部 #}
-                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary">share</span>
-                        {{ _('分享空白设计') }}
-                    </h3>
-                    <button onclick="closeListShareModal()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                        <span class="material-symbols-outlined">close</span>
-                    </button>
-                </div>
-
-                {# 表单区域 #}
-                <div id="listShareForm" class="px-6 py-5 space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('收件邮箱') }} <span class="text-red-500">*</span></label>
-                        <input type="email" id="listShareEmail" placeholder="user@example.com"
-                               class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-colors">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('项目名称') }}</label>
-                        <input type="text" id="listShareProject" placeholder="{{ _('可选，给分享命名') }}"
-                               class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-colors">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('权限') }}</label>
-                        <div class="flex gap-3">
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="radio" name="listSharePerm" value="edit" checked class="text-primary focus:ring-primary">
-                                <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('可编辑') }}</span>
-                            </label>
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="radio" name="listSharePerm" value="view" class="text-primary focus:ring-primary">
-                                <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('仅查看') }}</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('有效期') }}</label>
-                        <select id="listShareExpiry"
-                                class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary/50 focus:border-primary outline-none transition-colors">
-                            <option value="24">24 {{ _('小时') }}</option>
-                            <option value="48">48 {{ _('小时') }}</option>
-                            <option value="72" selected>72 {{ _('小时') }}</option>
-                            <option value="168">7 {{ _('天') }}</option>
-                            <option value="720">30 {{ _('天') }}</option>
-                        </select>
-                    </div>
-                    <button onclick="submitListShare()" id="listShareSubmitBtn"
-                            class="w-full py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium flex items-center justify-center gap-2">
-                        <span class="material-symbols-outlined text-lg">send</span>
-                        {{ _('创建分享链接') }}
-                    </button>
-                </div>
-
-                {# 成功区域 #}
-                <div id="listShareSuccess" class="px-6 py-5 hidden">
-                    <div class="text-center mb-4">
-                        <div class="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-3">
-                            <span class="material-symbols-outlined text-2xl text-green-600 dark:text-green-400">check_circle</span>
-                        </div>
-                        <p class="text-sm font-medium text-slate-900 dark:text-white">{{ _('分享链接已创建') }}</p>
-                        <p id="listShareEmailSent" class="text-xs text-slate-500 dark:text-slate-400 mt-1"></p>
-                    </div>
-                    <div class="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                        <input type="text" id="listShareUrlDisplay" readonly
-                               class="flex-1 bg-transparent text-sm text-slate-700 dark:text-slate-300 outline-none truncate">
-                        <button onclick="copyListShareUrl()"
-                                class="shrink-0 px-3 py-1.5 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors text-xs font-medium">
-                            {{ _('复制') }}
-                        </button>
-                    </div>
-                    <button onclick="closeListShareModal()" class="w-full mt-4 py-2 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-sm">
-                        {{ _('关闭') }}
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    {# ── 分享空白设计弹窗（共享组件） ── #}
+    {% from 'components/tw_diagram_share_modal.html' import render_diagram_share_modal, render_diagram_share_script %}
+    {{ render_diagram_share_modal(title='分享空白设计') }}
+    {{ render_diagram_share_script(
+        csrf_token_expr='csrfToken',
+        api_url='/system-diagram/api/share'
+    ) }}
+    <script>
+    function _diagramShareExtraData() {
+        return { sourceDiagramId: null };
+    }
+    function openListShareModal() { openDiagramShareModal(); }
+    </script>
 
     {# ── Toast 提示 ── #}
     <div id="listToast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-800 text-sm rounded-lg shadow-lg transition-all duration-300 opacity-0 translate-y-2 pointer-events-none">
     </div>
 
     <script>
-    function openListShareModal() {
-        document.getElementById('listShareForm').classList.remove('hidden');
-        document.getElementById('listShareSuccess').classList.add('hidden');
-        document.getElementById('listShareEmail').value = '';
-        document.getElementById('listShareProject').value = '';
-        document.getElementById('listShareExpiry').value = '72';
-        document.querySelector('input[name="listSharePerm"][value="edit"]').checked = true;
-        document.getElementById('listShareSubmitBtn').disabled = false;
-        document.getElementById('listShareModal').classList.remove('hidden');
-    }
-
-    function closeListShareModal() {
-        document.getElementById('listShareModal').classList.add('hidden');
-    }
-
-    function submitListShare() {
-        const email = document.getElementById('listShareEmail').value.trim();
-        if (!email || !email.includes('@')) {
-            showListToast('{{ _("请输入有效的邮箱地址") }}');
-            return;
-        }
-        const btn = document.getElementById('listShareSubmitBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined text-lg animate-spin">progress_activity</span> {{ _("创建中...") }}';
-
-        fetch('/system-diagram/api/share', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrfToken
-            },
-            body: JSON.stringify({
-                email: email,
-                projectName: document.getElementById('listShareProject').value.trim(),
-                permission: document.querySelector('input[name="listSharePerm"]:checked').value,
-                expiresHours: parseInt(document.getElementById('listShareExpiry').value),
-                sourceDiagramId: null
-            })
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById('listShareForm').classList.add('hidden');
-                document.getElementById('listShareSuccess').classList.remove('hidden');
-                document.getElementById('listShareUrlDisplay').value = data.share_url;
-                const emailNote = data.email_sent
-                    ? '{{ _("邮件已发送至") }} ' + email
-                    : '{{ _("请手动将链接发送给") }} ' + email;
-                document.getElementById('listShareEmailSent').textContent = emailNote;
-            } else {
-                showListToast(data.message || '{{ _("创建失败") }}');
-                btn.disabled = false;
-                btn.innerHTML = '<span class="material-symbols-outlined text-lg">send</span> {{ _("创建分享链接") }}';
-            }
-        })
-        .catch(() => {
-            showListToast('{{ _("网络错误，请重试") }}');
-            btn.disabled = false;
-            btn.innerHTML = '<span class="material-symbols-outlined text-lg">send</span> {{ _("创建分享链接") }}';
-        });
-    }
-
-    function copyListShareUrl() {
-        const url = document.getElementById('listShareUrlDisplay').value;
-        navigator.clipboard.writeText(url).then(() => {
-            showListToast('{{ _("链接已复制") }}');
-        }).catch(() => {
-            document.getElementById('listShareUrlDisplay').select();
-            document.execCommand('copy');
-            showListToast('{{ _("链接已复制") }}');
-        });
-    }
-
     function showListToast(msg) {
         const t = document.getElementById('listToast');
         t.textContent = msg;

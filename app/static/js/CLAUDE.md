@@ -53,4 +53,11 @@
 | #6925 | 6:33 AM | 🔵 | System Diagram Core Engine - Cable Types, Device Icons, and State Management | ~949 |
 | #6924 | " | 🔵 | Riser Management and Calibration System in Floor Plans | ~731 |
 | #6923 | 6:32 AM | 🔵 | Floor Plan View Module - Multi-Resolution Background and Device Placement | ~756 |
+
+### Feb 27, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #7193 | 10:08 AM | 🔵 | Product selector handles non-configurable products with direct selection | ~358 |
+| #7191 | " | 🔵 | Product selector filters products by snapshot presence in JavaScript | ~351 |
 </claude-mem-context>

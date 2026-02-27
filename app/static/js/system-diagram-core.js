@@ -629,6 +629,25 @@ function undoAction(){if(undoIndex<=0){showToast(_t('没有可撤销的操作'))
 function redoAction(){if(undoIndex>=undoStack.length-1){showToast(_t('没有可重做的操作'));return}undoIndex++;restoreSnapshot(undoStack[undoIndex]);showToast(_t('已重做'))}
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)}
 
+function sdConfirm(title,msg,opts){
+  return new Promise(resolve=>{
+    const m=document.getElementById('sdConfirmModal');
+    if(!m){resolve(confirm(msg));return}
+    document.getElementById('sdConfirmTitle').textContent=title;
+    document.getElementById('sdConfirmMsg').textContent=msg;
+    const icon=document.getElementById('sdConfirmIcon');
+    const okBtn=document.getElementById('sdConfirmOk');
+    if(opts&&opts.danger){icon.textContent='warning';icon.className='material-symbols-outlined text-5xl text-red-500';okBtn.className='flex-1 py-2.5 px-4 bg-red-500 border-none rounded-xl text-white text-sm font-medium cursor-pointer transition-colors hover:bg-red-600'}
+    else{icon.textContent='help';icon.className='material-symbols-outlined text-5xl text-blue-500';okBtn.className='flex-1 py-2.5 px-4 bg-blue-600 border-none rounded-xl text-white text-sm font-medium cursor-pointer transition-colors hover:bg-blue-700'}
+    if(opts&&opts.okText)okBtn.textContent=opts.okText;
+    m.classList.remove('hidden');m.style.display='flex';
+    function close(val){m.style.display='none';m.classList.add('hidden');resolve(val)}
+    okBtn.onclick=()=>close(true);
+    document.getElementById('sdConfirmCancel').onclick=()=>close(false);
+    m.onclick=e=>{if(e.target===m)close(false)};
+  });
+}
+
 // ====== KEYBOARD SHORTCUTS ======
 document.addEventListener('keydown',e=>{
   if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;
@@ -1274,6 +1293,7 @@ function switchView(viewId){
   // Update toolbar visibility
   const fpTools=document.getElementById('floorPlanTools');
   if(fpTools)fpTools.style.display=viewId==='topology'?'none':'flex';
+  if(viewId!=='topology'&&typeof updateFloorBgButton==='function')updateFloorBgButton(viewId);
   const btnRelayout=document.getElementById('btnRelayout');
   if(btnRelayout)btnRelayout.style.display=viewId==='topology'?'':'none';
   // Update lock button icon
@@ -1390,12 +1410,14 @@ function rebuildViewTabs(){
     });
   }
 
-  // Add floor button
-  const addBtn=document.createElement('div');
-  addBtn.className='view-tab-add';
-  addBtn.textContent=_t('添加楼层');
-  addBtn.addEventListener('click',()=>addFloorPlan());
-  inner.appendChild(addBtn);
+  // Add floor button (hidden in read-only mode)
+  if(!DIAGRAM_CONFIG.readOnly){
+    const addBtn=document.createElement('div');
+    addBtn.className='view-tab-add';
+    addBtn.textContent=_t('添加楼层');
+    addBtn.addEventListener('click',()=>addFloorPlan());
+    inner.appendChild(addBtn);
+  }
 
   // Scroll active tab into view & update arrows after layout
   requestAnimationFrame(()=>{
@@ -1525,6 +1547,25 @@ async function leaveSaveFirst(){
 }
 
 // ====== INIT ======
+/* ── Left Panel Toggle ── */
+function toggleLeftPanel(){
+  const panel=document.querySelector('.panel');
+  if(!panel)return;
+  const backdrop=document.getElementById('panelBackdrop');
+  const collapsed=panel.classList.toggle('collapsed');
+  if(backdrop){backdrop.classList.toggle('visible',!collapsed)}
+  if(window.innerWidth>767){localStorage.setItem('sd_panel_collapsed',collapsed?'1':'0')}
+}
+function initPanelToggle(){
+  const panel=document.querySelector('.panel');
+  if(!panel||panel.style.display==='none')return;
+  const isMobile=window.innerWidth<=767;
+  if(isMobile){panel.classList.add('collapsed')}
+  else{if(localStorage.getItem('sd_panel_collapsed')==='1')panel.classList.add('collapsed')}
+  document.getElementById('panelToggle')?.addEventListener('click',toggleLeftPanel);
+  document.getElementById('panelBackdrop')?.addEventListener('click',toggleLeftPanel);
+}
+
 async function init(){
   try{
     const resp=await fetch(DIAGRAM_CONFIG.apiProducts);
@@ -1537,6 +1578,7 @@ async function init(){
   else if(DIAGRAM_CONFIG.diagramId){await loadDiagram()}
   else{rebuildViewTabs()}
   pushHistory();
+  initPanelToggle();
 }
 
 init();

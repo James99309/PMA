@@ -777,7 +777,10 @@ def external_verify(token):
     if not email or '@' not in email:
         return jsonify({'success': False, 'message': _('请输入有效的邮箱地址')}), 400
 
-    # 开放模式：邮箱仅用于标识工作区，不校验是否为内部用户
+    # 校验邮箱：必须与分享指定的收件邮箱一致
+    if share.designated_email and email != share.designated_email.strip().lower():
+        return jsonify({'success': False, 'message': _('邮箱地址与分享指定的收件人不匹配')}), 403
+
     # 设置 session
     flask_session['external_email'] = email
     flask_session['external_token'] = token

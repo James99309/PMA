@@ -1658,6 +1658,7 @@ async function uploadFloorBg(fpId){
             hasUnsavedChanges=true;renderAll();
             showFloorPlanProps(fpId);
             showToast(_t('背景图已上传'));
+            updateFloorBgButton(fpId);
           }else{showToast(_t('上传失败')+': '+(result.message||''))}
         }catch(err){showToast(_t('上传失败')+': '+err.message)}
       },'image/png',0.85);
@@ -1670,7 +1671,8 @@ async function uploadFloorBg(fpId){
 async function deleteFloorBg(fpId){
   if(DIAGRAM_CONFIG.readOnly)return;
   const fp=getFloorPlan(fpId);if(!fp||!fp.background)return;
-  if(!confirm(_t('确定删除背景图？')))return;
+  const ok=await sdConfirm(_t('移除背景'),_t('确定移除当前楼层的背景图？'),{danger:true,okText:_t('移除')});
+  if(!ok)return;
 
   // Build filenames list for multi-res or single file
   const body={floor_id:fpId};
@@ -1693,6 +1695,32 @@ async function deleteFloorBg(fpId){
       showToast(_t('背景图已删除'));
     }else{showToast(_t('删除失败')+': '+(result.message||''))}
   }catch(err){showToast(_t('删除失败')+': '+err.message)}
+  updateFloorBgButton(fpId);
+}
+
+function toggleFloorBg(fpId){
+  const fp=getFloorPlan(fpId);
+  if(fp&&fp.background&&fp.background.url){
+    deleteFloorBg(fpId);
+  }else{
+    uploadFloorBg(fpId);
+  }
+}
+
+function updateFloorBgButton(fpId){
+  const btn=document.getElementById('btnFloorBgToggle');
+  const label=document.getElementById('btnFloorBgLabel');
+  if(!btn||!label)return;
+  const fp=getFloorPlan(fpId);
+  const hasBg=fp&&fp.background&&fp.background.url;
+  const icon=btn.querySelector('.material-symbols-outlined');
+  if(hasBg){
+    if(icon)icon.textContent='hide_image';
+    label.textContent=_t('移除背景');
+  }else{
+    if(icon)icon.textContent='image';
+    label.textContent=_t('背景图');
+  }
 }
 
 // ====== PDF IMPORT ======
@@ -1750,6 +1778,7 @@ async function _renderAndSetPdfBackground(fpId,sessionId,pages){
       hasUnsavedChanges=true;renderAll();
       showFloorPlanProps(fpId);
       showToast(_t('背景图已导入'));
+      updateFloorBgButton(fpId);
     } else {
       // Multiple pages: create new floor plans for each
       let firstNewId=null;
@@ -1901,19 +1930,27 @@ function showFloorPlanProps(fpId){
   const routeCount=(fp.routes||[]).length;
   const areaCount=(fp.areas||[]).length;
 
+  const isRO=DIAGRAM_CONFIG.readOnly;
+  const nameHTML=isRO
+    ?`<div style="font-size:13px;font-weight:600;color:var(--text-primary)">${fp.label}</div>`
+    :`<input class="props-input" value="${fp.label}" oninput="updateFloorPlanProp('${fpId}','label',this.value)">`;
   let html=`
-    <div class="props-field"><span class="props-label">${_t('楼层名称（导出文件名）')}</span><input class="props-input" value="${fp.label}" oninput="updateFloorPlanProp('${fpId}','label',this.value)"></div>
-    <div class="props-field"><span class="props-label">${_t('背景图透明度')}</span><div class="props-row"><input type="range" class="props-range" min="0.05" max="1" step="0.05" value="${bgOpacity}" ${hasBg?'':'disabled'} oninput="updateFloorBgOpacity('${fpId}',parseFloat(this.value));this.nextElementSibling.textContent=Math.round(this.value*100)+'%'"><span class="props-range-val">${Math.round(bgOpacity*100)}%</span></div></div>
-    <div class="props-field" style="flex-direction:row;gap:6px;">`;
-  if(hasBg){
-    html+=`<button class="props-btn" onclick="uploadFloorBg('${fpId}')" style="flex:1;">${_t('更换背景图')}</button>`;
-    html+=`<button class="props-btn props-btn-warn" onclick="deleteFloorBg('${fpId}');showFloorPlanProps('${fpId}')">${_t('删除背景图')}</button>`;
-  } else {
-    html+=`<button class="props-btn" onclick="uploadFloorBg('${fpId}')" style="flex:1;">${_t('上传背景图')}</button>`;
+    <div class="props-field"><span class="props-label">${_t('楼层名称（导出文件名）')}</span>${nameHTML}</div>
+    <div class="props-field"><span class="props-label">${_t('背景图透明度')}</span><div class="props-row"><input type="range" class="props-range" min="0.05" max="1" step="0.05" value="${bgOpacity}" ${hasBg?'':'disabled'} oninput="updateFloorBgOpacity('${fpId}',parseFloat(this.value));this.nextElementSibling.textContent=Math.round(this.value*100)+'%'"><span class="props-range-val">${Math.round(bgOpacity*100)}%</span></div></div>`;
+  if(!isRO){
+    html+=`<div class="props-field" style="flex-direction:row;gap:6px;">`;
+    if(hasBg){
+      html+=`<button class="props-btn props-btn-warn" onclick="deleteFloorBg('${fpId}');showFloorPlanProps('${fpId}')" style="flex:1;">${_t('移除背景')}</button>`;
+    } else {
+      html+=`<button class="props-btn" onclick="uploadFloorBg('${fpId}')" style="flex:1;">${_t('上传背景图')}</button>`;
+    }
+    html+=`</div>`;
   }
-  html+=`</div>
-    <div class="props-field"><span class="props-label">${_t('统计')}</span><div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">${_t('设备')} ${deviceCount} · ${_t('走线')} ${routeCount} · ${_t('区域')} ${areaCount}</div></div>`+renderDisplaySettingsHTML()+`
-    <button class="btn-delete" onclick="deleteFloorPlan('${fpId}')">${_t('删除楼层')}</button>`;
+  html+=`
+    <div class="props-field"><span class="props-label">${_t('统计')}</span><div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">${_t('设备')} ${deviceCount} · ${_t('走线')} ${routeCount} · ${_t('区域')} ${areaCount}</div></div>`+renderDisplaySettingsHTML();
+  if(!isRO){
+    html+=`<button class="btn-delete" onclick="deleteFloorPlan('${fpId}')">${_t('删除楼层')}</button>`;
+  }
 
   document.getElementById('propsContent').innerHTML=html;
 }
@@ -2003,15 +2040,22 @@ function computeNextTopoPosition(){
 }
 
 // Re-layout all floor-plan nodes to compact grid positions in topology view
+// Only nodes with actual placements on floor plans participate;
+// topology-only devices (主机, 合路平台 etc.) are excluded.
 function relayoutFloorNodesTopo(){
-  const floorNodes=nodes.filter(n=>n.floor_id);
+  // Build authoritative set from actual placements (not stale floor_id)
+  const placedNodeIds=new Set();
+  floorPlans.forEach(fp=>{fp.placements.forEach(p=>placedNodeIds.add(p.node_id))});
+  const floorNodes=nodes.filter(n=>placedNodeIds.has(n.id));
   if(!floorNodes.length)return;
   pushHistory();
+  // Sync floor_id for consistency
+  syncFloorAreaLabels();
 
   const gapH=NODE_SIZE+100; // horizontal gap between chain columns
   const gapV=NODE_SIZE+50;  // vertical gap between leaf rows (also used for floor spacing)
 
-  const topoNodes=nodes.filter(n=>!n.floor_id);
+  const topoNodes=nodes.filter(n=>!placedNodeIds.has(n.id));
   let startX=200,startY=200;
   if(topoNodes.length){
     startX=Math.min(...topoNodes.map(n=>n.x));
@@ -2220,6 +2264,28 @@ function relayoutFloorNodesTopo(){
 
     // Next floor Y: 1.5x gapV between floors for clearer separation
     curY=chainY+tiersBelow*gapV+gapV*1.5;
+  });
+
+  // Update ports for cross-view edges (floor node ↔ topology node like 主机/合路平台)
+  edges.forEach(e=>{
+    const sFloor=placedNodeIds.has(e.sourceId), tFloor=placedNodeIds.has(e.targetId);
+    if(sFloor===tFloor)return; // both floor (handled above) or both topo (not our concern)
+    const src=nodes.find(n=>n.id===e.sourceId);
+    const tgt=nodes.find(n=>n.id===e.targetId);
+    if(!src||!tgt)return;
+    // Topology node is above floor nodes → use top/bottom ports
+    const floorN=sFloor?src:tgt;
+    const topoN=sFloor?tgt:src;
+    if(topoN.y+NODE_SIZE<=floorN.y){
+      e.sourcePort=sFloor?'top':'bottom';
+      e.targetPort=sFloor?'bottom':'top';
+    }else{
+      const leftIsSource=src.x<=tgt.x;
+      e.sourcePort=leftIsSource?'right':'left';
+      e.targetPort=leftIsSource?'left':'right';
+    }
+    e.routeMode='ortho2';
+    delete e.midPos;
   });
 
   hasUnsavedChanges=true;

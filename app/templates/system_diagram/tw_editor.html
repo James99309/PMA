@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ _('系统图编辑器') }} — {{ diagram_name }}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap">
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>tailwind.config={darkMode:"class",theme:{extend:{colors:{"primary":"#137fec"}}}}</script>
 <style>
   /* ── Theme Variables ── */
   :root, html.light {
@@ -94,7 +96,16 @@
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif;background:var(--bg-canvas);color:var(--text-primary);overflow:hidden;height:100vh}
 
   /* ── Left Panel ── */
-  .panel{width:280px;background:var(--bg-panel);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;flex-shrink:0}
+  .panel{width:280px;background:var(--bg-panel);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;flex-shrink:0;transition:margin-left .3s ease,opacity .3s ease}
+  .panel.collapsed{margin-left:-280px;opacity:0;pointer-events:none}
+  .panel-toggle svg{transition:transform .3s}
+  .panel.collapsed ~ .canvas-wrapper .panel-toggle svg{transform:rotate(180deg)}
+  .panel-backdrop{display:none;position:fixed;inset:0;z-index:45;background:rgba(0,0,0,.3)}
+  @media(max-width:767px){
+    .panel{position:fixed;left:0;top:0;bottom:0;z-index:50;box-shadow:4px 0 12px rgba(0,0,0,.15)}
+    .panel.collapsed{margin-left:-280px}
+    .panel-backdrop.visible{display:block}
+  }
   .panel-header{padding:16px;border-bottom:1px solid var(--border)}
   .panel-search{width:100%;padding:8px 12px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none}
   .panel-search:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.2)}
@@ -332,10 +343,13 @@
       </div>
     </div>
   </div>
+  <div class="panel-backdrop" id="panelBackdrop"></div>
 
   <!-- 中间画布 -->
   <div class="canvas-wrapper" id="canvasWrapper">
     <div class="canvas-toolbar" {% if read_only|default(false) %}style="display:none"{% endif %}>
+      <button class="panel-toggle" id="panelToggle" title="{{ _('显示/隐藏产品面板') }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg></button>
+      <div style="width:1px;height:24px;background:var(--border);margin:0 2px;"></div>
       <button id="btnSelect" class="active" onclick="setTool('select')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>{{ _('选择') }}</button>
       <button id="btnConnect" onclick="setTool('connect')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>{{ _('连线') }}</button>
       <button id="btnText" onclick="addTextNode()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>{{ _('标注') }}</button>
@@ -348,10 +362,9 @@
       <div style="width:1px;height:24px;background:var(--border);margin:0 2px;"></div>
       <!-- 平面图工具（仅楼层视图时显示） -->
       <div class="floor-tools" id="floorPlanTools">
-        <button onclick="uploadFloorBg(currentView)" title="{{ _('上传背景图') }}"><span class="material-symbols-outlined" style="font-size:16px;">image</span>{{ _('背景图') }}</button>
+        <button id="btnFloorBgToggle" onclick="toggleFloorBg(currentView)" title="{{ _('背景图') }}"><span class="material-symbols-outlined" style="font-size:16px;">image</span><span id="btnFloorBgLabel">{{ _('背景图') }}</span></button>
         <button id="btnAreaTool" onclick="setTool('area')" title="{{ _('绘制区域') }}"><span class="material-symbols-outlined" style="font-size:16px;">crop_free</span>{{ _('区域') }}</button>
         <button id="btnCalibrate" onclick="setTool('calibrate')" title="{{ _('标定尺寸') }}"><span class="material-symbols-outlined" style="font-size:16px;">straighten</span>{{ _('标定') }}</button>
-        <button onclick="deleteFloorBg(currentView)" title="{{ _('删除背景图') }}"><span class="material-symbols-outlined" style="font-size:16px;">delete</span>{{ _('删除背景') }}</button>
       </div>
     </div>
     <!-- 视图标签栏 -->
@@ -377,7 +390,9 @@
         {% endif %}
       </div>
       {% endif %}
+      {% if not read_only|default(false) %}
       <div style="position:relative;"><button class="btn-export" onclick="toggleExportMenu()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>{{ _('导出') }} ▾</button><div id="exportMenu" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--popup-bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--popup-shadow);min-width:160px;z-index:30;overflow:hidden;"><div style="padding:6px 14px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:11px;color:var(--text-muted);" onclick="event.stopPropagation()"><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="color" checked onchange="exportBlackMode=false" style="margin:0;width:12px;height:12px;">{{ _('原色') }}</label><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="black" onchange="exportBlackMode=true" style="margin:0;width:12px;height:12px;">{{ _('黑色') }}</label></div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="exportSVG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>SVG {{ _('矢量图') }}</div><div onclick="exportPNG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>PNG {{ _('位图') }} (2x)</div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="startCropExport()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="4,2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>{{ _('框选导出') }} PNG</div></div></div>
+      {% endif %}
       {% if not read_only|default(false) %}<button class="btn-save" id="btnSave" onclick="saveDiagram()">{{ _('保存') }}</button>{% endif %}
     </div>
     <svg id="diagramCanvas" xmlns="http://www.w3.org/2000/svg">
@@ -416,7 +431,7 @@
   </div>
 
   <!-- 右侧属性面板 -->
-  <div class="props-panel" id="propsPanel" {% if read_only|default(false) %}style="display:none !important"{% endif %}><div class="props-title" id="propsTitle">{{ _('属性') }}</div><div id="propsContent"></div></div>
+  <div class="props-panel" id="propsPanel"><div class="props-title" id="propsTitle">{{ _('属性') }}</div><div id="propsContent"></div></div>
 </div>
 <div class="toast" id="toast"></div>
 {% if not read_only|default(false) %}
@@ -462,6 +477,21 @@
   </div>
 </div>
 
+<!-- 通用确认弹窗 -->
+<div id="sdConfirmModal" class="fixed inset-0 z-[9999] hidden items-center justify-center" style="background:rgba(0,0,0,.45);backdrop-filter:blur(4px);">
+  <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-7 max-w-sm w-[90%] shadow-2xl text-center">
+    <div class="mb-4">
+      <span id="sdConfirmIcon" class="material-symbols-outlined text-5xl text-amber-500">warning</span>
+    </div>
+    <div id="sdConfirmTitle" class="text-base font-semibold text-slate-900 dark:text-white mb-2"></div>
+    <div id="sdConfirmMsg" class="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed"></div>
+    <div class="flex gap-3 justify-center">
+      <button id="sdConfirmCancel" class="flex-1 py-2.5 px-4 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl text-slate-600 dark:text-slate-300 text-sm cursor-pointer transition-colors hover:bg-slate-200 dark:hover:bg-slate-600">{{ _('取消') }}</button>
+      <button id="sdConfirmOk" class="flex-1 py-2.5 px-4 bg-red-500 border-none rounded-xl text-white text-sm font-medium cursor-pointer transition-colors hover:bg-red-600">{{ _('确认') }}</button>
+    </div>
+  </div>
+</div>
+
 <!-- PDF 页面选择弹窗 -->
 <div id="pdfPageSelector" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
   <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;padding:0;max-width:680px;width:92%;max-height:85vh;box-shadow:0 20px 60px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;">
@@ -487,105 +517,21 @@
 </div>
 
 {% if not external_mode|default(false) %}
-<!-- 分享弹窗 -->
-<div id="shareModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
-  <div style="background:var(--bg-panel);border:1px solid var(--border);border-radius:16px;padding:28px 32px 24px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-      <div style="font-size:16px;font-weight:600;color:var(--text-primary);">{{ _('分享系统设计图') }}</div>
-      <button onclick="closeShareModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:4px;font-size:18px;">✕</button>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:14px;">
-      <div>
-        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px;font-weight:500;">{{ _('收件邮箱') }}</label>
-        <input type="email" id="shareEmail" placeholder="recipient@email.com" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
-      </div>
-      <div>
-        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px;font-weight:500;">{{ _('权限') }}</label>
-        <select id="sharePermission" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
-          <option value="edit" selected>{{ _('可编辑') }}</option>
-          <option value="view">{{ _('仅查看') }}</option>
-        </select>
-      </div>
-      <div>
-        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px;font-weight:500;">{{ _('有效期') }}</label>
-        <select id="shareExpiry" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:13px;outline:none;">
-          <option value="24">24 {{ _('小时') }}</option>
-          <option value="48">48 {{ _('小时') }}</option>
-          <option value="72" selected>72 {{ _('小时') }} ({{ _('默认') }})</option>
-          <option value="168">7 {{ _('天') }}</option>
-          <option value="720">30 {{ _('天') }}</option>
-        </select>
-      </div>
-      <button id="shareSubmitBtn" onclick="submitShare()" style="width:100%;padding:11px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s;">{{ _('发送并生成链接') }}</button>
-      <div id="shareResult" style="display:none;">
-        <div style="height:1px;background:var(--border);margin:4px 0 12px;"></div>
-        <label style="display:block;font-size:12px;color:var(--text-secondary);margin-bottom:5px;font-weight:500;">{{ _('分享链接') }}</label>
-        <div style="display:flex;gap:6px;">
-          <input type="text" id="shareUrlDisplay" readonly style="flex:1;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;outline:none;font-family:monospace;">
-          <button onclick="copyShareUrl()" style="padding:10px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-size:12px;cursor:pointer;white-space:nowrap;">{{ _('复制') }}</button>
-        </div>
-        <div id="shareCopiedMsg" style="display:none;font-size:11px;color:#22c55e;margin-top:4px;text-align:center;">✓ {{ _('已复制到剪贴板') }}</div>
-      </div>
-      <div id="shareError" style="display:none;font-size:12px;color:#dc2626;text-align:center;"></div>
-    </div>
-  </div>
-</div>
+{% from 'components/tw_diagram_share_modal.html' import render_diagram_share_modal, render_diagram_share_script %}
+{{ render_diagram_share_modal(title='分享系统设计图', show_permission=true) }}
+{{ render_diagram_share_script(
+    csrf_token_expr='DIAGRAM_CONFIG.csrfToken',
+    api_url=url_for("system_diagram.api_create_share"),
+    show_permission=true
+) }}
 <script>
-function openShareModal(){
-  document.getElementById('shareModal').style.display='flex';
-  document.getElementById('shareResult').style.display='none';
-  document.getElementById('shareError').style.display='none';
-  document.getElementById('shareEmail').value='';
-  document.getElementById('sharePermission').value='edit';
-  document.getElementById('shareEmail').focus();
+function _diagramShareExtraData() {
+    return {
+        projectName: document.getElementById('diagramNameInput').value.trim(),
+        sourceDiagramId: DIAGRAM_CONFIG.diagramId || null
+    };
 }
-function closeShareModal(){document.getElementById('shareModal').style.display='none'}
-function submitShare(){
-  const email=document.getElementById('shareEmail').value.trim();
-  if(!email||!email.includes('@')){
-    document.getElementById('shareError').textContent='{{ _("请输入有效的邮箱地址") }}';
-    document.getElementById('shareError').style.display='block';return;
-  }
-  const btn=document.getElementById('shareSubmitBtn');
-  btn.disabled=true;btn.textContent='{{ _("发送中...") }}';
-  document.getElementById('shareError').style.display='none';
-  const projectName=document.getElementById('diagramNameInput').value.trim();
-  fetch('{{ url_for("system_diagram.api_create_share") }}',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','X-CSRFToken':DIAGRAM_CONFIG.csrfToken},
-    body:JSON.stringify({
-      email:email,
-      permission:document.getElementById('sharePermission').value,
-      expiresHours:parseInt(document.getElementById('shareExpiry').value),
-      projectName:projectName,
-      sourceDiagramId:DIAGRAM_CONFIG.diagramId||null
-    })
-  }).then(r=>r.json()).then(data=>{
-    if(data.success){
-      document.getElementById('shareUrlDisplay').value=data.shareUrl;
-      document.getElementById('shareResult').style.display='block';
-      if(data.emailSent){showToast('✓ {{ _("分享链接已生成，邮件已发送") }}')}
-      else{showToast('✓ {{ _("分享链接已生成（邮件发送失败，请手动复制链接）") }}')}
-    }else{
-      document.getElementById('shareError').textContent=data.message||'{{ _("操作失败") }}';
-      document.getElementById('shareError').style.display='block';
-    }
-  }).catch(err=>{
-    document.getElementById('shareError').textContent='{{ _("网络错误") }}: '+err.message;
-    document.getElementById('shareError').style.display='block';
-  }).finally(()=>{
-    btn.disabled=false;btn.textContent='{{ _("发送并生成链接") }}';
-  });
-}
-function copyShareUrl(){
-  const url=document.getElementById('shareUrlDisplay').value;
-  navigator.clipboard.writeText(url).then(()=>{
-    const msg=document.getElementById('shareCopiedMsg');
-    msg.style.display='block';
-    setTimeout(()=>{msg.style.display='none'},2000);
-  });
-}
-document.getElementById('shareModal').addEventListener('click',function(e){if(e.target===this)closeShareModal()});
+function openShareModal() { openDiagramShareModal(); }
 </script>
 {% endif %}
 
@@ -753,12 +699,16 @@ window.SD_I18N = {
   '背景图已上传': {zh:'背景图已上传',en:'Background uploaded'},
   '上传失败': {zh:'上传失败',en:'Upload failed'},
   '确定删除背景图？': {zh:'确定删除背景图？',en:'Delete background image?'},
+  '确定移除当前楼层的背景图？': {zh:'确定移除当前楼层的背景图？',en:'Remove background image from this floor?'},
+  '移除': {zh:'移除',en:'Remove'},
   '请先保存系统图': {zh:'请先保存系统图',en:'Save diagram first'},
   '背景图已删除': {zh:'背景图已删除',en:'Background deleted'},
   '删除失败': {zh:'删除失败',en:'Delete failed'},
   '楼层属性': {zh:'楼层属性',en:'Floor Properties'},
   '楼层名称（导出文件名）': {zh:'楼层名称（导出文件名）',en:'Floor name (export filename)'},
   '背景图透明度': {zh:'背景图透明度',en:'BG Opacity'},
+  '背景图': {zh:'背景图',en:'Background'},
+  '移除背景': {zh:'移除背景',en:'Remove BG'},
   '更换背景图': {zh:'更换背景图',en:'Change Background'},
   '删除背景图': {zh:'删除背景图',en:'Delete Background'},
   '上传背景图': {zh:'上传背景图',en:'Upload Background'},
