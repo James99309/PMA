@@ -822,8 +822,9 @@ def project_list_ajax():
         }), 500
 
 def get_project_contributors(project_id, exclude_user_ids=None):
-    """从工作项和跟进记录中自动发现项目参与者"""
+    """从工作项、跟进记录和任务分配中自动发现项目参与者"""
     from app.models.worklog import WorkItem
+    from app.models.task import Task as GeneralTask
     from app.utils.dictionary_helpers import get_role_display_name
     exclude_ids = set(exclude_user_ids or [])
 
@@ -863,6 +864,24 @@ def get_project_contributors(project_id, exclude_user_ids=None):
         Action.project_id == project_id
     ).group_by(Action.owner_id).all()
 
+    # 聚合 Task 分配数据（创建者和被指派人）
+    task_user_ids = set()
+    try:
+        task_rows = db.session.query(
+            GeneralTask.assignee_id, GeneralTask.creator_id
+        ).filter(
+            GeneralTask.project_id == project_id,
+            GeneralTask.is_deleted == False,
+            GeneralTask.status.in_(['pending', 'in_progress', 'completed'])
+        ).all()
+        for row in task_rows:
+            if row.assignee_id and row.assignee_id not in exclude_ids:
+                task_user_ids.add(row.assignee_id)
+            if row.creator_id and row.creator_id not in exclude_ids:
+                task_user_ids.add(row.creator_id)
+    except Exception:
+        pass
+
     # 合并到字典
     user_data = {}
     for row in wi_stats:
@@ -900,6 +919,14 @@ def get_project_contributors(project_id, exclude_user_ids=None):
                 'total_hours': 0, 'last_activity': None
             }
         user_data[uid]['workitem_count'] += count
+
+    # 将任务分配用户加入（确保至少出现在列表中）
+    for uid in task_user_ids:
+        if uid not in user_data:
+            user_data[uid] = {
+                'workitem_count': 0, 'action_count': 1,  # 算作1次参与
+                'total_hours': 0, 'last_activity': None
+            }
 
     if not user_data:
         return []
