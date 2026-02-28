@@ -572,7 +572,15 @@ function getZoomLimits(){
   return{min:0.05,max:5};
 }
 function zoomCanvas(f,cx,cy){const old=scale;const limits=getZoomLimits();scale=Math.max(limits.min,Math.min(limits.max,scale*f));if(cx!==undefined){const r=wrapper.getBoundingClientRect();const mx=cx-r.left,my=cy-r.top;viewX=mx-(mx-viewX)*(scale/old);viewY=my-(my-viewY)*(scale/old)}updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale)}
+let _fitViewRetries=0;
 function fitView(){
+  const cw=wrapper.clientWidth,ch=wrapper.clientHeight;
+  // If wrapper has no dimensions yet (page still laying out), retry
+  if(cw<50||ch<50){
+    if(_fitViewRetries<10){_fitViewRetries++;requestAnimationFrame(()=>setTimeout(fitView,50));return}
+    _fitViewRetries=0;return resetZoom();
+  }
+  _fitViewRetries=0;
   const pad=80;let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
   if(currentView==='topology'){
     if(!nodes.length&&!topoAreas.length)return resetZoom();
@@ -586,7 +594,7 @@ function fitView(){
     if(fp.placements&&fp.placements.length){fp.placements.forEach(pl=>{const n=nodes.find(nd=>nd.id===pl.node_id);if(n){x1=Math.min(x1,pl.x);y1=Math.min(y1,pl.y);x2=Math.max(x2,pl.x+n.w);y2=Math.max(y2,pl.y+n.h+30)}})}
     if(x1===Infinity)return resetZoom();
   }
-  const cw=wrapper.clientWidth,ch=wrapper.clientHeight,dw=x2-x1+pad*2,dh=y2-y1+pad*2;const limits=getZoomLimits();scale=Math.max(limits.min,Math.min(cw/dw,ch/dh,limits.max));viewX=(cw-dw*scale)/2-x1*scale+pad*scale;viewY=(ch-dh*scale)/2-y1*scale+pad*scale;updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale);
+  const dw=x2-x1+pad*2,dh=y2-y1+pad*2;const limits=getZoomLimits();scale=Math.max(limits.min,Math.min(cw/dw,ch/dh,limits.max));viewX=(cw-dw*scale)/2-x1*scale+pad*scale;viewY=(ch-dh*scale)/2-y1*scale+pad*scale;updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale);
 }
 function resetZoom(){scale=1;viewX=0;viewY=0;updateTransform();document.getElementById('zoomLevel').textContent='100%';if(typeof onScaleChanged==='function')onScaleChanged(scale)}
 function updateTransform(){document.getElementById('canvasGroup').setAttribute('transform',`translate(${viewX},${viewY}) scale(${scale})`);updateMinimap()}
@@ -1248,7 +1256,7 @@ async function loadDiagram(){
         if(nameEl.tagName==='INPUT')nameEl.value=result.diagram.name||'';else nameEl.textContent=result.diagram.name||'';
         if(result.diagram.diagramData&&Object.keys(result.diagram.diagramData).length>0){
           deserializeDiagram(result.diagram.diagramData);
-          setTimeout(fitView,100);
+          requestAnimationFrame(()=>setTimeout(fitView,50));
         }
       }
     }catch(err){console.error('加载系统图失败:',err)}
@@ -1262,7 +1270,7 @@ async function loadDiagram(){
       const nameEl2=document.getElementById('diagramNameInput');
       if(nameEl2.tagName==='INPUT')nameEl2.value=result.diagram.name||'';else nameEl2.textContent=result.diagram.name||'';
       deserializeDiagram(result.diagram.diagramData);
-      setTimeout(fitView,100);
+      requestAnimationFrame(()=>setTimeout(fitView,50));
     }
   }catch(err){console.error('加载系统图失败:',err)}
 }
