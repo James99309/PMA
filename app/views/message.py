@@ -104,8 +104,14 @@ def get_panel_data():
                 'related_object_id': ann.id
             })
 
-        # 按时间倒序排列混合列表
-        mention_list.sort(key=lambda x: x.get('created_at') or '', reverse=True)
+        # 按优先级排序：worklog_submitted 优先级最低，排在最后；其余按时间倒序
+        LOW_PRIORITY_TYPES = {'worklog_submitted'}
+        mention_list.sort(
+            key=lambda x: (
+                1 if x.get('message_type') in LOW_PRIORITY_TYPES else 0,
+                -(datetime.fromisoformat(x['created_at']).timestamp() if x.get('created_at') else 0)
+            )
+        )
 
         # 3. 获取待审批记录（实时查询）
         pending_approvals = get_user_pending_approvals(current_user.id, page=1, per_page=20)

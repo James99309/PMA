@@ -7,8 +7,8 @@ threads = 4
 worker_class = "gthread"
 timeout = 300
 preload_app = True
-max_requests = 500
-max_requests_jitter = 50
+max_requests = 1000
+max_requests_jitter = 100
 
 
 def post_fork(server, worker):

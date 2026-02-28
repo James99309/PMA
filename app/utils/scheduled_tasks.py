@@ -276,6 +276,35 @@ def run_weekly_citation_coefficient_update():
         logger.error(f"[{datetime.now()}] 引用系数更新失败: {str(e)}")
 
 
+def cleanup_old_worklog_notifications():
+    """
+    清理超过1天的 worklog_submitted 通知消息。
+    这类通知量大且无人阅读，定时标为已读防止堆积。
+    """
+    try:
+        from app import create_app, db
+        from app.models.message import Message
+        from datetime import timedelta
+
+        app = create_app()
+        with app.app_context():
+            cutoff = datetime.now() - timedelta(days=1)
+            result = db.session.execute(
+                db.text(
+                    "UPDATE messages SET is_read = true, read_at = NOW() "
+                    "WHERE message_type = 'worklog_submitted' AND is_read = false "
+                    "AND created_at < :cutoff"
+                ),
+                {'cutoff': cutoff}
+            )
+            db.session.commit()
+            count = result.rowcount
+            if count > 0:
+                logger.info(f"[{datetime.now()}] 已清理 {count} 条过期工作日志通知")
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] 工作日志通知清理失败: {str(e)}")
+
+
 def start_scheduler(run_time="01:00"):
     """
     启动定时任务调度器
@@ -310,6 +339,10 @@ def start_scheduler(run_time="01:00"):
     # 引用系数每周更新
     schedule.every().monday.at("05:00").do(run_weekly_citation_coefficient_update)
     logger.info("引用系数更新任务已注册: 每周一 05:00")
+
+    # 工作日志通知清理（每天凌晨 00:30 清理超过1天的 worklog_submitted）
+    schedule.every().day.at("00:30").do(cleanup_old_worklog_notifications)
+    logger.info("工作日志通知清理任务已注册: 每日 00:30")
 
     # 备份相关任务
     backup_time = os.getenv('BACKUP_AUTO_TIME', '03:00')

@@ -442,7 +442,7 @@ def _get_task_linked_ids(user_id, field='project_id'):
     return db.session.query(target_field).filter(
         target_field.isnot(None),
         GeneralTask.is_deleted == False,
-        GeneralTask.status.in_(['pending', 'in_progress']),
+        GeneralTask.status.in_(['pending', 'in_progress', 'completed']),
         db.or_(GeneralTask.assignee_id == user_id, GeneralTask.creator_id == user_id)
     ).distinct()
 
@@ -1510,7 +1510,7 @@ def can_view_quotation(user, quotation):
         is_task_linked = GeneralTask.query.filter(
             GeneralTask.quotation_id == quotation.id,
             GeneralTask.is_deleted == False,
-            GeneralTask.status.in_(['pending', 'in_progress']),
+            GeneralTask.status.in_(['pending', 'in_progress', 'completed']),
             db.or_(GeneralTask.assignee_id == user.id, GeneralTask.creator_id == user.id)
         ).first() is not None
         if is_task_linked:
@@ -1802,7 +1802,7 @@ def can_view_project(user, project):
         is_task_linked = GeneralTask.query.filter(
             GeneralTask.project_id == project.id,
             GeneralTask.is_deleted == False,
-            GeneralTask.status.in_(['pending', 'in_progress']),
+            GeneralTask.status.in_(['pending', 'in_progress', 'completed']),
             db.or_(GeneralTask.assignee_id == user.id, GeneralTask.creator_id == user.id)
         ).first() is not None
         if is_task_linked:
