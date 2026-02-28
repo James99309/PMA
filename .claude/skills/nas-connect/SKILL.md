@@ -40,10 +40,9 @@ Connect to PMA production NAS servers via Tailscale SSH for deployment, monitori
 
 ## When Invoked
 
-1. **Ask the user which NAS to connect to** using AskUserQuestion:
-   - SG NAS (Singapore / OVS)
-   - CN NAS (China / SP8D)
-   - Both (execute on both servers)
+1. **Ask the user which NAS to connect to** using plain text (DO NOT use AskUserQuestion tool, as it blocks remote/mobile clients):
+   - Simply ask: "要连接哪台 NAS？1) SG NAS  2) CN NAS  3) 两台都连"
+   - Wait for user text reply
 
 2. **Verify connectivity** before executing any commands:
    ```bash
