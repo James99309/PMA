@@ -99,7 +99,7 @@ function getFloorPlansForSave(){
     calibration:fp.calibration||null,
     placements:fp.placements.map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1,labelPosition:p.labelPosition||null})),
     routes:(fp.routes||[]).map(r=>{const o={id:r.id,sourceNodeId:r.sourceNodeId,targetNodeId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort,cableType:r.cableType,routeMode:r.routeMode,midPos:r.midPos,color:r.color,width:r.width,dash:r.dash,label:r.label,linked_edge_id:r.linked_edge_id||null,_userPorts:r._userPorts||false};if(r.waypoints&&r.waypoints.length)o.waypoints=r.waypoints;return o}),
-    areas:(fp.areas||[]).map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,is_riser:a.is_riser||false,_riser_node_id:a._riser_node_id||null})),
+    areas:(fp.areas||[]).map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,is_riser:a.is_riser||false,area_type:a.area_type||'normal',_riser_node_id:a._riser_node_id||null})),
     risers:(fp.risers||[]).map(r=>({id:r.id,node_id:r.node_id,edge_id:r.edge_id,target_floor_label:r.target_floor_label,x:r.x,y:r.y})),
     viewX:fp.viewX||0, viewY:fp.viewY||0, scale:fp.scale||1
   }));
@@ -238,10 +238,24 @@ function renderFloorBackground(fp){
 }
 
 // ====== AREAS ======
-function renderFloorAreas(fp){
-  if(!fp.areas||!fp.areas.length)return;
+const AREA_TYPES={
+  normal:{label:{zh:'普通',en:'Normal'},icon:''},
+  riser:{label:{zh:'弱电井',en:'Riser'},icon:'\u26A1'},
+  central_room:{label:{zh:'中心机房',en:'Equipment Room'},icon:'\uD83C\uDFE2'}
+};
+
+// Get the areas array for the current view (topology or floor plan)
+function getAreaStorage(){
+  if(currentView==='topology')return topoAreas;
+  const fp=getFloorPlan(currentView);
+  return fp?(fp.areas||(fp.areas=[])):null;
+}
+
+function renderAreas(areas){
+  if(!areas||!areas.length)return;
   const layer=document.getElementById('edgesLayer');
-  fp.areas.forEach(area=>{
+  areas.forEach(area=>{
+    const atype=area.area_type||((area.is_riser)?'riser':'normal');
     const isSel=selectedAreaId===area.id;
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
     g.setAttribute('class',`floor-area${isSel?' selected':''}`);g.dataset.areaId=area.id;
@@ -268,14 +282,17 @@ function renderFloorAreas(fp){
     cl.style.pointerEvents='none';cl.style.userSelect='none';
     cl.textContent=area.label;g.appendChild(cl);
 
-    // Riser icon
-    if(area.is_riser){
+    // Area type icon (riser / central_room)
+    const typeInfo=AREA_TYPES[atype];
+    if(typeInfo&&typeInfo.icon){
       const ri=document.createElementNS('http://www.w3.org/2000/svg','text');
       ri.setAttribute('x',area.x+12);ri.setAttribute('y',area.y+14);
       ri.setAttribute('font-size','11');ri.setAttribute('fill',area.color||'#3b82f6');
       ri.setAttribute('fill-opacity','0.6');ri.style.pointerEvents='none';
-      ri.textContent='\u26A1';g.appendChild(ri);
-      // Dashed border for riser areas
+      ri.textContent=typeInfo.icon;g.appendChild(ri);
+    }
+    // Dashed border for special area types
+    if(atype!=='normal'){
       rect.setAttribute('stroke',area.color||'#3b82f6');
       rect.setAttribute('stroke-width',1.5);
       rect.setAttribute('stroke-dasharray','6 3');
@@ -287,7 +304,7 @@ function renderFloorAreas(fp){
       const li=document.createElementNS('http://www.w3.org/2000/svg','text');
       li.setAttribute('x',area.x+area.width-14);li.setAttribute('y',area.y+14);
       li.setAttribute('font-size','10');li.setAttribute('fill',area.color||'#3b82f6');
-      li.setAttribute('fill-opacity','0.5');li.textContent='🔒';
+      li.setAttribute('fill-opacity','0.5');li.textContent='\uD83D\uDD12';
       g.appendChild(li);
     }
 
@@ -335,36 +352,62 @@ function renderFloorAreas(fp){
   });
 }
 
+// Backward-compatible wrapper for floor plan view
+function renderFloorAreas(fp){ renderAreas(fp.areas); }
+
 function showAreaProps(areaId){
-  const fp=getFloorPlan(currentView);if(!fp)return;
-  const area=fp.areas.find(a=>a.id===areaId);if(!area)return;
+  const areas=getAreaStorage();if(!areas)return;
+  const area=areas.find(a=>a.id===areaId);if(!area)return;
+  const atype=area.area_type||(area.is_riser?'riser':'normal');
   const panel=document.getElementById('propsPanel');
   panel.classList.add('visible');
   document.getElementById('propsTitle').textContent=_t('区域属性');
+  const typeOptions=Object.entries(AREA_TYPES).map(([k,v])=>`<option value="${k}"${k===atype?' selected':''}>${_m(v.label)}</option>`).join('');
   document.getElementById('propsContent').innerHTML=`
     <div class="props-field"><span class="props-label">${_t('名称')}</span><input class="props-input" value="${area.label}" oninput="updateAreaProp(${areaId},'label',this.value)"></div>
+    <div class="props-field"><span class="props-label">${_t('类型')}</span><select class="props-input" onchange="changeAreaType(${areaId},this.value)">${typeOptions}</select></div>
     <div class="props-field"><span class="props-label">${_t('颜色')}</span><div class="props-row"><input type="color" class="props-color" value="${area.color||'#3b82f6'}" oninput="updateAreaProp(${areaId},'color',this.value)"><input class="props-input" style="flex:1;font-family:monospace;font-size:11px;" value="${area.color||'#3b82f6'}" oninput="updateAreaProp(${areaId},'color',this.value)"></div></div>
     <div class="props-field"><span class="props-label">${_t('透明度')}</span><div class="props-row"><input type="range" class="props-range" min="0.02" max="0.3" step="0.02" value="${area.opacity||0.08}" oninput="updateAreaProp(${areaId},'opacity',parseFloat(this.value));this.nextElementSibling.textContent=Math.round(this.value*100)+'%'"><span class="props-range-val">${Math.round((area.opacity||0.08)*100)}%</span></div></div>
     <div class="props-field"><span class="props-label">${_t('位置')}</span><input class="props-input" value="${Math.round(area.x)}, ${Math.round(area.y)} — ${Math.round(area.width)}×${Math.round(area.height)}" disabled></div>
-    <div class="props-field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" ${area.is_riser?'checked':''} onchange="toggleRiser(${areaId},this.checked)"><span class="props-label" style="margin:0;">${_t('弱电井')}</span></label></div>
     <div class="props-field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" ${area.locked?'checked':''} onchange="updateAreaProp(${areaId},'locked',this.checked)"><span class="props-label" style="margin:0;">${_t('锁定区域')}</span></label></div>
     <button class="btn-delete" onclick="deleteArea(${areaId})">${_t('删除区域')}</button>`;
 }
 
+function changeAreaType(areaId,newType){
+  const areas=getAreaStorage();if(!areas)return;
+  const area=areas.find(a=>a.id===areaId);if(!area)return;
+  pushHistoryProp();
+  const oldType=area.area_type||(area.is_riser?'riser':'normal');
+  area.area_type=newType;
+  // Backward compat: sync is_riser flag
+  area.is_riser=(newType==='riser');
+  // Floor plan riser node logic
+  if(currentView!=='topology'){
+    const fp=getFloorPlan(currentView);
+    if(fp){
+      if(oldType==='riser'&&newType!=='riser')removeRiserNode(fp,area);
+      if(oldType!=='riser'&&newType==='riser')toggleRiser(areaId,true);
+    }
+  }
+  hasUnsavedChanges=true;if(currentView!=='topology')syncFloorAreaLabels();renderAll();showAreaProps(areaId);
+}
+
 function updateAreaProp(areaId,prop,val){
-  const fp=getFloorPlan(currentView);if(!fp)return;
-  const area=fp.areas.find(a=>a.id===areaId);if(!area)return;
+  const areas=getAreaStorage();if(!areas)return;
+  const area=areas.find(a=>a.id===areaId);if(!area)return;
   pushHistoryProp();area[prop]=val;hasUnsavedChanges=true;
-  syncFloorAreaLabels();renderAll();
+  if(currentView!=='topology')syncFloorAreaLabels();
+  renderAll();
 }
 
 function deleteArea(areaId){
   if(DIAGRAM_CONFIG.readOnly)return;
-  const fp=getFloorPlan(currentView);if(!fp)return;
-  const area=fp.areas.find(a=>a.id===areaId);
-  if(area&&area.is_riser)removeRiserNode(fp,area);
-  pushHistory();fp.areas=fp.areas.filter(a=>a.id!==areaId);
-  selectedAreaId=null;syncFloorAreaLabels();hasUnsavedChanges=true;renderAll();hideProps();
+  const areas=getAreaStorage();if(!areas)return;
+  const area=areas.find(a=>a.id===areaId);
+  if(area&&area.is_riser&&currentView!=='topology'){const fp=getFloorPlan(currentView);if(fp)removeRiserNode(fp,area)}
+  pushHistory();
+  const idx=areas.indexOf(area);if(idx>=0)areas.splice(idx,1);
+  selectedAreaId=null;if(currentView!=='topology')syncFloorAreaLabels();hasUnsavedChanges=true;renderAll();hideProps();
   showToast(_t('已删除区域'));
 }
 
@@ -2070,29 +2113,27 @@ function relayoutFloorNodesTopo(){
   const topoNodes=nodes.filter(n=>!placedNodeIds.has(n.id));
   let startX=200,startY=200;
   if(topoNodes.length){
+    // Find topology nodes that connect to floor devices (cross-view edges)
+    const crossTopoXs=[];
+    edges.forEach(e=>{
+      const sPlaced=placedNodeIds.has(e.sourceId),tPlaced=placedNodeIds.has(e.targetId);
+      if(sPlaced!==tPlaced){
+        const topoN=sPlaced?nodes.find(n=>n.id===e.targetId):nodes.find(n=>n.id===e.sourceId);
+        if(topoN)crossTopoXs.push(topoN.x);
+      }
+    });
+    // Align floor chains with leftmost topology node (consistent left margin)
     startX=Math.min(...topoNodes.map(n=>n.x));
     startY=Math.max(...topoNodes.map(n=>n.y+(n.h||NODE_SIZE)))+100;
+    console.log(`startX=${startX} (from ${crossTopoXs.length?'cross-view topo node':'leftmost topo node'}), startY=${startY}`);
   }
 
   // Group by floor
   const groups={};
   floorNodes.forEach(n=>{const fid=n.floor_id;if(!groups[fid])groups[fid]=[];groups[fid].push(n)});
-  // Sort floors: B2→B1→1F→2F→3F (low to high)
-  function floorOrder(label){
-    if(!label)return 0;
-    const s=label.toUpperCase().trim();
-    let m=s.match(/^B(\d+)/);if(m)return -parseInt(m[1]);
-    m=s.match(/地下(\d+)/);if(m)return -parseInt(m[1]);
-    m=s.match(/^(\d+)/);if(m)return parseInt(m[1]);
-    if(s.startsWith('G'))return 0;
-    if(s.startsWith('R'))return 999;
-    return 0;
-  }
-  const floorIds=Object.keys(groups).sort((a,b)=>{
-    const la=(floorPlans.find(f=>f.id===a)||{}).label||'';
-    const lb=(floorPlans.find(f=>f.id===b)||{}).label||'';
-    return floorOrder(la)-floorOrder(lb);
-  });
+  // Use floor panel tab order reversed: left→right in tabs = bottom→top in diagram
+  // SVG Y increases downward, so rightmost tab (highest floor) gets smallest Y (top)
+  const floorIds=floorPlans.map(f=>f.id).filter(id=>groups[id]).reverse();
 
   const floorData={};
   let curY=startY;
@@ -2278,6 +2319,84 @@ function relayoutFloorNodesTopo(){
     curY=chainY+tiersBelow*gapV+gapV*1.5;
   });
 
+  // ═══ Phase 3: Align central_room areas with floor chains ═══
+  // Strategy: preserve relative positions of devices WITHIN the area,
+  // translate the entire group (area + devices) as a unit.
+  const _roomNodeIds=new Set(); // track moved room nodes for debug
+  if(typeof topoAreas!=='undefined'&&topoAreas.length){
+    const centralRooms=topoAreas.filter(a=>(a.area_type||'normal')==='central_room');
+    if(centralRooms.length){
+      const roomGap=gapH*0.6; // gap between area right edge and floor chain left edge
+
+      centralRooms.forEach(area=>{
+        // Find topology nodes inside this central_room area (using original positions)
+        const roomNodes=topoNodes.filter(n=>{
+          const cx=n.x+n.w/2,cy=n.y+n.h/2;
+          return cx>=area.x&&cx<=area.x+area.width&&cy>=area.y&&cy<=area.y+area.height;
+        });
+        if(!roomNodes.length)return;
+        roomNodes.forEach(n=>_roomNodeIds.add(n.id));
+
+        // Find anchor: room node connected to a floor chain node, for Y alignment
+        let anchorRoomNode=null,anchorFloorNode=null;
+        for(const rn of roomNodes){
+          for(const e of edges){
+            const floorNid=(e.sourceId===rn.id&&placedNodeIds.has(e.targetId))?e.targetId:
+                           (e.targetId===rn.id&&placedNodeIds.has(e.sourceId))?e.sourceId:null;
+            if(floorNid){
+              const fn=nodes.find(n=>n.id===floorNid);
+              if(fn){anchorRoomNode=rn;anchorFloorNode=fn;break}
+            }
+          }
+          if(anchorRoomNode)break;
+        }
+
+        // Calculate translation deltas (preserve relative positions)
+        const targetAreaX=startX-roomGap-area.width;
+        const dx=targetAreaX-area.x;
+        let dy=0;
+        if(anchorRoomNode&&anchorFloorNode){
+          // Align anchor room node Y with its connected floor node Y
+          dy=anchorFloorNode.y-anchorRoomNode.y;
+        }
+
+        // Translate entire group: area + all contained nodes
+        area.x+=dx;
+        area.y+=dy;
+        roomNodes.forEach(n=>{n.x+=dx;n.y+=dy});
+
+        // Update edge ports for room→floor connections (horizontal routing)
+        roomNodes.forEach(rn=>{
+          edges.forEach(e=>{
+            const isSource=e.sourceId===rn.id;
+            const isTarget=e.targetId===rn.id;
+            if(!isSource&&!isTarget)return;
+            const otherNid=isSource?e.targetId:e.sourceId;
+            if(!placedNodeIds.has(otherNid))return;
+            const fn=nodes.find(n=>n.id===otherNid);
+            if(!fn)return;
+            // Room node is left, floor node is right
+            const dy2=fn.y-rn.y;
+            if(Math.abs(dy2)<NODE_SIZE/2){
+              // Same row: horizontal connection
+              if(isSource){e.sourcePort='right';e.targetPort='left'}
+              else{e.sourcePort='left';e.targetPort='right'}
+              e.routeMode='ortho3';
+            }else{
+              // Different row: use ortho2
+              if(isSource){e.sourcePort=dy2<0?'top':'bottom';e.targetPort='left'}
+              else{e.sourcePort='left';e.targetPort=dy2<0?'top':'bottom'}
+              e.routeMode='ortho2';
+            }
+            delete e.midPos;
+          });
+        });
+
+        console.log(`Central room "${area.label}": ${roomNodes.length} nodes, translated Δ=(${dx.toFixed(0)},${dy.toFixed(0)}), area at (${area.x.toFixed(0)},${area.y.toFixed(0)}) ${area.width}×${area.height}`);
+      });
+    }
+  }
+
   // ═══ DEBUG: snapshot after layout ═══
   console.log('--- AFTER LAYOUT ---');
   let movedTopo=0;
@@ -2286,9 +2405,10 @@ function relayoutFloorNodesTopo(){
     if(!before)return;
     const dx=Math.abs(n.x-before.x),dy=Math.abs(n.y-before.y);
     if(dx>0.5||dy>0.5){
-      const tag=before.placed?'✅ FLOOR (expected)':'❌ TOPO (SHOULD NOT MOVE!)';
+      const isRoom=_roomNodeIds.has(n.id);
+      const tag=before.placed?'✅ FLOOR (expected)':isRoom?'🏢 ROOM (expected)':'❌ TOPO (SHOULD NOT MOVE!)';
       console.log(`  ${tag} [${n.id}] ${n.name}: (${before.x},${before.y}) → (${n.x},${n.y}) Δ=(${dx.toFixed(1)},${dy.toFixed(1)})`);
-      if(!before.placed)movedTopo++;
+      if(!before.placed&&!isRoom)movedTopo++;
     }
   });
   // Also check edges that changed
@@ -2307,7 +2427,7 @@ function relayoutFloorNodesTopo(){
 
   hasUnsavedChanges=true;
   renderAll();
-  setTimeout(fitView,50);
+  // Don't call fitView() — keep viewport stable so topology devices appear unmoved
 }
 
 function addNodeToFloorPlan(sub,x,y){
@@ -2489,7 +2609,7 @@ function onAreaMouseDown(e){
     }
     return;
   }
-  if(currentTool==='area'&&currentView!=='topology'){
+  if(currentTool==='area'){
     isDrawingArea=true;areaDrawStart=svgPoint(e);e.preventDefault();e.stopPropagation();return;
   }
 }
@@ -2510,16 +2630,16 @@ function onAreaMouseMove(e){
     temp.innerHTML=`<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="rgba(59,130,246,.08)" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="6 3" rx="4"/>`;
   }
   if(isDraggingArea&&dragAreaId!=null){
-    const fp=getFloorPlan(currentView);if(!fp)return;
-    const area=fp.areas.find(a=>a.id===dragAreaId);if(!area)return;
+    const areas=getAreaStorage();if(!areas)return;
+    const area=areas.find(a=>a.id===dragAreaId);if(!area)return;
     const pt=svgPoint(e);
     area.x=Math.round((pt.x-areaDragOffset.x)/10)*10;
     area.y=Math.round((pt.y-areaDragOffset.y)/10)*10;
     hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled();
   }
   if(isResizingArea&&resizeAreaId!=null){
-    const fp=getFloorPlan(currentView);if(!fp)return;
-    const area=fp.areas.find(a=>a.id===resizeAreaId);if(!area||!resizeAreaStart)return;
+    const areas=getAreaStorage();if(!areas)return;
+    const area=areas.find(a=>a.id===resizeAreaId);if(!area||!resizeAreaStart)return;
     const pt=svgPoint(e);const s=resizeAreaStart;
     if(resizeHandle.includes('r')){area.width=Math.max(40,s.w+(pt.x-s.mx))}
     if(resizeHandle.includes('b')){area.height=Math.max(40,s.h+(pt.y-s.my))}
@@ -2537,24 +2657,24 @@ function onAreaMouseUp(e){
     document.getElementById('tempLayer').innerHTML='';
     isDrawingArea=false;areaDrawStart=null;
     if(w<40||h<40){showToast(_t('区域太小，请拖大一些'));return}
-    const fp=getFloorPlan(currentView);if(!fp)return;
-    if(!fp.areas)fp.areas=[];
+    const areas=getAreaStorage();if(!areas)return;
     pushHistory();
-    const newArea={id:areaIdCounter++,label:_t('区域'),x:Math.round(x),y:Math.round(y),width:Math.round(w),height:Math.round(h),color:'#3b82f6',opacity:0.08,is_riser:false};
-    fp.areas.push(newArea);
+    const newArea={id:areaIdCounter++,label:_t('区域'),x:Math.round(x),y:Math.round(y),width:Math.round(w),height:Math.round(h),color:'#3b82f6',opacity:0.08,is_riser:false,area_type:'normal'};
+    areas.push(newArea);
     selectedAreaId=newArea.id;
-    syncFloorAreaLabels();hasUnsavedChanges=true;renderAll();
+    if(currentView!=='topology')syncFloorAreaLabels();
+    hasUnsavedChanges=true;renderAll();
     setTool('select');
     showAreaProps(newArea.id);
     // Auto focus name input for immediate editing
     setTimeout(()=>{const inp=document.querySelector('#propsContent .props-input');if(inp){inp.focus();inp.select()}},50);
   }
   if(isDraggingArea){
-    isDraggingArea=false;dragAreaId=null;syncFloorAreaLabels();
+    isDraggingArea=false;dragAreaId=null;if(currentView!=='topology')syncFloorAreaLabels();
     isDraggingOperation=false;if(pendingRenderFrame){cancelAnimationFrame(pendingRenderFrame);pendingRenderFrame=null}renderAll();
   }
   if(isResizingArea){
-    isResizingArea=false;resizeAreaId=null;resizeAreaStart=null;syncFloorAreaLabels();
+    isResizingArea=false;resizeAreaId=null;resizeAreaStart=null;if(currentView!=='topology')syncFloorAreaLabels();
     isDraggingOperation=false;if(pendingRenderFrame){cancelAnimationFrame(pendingRenderFrame);pendingRenderFrame=null}renderAll();
   }
 }

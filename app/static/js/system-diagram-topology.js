@@ -7,7 +7,15 @@
 // ====== TOPOLOGY RENDER ======
 function renderTopologyView(){
   const floorBg=document.getElementById('floorBgImage');if(floorBg)floorBg.remove();
-  renderEdges();renderMidHandles();renderNodes();buildLegend();
+  renderEdges();
+  // Render topo areas into edgesLayer, then move them before edges so they appear behind
+  if(typeof renderAreas==='function'&&topoAreas&&topoAreas.length){
+    const layer=document.getElementById('edgesLayer');
+    const firstEdge=layer.firstChild;
+    renderAreas(topoAreas);
+    layer.querySelectorAll('.floor-area').forEach(g=>layer.insertBefore(g,firstEdge));
+  }
+  renderMidHandles();renderNodes();buildLegend();
 }
 
 function renderNodes(){
@@ -265,6 +273,25 @@ document.addEventListener('mousemove',e=>{
     }
     hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled()}}
   if(isPanning){viewX=panViewX+(e.clientX-panStartX);viewY=panViewY+(e.clientY-panStartY);updateTransform()}
+  // Box selection: draw preview rectangle
+  if(isBoxSelecting&&boxSelectStart){
+    const pt=svgPoint(e);
+    const bx=Math.min(boxSelectStart.x,pt.x),by=Math.min(boxSelectStart.y,pt.y);
+    const bw=Math.abs(pt.x-boxSelectStart.x),bh=Math.abs(pt.y-boxSelectStart.y);
+    let rect=document.getElementById('boxSelectRect');
+    if(!rect){
+      rect=document.createElementNS('http://www.w3.org/2000/svg','rect');
+      rect.id='boxSelectRect';
+      rect.setAttribute('fill','rgba(59,130,246,0.08)');
+      rect.setAttribute('stroke','#3b82f6');
+      rect.setAttribute('stroke-width','1');
+      rect.setAttribute('stroke-dasharray','4 3');
+      rect.setAttribute('pointer-events','none');
+      document.getElementById('tempLayer').appendChild(rect);
+    }
+    rect.setAttribute('x',bx);rect.setAttribute('y',by);
+    rect.setAttribute('width',bw);rect.setAttribute('height',bh);
+  }
   if(isConnecting&&connSourceId){const pt=svgPoint(e);if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor)renderFloorReconnectLine(pt.x,pt.y);else renderTempEdge(pt.x,pt.y)}
   if(isDraggingMid&&dragMidEdgeId!==null){
     if(!midDragMoved){pushHistory();midDragMoved=true}const pt=svgPoint(e);const edge=edges.find(e=>e.id===dragMidEdgeId);
@@ -310,12 +337,80 @@ document.addEventListener('mouseup',e=>{
   const wasDraggingOp=isDraggingOperation;
   const wasPanning=isPanning;
   const panMoved=isPanning&&(Math.abs(e.clientX-panStartX)>3||Math.abs(e.clientY-panStartY)>3);
+  // Box selection completion
+  if(isBoxSelecting){
+    isBoxSelecting=false;
+    const rect=document.getElementById('boxSelectRect');
+    if(rect)rect.remove();
+    const dragDist=Math.abs(e.clientX-panStartX)+Math.abs(e.clientY-panStartY);
+    if(boxSelectStart&&dragDist>5){
+      // Compute selection rectangle in canvas coordinates
+      const endPt=svgPoint(e);
+      const rx=Math.min(boxSelectStart.x,endPt.x),ry=Math.min(boxSelectStart.y,endPt.y);
+      const rw=Math.abs(endPt.x-boxSelectStart.x),rh=Math.abs(endPt.y-boxSelectStart.y);
+      const hitNodes=new Set(),hitEdges=new Set();
+      if(currentView==='topology'){
+        // Check node centers
+        nodes.forEach(n=>{
+          const cx=n.x+n.w/2,cy=n.y+n.h/2;
+          if(cx>=rx&&cx<=rx+rw&&cy>=ry&&cy<=ry+rh)hitNodes.add(n.id);
+        });
+      }else{
+        // Floor plan: check placements on current floor
+        const fp=typeof getFloorPlan==='function'?getFloorPlan(currentView):null;
+        if(fp&&fp.placements){
+          fp.placements.forEach(pl=>{
+            const n=nodes.find(nd=>nd.id===pl.node_id);
+            if(n){
+              const cx=pl.x+n.w/2,cy=pl.y+n.h/2;
+              if(cx>=rx&&cx<=rx+rw&&cy>=ry&&cy<=ry+rh)hitNodes.add(pl.node_id);
+            }
+          });
+        }
+      }
+      // Select edges where both endpoints are selected
+      edges.forEach(edge=>{
+        if(hitNodes.has(edge.sourceId)&&hitNodes.has(edge.targetId))hitEdges.add(edge.id);
+      });
+      // Shift: append; otherwise replace
+      if(e.shiftKey){
+        hitNodes.forEach(id=>selectedNodeIds.add(id));
+        hitEdges.forEach(id=>selectedEdgeIds.add(id));
+      }else{
+        selectedNodeIds=hitNodes;
+        selectedEdgeIds=hitEdges;
+      }
+      selectedNodeId=selectedNodeIds.size===1?[...selectedNodeIds][0]:null;
+      selectedEdgeId=selectedEdgeIds.size===1?[...selectedEdgeIds][0]:null;
+      renderAll();
+      if(selectedNodeIds.size===1&&selectedEdgeIds.size===0){
+        if(currentView==='topology')showNodeProps([...selectedNodeIds][0]);
+        else if(typeof showFloorNodeProps==='function')showFloorNodeProps([...selectedNodeIds][0]);
+      }else if(selectedNodeIds.size>0||selectedEdgeIds.size>0)showMultiProps();
+      else hideProps();
+    }else{
+      // Tiny drag = click on blank: clear selection
+      if(!e.shiftKey){
+        const isAreaClick=e.target.closest&&e.target.closest('.floor-area');
+        if(!isAreaClick){
+          selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;
+          if(typeof selectedAreaId!=='undefined')selectedAreaId=null;
+          if(typeof selectedRouteId!=='undefined')selectedRouteId=null;
+          renderAll();hideProps();
+          if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null);
+        }
+      }
+    }
+    boxSelectStart=null;
+    return;
+  }
   if(isDragging&&dragMoved&&currentView!=='topology'){
     if(typeof snapToRiserIfNeeded==='function'){const fp=getFloorPlan(currentView);if(fp){selectedNodeIds.forEach(id=>{const pl=fp.placements.find(p=>p.node_id===id);if(pl)snapToRiserIfNeeded(pl,fp)})}}
     if(typeof syncRiserNodes==='function'){const fp=getFloorPlan(currentView);if(fp)syncRiserNodes(fp)}
     if(typeof syncFloorAreaLabels==='function')syncFloorAreaLabels();
     if(typeof tryInsertIntoRoute==='function')tryInsertIntoRoute(dragNodeId,currentView);
   }
+  if(isPanning&&isSpaceDown)document.getElementById('diagramCanvas').style.cursor='grab';
   isDragging=false;dragNodeId=null;isPanning=false;isDraggingMid=false;dragMidEdgeId=null;dragWaypointIdx=null;
   if(typeof isDraggingFloorMid!=='undefined'){isDraggingFloorMid=false;dragFloorMidRouteId=null;if(typeof dragFloorWaypointIdx!=='undefined')dragFloorWaypointIdx=null}
   // Reset drag optimization state and force full render to restore skipped elements

@@ -109,6 +109,8 @@ let clipboard=null,dragStartPositions=null;
 let viewX=0,viewY=0,scale=1;
 let isDragging=false,dragNodeId=null,dragOffsetX=0,dragOffsetY=0;
 let isPanning=false,panStartX=0,panStartY=0,panViewX=0,panViewY=0;
+let isBoxSelecting=false,boxSelectStart=null;
+let isSpaceDown=false;
 let isConnecting=false,connSourceId=null,connSourcePort='';
 let polylineWaypoints=[];  // waypoints being placed during polyline drawing
 let pendingEdge=null,defaultRouteMode='ortho3',popupShowTime=0;
@@ -125,6 +127,7 @@ let exportBlackMode=false;
 let displaySettings={cableWidth:1,cableBlack:false,cableLabel:true,cableLength:true,iconWidth:1,iconBlack:false,iconLabel:true,iconModel:true,showCoverage:'individual',showCoverageInner:true,showCoverageMid:true,showCoverageOuter:true,coverageFill:true,coverageMode:'circles'};
 let floorPlanIdCounter = 1;
 let topoViewX = 0, topoViewY = 0, topoScale = 1;
+let topoAreas = []; // Areas drawn on the topology view
 
 // ====== SVG HELPERS ======
 function _buildPathAttrs(a){
@@ -541,8 +544,15 @@ const svg=document.getElementById('diagramCanvas');
 svg.addEventListener('mousedown',e=>{if(e.target===svg||(e.target.tagName==='rect'&&!e.target.closest('.node-group')&&!e.target.closest('.mid-handle')&&!e.target.closest('#edgeHitLayer'))){
   // Click-persistent mode: during active connection, only allow panning — don't switch tools or clear selection
   if(!isConnecting&&currentTool!=='select'&&currentTool!=='area'&&currentTool!=='calibrate')setTool('select');
-  isPanning=true;panStartX=e.clientX;panStartY=e.clientY;panViewX=viewX;panViewY=viewY;
-  if(!isConnecting){const isAreaClick=e.target.closest&&e.target.closest('.floor-area');if(!e.shiftKey&&!isAreaClick){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedAreaId!=='undefined')selectedAreaId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}}}});
+  // Alt/Option + left click: box select; otherwise: pan (preserves Mac trackpad three-finger drag = pan)
+  if(e.button===0&&e.altKey&&currentTool==='select'&&!isConnecting){
+    isBoxSelecting=true;boxSelectStart=svgPoint(e);
+    panStartX=e.clientX;panStartY=e.clientY;
+  }else{
+    isPanning=true;panStartX=e.clientX;panStartY=e.clientY;panViewX=viewX;panViewY=viewY;
+    if(isSpaceDown)document.getElementById('diagramCanvas').style.cursor='grabbing';
+  }
+  if(!isConnecting&&!isBoxSelecting){const isAreaClick=e.target.closest&&e.target.closest('.floor-area');if(!e.shiftKey&&!isAreaClick){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedAreaId!=='undefined')selectedAreaId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}}}});
 svg.addEventListener('wheel',e=>{e.preventDefault();zoomCanvas(e.deltaY>0?1/1.06:1.06,e.clientX,e.clientY)},{passive:false});
 
 function getZoomLimits(){
@@ -565,8 +575,9 @@ function zoomCanvas(f,cx,cy){const old=scale;const limits=getZoomLimits();scale=
 function fitView(){
   const pad=80;let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
   if(currentView==='topology'){
-    if(!nodes.length)return resetZoom();
+    if(!nodes.length&&!topoAreas.length)return resetZoom();
     nodes.forEach(n=>{x1=Math.min(x1,n.x);y1=Math.min(y1,n.y);x2=Math.max(x2,n.x+n.w);y2=Math.max(y2,n.y+n.h+30)});
+    topoAreas.forEach(a=>{x1=Math.min(x1,a.x);y1=Math.min(y1,a.y);x2=Math.max(x2,a.x+a.width);y2=Math.max(y2,a.y+a.height)});
   } else {
     const fp=getFloorPlan(currentView);if(!fp)return resetZoom();
     // Include background dimensions
@@ -600,6 +611,7 @@ function snapshotState(){
     floor_plans:fpData,
     routeIdCounter:typeof routeIdCounter!=='undefined'?routeIdCounter:300,
     areaIdCounter:typeof areaIdCounter!=='undefined'?areaIdCounter:400,
+    topoAreas:topoAreas.map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,area_type:a.area_type||'normal'})),
   });
 }
 function _doPush(){undoStack=undoStack.slice(0,undoIndex+1);undoStack.push(snapshotState());if(undoStack.length>MAX_UNDO)undoStack.shift();undoIndex=undoStack.length-1}
@@ -620,6 +632,7 @@ function restoreSnapshot(snap){
   if(data.routeIdCounter&&typeof routeIdCounter!=='undefined')routeIdCounter=data.routeIdCounter;
   if(data.areaIdCounter&&typeof areaIdCounter!=='undefined')areaIdCounter=data.areaIdCounter;
   if(data.floor_plans&&typeof restoreFloorPlans==='function'){restoreFloorPlans(data.floor_plans)}
+  if(data.topoAreas)topoAreas=data.topoAreas;
   selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;
   if(typeof selectedAreaId!=='undefined')selectedAreaId=null;
   if(typeof selectedRouteId!=='undefined')selectedRouteId=null;
@@ -654,7 +667,7 @@ document.addEventListener('keydown',e=>{
   const mod=e.metaKey||e.ctrlKey;
   if(DIAGRAM_CONFIG.readOnly){
     // Read-only: only allow Escape
-    if(e.key==='Escape'){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;renderAll();hideProps()}
+    if(e.key==='Escape'){if(isBoxSelecting){isBoxSelecting=false;boxSelectStart=null;const bsr=document.getElementById('boxSelectRect');if(bsr)bsr.remove();return}selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;renderAll();hideProps()}
     return;
   }
   if(mod&&e.key==='z'){e.preventDefault();if(e.shiftKey)redoAction();else undoAction();return}
@@ -665,11 +678,25 @@ document.addEventListener('keydown',e=>{
   if(mod&&e.key==='s'){e.preventDefault();saveDiagram();return}
   if(e.key==='v'||e.key==='V')setTool('select');
   if(e.key==='c'||e.key==='C')setTool('connect');
+  if(e.key==='a'||e.key==='A')setTool('area');
   if(e.key==='t'||e.key==='T')addTextNode();
   if(e.key==='Delete'||e.key==='Backspace')deleteSelected();
   if(e.key==='Escape'){
+    if(isBoxSelecting){isBoxSelecting=false;boxSelectStart=null;const bsr=document.getElementById('boxSelectRect');if(bsr)bsr.remove();return}
+    if(typeof isDrawingArea!=='undefined'&&isDrawingArea){isDrawingArea=false;areaDrawStart=null;document.getElementById('tempLayer').innerHTML='';setTool('select');return}
     if(isConnecting){polylineWaypoints=[];isConnecting=false;connSourceId=null;if(isReconnecting){const re=edges.find(e2=>e2.id===reconnectEdgeId);if(re)delete re._hidden;isReconnecting=false;reconnectEdgeId=null;reconnectEnd=''}if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}document.getElementById('tempLayer').innerHTML='';setTool('select');renderAll();return}
     selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();setTool('select');if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}
+});
+
+// Space key tracking for pan-while-space (like Figma/Photoshop)
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'&&!['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)){
+    if(!isSpaceDown){isSpaceDown=true;document.getElementById('diagramCanvas').style.cursor='grab'}
+    e.preventDefault();
+  }
+});
+document.addEventListener('keyup',e=>{
+  if(e.code==='Space'){isSpaceDown=false;if(!isPanning)document.getElementById('diagramCanvas').style.cursor=currentTool==='connect'||currentTool==='area'||currentTool==='calibrate'?'crosshair':'default'}
 });
 
 // ====== LABEL LAYOUT (shared by topology + floor plan) ======
@@ -1138,6 +1165,7 @@ function serializeDiagram(){
     floorPlanIdCounter,
     routeIdCounter:typeof routeIdCounter!=='undefined'?routeIdCounter:300,
     areaIdCounter:typeof areaIdCounter!=='undefined'?areaIdCounter:400,
+    topoAreas:topoAreas.map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,area_type:a.area_type||'normal'})),
     displaySettings,
   };
 }
@@ -1170,6 +1198,7 @@ function deserializeDiagram(data){
   if(data.floorPlanIdCounter)floorPlanIdCounter=data.floorPlanIdCounter;
   if(data.routeIdCounter&&typeof routeIdCounter!=='undefined')routeIdCounter=data.routeIdCounter;
   if(data.areaIdCounter&&typeof areaIdCounter!=='undefined')areaIdCounter=data.areaIdCounter;
+  if(data.topoAreas)topoAreas=data.topoAreas;
   if(data.displaySettings){const ds=Object.assign({cableWidth:1,cableBlack:false,cableLabel:true,cableLength:true,iconWidth:1,iconBlack:false,iconLabel:true,iconModel:true,showCoverage:'individual',showCoverageInner:true,showCoverageMid:true,showCoverageOuter:true,coverageFill:true,coverageMode:'circles'},data.displaySettings);delete ds.coverageN;if(ds.showCoverage===true)ds.showCoverage='individual';if(ds.showCoverage===false)ds.showCoverage='off';displaySettings=ds;}
   updateTransform();renderAll();
 }
