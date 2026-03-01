@@ -178,6 +178,7 @@ _QUERY_KEYWORDS = {
     '趋势', '增长', '下降', '同比', '环比', '数据',
     'query', 'report', 'data',
 }
+_REVIEW_KEYWORDS = {'评估', '评价', '考核', '绩效', '画像分析', '销售评估', '销售分析', 'review', 'evaluate'}
 _ENTITY_KEYWORDS = {
     '项目', '客户', '报价', '订单', '产品', '公司', '联系人',
     '费用', '预算', '合同', '人员', '任务', '部门', '销售',
@@ -196,6 +197,9 @@ def _detect_prompt_needs(message):
         needs.add('form')
     if any(kw in msg for kw in _QUERY_KEYWORDS):
         needs.add('query')
+    if any(kw in msg for kw in _REVIEW_KEYWORDS):
+        needs.add('review')
+        needs.add('query')  # review 需要查 users 表确认人员
     if any(kw in msg for kw in _EDIT_KEYWORDS):
         needs.add('form')
         needs.add('query')
@@ -302,6 +306,20 @@ def _build_tool_prompt(user, conversation_id=None, needs=None):
                     f'重要：读取和上传文件时必须使用二进制模式（open(path, "rb")），禁止用文本模式读取二进制文件，否则会导致文件损坏。'
                     f'上传成功后，必须将返回的 download_url 以 Markdown 链接格式写入回复，例如：[点击下载文件名](download_url)。\n'
                 )
+
+        # 层级: 销售评估工具
+        if 'review' in needs:
+            parts.append(
+                '[销售评估工具] 用户要求评估销售人员时：\n'
+                '1. 用 query_pma_database 查 users 表确认目标用户: '
+                "SELECT id, real_name, username, role FROM users WHERE "
+                "(real_name ILIKE '%姓名%' OR username ILIKE '%姓名%') AND is_active=true\n"
+                '2. 如果匹配到多个用户，用选项标记让用户选择\n'
+                '3. 确认后，回复"正在为XX生成销售评估报告，请稍等..."，'
+                '末尾插入标记 [[SALES_REVIEW:用户ID]]（用户ID是数字）\n'
+                '4. 系统将自动收集数据并生成两份评估报告（markdown文件），上传到当前对话。\n'
+                '注意：标记必须放在回复最后一行，格式严格为 [[SALES_REVIEW:数字ID]]\n'
+            )
 
         # 层级: 表单交互工具
         if 'form' in needs and conversation_id:

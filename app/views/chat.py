@@ -16,7 +16,7 @@ import re
 import uuid
 from functools import wraps
 
-from flask import Blueprint, jsonify, request, Response, stream_with_context
+from flask import Blueprint, current_app, jsonify, request, Response, stream_with_context
 from flask_login import login_required, current_user
 
 from app import db
@@ -141,6 +141,7 @@ FORM_SCHEMAS = {
 }
 
 FORM_MARKER_RE = re.compile(r'\[\[FORM:(\w+)\|(\{.*?\})\]\]', re.DOTALL)
+SALES_REVIEW_MARKER_RE = re.compile(r'\[\[SALES_REVIEW:(\d+)\]\]')
 # [[CHOICES:action_key|名称1:ID1|名称2:ID2]] — action_key + 带ID的选项
 CHOICES_MARKER_RE = re.compile(r'\[\[CHOICES:(.*?)\]\]', re.DOTALL)
 # [[PROJECT_CARD:123]] — AI 查询到单个项目时自动展示卡片
@@ -712,7 +713,7 @@ def ai_stream():
                         text = chunk.get('text', '')
                         full_response += text
                         # 检测到表单标记或选项标记开头后，停止向前端输出后续内容
-                        if not _form_marker_detected and ('[[FORM:' in full_response or '[[CHOICES:' in full_response or '[[PROJECT_CARD:' in full_response):
+                        if not _form_marker_detected and ('[[FORM:' in full_response or '[[CHOICES:' in full_response or '[[PROJECT_CARD:' in full_response or '[[SALES_REVIEW:' in full_response):
                             _form_marker_detected = True
                             continue  # 不再发送，标记及之后的内容由 done 阶段处理
                         if _form_marker_detected:
@@ -904,6 +905,24 @@ def ai_stream():
                             full_response = CHOICES_MARKER_RE.sub('', full_response).strip()
                         except Exception as ce:
                             logger.warning(f"选项标记解析失败: {ce}")
+
+                    # 检测并处理销售评估标记 [[SALES_REVIEW:用户ID]]
+                    review_match = SALES_REVIEW_MARKER_RE.search(full_response)
+                    if review_match:
+                        try:
+                            target_uid = int(review_match.group(1))
+                            full_response = SALES_REVIEW_MARKER_RE.sub('', full_response).strip()
+                            import threading
+                            from app.services.sales_review_generator import SalesReviewGenerator
+                            app_obj = current_app._get_current_object()
+                            threading.Thread(
+                                target=SalesReviewGenerator.generate_review,
+                                args=(app_obj, target_uid, current_user.id, conversation_id),
+                                daemon=True,
+                            ).start()
+                            logger.info(f"销售评估后台任务已启动: target_uid={target_uid}, conv={conversation_id}")
+                        except Exception as review_err:
+                            logger.warning(f"销售评估标记处理失败: {review_err}")
 
                     ai_msg = ChatMessage(
                         conversation_id=conversation_id,
