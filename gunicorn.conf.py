@@ -3,12 +3,12 @@
 
 bind = "0.0.0.0:5000"
 workers = 2
-threads = 4
+threads = 3
 worker_class = "gthread"
 timeout = 300
 preload_app = True
 max_requests = 1000
-max_requests_jitter = 100
+max_requests_jitter = 500
 
 
 def post_fork(server, worker):

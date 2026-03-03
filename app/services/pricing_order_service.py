@@ -1627,12 +1627,13 @@ class PricingOrderService:
             if current_approval_record:
                 return True
         
-        # 注：各角色的批价单查看权限通过权限配置系统控制
-        # - 配置 pricing_order 模块的 system/company/department 级权限
-        # - 使用 content_filters 字段限制可见的 project_type
-        # 例如：content_filters = {"project_type": ["sales_focus", "channel_follow"]}
+        # 通过数据归属机制检查权限（pricing_order 模块的 system/company/department 级权限）
+        from app.utils.access_control import get_viewable_data
+        from app.models import PricingOrder as PO
+        viewable = get_viewable_data(PO, current_user).filter(PO.id == pricing_order.id).first()
+        if viewable:
+            return True
 
-        # 如果前面的条件都不满足，则无权查看
         return False
 
     @staticmethod
