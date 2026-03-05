@@ -110,7 +110,7 @@ function getFloorPlansForSave(){
     background:fp.background?Object.assign({url:fp.background.url,width:fp.background.width,height:fp.background.height,offset_x:fp.background.offset_x||0,offset_y:fp.background.offset_y||0,opacity:fp.background.opacity||0.3},fp.background.is_multi_res?{is_multi_res:true,resolutions:fp.background.resolutions,filenames:fp.background.filenames}:{filename:fp.background.filename||''}):null,
     calibration:fp.calibration||null,
     placements:fp.placements.map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1,labelPosition:p.labelPosition||null})),
-    routes:(fp.routes||[]).map(r=>{const o={id:r.id,sourceNodeId:r.sourceNodeId,targetNodeId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort,cableType:r.cableType,routeMode:r.routeMode,midPos:r.midPos,color:r.color,width:r.width,dash:r.dash,label:r.label,linked_edge_id:r.linked_edge_id||null,_userPorts:r._userPorts||false};if(r.waypoints&&r.waypoints.length)o.waypoints=r.waypoints;return o}),
+    routes:(fp.routes||[]).map(r=>{const o={id:r.id,sourceNodeId:r.sourceNodeId,targetNodeId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort,cableType:r.cableType,routeMode:r.routeMode,midPos:r.midPos,color:r.color,width:r.width,dash:r.dash,label:r.label,hideLabel:r.hideLabel||false,linked_edge_id:r.linked_edge_id||null,_userPorts:r._userPorts||false};if(r.waypoints&&r.waypoints.length)o.waypoints=r.waypoints;return o}),
     areas:(fp.areas||[]).map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,is_riser:a.is_riser||false,area_type:a.area_type||'normal',_riser_node_id:a._riser_node_id||null})),
     risers:(fp.risers||[]).map(r=>({id:r.id,node_id:r.node_id,edge_id:r.edge_id,target_floor_label:r.target_floor_label,x:r.x,y:r.y})),
     viewX:fp.viewX||0, viewY:fp.viewY||0, scale:fp.scale||1
@@ -636,7 +636,8 @@ function applyCalibration(){
     ref_line:{x1:temp.x1*scaleFactor,y1:temp.y1*scaleFactor,x2:temp.x2*scaleFactor,y2:temp.y2*scaleFactor},
     real_length:parseFloat(realInput.value),
     unit:unit,
-    px_per_meter:targetPxPerMeter
+    px_per_meter:targetPxPerMeter,
+    raw_px_per_meter:pxPerMeter
   };
 
   // Scale all placements
@@ -665,6 +666,77 @@ function deleteCalibration(){
   fp.calibration=null;
   hasUnsavedChanges=true;renderAll();hideProps();
   showToast(_t('标定已删除，背景图比例不变'));
+}
+
+// ====== CALIBRATION INHERITANCE ======
+function _findRecentCalibration(excludeFpId){
+  for(let i=floorPlans.length-1;i>=0;i--){
+    const fp=floorPlans[i];
+    if(fp.id===excludeFpId)continue;
+    if(fp.calibration&&fp.calibration.raw_px_per_meter&&fp.calibration.px_per_meter){
+      return {fpId:fp.id, label:fp.label, calibration:fp.calibration};
+    }
+  }
+  return null;
+}
+
+function _applyInheritedCalibration(fp,prevCalib){
+  const rawPxPerMeter=prevCalib.raw_px_per_meter;
+  const targetPxPerMeter=prevCalib.px_per_meter;
+  const scaleFactor=targetPxPerMeter/rawPxPerMeter;
+
+  pushHistory();
+
+  if(fp.background){
+    fp.background.width=Math.round(fp.background.width*scaleFactor);
+    fp.background.height=Math.round(fp.background.height*scaleFactor);
+    if(fp.background.offset_x)fp.background.offset_x=Math.round(fp.background.offset_x*scaleFactor);
+    if(fp.background.offset_y)fp.background.offset_y=Math.round(fp.background.offset_y*scaleFactor);
+  }
+
+  fp.calibration={
+    ref_line:null,
+    inherited:true,
+    real_length:prevCalib.real_length,
+    unit:prevCalib.unit,
+    px_per_meter:targetPxPerMeter,
+    raw_px_per_meter:rawPxPerMeter
+  };
+
+  hasUnsavedChanges=true;
+  renderAll();
+  fitView();
+}
+
+async function _offerCalibrationInheritance(fpId){
+  const prev=_findRecentCalibration(fpId);
+  if(!prev)return;
+  const sf=(prev.calibration.px_per_meter/prev.calibration.raw_px_per_meter).toFixed(2);
+  const ok=await sdConfirm(
+    _t('套用尺寸比例'),
+    _t('检测到楼层')+' "'+prev.label+'" '+_t('已标定比例')+' ('+sf+'×)。\n'+_t('是否套用相同比例到当前楼层？'),
+    {okText:_t('套用'),cancelText:_t('手动标定')}
+  );
+  if(!ok)return;
+  const fp=getFloorPlan(fpId);
+  if(fp)_applyInheritedCalibration(fp,prev.calibration);
+}
+
+async function _offerCalibrationInheritanceMulti(fpIds){
+  if(!fpIds||!fpIds.length)return;
+  const prev=_findRecentCalibration(fpIds[0]);
+  if(!prev)return;
+  const sf=(prev.calibration.px_per_meter/prev.calibration.raw_px_per_meter).toFixed(2);
+  const ok=await sdConfirm(
+    _t('批量套用尺寸比例'),
+    _t('检测到楼层')+' "'+prev.label+'" '+_t('已标定比例')+' ('+sf+'×)。\n'+_t('是否套用相同比例到所有')+' '+fpIds.length+' '+_t('个新楼层？'),
+    {okText:_t('全部套用'),cancelText:_t('手动标定')}
+  );
+  if(!ok)return;
+  for(const id of fpIds){
+    const fp=getFloorPlan(id);
+    if(fp)_applyInheritedCalibration(fp,prev.calibration);
+  }
 }
 
 // ====== BEST PORT SELECTION ======
@@ -1050,32 +1122,59 @@ function renderFloorRoutes(fp){
     layer.appendChild(path);
 
     // Build display text: label + length
-    const showLabel=route.label&&displaySettings.cableLabel;
+    const showLabel=route.label&&displaySettings.cableLabel&&!route.hideLabel;
     const ppm=fp.calibration&&fp.calibration.px_per_meter;
     let lengthStr='';
-    if(displaySettings.cableLength&&ppm){
+    let pxLen=0;
+    if(ppm){
       const tmpSvg=document.createElementNS('http://www.w3.org/2000/svg','path');
       tmpSvg.setAttribute('d',result.path);
-      const pxLen=tmpSvg.getTotalLength();
-      const meters=pxLen/ppm;
-      lengthStr=meters>=1?meters.toFixed(1)+'m':Math.round(meters*100)+'cm';
+      pxLen=tmpSvg.getTotalLength();
+      if(displaySettings.cableLength){
+        const meters=pxLen/ppm;
+        lengthStr=meters>=1?meters.toFixed(1)+'m':Math.round(meters*100)+'cm';
+      }
     }
     const parts=[];if(showLabel)parts.push(route.label);if(lengthStr)parts.push(lengthStr);
     if(parts.length){
       const txt=parts.join(' · ');
-      const mid=getPathMidpoint(result,edgeLike);
       const baseTl=txt.length*7+16;
+      // Auto-hide label if text wider than line length
+      if(pxLen>0&&baseTl>pxLen*0.9){}else{
+      const mid=getPathMidpoint(result,edgeLike);
+      // Compute angle of line segment at midpoint for label rotation
+      let angle=0;
+      if(result.pts&&result.pts.length>=2){
+        let totalLen=0;const segs=[];
+        for(let i=1;i<result.pts.length;i++){
+          const dx=result.pts[i].x-result.pts[i-1].x,dy=result.pts[i].y-result.pts[i-1].y;
+          segs.push({from:result.pts[i-1],to:result.pts[i],len:Math.sqrt(dx*dx+dy*dy)});totalLen+=segs[segs.length-1].len;
+        }
+        let rem=totalLen/2;
+        for(const seg of segs){
+          if(rem<=seg.len){angle=Math.atan2(seg.to.y-seg.from.y,seg.to.x-seg.from.x)*180/Math.PI;break;}
+          rem-=seg.len;
+        }
+      }else if(result.sp&&result.tp){
+        angle=Math.atan2(result.tp.y-result.sp.y,result.tp.x-result.sp.x)*180/Math.PI;
+      }
+      // Keep text readable: flip if upside-down
+      if(angle>90)angle-=180; else if(angle<-90)angle+=180;
+      const transform=Math.abs(angle)>1?`rotate(${angle.toFixed(1)},${mid.x.toFixed(1)},${mid.y.toFixed(1)})`:'';
+
       if(comp!==1){
         const tl=baseTl*comp,lh=18*comp;
         const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
         bg.setAttribute('class','edge-label-bg');bg.setAttribute('x',mid.x-tl/2);bg.setAttribute('y',mid.y-lh/2);
         bg.setAttribute('width',tl);bg.setAttribute('height',lh);bg.setAttribute('rx',4*comp);
+        if(transform)bg.setAttribute('transform',transform);
         bg.style.cursor='pointer';
         bg.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
         labelEls.push(bg);
         const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
         lbl.setAttribute('class','edge-label');lbl.setAttribute('x',mid.x);lbl.setAttribute('y',mid.y);
         lbl.setAttribute('font-size',12*comp);
+        if(transform)lbl.setAttribute('transform',transform);
         lbl.setAttribute('fill',rc);lbl.textContent=txt;
         lbl.style.cursor='pointer';
         lbl.style.pointerEvents='auto';
@@ -1086,17 +1185,20 @@ function renderFloorRoutes(fp){
         const bg=document.createElementNS('http://www.w3.org/2000/svg','rect');
         bg.setAttribute('class','edge-label-bg');bg.setAttribute('x',mid.x-tl/2);bg.setAttribute('y',mid.y-9);
         bg.setAttribute('width',tl);bg.setAttribute('height',18);bg.setAttribute('rx',4);
+        if(transform)bg.setAttribute('transform',transform);
         bg.style.cursor='pointer';
         bg.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
         labelEls.push(bg);
         const lbl=document.createElementNS('http://www.w3.org/2000/svg','text');
         lbl.setAttribute('class','edge-label');lbl.setAttribute('x',mid.x);lbl.setAttribute('y',mid.y);
+        if(transform)lbl.setAttribute('transform',transform);
         lbl.setAttribute('fill',rc);lbl.textContent=txt;
         lbl.style.cursor='pointer';
         lbl.style.pointerEvents='auto';
         lbl.addEventListener('click',ev=>{ev.stopPropagation();selectFloorRoute(route.id)});
         labelEls.push(lbl);
       }
+      }// end auto-hide check
     }
   });
   // Append labels after all hit paths so labels stay on top and clickable
@@ -1591,6 +1693,22 @@ function highlightConnectedInPanel(nodeId){
 // ====== FLOOR NODES ======
 function renderFloorNodes(fp){
   const nodesLayer=document.getElementById('nodesLayer');
+  // Collect connected ports so we can show them as solid dots
+  const connectedPorts=new Set();
+  if(fp.routes&&fp.routes.length){
+    fp.routes.forEach(route=>{
+      const srcPl=fp.placements.find(p=>p.node_id===route.sourceNodeId);
+      const tgtPl=fp.placements.find(p=>p.node_id===route.targetNodeId);
+      const srcN=nodes.find(n=>n.id===route.sourceNodeId);
+      if(!srcPl||!tgtPl)return;
+      const rMode=route.routeMode||'ortho3';
+      const autoP=(!route._userPorts)?findBestPort(srcPl,tgtPl,(srcN?srcN.w:null)||NODE_SIZE,rMode):null;
+      const sp=autoP?autoP.srcPort:(route.sourcePort||'right');
+      const tp=autoP?autoP.tgtPort:(route.targetPort||'left');
+      connectedPorts.add(route.sourceNodeId+':'+sp);
+      connectedPorts.add(route.targetNodeId+':'+tp);
+    });
+  }
   fp.placements.forEach(pl=>{
     const n=nodes.find(n=>n.id===pl.node_id);
     if(!n)return;
@@ -1679,8 +1797,9 @@ function renderFloorNodes(fp){
     const _R=n.w/2+8,_D=_R*.7071,_cx=n.w/2,_cy=n.h/2;
     [{name:'top',cx:_cx,cy:_cy-_R},{name:'right',cx:_cx+_R,cy:_cy},{name:'bottom',cx:_cx,cy:_cy+_R},{name:'left',cx:_cx-_R,cy:_cy},{name:'top-left',cx:_cx-_D,cy:_cy-_D},{name:'top-right',cx:_cx+_D,cy:_cy-_D},{name:'bottom-left',cx:_cx-_D,cy:_cy+_D},{name:'bottom-right',cx:_cx+_D,cy:_cy+_D}].forEach(p=>{
       const port=document.createElementNS('http://www.w3.org/2000/svg','circle');
-      port.setAttribute('class','port');
-      port.setAttribute('cx',p.cx);port.setAttribute('cy',p.cy);port.setAttribute('r',5);
+      const isConn=connectedPorts.has(n.id+':'+p.name);
+      port.setAttribute('class','port'+(isConn?' connected':''));
+      port.setAttribute('cx',p.cx);port.setAttribute('cy',p.cy);port.setAttribute('r',isConn?4:5);
       port.style.cursor='crosshair';
       port.dataset.nodeId=n.id;port.dataset.port=p.name;
       port.addEventListener('mousedown',onPortMouseDown);g.appendChild(port);
@@ -1823,6 +1942,7 @@ async function uploadFloorBg(fpId){
             showFloorPlanProps(fpId);
             showToast(_t('背景图已上传'));
             updateFloorBgButton(fpId);
+            if(!fp.calibration)_offerCalibrationInheritance(fpId);
           }else{showToast(_t('上传失败')+': '+(result.message||''))}
         }catch(err){showToast(_t('上传失败')+': '+err.message)}
       },'image/png',0.85);
@@ -1943,9 +2063,11 @@ async function _renderAndSetPdfBackground(fpId,sessionId,pages){
       showFloorPlanProps(fpId);
       showToast(_t('背景图已导入'));
       updateFloorBgButton(fpId);
+      if(!fp.calibration)_offerCalibrationInheritance(fpId);
     } else {
       // Multiple pages: create new floor plans for each
       let firstNewId=null;
+      const newFpIds=[];
       for(const r of result.results){
         const defaultRes=r.resolutions['2000']||Object.values(r.resolutions)[0];
         const newId=addFloorPlanWithBackground(r.label,{
@@ -1956,10 +2078,12 @@ async function _renderAndSetPdfBackground(fpId,sessionId,pages){
           filenames:r.filenames,
           offset_x:0,offset_y:0,opacity:0.3
         });
+        newFpIds.push(newId);
         if(!firstNewId)firstNewId=newId;
       }
       if(firstNewId)switchView(firstNewId);
       showToast(_t('已导入')+' '+result.results.length+' '+_t('个楼层'));
+      _offerCalibrationInheritanceMulti(newFpIds);
     }
   }catch(err){showToast(_t('渲染失败')+': '+err.message)}
 }

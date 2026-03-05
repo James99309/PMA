@@ -558,6 +558,12 @@ function getZoomLimits(){
   if(typeof getFloorPlan!=='function'||typeof currentView==='undefined')return{min:0.05,max:5};
   const fp=getFloorPlan(currentView);
   if(!fp||!fp.background)return{min:0.05,max:5};
+  // 已标定的楼层：背景已在物理比例，限制最大缩放为150%
+  if(fp.calibration&&fp.calibration.px_per_meter){
+    const minZoom=Math.max(0.02,600/fp.background.width);
+    return{min:minZoom,max:1.5};
+  }
+  // 未标定：保持原有逻辑
   const bgW=fp.background.width;
   if(fp.background.is_multi_res&&fp.background.resolutions){
     const best=fp.background.resolutions['8000']||fp.background.resolutions['4000'];
