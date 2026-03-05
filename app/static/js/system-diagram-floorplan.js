@@ -143,6 +143,15 @@ function renderFloorPlanView(viewId, isDragging){
   const edgeHitLayer=document.getElementById('edgeHitLayer');
   nodesLayer.innerHTML='';edgesLayer.innerHTML='';handlesLayer.innerHTML='';edgeHitLayer.innerHTML='';
 
+  // 0. Optimize initial resolution for multi-res backgrounds
+  if(fp.background && fp.background.is_multi_res && fp.background.resolutions){
+    const optKey = _getOptimalResolutionKey(scale);
+    const optRes = fp.background.resolutions[optKey];
+    if(optRes && optRes.url !== fp.background.url){
+      fp.background.url = optRes.url;
+    }
+  }
+
   // 1. Render background image (cached, fast even during drag)
   renderFloorBackground(fp);
 
