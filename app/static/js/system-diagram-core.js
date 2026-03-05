@@ -691,7 +691,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){
     if(isBoxSelecting){isBoxSelecting=false;boxSelectStart=null;const bsr=document.getElementById('boxSelectRect');if(bsr)bsr.remove();return}
     if(typeof isDrawingArea!=='undefined'&&isDrawingArea){isDrawingArea=false;areaDrawStart=null;document.getElementById('tempLayer').innerHTML='';setTool('select');return}
-    if(isConnecting){polylineWaypoints=[];isConnecting=false;connSourceId=null;if(isReconnecting){const re=edges.find(e2=>e2.id===reconnectEdgeId);if(re)delete re._hidden;isReconnecting=false;reconnectEdgeId=null;reconnectEnd=''}if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}document.getElementById('tempLayer').innerHTML='';setTool('select');renderAll();return}
+    if(isConnecting){polylineWaypoints=[];isConnecting=false;connSourceId=null;if(isReconnecting){const re=edges.find(e2=>e2.id===reconnectEdgeId);if(re)delete re._hidden;isReconnecting=false;reconnectEdgeId=null;reconnectEnd=''}if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}if(typeof snapTargetNodeId!=='undefined'){snapTargetNodeId=null;snapTargetPort=null;snapTargetPos=null}document.getElementById('tempLayer').innerHTML='';setTool('select');renderAll();return}
     selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();setTool('select');if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}
 });
 
@@ -908,6 +908,7 @@ svg.addEventListener('contextmenu',e=>{e.preventDefault();
     polylineWaypoints=[];
     if(isReconnecting){const re=edges.find(e2=>e2.id===reconnectEdgeId);if(re)delete re._hidden;isReconnecting=false;reconnectEdgeId=null;reconnectEnd=''}
     if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
+    if(typeof snapTargetNodeId!=='undefined'){snapTargetNodeId=null;snapTargetPort=null;snapTargetPos=null}
     isConnecting=false;connSourceId=null;document.getElementById('tempLayer').innerHTML='';
     setTool('select');renderAll();return;
   }
@@ -1290,6 +1291,7 @@ function requestRenderThrottled(){
 
 function renderAll(){
   if(currentView==='topology'){
+    const cl=document.getElementById('coverageLayer');if(cl)cl.innerHTML='';
     renderTopologyView();
     const si=document.getElementById('scaleIndicator');if(si)si.style.display='none';
   } else {

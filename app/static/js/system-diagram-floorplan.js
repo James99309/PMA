@@ -155,13 +155,19 @@ function renderFloorPlanView(viewId, isDragging){
   }
 
   // 4. Render coverage (skip during drag — expensive)
+  // Heatmap uses persistent coverageLayer (not cleared above), so zoom/pan keeps existing DOM
+  const coverageLayer = document.getElementById('coverageLayer');
   if(!isDragging){
-    if (displaySettings.coverageMode === 'heatmap') {
-      renderCoverageHeatmap(fp);
+    if (displaySettings.coverageMode === 'heatmap' && displaySettings.showCoverage !== 'off') {
+      renderCoverageHeatmap(fp);  // internally skips DOM rebuild when stamp unchanged
     } else {
-      renderCoverageCircles(fp);
+      coverageLayer.innerHTML = '';  // clear persistent layer when not in heatmap mode
+      if (displaySettings.showCoverage !== 'off') {
+        renderCoverageCircles(fp);  // circles go into edgesLayer (rebuilt each frame, fine)
+      }
     }
   }
+  // isDragging: leave coverageLayer untouched — heatmap stays visible via SVG transform
 
   // 5. Render manual routes (floor plan connections)
   renderFloorRoutes(fp);
@@ -223,7 +229,7 @@ function renderFloorBackground(fp){
   img.style.pointerEvents='none';
 
   // Insert before all layers so it appears behind everything
-  const firstLayer=canvasGroup.querySelector('#edgesLayer')||canvasGroup.firstChild;
+  const firstLayer=canvasGroup.querySelector('#coverageLayer')||canvasGroup.querySelector('#edgesLayer')||canvasGroup.firstChild;
 
   // Multi-res switch: keep old image visible until new one loads to avoid flicker
   if(oldImg&&oldImg.parentNode&&bg.is_multi_res){
@@ -792,7 +798,7 @@ const HEATMAP_COLORS = [
   { stop: 0.80, r: 234, g: 70,  b: 12  },  // 橙红
   { stop: 1.00, r: 220, g: 38,  b: 38  },  // 红 (天线中心)
 ];
-let _heatmapCache = { stamp: null, dataUrl: null, bounds: null };
+let _heatmapCache = { stamp: null, dataUrl: null, bounds: null, mode: null };
 
 function _hmSignalDbm(d, n) {
   if (d < 0.5) return _HM_RX1M;
@@ -829,7 +835,7 @@ function _hmEffectiveN(nd) {
 }
 
 function _hmStamp(fp) {
-  const parts = [];
+  const parts = [displaySettings.showCoverage || 'off'];  // include mode so switching individual↔all invalidates
   fp.placements.forEach(pl => {
     const nd = nodes.find(x => x.id === pl.node_id);
     if (!nd || getNodeIconKey(nd) !== 'antenna_indoor') return;
@@ -916,7 +922,7 @@ function renderCoverageHeatmap(fp) {
   if (displaySettings.showCoverage === 'off') return;
   if (!fp.calibration || !fp.calibration.px_per_meter) return;
   const ppm = fp.calibration.px_per_meter;
-  const edgesLayer = document.getElementById('edgesLayer');
+  const coverageLayer = document.getElementById('coverageLayer');  // persistent layer
   const svgNS = 'http://www.w3.org/2000/svg';
 
   // Collect antenna positions with per-antenna n
@@ -931,23 +937,33 @@ function renderCoverageHeatmap(fp) {
       n: _hmEffectiveN(nd)
     });
   });
-  if (antennasData.length === 0) return;
+  if (antennasData.length === 0) { coverageLayer.innerHTML = ''; return; }
+
+  const stamp = _hmStamp(fp);
+
+  // ★ Key optimization: stamp unchanged + DOM already has content → skip everything
+  if (_heatmapCache.stamp === stamp && _heatmapCache.dataUrl
+      && coverageLayer.querySelector('.coverage-layer')) {
+    return;
+  }
+
+  // Stamp changed or first render: clear and rebuild
+  coverageLayer.innerHTML = '';
 
   const bounds = _hmBounds(fp, ppm, antennasData);
   if (!bounds) return;
-  const stamp = _hmStamp(fp);
 
-  // Generate or use cached
+  // Generate or use cached dataUrl
   let dataUrl = null;
   if (_heatmapCache.stamp === stamp && _heatmapCache.dataUrl) {
     dataUrl = _heatmapCache.dataUrl;
   } else {
     dataUrl = _hmGenerate(fp, ppm, bounds, antennasData);
-    _heatmapCache = { stamp, dataUrl, bounds };
+    _heatmapCache = { stamp, dataUrl, bounds, mode: displaySettings.showCoverage };
   }
   if (!dataUrl) return;
 
-  // Insert SVG <image>
+  // Insert SVG <image> into persistent coverageLayer
   const coverageG = document.createElementNS(svgNS, 'g');
   coverageG.setAttribute('class', 'coverage-layer');
   coverageG.style.pointerEvents = 'none';
@@ -977,7 +993,7 @@ function renderCoverageHeatmap(fp) {
     coverageG.appendChild(circle);
   }
 
-  edgesLayer.insertBefore(coverageG, edgesLayer.firstChild);
+  coverageLayer.appendChild(coverageG);
 }
 
 // ====== FLOOR ROUTES ======
@@ -1252,6 +1268,43 @@ function setConnType(cableKey){
 let isDraggingFloorMid=false,dragFloorMidRouteId=null,floorMidDragMoved=false;
 // ====== FLOOR ROUTE ENDPOINT RECONNECT ======
 let isReconnectingFloor=false,reconnectFloorRouteId=null,reconnectFloorEnd='',reconnectFloorFixedPos=null;
+// ====== SNAP-TO-NODE STATE ======
+let snapTargetNodeId=null,snapTargetPort=null,snapTargetPos=null;
+
+/** Detect nearest node for snap-to during connect/reconnect (works in both topology and floor plan views) */
+function detectConnSnap(mx,my){
+  snapTargetNodeId=null;snapTargetPort=null;snapTargetPos=null;
+  const isFloor=currentView!=='topology';
+  const fp=isFloor&&typeof getFloorPlan==='function'?getFloorPlan(currentView):null;
+  const SNAP_R=NODE_SIZE*1.5;
+  let bestDist=SNAP_R,bestPos=null,bestNode=null;
+
+  if(isFloor){
+    // Floor plan: use placement positions
+    if(!fp||!fp.placements)return;
+    fp.placements.forEach(pl=>{
+      if(pl.node_id===connSourceId)return;
+      const n=nodes.find(nd=>nd.id===pl.node_id);if(!n)return;
+      const cx=pl.x+n.w/2,cy=pl.y+n.h/2;
+      const d=Math.sqrt((mx-cx)*(mx-cx)+(my-cy)*(my-cy));
+      if(d<bestDist){bestDist=d;bestPos={x:pl.x,y:pl.y};bestNode=n}
+    });
+  }else{
+    // Topology: use node positions directly
+    nodes.forEach(n=>{
+      if(n.id===connSourceId)return;
+      const cx=n.x+n.w/2,cy=n.y+n.h/2;
+      const d=Math.sqrt((mx-cx)*(mx-cx)+(my-cy)*(my-cy));
+      if(d<bestDist){bestDist=d;bestPos={x:n.x,y:n.y};bestNode=n}
+    });
+  }
+  if(!bestPos||!bestNode)return;
+  // Find best port facing towards mouse
+  const srcPl={x:mx-NODE_SIZE/2,y:my-NODE_SIZE/2};
+  const bp=findBestPort(srcPl,bestPos,bestNode.w||NODE_SIZE,'bezier');
+  snapTargetNodeId=bestNode.id;snapTargetPort=bp.tgtPort;
+  snapTargetPos=getPortPos({x:bestPos.x,y:bestPos.y,w:bestNode.w,h:bestNode.h},bp.tgtPort);
+}
 
 let dragFloorWaypointIdx=null;  // index of floor route waypoint being dragged
 function renderFloorMidHandles(fp){
@@ -1334,13 +1387,40 @@ function renderFloorRouteEndpoints(fp){
     c.setAttribute('fill',clr);c.setAttribute('fill-opacity','0.3');c.setAttribute('stroke','#fff');c.setAttribute('stroke-width','2');c.style.cursor='grab';
     c.addEventListener('mousedown',ev=>{ev.stopPropagation();
       isReconnectingFloor=true;reconnectFloorRouteId=route.id;reconnectFloorEnd=end;
-      reconnectFloorFixedPos=mkPos(fixPl,fixN,fixPort);
+      // Use nearest waypoint as guide anchor (visually closer than the opposite endpoint)
+      if(route.waypoints&&route.waypoints.length){
+        reconnectFloorFixedPos=end==='source'?{...route.waypoints[0]}:{...route.waypoints[route.waypoints.length-1]};
+      }else{
+        reconnectFloorFixedPos=mkPos(fixPl,fixN,fixPort);
+      }
       connSourceId=end==='source'?route.targetNodeId:route.sourceNodeId;connSourcePort=fixPort;
       isConnecting=true;renderAll();
     });layer.appendChild(c);
   });
 }
 function renderFloorReconnectLine(mx,my){if(!reconnectFloorFixedPos)return;const p=reconnectFloorFixedPos;const comp=getTempEdgeZoomCompensation();const sw=3*comp;const bsw=5*comp;const da=`${8*comp} ${4*comp}`;document.getElementById('tempLayer').innerHTML=`<line x1="${p.x}" y1="${p.y}" x2="${mx}" y2="${my}" style="stroke:rgba(255,255,255,0.6);stroke-width:${bsw};stroke-dasharray:${da};fill:none"/><line class="edge-temp" x1="${p.x}" y1="${p.y}" x2="${mx}" y2="${my}" style="stroke:#3b82f6;stroke-width:${sw};stroke-dasharray:${da};fill:none"/>`}
+
+/** Render highlight ring around snap target node (appended to tempLayer, works in both views) */
+function renderConnSnapHighlight(){
+  const old=document.getElementById('snapHighlight');if(old)old.remove();
+  if(!snapTargetNodeId||!snapTargetPos)return;
+  const n=nodes.find(nd=>nd.id===snapTargetNodeId);if(!n)return;
+  const isFloor=currentView!=='topology';
+  let cx,cy;
+  if(isFloor){
+    const fp=typeof getFloorPlan==='function'?getFloorPlan(currentView):null;if(!fp)return;
+    const pl=fp.placements.find(p=>p.node_id===snapTargetNodeId);if(!pl)return;
+    cx=pl.x+n.w/2;cy=pl.y+n.h/2;
+  }else{
+    cx=n.x+n.w/2;cy=n.y+n.h/2;
+  }
+  const comp=isFloor&&typeof getFloorZoomCompensation==='function'?getFloorZoomCompensation():1;
+  const r=(n.w/2+14)*comp;
+  const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.id='snapHighlight';
+  g.innerHTML=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#3b82f6" stroke-width="${2.5*comp}" stroke-opacity="0.7"><animate attributeName="r" values="${r};${r+4*comp};${r}" dur="1s" repeatCount="indefinite"/><animate attributeName="stroke-opacity" values="0.7;0.3;0.7" dur="1s" repeatCount="indefinite"/></circle>`
+    +`<circle cx="${snapTargetPos.x}" cy="${snapTargetPos.y}" r="${6*comp}" fill="#3b82f6" fill-opacity="0.8" stroke="#fff" stroke-width="${2*comp}"/>`;
+  document.getElementById('tempLayer').appendChild(g);
+}
 
 function selectFloorRoute(routeId){
   selectedRouteId=routeId;selectedAreaId=null;selectedNodeIds=new Set();selectedEdgeId=null;
@@ -2148,8 +2228,8 @@ function relayoutFloorNodesTopo(){
   // Sync floor_id for consistency
   syncFloorAreaLabels();
 
-  const gapH=NODE_SIZE+100; // horizontal gap between chain columns
-  const gapV=NODE_SIZE+50;  // vertical gap between leaf rows (also used for floor spacing)
+  const gapH=NODE_SIZE+200; // horizontal gap between chain columns (enough room for edge labels)
+  const gapV=NODE_SIZE+80;  // vertical gap between leaf rows (also used for floor spacing)
 
   const topoNodes=nodes.filter(n=>!placedNodeIds.has(n.id));
   let startX=200,startY=200;
@@ -2181,160 +2261,205 @@ function relayoutFloorNodesTopo(){
 
   floorIds.forEach(fid=>{
     const group=groups[fid];
-    const ids=new Set(group.map(n=>n.id));
+    const allIds=new Set(group.map(n=>n.id));
 
-    // Build adjacency
+    // Build adjacency (within this floor only)
     const adj={};
     group.forEach(n=>{adj[n.id]=[]});
     edges.forEach(e=>{
-      if(ids.has(e.sourceId)&&ids.has(e.targetId)){
+      if(allIds.has(e.sourceId)&&allIds.has(e.targetId)){
         adj[e.sourceId].push(e.targetId);
         adj[e.targetId].push(e.sourceId);
       }
     });
 
-    // Find root: 1) riser virtual node, 2) real device inside riser area, 3) cross-floor link, 4) fallback
-    let root=group.find(n=>n.is_riser_node);
-    if(!root){
-      const fp=floorPlans.find(f=>f.id===fid);
-      if(fp){
-        const riserAreas=(fp.areas||[]).filter(a=>a.is_riser);
-        for(const ra of riserAreas){
-          const pl=(fp.placements||[]).find(p=>{
-            const cx=p.x+NODE_SIZE/2, cy=p.y+NODE_SIZE/2;
-            return cx>=ra.x&&cx<=ra.x+ra.width&&cy>=ra.y&&cy<=ra.y+ra.height;
-          });
-          if(pl){const n=group.find(nd=>nd.id===pl.node_id);if(n&&!n.is_riser_node){root=n;break}}
+    // ═══ Split into connected components (handles multiple risers) ═══
+    const ccVisited=new Set();
+    const rawComponents=[];
+    group.forEach(n=>{
+      if(ccVisited.has(n.id))return;
+      const comp=[];
+      const q=[n.id];
+      ccVisited.add(n.id);
+      while(q.length){
+        const cur=q.shift();
+        comp.push(group.find(nd=>nd.id===cur));
+        (adj[cur]||[]).forEach(nb=>{
+          if(!ccVisited.has(nb)){ccVisited.add(nb);q.push(nb)}
+        });
+      }
+      rawComponents.push(comp);
+    });
+
+    // Sort: riser-containing components first (leftmost in layout)
+    const fp=floorPlans.find(f=>f.id===fid);
+    const riserAreas=fp?(fp.areas||[]).filter(a=>a.is_riser):[];
+    function compHasRiser(cmp){
+      if(cmp.some(n=>n.is_riser_node))return true;
+      for(const ra of riserAreas){
+        for(const n of cmp){
+          const pl=(fp.placements||[]).find(p=>p.node_id===n.id);
+          if(pl){
+            const cx=pl.x+NODE_SIZE/2,cy=pl.y+NODE_SIZE/2;
+            if(cx>=ra.x&&cx<=ra.x+ra.width&&cy>=ra.y&&cy<=ra.y+ra.height)return true;
+          }
         }
       }
+      return false;
     }
-    if(!root) root=group.find(n=>edges.some(e=>
-      (e.sourceId===n.id&&!ids.has(e.targetId))||(e.targetId===n.id&&!ids.has(e.sourceId))
-    ));
-    if(!root) root=group[0];
+    rawComponents.sort((a,b)=>(compHasRiser(b)?1:0)-(compHasRiser(a)?1:0));
 
-    // BFS to get depth and parent for each node
-    const depthOf={},parentOf={};
-    const bfsQ=[{id:root.id,d:0}];
-    const visited=new Set([root.id]);
-    depthOf[root.id]=0;
-    while(bfsQ.length){
-      const{id,d}=bfsQ.shift();
-      (adj[id]||[]).forEach(nid=>{
-        if(!visited.has(nid)){
-          visited.add(nid);depthOf[nid]=d+1;parentOf[nid]=id;
-          bfsQ.push({id:nid,d:d+1});
+    // Process each connected component independently
+    const compDataArr=[];
+    rawComponents.forEach(comp=>{
+      const compIds=new Set(comp.map(n=>n.id));
+
+      // Find root: 1) riser virtual node, 2) real device inside riser area, 3) cross-floor link, 4) fallback
+      let root=comp.find(n=>n.is_riser_node);
+      if(!root&&fp){
+        for(const ra of riserAreas){
+          const pl=(fp.placements||[]).find(p=>{
+            const cx=p.x+NODE_SIZE/2,cy=p.y+NODE_SIZE/2;
+            return cx>=ra.x&&cx<=ra.x+ra.width&&cy>=ra.y&&cy<=ra.y+ra.height;
+          });
+          if(pl){const n=comp.find(nd=>nd.id===pl.node_id);if(n&&!n.is_riser_node){root=n;break}}
         }
+      }
+      if(!root) root=comp.find(n=>edges.some(e=>
+        (e.sourceId===n.id&&!compIds.has(e.targetId))||(e.targetId===n.id&&!compIds.has(e.sourceId))
+      ));
+      if(!root) root=comp[0];
+
+      // BFS to get depth and parent
+      const depthOf={},parentOf={};
+      const bfsQ=[{id:root.id,d:0}];
+      const bfsVisited=new Set([root.id]);
+      depthOf[root.id]=0;
+      while(bfsQ.length){
+        const{id,d}=bfsQ.shift();
+        (adj[id]||[]).forEach(nid=>{
+          if(!bfsVisited.has(nid)){
+            bfsVisited.add(nid);depthOf[nid]=d+1;parentOf[nid]=id;
+            bfsQ.push({id:nid,d:d+1});
+          }
+        });
+      }
+
+      // Classify: leaf (degree 1 within component) vs chain (degree 2+)
+      const isLeaf={};
+      comp.forEach(n=>{isLeaf[n.id]=(adj[n.id]||[]).length<=1});
+
+      // Find main chain: greedy walk from root
+      function countDesc(nid,vis){
+        let c=1;vis.add(nid);
+        (adj[nid]||[]).forEach(nb=>{if(!vis.has(nb))c+=countDesc(nb,vis)});
+        return c;
+      }
+      const chain=[];const chainSet=new Set();
+      let cur=root.id;const walkVis=new Set();
+      while(cur!=null){
+        chain.push(cur);chainSet.add(cur);walkVis.add(cur);
+        const neighbors=(adj[cur]||[]).filter(nid=>!walkVis.has(nid));
+        if(!neighbors.length)break;
+        const nonLeafNb=neighbors.filter(nid=>!isLeaf[nid]);
+        if(!nonLeafNb.length)break;
+        let best=null,bestScore=-1;
+        nonLeafNb.forEach(nid=>{
+          const score=countDesc(nid,new Set(walkVis));
+          if(score>bestScore){bestScore=score;best=nid}
+        });
+        cur=best;
+      }
+
+      // Collect leaves grouped by nearest chain ancestor
+      const leafGroups={};
+      chain.forEach(cid=>{leafGroups[cid]=[]});
+      comp.forEach(n=>{
+        if(chainSet.has(n.id))return;
+        let p=n.id;
+        while(p&&!chainSet.has(p))p=parentOf[p];
+        const ancestor=p||chain[chain.length-1];
+        if(!leafGroups[ancestor])leafGroups[ancestor]=[];
+        leafGroups[ancestor].push(n);
       });
-    }
 
-    // Classify: leaf (degree 1) vs chain (degree 2+)
-    const isLeaf={};
-    group.forEach(n=>{isLeaf[n.id]=(adj[n.id]||[]).length<=1});
-
-    // Find main chain: greedy walk from root, always picking non-leaf neighbor with most descendants
-    function countDescendants(nid,vis){
-      let c=1;vis.add(nid);
-      (adj[nid]||[]).forEach(nb=>{if(!vis.has(nb))c+=countDescendants(nb,vis)});
-      return c;
-    }
-    const chain=[];const chainSet=new Set();
-    let cur=root.id;const walkVisited=new Set();
-    while(cur!=null){
-      chain.push(cur);chainSet.add(cur);walkVisited.add(cur);
-      const neighbors=(adj[cur]||[]).filter(nid=>!walkVisited.has(nid));
-      if(!neighbors.length)break;
-      // Only continue chain through non-leaf nodes; stop when all remaining are leaves
-      const nonLeafNb=neighbors.filter(nid=>!isLeaf[nid]);
-      if(!nonLeafNb.length)break;
-      let best=null,bestScore=-1;
-      nonLeafNb.forEach(nid=>{
-        const score=countDescendants(nid,new Set(walkVisited));
-        if(score>bestScore){bestScore=score;best=nid}
+      // Compute layout metrics for this component
+      let nonEndSlots=0;
+      chain.forEach((cid,ci)=>{
+        nonEndSlots++;
+        if((leafGroups[cid]||[]).length&&ci<chain.length-1)nonEndSlots++;
       });
-      cur=best;
-    }
+      let tiersAbove=0,tiersBelow=0;
+      chain.forEach((cid,ci)=>{
+        const lv=leafGroups[cid]||[];
+        if(!lv.length)return;
+        const isLast=(ci===chain.length-1);
+        let ta,tb;
+        if(!isLast){ta=Math.ceil(lv.length/2);tb=Math.floor(lv.length/2)}
+        else{ta=lv.length>=2?Math.ceil((lv.length-1)/2):0;tb=lv.length>=2?Math.floor((lv.length-1)/2):0}
+        if(ta>tiersAbove)tiersAbove=ta;
+        if(tb>tiersBelow)tiersBelow=tb;
+      });
 
-    // Collect leaves grouped by their nearest chain ancestor
-    const leafGroups={}; // chainNodeId -> [node, ...]
-    chain.forEach(cid=>{leafGroups[cid]=[]});
-    group.forEach(n=>{
-      if(chainSet.has(n.id))return;
-      // Walk up parent chain to find nearest chain ancestor
-      let p=n.id;
-      while(p&&!chainSet.has(p))p=parentOf[p];
-      const ancestor=p||chain[chain.length-1];
-      if(!leafGroups[ancestor])leafGroups[ancestor]=[];
-      leafGroups[ancestor].push(n);
+      compDataArr.push({compIds,chain,leafGroups,nonEndSlots,tiersAbove,tiersBelow,
+        hasEndLeaves:(leafGroups[chain[chain.length-1]]||[]).length>0});
     });
 
-    // Save floor topology data for global column alignment
-    let nonEndSlots=0;
-    chain.forEach((cid,ci)=>{
-      nonEndSlots++;
-      if((leafGroups[cid]||[]).length&&ci<chain.length-1)nonEndSlots++;
-    });
-    // Compute vertical extent: antenna tiers above/below chainY
-    let tiersAbove=0,tiersBelow=0;
-    chain.forEach((cid,ci)=>{
-      const lv=leafGroups[cid]||[];
-      if(!lv.length)return;
-      const isLast=(ci===chain.length-1);
-      let ta,tb;
-      if(!isLast){ta=Math.ceil(lv.length/2);tb=Math.floor(lv.length/2)}
-      else{ta=lv.length>=2?Math.ceil((lv.length-1)/2):0;tb=lv.length>=2?Math.floor((lv.length-1)/2):0}
-      if(ta>tiersAbove)tiersAbove=ta;
-      if(tb>tiersBelow)tiersBelow=tb;
-    });
-    floorData[fid]={ids,chain,leafGroups,nonEndSlots,tiersAbove,tiersBelow,
-      hasEndLeaves:(leafGroups[chain[chain.length-1]]||[]).length>0};
+    // Aggregate floor-level metrics: max nonEndSlots across components (for global column alignment)
+    const maxCompNonEndSlots=Math.max(0,...compDataArr.map(c=>c.nonEndSlots));
+    floorData[fid]={allIds,components:compDataArr,maxCompNonEndSlots,
+      hasEndLeaves:compDataArr.some(c=>c.hasEndLeaves)};
   });
 
   // ═══ Global column alignment: end leaves right-aligned across all floors ═══
-  const maxNonEnd=Math.max(...Object.values(floorData).map(d=>d.nonEndSlots));
+  const maxNonEnd=Math.max(...Object.values(floorData).map(d=>d.maxCompNonEndSlots));
   const anyEnd=Object.values(floorData).some(d=>d.hasEndLeaves);
   const globalEndCol=anyEnd?maxNonEnd:-1;
 
-  // ═══ Phase 2: Place nodes using global columns ═══
+  // ═══ Phase 2: Place nodes — each component on its own row (stacked vertically) ═══
   floorIds.forEach(fid=>{
-    const{ids,chain,leafGroups,tiersAbove,tiersBelow}=floorData[fid];
-    const chainY=curY+tiersAbove*gapV;
+    const fd=floorData[fid];
 
-    // Place chain nodes and per-parent leaf columns with global alignment
-    let slotIdx=0;
-    const allLeaves=[];
-    chain.forEach((cid,i)=>{
-      const n=nodes.find(nd=>nd.id===cid);
-      if(n){n.x=startX+slotIdx*gapH;n.y=chainY}
-      slotIdx++;
-      const leaves=leafGroups[cid]||[];
-      const isLast=(i===chain.length-1);
-      if(leaves.length){
-        if(!isLast){
-          // Non-end: leaves in adjacent column, above/below chainY (avoid chain wire overlap)
-          const leafX=startX+slotIdx*gapH;
-          leaves.forEach((ln,j)=>{
-            ln.x=leafX;
-            const t=Math.floor(j/2)+1;
-            ln.y=(j%2===0)?chainY-t*gapV:chainY+t*gapV;
-          });
-          slotIdx++;
-        }else{
-          // End: leaves at global rightmost column; first at chainY, rest alternate
-          const leafX=startX+(globalEndCol>=0?globalEndCol:slotIdx)*gapH;
-          leaves.forEach((ln,j)=>{
-            ln.x=leafX;
-            if(j===0)ln.y=chainY;
-            else{const t=Math.ceil(j/2);ln.y=(j%2===1)?chainY-t*gapV:chainY+t*gapV}
-          });
+    fd.components.forEach((comp,compIdx)=>{
+      if(compIdx>0)curY+=gapV*0.5; // gap between components within same floor
+      const chainY=curY+comp.tiersAbove*gapV;
+
+      let slotIdx=0;
+      comp.chain.forEach((cid,i)=>{
+        const n=nodes.find(nd=>nd.id===cid);
+        if(n){n.x=startX+slotIdx*gapH;n.y=chainY}
+        slotIdx++;
+        const leaves=comp.leafGroups[cid]||[];
+        const isLast=(i===comp.chain.length-1);
+        if(leaves.length){
+          if(!isLast){
+            // Non-end: leaves in adjacent column, above/below chainY
+            const leafX=startX+slotIdx*gapH;
+            leaves.forEach((ln,j)=>{
+              ln.x=leafX;
+              const t=Math.floor(j/2)+1;
+              ln.y=(j%2===0)?chainY-t*gapV:chainY+t*gapV;
+            });
+            slotIdx++;
+          }else{
+            // End leaves: right-aligned to global column
+            const leafX=startX+(globalEndCol>=0?globalEndCol:slotIdx)*gapH;
+            leaves.forEach((ln,j)=>{
+              ln.x=leafX;
+              if(j===0)ln.y=chainY;
+              else{const t=Math.ceil(j/2);ln.y=(j%2===1)?chainY-t*gapV:chainY+t*gapV}
+            });
+          }
         }
-        allLeaves.push(...leaves);
-      }
+      });
+
+      // Advance Y past this component's below-tiers
+      curY=chainY+comp.tiersBelow*gapV+gapV;
     });
 
     // Update edge ports and routing for this floor group
     edges.forEach(e=>{
-      if(!ids.has(e.sourceId)||!ids.has(e.targetId))return;
+      if(!fd.allIds.has(e.sourceId)||!fd.allIds.has(e.targetId))return;
       const src=nodes.find(n=>n.id===e.sourceId);
       const tgt=nodes.find(n=>n.id===e.targetId);
       if(!src||!tgt)return;
@@ -2356,8 +2481,8 @@ function relayoutFloorNodesTopo(){
       delete e.midPos;
     });
 
-    // Next floor Y: 1.5x gapV between floors for clearer separation
-    curY=chainY+tiersBelow*gapV+gapV*1.5;
+    // Extra gap between floors
+    curY+=gapV*0.5;
   });
 
   // ═══ Phase 3: Align central_room areas with floor chains ═══

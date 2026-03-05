@@ -292,7 +292,12 @@ document.addEventListener('mousemove',e=>{
     rect.setAttribute('x',bx);rect.setAttribute('y',by);
     rect.setAttribute('width',bw);rect.setAttribute('height',bh);
   }
-  if(isConnecting&&connSourceId){const pt=svgPoint(e);if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor)renderFloorReconnectLine(pt.x,pt.y);else renderTempEdge(pt.x,pt.y)}
+  if(isConnecting&&connSourceId){const pt=svgPoint(e);
+    if(typeof detectConnSnap==='function')detectConnSnap(pt.x,pt.y);
+    const _sx=(typeof snapTargetPos!=='undefined'&&snapTargetPos)?snapTargetPos.x:pt.x;
+    const _sy=(typeof snapTargetPos!=='undefined'&&snapTargetPos)?snapTargetPos.y:pt.y;
+    if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor)renderFloorReconnectLine(_sx,_sy);else renderTempEdge(_sx,_sy);
+    if(typeof renderConnSnapHighlight==='function')renderConnSnapHighlight()}
   if(isDraggingMid&&dragMidEdgeId!==null){
     if(!midDragMoved){pushHistory();midDragMoved=true}const pt=svgPoint(e);const edge=edges.find(e=>e.id===dragMidEdgeId);
     if(edge){
@@ -419,30 +424,31 @@ document.addEventListener('mouseup',e=>{
   if(wasDraggingOp)renderAll();
   if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor&&!isConnecting){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
   if(isConnecting){
-    // Click-persistent mode: only complete connection when clicking a valid target port
+    // Click-persistent mode: complete connection when clicking a valid target port or snapped node
     let completed=false,reconnected=false;
-    if(e.target.classList&&e.target.classList.contains('port')){
-      const tid=parseInt(e.target.dataset.nodeId),tp=e.target.dataset.port;
-      if(tid!==connSourceId){
-        completed=true;
-        if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){
-          const fp=typeof getFloorPlan==='function'?getFloorPlan(currentView):null;
-          if(fp){const route=fp.routes.find(r=>r.id===reconnectFloorRouteId);
-            if(route){pushHistory();if(reconnectFloorEnd==='source'){route.sourceNodeId=tid;route.sourcePort=tp}else{route.targetNodeId=tid;route.targetPort=tp}
-              route._userPorts=true;if(route.routeMode==='ortho3')delete route.midPos;
-              if(route.linked_edge_id){const le=edges.find(e2=>e2.id===route.linked_edge_id);if(le){if(reconnectFloorEnd==='source'){le.sourceId=tid;le.sourcePort=tp}else{le.targetId=tid;le.targetPort=tp}}}
-              hasUnsavedChanges=true;reconnected=true;selectedRouteId=route.id;}}
-        }else if(isReconnecting){
-          const re=edges.find(e=>e.id===reconnectEdgeId);
-          if(re){pushHistory();if(reconnectEnd==='source'){re.sourceId=tid;re.sourcePort=tp}else{re.targetId=tid;re.targetPort=tp}
-            delete re._hidden;if(re.routeMode==='ortho3')delete re.midPos;hasUnsavedChanges=true;reconnected=true}
-        }else if(currentView==='topology'){
-          pushHistory();const defEdge={id:edgeIdCounter++,sourceId:connSourceId,sourcePort:connSourcePort,targetId:tid,targetPort:tp,cableType:null,color:'#94a3b8',width:1.5,dash:'6 4',label:'',routeMode:defaultRouteMode,hideLabel:false,waypoints:polylineWaypoints.length?[...polylineWaypoints]:undefined};
-          edges.push(defEdge);pendingEdge=defEdge.id;showConnTypePopup(e.clientX,e.clientY);
-        }else{
-          // Floor plan mode: create edge + floor route
-          createFloorRoute(connSourceId,connSourcePort,tid,tp,e.clientX,e.clientY);
-        }
+    let _snapTid=null,_snapTp=null;
+    if(e.target.classList&&e.target.classList.contains('port')){_snapTid=parseInt(e.target.dataset.nodeId);_snapTp=e.target.dataset.port}
+    else if(typeof snapTargetNodeId!=='undefined'&&snapTargetNodeId&&snapTargetPort){_snapTid=snapTargetNodeId;_snapTp=snapTargetPort}
+    if(_snapTid&&_snapTid!==connSourceId){
+      const tid=_snapTid,tp=_snapTp;
+      completed=true;
+      if(typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor){
+        const fp=typeof getFloorPlan==='function'?getFloorPlan(currentView):null;
+        if(fp){const route=fp.routes.find(r=>r.id===reconnectFloorRouteId);
+          if(route){pushHistory();if(reconnectFloorEnd==='source'){route.sourceNodeId=tid;route.sourcePort=tp}else{route.targetNodeId=tid;route.targetPort=tp}
+            route._userPorts=true;if(route.routeMode==='ortho3')delete route.midPos;
+            if(route.linked_edge_id){const le=edges.find(e2=>e2.id===route.linked_edge_id);if(le){if(reconnectFloorEnd==='source'){le.sourceId=tid;le.sourcePort=tp}else{le.targetId=tid;le.targetPort=tp}}}
+            hasUnsavedChanges=true;reconnected=true;selectedRouteId=route.id;}}
+      }else if(isReconnecting){
+        const re=edges.find(e=>e.id===reconnectEdgeId);
+        if(re){pushHistory();if(reconnectEnd==='source'){re.sourceId=tid;re.sourcePort=tp}else{re.targetId=tid;re.targetPort=tp}
+          delete re._hidden;if(re.routeMode==='ortho3')delete re.midPos;hasUnsavedChanges=true;reconnected=true}
+      }else if(currentView==='topology'){
+        pushHistory();const defEdge={id:edgeIdCounter++,sourceId:connSourceId,sourcePort:connSourcePort,targetId:tid,targetPort:tp,cableType:null,color:'#94a3b8',width:1.5,dash:'6 4',label:'',routeMode:defaultRouteMode,hideLabel:false,waypoints:polylineWaypoints.length?[...polylineWaypoints]:undefined};
+        edges.push(defEdge);pendingEdge=defEdge.id;showConnTypePopup(e.clientX,e.clientY);
+      }else{
+        // Floor plan mode: create edge + floor route
+        createFloorRoute(connSourceId,connSourcePort,tid,tp,e.clientX,e.clientY);
       }
     }
     // Only clean up state when connection was completed; otherwise keep the temp line following mouse
@@ -451,6 +457,7 @@ document.addEventListener('mouseup',e=>{
       isReconnecting=false;reconnectEdgeId=null;reconnectEnd='';
       const _wasFloorReconnect=typeof isReconnectingFloor!=='undefined'&&isReconnectingFloor;
       if(_wasFloorReconnect){isReconnectingFloor=false;reconnectFloorRouteId=null;reconnectFloorEnd='';reconnectFloorFixedPos=null}
+      if(typeof snapTargetNodeId!=='undefined'){snapTargetNodeId=null;snapTargetPort=null;snapTargetPos=null}
       polylineWaypoints=[];isConnecting=false;connSourceId=null;document.getElementById('tempLayer').innerHTML='';
       setTool('select');renderAll();
       if(reconnected&&typeof selectedRouteId!=='undefined'&&selectedRouteId!==null&&typeof showFloorRouteProps==='function')showFloorRouteProps(selectedRouteId);
