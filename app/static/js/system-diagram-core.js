@@ -124,7 +124,7 @@ let dragMoved=false,midDragMoved=false,_propEditing=false,_propEditTimer=null;
 // currentView: 'topology' | 'fp_1' | 'fp_2' ...
 let currentView = 'topology';
 let exportBlackMode=false;
-let displaySettings={cableWidth:1,cableBlack:false,cableLabel:true,cableLength:true,iconWidth:1,iconBlack:false,iconLabel:true,iconModel:true,showCoverage:'individual',showCoverageInner:true,showCoverageMid:true,showCoverageOuter:true,coverageFill:true,coverageMode:'circles'};
+let displaySettings={cableWidth:1,cableBlack:false,cableLabel:true,cableLength:true,iconWidth:1,iconBlack:false,iconLabel:true,iconModel:true,showCoverage:'individual',showCoverageInner:true,showCoverageMid:true,coverageFill:true,coverageMode:'circles'};
 let floorPlanIdCounter = 1;
 let topoViewX = 0, topoViewY = 0, topoScale = 1;
 let topoAreas = []; // Areas drawn on the topology view
@@ -174,7 +174,6 @@ function renderDisplaySettingsHTML(){
       <div class="ds-toggles" style="padding-left:18px;gap:8px;">
         ${_dsToggle('showCoverageInner',_t('内圈'))}
         ${_dsToggle('showCoverageMid',_t('中圈'))}
-        ${_dsToggle('showCoverageOuter',_t('外圈'))}
       </div>`:
       `<div style="font-size:11px;color:var(--text-muted);padding:2px 4px;">${_t('环境在每个天线属性中单独设置')}</div>`}
     </div>`;
@@ -1207,7 +1206,7 @@ function deserializeDiagram(data){
   if(data.routeIdCounter&&typeof routeIdCounter!=='undefined')routeIdCounter=data.routeIdCounter;
   if(data.areaIdCounter&&typeof areaIdCounter!=='undefined')areaIdCounter=data.areaIdCounter;
   if(data.topoAreas)topoAreas=data.topoAreas;
-  if(data.displaySettings){const ds=Object.assign({cableWidth:1,cableBlack:false,cableLabel:true,cableLength:true,iconWidth:1,iconBlack:false,iconLabel:true,iconModel:true,showCoverage:'individual',showCoverageInner:true,showCoverageMid:true,showCoverageOuter:true,coverageFill:true,coverageMode:'circles'},data.displaySettings);delete ds.coverageN;if(ds.showCoverage===true)ds.showCoverage='individual';if(ds.showCoverage===false)ds.showCoverage='off';displaySettings=ds;}
+  if(data.displaySettings){const ds=Object.assign({cableWidth:1,cableBlack:false,cableLabel:true,cableLength:true,iconWidth:1,iconBlack:false,iconLabel:true,iconModel:true,showCoverage:'individual',showCoverageInner:true,showCoverageMid:true,coverageFill:true,coverageMode:'circles'},data.displaySettings);delete ds.coverageN;delete ds.showCoverageOuter;if(ds.showCoverage===true)ds.showCoverage='individual';if(ds.showCoverage===false)ds.showCoverage='off';displaySettings=ds;}
   updateTransform();renderAll();
 }
 

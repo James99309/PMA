@@ -8,9 +8,16 @@
 const COVERAGE_RINGS = [
   { color: '#16a34a', fillOpacity: 0.12, strokeOpacity: 0.6, strokeWidth: 1.2, labelOpacity: 0.8 },
   { color: '#22c55e', fillOpacity: 0.08, strokeOpacity: 0.5, strokeWidth: 1,   labelOpacity: 0.7 },
-  { color: '#4ade80', fillOpacity: 0.04, strokeOpacity: 0.4, strokeWidth: 0.8, labelOpacity: 0.6 },
 ];
-const COVERAGE_DEFAULT_RADII = [15, 30, 100];
+const COVERAGE_DEFAULT_RADII = [12, 24];
+const COVERAGE_THRESHOLDS = [-65, -80]; // inner=strong signal, mid=uplink boundary
+function coverageRadiiFromN(n) {
+  const rx1m = -14.5; // _HM_RX1M
+  return COVERAGE_THRESHOLDS.map(th => {
+    const r = Math.pow(10, (rx1m - th) / (10 * (n || 4.7)));
+    return Math.round(r * 10) / 10;
+  });
+}
 
 function getNodeIconKey(n) {
   if (!n) return '';
@@ -25,16 +32,16 @@ function getNodeIconKey(n) {
 function buildCoveragePropsHTML(nodeId) {
   const n = nodes.find(nd => nd.id === nodeId);
   if (!n || getNodeIconKey(n) !== 'antenna_indoor') return '';
-  const radii = n.coverageRadii || COVERAGE_DEFAULT_RADII;
+  const isAutoRadii = !n.coverageRadii;
+  const radii = n.coverageRadii || coverageRadiiFromN(n.coverageN);
   const checked = n.showCoverage === true ? 'checked' : '';
-  const vis = n.coverageVisible || [true, true, true];
+  const vis = n.coverageVisible || [true, true];
   const ringNames = [
-    {zh:'内圈（强信号）', en:'Inner (strong)'},
-    {zh:'中圈（中等信号）', en:'Mid (medium)'},
-    {zh:'外圈（弱信号）', en:'Outer (weak)'}
+    {zh:'内圈 (-65dBm 强信号)', en:'Inner (-65dBm strong)'},
+    {zh:'中圈 (-80dBm 上行边界)', en:'Mid (-80dBm uplink)'},
   ];
   let rows = '';
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 2; i++) {
     const ring = COVERAGE_RINGS[i];
     rows += `<div style="display:flex;align-items:center;gap:6px;">
       <input type="checkbox" ${vis[i]!==false?'checked':''} onchange="updateCoverageVisible(${nodeId},${i},this.checked)">
@@ -45,13 +52,18 @@ function buildCoveragePropsHTML(nodeId) {
       <span style="font-size:11px;color:var(--text-muted);">m</span>
     </div>`;
   }
-  const curN = n.coverageN || 7.5;
+  if (!isAutoRadii) {
+    rows += `<div style="margin-top:2px;"><a href="#" style="font-size:10px;color:var(--text-muted);" onclick="event.preventDefault();resetCoverageRadii(${nodeId})">${_t('重置为自动')}</a></div>`;
+  } else {
+    rows += `<div style="margin-top:2px;font-size:10px;color:var(--text-muted);">${_t('自动计算')}</div>`;
+  }
+  const curN = n.coverageN || 4.7;
   const envOptions = [
-    [4.5, {zh:'停车库 (n=4.5)', en:'Parking (n=4.5)'}],
-    [5.5, {zh:'普通办公 (n=5.5)', en:'Office (n=5.5)'}],
-    [7.5, {zh:'密集区域 (n=7.5)', en:'Dense (n=7.5)'}],
+    [3.0, {zh:'停车库 (n=3.0)', en:'Parking (n=3.0)'}],
+    [3.8, {zh:'普通办公 (n=3.8)', en:'Office (n=3.8)'}],
+    [4.7, {zh:'密集区域 (n=4.7)', en:'Dense (n=4.7)'}],
   ];
-  const envSelect = `<select class="props-input" style="width:auto;padding:2px 4px;font-size:11px;" onchange="updateNodeProp(${nodeId},'coverageN',parseFloat(this.value))">` +
+  const envSelect = `<select class="props-input" style="width:auto;padding:2px 4px;font-size:11px;" onchange="updateCoverageEnv(${nodeId},parseFloat(this.value))">` +
     envOptions.map(([v, label]) => `<option value="${v}"${curN==v?' selected':''}>${_m(label)}</option>`).join('') + '</select>';
 
   const globalMode = displaySettings.showCoverage;
@@ -703,11 +715,11 @@ function renderCoverageCircles(fp) {
 
     const cx = pl.x + (n.w || NODE_SIZE) / 2;
     const cy = pl.y + (n.h || NODE_SIZE) / 2;
-    const radii = n.coverageRadii || COVERAGE_DEFAULT_RADII;
+    const radii = n.coverageRadii || coverageRadiiFromN(n.coverageN);
 
     // Draw from outer to inner so inner paints on top
-    const globalRingKeys = ['showCoverageInner', 'showCoverageMid', 'showCoverageOuter'];
-    const vis = n.coverageVisible || [true, true, true];
+    const globalRingKeys = ['showCoverageInner', 'showCoverageMid'];
+    const vis = n.coverageVisible || [true, true];
     for (let i = radii.length - 1; i >= 0; i--) {
       const r = radii[i] * ppm;
       if (r <= 0) continue;
@@ -765,18 +777,20 @@ function renderCoverageCircles(fp) {
 // ====== COVERAGE HEATMAP ======
 // 对讲机信号物理模型：Rx(dBm) = Tx - FSPL(1m) - 10·n·log₁₀(d)
 const _HM_TX = 10, _HM_FSPL1M = 24.5, _HM_RX1M = _HM_TX - _HM_FSPL1M; // -14.5 dBm
-const _HM_DESIGN = -85, _HM_FLOOR = -110;
+const _HM_DESIGN = -85, _HM_FLOOR = -95;
 const _HM_RANGE = _HM_RX1M - _HM_FLOOR; // 95.5 dB
 const HEATMAP_SAMPLE_SIZE = 4;
 const HEATMAP_COLORS = [
-  { stop: 0.00, r: 59,  g: 130, b: 246 },
-  { stop: 0.10, r: 6,   g: 182, b: 212 },
-  { stop: 0.25, r: 34,  g: 197, b: 94  },
-  { stop: 0.40, r: 132, g: 204, b: 22  },
-  { stop: 0.55, r: 234, g: 179, b: 8   },
-  { stop: 0.70, r: 245, g: 158, b: 11  },
-  { stop: 0.85, r: 234, g: 88,  b: 12  },
-  { stop: 1.00, r: 220, g: 38,  b: 38  },
+  { stop: 0.00, r: 59,  g: 130, b: 246 },  // 蓝 (噪声底)
+  { stop: 0.08, r: 6,   g: 182, b: 212 },  // 青
+  { stop: 0.15, r: 16,  g: 185, b: 145 },  // 青绿
+  { stop: 0.25, r: 34,  g: 197, b: 94  },  // 绿 (中圈区域)
+  { stop: 0.35, r: 100, g: 200, b: 55  },  // 黄绿
+  { stop: 0.42, r: 180, g: 200, b: 30  },  // 黄绿偏黄
+  { stop: 0.50, r: 240, g: 190, b: 20  },  // 黄 (内圈区域)
+  { stop: 0.60, r: 245, g: 120, b: 11  },  // 橙
+  { stop: 0.80, r: 234, g: 70,  b: 12  },  // 橙红
+  { stop: 1.00, r: 220, g: 38,  b: 38  },  // 红 (天线中心)
 ];
 let _heatmapCache = { stamp: null, dataUrl: null, bounds: null };
 
@@ -788,7 +802,8 @@ function _hmStrength(d, n) {
   const dBm = _hmSignalDbm(d, n);
   if (dBm >= _HM_RX1M) return 1.0;
   if (dBm <= _HM_FLOOR) return 0.0;
-  return (dBm - _HM_FLOOR) / _HM_RANGE;
+  const linear = (dBm - _HM_FLOOR) / _HM_RANGE;
+  return linear;
 }
 function _hmColor(s) {
   for (let i = 1; i < HEATMAP_COLORS.length; i++) {
@@ -801,19 +816,41 @@ function _hmColor(s) {
   return HEATMAP_COLORS[HEATMAP_COLORS.length - 1];
 }
 
+// Derive effective n from the coverage radii the user actually sees (circles).
+// This ensures the heatmap paints the same contour as the coverage rings.
+function _hmEffectiveN(nd) {
+  const radii = nd.coverageRadii || coverageRadiiFromN(nd.coverageN);
+  const rMid = radii[1]; // mid-ring radius in metres, corresponds to -80 dBm
+  if (rMid > 0.5) {
+    // -80 = -14.5 - 10*n*log10(rMid)  →  n = 65.5 / (10*log10(rMid))
+    return 65.5 / (10 * Math.log10(rMid));
+  }
+  return nd.coverageN || 4.7;
+}
+
 function _hmStamp(fp) {
   const parts = [];
   fp.placements.forEach(pl => {
     const nd = nodes.find(x => x.id === pl.node_id);
     if (!nd || getNodeIconKey(nd) !== 'antenna_indoor') return;
     if (displaySettings.showCoverage === 'individual' && nd.showCoverage !== true) return;
-    parts.push(`${pl.x},${pl.y},n=${nd.coverageN||7.5}`);
+    const radii = nd.coverageRadii || coverageRadiiFromN(nd.coverageN);
+    parts.push(`${pl.x},${pl.y},r=${radii.join(',')}`);
   });
   return parts.join('|');
 }
 
 function _hmBounds(fp, ppm, antennasData) {
-  // Compute bounding box of floor plan
+  // Prefer the floor-plan background dimensions so the heatmap matches the drawing
+  if (fp.background && fp.background.width && fp.background.height) {
+    return {
+      x: fp.background.offset_x || 0,
+      y: fp.background.offset_y || 0,
+      width: fp.background.width,
+      height: fp.background.height
+    };
+  }
+  // Fallback: bounding box of antenna positions + padding
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   fp.placements.forEach(pl => {
     const nd = nodes.find(x => x.id === pl.node_id);
@@ -824,10 +861,9 @@ function _hmBounds(fp, ppm, antennasData) {
     maxX = Math.max(maxX, cx); maxY = Math.max(maxY, cy);
   });
   if (minX === Infinity) return null;
-  // Add padding based on signal range at noise floor — use smallest n (largest coverage)
-  const minN = antennasData.reduce((m, a) => Math.min(m, a.n), 7.5);
+  const minN = antennasData.reduce((m, a) => Math.min(m, a.n), 4.7);
   const maxRange = Math.pow(10, (_HM_RX1M - _HM_FLOOR) / (10 * minN)) * ppm;
-  const pad = Math.min(maxRange, 2000); // Cap padding
+  const pad = Math.min(maxRange, 8000);
   return {
     x: minX - pad, y: minY - pad,
     width: (maxX - minX) + 2 * pad,
@@ -836,7 +872,8 @@ function _hmBounds(fp, ppm, antennasData) {
 }
 
 function _hmGenerate(fp, ppm, bounds, antennasData) {
-  const ss = HEATMAP_SAMPLE_SIZE;
+  const maxDim = Math.max(bounds.width, bounds.height);
+  const ss = maxDim > 6000 ? 8 : maxDim > 3000 ? 6 : HEATMAP_SAMPLE_SIZE;
   const sw = Math.ceil(bounds.width / ss);
   const sh = Math.ceil(bounds.height / ss);
   if (sw <= 0 || sh <= 0) return null;
@@ -859,11 +896,15 @@ function _hmGenerate(fp, ppm, bounds, antennasData) {
         const s = _hmStrength(dist, ant.n);
         if (s > maxS) maxS = s;
       }
-      if (maxS > 0.01) {
+      if (maxS > 0.03) {
+        // Fade out near canvas edges to avoid hard boundary
+        const edgeM = 50; // canvas pixels (~200 SVG px)
+        const distE = Math.min(sx, sy, sw - 1 - sx, sh - 1 - sy);
+        const fade = distE < edgeM ? distE / edgeM : 1.0;
         const c = _hmColor(maxS);
         const idx = (sy * sw + sx) * 4;
         data[idx] = c.r; data[idx + 1] = c.g; data[idx + 2] = c.b;
-        data[idx + 3] = Math.round(20 + maxS * 140);
+        data[idx + 3] = Math.min(255, Math.round(Math.pow(maxS, 1.5) * 320 * fade));
       }
     }
   }
@@ -887,7 +928,7 @@ function renderCoverageHeatmap(fp) {
     antennasData.push({
       cx: pl.x + (nd.w || NODE_SIZE) / 2,
       cy: pl.y + (nd.h || NODE_SIZE) / 2,
-      n: nd.coverageN || 7.5
+      n: _hmEffectiveN(nd)
     });
   });
   if (antennasData.length === 0) return;
@@ -917,7 +958,7 @@ function renderCoverageHeatmap(fp) {
   img.setAttribute('y', bounds.y);
   img.setAttribute('width', bounds.width);
   img.setAttribute('height', bounds.height);
-  img.setAttribute('style', 'filter:blur(2px);image-rendering:auto;');
+  img.setAttribute('style', 'image-rendering:auto;');
   img.setAttribute('preserveAspectRatio', 'none');
   coverageG.appendChild(img);
 
@@ -2779,7 +2820,8 @@ function updateCoverageRadius(nodeId, idx, val) {
   const n = nodes.find(nd => nd.id === nodeId);
   if (!n) return;
   pushHistoryProp();
-  if (!n.coverageRadii) n.coverageRadii = [...COVERAGE_DEFAULT_RADII];
+  if (!n.coverageRadii) n.coverageRadii = [...coverageRadiiFromN(n.coverageN)];
+  if (n.coverageRadii.length > 2) n.coverageRadii = n.coverageRadii.slice(0, 2);
   n.coverageRadii[idx] = Math.max(0, parseFloat(val) || 0);
   hasUnsavedChanges = true;
   renderAll();
@@ -2789,10 +2831,33 @@ function updateCoverageVisible(nodeId, idx, val) {
   const n = nodes.find(nd => nd.id === nodeId);
   if (!n) return;
   pushHistoryProp();
-  if (!n.coverageVisible) n.coverageVisible = [true, true, true];
+  if (!n.coverageVisible) n.coverageVisible = [true, true];
+  if (n.coverageVisible.length > 2) n.coverageVisible = n.coverageVisible.slice(0, 2);
   n.coverageVisible[idx] = val;
   hasUnsavedChanges = true;
   renderAll();
+}
+
+function updateCoverageEnv(nodeId, nVal) {
+  const n = nodes.find(nd => nd.id === nodeId);
+  if (!n) return;
+  pushHistoryProp();
+  n.coverageN = nVal;
+  if (n.coverageRadii) delete n.coverageRadii;
+  hasUnsavedChanges = true;
+  _heatmapCache.stamp = null;
+  renderAll();
+  if (typeof showFloorNodeProps === 'function') showFloorNodeProps(nodeId);
+}
+
+function resetCoverageRadii(nodeId) {
+  const n = nodes.find(nd => nd.id === nodeId);
+  if (!n) return;
+  pushHistoryProp();
+  delete n.coverageRadii;
+  hasUnsavedChanges = true;
+  renderAll();
+  if (typeof showFloorNodeProps === 'function') showFloorNodeProps(nodeId);
 }
 
 function updatePlacementQty(nodeId,val,maxQty){
