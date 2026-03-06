@@ -1081,6 +1081,41 @@ async function exportPNG(){
   img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgData);
 }
 
+async function exportPDF(){
+  const {clone,w,h}=await prepareExportSVG(null,exportBlackMode);
+  // PDF doesn't need full resolution — cap canvas to 50M pixels (safe for all browsers)
+  // e.g. 8000x6250 = 50M, plenty for print-quality PDF
+  const maxPixels=50000000;
+  let scale=1;
+  if(w*h>maxPixels) scale=Math.sqrt(maxPixels/(w*h));
+  const cw=Math.round(w*scale);
+  const ch=Math.round(h*scale);
+  const canvas=document.createElement('canvas');
+  canvas.width=cw;canvas.height=ch;
+  const ctx=canvas.getContext('2d');
+  if(scale!==1) ctx.scale(scale,scale);
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);
+  const svgData=new XMLSerializer().serializeToString(clone);
+  const img=new Image();
+  img.onload=function(){
+    ctx.drawImage(img,0,0,w,h);
+    canvas.toBlob(function(blob){
+      if(!blob){showToast(_t('PDF 导出失败'));return}
+      const reader=new FileReader();
+      reader.onload=function(){
+        const orientation=w>h?'l':'p';
+        const pdf=new jspdf.jsPDF({orientation,unit:'px',format:[w,h]});
+        pdf.addImage(new Uint8Array(reader.result),'JPEG',0,0,w,h);
+        pdf.save(getExportName()+'.pdf');
+        showToast(_t('已导出 PDF'));
+      };
+      reader.readAsArrayBuffer(blob);
+    },'image/jpeg',0.92);
+  };
+  img.onerror=function(){showToast(_t('PDF 导出失败'))};
+  img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgData);
+}
+
 function toggleExportMenu(){
   const menu=document.getElementById('exportMenu');
   if(menu.style.display==='block'){menu.style.display='none'}
