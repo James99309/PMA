@@ -111,7 +111,7 @@ function getFloorPlansForSave(){
     calibration:fp.calibration||null,
     placements:fp.placements.map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1,labelPosition:p.labelPosition||null})),
     routes:(fp.routes||[]).map(r=>{const o={id:r.id,sourceNodeId:r.sourceNodeId,targetNodeId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort,cableType:r.cableType,routeMode:r.routeMode,midPos:r.midPos,color:r.color,width:r.width,dash:r.dash,label:r.label,hideLabel:r.hideLabel||false,linked_edge_id:r.linked_edge_id||null,_userPorts:r._userPorts||false};if(r.waypoints&&r.waypoints.length)o.waypoints=r.waypoints;return o}),
-    areas:(fp.areas||[]).map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,is_riser:a.is_riser||false,area_type:a.area_type||'normal',_riser_node_id:a._riser_node_id||null})),
+    areas:(fp.areas||[]).map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,is_riser:a.is_riser||false,area_type:a.area_type||'normal',_riser_node_id:a._riser_node_id||null,riser_index:a.riser_index||null})),
     risers:(fp.risers||[]).map(r=>({id:r.id,node_id:r.node_id,edge_id:r.edge_id,target_floor_label:r.target_floor_label,x:r.x,y:r.y})),
     viewX:fp.viewX||0, viewY:fp.viewY||0, scale:fp.scale||1
   }));
@@ -392,6 +392,7 @@ function showAreaProps(areaId){
   const typeOptions=Object.entries(AREA_TYPES).map(([k,v])=>`<option value="${k}"${k===atype?' selected':''}>${_m(v.label)}</option>`).join('');
   document.getElementById('propsContent').innerHTML=`
     <div class="props-field"><span class="props-label">${_t('名称')}</span><input class="props-input" value="${area.label}" oninput="updateAreaProp(${areaId},'label',this.value)"></div>
+    ${atype==='riser'?`<div class="props-field"><span class="props-label">${_t('编号')}</span><input type="number" class="props-input" min="1" value="${area.riser_index||''}" oninput="updateRiserIndex(${areaId},parseInt(this.value)||null)"></div>`:''}
     <div class="props-field"><span class="props-label">${_t('类型')}</span><select class="props-input" onchange="changeAreaType(${areaId},this.value)">${typeOptions}</select></div>
     <div class="props-field"><span class="props-label">${_t('颜色')}</span><div class="props-row"><input type="color" class="props-color" value="${area.color||'#3b82f6'}" oninput="updateAreaProp(${areaId},'color',this.value)"><input class="props-input" style="flex:1;font-family:monospace;font-size:11px;" value="${area.color||'#3b82f6'}" oninput="updateAreaProp(${areaId},'color',this.value)"></div></div>
     <div class="props-field"><span class="props-label">${_t('透明度')}</span><div class="props-row"><input type="range" class="props-range" min="0.02" max="0.3" step="0.02" value="${area.opacity||0.08}" oninput="updateAreaProp(${areaId},'opacity',parseFloat(this.value));this.nextElementSibling.textContent=Math.round(this.value*100)+'%'"><span class="props-range-val">${Math.round((area.opacity||0.08)*100)}%</span></div></div>
@@ -408,6 +409,16 @@ function changeAreaType(areaId,newType){
   area.area_type=newType;
   // Backward compat: sync is_riser flag
   area.is_riser=(newType==='riser');
+  // Auto-assign riser_index when becoming riser
+  if(newType==='riser'&&!area.riser_index){
+    const fp=getFloorPlan(currentView);
+    if(fp){
+      const maxIdx=Math.max(0,...(fp.areas||[]).filter(a=>a.is_riser&&a.riser_index).map(a=>a.riser_index));
+      area.riser_index=maxIdx+1;
+      area.label=(area.label||_t('弱电井')).replace(/-\d+$/,'') + '-' + area.riser_index;
+    }
+  }
+  if(newType!=='riser'){area.riser_index=null}
   // Floor plan riser node logic
   if(currentView!=='topology'){
     const fp=getFloorPlan(currentView);
@@ -425,6 +436,21 @@ function updateAreaProp(areaId,prop,val){
   pushHistoryProp();area[prop]=val;hasUnsavedChanges=true;
   if(currentView!=='topology')syncFloorAreaLabels();
   renderAll();
+}
+
+function updateRiserIndex(areaId,idx){
+  const areas=getAreaStorage();if(!areas)return;
+  const area=areas.find(a=>a.id===areaId);if(!area)return;
+  pushHistoryProp();
+  area.riser_index=idx;
+  if(idx) area.label=(area.label||'').replace(/-\d+$/,'') + '-' + idx;
+  // Sync riser node name
+  if(area._riser_node_id){
+    const n=nodes.find(n=>n.id===area._riser_node_id);
+    if(n) n.name=area.label;
+  }
+  hasUnsavedChanges=true;
+  if(currentView!=='topology')syncFloorAreaLabels();renderAll();
 }
 
 function deleteArea(areaId){
@@ -445,6 +471,13 @@ function toggleRiser(areaId, checked){
   if(!area)return;
   pushHistoryProp();
   area.is_riser=checked;
+  // Auto-assign riser_index
+  if(checked&&!area.riser_index){
+    const maxIdx=Math.max(0,...(fp.areas||[]).filter(a=>a.is_riser&&a.riser_index).map(a=>a.riser_index));
+    area.riser_index=maxIdx+1;
+    area.label=(area.label||_t('弱电井')).replace(/-\d+$/,'') + '-' + area.riser_index;
+  }
+  if(!checked){area.riser_index=null}
   const cx=area.x+area.width/2, cy=area.y+area.height/2;
   if(checked){
     const inside=fp.placements.filter(p=>
@@ -2424,23 +2457,29 @@ function relayoutFloorNodesTopo(){
       rawComponents.push(comp);
     });
 
-    // Sort: riser-containing components first (leftmost in layout)
+    // Sort: by riser_index (smaller index = leftmost), non-riser components last
     const fp=floorPlans.find(f=>f.id===fid);
     const riserAreas=fp?(fp.areas||[]).filter(a=>a.is_riser):[];
-    function compHasRiser(cmp){
-      if(cmp.some(n=>n.is_riser_node))return true;
+    function getCompRiserIndex(cmp){
+      const rn=cmp.find(n=>n.is_riser_node);
+      if(rn){
+        for(const ra of riserAreas){
+          if(ra._riser_node_id===rn.id) return ra.riser_index||0;
+        }
+      }
       for(const ra of riserAreas){
         for(const n of cmp){
           const pl=(fp.placements||[]).find(p=>p.node_id===n.id);
           if(pl){
             const cx=pl.x+NODE_SIZE/2,cy=pl.y+NODE_SIZE/2;
-            if(cx>=ra.x&&cx<=ra.x+ra.width&&cy>=ra.y&&cy<=ra.y+ra.height)return true;
+            if(cx>=ra.x&&cx<=ra.x+ra.width&&cy>=ra.y&&cy<=ra.y+ra.height)
+              return ra.riser_index||0;
           }
         }
       }
-      return false;
+      return Infinity;
     }
-    rawComponents.sort((a,b)=>(compHasRiser(b)?1:0)-(compHasRiser(a)?1:0));
+    rawComponents.sort((a,b)=>getCompRiserIndex(a)-getCompRiserIndex(b));
 
     // Process each connected component independently
     const compDataArr=[];
@@ -2538,36 +2577,29 @@ function relayoutFloorNodesTopo(){
         hasEndLeaves:(leafGroups[chain[chain.length-1]]||[]).length>0});
     });
 
-    // Aggregate floor-level metrics: max nonEndSlots across components (for global column alignment)
-    const maxCompNonEndSlots=Math.max(0,...compDataArr.map(c=>c.nonEndSlots));
-    floorData[fid]={allIds,components:compDataArr,maxCompNonEndSlots,
-      hasEndLeaves:compDataArr.some(c=>c.hasEndLeaves)};
+    floorData[fid]={allIds,components:compDataArr};
   });
 
-  // ═══ Global column alignment: end leaves right-aligned across all floors ═══
-  const maxNonEnd=Math.max(...Object.values(floorData).map(d=>d.maxCompNonEndSlots));
-  const anyEnd=Object.values(floorData).some(d=>d.hasEndLeaves);
-  const globalEndCol=anyEnd?maxNonEnd:-1;
-
-  // ═══ Phase 2: Place nodes — each component on its own row (stacked vertically) ═══
+  // ═══ Phase 2: Place nodes — same-floor components side by side (horizontal) ═══
   floorIds.forEach(fid=>{
     const fd=floorData[fid];
+    // Unified Y: use max tiersAbove/Below across all components on this floor
+    const maxTA=Math.max(0,...fd.components.map(c=>c.tiersAbove));
+    const maxTB=Math.max(0,...fd.components.map(c=>c.tiersBelow));
+    const chainY=curY+maxTA*gapV;
 
+    let compX=startX;
     fd.components.forEach((comp,compIdx)=>{
-      if(compIdx>0)curY+=gapV*0.5; // gap between components within same floor
-      const chainY=curY+comp.tiersAbove*gapV;
-
       let slotIdx=0;
       comp.chain.forEach((cid,i)=>{
         const n=nodes.find(nd=>nd.id===cid);
-        if(n){n.x=startX+slotIdx*gapH;n.y=chainY}
+        if(n){n.x=compX+slotIdx*gapH;n.y=chainY}
         slotIdx++;
         const leaves=comp.leafGroups[cid]||[];
         const isLast=(i===comp.chain.length-1);
         if(leaves.length){
           if(!isLast){
-            // Non-end: leaves in adjacent column, above/below chainY
-            const leafX=startX+slotIdx*gapH;
+            const leafX=compX+slotIdx*gapH;
             leaves.forEach((ln,j)=>{
               ln.x=leafX;
               const t=Math.floor(j/2)+1;
@@ -2575,43 +2607,40 @@ function relayoutFloorNodesTopo(){
             });
             slotIdx++;
           }else{
-            // End leaves: right-aligned to global column
-            const leafX=startX+(globalEndCol>=0?globalEndCol:slotIdx)*gapH;
+            // End leaves: follow chain tail (no global column alignment)
+            const leafX=compX+slotIdx*gapH;
             leaves.forEach((ln,j)=>{
               ln.x=leafX;
               if(j===0)ln.y=chainY;
               else{const t=Math.ceil(j/2);ln.y=(j%2===1)?chainY-t*gapV:chainY+t*gapV}
             });
+            slotIdx++;
           }
         }
       });
-
-      // Advance Y past this component's below-tiers
-      curY=chainY+comp.tiersBelow*gapV+gapV;
+      compX+=slotIdx*gapH; // advance X to next component position
     });
 
+    curY=chainY+maxTB*gapV+gapV;
+
     // Update edge ports and routing for this floor group
+    // Use waypoints instead of ortho3 so ALL corners are individually draggable
     edges.forEach(e=>{
       if(!fd.allIds.has(e.sourceId)||!fd.allIds.has(e.targetId))return;
       const src=nodes.find(n=>n.id===e.sourceId);
       const tgt=nodes.find(n=>n.id===e.targetId);
       if(!src||!tgt)return;
       const leftIsSource=src.x<=tgt.x;
-      const left=leftIsSource?src:tgt;
-      const right=leftIsSource?tgt:src;
-      const dy=right.y-left.y;
-      let lPort,rPort,rMode;
-      if(Math.abs(dy)<NODE_SIZE/2){
-        lPort='right';rPort='left';rMode='ortho3';
-      }else if(dy<0){
-        lPort='top';rPort='left';rMode='ortho2';
-      }else{
-        lPort='bottom';rPort='left';rMode='ortho2';
-      }
-      e.sourcePort=leftIsSource?lPort:rPort;
-      e.targetPort=leftIsSource?rPort:lPort;
-      e.routeMode=rMode;
+      e.sourcePort=leftIsSource?'right':'left';
+      e.targetPort=leftIsSource?'left':'right';
+      e.routeMode='ortho3'; // fallback mode
       delete e.midPos;
+      // Build waypoints at the two Z-shape corners for full drag control
+      const left=leftIsSource?src:tgt, right=leftIsSource?tgt:src;
+      const lCx=left.x+(left.w||NODE_SIZE)/2, rCx=right.x+(right.w||NODE_SIZE)/2;
+      const lCy=left.y+(left.h||NODE_SIZE)/2, rCy=right.y+(right.h||NODE_SIZE)/2;
+      const midX=(lCx+rCx)/2;
+      e.waypoints=[{x:midX,y:lCy},{x:midX,y:rCy}];
     });
 
     // Extra gap between floors
@@ -2664,7 +2693,7 @@ function relayoutFloorNodesTopo(){
         area.y+=dy;
         roomNodes.forEach(n=>{n.x+=dx;n.y+=dy});
 
-        // Update edge ports for room→floor connections (horizontal routing)
+        // Update edge ports for room→floor connections — use waypoints for full control
         roomNodes.forEach(rn=>{
           edges.forEach(e=>{
             const isSource=e.sourceId===rn.id;
@@ -2675,19 +2704,16 @@ function relayoutFloorNodesTopo(){
             const fn=nodes.find(n=>n.id===otherNid);
             if(!fn)return;
             // Room node is left, floor node is right
-            const dy2=fn.y-rn.y;
-            if(Math.abs(dy2)<NODE_SIZE/2){
-              // Same row: horizontal connection
-              if(isSource){e.sourcePort='right';e.targetPort='left'}
-              else{e.sourcePort='left';e.targetPort='right'}
-              e.routeMode='ortho3';
-            }else{
-              // Different row: use ortho2
-              if(isSource){e.sourcePort=dy2<0?'top':'bottom';e.targetPort='left'}
-              else{e.sourcePort='left';e.targetPort=dy2<0?'top':'bottom'}
-              e.routeMode='ortho2';
-            }
+            if(isSource){e.sourcePort='right';e.targetPort='left'}
+            else{e.sourcePort='left';e.targetPort='right'}
+            e.routeMode='ortho3';
             delete e.midPos;
+            // Build waypoints at Z-shape corners for full drag control
+            const left=isSource?rn:fn, right=isSource?fn:rn;
+            const lCx=left.x+(left.w||NODE_SIZE)/2, rCx=right.x+(right.w||NODE_SIZE)/2;
+            const lCy=left.y+(left.h||NODE_SIZE)/2, rCy=right.y+(right.h||NODE_SIZE)/2;
+            const midX=(lCx+rCx)/2;
+            e.waypoints=[{x:midX,y:lCy},{x:midX,y:rCy}];
           });
         });
 
