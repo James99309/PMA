@@ -7,6 +7,7 @@ EVERTAC报价单PDF生成器
 
 import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from flask import render_template_string
@@ -66,7 +67,8 @@ class EvertacQuotationPDFGenerator(PDFGenerator):
         """检测当前是否使用OVS数据库"""
         from flask import current_app
         db_url = current_app.config.get('DATABASE_URL', '')
-        return 'pqzviljbpfoqvyfulakl' in db_url
+        db_type = os.environ.get('PMA_DB_TYPE', '') or os.environ.get('SUPABASE_DB_TYPE', '')
+        return 'pqzviljbpfoqvyfulakl' in db_url or db_type == 'ovs'
 
     def generate_quotation_pdf(self, quotation, export_info=None, template_type=None):
         """
