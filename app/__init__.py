@@ -653,6 +653,13 @@ def create_app(config_class=Config):
         except Exception as e:
             app.logger.error(f"模板保护检查失败: {str(e)}")
 
+    # 注入当前语言到所有模板（与 Flask-Babel locale 一致）
+    @app.context_processor
+    def inject_current_locale():
+        """向模板上下文注入当前语言，确保 HTML lang 与翻译一致"""
+        from app.utils.i18n import get_current_language
+        return {'current_locale': get_current_language()}
+
     # 添加全局上下文处理器
     @app.context_processor
     def inject_protected_templates():
