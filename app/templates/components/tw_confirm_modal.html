@@ -320,8 +320,8 @@ closeConfirmModal('deleteModal');
 - max_width: 最大宽度，默认 'max-w-md'
 =============================================================================
 #}
-{% macro tw_custom_modal(modal_id, title='', subtitle='', icon='', icon_color='text-slate-500', show_close_btn=true, show_cancel_btn=true, cancel_text='', max_width='max-w-md') %}
-<div id="{{ modal_id }}" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+{% macro tw_custom_modal(modal_id, title='', subtitle='', icon='', icon_color='text-slate-500', show_close_btn=true, show_cancel_btn=true, cancel_text='', max_width='max-w-md', z_index='z-50') %}
+<div id="{{ modal_id }}" class="fixed inset-0 {{ z_index }} hidden" role="dialog" aria-modal="true">
     <!-- 背景遮罩 -->
     <div class="fixed inset-0 bg-gray-900/30 dark:bg-gray-900/50 transition-opacity" onclick="closeCustomModal('{{ modal_id }}')"></div>
 

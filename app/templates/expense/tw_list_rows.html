@@ -7,8 +7,8 @@
     {{ tw_cell_badge(render_tw_owner_badge(expense.owner)) }}
     {{ tw_cell_badge(render_tw_expense_status_badge(expense.status)) }}
     {{ tw_cell_amount(expense.total_amount, expense.currency or 'CNY') }}
+    {{ tw_cell_optional(expense.title, title=expense.title, truncate_len=150) }}
     {{ tw_cell_optional(expense.customer_name, title=expense.customer_name, truncate_len=150) }}
-    {{ tw_cell_optional(expense.contact_name, title=expense.contact_name) }}
     {{ tw_cell_optional(expense.project_name, title=expense.project_name, truncate_len=150) }}
     {{ tw_cell_date(expense.created_at) }}
 </tr>

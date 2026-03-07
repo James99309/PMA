@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, render_template_string, request, redirect, url_for, flash, jsonify, current_app
+from flask import Blueprint, render_template, render_template_string, request, redirect, url_for, flash, jsonify, current_app, abort
 from flask_login import current_user, login_required
 from flask_babel import gettext as _
 from config import Config
@@ -43,6 +43,7 @@ EXPENSE_FILTER_CONFIG = {
     'owner_id': {'type': 'exact', 'field': 'owner_id'},
     'status': {'type': 'exact', 'field': 'status'},
     'customer_id': {'type': 'exact', 'field': 'customer_id'},
+    'project_id': {'type': 'exact', 'field': 'project_id'},
     'attributed_to_id': {'type': 'exact', 'field': 'attributed_to_id'},  # 费用归属人筛选
     # search 需要跨表查询，在查询中手动处理
 }
@@ -80,15 +81,15 @@ def expense_list():
         # 提取变量（search 从 request.args 获取，因为需要跨表搜索）
         search = request.args.get('search', '').strip()
         customer_id = filters.get('customer_id', '')
+        project_id = filters.get('project_id', '')
         status_filter = filters.get('status', '')
 
         # 默认筛选：首次加载时只显示当前用户的报销单
-        # 注意：根据权限级别过滤，但不使用数据归属（expense.supports_affiliation=False）
+        # 报销单属于个人财务数据，所有用户（含管理员）都默认只看自己的
         owner_id = apply_default_owner_filter(
             request.args, filters, current_user.id,
             owner_field='owner_id',
-            filter_keys=['search', 'status', 'customer_id'],
-            module_id='expense'
+            filter_keys=['search', 'status', 'customer_id', 'project_id']
         )
 
         # 获取排序参数
@@ -191,6 +192,18 @@ def expense_list():
             Company.is_deleted == False
         ).order_by(Company.company_name).all() if unique_customer_ids else []
 
+        # 获取实际存在的项目ID（基于权限过滤的报销单数据）
+        unique_project_ids_query = get_viewable_data(Expense, current_user)\
+            .filter(Expense.project_id.isnot(None))\
+            .with_entities(Expense.project_id.distinct())
+
+        unique_project_ids = {row[0] for row in unique_project_ids_query.all()}
+
+        available_projects = Project.query.filter(
+            Project.id.in_(unique_project_ids),
+            Project.is_deleted == False
+        ).order_by(Project.project_name).all() if unique_project_ids else []
+
         # 获取实际存在的状态（基于权限过滤的报销单数据）
         unique_status_query = get_viewable_data(Expense, current_user)\
             .filter(Expense.status.isnot(None))\
@@ -230,6 +243,8 @@ def expense_list():
 
         if customer_id:
             stats_query = stats_query.filter(Expense.customer_id == customer_id)
+        if project_id:
+            stats_query = stats_query.filter(Expense.project_id == project_id)
         if owner_id:
             stats_query = stats_query.filter(Expense.owner_id == owner_id)
         if status_filter:
@@ -292,17 +307,6 @@ def expense_list():
 
             'filter_fields': [
                 {
-                    'name': 'customer_id',
-                    'label': _(mapping_manager.get_field_display_name('expense', 'customer_id')),
-                    'all_option_text': _('全部客户'),
-                    'current_value': customer_id if customer_id and request.args else '',
-                    'col_width': 2,
-                    'options': [
-                        {'value': str(c.id), 'label': c.company_name}
-                        for c in available_customers
-                    ]
-                },
-                {
                     'name': 'owner_id',
                     'label': _(mapping_manager.get_field_display_name('expense', 'owner_id')),
                     'all_option_text': _('全部申请人'),
@@ -320,6 +324,28 @@ def expense_list():
                     'current_value': status_filter if status_filter and request.args else '',
                     'col_width': 2,
                     'options': status_options
+                },
+                {
+                    'name': 'customer_id',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'customer_id')),
+                    'all_option_text': _('全部客户'),
+                    'current_value': customer_id if customer_id and request.args else '',
+                    'col_width': 2,
+                    'options': [
+                        {'value': str(c.id), 'label': c.company_name}
+                        for c in available_customers
+                    ]
+                },
+                {
+                    'name': 'project_id',
+                    'label': _(mapping_manager.get_field_display_name('expense', 'project_id')),
+                    'all_option_text': _('全部项目'),
+                    'current_value': project_id if project_id and request.args else '',
+                    'col_width': 2,
+                    'options': [
+                        {'value': str(p.id), 'label': p.project_name}
+                        for p in available_projects
+                    ]
                 }
             ],
 
@@ -454,19 +480,19 @@ def expense_list():
                         'sort_type': 'currency'
                     },
                     {
-                        'key': 'customer_name',
-                        'field': 'customer_id',
-                        'label': _(mapping_manager.get_field_display_name('expense', 'customer_id')),
+                        'key': 'title',
+                        'field': 'title',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'title')),
                         'type': 'text',
                         'width': '150px',
                         'sort_type': 'string'
                     },
                     {
-                        'key': 'contact_name',
-                        'field': 'contact_id',
-                        'label': _(mapping_manager.get_field_display_name('expense', 'contact_id')),
+                        'key': 'customer_name',
+                        'field': 'customer_id',
+                        'label': _(mapping_manager.get_field_display_name('expense', 'customer_id')),
                         'type': 'text',
-                        'width': '100px',
+                        'width': '150px',
                         'sort_type': 'string'
                     },
                     {
@@ -624,6 +650,7 @@ def expense_list_ajax():
         # 提取变量（search 从 request.args 获取，因为需要跨表搜索）
         search = request.args.get('search', '').strip()
         customer_id = filters.get('customer_id', '')
+        project_id = filters.get('project_id', '')
         owner_id = filters.get('owner_id', '')
         status_filter = filters.get('status', '')
 
@@ -754,6 +781,8 @@ def expense_list_ajax():
 
         if customer_id:
             stats_query = stats_query.filter(Expense.customer_id == customer_id)
+        if project_id:
+            stats_query = stats_query.filter(Expense.project_id == project_id)
         if owner_id:
             stats_query = stats_query.filter(Expense.owner_id == owner_id)
         if status_filter:
@@ -1277,27 +1306,43 @@ def create_expense():
 @login_required
 def expense_detail(id):
     """报销单详情"""
+    # 优化：先做轻量权限检查，通过后再加载完整数据
+    from app.utils.access_control import has_approval_permission, get_viewable_data
+
+    # 快速权限短路：owner_id 和管理员/财务角色直接通过（单条轻量查询）
+    owner_id = db.session.query(Expense.owner_id).filter_by(id=id).scalar()
+    if owner_id is None:
+        abort(404)
+
+    user_role = (current_user.role or '').strip()
+    fast_pass = (
+        owner_id == current_user.id or  # 自己的报销单
+        user_role in ('admin', 'ceo', 'finance', 'finance_director', 'finace_director')
+    )
+
+    if not fast_pass:
+        # 非快速通过：检查数据归属权限（EXISTS查询，不加载数据）
+        can_view = db.session.query(
+            get_viewable_data(Expense, current_user).filter_by(id=id).exists()
+        ).scalar()
+
+        # 归属权限也不通过：检查审批权限
+        if not can_view:
+            expense_minimal = Expense.query.get(id)
+            can_view = has_approval_permission(current_user, expense_minimal)
+
+        if not can_view:
+            flash(_('您没有权限查看此报销单'), 'error')
+            return redirect(url_for('expense.expense_list'))
+
+    # 权限通过后，加载完整数据（带eager loading）
     expense_obj = Expense.query.options(
         db.joinedload(Expense.customer),
         db.joinedload(Expense.project),
         db.joinedload(Expense.owner),
         db.joinedload(Expense.approver),
         db.joinedload(Expense.details)
-        # 移除action和department关联加载，因为已从模型中删除
     ).get_or_404(id)
-    
-    # 检查访问权限 - 使用查看权限而非编辑权限
-    from app.utils.access_control import has_approval_permission, get_viewable_data
-    viewable_expenses = get_viewable_data(Expense, current_user)
-    can_view = viewable_expenses.filter_by(id=id).first() is not None
-
-    # 如果没有查看权限，检查是否有审批权限（审批人需要能查看报销单详情）
-    if not can_view:
-        can_view = has_approval_permission(current_user, expense_obj)
-
-    if not can_view:
-        flash(_('您没有权限查看此报销单'), 'error')
-        return redirect(url_for('expense.expense_list'))
     
     # 智能返回逻辑：根据用户权限和访问来源确定返回链接
     return_url = url_for('expense.expense_list')  # 默认返回报销单管理
