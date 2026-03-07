@@ -650,7 +650,8 @@ class WordGenerator:
         """检测当前是否使用OVS数据库"""
         from flask import current_app
         db_url = current_app.config.get('DATABASE_URL', '')
-        return 'pqzviljbpfoqvyfulakl' in db_url
+        db_type = os.environ.get('PMA_DB_TYPE', '') or os.environ.get('SUPABASE_DB_TYPE', '')
+        return 'pqzviljbpfoqvyfulakl' in db_url or db_type == 'ovs'
 
     def generate_quotation_excel(self, quotation, template_type=None):
         """
