@@ -613,6 +613,11 @@ function showEdgeProps(id){
     <div class="props-section">${_t('线缆类型')}</div>
     <div class="props-field"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">${cableLineSVG(edge.cableType,40,12)}<span style="font-size:12px;color:${edge.color};">${CABLE_TYPES[edge.cableType]?_m(CABLE_TYPES[edge.cableType].name):_t('未知')}</span></div>
     <select class="props-select" onchange="updateEdgeCableType(${id},this.value)">${cableOpts}</select></div>
+    <div class="props-section">${_t('关联产品')}</div>
+    <div class="props-field"><select class="props-select" onchange="selectEdgeProductFromDropdown(${id},this.value)">
+      <option value="">${_t('请选择产品...')}</option>
+      ${buildEdgeProductOptions(edge.cableType, edge.selectedProductId)}
+    </select></div>
     <div class="props-section">${_t('路由模式')}</div>
     <div class="props-field"><div class="route-mode-btns">${routePreview('bezier')}${routePreview('ortho2')}${routePreview('ortho3')}${routePreview('straight')}</div></div>
     ${edge.routeMode==='ortho3'?`<div style="font-size:10px;color:var(--text-muted);padding:2px 0;">${_t('提示：选中后拖动中间段调整位置')}</div>`:''}
@@ -632,9 +637,77 @@ function showEdgeProps(id){
 function hideProps(){document.getElementById('propsPanel').classList.remove('visible')}
 function updateNodeProp(id,p,v){const n=nodes.find(n=>n.id===id);if(n){pushHistoryProp();n[p]=v;hasUnsavedChanges=true;renderAll()}}
 function updateEdgeProp(id,p,v){const e=edges.find(e=>e.id===id);if(e){pushHistoryProp();e[p]=v;hasUnsavedChanges=true;renderAll();if(selectedEdgeId===id)showEdgeProps(id)}}
-function updateEdgeCableType(id,ck){const e=edges.find(e=>e.id===id);if(!e)return;const c=CABLE_TYPES[ck];if(!c)return;pushHistory();e.cableType=ck;e.color=c.color;e.width=c.width;e.dash=c.dash;e.label=_m(c.shortName);hasUnsavedChanges=true;renderAll();showEdgeProps(id)}
+function updateEdgeCableType(id,ck){const e=edges.find(e=>e.id===id);if(!e)return;const c=CABLE_TYPES[ck];if(!c)return;pushHistory();e.cableType=ck;e.color=c.color;e.width=c.width;e.dash=c.dash;e.label=_m(c.shortName);delete e.selectedProductId;delete e.selectedProductName;delete e.selectedProductModel;delete e.selectedProductMn;hasUnsavedChanges=true;renderAll();showEdgeProps(id)}
 function updateEdgeRoute(id,mode){const e=edges.find(e=>e.id===id);if(!e)return;pushHistory();e.routeMode=mode;if(mode!=='ortho3')delete e.midPos;hasUnsavedChanges=true;renderAll();showEdgeProps(id)}
 function resetMidPos(id){const e=edges.find(e=>e.id===id);if(e){pushHistory();delete e.midPos;hasUnsavedChanges=true;renderAll();showEdgeProps(id)}}
+
+// ====== EDGE PRODUCT SELECTOR (filtered dropdown) ======
+// Map cableType to product subcategory name keywords for filtering
+const CABLE_PRODUCT_FILTER = {
+  // 同轴电缆 → 波纹管同轴电缆 + 漏泄同轴电缆
+  coax_half: ['波纹管同轴电缆','漏泄同轴电缆'],
+  coax_78: ['波纹管同轴电缆','漏泄同轴电缆'],
+  coax_114: ['波纹管同轴电缆','漏泄同轴电缆'],
+  coax_flex: ['波纹管同轴电缆','漏泄同轴电缆'],
+  // 光纤 → 光缆 + 光纤电缆及配件
+  fiber_single: ['光缆','光纤电缆'],
+  fiber_multi: ['光缆','光纤电缆'],
+  fiber_armored: ['光缆','光纤电缆'],
+  // 射频跳线 → 同轴电缆跳接线
+  signal_rf: ['同轴电缆跳接线','跳接线','射频电缆'],
+};
+
+function buildEdgeProductOptions(cableType, selectedId) {
+  const keywords = CABLE_PRODUCT_FILTER[cableType] || [];
+  // Filter products by subcategory name matching keywords
+  let filtered = [];
+  if (typeof PRODUCTS !== 'undefined' && keywords.length) {
+    filtered = PRODUCTS.filter(p => {
+      const subName = p.subcategoryName || '';
+      return keywords.some(kw => subName.includes(kw));
+    });
+  }
+  // If no filter keywords (power, data, gps cables) or no results, show all products
+  if (!filtered.length && typeof PRODUCTS !== 'undefined') {
+    filtered = PRODUCTS;
+  }
+  // Group by subcategory
+  const groups = {};
+  filtered.forEach(p => {
+    const gname = p.subcategoryName || '其他';
+    if (!groups[gname]) groups[gname] = [];
+    groups[gname].push(p);
+  });
+  let html = '';
+  for (const [gname, prods] of Object.entries(groups)) {
+    html += `<optgroup label="${gname}">`;
+    prods.forEach(p => {
+      const label = [p.productName, p.model].filter(Boolean).join(' — ');
+      const sel = (p.id === selectedId) ? ' selected' : '';
+      html += `<option value="${p.id}"${sel}>${label}</option>`;
+    });
+    html += '</optgroup>';
+  }
+  return html;
+}
+
+function selectEdgeProductFromDropdown(edgeId, val) {
+  const e = edges.find(e => e.id === edgeId); if (!e) return;
+  pushHistoryProp();
+  if (!val) {
+    delete e.selectedProductId; delete e.selectedProductName; delete e.selectedProductModel; delete e.selectedProductMn;
+  } else {
+    const pid = parseInt(val);
+    const p = PRODUCTS.find(x => x.id === pid);
+    if (p) {
+      e.selectedProductId = p.id;
+      e.selectedProductName = p.productName || '';
+      e.selectedProductModel = p.model || '';
+      e.selectedProductMn = p.mn || '';
+    }
+  }
+  hasUnsavedChanges = true;
+}
 
 // ====== MULTI-SELECT PROPS ======
 function showMultiProps(){

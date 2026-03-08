@@ -410,7 +410,9 @@
       {% if not read_only|default(false) %}
       <div style="position:relative;"><button class="btn-export" onclick="toggleExportMenu()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>{{ _('导出') }} ▾</button><div id="exportMenu" style="display:none;position:absolute;top:100%;right:0;margin-top:4px;background:var(--popup-bg);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px var(--popup-shadow);min-width:160px;z-index:30;overflow:hidden;"><div style="padding:6px 14px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:11px;color:var(--text-muted);" onclick="event.stopPropagation()"><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="color" checked onchange="exportBlackMode=false" style="margin:0;width:12px;height:12px;">{{ _('原色') }}</label><label style="cursor:pointer;display:flex;align-items:center;gap:3px;"><input type="radio" name="exportTheme" value="black" onchange="exportBlackMode=true" style="margin:0;width:12px;height:12px;">{{ _('黑色') }}</label></div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="exportSVG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>SVG {{ _('矢量图') }}</div><div onclick="exportPNG()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>PNG {{ _('位图') }} (2x)</div><div onclick="exportPDF()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6"/><path d="M9 11h6"/></svg>PDF {{ _('文档') }}</div><div style="height:1px;background:var(--border);margin:2px 0"></div><div onclick="startCropExport()" style="padding:8px 14px;font-size:12px;color:var(--text-secondary);cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;" onmouseenter="this.style.background='var(--item-hover)'" onmouseleave="this.style.background=''"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="4,2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>{{ _('框选导出') }} PNG</div></div></div>
       {% endif %}
-      {% if not read_only|default(false) %}<button class="btn-save" id="btnSave" onclick="saveDiagram()">{{ _('保存') }}</button>{% endif %}
+      {% if not read_only|default(false) %}
+      {% if not external_mode|default(false) and project_id|default(0) and current_user.role == 'admin' %}<button class="btn-export" onclick="openBOMPreview()" title="{{ _('从系统图生成报价清单') }}"><span class="material-symbols-outlined" style="font-size:16px;">receipt_long</span>{{ _('生成报价') }}</button>{% endif %}
+      <button class="btn-save" id="btnSave" onclick="saveDiagram()">{{ _('保存') }}</button>{% endif %}
     </div>
     <svg id="diagramCanvas" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -533,6 +535,33 @@
     </div>
   </div>
 </div>
+
+<!-- BOM 预览弹窗 -->
+{% if not read_only|default(false) and not external_mode|default(false) %}
+<div id="bomPreviewModal" class="fixed inset-0 z-[9998] hidden items-center justify-center" style="background:rgba(0,0,0,.45);backdrop-filter:blur(4px);">
+  <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] transform transition-all mx-4">
+    <header class="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+      <div>
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('物料清单预览') }}</h3>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ _('确认后将生成报价单') }}</p>
+      </div>
+      <button onclick="closeBOMPreview()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1">
+        <span class="material-symbols-outlined text-xl">close</span>
+      </button>
+    </header>
+    <div class="flex-1 overflow-y-auto p-6" id="bomPreviewContent">
+      <div class="text-center text-slate-400 py-12">{{ _('加载中...') }}</div>
+    </div>
+    <footer class="flex-shrink-0 flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+      <button onclick="closeBOMPreview()" class="px-4 py-2 text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors">{{ _('取消') }}</button>
+      <button id="bomSubmitBtn" onclick="createQuotationFromBOM()" class="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2">
+        <span class="material-symbols-outlined text-base">receipt_long</span>
+        {{ _('生成报价单') }}
+      </button>
+    </footer>
+  </div>
+</div>
+{% endif %}
 
 {% if not external_mode|default(false) %}
 {% from 'components/tw_diagram_share_modal.html' import render_diagram_share_modal, render_diagram_share_script %}
@@ -794,7 +823,42 @@ window.SD_I18N = {
   '请至少选择一个页面': {zh:'请至少选择一个页面',en:'Select at least one page'},
   '完成': {zh:'完成',en:'Done'},
   '处理中...': {zh:'处理中...',en:'Processing...'},
-  '已将设备插入走线': {zh:'已将设备插入走线',en:'Device inserted into cable'}
+  '已将设备插入走线': {zh:'已将设备插入走线',en:'Device inserted into cable'},
+  '关联产品': {zh:'关联产品',en:'Linked Product'},
+  '请选择产品...': {zh:'请选择产品...',en:'Select product...'},
+  '生成报价': {zh:'生成报价',en:'Generate Quote'},
+  '物料清单预览': {zh:'物料清单预览',en:'BOM Preview'},
+  '确认后将生成报价单': {zh:'确认后将生成报价单',en:'Confirm to generate quotation'},
+  '生成报价单': {zh:'生成报价单',en:'Generate Quotation'},
+  '该系统图未关联项目，无法生成报价单': {zh:'该系统图未关联项目，无法生成报价单',en:'Diagram not linked to a project'},
+  '请修复后重试': {zh:'请修复后重试',en:'Please fix and retry'},
+  '个未连线设备': {zh:'个未连线设备',en:' unconnected devices'},
+  '个未选型设备': {zh:'个未选型设备',en:' untyped devices'},
+  '控制机房': {zh:'控制机房',en:'Control Room'},
+  '独立楼层设备': {zh:'独立楼层设备',en:'Standalone Floor Devices'},
+  '光纤': {zh:'光纤',en:'Fiber'},
+  '项': {zh:'项',en:' items'},
+  '无设备': {zh:'无设备',en:'No devices'},
+  '产品名称': {zh:'产品名称',en:'Product Name'},
+  '备注': {zh:'备注',en:'Notes'},
+  '自动': {zh:'自动',en:'Auto'},
+  '段': {zh:'段',en:' runs'},
+  '套': {zh:'套',en:' sets'},
+  '总计': {zh:'总计',en:'Total'},
+  '24口光纤配线架': {zh:'24口光纤配线架',en:'24-port Fiber Patch Panel'},
+  '4口光纤配线架': {zh:'4口光纤配线架',en:'4-port Fiber Patch Panel'},
+  '1/2" 连接器': {zh:'1/2" 连接器',en:'1/2" Connector'},
+  '直放站远端': {zh:'直放站远端',en:'Remote Unit'},
+  '天线': {zh:'天线',en:'Antenna'},
+  '自动添加': {zh:'自动添加',en:'Auto-added'},
+  '未配置产品ID': {zh:'未配置产品ID',en:'Product ID not configured'},
+  '未关联产品': {zh:'未关联产品',en:'No product linked'},
+  '未知线缆': {zh:'未知线缆',en:'Unknown Cable'},
+  '未知产品': {zh:'未知产品',en:'Unknown Product'},
+  '请至少勾选一个项目': {zh:'请至少勾选一个项目',en:'Select at least one item'},
+  '创建中...': {zh:'创建中...',en:'Creating...'},
+  '报价单已创建': {zh:'报价单已创建',en:'Quotation created'},
+  '创建失败': {zh:'创建失败',en:'Creation failed'}
 };
 const wrapper = document.getElementById('canvasWrapper');
 </script>
@@ -803,5 +867,6 @@ const wrapper = document.getElementById('canvasWrapper');
 <script src="{{ url_for('static', filename='js/system-diagram-topology.js') }}?v={{ range(10000,99999)|random }}"></script>
 <script src="{{ url_for('static', filename='js/system-diagram-floorplan.js') }}?v={{ range(10000,99999)|random }}"></script>
 <script src="{{ url_for('static', filename='js/system-diagram-statistics.js') }}?v={{ range(10000,99999)|random }}"></script>
+<script src="{{ url_for('static', filename='js/system-diagram-bom.js') }}?v={{ range(10000,99999)|random }}"></script>
 </body>
 </html>

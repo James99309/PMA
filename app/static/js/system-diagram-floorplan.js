@@ -3122,7 +3122,8 @@ function relayoutFloorNodesTopo(){
           }
         });
 
-        // Update edge ports for room→floor connections — use waypoints for full control
+        // Room→floor edges (coax, fiber, etc.) — preserve user's manual routing.
+        // Only translate their waypoints by the same (dx,dy) as the room nodes.
         roomNodes.forEach(rn=>{
           edges.forEach(e=>{
             const isSource=e.sourceId===rn.id;
@@ -3130,19 +3131,14 @@ function relayoutFloorNodesTopo(){
             if(!isSource&&!isTarget)return;
             const otherNid=isSource?e.targetId:e.sourceId;
             if(!placedNodeIds.has(otherNid))return;
-            const fn=nodes.find(n=>n.id===otherNid);
-            if(!fn)return;
-            // Room node is left, floor node is right
-            if(isSource){e.sourcePort='right';e.targetPort='left'}
-            else{e.sourcePort='left';e.targetPort='right'}
-            e.routeMode='ortho3';
-            delete e.midPos;
-            // Build waypoints at Z-shape corners for full drag control
-            const left=isSource?rn:fn, right=isSource?fn:rn;
-            const lCx=left.x+(left.w||NODE_SIZE)/2, rCx=right.x+(right.w||NODE_SIZE)/2;
-            const lCy=left.y+(left.h||NODE_SIZE)/2, rCy=right.y+(right.h||NODE_SIZE)/2;
-            const midX=(lCx+rCx)/2;
-            e.waypoints=[{x:midX,y:lCy},{x:midX,y:rCy}];
+            // Translate waypoints to follow room translation (keep relative shape)
+            if(e.waypoints&&e.waypoints.length){
+              e.waypoints.forEach(wp=>{wp.x+=dx;wp.y+=dy});
+            }
+            if(e.midPos!==undefined){
+              const isH=(e.sourcePort==='left'||e.sourcePort==='right'||e.sourcePort==='top-left'||e.sourcePort==='bottom-left'||e.sourcePort==='top-right'||e.sourcePort==='bottom-right');
+              e.midPos+=isH?dx:dy;
+            }
           });
         });
 

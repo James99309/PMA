@@ -275,6 +275,7 @@ function buildProductPanel(categories){
       const products=sub.products||[];
       products.forEach(p=>{
         p.iconData=getIconForProduct(p,sub.name,sub.iconKey);
+        p.subcategoryId=sub.id;p.subcategoryName=sub.name;
         PRODUCTS.push(p);
       });
       let repIcon;
@@ -620,7 +621,8 @@ function snapshotState(){
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
     edges:edges.map(e=>({id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,
       cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,
-      hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos})),
+      hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos,
+      selectedProductId:e.selectedProductId,selectedProductName:e.selectedProductName,selectedProductModel:e.selectedProductModel,selectedProductMn:e.selectedProductMn})),
     nodeIdCounter,edgeIdCounter,
     floor_plans:fpData,
     buildings:(typeof getBuildingsForSave==='function')?getBuildingsForSave():[],
@@ -1211,7 +1213,7 @@ function serializeDiagram(){
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
       labelPosition:n.labelPosition||null,locked:n.locked||false,
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
-    edges:edges.map(e=>{const o={id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos};if(e.waypoints&&e.waypoints.length)o.waypoints=e.waypoints;return o}),
+    edges:edges.map(e=>{const o={id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos};if(e.waypoints&&e.waypoints.length)o.waypoints=e.waypoints;if(e.selectedProductId)o.selectedProductId=e.selectedProductId;if(e.selectedProductName)o.selectedProductName=e.selectedProductName;if(e.selectedProductModel)o.selectedProductModel=e.selectedProductModel;if(e.selectedProductMn)o.selectedProductMn=e.selectedProductMn;return o}),
     viewX,viewY,scale,nodeIdCounter,edgeIdCounter,
     floor_plans:fpData,
     buildings:(typeof getBuildingsForSave==='function')?getBuildingsForSave():[],
