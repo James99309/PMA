@@ -476,7 +476,7 @@
                                         {% else %}
                                         {# 未锁定配置：下拉选择 #}
                                         <div class="flex items-center gap-1">
-                                            {% set opts = definition_indicators.get(item.definition_id, []) %}
+                                            {% set opts = definition_indicators.get(item.spec_dict_id, []) %}
                                             {% set opt_values = opts | map(attribute='value') | list %}
                                             <select data-config-id="{{ config.id }}"
                                                     data-item-id="{{ item.id }}"

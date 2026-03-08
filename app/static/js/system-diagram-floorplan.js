@@ -2581,6 +2581,28 @@ function relayoutFloorNodesTopo(){
   });
 
   // ═══ Phase 2: Place nodes — same-floor components side by side (horizontal) ═══
+
+  // Pre-calculate slot counts per component across all floors for global column alignment
+  const maxCompCount=Math.max(0,...floorIds.map(fid=>floorData[fid].components.length));
+  const globalCompSlots=new Array(maxCompCount).fill(0); // max slots per component column
+  floorIds.forEach(fid=>{
+    const fd=floorData[fid];
+    fd.components.forEach((comp,compIdx)=>{
+      let slotIdx=0;
+      comp.chain.forEach((cid,i)=>{
+        slotIdx++;
+        const leaves=comp.leafGroups[cid]||[];
+        if(leaves.length)slotIdx++;
+      });
+      if(slotIdx>globalCompSlots[compIdx])globalCompSlots[compIdx]=slotIdx;
+    });
+  });
+  // Build global X offsets for each component column
+  const globalCompX=[startX];
+  for(let ci=0;ci<maxCompCount;ci++){
+    globalCompX[ci+1]=(globalCompX[ci]||startX)+globalCompSlots[ci]*gapH;
+  }
+
   floorIds.forEach(fid=>{
     const fd=floorData[fid];
     // Unified Y: use max tiersAbove/Below across all components on this floor
@@ -2588,8 +2610,8 @@ function relayoutFloorNodesTopo(){
     const maxTB=Math.max(0,...fd.components.map(c=>c.tiersBelow));
     const chainY=curY+maxTA*gapV;
 
-    let compX=startX;
     fd.components.forEach((comp,compIdx)=>{
+      const compX=globalCompX[compIdx]; // use globally aligned X for this component column
       let slotIdx=0;
       comp.chain.forEach((cid,i)=>{
         const n=nodes.find(nd=>nd.id===cid);
@@ -2607,8 +2629,8 @@ function relayoutFloorNodesTopo(){
             });
             slotIdx++;
           }else{
-            // End leaves: follow chain tail (no global column alignment)
-            const leafX=compX+slotIdx*gapH;
+            // End leaves: right-align to global column boundary
+            const leafX=globalCompX[compIdx]+(globalCompSlots[compIdx]-1)*gapH;
             leaves.forEach((ln,j)=>{
               ln.x=leafX;
               if(j===0)ln.y=chainY;
@@ -2618,7 +2640,6 @@ function relayoutFloorNodesTopo(){
           }
         }
       });
-      compX+=slotIdx*gapH; // advance X to next component position
     });
 
     curY=chainY+maxTB*gapV+gapV;

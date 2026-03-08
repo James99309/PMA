@@ -1358,12 +1358,16 @@ function switchView(viewId){
   }
   currentView=viewId;
   // Restore new view state
+  let needsFitView=false;
   if(viewId==='topology'){
     viewX=topoViewX;viewY=topoViewY;scale=topoScale;
   } else {
     const fp=getFloorPlan(viewId);
-    if(fp&&fp.viewX!==undefined){viewX=fp.viewX;viewY=fp.viewY;scale=fp.scale||1}
-    else{viewX=0;viewY=0;scale=1}
+    if(DIAGRAM_CONFIG.readOnly){
+      // Preview mode: always fit to page when switching floors
+      viewX=0;viewY=0;scale=1;needsFitView=true;
+    } else if(fp&&fp.viewX!==undefined){viewX=fp.viewX;viewY=fp.viewY;scale=fp.scale||1}
+    else{viewX=0;viewY=0;scale=1;needsFitView=true}
   }
   updateTransform();
   document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';
@@ -1390,6 +1394,8 @@ function switchView(viewId){
     cachedFloorBgImg=null;_cachedBgUrl=null;
   }
   renderAll();hideProps();
+  // Fit view on first visit to a floor plan
+  if(needsFitView)requestAnimationFrame(()=>fitView());
   if(typeof buildExistingDevicesPanel==='function')buildExistingDevicesPanel();
 }
 

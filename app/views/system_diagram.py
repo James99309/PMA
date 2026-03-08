@@ -77,11 +77,14 @@ def edit_editor(diagram_id):
         project = Project.query.get(diagram.project_id)
         if project:
             project_name = project.project_name
+    preview_mode = request.args.get('preview') == '1'
     return render_template('system_diagram/tw_editor.html',
                            diagram_id=diagram.id,
                            diagram_name=diagram.name,
                            project_id=diagram.project_id or 0,
                            project_name=project_name,
+                           read_only=preview_mode,
+                           preview_mode=preview_mode,
                            active_page='system_diagram')
 
 

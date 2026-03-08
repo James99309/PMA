@@ -916,6 +916,9 @@ render_tw_expense_status_badge with context %}
                         <div class="flex items-center justify-between mb-3">
                             <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                                 {{ _('系统设计') }}
+                                {% if project_diagrams|length > 1 %}
+                                <span class="text-slate-300 ml-1">({{ project_diagrams|length }})</span>
+                                {% endif %}
                             </h4>
                             {% if project_diagram %}
                             <div class="flex items-center gap-1 relative">
@@ -938,19 +941,37 @@ render_tw_expense_status_badge with context %}
                             </div>
                             {% endif %}
                         </div>
-                        {% if project_diagram and project_diagram.thumbnail_svg %}
-                        <div class="cursor-pointer rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
-                             onclick="openDiagramViewer()">
-                            <div class="diagram-thumbnail bg-slate-50 dark:bg-slate-800 p-2" style="max-height:200px;overflow:hidden;">
-                                {{ project_diagram.thumbnail_svg|safe }}
+                        {% if project_diagrams|length > 0 %}
+                        {% for diag in project_diagrams %}
+                        <div class="diagram-card-item {% if not loop.first %}hidden{% endif %}" data-diagram-idx="{{ loop.index0 }}" data-diagram-id="{{ diag.id }}" data-diagram-name="{{ diag.name|e }}">
+                            {% if diag.thumbnail_svg %}
+                            <div class="cursor-pointer rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                                 onclick="openDiagramViewer({{ loop.index0 }})">
+                                <div class="diagram-thumbnail bg-slate-50 dark:bg-slate-800 p-2" style="max-height:200px;overflow:hidden;">
+                                    {{ diag.thumbnail_svg|safe }}
+                                </div>
                             </div>
+                            {% else %}
+                            <div class="cursor-pointer flex flex-col items-center justify-center py-4 text-slate-400 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-300 transition-colors"
+                                 onclick="openDiagramViewer({{ loop.index0 }})">
+                                <span class="material-symbols-outlined text-2xl mb-1">schema</span>
+                                <span class="text-xs">{{ _('点击预览') }}</span>
+                            </div>
+                            {% endif %}
+                            <p class="text-xs text-slate-400 mt-2 truncate">{{ diag.name }}</p>
                         </div>
-                        <p class="text-xs text-slate-400 mt-2 truncate">{{ project_diagram.name }}</p>
-                        {% elif project_diagram %}
-                        <div class="flex flex-col items-center justify-center py-4 text-slate-400">
-                            <span class="material-symbols-outlined text-2xl mb-1">schema</span>
-                            <span class="text-xs">{{ project_diagram.name }}</span>
+                        {% endfor %}
+                        {% if project_diagrams|length > 1 %}
+                        <div class="flex items-center justify-center gap-3 mt-2">
+                            <button onclick="switchDiagramCard(-1)" class="p-1 rounded-full text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
+                                <span class="material-symbols-outlined" style="font-size:16px;">chevron_left</span>
+                            </button>
+                            <span id="diagramCardIndex" class="text-xs text-slate-400">1 / {{ project_diagrams|length }}</span>
+                            <button onclick="switchDiagramCard(1)" class="p-1 rounded-full text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors">
+                                <span class="material-symbols-outlined" style="font-size:16px;">chevron_right</span>
+                            </button>
                         </div>
+                        {% endif %}
                         {% else %}
                         <div class="flex flex-col items-center justify-center py-6 text-slate-400">
                             <span class="material-symbols-outlined text-3xl mb-2">schema</span>
@@ -2702,30 +2723,31 @@ render_tw_expense_status_badge with context %}
     }
     </script>
 
-    {% if project_diagram and project_diagram.thumbnail_svg %}
-    <!-- 系统图查看模态框 -->
+    {% if project_diagrams|length > 0 %}
+    <!-- 系统图预览模态框 (iframe) -->
     <div id="diagramViewerModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeDiagramViewer()"></div>
-        <div class="absolute inset-4 md:inset-8 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div class="absolute inset-4 md:inset-6 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
             <!-- 头部 -->
-            <div class="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+            <div class="flex items-center justify-between px-5 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
                 <div class="flex items-center gap-3">
                     <span class="material-symbols-outlined text-blue-500">schema</span>
-                    <span class="text-sm font-medium text-slate-900 dark:text-white">{{ project_diagram.name }}</span>
+                    <span id="diagramViewerName" class="text-sm font-medium text-slate-900 dark:text-white"></span>
+                    {% if project_diagrams|length > 1 %}
+                    <span id="diagramViewerCounter" class="text-xs text-slate-400"></span>
+                    {% endif %}
                 </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="diagramViewerZoom(-0.2)" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('缩小') }}">
-                        <span class="material-symbols-outlined" style="font-size:18px;">remove</span>
+                <div class="flex items-center gap-1">
+                    {% if project_diagrams|length > 1 %}
+                    <button onclick="switchDiagramViewer(-1)" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('上一个') }}">
+                        <span class="material-symbols-outlined" style="font-size:18px;">chevron_left</span>
                     </button>
-                    <span id="diagramViewerZoomLevel" class="text-xs text-slate-400 min-w-[40px] text-center">100%</span>
-                    <button onclick="diagramViewerZoom(0.2)" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('放大') }}">
-                        <span class="material-symbols-outlined" style="font-size:18px;">add</span>
-                    </button>
-                    <button onclick="diagramViewerFit()" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('适应窗口') }}">
-                        <span class="material-symbols-outlined" style="font-size:18px;">fit_screen</span>
+                    <button onclick="switchDiagramViewer(1)" class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('下一个') }}">
+                        <span class="material-symbols-outlined" style="font-size:18px;">chevron_right</span>
                     </button>
                     <div class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                    <a href="{{ url_for('system_diagram.edit_editor', diagram_id=project_diagram.id) }}"
+                    {% endif %}
+                    <a id="diagramViewerEditLink" href="#"
                        class="p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="{{ _('编辑') }}">
                         <span class="material-symbols-outlined" style="font-size:18px;">edit</span>
                     </a>
@@ -2734,84 +2756,64 @@ render_tw_expense_status_badge with context %}
                     </button>
                 </div>
             </div>
-            <!-- 画布区域 -->
-            <div id="diagramViewerCanvas" class="flex-1 overflow-hidden bg-slate-50 dark:bg-slate-800 cursor-grab active:cursor-grabbing"
-                 style="position:relative;">
-                <div id="diagramViewerContent" style="position:absolute;transform-origin:0 0;transition:transform .15s ease;">
-                    {{ project_diagram.thumbnail_svg|safe }}
-                </div>
+            <!-- iframe 画布 -->
+            <div class="flex-1 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                <iframe id="diagramViewerIframe" class="w-full h-full border-0" src="about:blank"></iframe>
             </div>
         </div>
     </div>
 
     <script>
-    // ── 系统图查看器 ──
-    (function(){
-        let viewerScale = 1, viewerX = 0, viewerY = 0, isDragging = false, startX, startY;
-        const modal = document.getElementById('diagramViewerModal');
-        const content = document.getElementById('diagramViewerContent');
-        const canvas = document.getElementById('diagramViewerCanvas');
+    // ── 系统图列表数据 ──
+    const _diagramList = [
+        {% for diag in project_diagrams %}
+        {id: {{ diag.id }}, name: '{{ diag.name|e }}', url: '{{ url_for("system_diagram.edit_editor", diagram_id=diag.id) }}?preview=1', editUrl: '{{ url_for("system_diagram.edit_editor", diagram_id=diag.id) }}'}{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+    let _currentViewerIdx = 0;
+    let _currentCardIdx = 0;
 
-        window.openDiagramViewer = function(){
-            modal.classList.remove('hidden');
-            document.body.style.overflow = 'hidden';
-            setTimeout(() => diagramViewerFit(), 50);
-        };
-        window.closeDiagramViewer = function(){
-            modal.classList.add('hidden');
-            document.body.style.overflow = '';
-        };
-        window.diagramViewerZoom = function(delta){
-            viewerScale = Math.max(0.1, Math.min(5, viewerScale + delta));
-            updateViewerTransform();
-        };
-        window.diagramViewerFit = function(){
-            const svg = content.querySelector('svg');
-            if(!svg) return;
-            const cw = canvas.clientWidth, ch = canvas.clientHeight;
-            const sw = parseFloat(svg.getAttribute('width')) || svg.viewBox.baseVal.width || 1200;
-            const sh = parseFloat(svg.getAttribute('height')) || svg.viewBox.baseVal.height || 800;
-            viewerScale = Math.min(cw / sw, ch / sh, 2) * 0.9;
-            viewerX = (cw - sw * viewerScale) / 2;
-            viewerY = (ch - sh * viewerScale) / 2;
-            updateViewerTransform();
-        };
-        function updateViewerTransform(){
-            content.style.transform = `translate(${viewerX}px,${viewerY}px) scale(${viewerScale})`;
-            const el = document.getElementById('diagramViewerZoomLevel');
-            if(el) el.textContent = Math.round(viewerScale * 100) + '%';
-        }
-        // Pan
-        canvas.addEventListener('mousedown', e => {
-            isDragging = true; startX = e.clientX - viewerX; startY = e.clientY - viewerY;
-            content.style.transition = 'none';
-        });
-        window.addEventListener('mousemove', e => {
-            if(!isDragging) return;
-            viewerX = e.clientX - startX; viewerY = e.clientY - startY;
-            updateViewerTransform();
-        });
-        window.addEventListener('mouseup', () => {
-            isDragging = false;
-            content.style.transition = 'transform .15s ease';
-        });
-        // Zoom with wheel
-        canvas.addEventListener('wheel', e => {
-            e.preventDefault();
-            const delta = e.deltaY > 0 ? -0.1 : 0.1;
-            const rect = canvas.getBoundingClientRect();
-            const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-            const oldScale = viewerScale;
-            viewerScale = Math.max(0.1, Math.min(5, viewerScale + delta));
-            viewerX = mx - (mx - viewerX) * (viewerScale / oldScale);
-            viewerY = my - (my - viewerY) * (viewerScale / oldScale);
-            updateViewerTransform();
-        }, {passive: false});
-        // ESC to close
-        document.addEventListener('keydown', e => {
-            if(e.key === 'Escape' && !modal.classList.contains('hidden')) closeDiagramViewer();
-        });
-    })();
+    // ── 预览模态框 ──
+    window.openDiagramViewer = function(idx){
+        if(typeof idx === 'number') _currentViewerIdx = idx;
+        const modal = document.getElementById('diagramViewerModal');
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        loadDiagramViewer(_currentViewerIdx);
+    };
+    window.closeDiagramViewer = function(){
+        document.getElementById('diagramViewerModal').classList.add('hidden');
+        document.body.style.overflow = '';
+        document.getElementById('diagramViewerIframe').src = 'about:blank';
+    };
+    window.switchDiagramViewer = function(delta){
+        _currentViewerIdx = (_currentViewerIdx + delta + _diagramList.length) % _diagramList.length;
+        loadDiagramViewer(_currentViewerIdx);
+    };
+    function loadDiagramViewer(idx){
+        const d = _diagramList[idx];
+        if(!d) return;
+        document.getElementById('diagramViewerName').textContent = d.name;
+        document.getElementById('diagramViewerEditLink').href = d.editUrl;
+        const counter = document.getElementById('diagramViewerCounter');
+        if(counter) counter.textContent = `(${idx + 1}/${_diagramList.length})`;
+        document.getElementById('diagramViewerIframe').src = d.url;
+    }
+    // ESC to close
+    document.addEventListener('keydown', e => {
+        if(e.key === 'Escape' && !document.getElementById('diagramViewerModal').classList.contains('hidden')) closeDiagramViewer();
+    });
+
+    // ── 卡片切换 ──
+    window.switchDiagramCard = function(delta){
+        const cards = document.querySelectorAll('.diagram-card-item');
+        if(!cards.length) return;
+        cards[_currentCardIdx].classList.add('hidden');
+        _currentCardIdx = (_currentCardIdx + delta + cards.length) % cards.length;
+        cards[_currentCardIdx].classList.remove('hidden');
+        const idx = document.getElementById('diagramCardIndex');
+        if(idx) idx.textContent = `${_currentCardIdx + 1} / ${cards.length}`;
+    };
 
     // ── 系统图导出 ──
     window.openDiagramExportMenu = function(e){
@@ -2823,37 +2825,35 @@ render_tw_expense_status_badge with context %}
         }
     };
     window.exportDiagramSVG = function(){
-        const container = document.querySelector('.diagram-thumbnail');
-        if(!container) return;
-        const svg = container.querySelector('svg');
+        const card = document.querySelector('.diagram-card-item:not(.hidden)');
+        const svg = card ? card.querySelector('.diagram-thumbnail svg') : null;
         if(!svg) return;
         const svgData = new XMLSerializer().serializeToString(svg);
         const blob = new Blob([svgData], {type: 'image/svg+xml'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a'); a.href = url;
-        a.download = '{{ project_diagram.name|e }}.svg';
+        a.download = (card.dataset.diagramName || 'diagram') + '.svg';
         a.click(); URL.revokeObjectURL(url);
     };
     window.exportDiagramPNG = function(){
-        const container = document.querySelector('.diagram-thumbnail');
-        if(!container) return;
-        const svg = container.querySelector('svg');
+        const card = document.querySelector('.diagram-card-item:not(.hidden)');
+        const svg = card ? card.querySelector('.diagram-thumbnail svg') : null;
         if(!svg) return;
         const dpr = 2;
-        const w = parseFloat(svg.getAttribute('width')) || 1200;
-        const h = parseFloat(svg.getAttribute('height')) || 800;
-        const canvas = document.createElement('canvas');
-        canvas.width = w * dpr; canvas.height = h * dpr;
-        const ctx = canvas.getContext('2d');
+        const w = parseFloat(svg.getAttribute('width')) || svg.viewBox.baseVal.width || 1200;
+        const h = parseFloat(svg.getAttribute('height')) || svg.viewBox.baseVal.height || 800;
+        const cvs = document.createElement('canvas');
+        cvs.width = w * dpr; cvs.height = h * dpr;
+        const ctx = cvs.getContext('2d');
         ctx.scale(dpr, dpr);
         const svgData = new XMLSerializer().serializeToString(svg);
         const img = new Image();
         img.onload = function(){
             ctx.drawImage(img, 0, 0, w, h);
-            canvas.toBlob(function(blob){
+            cvs.toBlob(function(blob){
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a'); a.href = url;
-                a.download = '{{ project_diagram.name|e }}.png';
+                a.download = (card.dataset.diagramName || 'diagram') + '.png';
                 a.click(); URL.revokeObjectURL(url);
             }, 'image/png');
         };
@@ -2863,7 +2863,6 @@ render_tw_expense_status_badge with context %}
 
     <style>
     .diagram-thumbnail svg { width: 100%; height: auto; display: block; }
-    #diagramViewerContent svg { display: block; }
     </style>
     {% endif %}
 

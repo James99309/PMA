@@ -373,8 +373,8 @@
       <button class="view-tab active" data-view="topology" onclick="switchView('topology')">🔧 {{ _('系统图') }}</button>
       {% if not read_only|default(false) %}<button class="view-tab-add" onclick="addFloorPlan()">+ {{ _('添加楼层') }}</button>{% endif %}
     </div>
-    <div class="diagram-name">{% if read_only|default(false) %}<span id="diagramNameInput" style="font-size:15px;font-weight:600;color:var(--text-primary);padding:4px 8px;">{{ diagram_name }}</span>{% else %}<input value="{{ diagram_name }}" id="diagramNameInput">{% endif %}</div>
-    <div class="canvas-actions">
+    <div class="diagram-name" {% if preview_mode|default(false) %}style="display:none"{% endif %}>{% if read_only|default(false) %}<span id="diagramNameInput" style="font-size:15px;font-weight:600;color:var(--text-primary);padding:4px 8px;">{{ diagram_name }}</span>{% else %}<input value="{{ diagram_name }}" id="diagramNameInput">{% endif %}</div>
+    <div class="canvas-actions" {% if preview_mode|default(false) %}style="display:none"{% endif %}>
       {% if not external_mode|default(false) %}
       {% if project_id|default(0) %}
       <a class="btn-back" href="{{ url_for('project.view_project', project_id=project_id) }}" onclick="return confirmLeave(this)"><span class="material-symbols-outlined" style="font-size:16px;">arrow_back</span>{{ _('返回项目') }}</a>

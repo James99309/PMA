@@ -1305,12 +1305,13 @@ def view_project(project_id):
         exclude_ids.append(project.vendor_sales_manager_id)
     project_contributors = get_project_contributors(project.id, exclude_ids)
 
-    # 获取项目关联的系统图
+    # 获取项目关联的系统图（所有）
     from app.models.system_diagram import SystemDiagram
-    project_diagram = SystemDiagram.query.filter(
+    project_diagrams = SystemDiagram.query.filter(
         SystemDiagram.project_id == project.id,
         SystemDiagram.is_deleted == False
-    ).order_by(SystemDiagram.updated_at.desc()).first()
+    ).order_by(SystemDiagram.updated_at.desc()).all()
+    project_diagram = project_diagrams[0] if project_diagrams else None
 
     # 模板上下文数据
     template_context = dict(
@@ -1345,6 +1346,7 @@ def view_project(project_id):
         project_contributors=project_contributors,
         # 系统图
         project_diagram=project_diagram,
+        project_diagrams=project_diagrams,
         # 报销单数据（用于Tailwind模板）
         project_expenses=project_expenses,
         total_expense_amount=total_expense_amount,

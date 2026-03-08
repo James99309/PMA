@@ -1045,8 +1045,15 @@ def spec_config_matrix_page(template_id):
                             orphaned_items_by_category[cat_id].append(item)
 
     # 加载指标选项（用于配置矩阵下拉选择）
-    definitions = list({item.definition for item in all_items if item.definition})
-    definition_indicators = _load_definition_indicators(definitions)
+    # 必须用 spec_dict_id 加载 SpecificationDictionary，而非 definition_id（指向旧表 spec_definitions）
+    spec_dict_ids = list({item.spec_dict_id for item in all_items if item.spec_dict_id})
+    if spec_dict_ids:
+        dict_objs = SpecificationDictionary.query.filter(
+            SpecificationDictionary.id.in_(spec_dict_ids)
+        ).all()
+        definition_indicators = _load_definition_indicators(dict_objs)
+    else:
+        definition_indicators = {}
 
     # 构建 MN 编码相关数据
     # 获取参与编码的规格项（按 display_order 排序）
