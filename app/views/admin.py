@@ -101,8 +101,7 @@ def refresh_project_activity():
         batch_size = 100
         offset = 0
         while True:
-            projects = Project.query.filter(Project.is_deleted == False) \
-                .limit(batch_size).offset(offset).all()
+            projects = Project.query.filter(Project.is_deleted == False).limit(batch_size).offset(offset).all()
             if not projects:
                 break
             for project in projects:

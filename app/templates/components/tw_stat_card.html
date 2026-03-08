@@ -3,6 +3,7 @@
 Tailwind 统计卡片组件
 =============================================================================
 可复用的 Tailwind CSS 统计卡片组件，用于显示数字统计信息。
+简洁白卡风格：白色背景 + 灰色边框，无图标，无彩色背景。
 
 使用方式：
 {% from 'components/tw_stat_card.html' import tw_stat_card %}
@@ -10,17 +11,15 @@ Tailwind 统计卡片组件
 {{ tw_stat_card(
     title='All Companies',
     value=100,
-    unit='Companies',
-    icon='business',
-    variant='default'
+    unit='Companies'
 ) }}
 
 参数：
 - title: 卡片标题
 - value: 数值
 - unit: 单位文本
-- icon: Material Symbols 图标名称
-- variant: 颜色变体 'default' | 'success' | 'info' | 'warning' | 'danger'
+- icon: (保留但不使用，兼容旧调用)
+- variant: (保留但不使用，兼容旧调用)
 - href: 可选的链接地址
 - onclick: 可选的点击事件处理函数（提供此参数时渲染为 button）
 - active: 是否为激活状态（默认 false，激活时显示高亮边框）
@@ -28,41 +27,8 @@ Tailwind 统计卡片组件
 #}
 
 {% macro tw_stat_card(title, value, unit='', icon='', variant='default', href='', onclick='', active=false) %}
-{% set variants = {
-    'default': {
-        'bg': 'bg-white dark:bg-slate-800',
-        'border': 'border-slate-200 dark:border-slate-700',
-        'icon_bg': 'bg-primary/10',
-        'icon_color': 'text-primary'
-    },
-    'success': {
-        'bg': 'bg-emerald-50 dark:bg-emerald-900/20',
-        'border': 'border-emerald-200 dark:border-emerald-800',
-        'icon_bg': 'bg-emerald-100 dark:bg-emerald-900/50',
-        'icon_color': 'text-emerald-600 dark:text-emerald-400'
-    },
-    'info': {
-        'bg': 'bg-sky-50 dark:bg-sky-900/20',
-        'border': 'border-sky-200 dark:border-sky-800',
-        'icon_bg': 'bg-sky-100 dark:bg-sky-900/50',
-        'icon_color': 'text-sky-600 dark:text-sky-400'
-    },
-    'warning': {
-        'bg': 'bg-amber-50 dark:bg-amber-900/20',
-        'border': 'border-amber-200 dark:border-amber-800',
-        'icon_bg': 'bg-amber-100 dark:bg-amber-900/50',
-        'icon_color': 'text-amber-600 dark:text-amber-400'
-    },
-    'danger': {
-        'bg': 'bg-red-50 dark:bg-red-900/20',
-        'border': 'border-red-200 dark:border-red-800',
-        'icon_bg': 'bg-red-100 dark:bg-red-900/50',
-        'icon_color': 'text-red-600 dark:text-red-400'
-    }
-} %}
-{% set v = variants[variant] or variants['default'] %}
-{% set active_class = 'ring-2 ring-primary' if active else '' %}
-{% set base_class = 'p-3 sm:p-5 rounded-xl shadow-sm border ' ~ v.bg ~ ' ' ~ v.border ~ ' ' ~ active_class %}
+{% set active_class = ' ring-2 ring-primary' if active else '' %}
+{% set base_class = 'p-3 sm:p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900' ~ active_class %}
 
 {% if href %}
 <a href="{{ href }}" class="block {{ base_class }} hover:shadow-md transition-shadow">
@@ -71,18 +37,11 @@ Tailwind 统计卡片组件
 {% else %}
 <div class="{{ base_class }}">
 {% endif %}
-    <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-        {% if icon %}
-        <div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg {{ v.icon_bg }}">
-            <span class="material-symbols-outlined text-lg sm:text-2xl {{ v.icon_color }}">{{ icon }}</span>
-        </div>
-        {% endif %}
-        <h3 class="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 line-clamp-1">{{ title }}</h3>
-    </div>
-    <p class="text-xl sm:text-3xl font-bold text-slate-900 dark:text-white">
+    <div class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-1">{{ title }}</div>
+    <p class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
         {{ value }}
         {% if unit %}
-        <span class="text-xs sm:text-base font-normal text-slate-500 dark:text-slate-400 ml-1">{{ unit }}</span>
+        <span class="text-xs sm:text-sm font-normal text-slate-500 dark:text-slate-400 ml-1">{{ unit }}</span>
         {% endif %}
     </p>
 {% if href %}

@@ -56,6 +56,9 @@ class DevProduct(db.Model):
     development_purpose = Column(Text)  # 研发用途
     image_path = Column(String(255))
     pdf_path = Column(String(255))
+    # 软删除
+    is_deleted = Column(Boolean, default=False, nullable=False)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     owner_id = Column(Integer, ForeignKey('users.id'))

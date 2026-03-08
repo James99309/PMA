@@ -201,7 +201,7 @@ def expense_list():
 
         available_projects = Project.query.filter(
             Project.id.in_(unique_project_ids),
-            Project.is_deleted == False
+            Project.is_active == True
         ).order_by(Project.project_name).all() if unique_project_ids else []
 
         # 获取实际存在的状态（基于权限过滤的报销单数据）
@@ -581,6 +581,42 @@ def expense_list():
                         'color': 'primary',
                         'clickable': False,
                         'data_key': 'total'
+                    },
+                    {
+                        'id': 'pending',
+                        'title': _('待审批'),
+                        'icon': 'fas fa-clock',
+                        'value': 0,
+                        'amount': 0,
+                        'unit': _('单'),
+                        'amount_unit': Config.AMOUNT_UNIT,
+                        'color': 'warning',
+                        'clickable': False,
+                        'data_key': 'pending'
+                    },
+                    {
+                        'id': 'awaiting_payment',
+                        'title': _('待支付'),
+                        'icon': 'fas fa-hourglass-half',
+                        'value': 0,
+                        'amount': 0,
+                        'unit': _('单'),
+                        'amount_unit': Config.AMOUNT_UNIT,
+                        'color': 'info',
+                        'clickable': False,
+                        'data_key': 'awaiting_payment'
+                    },
+                    {
+                        'id': 'paid',
+                        'title': _('已支付'),
+                        'icon': 'fas fa-money-check-alt',
+                        'value': 0,
+                        'amount': 0,
+                        'unit': _('单'),
+                        'amount_unit': Config.AMOUNT_UNIT,
+                        'color': 'success',
+                        'clickable': False,
+                        'data_key': 'paid'
                     }
                 ]
             },

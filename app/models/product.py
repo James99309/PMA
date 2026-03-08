@@ -52,6 +52,9 @@ class Product(db.Model):
     citation_coefficient = db.Column(db.Numeric(4, 2), nullable=True, comment='引用频率积分系数')
     citation_count = db.Column(db.Integer, nullable=True, comment='过去12个月引用次数')
 
+    # 软删除
+    is_deleted = db.Column(db.Boolean, default=False, nullable=False)
+
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
 

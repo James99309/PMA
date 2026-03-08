@@ -91,12 +91,12 @@
     {% elif page_slot == 'content' %}
     <!-- 标签页 -->
     {% set tabs = [
-        {'id': 'account', 'label': _('账户设置'), 'icon': 'person'},
-        {'id': 'perm', 'label': _('模块权限'), 'icon': 'verified_user'},
-        {'id': 'aff', 'label': _('数据归属权限'), 'icon': 'group', 'badge': affiliations.affiliation_count if affiliations and affiliations.affiliation_count is defined else none},
-        {'id': 'performance', 'label': _('绩效管理'), 'icon': 'trending_up'}
+        {'key': 'account', 'label': _('账户设置')},
+        {'key': 'perm', 'label': _('模块权限')},
+        {'key': 'aff', 'label': _('数据归属权限')},
+        {'key': 'performance', 'label': _('绩效管理')}
     ] %}
-    {{ render_tw_tabs(tabs, 'account', storage_key='userProfileActiveTab') }}
+    {{ render_tw_tabs(tabs, 'account') }}
 
     <!-- 标签页内容 -->
     <div class="mt-6" x-data="{ activeTab: localStorage.getItem('userProfileActiveTab') || 'account' }"
@@ -458,7 +458,13 @@
     {{ render_tw_layout_script() }}
 
     <!-- 标签页脚本 -->
-    {{ render_tw_tabs_script('userProfileActiveTab') }}
+    <script>
+        window.onTabChange = function(tabId) {
+            localStorage.setItem('userProfileActiveTab', tabId);
+            window.dispatchEvent(new CustomEvent('tab-changed', { detail: { tabId: tabId } }));
+        };
+    </script>
+    {{ render_tw_tabs_script(on_change_callback='onTabChange') }}
 
     <script>
         // 支持通过URL hash直接定位tab
@@ -473,17 +479,9 @@
 
             if (hash && hashMap[hash]) {
                 const tabId = hashMap[hash];
-                localStorage.setItem('userProfileActiveTab', tabId);
-                // 触发标签页切换
-                window.dispatchEvent(new CustomEvent('tab-changed', { detail: { tabId: tabId } }));
-                // 更新标签页UI
-                document.querySelectorAll('[data-tab-id]').forEach(btn => {
-                    const isActive = btn.getAttribute('data-tab-id') === tabId;
-                    btn.classList.toggle('text-primary', isActive);
-                    btn.classList.toggle('border-primary', isActive);
-                    btn.classList.toggle('text-slate-600', !isActive);
-                    btn.classList.toggle('border-transparent', !isActive);
-                });
+                // 模拟点击对应标签页
+                const tab = document.querySelector('.tw-tab-item[data-tab="' + tabId + '"]');
+                if (tab) tab.click();
             }
         });
     </script>

@@ -168,15 +168,15 @@
     {% elif page_slot == 'content' %}
         <!-- 标签页导航 -->
         {% set tabs = [
-            {'key': 'base', 'label': _('基本信息'), 'icon': 'person'},
-            {'key': 'perm', 'label': _('权限'), 'icon': 'shield'},
-            {'key': 'aff', 'label': _('归属关系'), 'icon': 'device_hub', 'count': affiliations.affiliation_count if affiliations and affiliations.affiliation_count else 0}
+            {'key': 'base', 'label': _('基本信息')},
+            {'key': 'perm', 'label': _('权限')},
+            {'key': 'aff', 'label': _('归属关系')}
         ] %}
         {% if can_view_performance %}
-        {% set tabs = tabs + [{'key': 'performance', 'label': _('绩效目标'), 'icon': 'insights'}] %}
+        {% set tabs = tabs + [{'key': 'performance', 'label': _('绩效目标')}] %}
         {% endif %}
         {% if can_view_salary %}
-        {% set tabs = tabs + [{'key': 'salary', 'label': _('薪资明细'), 'icon': 'payments'}] %}
+        {% set tabs = tabs + [{'key': 'salary', 'label': _('薪资明细')}] %}
         {% endif %}
         <div class="sticky top-0 z-20 bg-background-light dark:bg-black -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pt-2 [&>nav]:mb-0">
             {{ render_tw_tabs(tabs, 'base') }}

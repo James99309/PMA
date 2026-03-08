@@ -1,68 +1,58 @@
 {#
 =============================================================================
-Tailwind 标签页组件
+Tailwind 标签页组件（简洁下划线风格）
 =============================================================================
-可复用的 Tailwind CSS 标签页导航组件，支持：
-- Material Symbols 图标
-- 计数徽章
-- 深色模式
-- AJAX 切换（不刷新页面）
+可复用的 Tailwind CSS 标签页导航组件，简洁下划线样式。
 
 使用方式：
 {% from 'components/tw_tabs.html' import render_tw_tabs, render_tw_tabs_script %}
 
-<!-- 在页面中渲染标签页 -->
 {{ render_tw_tabs(
     tabs=[
-        {'key': 'created', 'label': '我发起的', 'icon': 'upload_file', 'count': 5},
-        {'key': 'pending', 'label': '待我审批', 'icon': 'hourglass_top', 'icon_class': 'text-amber-500', 'count': 3}
+        {'key': 'created', 'label': '我发起的'},
+        {'key': 'pending', 'label': '待我审批'}
     ],
     current_tab='created'
 ) }}
 
-<!-- 在页面底部引入脚本 -->
 {{ render_tw_tabs_script(on_change_callback='onTabChange') }}
 
+Alpine.js 版本：
+{% from 'components/tw_tabs.html' import render_tw_alpine_tabs %}
+
+<div x-data="{ activeTab: 'tab1' }">
+    {{ render_tw_alpine_tabs(
+        tabs=[
+            {'key': 'tab1', 'label': '标签1'},
+            {'key': 'tab2', 'label': '标签2'}
+        ],
+        model='activeTab'
+    ) }}
+    <div x-show="activeTab === 'tab1'">内容1</div>
+</div>
+
 参数说明：
-- tabs: 标签页配置列表，每项包含：
-  - key: 标签唯一键
-  - label: 显示文本
-  - icon: Material Symbols 图标名称
-  - icon_class: 图标额外样式类（如 'text-amber-500'）
-  - count: 计数（可选）
+- tabs: 标签页配置列表，每项包含 key（唯一键）和 label（显示文本）
 - current_tab: 当前激活的标签键
 =============================================================================
 #}
 
 {# 标签页导航 HTML #}
 {% macro render_tw_tabs(tabs, current_tab) %}
-<nav class="flex flex-wrap gap-2 mb-6 border-b border-slate-200 dark:border-slate-700" role="tablist">
+<nav class="flex border-b border-slate-200 dark:border-slate-700 mb-6 overflow-x-auto" role="tablist">
     {% for tab in tabs %}
-    <a href="#"
-       data-tab="{{ tab.key }}"
-       role="tab"
-       aria-selected="{{ 'true' if tab.key == current_tab else 'false' }}"
-       class="tw-tab-item inline-flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium rounded-t-lg -mb-px transition-colors
-              {% if tab.key == current_tab %}
-              text-primary border-b-2 border-primary bg-white dark:bg-black
-              {% else %}
-              text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary border-b-2 border-transparent
-              {% endif %}">
-        {% if tab.icon %}
-        <span class="material-symbols-outlined {{ tab.icon_class or '' }}" style="font-variation-settings:'FILL' 1,'wght' 400;font-size:20px">{{ tab.icon }}</span>
-        {% endif %}
-        <span>{{ tab.label }}</span>
-        {% if tab.count is defined and tab.count is not none %}
-        <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold rounded-full
-                     {% if tab.key == current_tab %}
-                     bg-primary/10 text-primary
-                     {% else %}
-                     bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300
-                     {% endif %}">
-            {{ tab.count }}
-        </span>
-        {% endif %}
-    </a>
+    <button type="button"
+            data-tab="{{ tab.key }}"
+            role="tab"
+            aria-selected="{{ 'true' if tab.key == current_tab else 'false' }}"
+            class="tw-tab-item px-4 py-2.5 text-sm border-b-2 whitespace-nowrap transition-colors
+                   {% if tab.key == current_tab %}
+                   border-primary text-primary font-semibold
+                   {% else %}
+                   border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300
+                   {% endif %}">
+        {{ tab.label }}
+    </button>
     {% endfor %}
 </nav>
 {% endmacro %}
@@ -80,33 +70,19 @@ Tailwind 标签页组件
             e.preventDefault();
             const tabKey = this.dataset.tab;
 
-            // 更新激活状态
             tabs.forEach(t => {
                 const isActive = t.dataset.tab === tabKey;
                 t.setAttribute('aria-selected', isActive ? 'true' : 'false');
 
                 if (isActive) {
-                    t.classList.remove('text-slate-500', 'dark:text-slate-400', 'border-transparent');
-                    t.classList.add('text-primary', 'border-primary', 'bg-white', 'dark:bg-black');
+                    t.classList.remove('border-transparent', 'text-slate-500', 'dark:text-slate-400', 'hover:text-slate-700', 'dark:hover:text-slate-300');
+                    t.classList.add('border-primary', 'text-primary', 'font-semibold');
                 } else {
-                    t.classList.add('text-slate-500', 'dark:text-slate-400', 'border-transparent');
-                    t.classList.remove('text-primary', 'border-primary', 'bg-white', 'dark:bg-black');
-                }
-
-                // 更新计数徽章样式
-                const badge = t.querySelector('span.rounded-full');
-                if (badge) {
-                    if (isActive) {
-                        badge.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300');
-                        badge.classList.add('bg-primary/10', 'text-primary');
-                    } else {
-                        badge.classList.add('bg-slate-100', 'dark:bg-slate-700', 'text-slate-600', 'dark:text-slate-300');
-                        badge.classList.remove('bg-primary/10', 'text-primary');
-                    }
+                    t.classList.add('border-transparent', 'text-slate-500', 'dark:text-slate-400', 'hover:text-slate-700', 'dark:hover:text-slate-300');
+                    t.classList.remove('border-primary', 'text-primary', 'font-semibold');
                 }
             });
 
-            // 调用回调函数
             if (typeof window.{{ on_change_callback }} === 'function') {
                 window.{{ on_change_callback }}(tabKey);
             }
@@ -117,72 +93,20 @@ Tailwind 标签页组件
 {% endmacro %}
 
 
-{# ============================================================================= #}
-{# Alpine.js 标签页组件                                                          #}
-{# ============================================================================= #}
-{# 用于在 Alpine.js x-data 上下文中使用的标签页组件                               #}
-{#                                                                              #}
-{# 使用方式:                                                                    #}
-{# <div x-data="{ activeTab: 'goals' }">                                        #}
-{#     {{ render_tw_alpine_tabs(                                                #}
-{#         tabs=[                                                               #}
-{#             {'key': 'goals', 'label': '目标达成', 'icon': 'target'},          #}
-{#             {'key': 'expense', 'label': '报销预算', 'icon': 'receipt'}        #}
-{#         ],                                                                   #}
-{#         model='activeTab'                                                    #}
-{#     ) }}                                                                     #}
-{#     <div x-show="activeTab === 'goals'">目标内容</div>                        #}
-{#     <div x-show="activeTab === 'expense'">报销内容</div>                      #}
-{# </div>                                                                       #}
-{# ============================================================================= #}
+{# Alpine.js 标签页组件 #}
 {% macro render_tw_alpine_tabs(tabs, model='activeTab', container_class='') %}
-<nav class="flex flex-wrap gap-2 mb-6 border-b border-slate-200 dark:border-slate-700 {{ container_class }}" role="tablist">
+<nav class="flex border-b border-slate-200 dark:border-slate-700 mb-6 overflow-x-auto {{ container_class }}" role="tablist">
     {% for tab in tabs %}
     <button type="button"
             @click="{{ model }} = '{{ tab.key }}'"
             role="tab"
             :aria-selected="{{ model }} === '{{ tab.key }}'"
-            class="inline-flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium rounded-t-lg -mb-px transition-colors focus:outline-none"
+            class="px-4 py-2.5 text-sm border-b-2 whitespace-nowrap transition-colors"
             :class="{{ model }} === '{{ tab.key }}'
-                ? 'text-primary border-b-2 border-primary bg-white dark:bg-black'
-                : 'text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary border-b-2 border-transparent'">
-        {% if tab.icon %}
-        <span class="material-symbols-outlined {{ tab.icon_class or '' }}" style="font-variation-settings:'FILL' 1,'wght' 400;font-size:20px">{{ tab.icon }}</span>
-        {% endif %}
-        <span>{{ tab.label }}</span>
-        {% if tab.count is defined and tab.count is not none %}
-        <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-bold rounded-full"
-              :class="{{ model }} === '{{ tab.key }}'
-                  ? 'bg-primary/10 text-primary'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'">
-            {{ tab.count }}
-        </span>
-        {% endif %}
+                ? 'border-primary text-primary font-semibold'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'">
+        {{ tab.label }}
     </button>
     {% endfor %}
 </nav>
-{% endmacro %}
-
-
-{# 更新标签页计数 #}
-{% macro render_tw_tabs_update_script() %}
-<script>
-/**
- * 更新标签页计数
- * @param {Object} counts - 计数对象，键为标签key，值为计数
- */
-window.updateTabCounts = function(counts) {
-    if (!counts) return;
-
-    Object.keys(counts).forEach(function(key) {
-        const tab = document.querySelector('.tw-tab-item[data-tab="' + key + '"]');
-        if (tab) {
-            const badge = tab.querySelector('span.rounded-full');
-            if (badge) {
-                badge.textContent = counts[key];
-            }
-        }
-    });
-};
-</script>
 {% endmacro %}

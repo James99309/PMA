@@ -46,6 +46,9 @@ class Project(SharingMixin, db.Model):
     locked_by = Column(Integer, ForeignKey('users.id'), nullable=True)  # 锁定人
     locked_at = Column(DateTime, nullable=True)  # 锁定时间
     
+    # 软删除
+    is_deleted = Column(Boolean, default=False, nullable=False)
+
     # 活跃度相关字段
     is_active = Column(Boolean, default=True, nullable=False)  # 是否活跃（派生字段，由activity_status同步）
     activity_status = Column(String(20), default='normal', nullable=False)  # 6级活跃度状态

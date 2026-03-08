@@ -359,7 +359,8 @@ def send_openclaw_request(message, timeout=180):
 
     def _run():
         try:
-            asyncio.run(_ws_chat(gateway_url, token, message, session_id, result_queue))
+            asyncio.run(_ws_chat(gateway_url, token, message, session_id, result_queue,
+                                skip_token_query=True))
         except Exception as e:
             logger.error(f'OpenClaw research 线程异常: {e}', exc_info=True)
             result_queue.put({'type': 'error', 'text': str(e)})
@@ -534,7 +535,7 @@ def get_openclaw_response_stream(message, session_id=None,
 
 
 async def _ws_chat(url, token, message, session_key, q,
-                    user_id=None, user_name=None):
+                    user_id=None, user_name=None, skip_token_query=False):
     """Async WebSocket chat session with OpenClaw Gateway.
 
     Connects, authenticates (with device signing), sends a chat message,
@@ -772,41 +773,12 @@ async def _ws_chat(url, token, message, session_key, q,
                     logger.debug(f'[OpenClaw-Agent] unhandled stream={stream_type}')
 
         # ------ Step 5: 获取 session token 数据 ------
-        # 优先: chat final event 中的 usage
-        # 补充: sessions.status RPC 获取 session 级别累计数据
-        if model_name == 'openclaw' or not prompt_tokens:
-            # 方法 1: sessions.status RPC (session 级累计 token)
-            try:
-                ss_id = _req_id()
-                await ws.send(json.dumps({
-                    'type': 'req',
-                    'id': ss_id,
-                    'method': 'sessions.status',
-                    'params': {'sessionKey': session_key},
-                }))
-                ss_res = await asyncio.wait_for(_recv_response(ws, ss_id), timeout=5)
-                if ss_res.get('ok'):
-                    ss = ss_res.get('payload', {})
-                    # contextTokens = 当前上下文大小 (用于耗尽检查)
-                    ctx_tokens = ss.get('contextTokens', 0)
-                    in_tokens = ss.get('inputTokens', 0)
-                    out_tokens = ss.get('outputTokens', 0)
-                    if not prompt_tokens and (ctx_tokens or in_tokens):
-                        prompt_tokens = ctx_tokens or in_tokens
-                    if not completion_tokens and out_tokens:
-                        completion_tokens = out_tokens
-                    # 提取 model（如果 session status 提供）
-                    if model_name == 'openclaw':
-                        m = ss.get('model') or ss.get('modelOverride', '')
-                        if m:
-                            model_name = m
-                    logger.info(f'[OpenClaw-SessionStatus] ctx={ctx_tokens} in={in_tokens} out={out_tokens} model={ss.get("model")}')
-                else:
-                    logger.warning(f'[OpenClaw-SessionStatus] error: {ss_res.get("error", {})}')
-            except Exception as e:
-                logger.warning(f'[OpenClaw-SessionStatus] failed: {e}')
-
-            # 方法 2: chat.history fallback (应对 sessions.status 不可用)
+        # 优先: chat final event 中的 usage（已在 Step 4 中提取）
+        # 补充: chat.history RPC 获取模型名和 token 数据
+        # 注: sessions.status RPC 已移除（Gateway 不支持该方法，每次调用都产生无效 WARNING 日志）
+        # 后台调研任务跳过此步骤（不需要模型名和 token 计数）
+        if not skip_token_query and (model_name == 'openclaw' or not prompt_tokens):
+            # chat.history: 从最后一条 assistant 消息提取模型和 token
             if model_name == 'openclaw' or not prompt_tokens:
                 try:
                     hist_rpc_id = _req_id()

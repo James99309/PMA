@@ -101,13 +101,13 @@
         <!-- 标签页导航（固定在顶部） -->
         <div class="sticky top-0 z-10 bg-background-light dark:bg-black -mx-6 px-6 pb-6">
             {% set tabs = [
-                {'key': 'basic', 'label': _('基本配置'), 'icon': 'person'},
-                {'key': 'affiliation', 'label': _('归属配置'), 'icon': 'device_hub'},
-                {'key': 'perm', 'label': _('权限配置'), 'icon': 'shield'},
-                {'key': 'perf', 'label': _('绩效配置'), 'icon': 'insights'},
-                {'key': 'expense', 'label': _('费用配置'), 'icon': 'receipt_long'},
-                {'key': 'salary-assign', 'label': _('薪资配置'), 'icon': 'assignment_ind'},
-                {'key': 'salary-config', 'label': _('全局配置'), 'icon': 'payments'}
+                {'key': 'basic', 'label': _('基本配置')},
+                {'key': 'affiliation', 'label': _('归属配置')},
+                {'key': 'perm', 'label': _('权限配置')},
+                {'key': 'perf', 'label': _('绩效配置')},
+                {'key': 'expense', 'label': _('费用配置')},
+                {'key': 'salary-assign', 'label': _('薪资配置')},
+                {'key': 'salary-config', 'label': _('全局配置')}
             ] %}
             {{ render_tw_tabs(tabs, 'basic') }}
         </div>
@@ -996,9 +996,9 @@
                 <!-- 子标签页导航（使用统一组件） -->
                 {{ render_tw_alpine_tabs(
                     tabs=[
-                        {'key': 'targets', 'label': _('目标配置'), 'icon': 'track_changes'},
-                        {'key': 'metrics', 'label': _('项目管理'), 'icon': 'assessment'},
-                        {'key': 'data-entry', 'label': _('数据录入'), 'icon': 'edit_note'}
+                        {'key': 'targets', 'label': _('目标配置')},
+                        {'key': 'metrics', 'label': _('项目管理')},
+                        {'key': 'data-entry', 'label': _('数据录入')}
                     ],
                     model='perfSubTab'
                 ) }}
