@@ -21,6 +21,23 @@ logger = logging.getLogger(__name__)
 system_diagram = Blueprint('system_diagram', __name__, url_prefix='/system-diagram')
 
 
+def _can_edit_diagram(diagram):
+    """检查当前用户是否有权编辑系统图（基于数据归属和项目权限）"""
+    from app.utils.access_control import can_edit_data, can_view_project
+    # admin 和 owner 在 can_edit_data 内部处理
+    # SystemDiagram 不在 can_edit_data 的已知模型中，手动实现等效逻辑
+    if current_user.role == 'admin':
+        return True
+    if diagram.owner_id == current_user.id:
+        return True
+    # 如果系统图关联了项目，继承项目的查看权限（能看项目即可编辑其系统图）
+    if diagram.project_id:
+        project = Project.query.get(diagram.project_id)
+        if project and can_view_project(current_user, project):
+            return True
+    return False
+
+
 # ── 页面路由 ──────────────────────────────────────────────
 
 @system_diagram.route('/')
@@ -151,7 +168,7 @@ def api_create_from_template():
 def api_toggle_template(diagram_id):
     """切换系统图的模板标记"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
-    if diagram.owner_id != current_user.id:
+    if not _can_edit_diagram(diagram):
         return jsonify({'success': False, 'message': _('无权限')}), 403
     diagram.is_template = not diagram.is_template
     diagram.updated_at = datetime.now()
@@ -187,6 +204,8 @@ def api_save():
         diagram = SystemDiagram.query.get(diagram_id)
         if not diagram or diagram.is_deleted:
             return jsonify({'success': False, 'message': _('系统图不存在')}), 404
+        if not _can_edit_diagram(diagram):
+            return jsonify({'success': False, 'message': _('无权限')}), 403
         diagram.name = name
         diagram.description = description
         diagram.project_id = project_id
@@ -268,7 +287,7 @@ def upload_floor_bg(diagram_id):
     """上传楼层平面图背景图片 (PNG/JPG)"""
     # 验证所有权
     diagram = SystemDiagram.query.get_or_404(diagram_id)
-    if diagram.is_deleted or diagram.owner_id != current_user.id:
+    if diagram.is_deleted or not _can_edit_diagram(diagram):
         return jsonify({'success': False, 'message': _('无权限')}), 403
 
     if 'file' not in request.files:
@@ -332,7 +351,7 @@ def delete_floor_bg(diagram_id):
     """删除楼层背景图"""
     # 验证所有权
     diagram = SystemDiagram.query.get_or_404(diagram_id)
-    if diagram.is_deleted or diagram.owner_id != current_user.id:
+    if diagram.is_deleted or not _can_edit_diagram(diagram):
         return jsonify({'success': False, 'message': _('无权限')}), 403
 
     data = request.get_json() or {}
@@ -362,7 +381,7 @@ def delete_floor_bg(diagram_id):
 def analyze_pdf_api(diagram_id):
     """分析 PDF 页面信息（缩略图 + 书签名称）"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
-    if diagram.is_deleted or diagram.owner_id != current_user.id:
+    if diagram.is_deleted or not _can_edit_diagram(diagram):
         return jsonify({'success': False, 'message': _('无权限')}), 403
 
     if 'file' not in request.files:
@@ -425,7 +444,7 @@ def analyze_pdf_api(diagram_id):
 def render_pdf_pages(diagram_id):
     """批量渲染选中的 PDF 页面为多分辨率 PNG"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
-    if diagram.is_deleted or diagram.owner_id != current_user.id:
+    if diagram.is_deleted or not _can_edit_diagram(diagram):
         return jsonify({'success': False, 'message': _('无权限')}), 403
 
     data = request.get_json()

@@ -220,15 +220,16 @@ function renderBuildingLabels(){
     const maxX=Math.max(...bNodes.map(n=>n.x+(n.w||NODE_SIZE)));
     const minY=Math.min(...bNodes.map(n=>n.y));
     const centerX=(minX+maxX)/2;
-    const labelY=minY-30;
+    const labelY=minY-60;
     const text=document.createElementNS('http://www.w3.org/2000/svg','text');
     text.setAttribute('class','building-label');
     text.setAttribute('x',centerX);
     text.setAttribute('y',labelY);
     text.setAttribute('text-anchor','middle');
-    text.setAttribute('font-size','14');
-    text.setAttribute('font-weight','600');
+    text.setAttribute('font-size','56');
+    text.setAttribute('font-weight','700');
     text.setAttribute('fill',b.color);
+    text.setAttribute('opacity','0.6');
     text.textContent=b.name;
     nodesLayer.appendChild(text);
   });
@@ -2753,7 +2754,6 @@ function relayoutFloorNodesTopo(){
   const allFloorIds=layoutGroups.flatMap(g=>g.floorIds);
 
   const floorData={};
-  let curY=startY;
 
   allFloorIds.forEach(fid=>{
     const group=groups[fid];
@@ -2912,6 +2912,26 @@ function relayoutFloorNodesTopo(){
 
   // ═══ Phase 2: Place nodes — per building group ═══
 
+  // Pre-compute aligned row Y positions across all buildings (bottom-aligned)
+  // Floors are reversed (top floor = index 0), so bottom-align means shorter buildings
+  // offset their rows so the LAST row matches the global last row.
+  const maxRows=Math.max(0,...layoutGroups.map(g=>g.floorIds.length));
+  const rowTiersAbove=new Array(maxRows).fill(0);
+  const rowTiersBelow=new Array(maxRows).fill(0);
+  layoutGroups.forEach(layoutGroup=>{
+    const offset=maxRows-layoutGroup.floorIds.length; // bottom-align offset
+    layoutGroup.floorIds.forEach((fid,localIdx)=>{
+      const globalIdx=localIdx+offset;
+      const fd=floorData[fid];
+      const ta=Math.max(0,...fd.components.map(c=>c.tiersAbove));
+      const tb=Math.max(0,...fd.components.map(c=>c.tiersBelow));
+      if(ta>rowTiersAbove[globalIdx])rowTiersAbove[globalIdx]=ta;
+      if(tb>rowTiersBelow[globalIdx])rowTiersBelow[globalIdx]=tb;
+    });
+  });
+  const alignedRowY=[];
+  {let y=startY;for(let r=0;r<maxRows;r++){alignedRowY[r]=y+rowTiersAbove[r]*gapV;y=alignedRowY[r]+rowTiersBelow[r]*gapV+gapV+gapV*0.5}}
+
   let buildingStartX=startX;
   layoutGroups.forEach((layoutGroup,groupIdx)=>{
     const bldFloorIds=layoutGroup.floorIds;
@@ -2935,12 +2955,10 @@ function relayoutFloorNodesTopo(){
       bldCompX[ci+1]=(bldCompX[ci]||buildingStartX)+bldCompSlots[ci]*gapH;
     }
 
-    curY=startY; // Reset Y for each building group
-    bldFloorIds.forEach(fid=>{
+    const bldRowOffset=maxRows-bldFloorIds.length; // bottom-align
+    bldFloorIds.forEach((fid,localIdx)=>{
       const fd=floorData[fid];
-      const maxTA=Math.max(0,...fd.components.map(c=>c.tiersAbove));
-      const maxTB=Math.max(0,...fd.components.map(c=>c.tiersBelow));
-      const chainY=curY+maxTA*gapV;
+      const chainY=alignedRowY[localIdx+bldRowOffset];
 
       fd.components.forEach((comp,compIdx)=>{
         const compX=bldCompX[compIdx];
@@ -2972,8 +2990,6 @@ function relayoutFloorNodesTopo(){
           }
         });
       });
-
-      curY=chainY+maxTB*gapV+gapV;
 
       // Update edge ports and routing for this floor group
       edges.forEach(e=>{
@@ -3007,7 +3023,6 @@ function relayoutFloorNodesTopo(){
         }
       });
 
-      curY+=gapV*0.5;
     });
 
     // Advance X for next building group

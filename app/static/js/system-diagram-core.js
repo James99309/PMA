@@ -646,8 +646,8 @@ function restoreSnapshot(snap){
   nodeIdCounter=data.nodeIdCounter||100;edgeIdCounter=data.edgeIdCounter||200;
   if(data.routeIdCounter&&typeof routeIdCounter!=='undefined')routeIdCounter=data.routeIdCounter;
   if(data.areaIdCounter&&typeof areaIdCounter!=='undefined')areaIdCounter=data.areaIdCounter;
-  if(data.floor_plans&&typeof restoreFloorPlans==='function'){restoreFloorPlans(data.floor_plans)}
   if(data.buildings&&typeof restoreBuildings==='function'){restoreBuildings(data.buildings)}
+  if(data.floor_plans&&typeof restoreFloorPlans==='function'){restoreFloorPlans(data.floor_plans)}
   if(data.topoAreas)topoAreas=data.topoAreas;
   selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;
   if(typeof selectedAreaId!=='undefined')selectedAreaId=null;
@@ -1248,8 +1248,8 @@ function deserializeDiagram(data){
   edges=data.edges||[];
   viewX=data.viewX||0;viewY=data.viewY||0;scale=data.scale||1;
   nodeIdCounter=data.nodeIdCounter||100;edgeIdCounter=data.edgeIdCounter||200;
-  if(data.floor_plans&&typeof restoreFloorPlans==='function'){restoreFloorPlans(data.floor_plans)}
   if(data.buildings&&typeof restoreBuildings==='function'){restoreBuildings(data.buildings)}
+  if(data.floor_plans&&typeof restoreFloorPlans==='function'){restoreFloorPlans(data.floor_plans)}
   if(data.floorPlanIdCounter)floorPlanIdCounter=data.floorPlanIdCounter;
   if(data.buildingIdCounter&&typeof buildingIdCounter!=='undefined')buildingIdCounter=data.buildingIdCounter;
   if(data.routeIdCounter&&typeof routeIdCounter!=='undefined')routeIdCounter=data.routeIdCounter;
@@ -1513,11 +1513,11 @@ function rebuildViewTabs(){
   const _hasBuildings=typeof buildings!=='undefined'&&buildings.length>0;
   const fps=typeof floorPlans!=='undefined'?floorPlans:[];
 
-  if(_hasBuildings){
+  if(_hasBuildings||fps.length>0){
     container.classList.add('has-buildings');
     const activeFilter=_resolveActiveBuildingFilter();
-    const orderedBlds=buildings.slice().sort((a,b)=>a.sort_order-b.sort_order);
-    const ungrouped=fps.filter(fp=>!fp.building_id||!buildings.find(b=>b.id===fp.building_id));
+    const orderedBlds=_hasBuildings?buildings.slice().sort((a,b)=>a.sort_order-b.sort_order):[];
+    const ungrouped=fps.filter(fp=>!fp.building_id||(_hasBuildings&&!buildings.find(b=>b.id===fp.building_id)));
 
     // ── Building filter row ──
     const bldRow=document.createElement('div');
@@ -1530,7 +1530,7 @@ function rebuildViewTabs(){
       pill.addEventListener('dblclick',()=>{if(typeof showBuildingProps==='function')showBuildingProps(bld.id)});
       bldRow.appendChild(pill);
     });
-    if(ungrouped.length>0){
+    if(_hasBuildings&&ungrouped.length>0){
       const pill=document.createElement('div');
       pill.className='building-pill'+(activeFilter==='ungrouped'?' active':'');
       pill.textContent=_t('独立楼层');
@@ -1587,9 +1587,11 @@ function rebuildViewTabs(){
     inner.appendChild(topoTab);
 
     // Filtered floor tabs
-    const filteredFloors=activeFilter==='ungrouped'
-      ?ungrouped
-      :fps.filter(fp=>fp.building_id===activeFilter);
+    const filteredFloors=activeFilter===null
+      ?fps
+      :activeFilter==='ungrouped'
+        ?ungrouped
+        :fps.filter(fp=>fp.building_id===activeFilter);
     filteredFloors.forEach(fp=>{
       const tab=document.createElement('div');
       tab.className='view-tab';
@@ -1626,28 +1628,11 @@ function rebuildViewTabs(){
     });
 
   } else {
+    // No floors AND no buildings — simple single-row layout
     container.classList.remove('has-buildings');
-    const arrowL=document.createElement('button');
-    arrowL.className='view-tabs-arrow';
-    arrowL.innerHTML='&#9664;';
-    arrowL.addEventListener('click',()=>{inner.scrollLeft-=120});
-    container.appendChild(arrowL);
-
     const inner=document.createElement('div');
     inner.className='view-tabs-inner';
     container.appendChild(inner);
-
-    const arrowR=document.createElement('button');
-    arrowR.className='view-tabs-arrow';
-    arrowR.innerHTML='&#9654;';
-    arrowR.addEventListener('click',()=>{inner.scrollLeft+=120});
-    container.appendChild(arrowR);
-
-    function updateArrows(){
-      arrowL.classList.toggle('visible',inner.scrollLeft>0);
-      arrowR.classList.toggle('visible',inner.scrollLeft<inner.scrollWidth-inner.clientWidth-1);
-    }
-    inner.addEventListener('scroll',updateArrows);
 
     const topoTab=document.createElement('div');
     topoTab.className='view-tab'+(currentView==='topology'?' active':'');
@@ -1656,38 +1641,13 @@ function rebuildViewTabs(){
     topoTab.addEventListener('click',()=>onTabClick('topology'));
     inner.appendChild(topoTab);
 
-    fps.forEach(fp=>{
-      const tab=document.createElement('div');
-      tab.className='view-tab';
-      if(currentView===fp.id)tab.classList.add('active');
-      tab.dataset.view=fp.id;
-      tab.dataset.fpId=fp.id;
-      tab.textContent=fp.label;
-      tab.addEventListener('pointerdown',e=>_tabDragStart(e,fp.id));
-      inner.appendChild(tab);
-    });
-
     if(!DIAGRAM_CONFIG.readOnly){
-      if(fps.length>0){
-        const addBtn=document.createElement('div');
-        addBtn.className='view-tab-add';
-        addBtn.textContent=_t('添加楼层')+' ▾';
-        addBtn.addEventListener('click',e=>{e.stopPropagation();_showAddFloorDropdown(addBtn)});
-        inner.appendChild(addBtn);
-      } else {
-        const addBtn=document.createElement('div');
-        addBtn.className='view-tab-add';
-        addBtn.textContent=_t('添加楼层');
-        addBtn.addEventListener('click',()=>addFloorPlan());
-        inner.appendChild(addBtn);
-      }
+      const addBtn=document.createElement('div');
+      addBtn.className='view-tab-add';
+      addBtn.textContent=_t('添加楼层');
+      addBtn.addEventListener('click',()=>addFloorPlan());
+      inner.appendChild(addBtn);
     }
-
-    requestAnimationFrame(()=>{
-      const activeTab=inner.querySelector('.view-tab.active');
-      if(activeTab)activeTab.scrollIntoView({block:'nearest',inline:'nearest'});
-      updateArrows();
-    });
   }
 }
 
@@ -1708,24 +1668,43 @@ function _showAddFloorDropdown(anchor){
       menu.appendChild(item);
     });
     const divider=document.createElement('div');divider.className='add-floor-dropdown-divider';menu.appendChild(divider);
+    const newBldItem=document.createElement('div');
+    newBldItem.className='add-floor-dropdown-item';
+    newBldItem.textContent=_t('添加到新建筑...');
+    newBldItem.addEventListener('click',()=>{
+      menu.remove();
+      const name=prompt(_t('建筑名称'));
+      if(name&&name.trim()&&typeof addBuilding==='function'){
+        const b=addBuilding(name.trim());
+        if(b)addFloorPlan(b.id);
+      }
+    });
+    menu.appendChild(newBldItem);
+    const freeItem=document.createElement('div');
+    freeItem.className='add-floor-dropdown-item';
+    freeItem.textContent=_t('添加独立楼层');
+    freeItem.addEventListener('click',()=>{menu.remove();addFloorPlan()});
+    menu.appendChild(freeItem);
+  } else {
+    // No buildings yet — simplified menu
+    const addItem=document.createElement('div');
+    addItem.className='add-floor-dropdown-item';
+    addItem.textContent=_t('添加楼层');
+    addItem.addEventListener('click',()=>{menu.remove();addFloorPlan()});
+    menu.appendChild(addItem);
+    const newBldItem=document.createElement('div');
+    newBldItem.className='add-floor-dropdown-item';
+    newBldItem.textContent=_t('添加到新建筑...');
+    newBldItem.addEventListener('click',()=>{
+      menu.remove();
+      const name=prompt(_t('建筑名称'));
+      if(name&&name.trim()&&typeof addBuilding==='function'){
+        const b=addBuilding(name.trim());
+        if(b)addFloorPlan(b.id);
+      }
+    });
+    menu.appendChild(newBldItem);
   }
-  const newBldItem=document.createElement('div');
-  newBldItem.className='add-floor-dropdown-item';
-  newBldItem.textContent=_t('添加到新建筑...');
-  newBldItem.addEventListener('click',()=>{
-    menu.remove();
-    const name=prompt(_t('建筑名称'));
-    if(name&&name.trim()&&typeof addBuilding==='function'){
-      const b=addBuilding(name.trim());
-      if(b)addFloorPlan(b.id);
-    }
-  });
-  menu.appendChild(newBldItem);
-  const freeItem=document.createElement('div');
-  freeItem.className='add-floor-dropdown-item';
-  freeItem.textContent=_t('添加独立楼层');
-  freeItem.addEventListener('click',()=>{menu.remove();addFloorPlan()});
-  menu.appendChild(freeItem);
   const rect=anchor.getBoundingClientRect();
   menu.style.position='fixed';
   menu.style.top=(rect.bottom+4)+'px';
