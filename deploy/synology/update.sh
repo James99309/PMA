@@ -46,4 +46,4 @@ echo -e "\n${YELLOW}容器状态：${NC}"
 docker-compose ps
 
 echo -e "\n${YELLOW}最近日志：${NC}"
-docker-compose logs --tail=10 pma
+timeout 10 docker-compose logs --tail=10 pma 2>/dev/null || echo "(日志获取超时，跳过)"

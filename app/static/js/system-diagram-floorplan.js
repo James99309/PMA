@@ -96,11 +96,13 @@ function getTempEdgeZoomCompensation() {
 
 // ====== FLOOR PLAN DATA ======
 let floorPlans = [];
-
+let buildings = [];
+let buildingIdCounter = 1;
+const BUILDING_COLORS=['#3b82f6','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#06b6d4','#f97316'];
 
 function getFloorPlansForSave(){
   return floorPlans.map(fp=>({
-    id:fp.id, label:fp.label, sort_order:fp.sort_order,
+    id:fp.id, label:fp.label, sort_order:fp.sort_order, building_id:fp.building_id||null,
     background:fp.background?Object.assign({url:fp.background.url,width:fp.background.width,height:fp.background.height,offset_x:fp.background.offset_x||0,offset_y:fp.background.offset_y||0,opacity:fp.background.opacity||0.3},fp.background.is_multi_res?{is_multi_res:true,resolutions:fp.background.resolutions,filenames:fp.background.filenames}:{filename:fp.background.filename||''}):null,
     calibration:fp.calibration||null,
     placements:fp.placements.map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1,labelPosition:p.labelPosition||null})),
@@ -111,10 +113,21 @@ function getFloorPlansForSave(){
   }));
 }
 
+function getBuildingsForSave(){
+  return buildings.map(b=>({id:b.id,name:b.name,color:b.color||'#3b82f6',sort_order:b.sort_order}));
+}
+
+function restoreBuildings(data){
+  if(!Array.isArray(data)){buildings=[];return}
+  buildings=data.map(b=>({id:b.id,name:b.name,color:b.color||'#3b82f6',sort_order:b.sort_order||0}));
+  const maxId=Math.max(0,...buildings.map(b=>parseInt(b.id.replace('bld_',''))||0));
+  if(maxId>=buildingIdCounter)buildingIdCounter=maxId+1;
+}
+
 function restoreFloorPlans(data){
   if(!Array.isArray(data))return;
   floorPlans=data.map(fp=>({
-    id:fp.id, label:fp.label, sort_order:fp.sort_order||0,
+    id:fp.id, label:fp.label, sort_order:fp.sort_order||0, building_id:fp.building_id||null,
     background:fp.background||null,
     calibration:fp.calibration||null,
     placements:(fp.placements||[]).map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1,labelPosition:p.labelPosition||null})),
@@ -124,6 +137,101 @@ function restoreFloorPlans(data){
     viewX:fp.viewX||0, viewY:fp.viewY||0, scale:fp.scale||1
   }));
   rebuildViewTabs();
+}
+
+// ====== BUILDING CRUD ======
+
+function addBuilding(name){
+  if(DIAGRAM_CONFIG.readOnly)return null;
+  const id='bld_'+buildingIdCounter++;
+  const b={id,name:name||_t('新建筑'),color:BUILDING_COLORS[buildings.length%BUILDING_COLORS.length],sort_order:buildings.length+1};
+  buildings.push(b);
+  hasUnsavedChanges=true;
+  rebuildViewTabs();
+  return b;
+}
+
+function renameBuilding(bldId,name){
+  const b=buildings.find(x=>x.id===bldId);
+  if(b){pushHistoryProp();b.name=name;hasUnsavedChanges=true;rebuildViewTabs()}
+}
+
+function deleteBuilding(bldId){
+  if(DIAGRAM_CONFIG.readOnly)return;
+  pushHistory();
+  floorPlans.forEach(fp=>{if(fp.building_id===bldId)fp.building_id=null});
+  buildings=buildings.filter(b=>b.id!==bldId);
+  buildings.forEach((b,i)=>b.sort_order=i+1);
+  hasUnsavedChanges=true;
+  rebuildViewTabs();
+  hideProps();
+}
+
+function updateBuildingColor(bldId,color){
+  const b=buildings.find(x=>x.id===bldId);
+  if(b){pushHistoryProp();b.color=color;hasUnsavedChanges=true;rebuildViewTabs()}
+}
+
+function showBuildingProps(bldId){
+  const b=buildings.find(x=>x.id===bldId);if(!b)return;
+  const panel=document.getElementById('propsPanel');
+  panel.classList.add('visible');
+  document.getElementById('propsTitle').textContent=_t('建筑属性');
+  const isRO=DIAGRAM_CONFIG.readOnly;
+  const bldFloors=floorPlans.filter(fp=>fp.building_id===bldId);
+  const floorsText=bldFloors.map(fp=>fp.label).join(', ')||_t('无');
+  let html='';
+  if(!isRO){
+    html+=`<div class="props-field"><span class="props-label">${_t('建筑名称')}</span><input class="props-input" value="${b.name.replace(/"/g,'&quot;')}" oninput="renameBuilding('${bldId}',this.value)"></div>`;
+    html+=`<div class="props-field"><span class="props-label">${_t('颜色')}</span><div style="display:flex;gap:6px;flex-wrap:wrap">`;
+    BUILDING_COLORS.forEach(c=>{
+      html+=`<div style="width:24px;height:24px;border-radius:6px;background:${c};cursor:pointer;${c===b.color?'box-shadow:0 0 0 2px var(--bg-panel),0 0 0 4px '+c:''}" onclick="updateBuildingColor('${bldId}','${c}');showBuildingProps('${bldId}')"></div>`;
+    });
+    html+=`</div></div>`;
+  } else {
+    html+=`<div class="props-field"><span class="props-label">${_t('建筑名称')}</span><div style="font-size:13px;font-weight:600;color:var(--text-primary)">${b.name}</div></div>`;
+  }
+  html+=`<div class="props-field"><span class="props-label">${_t('包含楼层')}</span><div style="font-size:11px;color:var(--text-secondary);line-height:1.6;">${floorsText}</div></div>`;
+  if(!isRO){
+    html+=`<button class="btn-delete" onclick="if(confirm(_t('删除建筑将取消所有楼层的建筑分组，楼层本身不会被删除。确认删除？')))deleteBuilding('${bldId}')">${_t('删除建筑')}</button>`;
+  }
+  document.getElementById('propsContent').innerHTML=html;
+}
+
+function assignFloorToBuilding(fpId,bldId){
+  const fp=getFloorPlan(fpId);if(!fp)return;
+  pushHistory();
+  fp.building_id=bldId||null;
+  hasUnsavedChanges=true;
+  rebuildViewTabs();
+}
+
+// ====== BUILDING LABELS IN TOPOLOGY ======
+
+function renderBuildingLabels(){
+  if(currentView!=='topology')return;
+  if(typeof buildings==='undefined'||!buildings.length)return;
+  const nodesLayer=document.getElementById('nodesLayer');
+  buildings.forEach(b=>{
+    const bFloorIds=new Set(floorPlans.filter(fp=>fp.building_id===b.id).map(fp=>fp.id));
+    const bNodes=nodes.filter(n=>n.floor_id&&bFloorIds.has(n.floor_id));
+    if(!bNodes.length)return;
+    const minX=Math.min(...bNodes.map(n=>n.x));
+    const maxX=Math.max(...bNodes.map(n=>n.x+(n.w||NODE_SIZE)));
+    const minY=Math.min(...bNodes.map(n=>n.y));
+    const centerX=(minX+maxX)/2;
+    const labelY=minY-30;
+    const text=document.createElementNS('http://www.w3.org/2000/svg','text');
+    text.setAttribute('class','building-label');
+    text.setAttribute('x',centerX);
+    text.setAttribute('y',labelY);
+    text.setAttribute('text-anchor','middle');
+    text.setAttribute('font-size','14');
+    text.setAttribute('font-weight','600');
+    text.setAttribute('fill',b.color);
+    text.textContent=b.name;
+    nodesLayer.appendChild(text);
+  });
 }
 
 // ====== FLOOR PLAN RENDERING ======
@@ -169,8 +277,10 @@ function renderFloorPlanView(viewId, isDragging){
         renderCoverageCircles(fp);  // circles go into edgesLayer (rebuilt each frame, fine)
       }
     }
+  } else if (displaySettings.coverageMode !== 'heatmap' && displaySettings.showCoverage !== 'off') {
+    renderCoverageCirclesLite(fp);  // drag: stroke-only circles, no fill/text/events
   }
-  // isDragging: leave coverageLayer untouched — heatmap stays visible via SVG transform
+  // isDragging + heatmap: leave coverageLayer untouched — heatmap stays visible via SVG transform
 
   // 5. Render manual routes (floor plan connections)
   renderFloorRoutes(fp);
@@ -803,7 +913,10 @@ function findBestPort(srcPl,tgtPl,nodeSize,routeMode){
 }
 
 // ====== COVERAGE CIRCLES ======
+let _coverageHoverG = null; // persistent hover overlay in tempLayer
+
 function renderCoverageCircles(fp) {
+  _hideCoverageHover(); // clear any residual hover from previous render
   if (displaySettings.showCoverage === 'off') return;
   if (!fp.calibration || !fp.calibration.px_per_meter) return;
   const ppm = fp.calibration.px_per_meter;
@@ -818,6 +931,11 @@ function renderCoverageCircles(fp) {
   const coverageG = document.createElementNS(svgNS, 'g');
   coverageG.setAttribute('class', 'coverage-layer');
   coverageG.style.pointerEvents = 'none';
+
+  // Transparent hit-area group (on top, receives pointer events)
+  const hitG = document.createElementNS(svgNS, 'g');
+  hitG.setAttribute('class', 'coverage-hit-layer');
+  const comp = getFloorZoomCompensation();
 
   let pathIdCounter = 0;
 
@@ -878,6 +996,22 @@ function renderCoverageCircles(fp) {
       tp.textContent = `${radii[i]}m`;
       text.appendChild(tp);
       coverageG.appendChild(text);
+
+      // Transparent hit circle for hover detection
+      const hitCircle = document.createElementNS(svgNS, 'circle');
+      hitCircle.setAttribute('cx', cx);
+      hitCircle.setAttribute('cy', cy);
+      hitCircle.setAttribute('r', r);
+      hitCircle.setAttribute('fill', 'none');
+      hitCircle.setAttribute('stroke', 'transparent');
+      hitCircle.setAttribute('stroke-width', 14 * comp);
+      hitCircle.setAttribute('pointer-events', 'stroke');
+      hitCircle.style.cursor = 'crosshair';
+      const ringIdx = i, radiusM = radii[i], rPx = r, hcx = cx, hcy = cy;
+      hitCircle.addEventListener('mouseenter', e => _showCoverageHover(ringIdx, radiusM, hcx, hcy, rPx, e));
+      hitCircle.addEventListener('mousemove', e => _updateCoverageHoverAngle(hcx, hcy, rPx, e));
+      hitCircle.addEventListener('mouseleave', () => _hideCoverageHover());
+      hitG.appendChild(hitCircle);
     }
   });
 
@@ -885,6 +1019,165 @@ function renderCoverageCircles(fp) {
   if (coverageG.childNodes.length > 0) {
     edgesLayer.insertBefore(coverageG, edgesLayer.firstChild);
     edgesLayer.insertBefore(defs, edgesLayer.firstChild);
+  }
+  // Append hit layer on top so it captures pointer events
+  if (hitG.childNodes.length > 0) {
+    edgesLayer.appendChild(hitG);
+  }
+}
+
+// ====== COVERAGE CIRCLES LITE (drag mode — stroke only, no fill/text/events) ======
+function renderCoverageCirclesLite(fp) {
+  if (!fp.calibration || !fp.calibration.px_per_meter) return;
+  const ppm = fp.calibration.px_per_meter;
+  const edgesLayer = document.getElementById('edgesLayer');
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const coverageG = document.createElementNS(svgNS, 'g');
+  coverageG.setAttribute('class', 'coverage-layer-lite');
+  coverageG.style.pointerEvents = 'none';
+
+  const globalRingKeys = ['showCoverageInner', 'showCoverageMid'];
+  const comp = getFloorZoomCompensation();
+
+  fp.placements.forEach(pl => {
+    const n = nodes.find(nd => nd.id === pl.node_id);
+    if (!n) return;
+    if (getNodeIconKey(n) !== 'antenna_indoor') return;
+    if (displaySettings.showCoverage === 'individual' && n.showCoverage !== true) return;
+
+    const cx = pl.x + (n.w || NODE_SIZE) / 2;
+    const cy = pl.y + (n.h || NODE_SIZE) / 2;
+    const radii = n.coverageRadii || coverageRadiiFromN(n.coverageN);
+    const vis = n.coverageVisible || [true, true];
+
+    for (let i = radii.length - 1; i >= 0; i--) {
+      const r = radii[i] * ppm;
+      if (r <= 0) continue;
+      if (!displaySettings[globalRingKeys[i]]) continue;
+      if (!vis[i]) continue;
+      const ring = COVERAGE_RINGS[i] || COVERAGE_RINGS[COVERAGE_RINGS.length - 1];
+
+      const circle = document.createElementNS(svgNS, 'circle');
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', cy);
+      circle.setAttribute('r', r);
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke', ring.color);
+      circle.setAttribute('stroke-opacity', '1');
+      circle.setAttribute('stroke-width', 2.5 * comp);
+      coverageG.appendChild(circle);
+    }
+  });
+
+  if (coverageG.childNodes.length > 0) {
+    edgesLayer.insertBefore(coverageG, edgesLayer.firstChild);
+  }
+}
+
+// ====== COVERAGE HOVER (highlight ring + leader line) ======
+function _showCoverageHover(ringIdx, radiusM, cx, cy, rPx, e) {
+  _hideCoverageHover();
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const ring = COVERAGE_RINGS[ringIdx] || COVERAGE_RINGS[COVERAGE_RINGS.length - 1];
+  const comp = getFloorZoomCompensation();
+  const fontSize = 12 * comp;
+  const g = document.createElementNS(svgNS, 'g');
+  g.setAttribute('class', 'coverage-hover-overlay');
+
+  // Highlighted ring (bolder, full opacity)
+  const hlCircle = document.createElementNS(svgNS, 'circle');
+  hlCircle.setAttribute('cx', cx);
+  hlCircle.setAttribute('cy', cy);
+  hlCircle.setAttribute('r', rPx);
+  hlCircle.setAttribute('fill', 'none');
+  hlCircle.setAttribute('stroke', ring.color);
+  hlCircle.setAttribute('stroke-opacity', '1');
+  hlCircle.setAttribute('stroke-width', 2.5 * comp);
+  g.appendChild(hlCircle);
+
+  // Leader line (dashed, gray) from center to edge point
+  const leader = document.createElementNS(svgNS, 'line');
+  leader.setAttribute('x1', cx);
+  leader.setAttribute('y1', cy);
+  leader.setAttribute('stroke', '#64748b');
+  leader.setAttribute('stroke-width', 1.2 * comp);
+  leader.setAttribute('stroke-dasharray', `${4 * comp},${3 * comp}`);
+  leader.setAttribute('stroke-opacity', '0.85');
+  leader.setAttribute('class', 'cov-hover-line');
+  g.appendChild(leader);
+
+  // Distance label (white background pill)
+  const labelText = `${radiusM}m`;
+  const textW = labelText.length * fontSize * 0.6;
+  const padX = 6 * comp, padY = 3 * comp;
+  const rect = document.createElementNS(svgNS, 'rect');
+  rect.setAttribute('rx', 4 * comp);
+  rect.setAttribute('ry', 4 * comp);
+  rect.setAttribute('width', textW + padX * 2);
+  rect.setAttribute('height', fontSize + padY * 2);
+  rect.setAttribute('fill', 'rgba(255,255,255,0.95)');
+  rect.setAttribute('stroke', '#e2e8f0');
+  rect.setAttribute('stroke-width', 0.8 * comp);
+  rect.setAttribute('class', 'cov-hover-bg');
+  g.appendChild(rect);
+  const text = document.createElementNS(svgNS, 'text');
+  text.setAttribute('fill', '#1e293b');
+  text.setAttribute('font-size', fontSize);
+  text.setAttribute('font-family', 'system-ui, sans-serif');
+  text.setAttribute('font-weight', '600');
+  text.setAttribute('text-anchor', 'middle');
+  text.setAttribute('dominant-baseline', 'central');
+  text.setAttribute('class', 'cov-hover-text');
+  text.textContent = labelText;
+  g.appendChild(text);
+
+  // Store center/radius on the group element
+  g._cx = cx;
+  g._cy = cy;
+  g._rPx = rPx;
+
+  g.style.pointerEvents = 'none';
+  document.getElementById('tempLayer').appendChild(g);
+  _coverageHoverG = g;
+
+  // Position leader + label using initial mouse position
+  _updateCoverageHoverAngle(cx, cy, rPx, e);
+}
+
+function _updateCoverageHoverAngle(cx, cy, rPx, e) {
+  if (!_coverageHoverG) return;
+  const mp = svgPoint(e);
+
+  const angle = Math.atan2(mp.y - cy, mp.x - cx);
+  const edgeX = cx + rPx * Math.cos(angle);
+  const edgeY = cy + rPx * Math.sin(angle);
+
+  const leader = _coverageHoverG.querySelector('.cov-hover-line');
+  if (leader) {
+    leader.setAttribute('x2', edgeX);
+    leader.setAttribute('y2', edgeY);
+  }
+
+  const midX = (cx + edgeX) / 2;
+  const midY = (cy + edgeY) / 2;
+  const rect = _coverageHoverG.querySelector('.cov-hover-bg');
+  const text = _coverageHoverG.querySelector('.cov-hover-text');
+  if (rect) {
+    const rw = parseFloat(rect.getAttribute('width'));
+    const rh = parseFloat(rect.getAttribute('height'));
+    rect.setAttribute('x', midX - rw / 2);
+    rect.setAttribute('y', midY - rh / 2);
+  }
+  if (text) {
+    text.setAttribute('x', midX);
+    text.setAttribute('y', midY);
+  }
+}
+
+function _hideCoverageHover() {
+  if (_coverageHoverG) {
+    _coverageHoverG.remove();
+    _coverageHoverG = null;
   }
 }
 
@@ -895,15 +1188,15 @@ const _HM_DESIGN = -85, _HM_FLOOR = -95;
 const _HM_RANGE = _HM_RX1M - _HM_FLOOR; // 95.5 dB
 const HEATMAP_SAMPLE_SIZE = 4;
 const HEATMAP_COLORS = [
-  { stop: 0.00, r: 59,  g: 130, b: 246 },  // 蓝 (噪声底)
-  { stop: 0.08, r: 6,   g: 182, b: 212 },  // 青
-  { stop: 0.15, r: 16,  g: 185, b: 145 },  // 青绿
-  { stop: 0.25, r: 34,  g: 197, b: 94  },  // 绿 (中圈区域)
-  { stop: 0.35, r: 100, g: 200, b: 55  },  // 黄绿
-  { stop: 0.42, r: 180, g: 200, b: 30  },  // 黄绿偏黄
-  { stop: 0.50, r: 240, g: 190, b: 20  },  // 黄 (内圈区域)
-  { stop: 0.60, r: 245, g: 120, b: 11  },  // 橙
-  { stop: 0.80, r: 234, g: 70,  b: 12  },  // 橙红
+  { stop: 0.00, r: 59,  g: 130, b: 246 },  // 蓝 (噪声底 -95dBm)
+  { stop: 0.04, r: 6,   g: 182, b: 212 },  // 青
+  { stop: 0.08, r: 16,  g: 185, b: 145 },  // 青绿
+  { stop: 0.12, r: 34,  g: 197, b: 94  },  // 绿 (中圈 -85dBm, s≈0.124)
+  { stop: 0.20, r: 100, g: 200, b: 55  },  // 黄绿
+  { stop: 0.28, r: 180, g: 200, b: 30  },  // 黄绿偏黄
+  { stop: 0.37, r: 240, g: 190, b: 20  },  // 黄 (内圈 -65dBm, s≈0.373)
+  { stop: 0.55, r: 245, g: 120, b: 11  },  // 橙
+  { stop: 0.78, r: 234, g: 70,  b: 12  },  // 橙红
   { stop: 1.00, r: 220, g: 38,  b: 38  },  // 红 (天线中心)
 ];
 let _heatmapCache = { stamp: null, dataUrl: null, bounds: null, mode: null };
@@ -1003,12 +1296,19 @@ function _hmGenerate(fp, ppm, bounds, antennasData) {
       const px = bounds.x + (sx + 0.5) * ss;
       const py = bounds.y + (sy + 0.5) * ss;
       let maxS = 0;
+      let totalPowerLinear = 0;
       for (const ant of antennasData) {
         const dx = (px - ant.cx) / ppm;
         const dy = (py - ant.cy) / ppm;
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const s = _hmStrength(dist, ant.n);
-        if (s > maxS) maxS = s;
+        const dBm = _hmSignalDbm(dist, ant.n);
+        if (dBm > _HM_FLOOR) {
+          totalPowerLinear += Math.pow(10, dBm / 10);
+        }
+      }
+      if (totalPowerLinear > 0) {
+        const totalDbm = 10 * Math.log10(totalPowerLinear);
+        maxS = Math.min(1.0, Math.max(0, (totalDbm - _HM_FLOOR) / _HM_RANGE));
       }
       if (maxS > 0.03) {
         // Fade out near canvas edges to avoid hard boundary
@@ -1018,7 +1318,17 @@ function _hmGenerate(fp, ppm, bounds, antennasData) {
         const c = _hmColor(maxS);
         const idx = (sy * sw + sx) * 4;
         data[idx] = c.r; data[idx + 1] = c.g; data[idx + 2] = c.b;
-        data[idx + 3] = Math.min(255, Math.round(Math.pow(maxS, 1.5) * 320 * fade));
+        // Piecewise alpha: mid-circle(s≈0.124) keeps visible, fades outside
+        const s_mid = 0.124; // -85 dBm
+        let alpha;
+        if (maxS >= s_mid) {
+          // Center → mid circle: opacity 60→255
+          alpha = 60 + 195 * Math.pow((maxS - s_mid) / (1 - s_mid), 0.8);
+        } else {
+          // Outside mid circle: fade 60→0
+          alpha = 60 * ((maxS - 0.03) / (s_mid - 0.03));
+        }
+        data[idx + 3] = Math.min(255, Math.round(alpha * fade));
       }
     }
   }
@@ -2258,8 +2568,20 @@ function showFloorPlanProps(fpId){
   const nameHTML=isRO
     ?`<div style="font-size:13px;font-weight:600;color:var(--text-primary)">${fp.label}</div>`
     :`<input class="props-input" value="${fp.label}" oninput="updateFloorPlanProp('${fpId}','label',this.value)">`;
+  // Building selector
+  let buildingHTML='';
+  if(!isRO){
+    const curBld=fp.building_id||'';
+    const blds=(typeof buildings!=='undefined')?buildings.slice().sort((a,b)=>a.sort_order-b.sort_order):[];
+    buildingHTML=`<div class="props-field"><span class="props-label">${_t('所属建筑')}</span><select class="props-input" id="floorBuildingSelect" onchange="if(this.value==='__new__'){this.value='${curBld}';const n=prompt('${_t('建筑名称')}');if(n&&n.trim()&&typeof addBuilding==='function'){const b=addBuilding(n.trim());if(b){assignFloorToBuilding('${fpId}',b.id);showFloorPlanProps('${fpId}')}}}else{assignFloorToBuilding('${fpId}',this.value||null);showFloorPlanProps('${fpId}')}"><option value="">${_t('无（独立楼层）')}</option>`;
+    blds.forEach(b=>{
+      buildingHTML+=`<option value="${b.id}"${b.id===curBld?' selected':''}>${b.name}</option>`;
+    });
+    buildingHTML+=`<option value="__new__">+ ${_t('创建新建筑...')}</option>`;
+    buildingHTML+=`</select></div>`;
+  }
   let html=`
-    <div class="props-field"><span class="props-label">${_t('楼层名称（导出文件名）')}</span>${nameHTML}</div>
+    <div class="props-field"><span class="props-label">${_t('楼层名称（导出文件名）')}</span>${nameHTML}</div>${buildingHTML}
     <div class="props-field"><span class="props-label">${_t('背景图透明度')}</span><div class="props-row"><input type="range" class="props-range" min="0.05" max="1" step="0.05" value="${bgOpacity}" ${hasBg?'':'disabled'} oninput="updateFloorBgOpacity('${fpId}',parseFloat(this.value));this.nextElementSibling.textContent=Math.round(this.value*100)+'%'"><span class="props-range-val">${Math.round(bgOpacity*100)}%</span></div></div>`;
   if(!isRO){
     html+=`<div class="props-field" style="flex-direction:row;gap:6px;">`;
@@ -2412,14 +2734,28 @@ function relayoutFloorNodesTopo(){
   // Group by floor
   const groups={};
   floorNodes.forEach(n=>{const fid=n.floor_id;if(!groups[fid])groups[fid]=[];groups[fid].push(n)});
-  // Use floor panel tab order reversed: left→right in tabs = bottom→top in diagram
-  // SVG Y increases downward, so rightmost tab (highest floor) gets smallest Y (top)
-  const floorIds=floorPlans.map(f=>f.id).filter(id=>groups[id]).reverse();
+
+  // ═══ Group floors by building ═══
+  const BUILDING_GAP=NODE_SIZE+400;
+  const hasBuildingsConfig=typeof buildings!=='undefined'&&buildings.length>0;
+  const layoutGroups=[];
+  if(hasBuildingsConfig){
+    const orderedBuildings=buildings.slice().sort((a,b)=>a.sort_order-b.sort_order);
+    orderedBuildings.forEach(b=>{
+      const bFloorIds=floorPlans.filter(fp=>fp.building_id===b.id).map(fp=>fp.id).filter(id=>groups[id]).reverse();
+      if(bFloorIds.length) layoutGroups.push({building:b,floorIds:bFloorIds});
+    });
+    const ungroupedIds=floorPlans.filter(fp=>!fp.building_id||!buildings.find(b=>b.id===fp.building_id)).map(fp=>fp.id).filter(id=>groups[id]).reverse();
+    if(ungroupedIds.length) layoutGroups.push({building:null,floorIds:ungroupedIds});
+  } else {
+    layoutGroups.push({building:null,floorIds:floorPlans.map(f=>f.id).filter(id=>groups[id]).reverse()});
+  }
+  const allFloorIds=layoutGroups.flatMap(g=>g.floorIds);
 
   const floorData={};
   let curY=startY;
 
-  floorIds.forEach(fid=>{
+  allFloorIds.forEach(fid=>{
     const group=groups[fid];
     const allIds=new Set(group.map(n=>n.id));
 
@@ -2574,109 +2910,109 @@ function relayoutFloorNodesTopo(){
     floorData[fid]={allIds,components:compDataArr};
   });
 
-  // ═══ Phase 2: Place nodes — same-floor components side by side (horizontal) ═══
+  // ═══ Phase 2: Place nodes — per building group ═══
 
-  // Pre-calculate slot counts per component across all floors for global column alignment
-  const maxCompCount=Math.max(0,...floorIds.map(fid=>floorData[fid].components.length));
-  const globalCompSlots=new Array(maxCompCount).fill(0); // max slots per component column
-  floorIds.forEach(fid=>{
-    const fd=floorData[fid];
-    fd.components.forEach((comp,compIdx)=>{
-      let slotIdx=0;
-      comp.chain.forEach((cid,i)=>{
-        slotIdx++;
-        const leaves=comp.leafGroups[cid]||[];
-        if(leaves.length)slotIdx++;
+  let buildingStartX=startX;
+  layoutGroups.forEach((layoutGroup,groupIdx)=>{
+    const bldFloorIds=layoutGroup.floorIds;
+
+    // Compute column alignment for this building's floors
+    const maxCompCount=Math.max(0,...bldFloorIds.map(fid=>floorData[fid].components.length));
+    const bldCompSlots=new Array(maxCompCount).fill(0);
+    bldFloorIds.forEach(fid=>{
+      const fd=floorData[fid];
+      fd.components.forEach((comp,compIdx)=>{
+        let slotIdx=0;
+        comp.chain.forEach((cid,i)=>{
+          slotIdx++;
+          if((comp.leafGroups[cid]||[]).length)slotIdx++;
+        });
+        if(slotIdx>bldCompSlots[compIdx])bldCompSlots[compIdx]=slotIdx;
       });
-      if(slotIdx>globalCompSlots[compIdx])globalCompSlots[compIdx]=slotIdx;
     });
-  });
-  // Build global X offsets for each component column
-  const globalCompX=[startX];
-  for(let ci=0;ci<maxCompCount;ci++){
-    globalCompX[ci+1]=(globalCompX[ci]||startX)+globalCompSlots[ci]*gapH;
-  }
+    const bldCompX=[buildingStartX];
+    for(let ci=0;ci<maxCompCount;ci++){
+      bldCompX[ci+1]=(bldCompX[ci]||buildingStartX)+bldCompSlots[ci]*gapH;
+    }
 
-  floorIds.forEach(fid=>{
-    const fd=floorData[fid];
-    // Unified Y: use max tiersAbove/Below across all components on this floor
-    const maxTA=Math.max(0,...fd.components.map(c=>c.tiersAbove));
-    const maxTB=Math.max(0,...fd.components.map(c=>c.tiersBelow));
-    const chainY=curY+maxTA*gapV;
+    curY=startY; // Reset Y for each building group
+    bldFloorIds.forEach(fid=>{
+      const fd=floorData[fid];
+      const maxTA=Math.max(0,...fd.components.map(c=>c.tiersAbove));
+      const maxTB=Math.max(0,...fd.components.map(c=>c.tiersBelow));
+      const chainY=curY+maxTA*gapV;
 
-    fd.components.forEach((comp,compIdx)=>{
-      const compX=globalCompX[compIdx]; // use globally aligned X for this component column
-      let slotIdx=0;
-      comp.chain.forEach((cid,i)=>{
-        const n=nodes.find(nd=>nd.id===cid);
-        if(n){n.x=compX+slotIdx*gapH;n.y=chainY}
-        slotIdx++;
-        const leaves=comp.leafGroups[cid]||[];
-        const isLast=(i===comp.chain.length-1);
-        if(leaves.length){
-          if(!isLast){
-            const leafX=compX+slotIdx*gapH;
-            leaves.forEach((ln,j)=>{
-              ln.x=leafX;
-              const t=Math.floor(j/2)+1;
-              ln.y=(j%2===0)?chainY-t*gapV:chainY+t*gapV;
-            });
-            slotIdx++;
-          }else{
-            // End leaves: right-align to global column boundary
-            const leafX=globalCompX[compIdx]+(globalCompSlots[compIdx]-1)*gapH;
-            leaves.forEach((ln,j)=>{
-              ln.x=leafX;
-              if(j===0)ln.y=chainY;
-              else{const t=Math.ceil(j/2);ln.y=(j%2===1)?chainY-t*gapV:chainY+t*gapV}
-            });
-            slotIdx++;
+      fd.components.forEach((comp,compIdx)=>{
+        const compX=bldCompX[compIdx];
+        let slotIdx=0;
+        comp.chain.forEach((cid,i)=>{
+          const n=nodes.find(nd=>nd.id===cid);
+          if(n){n.x=compX+slotIdx*gapH;n.y=chainY}
+          slotIdx++;
+          const leaves=comp.leafGroups[cid]||[];
+          const isLast=(i===comp.chain.length-1);
+          if(leaves.length){
+            if(!isLast){
+              const leafX=compX+slotIdx*gapH;
+              leaves.forEach((ln,j)=>{
+                ln.x=leafX;
+                const t=Math.floor(j/2)+1;
+                ln.y=(j%2===0)?chainY-t*gapV:chainY+t*gapV;
+              });
+              slotIdx++;
+            }else{
+              const leafX=bldCompX[compIdx]+(bldCompSlots[compIdx]-1)*gapH;
+              leaves.forEach((ln,j)=>{
+                ln.x=leafX;
+                if(j===0)ln.y=chainY;
+                else{const t=Math.ceil(j/2);ln.y=(j%2===1)?chainY-t*gapV:chainY+t*gapV}
+              });
+              slotIdx++;
+            }
           }
+        });
+      });
+
+      curY=chainY+maxTB*gapV+gapV;
+
+      // Update edge ports and routing for this floor group
+      edges.forEach(e=>{
+        if(!fd.allIds.has(e.sourceId)||!fd.allIds.has(e.targetId))return;
+        const src=nodes.find(n=>n.id===e.sourceId);
+        const tgt=nodes.find(n=>n.id===e.targetId);
+        if(!src||!tgt)return;
+        const srcCx=src.x+(src.w||NODE_SIZE)/2, srcCy=src.y+(src.h||NODE_SIZE)/2;
+        const tgtCx=tgt.x+(tgt.w||NODE_SIZE)/2, tgtCy=tgt.y+(tgt.h||NODE_SIZE)/2;
+        const dy=Math.abs(srcCy-tgtCy);
+        e.routeMode='ortho3';
+        delete e.midPos;
+        if(dy>NODE_SIZE){
+          const leftIsSource=srcCx<=tgtCx;
+          const leftCx=leftIsSource?srcCx:tgtCx;
+          const rightCy=leftIsSource?tgtCy:srcCy;
+          const rightIsAbove=rightCy<(leftIsSource?srcCy:tgtCy);
+          const leftPort=rightIsAbove?'top':'bottom';
+          if(leftIsSource){e.sourcePort=leftPort;e.targetPort='left'}
+          else{e.sourcePort='left';e.targetPort=leftPort}
+          e.waypoints=[{x:leftCx,y:rightCy}];
+        }else{
+          const leftIsSource=src.x<=tgt.x;
+          e.sourcePort=leftIsSource?'right':'left';
+          e.targetPort=leftIsSource?'left':'right';
+          const left=leftIsSource?src:tgt, right=leftIsSource?tgt:src;
+          const lCx=left.x+(left.w||NODE_SIZE)/2, rCx=right.x+(right.w||NODE_SIZE)/2;
+          const lCy=left.y+(left.h||NODE_SIZE)/2, rCy=right.y+(right.h||NODE_SIZE)/2;
+          const midX=(lCx+rCx)/2;
+          e.waypoints=[{x:midX,y:lCy},{x:midX,y:rCy}];
         }
       });
+
+      curY+=gapV*0.5;
     });
 
-    curY=chainY+maxTB*gapV+gapV;
-
-    // Update edge ports and routing for this floor group
-    // Use waypoints so ALL corners are individually draggable
-    edges.forEach(e=>{
-      if(!fd.allIds.has(e.sourceId)||!fd.allIds.has(e.targetId))return;
-      const src=nodes.find(n=>n.id===e.sourceId);
-      const tgt=nodes.find(n=>n.id===e.targetId);
-      if(!src||!tgt)return;
-      const srcCx=src.x+(src.w||NODE_SIZE)/2, srcCy=src.y+(src.h||NODE_SIZE)/2;
-      const tgtCx=tgt.x+(tgt.w||NODE_SIZE)/2, tgtCy=tgt.y+(tgt.h||NODE_SIZE)/2;
-      const dy=Math.abs(srcCy-tgtCy);
-      e.routeMode='ortho3';
-      delete e.midPos;
-      if(dy>NODE_SIZE){
-        // Nodes at different Y levels — chain→leaf vertical connection
-        // Use top/bottom on chain node, left on leaf; L-shaped routing
-        const leftIsSource=srcCx<=tgtCx;
-        const leftCx=leftIsSource?srcCx:tgtCx;
-        const rightCy=leftIsSource?tgtCy:srcCy;
-        const rightIsAbove=rightCy<(leftIsSource?srcCy:tgtCy);
-        const leftPort=rightIsAbove?'top':'bottom';
-        if(leftIsSource){e.sourcePort=leftPort;e.targetPort='left'}
-        else{e.sourcePort='left';e.targetPort=leftPort}
-        // L-shape: vertical from chain node's X to leaf's Y level, then horizontal
-        e.waypoints=[{x:leftCx,y:rightCy}];
-      }else{
-        // Same Y level — horizontal connection with Z-shape waypoints
-        const leftIsSource=src.x<=tgt.x;
-        e.sourcePort=leftIsSource?'right':'left';
-        e.targetPort=leftIsSource?'left':'right';
-        const left=leftIsSource?src:tgt, right=leftIsSource?tgt:src;
-        const lCx=left.x+(left.w||NODE_SIZE)/2, rCx=right.x+(right.w||NODE_SIZE)/2;
-        const lCy=left.y+(left.h||NODE_SIZE)/2, rCy=right.y+(right.h||NODE_SIZE)/2;
-        const midX=(lCx+rCx)/2;
-        e.waypoints=[{x:midX,y:lCy},{x:midX,y:rCy}];
-      }
-    });
-
-    // Extra gap between floors
-    curY+=gapV*0.5;
+    // Advance X for next building group
+    const buildingWidth=(bldCompX[maxCompCount]||buildingStartX)-buildingStartX;
+    if(buildingWidth>0&&groupIdx<layoutGroups.length-1) buildingStartX+=buildingWidth+BUILDING_GAP;
   });
 
   // ═══ Phase 3: Align central_room areas with floor chains ═══

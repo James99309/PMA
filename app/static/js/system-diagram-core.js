@@ -623,6 +623,7 @@ function snapshotState(){
       hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos})),
     nodeIdCounter,edgeIdCounter,
     floor_plans:fpData,
+    buildings:(typeof getBuildingsForSave==='function')?getBuildingsForSave():[],
     routeIdCounter:typeof routeIdCounter!=='undefined'?routeIdCounter:300,
     areaIdCounter:typeof areaIdCounter!=='undefined'?areaIdCounter:400,
     topoAreas:topoAreas.map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,area_type:a.area_type||'normal'})),
@@ -646,6 +647,7 @@ function restoreSnapshot(snap){
   if(data.routeIdCounter&&typeof routeIdCounter!=='undefined')routeIdCounter=data.routeIdCounter;
   if(data.areaIdCounter&&typeof areaIdCounter!=='undefined')areaIdCounter=data.areaIdCounter;
   if(data.floor_plans&&typeof restoreFloorPlans==='function'){restoreFloorPlans(data.floor_plans)}
+  if(data.buildings&&typeof restoreBuildings==='function'){restoreBuildings(data.buildings)}
   if(data.topoAreas)topoAreas=data.topoAreas;
   selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;
   if(typeof selectedAreaId!=='undefined')selectedAreaId=null;
@@ -1212,7 +1214,9 @@ function serializeDiagram(){
     edges:edges.map(e=>{const o={id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos};if(e.waypoints&&e.waypoints.length)o.waypoints=e.waypoints;return o}),
     viewX,viewY,scale,nodeIdCounter,edgeIdCounter,
     floor_plans:fpData,
+    buildings:(typeof getBuildingsForSave==='function')?getBuildingsForSave():[],
     floorPlanIdCounter,
+    buildingIdCounter:typeof buildingIdCounter!=='undefined'?buildingIdCounter:1,
     routeIdCounter:typeof routeIdCounter!=='undefined'?routeIdCounter:300,
     areaIdCounter:typeof areaIdCounter!=='undefined'?areaIdCounter:400,
     topoAreas:topoAreas.map(a=>({id:a.id,label:a.label,x:a.x,y:a.y,width:a.width,height:a.height,color:a.color||'#3b82f6',opacity:a.opacity||0.08,locked:a.locked||false,area_type:a.area_type||'normal'})),
@@ -1245,7 +1249,9 @@ function deserializeDiagram(data){
   viewX=data.viewX||0;viewY=data.viewY||0;scale=data.scale||1;
   nodeIdCounter=data.nodeIdCounter||100;edgeIdCounter=data.edgeIdCounter||200;
   if(data.floor_plans&&typeof restoreFloorPlans==='function'){restoreFloorPlans(data.floor_plans)}
+  if(data.buildings&&typeof restoreBuildings==='function'){restoreBuildings(data.buildings)}
   if(data.floorPlanIdCounter)floorPlanIdCounter=data.floorPlanIdCounter;
+  if(data.buildingIdCounter&&typeof buildingIdCounter!=='undefined')buildingIdCounter=data.buildingIdCounter;
   if(data.routeIdCounter&&typeof routeIdCounter!=='undefined')routeIdCounter=data.routeIdCounter;
   if(data.areaIdCounter&&typeof areaIdCounter!=='undefined')areaIdCounter=data.areaIdCounter;
   if(data.topoAreas)topoAreas=data.topoAreas;
@@ -1401,8 +1407,15 @@ function switchView(viewId){
   }
   updateTransform();
   document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';
-  // Update tab UI
+  // Update tab UI — auto-switch building filter if needed
   document.querySelectorAll('.view-tab').forEach(t=>t.classList.toggle('active',t.dataset.view===viewId));
+  if(typeof _activeBuildingFilter!=='undefined'&&typeof buildings!=='undefined'&&buildings.length>0){
+    const _swFp=typeof floorPlans!=='undefined'?floorPlans.find(f=>f.id===viewId):null;
+    if(_swFp){
+      const _swBld=_swFp.building_id&&buildings.find(b=>b.id===_swFp.building_id)?_swFp.building_id:'ungrouped';
+      if(_swBld!==_resolveActiveBuildingFilter()){_activeBuildingFilter=_swBld;rebuildViewTabs()}
+    }
+  }
   // Update toolbar visibility
   const fpTools=document.getElementById('floorPlanTools');
   if(fpTools)fpTools.style.display=viewId==='topology'?'none':'flex';
@@ -1435,13 +1448,16 @@ function getFloorPlan(id){
   return floorPlans.find(fp=>fp.id===id);
 }
 
-function addFloorPlan(){
+function addFloorPlan(buildingId){
   if(DIAGRAM_CONFIG.readOnly)return;
   if(typeof floorPlans==='undefined')window.floorPlans=[];
   const id='fp_'+floorPlanIdCounter++;
-  const label=(floorPlans.length+1)+'F';
+  // Count existing floors in this building for auto-labeling
+  const bldFloors=buildingId?floorPlans.filter(fp=>fp.building_id===buildingId):floorPlans;
+  const label=(bldFloors.length+1)+'F';
   floorPlans.push({
     id:id,label:label,sort_order:floorPlans.length+1,
+    building_id:buildingId||null,
     background:null,calibration:null,
     placements:[],routes:[],areas:[],
     viewX:0,viewY:0,scale:1
@@ -1451,11 +1467,12 @@ function addFloorPlan(){
   switchView(id);
 }
 
-function addFloorPlanWithBackground(label,background){
+function addFloorPlanWithBackground(label,background,buildingId){
   if(typeof floorPlans==='undefined')window.floorPlans=[];
   const id='fp_'+floorPlanIdCounter++;
   floorPlans.push({
     id:id,label:label,sort_order:floorPlans.length+1,
+    building_id:buildingId||null,
     background:background,calibration:null,
     placements:[],routes:[],areas:[],
     viewX:0,viewY:0,scale:1
@@ -1470,50 +1487,176 @@ function renameFloorPlan(fpId,newLabel){
   if(fp){fp.label=newLabel;hasUnsavedChanges=true;rebuildViewTabs()}
 }
 
+let _activeBuildingFilter=null;
+
+function _resolveActiveBuildingFilter(){
+  const hasBlds=typeof buildings!=='undefined'&&buildings.length>0;
+  if(!hasBlds)return null;
+  if(_activeBuildingFilter){
+    if(_activeBuildingFilter==='ungrouped')return 'ungrouped';
+    if(buildings.find(b=>b.id===_activeBuildingFilter))return _activeBuildingFilter;
+  }
+  if(currentView!=='topology'&&typeof floorPlans!=='undefined'){
+    const fp=floorPlans.find(f=>f.id===currentView);
+    if(fp&&fp.building_id&&buildings.find(b=>b.id===fp.building_id))return fp.building_id;
+    if(fp)return 'ungrouped';
+  }
+  const sorted=buildings.slice().sort((a,b)=>a.sort_order-b.sort_order);
+  return sorted[0].id;
+}
+
 function rebuildViewTabs(){
   const container=document.getElementById('viewTabs');
   if(!container)return;
   container.innerHTML='';
 
-  // Left arrow
-  const arrowL=document.createElement('button');
-  arrowL.className='view-tabs-arrow';
-  arrowL.innerHTML='&#9664;';
-  arrowL.addEventListener('click',()=>{inner.scrollLeft-=120});
-  container.appendChild(arrowL);
+  const _hasBuildings=typeof buildings!=='undefined'&&buildings.length>0;
+  const fps=typeof floorPlans!=='undefined'?floorPlans:[];
 
-  // Scrollable inner container
-  const inner=document.createElement('div');
-  inner.className='view-tabs-inner';
-  container.appendChild(inner);
+  if(_hasBuildings){
+    container.classList.add('has-buildings');
+    const activeFilter=_resolveActiveBuildingFilter();
+    const orderedBlds=buildings.slice().sort((a,b)=>a.sort_order-b.sort_order);
+    const ungrouped=fps.filter(fp=>!fp.building_id||!buildings.find(b=>b.id===fp.building_id));
 
-  // Right arrow
-  const arrowR=document.createElement('button');
-  arrowR.className='view-tabs-arrow';
-  arrowR.innerHTML='&#9654;';
-  arrowR.addEventListener('click',()=>{inner.scrollLeft+=120});
-  container.appendChild(arrowR);
+    // ── Building filter row ──
+    const bldRow=document.createElement('div');
+    bldRow.className='view-tabs-buildings';
+    orderedBlds.forEach(bld=>{
+      const pill=document.createElement('div');
+      pill.className='building-pill'+(activeFilter===bld.id?' active':'');
+      pill.innerHTML=`<span class="building-pill-color" style="background:${bld.color}"></span>${bld.name}`;
+      pill.addEventListener('click',()=>{_activeBuildingFilter=bld.id;rebuildViewTabs()});
+      pill.addEventListener('dblclick',()=>{if(typeof showBuildingProps==='function')showBuildingProps(bld.id)});
+      bldRow.appendChild(pill);
+    });
+    if(ungrouped.length>0){
+      const pill=document.createElement('div');
+      pill.className='building-pill'+(activeFilter==='ungrouped'?' active':'');
+      pill.textContent=_t('独立楼层');
+      pill.addEventListener('click',()=>{_activeBuildingFilter='ungrouped';rebuildViewTabs()});
+      bldRow.appendChild(pill);
+    }
+    if(!DIAGRAM_CONFIG.readOnly){
+      const addPill=document.createElement('div');
+      addPill.className='building-pill building-pill-add';
+      addPill.textContent='+';
+      addPill.title=_t('添加建筑');
+      addPill.addEventListener('click',()=>{
+        const name=prompt(_t('建筑名称'));
+        if(name&&name.trim()&&typeof addBuilding==='function'){
+          const b=addBuilding(name.trim());
+          if(b){_activeBuildingFilter=b.id;rebuildViewTabs()}
+        }
+      });
+      bldRow.appendChild(addPill);
+    }
+    container.appendChild(bldRow);
 
-  // Update arrow visibility based on scroll state
-  function updateArrows(){
-    const canL=inner.scrollLeft>0;
-    const canR=inner.scrollLeft<inner.scrollWidth-inner.clientWidth-1;
-    arrowL.classList.toggle('visible',canL);
-    arrowR.classList.toggle('visible',canR);
-  }
-  inner.addEventListener('scroll',updateArrows);
+    // ── Floor tabs row ──
+    const floorRow=document.createElement('div');
+    floorRow.className='view-tabs-floor-row';
 
-  // Topology tab (not draggable)
-  const topoTab=document.createElement('div');
-  topoTab.className='view-tab'+(currentView==='topology'?' active':'');
-  topoTab.dataset.view='topology';
-  topoTab.textContent='🔧 '+_t('系统图');
-  topoTab.addEventListener('click',()=>onTabClick('topology'));
-  inner.appendChild(topoTab);
+    const arrowL=document.createElement('button');
+    arrowL.className='view-tabs-arrow';
+    arrowL.innerHTML='&#9664;';
+    arrowL.addEventListener('click',()=>{inner.scrollLeft-=120});
+    floorRow.appendChild(arrowL);
 
-  // Floor plan tabs (draggable via pointer events)
-  if(typeof floorPlans!=='undefined'){
-    floorPlans.forEach(fp=>{
+    const inner=document.createElement('div');
+    inner.className='view-tabs-inner';
+    floorRow.appendChild(inner);
+
+    const arrowR=document.createElement('button');
+    arrowR.className='view-tabs-arrow';
+    arrowR.innerHTML='&#9654;';
+    arrowR.addEventListener('click',()=>{inner.scrollLeft+=120});
+    floorRow.appendChild(arrowR);
+
+    function updateArrows(){
+      arrowL.classList.toggle('visible',inner.scrollLeft>0);
+      arrowR.classList.toggle('visible',inner.scrollLeft<inner.scrollWidth-inner.clientWidth-1);
+    }
+    inner.addEventListener('scroll',updateArrows);
+
+    const topoTab=document.createElement('div');
+    topoTab.className='view-tab'+(currentView==='topology'?' active':'');
+    topoTab.dataset.view='topology';
+    topoTab.textContent='🔧 '+_t('系统图');
+    topoTab.addEventListener('click',()=>onTabClick('topology'));
+    inner.appendChild(topoTab);
+
+    // Filtered floor tabs
+    const filteredFloors=activeFilter==='ungrouped'
+      ?ungrouped
+      :fps.filter(fp=>fp.building_id===activeFilter);
+    filteredFloors.forEach(fp=>{
+      const tab=document.createElement('div');
+      tab.className='view-tab';
+      if(currentView===fp.id)tab.classList.add('active');
+      tab.dataset.view=fp.id;
+      tab.dataset.fpId=fp.id;
+      if(fp.building_id)tab.dataset.buildingId=fp.building_id;
+      tab.textContent=fp.label;
+      tab.addEventListener('pointerdown',e=>_tabDragStart(e,fp.id));
+      inner.appendChild(tab);
+    });
+
+    if(!DIAGRAM_CONFIG.readOnly){
+      if(activeFilter&&activeFilter!=='ungrouped'){
+        const addBtn=document.createElement('div');
+        addBtn.className='view-tab-add';
+        addBtn.textContent=_t('添加楼层');
+        addBtn.addEventListener('click',()=>addFloorPlan(activeFilter));
+        inner.appendChild(addBtn);
+      } else {
+        const addBtn=document.createElement('div');
+        addBtn.className='view-tab-add';
+        addBtn.textContent=_t('添加楼层')+' ▾';
+        addBtn.addEventListener('click',e=>{e.stopPropagation();_showAddFloorDropdown(addBtn)});
+        inner.appendChild(addBtn);
+      }
+    }
+
+    container.appendChild(floorRow);
+    requestAnimationFrame(()=>{
+      const activeTab=inner.querySelector('.view-tab.active');
+      if(activeTab)activeTab.scrollIntoView({block:'nearest',inline:'nearest'});
+      updateArrows();
+    });
+
+  } else {
+    container.classList.remove('has-buildings');
+    const arrowL=document.createElement('button');
+    arrowL.className='view-tabs-arrow';
+    arrowL.innerHTML='&#9664;';
+    arrowL.addEventListener('click',()=>{inner.scrollLeft-=120});
+    container.appendChild(arrowL);
+
+    const inner=document.createElement('div');
+    inner.className='view-tabs-inner';
+    container.appendChild(inner);
+
+    const arrowR=document.createElement('button');
+    arrowR.className='view-tabs-arrow';
+    arrowR.innerHTML='&#9654;';
+    arrowR.addEventListener('click',()=>{inner.scrollLeft+=120});
+    container.appendChild(arrowR);
+
+    function updateArrows(){
+      arrowL.classList.toggle('visible',inner.scrollLeft>0);
+      arrowR.classList.toggle('visible',inner.scrollLeft<inner.scrollWidth-inner.clientWidth-1);
+    }
+    inner.addEventListener('scroll',updateArrows);
+
+    const topoTab=document.createElement('div');
+    topoTab.className='view-tab'+(currentView==='topology'?' active':'');
+    topoTab.dataset.view='topology';
+    topoTab.textContent='🔧 '+_t('系统图');
+    topoTab.addEventListener('click',()=>onTabClick('topology'));
+    inner.appendChild(topoTab);
+
+    fps.forEach(fp=>{
       const tab=document.createElement('div');
       tab.className='view-tab';
       if(currentView===fp.id)tab.classList.add('active');
@@ -1523,23 +1666,75 @@ function rebuildViewTabs(){
       tab.addEventListener('pointerdown',e=>_tabDragStart(e,fp.id));
       inner.appendChild(tab);
     });
-  }
 
-  // Add floor button (hidden in read-only mode)
-  if(!DIAGRAM_CONFIG.readOnly){
-    const addBtn=document.createElement('div');
-    addBtn.className='view-tab-add';
-    addBtn.textContent=_t('添加楼层');
-    addBtn.addEventListener('click',()=>addFloorPlan());
-    inner.appendChild(addBtn);
-  }
+    if(!DIAGRAM_CONFIG.readOnly){
+      if(fps.length>0){
+        const addBtn=document.createElement('div');
+        addBtn.className='view-tab-add';
+        addBtn.textContent=_t('添加楼层')+' ▾';
+        addBtn.addEventListener('click',e=>{e.stopPropagation();_showAddFloorDropdown(addBtn)});
+        inner.appendChild(addBtn);
+      } else {
+        const addBtn=document.createElement('div');
+        addBtn.className='view-tab-add';
+        addBtn.textContent=_t('添加楼层');
+        addBtn.addEventListener('click',()=>addFloorPlan());
+        inner.appendChild(addBtn);
+      }
+    }
 
-  // Scroll active tab into view & update arrows after layout
-  requestAnimationFrame(()=>{
-    const activeTab=inner.querySelector('.view-tab.active');
-    if(activeTab)activeTab.scrollIntoView({block:'nearest',inline:'nearest'});
-    updateArrows();
+    requestAnimationFrame(()=>{
+      const activeTab=inner.querySelector('.view-tab.active');
+      if(activeTab)activeTab.scrollIntoView({block:'nearest',inline:'nearest'});
+      updateArrows();
+    });
+  }
+}
+
+// ====== ADD FLOOR DROPDOWN ======
+function _showAddFloorDropdown(anchor){
+  const existing=document.getElementById('addFloorDropdown');
+  if(existing){existing.remove();return}
+  const menu=document.createElement('div');
+  menu.id='addFloorDropdown';
+  menu.className='add-floor-dropdown';
+  const orderedBlds=(typeof buildings!=='undefined')?buildings.slice().sort((a,b)=>a.sort_order-b.sort_order):[];
+  if(orderedBlds.length>0){
+    orderedBlds.forEach(b=>{
+      const item=document.createElement('div');
+      item.className='add-floor-dropdown-item';
+      item.innerHTML=`<span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${b.color};margin-right:6px;flex-shrink:0"></span>${_t('添加到')} ${b.name}`;
+      item.addEventListener('click',()=>{menu.remove();addFloorPlan(b.id)});
+      menu.appendChild(item);
+    });
+    const divider=document.createElement('div');divider.className='add-floor-dropdown-divider';menu.appendChild(divider);
+  }
+  const newBldItem=document.createElement('div');
+  newBldItem.className='add-floor-dropdown-item';
+  newBldItem.textContent=_t('添加到新建筑...');
+  newBldItem.addEventListener('click',()=>{
+    menu.remove();
+    const name=prompt(_t('建筑名称'));
+    if(name&&name.trim()&&typeof addBuilding==='function'){
+      const b=addBuilding(name.trim());
+      if(b)addFloorPlan(b.id);
+    }
   });
+  menu.appendChild(newBldItem);
+  const freeItem=document.createElement('div');
+  freeItem.className='add-floor-dropdown-item';
+  freeItem.textContent=_t('添加独立楼层');
+  freeItem.addEventListener('click',()=>{menu.remove();addFloorPlan()});
+  menu.appendChild(freeItem);
+  const rect=anchor.getBoundingClientRect();
+  menu.style.position='fixed';
+  menu.style.top=(rect.bottom+4)+'px';
+  menu.style.left=rect.left+'px';
+  document.body.appendChild(menu);
+  setTimeout(()=>{
+    const closeHandler=()=>{if(document.getElementById('addFloorDropdown'))menu.remove();document.removeEventListener('click',closeHandler)};
+    document.addEventListener('click',closeHandler);
+  },10);
 }
 
 // ====== TAB CLICK ======
@@ -1582,12 +1777,14 @@ function _tabDragMove(e){
   const rect=_tabDrag.el.getBoundingClientRect();
   _tabDrag.ghost.style.left=(rect.left+e.clientX-_tabDrag.startX)+'px';
 
-  // Find drop target - highlight nearest tab
+  // Find drop target - highlight nearest tab (restricted to same building)
   const container=document.getElementById('viewTabs');
+  const dragBldId=_tabDrag.el.dataset.buildingId||'';
   const tabs=container.querySelectorAll('.view-tab[data-fp-id]');
   tabs.forEach(t=>t.classList.remove('drag-over'));
   for(const t of tabs){
     if(t===_tabDrag.el)continue;
+    if((t.dataset.buildingId||'')!==dragBldId)continue; // same building only
     const r=t.getBoundingClientRect();
     if(e.clientX>=r.left&&e.clientX<=r.right){
       t.classList.add('drag-over');break;
@@ -1604,12 +1801,14 @@ function _tabDragEnd(e){
   _tabDrag.el.style.opacity='';
 
   if(_tabDrag.moved){
-    // Find drop target
+    // Find drop target (restricted to same building)
     const container=document.getElementById('viewTabs');
+    const dragBldId=_tabDrag.el.dataset.buildingId||'';
     const tabs=container.querySelectorAll('.view-tab[data-fp-id]');
     let targetId=null;
     for(const t of tabs){
       if(t===_tabDrag.el)continue;
+      if((t.dataset.buildingId||'')!==dragBldId)continue;
       const r=t.getBoundingClientRect();
       if(e.clientX>=r.left&&e.clientX<=r.right){targetId=t.dataset.fpId;break}
     }

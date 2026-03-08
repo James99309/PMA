@@ -275,6 +275,22 @@
   .view-tab[data-fp-id]:active{cursor:grabbing}
   .view-tab.drag-over{box-shadow:inset 2px 0 0 var(--active-text)}
   .tab-ghost{box-shadow:0 4px 12px rgba(0,0,0,.25);border-radius:6px;background:var(--toolbar-bg)}
+  .view-tab-building{font-size:11px;font-weight:600;color:var(--text-secondary);border-left:3px solid var(--building-color,#3b82f6);padding:4px 8px;cursor:pointer;user-select:none;white-space:nowrap;flex-shrink:0;border-radius:4px;transition:all .15s}
+  .view-tab-building:hover{background:var(--toolbar-hover);color:var(--text-primary)}
+  .view-tab-separator{width:1px;height:20px;background:var(--border);flex-shrink:0;margin:0 2px}
+  .view-tabs.has-buildings{flex-direction:column;align-items:stretch;gap:0}
+  .view-tabs-buildings{display:flex;gap:3px;align-items:center;padding:2px 4px;border-bottom:1px solid var(--border)}
+  .building-pill{padding:3px 10px;border-radius:12px;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all .15s;color:var(--text-secondary);background:transparent}
+  .building-pill:hover{background:var(--toolbar-hover);color:var(--text-primary)}
+  .building-pill.active{background:var(--active-bg);color:var(--active-text);font-weight:600}
+  .building-pill-color{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:middle}
+  .building-pill-add{color:var(--text-muted);border:1px dashed var(--border);padding:3px 8px}
+  .building-pill-add:hover{border-color:var(--active-border);color:var(--active-text)}
+  .view-tabs-floor-row{display:flex;align-items:center}
+  .add-floor-dropdown{background:var(--toolbar-bg);border:1px solid var(--toolbar-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);padding:4px;z-index:9999;min-width:160px}
+  .add-floor-dropdown-item{padding:6px 12px;font-size:12px;color:var(--text-secondary);cursor:pointer;border-radius:4px;display:flex;align-items:center;white-space:nowrap}
+  .add-floor-dropdown-item:hover{background:var(--toolbar-hover);color:var(--text-primary)}
+  .add-floor-dropdown-divider{height:1px;background:var(--border);margin:4px 8px}
 
   /* ── Floor Plan Tools ── */
   .floor-tools{display:none;gap:6px;align-items:center}

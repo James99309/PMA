@@ -156,4 +156,4 @@ echo -e "\n${YELLOW}Container status:${NC}"
 $DOCKER_COMPOSE ps 2>/dev/null || $DOCKER ps --filter "name=pma" --format "table {{.Names}}\t{{.Status}}"
 
 echo -e "\n${YELLOW}Recent logs:${NC}"
-$DOCKER_COMPOSE logs --tail=5 pma 2>/dev/null || $DOCKER logs --tail=5 pma-app
+timeout 10 $DOCKER_COMPOSE logs --tail=5 pma 2>/dev/null || timeout 10 $DOCKER logs --tail=5 pma-app 2>/dev/null || echo "(Log fetch timed out, skipping)"

@@ -15,7 +15,9 @@ function renderTopologyView(){
     renderAreas(topoAreas);
     layer.querySelectorAll('.floor-area').forEach(g=>layer.insertBefore(g,firstEdge));
   }
-  renderMidHandles();renderNodes();buildLegend();
+  renderMidHandles();renderNodes();
+  if(typeof renderBuildingLabels==='function')renderBuildingLabels();
+  buildLegend();
 }
 
 function renderNodes(){
