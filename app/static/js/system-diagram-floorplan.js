@@ -451,6 +451,20 @@ function renderAreas(areas){
       const pt=svgPoint(e);
       isDraggingArea=true;dragAreaId=area.id;
       areaDragOffset={x:pt.x-area.x,y:pt.y-area.y};
+      dragAreaPrevPos={x:area.x,y:area.y};
+      // Capture nodes inside this area at drag start
+      if(currentView==='topology'){
+        dragAreaContainedNodeIds=nodes.filter(n=>{
+          const cx=n.x+(n.w||NODE_SIZE)/2,cy=n.y+(n.h||NODE_SIZE)/2;
+          return cx>=area.x&&cx<=area.x+area.width&&cy>=area.y&&cy<=area.y+area.height;
+        }).map(n=>n.id);
+      }else{
+        const fp=getFloorPlan(currentView);
+        dragAreaContainedNodeIds=fp?(fp.placements||[]).filter(p=>{
+          const cx=p.x+NODE_SIZE/2,cy=p.y+NODE_SIZE/2;
+          return cx>=area.x&&cx<=area.x+area.width&&cy>=area.y&&cy<=area.y+area.height;
+        }).map(p=>p.node_id):[];
+      }
       pushHistory();
     });
 
@@ -2715,6 +2729,20 @@ function relayoutFloorNodesTopo(){
   const gapV=NODE_SIZE+80;  // vertical gap between leaf rows (also used for floor spacing)
 
   const topoNodes=nodes.filter(n=>!placedNodeIds.has(n.id));
+
+  // Pre-identify central_room node IDs so we can exclude them from startX/Y
+  const _roomNodeIdSet=new Set();
+  if(typeof topoAreas!=='undefined'&&topoAreas.length){
+    topoAreas.filter(a=>(a.area_type||'normal')==='central_room').forEach(area=>{
+      topoNodes.forEach(n=>{
+        const cx=n.x+(n.w||NODE_SIZE)/2,cy=n.y+(n.h||NODE_SIZE)/2;
+        if(cx>=area.x&&cx<=area.x+area.width&&cy>=area.y&&cy<=area.y+area.height)
+          _roomNodeIdSet.add(n.id);
+      });
+    });
+  }
+  const nonRoomTopoNodes=topoNodes.filter(n=>!_roomNodeIdSet.has(n.id));
+
   let startX=200,startY=200;
   if(topoNodes.length){
     // Find topology nodes that connect to floor devices (cross-view edges)
@@ -2726,10 +2754,13 @@ function relayoutFloorNodesTopo(){
         if(topoN)crossTopoXs.push(topoN.x);
       }
     });
-    // Align floor chains with leftmost topology node (consistent left margin)
-    startX=Math.min(...topoNodes.map(n=>n.x));
-    startY=Math.max(...topoNodes.map(n=>n.y+(n.h||NODE_SIZE)))+100;
-    console.log(`startX=${startX} (from ${crossTopoXs.length?'cross-view topo node':'leftmost topo node'}), startY=${startY}`);
+    // Align floor chains — exclude room nodes to prevent cascading leftward drift
+    if(nonRoomTopoNodes.length){
+      startX=Math.min(...nonRoomTopoNodes.map(n=>n.x));
+      startY=Math.max(...nonRoomTopoNodes.map(n=>n.y+(n.h||NODE_SIZE)))+100;
+    }
+    // else: all topo nodes are inside rooms — keep default startX/Y (200,200)
+    console.log(`startX=${startX} (from ${nonRoomTopoNodes.length?'non-room topo nodes':'default (all topo in rooms)'}), startY=${startY}`);
   }
 
   // Group by floor
@@ -3071,10 +3102,25 @@ function relayoutFloorNodesTopo(){
           dy=anchorFloorNode.y-anchorRoomNode.y;
         }
 
-        // Translate entire group: area + all contained nodes
+        // Translate entire group: area + all contained nodes + internal edge waypoints
         area.x+=dx;
         area.y+=dy;
         roomNodes.forEach(n=>{n.x+=dx;n.y+=dy});
+
+        // Translate waypoints of edges BETWEEN room nodes (both ends inside room)
+        const roomIdSet=new Set(roomNodes.map(n=>n.id));
+        edges.forEach(e=>{
+          if(roomIdSet.has(e.sourceId)&&roomIdSet.has(e.targetId)){
+            if(e.waypoints&&e.waypoints.length){
+              e.waypoints.forEach(wp=>{wp.x+=dx;wp.y+=dy});
+            }
+            if(e.midPos!==undefined){
+              // midPos is a single coordinate (x for horizontal, y for vertical ortho3)
+              const isH=(e.sourcePort==='left'||e.sourcePort==='right'||e.sourcePort==='top-left'||e.sourcePort==='bottom-left'||e.sourcePort==='top-right'||e.sourcePort==='bottom-right');
+              e.midPos+=isH?dx:dy;
+            }
+          }
+        });
 
         // Update edge ports for room→floor connections — use waypoints for full control
         roomNodes.forEach(rn=>{
@@ -3289,7 +3335,7 @@ let isCalibrating=false,calibrateStart=null;
 
 // ====== AREA DRAWING ======
 let isDrawingArea=false,areaDrawStart=null,areaIdCounter=400;
-let selectedAreaId=null,isDraggingArea=false,dragAreaId=null,areaDragOffset={x:0,y:0};
+let selectedAreaId=null,isDraggingArea=false,dragAreaId=null,areaDragOffset={x:0,y:0},dragAreaPrevPos=null,dragAreaContainedNodeIds=null;
 let isResizingArea=false,resizeAreaId=null,resizeHandle='',resizeAreaStart=null;
 let selectedRouteId=null;
 
@@ -3341,8 +3387,28 @@ function onAreaMouseMove(e){
     const areas=getAreaStorage();if(!areas)return;
     const area=areas.find(a=>a.id===dragAreaId);if(!area)return;
     const pt=svgPoint(e);
-    area.x=Math.round((pt.x-areaDragOffset.x)/10)*10;
-    area.y=Math.round((pt.y-areaDragOffset.y)/10)*10;
+    const newX=Math.round((pt.x-areaDragOffset.x)/10)*10;
+    const newY=Math.round((pt.y-areaDragOffset.y)/10)*10;
+    const adx=newX-(dragAreaPrevPos?dragAreaPrevPos.x:area.x);
+    const ady=newY-(dragAreaPrevPos?dragAreaPrevPos.y:area.y);
+    area.x=newX;area.y=newY;
+    dragAreaPrevPos={x:newX,y:newY};
+    // Move contained nodes along with the area
+    if(dragAreaContainedNodeIds&&dragAreaContainedNodeIds.length&&(adx||ady)){
+      const idSet=new Set(dragAreaContainedNodeIds);
+      if(currentView==='topology'){
+        nodes.forEach(n=>{if(idSet.has(n.id)){n.x+=adx;n.y+=ady}});
+        // Also translate waypoints of edges where both ends are inside the area
+        edges.forEach(e=>{
+          if(idSet.has(e.sourceId)&&idSet.has(e.targetId)&&e.waypoints&&e.waypoints.length){
+            e.waypoints.forEach(wp=>{wp.x+=adx;wp.y+=ady});
+          }
+        });
+      }else{
+        const fp=getFloorPlan(currentView);
+        if(fp)(fp.placements||[]).forEach(p=>{if(idSet.has(p.node_id)){p.x+=adx;p.y+=ady}});
+      }
+    }
     hasUnsavedChanges=true;isDraggingOperation=true;requestRenderThrottled();
   }
   if(isResizingArea&&resizeAreaId!=null){
@@ -3378,7 +3444,7 @@ function onAreaMouseUp(e){
     setTimeout(()=>{const inp=document.querySelector('#propsContent .props-input');if(inp){inp.focus();inp.select()}},50);
   }
   if(isDraggingArea){
-    isDraggingArea=false;dragAreaId=null;if(currentView!=='topology')syncFloorAreaLabels();
+    isDraggingArea=false;dragAreaId=null;dragAreaPrevPos=null;dragAreaContainedNodeIds=null;if(currentView!=='topology')syncFloorAreaLabels();
     isDraggingOperation=false;if(pendingRenderFrame){cancelAnimationFrame(pendingRenderFrame);pendingRenderFrame=null}renderAll();
   }
   if(isResizingArea){

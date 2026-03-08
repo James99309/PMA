@@ -10935,3 +10935,42 @@ msgstr "Copy"
 
 msgid "关闭"
 msgstr "Close"
+
+msgid "所属建筑"
+msgstr "Building"
+
+msgid "无（独立楼层）"
+msgstr "None (independent floor)"
+
+msgid "创建新建筑..."
+msgstr "Create new building..."
+
+msgid "建筑名称"
+msgstr "Building name"
+
+msgid "建筑属性"
+msgstr "Building Properties"
+
+msgid "新建筑"
+msgstr "New Building"
+
+msgid "包含楼层"
+msgstr "Floors"
+
+msgid "删除建筑"
+msgstr "Delete Building"
+
+msgid "删除建筑将取消所有楼层的建筑分组，楼层本身不会被删除。确认删除？"
+msgstr "Deleting this building will ungroup all floors. The floors themselves will not be deleted. Confirm?"
+
+msgid "独立楼层"
+msgstr "Ungrouped"
+
+msgid "添加建筑"
+msgstr "Add Building"
+
+msgid "添加到新建筑..."
+msgstr "Add to new building..."
+
+msgid "添加独立楼层"
+msgstr "Add independent floor"
