@@ -2624,23 +2624,40 @@ function relayoutFloorNodesTopo(){
     curY=chainY+maxTB*gapV+gapV;
 
     // Update edge ports and routing for this floor group
-    // Use waypoints instead of ortho3 so ALL corners are individually draggable
+    // Use waypoints so ALL corners are individually draggable
     edges.forEach(e=>{
       if(!fd.allIds.has(e.sourceId)||!fd.allIds.has(e.targetId))return;
       const src=nodes.find(n=>n.id===e.sourceId);
       const tgt=nodes.find(n=>n.id===e.targetId);
       if(!src||!tgt)return;
-      const leftIsSource=src.x<=tgt.x;
-      e.sourcePort=leftIsSource?'right':'left';
-      e.targetPort=leftIsSource?'left':'right';
-      e.routeMode='ortho3'; // fallback mode
+      const srcCx=src.x+(src.w||NODE_SIZE)/2, srcCy=src.y+(src.h||NODE_SIZE)/2;
+      const tgtCx=tgt.x+(tgt.w||NODE_SIZE)/2, tgtCy=tgt.y+(tgt.h||NODE_SIZE)/2;
+      const dy=Math.abs(srcCy-tgtCy);
+      e.routeMode='ortho3';
       delete e.midPos;
-      // Build waypoints at the two Z-shape corners for full drag control
-      const left=leftIsSource?src:tgt, right=leftIsSource?tgt:src;
-      const lCx=left.x+(left.w||NODE_SIZE)/2, rCx=right.x+(right.w||NODE_SIZE)/2;
-      const lCy=left.y+(left.h||NODE_SIZE)/2, rCy=right.y+(right.h||NODE_SIZE)/2;
-      const midX=(lCx+rCx)/2;
-      e.waypoints=[{x:midX,y:lCy},{x:midX,y:rCy}];
+      if(dy>NODE_SIZE){
+        // Nodes at different Y levels — chain→leaf vertical connection
+        // Use top/bottom on chain node, left on leaf; L-shaped routing
+        const leftIsSource=srcCx<=tgtCx;
+        const leftCx=leftIsSource?srcCx:tgtCx;
+        const rightCy=leftIsSource?tgtCy:srcCy;
+        const rightIsAbove=rightCy<(leftIsSource?srcCy:tgtCy);
+        const leftPort=rightIsAbove?'top':'bottom';
+        if(leftIsSource){e.sourcePort=leftPort;e.targetPort='left'}
+        else{e.sourcePort='left';e.targetPort=leftPort}
+        // L-shape: vertical from chain node's X to leaf's Y level, then horizontal
+        e.waypoints=[{x:leftCx,y:rightCy}];
+      }else{
+        // Same Y level — horizontal connection with Z-shape waypoints
+        const leftIsSource=src.x<=tgt.x;
+        e.sourcePort=leftIsSource?'right':'left';
+        e.targetPort=leftIsSource?'left':'right';
+        const left=leftIsSource?src:tgt, right=leftIsSource?tgt:src;
+        const lCx=left.x+(left.w||NODE_SIZE)/2, rCx=right.x+(right.w||NODE_SIZE)/2;
+        const lCy=left.y+(left.h||NODE_SIZE)/2, rCy=right.y+(right.h||NODE_SIZE)/2;
+        const midX=(lCx+rCx)/2;
+        e.waypoints=[{x:midX,y:lCy},{x:midX,y:rCy}];
+      }
     });
 
     // Extra gap between floors
