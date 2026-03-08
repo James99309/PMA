@@ -10,11 +10,11 @@ const COVERAGE_RINGS = [
   { color: '#22c55e', fillOpacity: 0.08, strokeOpacity: 0.5, strokeWidth: 1,   labelOpacity: 0.7 },
 ];
 const COVERAGE_DEFAULT_RADII = [12, 24];
-const COVERAGE_THRESHOLDS = [-65, -80]; // inner=strong signal, mid=uplink boundary
+const COVERAGE_THRESHOLDS = [-65, -85]; // inner=strong signal, mid=uplink boundary
 function coverageRadiiFromN(n) {
   const rx1m = -14.5; // _HM_RX1M
   return COVERAGE_THRESHOLDS.map(th => {
-    const r = Math.pow(10, (rx1m - th) / (10 * (n || 4.7)));
+    const r = Math.pow(10, (rx1m - th) / (10 * (n || 5.1)));
     return Math.round(r * 10) / 10;
   });
 }
@@ -38,7 +38,7 @@ function buildCoveragePropsHTML(nodeId) {
   const vis = n.coverageVisible || [true, true];
   const ringNames = [
     {zh:'内圈 (-65dBm 强信号)', en:'Inner (-65dBm strong)'},
-    {zh:'中圈 (-80dBm 上行边界)', en:'Mid (-80dBm uplink)'},
+    {zh:'中圈 (-85dBm 上行边界)', en:'Mid (-85dBm uplink)'},
   ];
   let rows = '';
   for (let i = 0; i < 2; i++) {
@@ -47,21 +47,15 @@ function buildCoveragePropsHTML(nodeId) {
       <input type="checkbox" ${vis[i]!==false?'checked':''} onchange="updateCoverageVisible(${nodeId},${i},this.checked)">
       <span style="width:8px;height:8px;border-radius:50%;background:${ring.color};flex-shrink:0;"></span>
       <span style="font-size:11px;color:var(--text-secondary);min-width:90px;">${_m(ringNames[i])}</span>
-      <input class="props-input" type="number" min="0" step="5" value="${radii[i]}" style="width:60px;flex:0 0 60px;"
-        oninput="updateCoverageRadius(${nodeId},${i},this.value)">
-      <span style="font-size:11px;color:var(--text-muted);">m</span>
+      <span style="font-size:11px;color:var(--text-primary);font-weight:500;">${radii[i]} m</span>
     </div>`;
   }
-  if (!isAutoRadii) {
-    rows += `<div style="margin-top:2px;"><a href="#" style="font-size:10px;color:var(--text-muted);" onclick="event.preventDefault();resetCoverageRadii(${nodeId})">${_t('重置为自动')}</a></div>`;
-  } else {
-    rows += `<div style="margin-top:2px;font-size:10px;color:var(--text-muted);">${_t('自动计算')}</div>`;
-  }
-  const curN = n.coverageN || 4.7;
+  rows += `<div style="margin-top:2px;font-size:10px;color:var(--text-muted);">${_t('自动计算')}</div>`;
+  const curN = n.coverageN || 5.1;
   const envOptions = [
-    [3.0, {zh:'停车库 (n=3.0)', en:'Parking (n=3.0)'}],
-    [3.8, {zh:'普通办公 (n=3.8)', en:'Office (n=3.8)'}],
-    [4.7, {zh:'密集区域 (n=4.7)', en:'Dense (n=4.7)'}],
+    [3.2, {zh:'停车库 (n=3.2)', en:'Parking (n=3.2)'}],
+    [4.1, {zh:'普通办公 (n=4.1)', en:'Office (n=4.1)'}],
+    [5.1, {zh:'密集区域 (n=5.1)', en:'Dense (n=5.1)'}],
   ];
   const envSelect = `<select class="props-input" style="width:auto;padding:2px 4px;font-size:11px;" onchange="updateCoverageEnv(${nodeId},parseFloat(this.value))">` +
     envOptions.map(([v, label]) => `<option value="${v}"${curN==v?' selected':''}>${_m(label)}</option>`).join('') + '</select>';
@@ -940,12 +934,12 @@ function _hmColor(s) {
 // This ensures the heatmap paints the same contour as the coverage rings.
 function _hmEffectiveN(nd) {
   const radii = nd.coverageRadii || coverageRadiiFromN(nd.coverageN);
-  const rMid = radii[1]; // mid-ring radius in metres, corresponds to -80 dBm
+  const rMid = radii[1]; // mid-ring radius in metres, corresponds to -85 dBm
   if (rMid > 0.5) {
-    // -80 = -14.5 - 10*n*log10(rMid)  →  n = 65.5 / (10*log10(rMid))
-    return 65.5 / (10 * Math.log10(rMid));
+    // -85 = -14.5 - 10*n*log10(rMid)  →  n = 70.5 / (10*log10(rMid))
+    return 70.5 / (10 * Math.log10(rMid));
   }
-  return nd.coverageN || 4.7;
+  return nd.coverageN || 5.1;
 }
 
 function _hmStamp(fp) {

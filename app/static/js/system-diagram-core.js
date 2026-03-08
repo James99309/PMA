@@ -118,6 +118,7 @@ let isDraggingMid=false,dragMidEdgeId=null;
 let isReconnecting=false,reconnectEdgeId=null,reconnectEnd='';
 let hasUnsavedChanges=false;
 let undoStack=[],undoIndex=-1;const MAX_UNDO=50;
+let _autoSaveTimer=null;const AUTO_SAVE_INTERVAL=120000; // 2 minutes
 let dragMoved=false,midDragMoved=false,_propEditing=false,_propEditTimer=null;
 
 // ====== VIEW MANAGEMENT (Floor Plan) ======
@@ -1286,6 +1287,35 @@ async function saveDiagram(){
   finally{btn.classList.remove('saving');btn.textContent=_t('保存')}
 }
 
+// ====== AUTO SAVE ======
+async function autoSaveDiagram(){
+  if(DIAGRAM_CONFIG.readOnly||!hasUnsavedChanges)return;
+  // New unsaved diagram (no id yet) — skip auto-save, user must do first manual save
+  if(!DIAGRAM_CONFIG.externalMode&&!DIAGRAM_CONFIG.diagramId)return;
+  const btn=document.getElementById('btnSave');
+  const origText=btn.textContent;
+  btn.classList.add('saving');btn.textContent=_t('自动保存中...');
+  try{
+    const name=document.getElementById('diagramNameInput').value.trim()||_t('未命名系统图');
+    const headers={'Content-Type':'application/json'};
+    if(!DIAGRAM_CONFIG.externalMode&&DIAGRAM_CONFIG.csrfToken){headers['X-CSRFToken']=DIAGRAM_CONFIG.csrfToken}
+    const bodyData=DIAGRAM_CONFIG.externalMode
+      ?{name,diagramData:serializeDiagram()}
+      :{id:DIAGRAM_CONFIG.diagramId,name,projectId:DIAGRAM_CONFIG.projectId||null,diagramData:serializeDiagram()};
+    const resp=await fetch(DIAGRAM_CONFIG.apiSave,{method:'POST',headers,body:JSON.stringify(bodyData)});
+    const result=await resp.json();
+    if(result.success){
+      hasUnsavedChanges=false;showToast('✓ '+_t('已自动保存'));
+    }else{console.warn('Auto-save failed:',result.message)}
+  }catch(err){console.warn('Auto-save error:',err.message)}
+  finally{btn.classList.remove('saving');btn.textContent=origText}
+}
+function startAutoSave(){
+  if(_autoSaveTimer)clearInterval(_autoSaveTimer);
+  _autoSaveTimer=setInterval(autoSaveDiagram,AUTO_SAVE_INTERVAL);
+}
+function stopAutoSave(){if(_autoSaveTimer){clearInterval(_autoSaveTimer);_autoSaveTimer=null}}
+
 async function loadDiagram(){
   if(DIAGRAM_CONFIG.externalMode){
     // 外部模式：从专用 load API 加载
@@ -1664,6 +1694,7 @@ async function init(){
   else{rebuildViewTabs()}
   pushHistory();
   initPanelToggle();
+  if(!DIAGRAM_CONFIG.readOnly)startAutoSave();
 }
 
 init();
