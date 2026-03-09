@@ -174,13 +174,13 @@ class Product(db.Model):
 
         result = {}
         for item in template.items:
-            if not item.definition:
+            if not item.spec_dict:
                 continue
 
-            cat_id = item.definition.category_id
+            cat_id = item.spec_dict.category_id
             if cat_id not in result:
                 result[cat_id] = {
-                    'category': item.definition.category,
+                    'category': item.spec_dict.category,
                     'items': []
                 }
 
@@ -202,9 +202,9 @@ class Product(db.Model):
                 test_method = item.test_method_text
 
             result[cat_id]['items'].append({
-                'name': item.definition.name,
-                'name_en': item.definition.name_en,
-                'unit': item.definition.unit,
+                'name': item.spec_dict.name,
+                'name_en': item.spec_dict.name_en,
+                'unit': item.spec_dict.unit,
                 'value': value,
                 'test_condition': test_condition,
                 'test_method': test_method,

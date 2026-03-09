@@ -83,7 +83,6 @@ class SpecCategory(db.Model):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # 关联关系
-    definitions = relationship("SpecDefinition", back_populates="category", cascade="all, delete-orphan")
     spec_dicts = relationship("SpecificationDictionary", foreign_keys="SpecificationDictionary.category_id",
                               overlaps="category")
 
@@ -121,11 +120,11 @@ class SpecDefinition(db.Model):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # 关联关系
-    category = relationship("SpecCategory", back_populates="definitions")
+    # 关联关系（category 反向关系已从 SpecCategory 移除）
+    category = relationship("SpecCategory")
     default_test_condition = relationship("TestConditionDictionary", foreign_keys=[default_test_condition_id])
     default_test_method = relationship("TestMethodDictionary", foreign_keys=[default_test_method_id])
-    template_items = relationship("SpecTemplateItem", back_populates="definition")
+    # template_items 反向关系已移除（definition FK 已废弃，统一使用 spec_dict）
 
     def __repr__(self):
         return f"<SpecDefinition {self.name}>"
@@ -203,7 +202,7 @@ class SpecTemplate(db.Model):
             'subcategory_name': self.subcategory.name if self.subcategory else None,
             'subcategory_code': self.subcategory.code_letter if self.subcategory else None,
             'item_count': len(self.items) if self.items else 0,
-            'config_count': len(self.configurations) if self.configurations else 0,
+            'config_count': len([c for c in self.configurations if c.is_active]) if self.configurations else 0,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -212,7 +211,7 @@ class SpecTemplate(db.Model):
         """按分类获取模板规格项"""
         items_by_category = {}
         for item in self.items:
-            src = item.spec_dict or item.definition
+            src = item.spec_dict
             category = src.category if src else None
             if category:
                 if category.id not in items_by_category:
@@ -249,7 +248,7 @@ class SpecTemplateItem(db.Model):
 
     # 关联关系
     template = relationship("SpecTemplate", back_populates="items")
-    definition = relationship("SpecDefinition", back_populates="template_items")
+    # definition 关系已移除（definition_id FK 指向旧表 spec_definitions，已废弃）
     spec_dict = relationship("SpecificationDictionary", back_populates="template_items",
                              foreign_keys=[spec_dict_id])
     test_condition = relationship("TestConditionDictionary", foreign_keys=[test_condition_id])
@@ -260,7 +259,7 @@ class SpecTemplateItem(db.Model):
                                foreign_keys="SpecAttachment.template_item_id")
 
     def __repr__(self):
-        src = self.spec_dict or self.definition
+        src = self.spec_dict
         return f"<SpecTemplateItem {src.name if src else 'N/A'}>"
 
     def get_test_condition_display(self):
@@ -276,10 +275,7 @@ class SpecTemplateItem(db.Model):
         return self.test_method_text or ''
 
     def to_dict(self):
-        # 优先使用 spec_dict（合并后主表），回退到 definition（旧FK）
-        sd = self.spec_dict
-        defn = self.definition
-        src = sd or defn  # 数据源
+        src = self.spec_dict
         return {
             'id': self.id,
             'template_id': self.template_id,
@@ -422,14 +418,14 @@ class ProductConfigValue(db.Model):
                                foreign_keys="SpecAttachment.config_value_id")
 
     def __repr__(self):
-        return f"<ProductConfigValue {self.template_item.definition.name if self.template_item and self.template_item.definition else 'N/A'}={self.value}>"
+        return f"<ProductConfigValue {self.template_item.spec_dict.name if self.template_item and self.template_item.spec_dict else 'N/A'}={self.value}>"
 
     def to_dict(self):
         return {
             'id': self.id,
             'configuration_id': self.configuration_id,
             'template_item_id': self.template_item_id,
-            'definition_name': self.template_item.definition.name if self.template_item and self.template_item.definition else None,
+            'definition_name': self.template_item.spec_dict.name if self.template_item and self.template_item.spec_dict else None,
             'value': self.value,
             'notes': self.notes
         }

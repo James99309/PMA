@@ -325,7 +325,7 @@ def get_configuration_specs_api(config_id):
 
         # 遍历模板规格项
         for item in template.items:
-            if not item.definition:
+            if not item.spec_dict:
                 continue
 
             # 获取配置值（优先）或通用值
@@ -345,11 +345,11 @@ def get_configuration_specs_api(config_id):
 
             specs.append({
                 'template_item_id': item.id,
-                'name': item.definition.name,
-                'name_en': item.definition.name_en,
+                'name': item.spec_dict.name,
+                'name_en': item.spec_dict.name_en,
                 'value': value,
-                'unit': item.definition.unit or '',
-                'category': item.definition.category.name if item.definition.category else '',
+                'unit': item.spec_dict.unit or '',
+                'category': item.spec_dict.category.name if item.spec_dict.category else '',
                 'use_in_code': item.use_in_code,
                 'code_char': code_char
             })

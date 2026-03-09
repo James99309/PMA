@@ -13,7 +13,7 @@ from urllib.parse import quote
 from app import db
 from datetime import datetime
 from app.models.spec_template import (
-    SpecCategory, SpecDefinition, SpecTemplate, SpecTemplateItem,
+    SpecCategory, SpecTemplate, SpecTemplateItem,
     TestMethodDictionary, TestConditionDictionary,
     ProductConfiguration, ProductConfigValue, SpecAttachment,
     CONFIG_STATUS, REGIONS,
@@ -142,7 +142,7 @@ def generate_mn_code(config, template=None, save_snapshot=True):
         # 收集快照数据
         code_items_data.append({
             "item_id": item.id,
-            "definition_name": item.definition.name if item.definition else None,
+            "definition_name": item.spec_dict.name if item.spec_dict else None,
             "display_order": item.display_order,
             "code_length": item.code_length,
             "options": code_options,
@@ -298,7 +298,7 @@ def detect_structural_changes(template, new_items_data, new_category_id=None, ne
     old_code_items = {}
     for item in template.items:
         if item.use_in_code:
-            old_code_items[item.definition_id] = {
+            old_code_items[item.spec_dict_id] = {
                 'item': item,
                 'display_order': item.display_order,
                 'code_length': item.code_length
@@ -330,7 +330,7 @@ def detect_structural_changes(template, new_items_data, new_category_id=None, ne
     # 检查删除的参与编码规格项
     for def_id, old_info in old_code_items.items():
         if def_id not in new_code_items:
-            name = old_info['item'].definition.name if old_info['item'].definition else str(def_id)
+            name = old_info['item'].spec_dict.name if old_info['item'].spec_dict else str(def_id)
             changes.append({
                 'type': 'remove_code_item',
                 'name': name
@@ -340,7 +340,7 @@ def detect_structural_changes(template, new_items_data, new_category_id=None, ne
     for def_id in set(old_code_items.keys()) & set(new_code_items.keys()):
         old_info = old_code_items[def_id]
         new_info = new_code_items[def_id]
-        name = old_info['item'].definition.name if old_info['item'].definition else str(def_id)
+        name = old_info['item'].spec_dict.name if old_info['item'].spec_dict else str(def_id)
 
         # 检查编码长度变化
         if old_info['code_length'] != new_info['code_length']:
@@ -477,7 +477,7 @@ def view_template(template_id):
     # 获取模板中的规格项，按分类组织（优先 spec_dict，回退 definition）
     items_by_category = {}
     for item in template.items:
-        src = item.spec_dict or item.definition
+        src = item.spec_dict
         if src and src.category_id:
             cat_id = src.category_id
             if cat_id not in items_by_category:
@@ -512,13 +512,13 @@ def edit_template_page(template_id):
             definitions_by_category[definition.category_id] = []
         definitions_by_category[definition.category_id].append(definition)
 
-    # 获取模板中已选择的规格项ID和设置（优先 spec_dict_id，回退 definition_id）
+    # 获取模板中已选择的规格项ID和设置
     selected_items = {}
     for item in template.items:
-        key = item.spec_dict_id or item.definition_id
+        key = item.spec_dict_id
         selected_items[key] = {
             'id': item.id,
-            'definition_id': key,  # 前端保存时需要
+            'definition_id': key,  # 前端字段名保持不变
             'general_value': item.general_value,
             'test_condition_id': item.test_condition_id,
             'test_condition_text': item.test_condition_text,
@@ -633,7 +633,6 @@ def api_create_template():
         item = SpecTemplateItem(
             template_id=template.id,
             spec_dict_id=dict_id,
-            definition_id=dict_id,  # 保持旧FK兼容
             general_value=item_data.get('general_value'),
             test_condition_id=item_data.get('test_condition_id'),
             test_condition_text=item_data.get('test_condition_text'),
@@ -739,15 +738,15 @@ def api_update_template(template_id):
     # 删除不再需要的规格项
     existing_definition_ids = {item['definition_id'] for item in items_data if item.get('definition_id')}
     for item in template.items:
-        if item.definition_id not in existing_definition_ids:
+        if item.spec_dict_id not in existing_definition_ids:
             # 在删除前，为锁定配置的规格值保存孤立项信息
             for cv in item.config_values:
                 if cv.configuration and cv.configuration.mn_locked:
                     # 保存规格信息，以便删除后仍能显示
-                    cv.orphaned_spec_name = item.definition.name if item.definition else None
-                    cv.orphaned_spec_name_en = item.definition.name_en if item.definition else None
-                    cv.orphaned_spec_unit = item.definition.unit if item.definition else None
-                    cv.orphaned_category_id = item.definition.category_id if item.definition else None
+                    cv.orphaned_spec_name = item.spec_dict.name if item.spec_dict else None
+                    cv.orphaned_spec_name_en = item.spec_dict.name_en if item.spec_dict else None
+                    cv.orphaned_spec_unit = item.spec_dict.unit if item.spec_dict else None
+                    cv.orphaned_category_id = item.spec_dict.category_id if item.spec_dict else None
             db.session.delete(item)
 
     # 更新或添加规格项
@@ -764,16 +763,11 @@ def api_update_template(template_id):
         if use_in_code and general_value:
             options = ensure_code_for_value(options, general_value)
 
-        # 查找已存在的规格项（优先 spec_dict_id，回退 definition_id）
+        # 查找已存在的规格项
         existing_item = SpecTemplateItem.query.filter_by(
             template_id=template.id,
             spec_dict_id=dict_id
         ).first()
-        if not existing_item:
-            existing_item = SpecTemplateItem.query.filter_by(
-                template_id=template.id,
-                definition_id=dict_id
-            ).first()
 
         if existing_item:
             # 更新
@@ -793,7 +787,6 @@ def api_update_template(template_id):
             new_item = SpecTemplateItem(
                 template_id=template.id,
                 spec_dict_id=dict_id,
-                definition_id=dict_id,  # 保持旧FK兼容
                 general_value=item_data.get('general_value'),
                 test_condition_id=item_data.get('test_condition_id'),
                 test_condition_text=item_data.get('test_condition_text'),
@@ -809,6 +802,7 @@ def api_update_template(template_id):
             db.session.flush()  # 获取新 ID
 
             # 查找匹配的孤立配置值（同名规格），重新关联
+            definition = SpecificationDictionary.query.get(dict_id)
             if definition:
                 config_ids = [c.id for c in template.configurations]
                 if config_ids:
@@ -895,7 +889,7 @@ def api_copy_template(template_id):
         new_item = SpecTemplateItem(
             template_id=new_template.id,
             spec_dict_id=item.spec_dict_id,
-            definition_id=item.definition_id,
+            definition_id=None,
             general_value=item.general_value,
             test_condition_id=item.test_condition_id,
             test_condition_text=item.test_condition_text,
@@ -960,8 +954,8 @@ def spec_config_matrix_page(template_id):
     all_items = []
     for item in template.items:
         all_items.append(item)
-        if item.definition and item.definition.category_id:
-            cat_id = item.definition.category_id
+        if item.spec_dict and item.spec_dict.category_id:
+            cat_id = item.spec_dict.category_id
             if cat_id not in items_by_category:
                 items_by_category[cat_id] = []
             items_by_category[cat_id].append(item)
@@ -1038,8 +1032,8 @@ def spec_config_matrix_page(template_id):
                         item = cv.template_item
                         orphaned_items[cv.template_item_id] = item
                         # 按分类组织
-                        if item.definition and item.definition.category_id:
-                            cat_id = item.definition.category_id
+                        if item.spec_dict and item.spec_dict.category_id:
+                            cat_id = item.spec_dict.category_id
                             if cat_id not in orphaned_items_by_category:
                                 orphaned_items_by_category[cat_id] = []
                             orphaned_items_by_category[cat_id].append(item)
@@ -1073,7 +1067,7 @@ def spec_config_matrix_page(template_id):
 
         code_items_data.append({
             'id': item.id,
-            'name': item.definition.name if item.definition else '',
+            'name': item.spec_dict.name if item.spec_dict else '',
             'code_length': code_length,
             'options': code_options,
             'display_order': item.display_order
@@ -1116,8 +1110,8 @@ def configurations_page(template_id):
     # 获取模板中的规格项，按分类组织
     items_by_category = {}
     for item in template.items:
-        if item.definition and item.definition.category_id:
-            cat_id = item.definition.category_id
+        if item.spec_dict and item.spec_dict.category_id:
+            cat_id = item.spec_dict.category_id
             if cat_id not in items_by_category:
                 items_by_category[cat_id] = []
             items_by_category[cat_id].append(item)
@@ -1171,10 +1165,11 @@ def api_create_configuration(template_id):
     if not data.get('config_code'):
         return jsonify({'success': False, 'message': _('配置编码不能为空')}), 400
 
-    # 检查配置编码是否重复
+    # 检查配置编码是否重复（排除已软删除的记录）
     existing = ProductConfiguration.query.filter_by(
         template_id=template_id,
-        config_code=data['config_code']
+        config_code=data['config_code'],
+        is_active=True
     ).first()
     if existing:
         return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
@@ -1376,10 +1371,11 @@ def api_copy_configuration(config_id):
     # 生成新的配置编码
     new_code = data.get('config_code', f"{config.config_code}_copy")
 
-    # 检查新编码是否已存在
+    # 检查新编码是否已存在（排除已软删除的记录）
     if ProductConfiguration.query.filter_by(
         template_id=config.template_id,
-        config_code=new_code
+        config_code=new_code,
+        is_active=True
     ).first():
         return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
 
@@ -1740,7 +1736,7 @@ def api_upload_item_attachment(item_id):
     item = SpecTemplateItem.query.get_or_404(item_id)
 
     # 检查该规格是否允许附件
-    if not item.definition or not item.definition.allow_attachment:
+    if not item.spec_dict or not item.spec_dict.allow_attachment:
         return jsonify({
             'success': False,
             'message': _('该规格项不允许上传附件')
@@ -1935,7 +1931,7 @@ def api_upload_config_attachment(config_id, item_id):
         }), 400
 
     # 检查该规格是否允许附件
-    if not item.definition or not item.definition.allow_attachment:
+    if not item.spec_dict or not item.spec_dict.allow_attachment:
         return jsonify({
             'success': False,
             'message': _('该规格项不允许上传附件')

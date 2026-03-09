@@ -433,9 +433,9 @@
                                     <td class="sticky-col bg-white dark:bg-slate-800 px-3 py-2">
                                         <div class="flex items-start gap-2">
                                             <div class="flex-1">
-                                                <p class="text-sm font-medium text-slate-900 dark:text-white">{{ item.definition.name }}</p>
-                                                {% if item.definition.name_en %}
-                                                <p class="text-xs text-slate-500 dark:text-slate-400">{{ item.definition.name_en }}</p>
+                                                <p class="text-sm font-medium text-slate-900 dark:text-white">{{ item.spec_dict.name }}</p>
+                                                {% if item.spec_dict.name_en %}
+                                                <p class="text-xs text-slate-500 dark:text-slate-400">{{ item.spec_dict.name_en }}</p>
                                                 {% endif %}
                                             </div>
                                             {% if item.id in code_position_map %}
@@ -448,7 +448,7 @@
                                         </div>
                                     </td>
                                     <td class="sticky-col-2 bg-white dark:bg-slate-800 px-2 py-2 text-sm text-slate-600 dark:text-slate-300">
-                                        {{ item.definition.unit or '-' }}
+                                        {{ item.spec_dict.unit or '-' }}
                                     </td>
                                     {% for config in configurations %}
                                     <td class="px-1 py-1">
@@ -460,14 +460,14 @@
                                                  title="{{ _('MN编码已锁定，不可编辑') }}">
                                                 {{ saved_value or '-' }}
                                             </span>
-                                            {% if item.definition.allow_attachment %}
+                                            {% if item.spec_dict.allow_attachment %}
                                             <button type="button"
                                                     class="attachment-btn inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
                                                     data-item-id="{{ item.id }}"
                                                     data-config-id="{{ config.id }}"
                                                     data-type="config"
                                                     data-locked="true"
-                                                    @click="openAttachmentModal({{ item.id }}, {{ config.id }}, '{{ item.definition.name }}', true)"
+                                                    @click="openAttachmentModal({{ item.id }}, {{ config.id }}, '{{ item.spec_dict.name }}', true)"
                                                     title="{{ _('查看附件') }}">
                                                 <span class="material-symbols-outlined text-base text-slate-400 attachment-icon" data-item-id="{{ item.id }}" data-config-id="{{ config.id }}" data-type="config">attach_file</span>
                                             </button>
@@ -480,8 +480,8 @@
                                             {% set opt_values = opts | map(attribute='value') | list %}
                                             <select data-config-id="{{ config.id }}"
                                                     data-item-id="{{ item.id }}"
-                                                    data-def-id="{{ item.definition_id }}"
-                                                    data-def-name="{{ item.definition.name }}"
+                                                    data-def-id="{{ item.spec_dict_id }}"
+                                                    data-def-name="{{ item.spec_dict.name }}"
                                                     data-general-value="{{ item.general_value or '' }}"
                                                     data-original="{{ saved_value }}"
                                                     @change="handleSelectChange($event.target)"
@@ -496,13 +496,13 @@
                                                 <option disabled>──────────</option>
                                                 <option value="__MANAGE__">+ {{ _('管理规格选项') }}</option>
                                             </select>
-                                            {% if item.definition.allow_attachment %}
+                                            {% if item.spec_dict.allow_attachment %}
                                             <button type="button"
                                                     class="attachment-btn inline-flex items-center justify-center w-7 h-7 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 flex-shrink-0"
                                                     data-item-id="{{ item.id }}"
                                                     data-config-id="{{ config.id }}"
                                                     data-type="config"
-                                                    @click="openAttachmentModal({{ item.id }}, {{ config.id }}, '{{ item.definition.name }}')"
+                                                    @click="openAttachmentModal({{ item.id }}, {{ config.id }}, '{{ item.spec_dict.name }}')"
                                                     title="{{ _('管理附件') }}">
                                                 <span class="material-symbols-outlined text-base text-slate-400 attachment-icon" data-item-id="{{ item.id }}" data-config-id="{{ config.id }}" data-type="config">attach_file</span>
                                             </button>
@@ -517,9 +517,9 @@
                                 {% for item in orphaned_cat_items %}
                                 {# 支持两种格式：实际的SpecTemplateItem对象 或 虚拟项字典 #}
                                 {% set is_virtual = item.is_virtual if item.is_virtual is defined else false %}
-                                {% set spec_name = item.spec_name if is_virtual else (item.definition.name if item.definition else _('已删除规格')) %}
-                                {% set spec_name_en = item.spec_name_en if is_virtual else (item.definition.name_en if item.definition else '') %}
-                                {% set spec_unit = item.spec_unit if is_virtual else (item.definition.unit if item.definition else '-') %}
+                                {% set spec_name = item.spec_name if is_virtual else (item.spec_dict.name if item.spec_dict else _('已删除规格')) %}
+                                {% set spec_name_en = item.spec_name_en if is_virtual else (item.spec_dict.name_en if item.spec_dict else '') %}
+                                {% set spec_unit = item.spec_unit if is_virtual else (item.spec_dict.unit if item.spec_dict else '-') %}
                                 {% set item_id = item.id %}
                                 <tr x-show="activeCategory === 'all' || activeCategory === {{ category.id }}"
                                     class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors opacity-60">

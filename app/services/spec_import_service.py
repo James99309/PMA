@@ -20,7 +20,7 @@ from flask_babel import _
 
 from app import db
 from app.models.spec_template import (
-    SpecCategory, SpecDefinition, SpecTemplate, SpecTemplateItem,
+    SpecCategory, SpecTemplate, SpecTemplateItem,
     ProductConfiguration, ProductConfigValue, REGIONS, CONFIG_STATUS
 )
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField
@@ -415,7 +415,7 @@ class SpecImportService:
                 template_item = SpecTemplateItem(
                     template_id=template.id,
                     spec_dict_id=dict_id,
-                    definition_id=dict_id,  # 保持旧FK兼容
+                    definition_id=None,
                     general_value=item.get('general_value'),
                     is_required=item.get('is_required', False),
                     display_order=idx,
@@ -619,7 +619,7 @@ class SpecImportService:
 
         # 获取模板规格项（按分类和显示顺序排序）
         items = sorted(template.items, key=lambda x: (
-            x.definition.category.display_order if x.definition and x.definition.category else 999,
+            x.spec_dict.category.display_order if x.spec_dict and x.spec_dict.category else 999,
             x.display_order
         ))
 
@@ -776,7 +776,7 @@ class SpecImportService:
 
         for item_idx, item in enumerate(items):
             row = 7 + item_idx
-            definition = item.definition
+            definition = item.spec_dict
             if not definition:
                 continue
 
@@ -981,8 +981,8 @@ class SpecImportService:
         # 构建规格项映射 {name: item}
         item_by_name = {}
         for item in template.items:
-            if item.definition:
-                item_by_name[item.definition.name] = item
+            if item.spec_dict:
+                item_by_name[item.spec_dict.name] = item
 
         # 读取配置列（从E列开始，即第5列）
         config_start_col = 5

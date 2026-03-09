@@ -1236,7 +1236,7 @@ def get_options_by_spec_name(spec_name):
 @permission_required('product_code', 'view')
 def get_spec_tree():
     """
-    获取规格分类树形结构（SpecCategory → SpecDefinition）
+    获取规格分类树形结构（SpecCategory → SpecificationDictionary）
 
     Query参数:
         subcategory_id: int - 如提供则交叉匹配 ProductCodeField 获取 field_id（可选）

@@ -13,7 +13,7 @@ from flask_login import login_required, current_user
 from flask_babel import _
 from app import db
 from app.models.spec_template import (
-    SpecCategory, SpecDefinition, TestMethodDictionary, TestConditionDictionary,
+    SpecCategory, TestMethodDictionary, TestConditionDictionary,
     SPEC_CATEGORIES
 )
 from app.models.product_code import SpecificationDictionary, SpecificationOption, ProductCodeFieldOption

@@ -1714,7 +1714,7 @@ def get_product_specs(product_id):
         spec_list = []
         for spec in specs:
             spec_dict = spec.to_dict()
-            # 补充单位（ProductSpec 无 unit 列，从 SpecDefinition 查询）
+            # 补充单位（ProductSpec 无 unit 列，从规格字典查询）
             spec_dict['unit'] = get_field_unit(spec.field_name) or ''
 
             # 获取规格字段的position（用于MN编码排序）
@@ -4551,7 +4551,7 @@ def get_configuration_specs(product_id):
 
     # 遍历模板规格项
     for item in template.items:
-        if not item.definition:
+        if not item.spec_dict:
             continue
 
         # 获取配置值（优先）或通用值
@@ -4571,11 +4571,11 @@ def get_configuration_specs(product_id):
 
         specs.append({
             'template_item_id': item.id,
-            'name': item.definition.name,
-            'name_en': item.definition.name_en,
+            'name': item.spec_dict.name,
+            'name_en': item.spec_dict.name_en,
             'value': value,
-            'unit': item.definition.unit or '',
-            'category': item.definition.category.name if item.definition.category else '',
+            'unit': item.spec_dict.unit or '',
+            'category': item.spec_dict.category.name if item.spec_dict.category else '',
             'use_in_code': item.use_in_code,
             'code_char': code_char,
             'is_required': item.use_in_code  # 编码规格强制必选
@@ -4656,7 +4656,7 @@ def import_configuration_specs(product_id):
             if item.id not in selected_ids:
                 continue
 
-            if not item.definition:
+            if not item.spec_dict:
                 continue
 
             value = config.get_spec_value(item.id)
@@ -4675,7 +4675,7 @@ def import_configuration_specs(product_id):
 
             spec = ProductSpec(
                 product_id=product_id,
-                field_name=item.definition.name,
+                field_name=item.spec_dict.name,
                 field_value=value,
                 field_code=code_char,
                 include_in_description=True,
