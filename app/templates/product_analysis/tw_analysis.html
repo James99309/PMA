@@ -469,7 +469,7 @@
                                 <td class="p-3 text-right whitespace-nowrap" :class="row.order_qty > 0 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-slate-400'" x-text="row.order_qty || '-'"></td>
                                 <td class="p-3 text-right font-medium whitespace-nowrap" x-text="formatAmount(row.total_price)"></td>
                                 <td class="p-3 truncate" :title="row.project_name">
-                                    <a :href="'/project/view/' + row.project_id" class="text-primary hover:underline text-sm" x-text="row.project_name"></a>
+                                    <a href="#" @click.prevent="openQuotationModal(row.quotation_id, row.project_name, row.product_model)" class="text-primary hover:underline text-sm" x-text="row.project_name"></a>
                                 </td>
                                 <td class="p-3 text-xs text-slate-600 dark:text-slate-400 truncate" x-text="row.customer" :title="row.customer"></td>
                                 <td class="p-3 text-slate-500 text-xs whitespace-nowrap" x-text="row.stage"></td>
@@ -495,6 +495,59 @@
                     <button @click="loadDetail(detailPage + 1)" :disabled="detailPage >= detailPages"
                             class="px-3 py-1.5 rounded text-sm border border-slate-300 dark:border-slate-600 disabled:opacity-40">{{ _('下一页') }}</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    {# Quotation Items Modal #}
+    <div x-show="quotationModal" class="fixed inset-0 z-50 flex items-center justify-center" x-transition:enter="transition ease-out duration-200" x-transition:leave="transition ease-in duration-150" @keydown.escape.window="quotationModal = false">
+        <div class="absolute inset-0 bg-black/50" @click="quotationModal = false"></div>
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-5xl max-h-[80vh] flex flex-col mx-4" @click.stop>
+            <div class="flex items-center justify-between px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-800 dark:text-white" x-text="quotationModalData.project"></h3>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ _('报价单号') }}：<span x-text="quotationModalData.number"></span></p>
+                </div>
+                <button @click="quotationModal = false" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="overflow-auto flex-1">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-700/50 sticky top-0">
+                        <tr>
+                            <th class="p-3 text-left text-slate-500 font-medium">{{ _('产品') }}</th>
+                            <th class="p-3 text-left text-slate-500 font-medium">{{ _('型号') }}</th>
+                            <th class="p-3 text-left text-slate-500 font-medium">MN</th>
+                            <th class="p-3 text-left text-slate-500 font-medium">{{ _('品牌') }}</th>
+                            <th class="p-3 text-left text-slate-500 font-medium whitespace-nowrap">{{ _('单位') }}</th>
+                            <th class="p-3 text-right text-slate-500 font-medium whitespace-nowrap">{{ _('数量') }}</th>
+                            <th class="p-3 text-left text-slate-500 font-medium">{{ _('描述') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="item in quotationModalData.items" :key="item.id">
+                            <tr :class="item.product_model === quotationModalData.highlightModel ? 'bg-blue-50 dark:bg-blue-900/30' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'">
+                                <td class="p-3 whitespace-nowrap" :class="item.is_accessory ? 'pl-8' : ''">
+                                    <span x-show="item.is_accessory" class="inline-block text-xs text-slate-400 mr-1">&#x2514;</span>
+                                    <span x-text="item.product_name" :class="item.is_accessory ? 'text-slate-500 dark:text-slate-400' : 'font-medium text-slate-800 dark:text-white'"></span>
+                                </td>
+                                <td class="p-3 text-slate-600 dark:text-slate-300 font-mono text-xs whitespace-nowrap" x-text="item.product_model"></td>
+                                <td class="p-3 text-slate-500 font-mono text-xs whitespace-nowrap" x-text="item.product_mn"></td>
+                                <td class="p-3 text-slate-600 dark:text-slate-300 whitespace-nowrap" x-text="item.brand"></td>
+                                <td class="p-3 text-slate-500 whitespace-nowrap" x-text="item.unit"></td>
+                                <td class="p-3 text-right whitespace-nowrap" x-text="item.quantity"></td>
+                                <td class="p-3 text-slate-500 text-xs max-w-[360px] truncate" x-text="item.product_desc" :title="item.product_desc"></td>
+                            </tr>
+                        </template>
+                        <tr x-show="!quotationModalData.items.length">
+                            <td colspan="7" class="p-8 text-center text-slate-400">{{ _('暂无数据') }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-6 py-3 text-right">
+                <button @click="quotationModal = false" class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600">{{ _('关闭') }}</button>
             </div>
         </div>
     </div>
@@ -567,6 +620,8 @@ function productAnalysisDashboard() {
         selectedOwnerId: 0,
         selectedCompanyId: 0,
         filterCustomers: [],
+        quotationModal: false,
+        quotationModalData: { number: '', project: '', items: [], highlightModel: '' },
         cascadeOpen: false,
         hoveredCategoryId: 0,
         hoveredSubcategoryId: 0,
@@ -868,6 +923,22 @@ function productAnalysisDashboard() {
             params.set('sort_by', this.detailSort);
             params.set('sort_dir', this.detailSortDir);
             window.location.href = '/product_analysis/api/v2/export?' + params.toString();
+        },
+
+        async openQuotationModal(quotationId, projectName, productModel) {
+            try {
+                const resp = await fetch('/product_analysis/api/v2/quotation_items/' + quotationId);
+                const result = await resp.json();
+                if (result.success) {
+                    this.quotationModalData = {
+                        number: result.quotation_number,
+                        project: projectName,
+                        items: result.items,
+                        highlightModel: productModel || ''
+                    };
+                    this.quotationModal = true;
+                }
+            } catch(e) { console.error(e); }
         }
     };
 }

@@ -1365,6 +1365,44 @@ def api_v2_filter_options():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@product_analysis.route('/api/v2/quotation_items/<int:quotation_id>')
+@login_required
+def api_v2_quotation_items(quotation_id):
+    """获取报价单明细产品信息（不含价格）"""
+    try:
+        quotation = Quotation.query.get_or_404(quotation_id)
+        project = Project.query.get(quotation.project_id) if quotation.project_id else None
+
+        items = QuotationDetail.query.filter_by(
+            quotation_id=quotation_id
+        ).order_by(QuotationDetail.id).all()
+
+        data = []
+        for item in items:
+            data.append({
+                'id': item.id,
+                'product_name': item.product_name or '',
+                'product_model': item.product_model or '',
+                'product_mn': item.product_mn or '',
+                'brand': item.brand or '',
+                'unit': item.unit or '',
+                'quantity': int(item.quantity or 0),
+                'product_desc': item.product_desc or '',
+                'is_accessory': item.is_accessory,
+                'parent_item_id': item.parent_item_id,
+            })
+
+        return jsonify({
+            'success': True,
+            'quotation_number': quotation.quotation_number or '',
+            'project_name': project.project_name if project else '',
+            'items': data
+        })
+    except Exception as e:
+        logger.error(f"获取报价单明细失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 def _build_filtered_detail_query():
     """从请求参数构建带筛选的明细查询，供 detail 和 export 共用"""
     from app.services.product_attribution import get_analysis_view_scope
