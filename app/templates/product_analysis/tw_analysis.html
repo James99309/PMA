@@ -370,15 +370,27 @@
                     </div>
                 </div>
             </div>
-            {# 阶段筛选 #}
-            <select x-model="selectedStage" @change="loadDetail(1)"
-                    class="h-10 pl-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm appearance-none cursor-pointer"
-                    style="background-image:url('data:image/svg+xml,<%3Fxml version=%221.0%22%3F><svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2394a3b8%22 stroke-width=%222%22><polyline points=%226 9 12 15 18 9%22/></svg>');background-position:right 0.5rem center;background-repeat:no-repeat;">
-                <option value="">{{ _('全部阶段') }}</option>
-                <template x-for="s in filterStages" :key="s.value">
-                    <option :value="s.value" x-text="s.label"></option>
-                </template>
-            </select>
+            {# 阶段多选筛选 #}
+            <div class="relative" @click.outside="stageDropOpen = false">
+                <button @click="stageDropOpen = !stageDropOpen"
+                        class="h-10 px-3 rounded-lg border text-sm flex items-center gap-1.5"
+                        :class="selectedStages.length ? 'border-primary bg-primary/5 text-primary' : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800'">
+                    <span x-text="selectedStages.length ? selectedStages.map(v => filterStages.find(s=>s.value===v)?.label || v).join(', ') : '{{ _('全部阶段') }}'" class="truncate max-w-[140px]"></span>
+                    <svg x-show="selectedStages.length" @click.stop="selectedStages=[];stageDropOpen=false;loadDetail(1)" class="w-4 h-4 flex-shrink-0 text-slate-400 hover:text-red-500 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    <svg x-show="!selectedStages.length" class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div x-show="stageDropOpen" x-transition.opacity class="absolute top-full left-0 mt-1 z-50 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-1 max-h-64 overflow-y-auto">
+                    <template x-for="s in filterStages" :key="s.value">
+                        <label class="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700"
+                               :class="selectedStages.includes(s.value) ? 'text-primary font-medium' : ''">
+                            <input type="checkbox" :value="s.value" :checked="selectedStages.includes(s.value)"
+                                   @change="if($event.target.checked){selectedStages.push(s.value)}else{selectedStages=selectedStages.filter(v=>v!==s.value)};loadDetail(1)"
+                                   class="rounded border-slate-300 text-primary focus:ring-primary/30 w-4 h-4">
+                            <span x-text="s.label"></span>
+                        </label>
+                    </template>
+                </div>
+            </div>
             {# 负责人筛选 #}
             <select x-model="selectedOwnerId" @change="loadDetail(1)"
                     class="h-10 pl-3 pr-8 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm appearance-none cursor-pointer"
@@ -409,29 +421,41 @@
         {# 数据表格 #}
         <div class="p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             <div class="overflow-x-auto" style="max-height: calc(100vh - 420px);">
-                <table class="w-full text-sm text-left">
+                <table class="w-full text-sm text-left table-fixed">
+                    <colgroup>
+                        <col style="width:11%">{# 产品 #}
+                        <col style="width:10%">{# 型号 #}
+                        <col style="width:5%">{# 数量 #}
+                        <col style="width:5%">{# 订单量 #}
+                        <col style="width:8%">{# 金额 #}
+                        <col>{# 项目 - 弹性 #}
+                        <col>{# 关联客户 - 弹性 #}
+                        <col style="width:5%">{# 阶段 #}
+                        <col style="width:5%">{# 负责人 #}
+                        <col style="width:7%">{# 日期 #}
+                    </colgroup>
                     <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900 z-10">
                         <tr>
-                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleDetailSort('product_name')">
+                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none whitespace-nowrap" @click="toggleDetailSort('product_name')">
                                 <span class="inline-flex items-center gap-1">{{ _('产品') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='product_name'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='product_name'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                             </th>
-                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleDetailSort('product_model')">
+                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none whitespace-nowrap" @click="toggleDetailSort('product_model')">
                                 <span class="inline-flex items-center gap-1">{{ _('型号') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='product_model'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='product_model'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                             </th>
-                            <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleDetailSort('quantity')">
+                            <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none whitespace-nowrap" @click="toggleDetailSort('quantity')">
                                 <span class="inline-flex items-center gap-1 justify-end">{{ _('数量') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='quantity'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='quantity'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                             </th>
-                            <th class="p-3 text-slate-500 font-medium text-right">{{ _('订单量') }}</th>
-                            <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none" @click="toggleDetailSort('total_price')">
+                            <th class="p-3 text-slate-500 font-medium text-right whitespace-nowrap">{{ _('订单量') }}</th>
+                            <th class="p-3 text-slate-500 font-medium text-right cursor-pointer select-none whitespace-nowrap" @click="toggleDetailSort('total_price')">
                                 <span class="inline-flex items-center gap-1 justify-end">{{ _('金额') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='total_price'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='total_price'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                             </th>
-                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleDetailSort('project_name')">
+                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none whitespace-nowrap" @click="toggleDetailSort('project_name')">
                                 <span class="inline-flex items-center gap-1">{{ _('项目') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='project_name'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='project_name'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                             </th>
-                            <th class="p-3 text-slate-500 font-medium">{{ _('关联客户') }}</th>
-                            <th class="p-3 text-slate-500 font-medium">{{ _('阶段') }}</th>
-                            <th class="p-3 text-slate-500 font-medium">{{ _('负责人') }}</th>
-                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none" @click="toggleDetailSort('created_at')">
+                            <th class="p-3 text-slate-500 font-medium whitespace-nowrap">{{ _('关联客户') }}</th>
+                            <th class="p-3 text-slate-500 font-medium whitespace-nowrap">{{ _('阶段') }}</th>
+                            <th class="p-3 text-slate-500 font-medium whitespace-nowrap">{{ _('负责人') }}</th>
+                            <th class="p-3 text-slate-500 font-medium cursor-pointer select-none whitespace-nowrap" @click="toggleDetailSort('created_at')">
                                 <span class="inline-flex items-center gap-1">{{ _('日期') }}<svg class="w-3.5 h-3.5 inline-block" viewBox="0 0 12 16" fill="none"><path d="M6 1L10 6H2L6 1Z" :fill="detailSort==='created_at'&&detailSortDir==='asc' ? 'currentColor' : '#cbd5e1'"/><path d="M6 15L2 10H10L6 15Z" :fill="detailSort==='created_at'&&detailSortDir==='desc' ? 'currentColor' : '#cbd5e1'"/></svg></span>
                             </th>
                         </tr>
@@ -439,18 +463,18 @@
                     <tbody>
                         <template x-for="(row, idx) in detailData" :key="idx">
                             <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                <td class="p-3 font-medium text-slate-800 dark:text-white" x-text="row.product_name"></td>
-                                <td class="p-3 text-slate-600 dark:text-slate-300 font-mono text-xs" x-text="row.product_model"></td>
-                                <td class="p-3 text-right" x-text="row.quantity"></td>
-                                <td class="p-3 text-right" :class="row.order_qty > 0 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-slate-400'" x-text="row.order_qty || '-'"></td>
-                                <td class="p-3 text-right font-medium" x-text="formatAmount(row.total_price)"></td>
-                                <td class="p-3">
+                                <td class="p-3 font-medium text-slate-800 dark:text-white whitespace-nowrap truncate" x-text="row.product_name" :title="row.product_name"></td>
+                                <td class="p-3 text-slate-600 dark:text-slate-300 font-mono text-xs whitespace-nowrap truncate" x-text="row.product_model"></td>
+                                <td class="p-3 text-right whitespace-nowrap" x-text="row.quantity"></td>
+                                <td class="p-3 text-right whitespace-nowrap" :class="row.order_qty > 0 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-slate-400'" x-text="row.order_qty || '-'"></td>
+                                <td class="p-3 text-right font-medium whitespace-nowrap" x-text="formatAmount(row.total_price)"></td>
+                                <td class="p-3 truncate" :title="row.project_name">
                                     <a :href="'/project/view/' + row.project_id" class="text-primary hover:underline text-sm" x-text="row.project_name"></a>
                                 </td>
-                                <td class="p-3 text-xs text-slate-600 dark:text-slate-400 max-w-[140px] truncate" x-text="row.customer" :title="row.customer"></td>
-                                <td class="p-3 text-slate-500 text-xs" x-text="row.stage"></td>
-                                <td class="p-3 text-sm" x-text="row.owner"></td>
-                                <td class="p-3 text-slate-400 text-xs" x-text="row.created_at"></td>
+                                <td class="p-3 text-xs text-slate-600 dark:text-slate-400 truncate" x-text="row.customer" :title="row.customer"></td>
+                                <td class="p-3 text-slate-500 text-xs whitespace-nowrap" x-text="row.stage"></td>
+                                <td class="p-3 text-sm whitespace-nowrap" x-text="row.owner"></td>
+                                <td class="p-3 text-slate-400 text-xs whitespace-nowrap" x-text="row.created_at"></td>
                             </tr>
                         </template>
                         <tr x-show="!detailData.length && !loading">
@@ -506,6 +530,7 @@ function productAnalysisDashboard() {
             { key: 'detail', label: '{{ _("明细数据") }}' }
         ],
         overview: { total_amount: 0, total_quantity: 0, project_count: 0, mom_rate: 0, this_month_amount: 0 },
+        _originalOverview: null,
         trendData: [],
         distribution: { categories: [], stages: [] },
         expandedCategory: null,
@@ -537,7 +562,8 @@ function productAnalysisDashboard() {
         selectedSubcategoryName: '',
         selectedProductModel: '',
         selectedProductLabel: '',
-        selectedStage: '',
+        selectedStages: [],
+        stageDropOpen: false,
         selectedOwnerId: 0,
         selectedCompanyId: 0,
         filterCustomers: [],
@@ -558,6 +584,10 @@ function productAnalysisDashboard() {
                 if (tab === 'distribution' && !this.distribution.categories.length && !this.distribution.stages.length) this.loadDistribution();
                 if (tab === 'ranking' && !this.ranking.length) this.loadRanking();
                 if (tab === 'detail' && !this.detailData.length) this.loadDetail(1);
+                // 离开明细tab时恢复原始概览（从缓存，不重新请求）
+                if (tab !== 'detail' && this._originalOverview) {
+                    this.overview = { ...this._originalOverview };
+                }
             });
             await this.loadOverview();
             await this.loadTrend();
@@ -599,7 +629,10 @@ function productAnalysisDashboard() {
             this.loading = true;
             try {
                 const result = await this.fetchApi('/product_analysis/api/v2/overview');
-                if (result.success) this.overview = result.data;
+                if (result.success) {
+                    this.overview = result.data;
+                    this._originalOverview = { ...result.data };
+                }
             } catch(e) { console.error(e); }
             this.loading = false;
         },
@@ -802,7 +835,7 @@ function productAnalysisDashboard() {
                 if (this.selectedCategoryId) params.set('category_id', this.selectedCategoryId);
                 if (this.selectedSubcategoryId) params.set('subcategory_id', this.selectedSubcategoryId);
                 if (this.selectedProductModel) params.set('product_model', this.selectedProductModel);
-                if (this.selectedStage) params.set('stage', this.selectedStage);
+                if (this.selectedStages.length) params.set('stages', this.selectedStages.join(','));
                 if (this.selectedOwnerId) params.set('owner_id', this.selectedOwnerId);
                 if (this.selectedCompanyId) params.set('company_id', this.selectedCompanyId);
                 params.set('sort_by', this.detailSort);
@@ -813,6 +846,12 @@ function productAnalysisDashboard() {
                     this.detailData = result.data;
                     this.detailTotal = result.total;
                     this.detailPages = result.pages;
+                    // 同步概览卡片
+                    if (result.summary) {
+                        this.overview.total_amount = result.summary.total_amount;
+                        this.overview.total_quantity = result.summary.total_quantity;
+                        this.overview.project_count = result.summary.project_count;
+                    }
                 }
             } catch(e) { console.error(e); }
         },
@@ -823,7 +862,7 @@ function productAnalysisDashboard() {
             if (this.selectedCategoryId) params.set('category_id', this.selectedCategoryId);
             if (this.selectedSubcategoryId) params.set('subcategory_id', this.selectedSubcategoryId);
             if (this.selectedProductModel) params.set('product_model', this.selectedProductModel);
-            if (this.selectedStage) params.set('stage', this.selectedStage);
+            if (this.selectedStages.length) params.set('stages', this.selectedStages.join(','));
             if (this.selectedOwnerId) params.set('owner_id', this.selectedOwnerId);
             if (this.selectedCompanyId) params.set('company_id', this.selectedCompanyId);
             params.set('sort_by', this.detailSort);

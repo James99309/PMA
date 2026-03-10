@@ -1159,6 +1159,18 @@ def api_v2_detail():
         q = _build_filtered_detail_query()
         total = q.count()
 
+        # 汇总统计（供概览卡片同步）
+        summary_row = q.with_entities(
+            func.sum(QuotationDetail.total_price).label('total_amount'),
+            func.sum(QuotationDetail.quantity).label('total_quantity'),
+            func.count(func.distinct(Project.id)).label('project_count')
+        ).first()
+        summary = {
+            'total_amount': float(summary_row.total_amount or 0),
+            'total_quantity': int(summary_row.total_quantity or 0),
+            'project_count': int(summary_row.project_count or 0)
+        }
+
         sort_by = request.args.get('sort_by', 'created_at')
         sort_dir = request.args.get('sort_dir', 'desc')
         sort_map = {
@@ -1252,7 +1264,8 @@ def api_v2_detail():
             'total': total,
             'page': page,
             'per_page': per_page,
-            'pages': (total + per_page - 1) // per_page
+            'pages': (total + per_page - 1) // per_page,
+            'summary': summary
         })
     except Exception as e:
         logger.error(f"v2 detail 失败: {e}")
@@ -1364,7 +1377,7 @@ def _build_filtered_detail_query():
     product_mn = request.args.get('product_mn', '').strip()
     product_name = request.args.get('product_name')
     product_model = request.args.get('product_model')
-    stage = request.args.get('stage', '').strip()
+    stages_str = request.args.get('stages', '').strip()
     owner_id = request.args.get('owner_id', type=int)
     company_id = request.args.get('company_id', type=int)
     search = request.args.get('search', '').strip()
@@ -1400,8 +1413,12 @@ def _build_filtered_detail_query():
             ).distinct().subquery()
             q = q.filter(QuotationDetail.product_model.in_(db.session.query(cat_models.c.model)))
 
-    if stage:
-        q = q.filter(Project.current_stage == stage)
+    if stages_str:
+        stages_list = [s.strip() for s in stages_str.split(',') if s.strip()]
+        if len(stages_list) == 1:
+            q = q.filter(Project.current_stage == stages_list[0])
+        elif stages_list:
+            q = q.filter(Project.current_stage.in_(stages_list))
     if owner_id:
         q = q.filter(Quotation.owner_id == owner_id)
     if company_id:
