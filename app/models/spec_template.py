@@ -13,7 +13,7 @@
 9. SpecAttachment - 规格附件
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, JSON, ForeignKey, CheckConstraint
+from sqlalchemy import Column, Index, Integer, String, Text, DateTime, Boolean, JSON, ForeignKey, CheckConstraint, text
 from sqlalchemy.orm import relationship
 from app import db
 
@@ -155,7 +155,7 @@ class SpecTemplate(db.Model):
     __tablename__ = 'spec_templates'
 
     id = Column(Integer, primary_key=True)
-    model = Column(String(100), nullable=False, unique=True)  # 产品型号
+    model = Column(String(100), nullable=False)  # 产品型号
     name = Column(String(200))  # 模板名称
     name_en = Column(String(200))  # 模板名称（英文）
     description = Column(Text)  # 模板描述
@@ -178,6 +178,11 @@ class SpecTemplate(db.Model):
                           order_by="SpecTemplateItem.display_order")
     configurations = relationship("ProductConfiguration", back_populates="template", cascade="all, delete-orphan",
                                    order_by="ProductConfiguration.display_order")
+
+    __table_args__ = (
+        Index('uix_spec_templates_model_active', 'model', unique=True,
+              postgresql_where=text('is_active = true')),
+    )
 
     def __repr__(self):
         return f"<SpecTemplate {self.model}>"
