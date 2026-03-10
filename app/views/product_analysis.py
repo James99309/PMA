@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, render_template_string, request, jsonify, url_for
+from flask import Blueprint, render_template, render_template_string, request, jsonify, url_for, send_file
 from types import SimpleNamespace
 from flask_login import login_required, current_user
 from flask_babel import gettext as _
@@ -851,10 +851,13 @@ def api_v2_overview():
         q = _build_base_detail_query()
         q = _apply_scope_filter(q, scope)
 
-        # 今年数据
-        year_start = datetime(year, 1, 1)
-        year_end = datetime(year + 1, 1, 1)
-        q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+        # 年份过滤（year=0 表示全部年份）
+        if year > 0:
+            year_start = datetime(year, 1, 1)
+            year_end = datetime(year + 1, 1, 1)
+            q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+        else:
+            q_year = q
 
         stats = q_year.with_entities(
             func.sum(QuotationDetail.total_price).label('total_amount'),
@@ -978,9 +981,12 @@ def api_v2_distribution():
         q = _build_base_detail_query()
         q = _apply_scope_filter(q, scope)
 
-        year_start = datetime(year, 1, 1)
-        year_end = datetime(year + 1, 1, 1)
-        q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+        if year > 0:
+            year_start = datetime(year, 1, 1)
+            year_end = datetime(year + 1, 1, 1)
+            q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+        else:
+            q_year = q
 
         # 按阶段分布
         stage_dist = q_year.with_entities(
@@ -1053,9 +1059,12 @@ def api_v2_ranking():
         q = _build_base_detail_query()
         q = _apply_scope_filter(q, scope)
 
-        year_start = datetime(year, 1, 1)
-        year_end = datetime(year + 1, 1, 1)
-        q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+        if year > 0:
+            year_start = datetime(year, 1, 1)
+            year_end = datetime(year + 1, 1, 1)
+            q_year = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+        else:
+            q_year = q
 
         detail_stats = q_year.with_entities(
             QuotationDetail.product_mn,
@@ -1142,48 +1151,12 @@ def api_v2_coefficient_stats():
 @login_required
 @permission_required('quotation', 'view')
 def api_v2_detail():
-    """明细列表"""
+    """明细列表（支持级联产品筛选、阶段、负责人、订单量、关联客户）"""
     try:
-        from app.services.product_attribution import get_analysis_view_scope
-        scope = get_analysis_view_scope(current_user)
-
-        year = int(request.args.get('year', datetime.now().year))
-        category = request.args.get('category')
-        product_name = request.args.get('product_name')
-        product_model = request.args.get('product_model')
-        search = request.args.get('search', '').strip()
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 50))
 
-        q = _build_base_detail_query()
-        q = _apply_scope_filter(q, scope)
-
-        year_start = datetime(year, 1, 1)
-        year_end = datetime(year + 1, 1, 1)
-        q = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
-
-        if category:
-            from app.models.product_code import ProductCategory
-            cat = ProductCategory.query.filter_by(name=category).first()
-            if cat:
-                cat_models = db.session.query(Product.model).filter(
-                    Product.category_id == cat.id
-                ).distinct().subquery()
-                q = q.filter(QuotationDetail.product_model.in_(
-                    db.session.query(cat_models.c.model)
-                ))
-
-        if product_name:
-            q = q.filter(QuotationDetail.product_name == product_name)
-        if product_model:
-            q = q.filter(QuotationDetail.product_model == product_model)
-        if search:
-            q = q.filter(or_(
-                QuotationDetail.product_name.ilike(f'%{search}%'),
-                QuotationDetail.product_model.ilike(f'%{search}%'),
-                Project.project_name.ilike(f'%{search}%')
-            ))
-
+        q = _build_filtered_detail_query()
         total = q.count()
 
         sort_by = request.args.get('sort_by', 'created_at')
@@ -1204,8 +1177,53 @@ def api_v2_detail():
         ).limit(per_page).all()
 
         # 预加载用户名
-        owner_ids = list({r.quotation_owner_id for r in results})
-        owners = {u.id: u for u in User.query.filter(User.id.in_(owner_ids)).all()} if owner_ids else {}
+        owner_ids_set = list({r.quotation_owner_id for r in results})
+        owners = {u.id: u for u in User.query.filter(User.id.in_(owner_ids_set)).all()} if owner_ids_set else {}
+
+        # 批量查询订单量：按 (project_id, product_mn) 聚合
+        project_ids = list({r.project_id for r in results})
+        product_mns = list({r.product_mn for r in results if r.product_mn})
+        order_qty_map = {}
+        if project_ids and product_mns:
+            from app.models.pricing_order import PricingOrder, PricingOrderDetail
+            order_rows = db.session.query(
+                PricingOrder.project_id,
+                PricingOrderDetail.product_mn,
+                func.sum(PricingOrderDetail.quantity).label('qty')
+            ).join(
+                PricingOrder, PricingOrderDetail.pricing_order_id == PricingOrder.id
+            ).filter(
+                PricingOrder.project_id.in_(project_ids),
+                PricingOrderDetail.product_mn.in_(product_mns)
+            ).group_by(
+                PricingOrder.project_id, PricingOrderDetail.product_mn
+            ).all()
+            for row in order_rows:
+                order_qty_map[(row.project_id, row.product_mn)] = int(row.qty or 0)
+
+        # 批量查询关联客户（分销商/代理商）
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        from app.models.customer import Company
+        from collections import defaultdict
+        customer_map = {}
+        if project_ids:
+            assoc_rows = db.session.query(
+                ProjectCustomerAssociation.project_id,
+                Company.company_name,
+                Company.company_type
+            ).join(
+                Company, ProjectCustomerAssociation.company_id == Company.id
+            ).filter(
+                ProjectCustomerAssociation.project_id.in_(project_ids),
+                Company.company_type.in_(['distributor', 'dealer']),
+                Company.is_deleted == False
+            ).all()
+            proj_customers = defaultdict(lambda: {'distributor': [], 'dealer': []})
+            for row in assoc_rows:
+                proj_customers[row.project_id][row.company_type].append(row.company_name)
+            for pid, types in proj_customers.items():
+                names = types['distributor'] + types['dealer']
+                customer_map[pid] = ' / '.join(names)
 
         data = []
         for r in results:
@@ -1215,11 +1233,13 @@ def api_v2_detail():
                 'product_model': r.product_model or '',
                 'product_mn': r.product_mn or '',
                 'quantity': int(r.quantity or 0),
+                'order_qty': order_qty_map.get((r.project_id, r.product_mn), 0),
                 'unit_price': float(r.unit_price or 0),
                 'total_price': float(r.total_price or 0),
                 'project_name': r.project_name or '',
                 'project_id': r.project_id,
                 'stage': get_stage_label(r.current_stage) if r.current_stage else '',
+                'customer': customer_map.get(r.project_id, ''),
                 'quotation_number': r.quotation_number or '',
                 'quotation_id': r.quotation_id,
                 'owner': owner.real_name if owner else '',
@@ -1236,4 +1256,312 @@ def api_v2_detail():
         })
     except Exception as e:
         logger.error(f"v2 detail 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@product_analysis.route('/api/v2/filter_options')
+@login_required
+@permission_required('quotation', 'view')
+def api_v2_filter_options():
+    """获取筛选选项数据（分类/子分类/产品型号级联 + 阶段 + 负责人）"""
+    try:
+        from app.models.product_code import ProductCategory, ProductSubcategory
+
+        category_id = request.args.get('category_id', type=int)
+        subcategory_id = request.args.get('subcategory_id', type=int)
+
+        # 分类列表（始终返回）
+        categories = ProductCategory.query.order_by(
+            ProductCategory.display_order, ProductCategory.id
+        ).all()
+        cat_list = [{'id': c.id, 'name': c.name} for c in categories]
+
+        # 子分类列表（当指定 category_id 时）
+        sub_list = []
+        if category_id:
+            subs = ProductSubcategory.query.filter_by(
+                category_id=category_id
+            ).order_by(ProductSubcategory.display_order, ProductSubcategory.id).all()
+            sub_list = [{'id': s.id, 'name': s.name} for s in subs]
+
+        # 产品型号列表（当指定 subcategory_id 时，按 model 去重）
+        model_list = []
+        if subcategory_id:
+            products = Product.query.filter(
+                Product.subcategory_id == subcategory_id,
+                Product.is_deleted == False
+            ).order_by(Product.product_name).all()
+            seen_model = set()
+            for p in products:
+                if p.model and p.model not in seen_model:
+                    seen_model.add(p.model)
+                    model_list.append({'model': p.model, 'name': p.product_name})
+
+        # 阶段列表（静态）
+        stages = [
+            {'value': 'discover', 'label': _('发现')},
+            {'value': 'embed', 'label': _('植入')},
+            {'value': 'pre_tender', 'label': _('预招标')},
+            {'value': 'tendering', 'label': _('招标中')},
+            {'value': 'quoted', 'label': _('已报价')},
+            {'value': 'awarded', 'label': _('中标')},
+            {'value': 'signed', 'label': _('签约')},
+            {'value': 'lost', 'label': _('丢失')},
+            {'value': 'paused', 'label': _('暂停')},
+        ]
+
+        # 负责人列表（从现有报价单数据中提取活跃用户）
+        from app.services.product_attribution import get_analysis_view_scope
+        scope = get_analysis_view_scope(current_user)
+        q = _build_base_detail_query()
+        q = _apply_scope_filter(q, scope)
+        owner_ids = [r[0] for r in q.with_entities(
+            func.distinct(Quotation.owner_id)
+        ).all()]
+        owners_list = User.query.filter(User.id.in_(owner_ids)).order_by(User.real_name).all() if owner_ids else []
+        owner_list = [{'id': u.id, 'name': u.real_name or u.username} for u in owners_list]
+
+        # 关联客户列表（分销商/代理商）
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        from app.models.customer import Company
+        project_ids = [r[0] for r in q.with_entities(func.distinct(Project.id)).all()]
+        customer_list = []
+        if project_ids:
+            customers = db.session.query(
+                Company.id, Company.company_name, Company.company_type
+            ).join(
+                ProjectCustomerAssociation, ProjectCustomerAssociation.company_id == Company.id
+            ).filter(
+                ProjectCustomerAssociation.project_id.in_(project_ids),
+                Company.company_type.in_(['distributor', 'dealer']),
+                Company.is_deleted == False
+            ).distinct().order_by(Company.company_name).all()
+            customer_list = [{'id': c.id, 'name': c.company_name, 'type': c.company_type} for c in customers]
+
+        return jsonify({
+            'success': True,
+            'categories': cat_list,
+            'subcategories': sub_list,
+            'models': model_list,
+            'stages': stages,
+            'owners': owner_list,
+            'customers': customer_list
+        })
+    except Exception as e:
+        logger.error(f"filter_options 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+def _build_filtered_detail_query():
+    """从请求参数构建带筛选的明细查询，供 detail 和 export 共用"""
+    from app.services.product_attribution import get_analysis_view_scope
+    scope = get_analysis_view_scope(current_user)
+
+    year = int(request.args.get('year', datetime.now().year))
+    category = request.args.get('category')
+    category_id = request.args.get('category_id', type=int)
+    subcategory_id = request.args.get('subcategory_id', type=int)
+    product_mn = request.args.get('product_mn', '').strip()
+    product_name = request.args.get('product_name')
+    product_model = request.args.get('product_model')
+    stage = request.args.get('stage', '').strip()
+    owner_id = request.args.get('owner_id', type=int)
+    company_id = request.args.get('company_id', type=int)
+    search = request.args.get('search', '').strip()
+
+    q = _build_base_detail_query()
+    q = _apply_scope_filter(q, scope)
+
+    if year > 0:
+        year_start = datetime(year, 1, 1)
+        year_end = datetime(year + 1, 1, 1)
+        q = q.filter(QuotationDetail.created_at >= year_start, QuotationDetail.created_at < year_end)
+
+    if product_model:
+        q = q.filter(QuotationDetail.product_model == product_model)
+    elif product_mn:
+        q = q.filter(QuotationDetail.product_mn == product_mn)
+    elif subcategory_id:
+        sub_mns = db.session.query(Product.product_mn).filter(
+            Product.subcategory_id == subcategory_id, Product.is_deleted == False
+        ).distinct().subquery()
+        q = q.filter(QuotationDetail.product_mn.in_(db.session.query(sub_mns.c.product_mn)))
+    elif category_id:
+        cat_mns = db.session.query(Product.product_mn).filter(
+            Product.category_id == category_id, Product.is_deleted == False
+        ).distinct().subquery()
+        q = q.filter(QuotationDetail.product_mn.in_(db.session.query(cat_mns.c.product_mn)))
+    elif category:
+        from app.models.product_code import ProductCategory
+        cat = ProductCategory.query.filter_by(name=category).first()
+        if cat:
+            cat_models = db.session.query(Product.model).filter(
+                Product.category_id == cat.id
+            ).distinct().subquery()
+            q = q.filter(QuotationDetail.product_model.in_(db.session.query(cat_models.c.model)))
+
+    if stage:
+        q = q.filter(Project.current_stage == stage)
+    if owner_id:
+        q = q.filter(Quotation.owner_id == owner_id)
+    if company_id:
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        assoc_pids = db.session.query(ProjectCustomerAssociation.project_id).filter(
+            ProjectCustomerAssociation.company_id == company_id
+        ).subquery()
+        q = q.filter(Project.id.in_(db.session.query(assoc_pids.c.project_id)))
+    if product_name:
+        q = q.filter(QuotationDetail.product_name == product_name)
+    if search:
+        q = q.filter(or_(
+            QuotationDetail.product_name.ilike(f'%{search}%'),
+            QuotationDetail.product_model.ilike(f'%{search}%'),
+            Project.project_name.ilike(f'%{search}%')
+        ))
+
+    return q
+
+
+@product_analysis.route('/api/v2/export')
+@login_required
+@permission_required('quotation', 'view')
+def api_v2_export():
+    """导出明细数据为 Excel（仅管理员）"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': _('仅管理员可使用导出功能')}), 403
+    try:
+        from io import BytesIO
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+        from collections import defaultdict
+
+        q = _build_filtered_detail_query()
+
+        sort_by = request.args.get('sort_by', 'created_at')
+        sort_dir = request.args.get('sort_dir', 'desc')
+        sort_map = {
+            'product_name': QuotationDetail.product_name,
+            'product_model': QuotationDetail.product_model,
+            'quantity': QuotationDetail.quantity,
+            'total_price': QuotationDetail.total_price,
+            'project_name': Project.project_name,
+            'created_at': QuotationDetail.created_at,
+        }
+        sort_col = sort_map.get(sort_by, QuotationDetail.created_at)
+        order = sort_col.desc() if sort_dir == 'desc' else sort_col.asc()
+        results = q.order_by(order).all()
+
+        if not results:
+            return jsonify({'success': False, 'message': _('暂无数据')}), 404
+
+        # 批量预加载
+        owner_ids_set = list({r.quotation_owner_id for r in results})
+        owners = {u.id: u for u in User.query.filter(User.id.in_(owner_ids_set)).all()} if owner_ids_set else {}
+
+        project_ids = list({r.project_id for r in results})
+        product_mns = list({r.product_mn for r in results if r.product_mn})
+
+        # 批量订单量
+        from app.models.pricing_order import PricingOrder, PricingOrderDetail
+        order_qty_map = {}
+        if project_ids and product_mns:
+            order_rows = db.session.query(
+                PricingOrder.project_id, PricingOrderDetail.product_mn,
+                func.sum(PricingOrderDetail.quantity).label('qty')
+            ).join(PricingOrder, PricingOrderDetail.pricing_order_id == PricingOrder.id
+            ).filter(
+                PricingOrder.project_id.in_(project_ids),
+                PricingOrderDetail.product_mn.in_(product_mns)
+            ).group_by(PricingOrder.project_id, PricingOrderDetail.product_mn).all()
+            for row in order_rows:
+                order_qty_map[(row.project_id, row.product_mn)] = int(row.qty or 0)
+
+        # 批量关联客户
+        from app.models.project_customer_association import ProjectCustomerAssociation
+        from app.models.customer import Company
+        customer_map = {}
+        if project_ids:
+            assoc_rows = db.session.query(
+                ProjectCustomerAssociation.project_id, Company.company_name, Company.company_type
+            ).join(Company, ProjectCustomerAssociation.company_id == Company.id
+            ).filter(
+                ProjectCustomerAssociation.project_id.in_(project_ids),
+                Company.company_type.in_(['distributor', 'dealer']),
+                Company.is_deleted == False
+            ).all()
+            proj_customers = defaultdict(lambda: {'distributor': [], 'dealer': []})
+            for row in assoc_rows:
+                proj_customers[row.project_id][row.company_type].append(row.company_name)
+            for pid, types in proj_customers.items():
+                names = types['distributor'] + types['dealer']
+                customer_map[pid] = ' / '.join(names)
+
+        # 生成 Excel
+        wb = Workbook()
+        ws = wb.active
+        ws.title = _('产品明细')
+
+        header_font = Font(name='微软雅黑', size=11, bold=True, color='FFFFFF')
+        normal_font = Font(name='微软雅黑', size=10)
+        header_fill = PatternFill(start_color='0066CC', end_color='0066CC', fill_type='solid')
+        center_align = Alignment(horizontal='center', vertical='center')
+        left_align = Alignment(horizontal='left', vertical='center')
+        right_align = Alignment(horizontal='right', vertical='center')
+        thin_border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+
+        headers = [_('产品'), _('型号'), _('MN编码'), _('设计数量'), _('订单量'),
+                   _('单价'), _('金额'), _('项目'), _('关联客户'), _('阶段'),
+                   _('负责人'), _('日期')]
+        for col_idx, h in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_idx, value=h)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = center_align
+            cell.border = thin_border
+
+        for row_idx, r in enumerate(results, 2):
+            owner = owners.get(r.quotation_owner_id)
+            order_qty = order_qty_map.get((r.project_id, r.product_mn), 0)
+            row_data = [
+                r.product_name or '',
+                r.product_model or '',
+                r.product_mn or '',
+                int(r.quantity or 0),
+                order_qty if order_qty else '',
+                float(r.unit_price or 0),
+                float(r.total_price or 0),
+                r.project_name or '',
+                customer_map.get(r.project_id, ''),
+                get_stage_label(r.current_stage) if r.current_stage else '',
+                owner.real_name if owner else '',
+                r.created_at.strftime('%Y-%m-%d') if r.created_at else ''
+            ]
+            for col_idx, val in enumerate(row_data, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                cell.font = normal_font
+                cell.border = thin_border
+                if col_idx in (4, 5, 6, 7):
+                    cell.alignment = right_align
+                else:
+                    cell.alignment = left_align
+
+        # 列宽
+        col_widths = [18, 14, 14, 10, 10, 12, 14, 24, 24, 10, 10, 12]
+        for i, w in enumerate(col_widths, 1):
+            ws.column_dimensions[chr(64 + i) if i <= 26 else 'A' + chr(64 + i - 26)].width = w
+
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        year = int(request.args.get('year', datetime.now().year))
+        year_label = _('全部') if year == 0 else str(year)
+        filename = f'product_detail_{year_label}_{datetime.now().strftime("%m%d")}.xlsx'
+        return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         as_attachment=True, download_name=filename)
+    except Exception as e:
+        logger.error(f"v2 export 失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500

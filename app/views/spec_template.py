@@ -597,7 +597,7 @@ def api_create_template():
         return jsonify({'success': False, 'message': _('产品型号不能为空')}), 400
 
     # 检查型号是否重复
-    existing = SpecTemplate.query.filter_by(model=data['model']).first()
+    existing = SpecTemplate.query.filter_by(model=data['model'], is_active=True).first()
     if existing:
         return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
 
@@ -688,7 +688,8 @@ def api_update_template(template_id):
     # 检查型号是否重复（排除自己）
     existing = SpecTemplate.query.filter(
         SpecTemplate.model == data['model'],
-        SpecTemplate.id != template_id
+        SpecTemplate.id != template_id,
+        SpecTemplate.is_active == True
     ).first()
     if existing:
         return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
@@ -869,7 +870,7 @@ def api_copy_template(template_id):
     new_model = data.get('model', f"{template.model}_copy")
 
     # 检查新型号是否已存在
-    if SpecTemplate.query.filter_by(model=new_model).first():
+    if SpecTemplate.query.filter_by(model=new_model, is_active=True).first():
         return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
 
     # 创建新模板

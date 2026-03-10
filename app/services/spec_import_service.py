@@ -369,7 +369,7 @@ class SpecImportService:
                                       cat=template_info['category_name']))
 
             # 检查模板是否已存在
-            existing = SpecTemplate.query.filter_by(model=template_info['model']).first()
+            existing = SpecTemplate.query.filter_by(model=template_info['model'], is_active=True).first()
             if existing:
                 return {
                     'success': False,
