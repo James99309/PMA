@@ -880,17 +880,24 @@ const ProductSpecModal = (function() {
             return;
         }
 
-        // 获取第一个有有效快照的产品作为基准
-        let baseSnapshot = [];
-        for (const product of products) {
-            const snapshot = parseSnapshot(product.code_definition_snapshot);
-            if (snapshot.length > 0) {
-                baseSnapshot = snapshot;
-                break;
-            }
-        }
+        // 收集所有产品的全部字段名（取并集，确保新老产品的字段都被包含）
+        const allFieldNames = [];
+        const seenFieldNames = new Set();
+        let hasAnySnapshot = false;
 
-        if (baseSnapshot.length === 0) {
+        products.forEach(product => {
+            const snapshot = parseSnapshot(product.code_definition_snapshot);
+            if (snapshot.length > 0) hasAnySnapshot = true;
+            snapshot.forEach(field => {
+                const fieldName = field.field_name || field.name;
+                if (!seenFieldNames.has(fieldName)) {
+                    seenFieldNames.add(fieldName);
+                    allFieldNames.push(fieldName);
+                }
+            });
+        });
+
+        if (!hasAnySnapshot) {
             // 产品无编码字段（配件/软件/许可类），设置空字段列表继续流程
             state.fixedFields = [];
             state.selectableFields = [];
@@ -898,24 +905,25 @@ const ProductSpecModal = (function() {
             return;
         }
 
-        // 分析每个编码位置的差异
+        // 分析每个字段的差异（基于所有产品的并集字段列表）
         const codeAnalysis = [];
 
-        baseSnapshot.forEach((field, index) => {
+        allFieldNames.forEach((fieldName, index) => {
             const position = index;
-            const fieldName = field.field_name || field.name;
 
             // 检查是否已被用户选择
             const userSelectedCode = state.userSelections[position]?.code || null;
 
-            // 收集该位置所有产品的编码值
+            // 收集该字段所有产品的编码值
             const codeOptions = new Map();
+            let productsWithField = 0;
 
             products.forEach(product => {
                 try {
                     const snapshot = parseSnapshot(product.code_definition_snapshot);
                     const matchingField = findFieldInSnapshot(snapshot, fieldName);
                     if (matchingField) {
+                        productsWithField++;
                         const codeValue = matchingField.code;
                         const indicatorValue = matchingField.value;
                         const unitValue = matchingField.unit || null;
@@ -935,8 +943,8 @@ const ProductSpecModal = (function() {
                 }
             });
 
-            // 判断是否有差异
-            const isDifferent = codeOptions.size > 1;
+            // 字段有差异：不同产品有不同值，或部分产品缺少该字段
+            const isDifferent = codeOptions.size > 1 || productsWithField < products.length;
 
             codeAnalysis.push({
                 position: position,
@@ -1121,7 +1129,8 @@ const ProductSpecModal = (function() {
                     const pIdx = parseInt(p);
                     if (pIdx >= pos) continue; // 只看上级字段（position < 当前）
                     const selField = sel.fieldName ? findFieldInSnapshot(snapshot, sel.fieldName) : null;
-                    if (selField && selField.code !== sel.code) {
+                    // 产品缺少该字段 或 字段值不匹配 → 不满足上级条件
+                    if (!selField || selField.code !== sel.code) {
                         matches = false;
                         break;
                     }
@@ -1153,6 +1162,16 @@ const ProductSpecModal = (function() {
 
             const container = document.querySelector(`.spec-field-group[data-position="${pos}"]`);
             if (!container) return;
+
+            // 该字段在当前条件下无任何有效选项 → 隐藏整个字段组（不适用于剩余产品）
+            if (valid.size === 0) {
+                container.style.display = 'none';
+                delete state.userSelections[pos];
+                state.autoSelectedPositions.delete(pos);
+                return; // 跳过后续处理
+            } else {
+                container.style.display = '';
+            }
 
             container.querySelectorAll('.spec-option-card').forEach(card => {
                 const code = card.dataset.code;
@@ -1243,7 +1262,12 @@ const ProductSpecModal = (function() {
      */
     function checkAllFieldsSelected() {
         const allSelected = state.selectableFields.length === 0 ||
-            state.selectableFields.every(field => state.userSelections[field.position] !== undefined);
+            state.selectableFields.every(field => {
+                // 跳过已隐藏的字段（在当前剩余产品中不存在的规格）
+                const container = document.querySelector(`.spec-field-group[data-position="${field.position}"]`);
+                if (container && container.style.display === 'none') return true;
+                return state.userSelections[field.position] !== undefined;
+            });
 
         state.allSpecsSelected = allSelected && state.remainingProducts.length > 0;
 
