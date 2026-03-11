@@ -4364,12 +4364,20 @@ def get_configurations_tree():
         tree_data = sp8d_api_service.get_configurations_tree()
 
         if tree_data is not None:
-            # 标记为远程配置，前端不应设置 source_configuration_id
-            # 因为 SP8D 的配置 ID 在 OVS 数据库中不存在（会导致 FK 违规）
+            # 查询 OVS 本地已引入的 mn_code 集合，用于标记 already_imported
+            local_imported_mns = set(
+                mn for (mn,) in db.session.query(Product.mn_code).filter(
+                    Product.mn_code.isnot(None),
+                    Product.is_deleted == False
+                ).all()
+            )
+
+            # 标记为远程配置，并根据 OVS 本地 Product 表判断是否已引入
             def mark_remote_configs(nodes):
                 for node in nodes:
                     if node.get('type') == 'configuration':
                         node['is_remote'] = True
+                        node['already_imported'] = node.get('mn_code', '') in local_imported_mns
                     if 'children' in node:
                         mark_remote_configs(node['children'])
 

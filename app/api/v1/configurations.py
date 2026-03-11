@@ -142,10 +142,9 @@ def get_configurations_tree():
             cat_id = template.category_id
             sub_id = template.subcategory_id
 
-            # 检查是否已引入（通过source_configuration_id查询Product表）
-            already_imported = Product.query.filter_by(
-                source_configuration_id=config.id
-            ).first() is not None
+            # already_imported 由调用端（OVS）根据本地 Product 表判断
+            # SP8D 端不应判断，因为 OVS 需要的是 OVS 自己是否已引入
+            already_imported = False
 
             # 获取状态显示文本
             status_display = _('可生产') if config.status == 'production' else _('小批价')
