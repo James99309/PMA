@@ -802,27 +802,27 @@
                                                                                    @change="markChanged()">
                                                                             <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('查看') }}</span>
                                                                         </label>
-                                                                        <label class="flex items-center gap-2" :class="isEditing ? 'cursor-pointer' : 'cursor-default'">
+                                                                        <label class="flex items-center gap-2" :class="isEditing && module.id !== 'product_analysis' ? 'cursor-pointer' : 'cursor-default'">
                                                                             <input type="checkbox" class="perm-create w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                                                                    :data-module="module.id"
                                                                                    :checked="getPermission(module.id).can_create"
-                                                                                   :disabled="!isEditing"
+                                                                                   :disabled="!isEditing || module.id === 'product_analysis'"
                                                                                    @change="markChanged()">
                                                                             <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('创建') }}</span>
                                                                         </label>
-                                                                        <label class="flex items-center gap-2" :class="isEditing ? 'cursor-pointer' : 'cursor-default'">
+                                                                        <label class="flex items-center gap-2" :class="isEditing && module.id !== 'product_analysis' ? 'cursor-pointer' : 'cursor-default'">
                                                                             <input type="checkbox" class="perm-edit w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                                                                    :data-module="module.id"
                                                                                    :checked="getPermission(module.id).can_edit"
-                                                                                   :disabled="!isEditing"
+                                                                                   :disabled="!isEditing || module.id === 'product_analysis'"
                                                                                    @change="markChanged()">
                                                                             <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('编辑') }}</span>
                                                                         </label>
-                                                                        <label class="flex items-center gap-2" :class="isEditing ? 'cursor-pointer' : 'cursor-default'">
+                                                                        <label class="flex items-center gap-2" :class="isEditing && module.id !== 'product_analysis' ? 'cursor-pointer' : 'cursor-default'">
                                                                             <input type="checkbox" class="perm-delete w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                                                                    :data-module="module.id"
                                                                                    :checked="getPermission(module.id).can_delete"
-                                                                                   :disabled="!isEditing"
+                                                                                   :disabled="!isEditing || module.id === 'product_analysis'"
                                                                                    @change="markChanged()">
                                                                             <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('删除') }}</span>
                                                                         </label>

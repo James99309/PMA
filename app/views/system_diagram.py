@@ -42,7 +42,7 @@ def _can_edit_diagram(diagram):
 
 @system_diagram.route('/')
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'view')
 def list_view():
     """系统图列表页"""
     diagrams = SystemDiagram.query.filter(
@@ -64,7 +64,7 @@ def list_view():
 
 @system_diagram.route('/new')
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'create')
 def new_editor():
     """新建系统图编辑器"""
     project_id = request.args.get('project_id', 0, type=int)
@@ -83,7 +83,7 @@ def new_editor():
 
 @system_diagram.route('/<int:diagram_id>')
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'view')
 def edit_editor(diagram_id):
     """编辑已有系统图"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
@@ -107,7 +107,7 @@ def edit_editor(diagram_id):
 
 @system_diagram.route('/templates')
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'view')
 def template_gallery():
     """模板选择页 — 从项目详情页创建系统图时先选模板"""
     project_id = request.args.get('project_id', 0, type=int)
@@ -127,7 +127,7 @@ def template_gallery():
 
 @system_diagram.route('/api/create-from-template', methods=['POST'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'create')
 def api_create_from_template():
     """从模板创建新系统图（克隆模板数据）"""
     data = request.get_json()
@@ -164,7 +164,7 @@ def api_create_from_template():
 
 @system_diagram.route('/api/<int:diagram_id>/toggle-template', methods=['POST'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'edit')
 def api_toggle_template(diagram_id):
     """切换系统图的模板标记"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
@@ -178,7 +178,7 @@ def api_toggle_template(diagram_id):
 
 @system_diagram.route('/api/products')
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'view')
 def api_products():
     """获取产品列表，按分类→子分类→产品层级分组"""
     return jsonify({'success': True, 'categories': _get_products_data()})
@@ -186,7 +186,7 @@ def api_products():
 
 @system_diagram.route('/api/save', methods=['POST'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'edit')
 def api_save():
     """保存或更新系统图"""
     data = request.get_json()
@@ -233,7 +233,7 @@ def api_save():
 
 @system_diagram.route('/api/<int:diagram_id>/data')
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'view')
 def api_load(diagram_id):
     """加载系统图数据"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
@@ -256,7 +256,7 @@ def api_load(diagram_id):
 
 @system_diagram.route('/api/<int:diagram_id>', methods=['DELETE'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'delete')
 def api_delete(diagram_id):
     """软删除系统图"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
@@ -282,7 +282,7 @@ def _get_bg_upload_dir():
 
 @system_diagram.route('/api/<int:diagram_id>/floor-plan/upload-bg', methods=['POST'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'edit')
 def upload_floor_bg(diagram_id):
     """上传楼层平面图背景图片 (PNG/JPG)"""
     # 验证所有权
@@ -346,7 +346,7 @@ def upload_floor_bg(diagram_id):
 
 @system_diagram.route('/api/<int:diagram_id>/floor-plan/delete-bg', methods=['POST'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'edit')
 def delete_floor_bg(diagram_id):
     """删除楼层背景图"""
     # 验证所有权
@@ -377,7 +377,7 @@ def delete_floor_bg(diagram_id):
 
 @system_diagram.route('/api/<int:diagram_id>/floor-plan/analyze-pdf', methods=['POST'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'edit')
 def analyze_pdf_api(diagram_id):
     """分析 PDF 页面信息（缩略图 + 书签名称）"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
@@ -440,7 +440,7 @@ def analyze_pdf_api(diagram_id):
 
 @system_diagram.route('/api/<int:diagram_id>/floor-plan/render-pdf-pages', methods=['POST'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'edit')
 def render_pdf_pages(diagram_id):
     """批量渲染选中的 PDF 页面为多分辨率 PNG"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
@@ -519,7 +519,7 @@ def render_pdf_pages(diagram_id):
 
 @system_diagram.route('/bg/<string:filename>')
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'view')
 def serve_floor_bg(filename):
     """提供平面图背景图片"""
     upload_dir = _get_bg_upload_dir()
@@ -718,7 +718,7 @@ def api_create_quotation_from_bom(diagram_id):
 
 @system_diagram.route('/api/share', methods=['POST'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'view')
 def api_create_share():
     """创建分享链接并发送邮件"""
     data = request.get_json()
@@ -835,7 +835,7 @@ def api_create_share():
 
 @system_diagram.route('/api/shares')
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'view')
 def api_list_shares():
     """查看我创建的分享"""
     shares = DiagramShareToken.query.filter_by(
@@ -861,7 +861,7 @@ def api_list_shares():
 
 @system_diagram.route('/api/shares/<int:share_id>', methods=['DELETE'])
 @login_required
-@permission_required('product', 'view')
+@permission_required('system_diagram', 'view')
 def api_delete_share(share_id):
     """作废分享链接"""
     share = DiagramShareToken.query.get_or_404(share_id)

@@ -206,6 +206,24 @@ MODULE_METADATA_FALLBACK = {
         'supports_affiliation': True,
         'supports_content_filter': False,
         'description': '管理系统公告'
+    },
+    'product_analysis': {
+        'name': '植入分析',
+        'icon': 'analytics',
+        'supports_discount': False,
+        'supports_owner_change': False,
+        'supports_affiliation': False,
+        'supports_content_filter': False,
+        'description': '产品植入分析数据查看（仅查看权限）'
+    },
+    'system_diagram': {
+        'name': '系统设计',
+        'icon': 'draw',
+        'supports_discount': False,
+        'supports_owner_change': False,
+        'supports_affiliation': False,
+        'supports_content_filter': False,
+        'description': '系统设计图管理'
     }
 }
 

@@ -109,13 +109,13 @@ def apply_permission_based_filters(query, current_user, quotation_alias=Quotatio
     if is_admin_or_ceo():
         return query
     
-    # 检查用户是否有报价单查看权限
-    if not (hasattr(current_user, 'has_permission') and current_user.has_permission('quotation', 'view')):
+    # 检查用户是否有植入分析查看权限
+    if not (hasattr(current_user, 'has_permission') and current_user.has_permission('product_analysis', 'view')):
         # 如果没有权限，返回空查询
         return query.filter(False)
-    
+
     # 获取权限级别
-    permission_level = current_user.get_permission_level('quotation')
+    permission_level = current_user.get_permission_level('product_analysis')
     
     if permission_level == 'system':
         # 系统级权限：可以查看所有数据
@@ -150,7 +150,7 @@ def apply_permission_based_filters(query, current_user, quotation_alias=Quotatio
         # 4. 基于权限配置的项目类型过滤
         # 注：各角色可见的项目类型通过权限配置系统的 content_filters 控制
         # 例如：渠道经理配置 content_filters = {"project_type": ["channel_follow"]}
-        permission = current_user.get_permission_config('quotation')
+        permission = current_user.get_permission_config('product_analysis')
         if permission and hasattr(permission, 'content_filters') and permission.content_filters:
             content_filters = permission.content_filters
             if isinstance(content_filters, dict) and 'project_type' in content_filters:
@@ -232,7 +232,7 @@ def create_stage_analytics_component():
 
 @product_analysis.route('/analysis')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def analysis():
     """产品分析主页面 - Tailwind 仪表板"""
     from app.services.product_attribution import get_analysis_view_scope
@@ -241,7 +241,7 @@ def analysis():
 
 @product_analysis.route('/api/filter_options')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def get_filter_options():
     """获取筛选选项的联动数据"""
     try:
@@ -289,7 +289,7 @@ def get_filter_options():
 
 @product_analysis.route('/api/analysis_data')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def get_analysis_data():
     """获取产品分析数据 - 性能优化版本，只统计每个项目的最新报价单"""
     try:
@@ -468,7 +468,7 @@ stage_analytics_component.create_api_endpoint(
 
 @product_analysis.route('/api/products/filter')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def products_list_ajax():
     """植入产品分析AJAX筛选端点 - 只统计每个项目的最新报价单"""
     try:
@@ -734,7 +734,7 @@ def products_list_ajax():
 
 @product_analysis.route('/api/export_analysis')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def export_analysis():
     """导出产品分析数据"""
     try:
@@ -831,7 +831,7 @@ def _apply_scope_filter(query, scope):
 
 @product_analysis.route('/tw')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def tw_analysis():
     """向后兼容：重定向到主路由"""
     from flask import redirect
@@ -840,7 +840,7 @@ def tw_analysis():
 
 @product_analysis.route('/api/v2/overview')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def api_v2_overview():
     """概览统计卡片数据"""
     try:
@@ -906,7 +906,7 @@ def api_v2_overview():
 
 @product_analysis.route('/api/v2/trend')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def api_v2_trend():
     """月度趋势数据（滚动12个月：当月前6 + 当月 + 后5）"""
     try:
@@ -969,7 +969,7 @@ def api_v2_trend():
 
 @product_analysis.route('/api/v2/distribution')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def api_v2_distribution():
     """分布数据（按类别/阶段）"""
     try:
@@ -1047,7 +1047,7 @@ def api_v2_distribution():
 
 @product_analysis.route('/api/v2/ranking')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def api_v2_ranking():
     """排名数据（含引用次数、系数、积分）— 显示所有活跃产品"""
     try:
@@ -1116,7 +1116,7 @@ def api_v2_ranking():
 
 @product_analysis.route('/api/v2/coefficient-stats')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def api_v2_coefficient_stats():
     """引用系数统计卡片数据"""
     try:
@@ -1149,7 +1149,7 @@ def api_v2_coefficient_stats():
 
 @product_analysis.route('/api/v2/detail')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def api_v2_detail():
     """明细列表（支持级联产品筛选、阶段、负责人、订单量、关联客户）"""
     try:
@@ -1274,7 +1274,7 @@ def api_v2_detail():
 
 @product_analysis.route('/api/v2/filter_options')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def api_v2_filter_options():
     """获取筛选选项数据（分类/子分类/产品型号级联 + 阶段 + 负责人）"""
     try:
@@ -1367,6 +1367,7 @@ def api_v2_filter_options():
 
 @product_analysis.route('/api/v2/quotation_items/<int:quotation_id>')
 @login_required
+@permission_required('product_analysis', 'view')
 def api_v2_quotation_items(quotation_id):
     """获取报价单明细产品信息（不含价格）"""
     try:
@@ -1479,7 +1480,7 @@ def _build_filtered_detail_query():
 
 @product_analysis.route('/api/v2/export')
 @login_required
-@permission_required('quotation', 'view')
+@permission_required('product_analysis', 'view')
 def api_v2_export():
     """导出明细数据为 Excel（仅管理员）"""
     if current_user.role != 'admin':
