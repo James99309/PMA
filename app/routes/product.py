@@ -4364,10 +4364,10 @@ def get_configurations_tree():
         tree_data = sp8d_api_service.get_configurations_tree()
 
         if tree_data is not None:
-            # 查询 OVS 本地已引入的 mn_code 集合，用于标记 already_imported
+            # 查询 OVS 本地已引入的 product_mn 集合，用于标记 already_imported
             local_imported_mns = set(
-                mn for (mn,) in db.session.query(Product.mn_code).filter(
-                    Product.mn_code.isnot(None),
+                mn for (mn,) in db.session.query(Product.product_mn).filter(
+                    Product.product_mn.isnot(None),
                     Product.is_deleted == False
                 ).all()
             )
