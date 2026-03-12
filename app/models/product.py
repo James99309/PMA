@@ -42,7 +42,6 @@ class Product(db.Model):
     source_type = db.Column(db.String(20))  # 'manual'(手动创建) 或 'from_dev'(研发产品化)
     source_dev_product_id = db.Column(db.Integer, db.ForeignKey('dev_products.id'))  # 来源研发产品ID
     source_configuration_id = db.Column(db.Integer, db.ForeignKey('product_configurations.id'))  # 来源配置版本ID（本地）
-    sp8d_configuration_id = db.Column(db.Integer, nullable=True)  # SP8D远程配置版本ID（跨NAS导入时使用，无FK约束）
     productized_at = db.Column(db.DateTime)  # 产品化时间
 
     # 积分系数

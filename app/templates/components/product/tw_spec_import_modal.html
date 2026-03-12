@@ -142,7 +142,7 @@
 </div>
 {% endmacro %}
 
-{% macro tw_spec_import_script(product_id, is_sp8d=false) %}
+{% macro tw_spec_import_script(product_id) %}
 <script>
 function specImportModalData() {
     return {
@@ -152,7 +152,7 @@ function specImportModalData() {
         error: false,
         errorMessage: '',
         productId: {{ product_id }},
-        isSp8d: {{ 'true' if is_sp8d else 'false' }},
+        sp8dConfigId: null,
         configuration: {},
         specs: [],
         selectedOptionalIds: [],
@@ -176,10 +176,11 @@ function specImportModalData() {
             this.error = false;
             this.errorMessage = '';
             this.selectedOptionalIds = [];
+            this.sp8dConfigId = detail?.sp8dConfigId || null;
 
             try {
-                const specsUrl = this.isSp8d
-                    ? `/api/products/${this.productId}/sp8d-configuration-specs`
+                const specsUrl = this.sp8dConfigId
+                    ? `/api/sp8d-configuration-specs/${this.sp8dConfigId}`
                     : `/api/products/${this.productId}/configuration-specs`;
                 const response = await fetch(specsUrl);
                 const data = await response.json();
@@ -227,6 +228,11 @@ function specImportModalData() {
                 ...this.selectedOptionalIds
             ];
 
+            const requestBody = { spec_ids: specIds };
+            if (this.sp8dConfigId) {
+                requestBody.sp8d_config_id = parseInt(this.sp8dConfigId);
+            }
+
             try {
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
                 const response = await fetch(`/api/products/${this.productId}/import-specs`, {
@@ -235,7 +241,7 @@ function specImportModalData() {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': csrfToken
                     },
-                    body: JSON.stringify({ spec_ids: specIds })
+                    body: JSON.stringify(requestBody)
                 });
 
                 const data = await response.json();

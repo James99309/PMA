@@ -280,8 +280,8 @@
                                             <span class="material-symbols-outlined text-base">add</span>
                                             {{ _('添加') }}
                                         </button>
-                                        <!-- 引入按钮（仅引入产品显示） -->
-                                        {% if product.source_configuration_id or product.sp8d_configuration_id %}
+                                        <!-- 引入按钮（配置引入产品 或 SP8D导入产品显示） -->
+                                        {% if product.source_configuration_id or product.source_type == 'from_sp8d' %}
                                         <button id="importSpecsBtn" class="text-sm text-primary hover:text-primary-hover font-medium flex items-center gap-1">
                                             <span class="material-symbols-outlined text-base">download</span>
                                             {{ _('引入') }}
@@ -1319,9 +1319,9 @@
 ) }}
 
 <!-- 规格引入模态框（从配置版本引入规格） -->
-{% if product.source_configuration_id %}
+{% if product.source_configuration_id or product.source_type == 'from_sp8d' %}
 {{ tw_spec_import_modal() }}
-{{ tw_spec_import_script(product.id, is_sp8d=product.sp8d_configuration_id is not none) }}
+{{ tw_spec_import_script(product.id) }}
 {% endif %}
 
 <!-- 规格编辑模式脚本 -->
@@ -1331,16 +1331,17 @@
     const productId = {{ product.id }};
     const isMnLocked = {{ 'true' if is_mn_locked else 'false' }};
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    const hasSourceConfiguration = {{ 'true' if product.source_configuration_id or product.sp8d_configuration_id else 'false' }};
-    const isSp8dImport = {{ 'true' if product.sp8d_configuration_id else 'false' }};
+    const hasSourceConfiguration = {{ 'true' if product.source_configuration_id else 'false' }};
     const sourceType = '{{ product.source_type or "manual" }}';
+    const urlParams = new URLSearchParams(window.location.search);
+    const sp8dConfigId = urlParams.get('sp8d_config_id');
 
     // 引入按钮打开规格引入模态框（仅引入产品有此按钮）
     const importBtn = document.getElementById('importSpecsBtn');
     if (importBtn) {
         importBtn.addEventListener('click', function() {
             window.dispatchEvent(new CustomEvent('open-spec-import-modal', {
-                detail: { productId: productId }
+                detail: { productId: productId, sp8dConfigId: sp8dConfigId || null }
             }));
         });
     }
@@ -1403,17 +1404,16 @@
     specEditor.init();
 
     // 如果是引入产品，设置标记以启用编辑限制（包括 SP8D 跨 NAS 导入）
-    if (hasSourceConfiguration || sourceType === 'from_sp8d') {
+    if (hasSourceConfiguration || sourceType === 'from_config' || sourceType === 'from_sp8d') {
         specEditor.setImportedProduct(true);
     }
 
     // 从配置引入后自动打开规格引入模态框
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('import_specs') === '1' && hasSourceConfiguration) {
+    if (urlParams.get('import_specs') === '1' && (hasSourceConfiguration || sp8dConfigId)) {
         // 延迟触发，确保 Alpine.js 组件已初始化
         setTimeout(function() {
             window.dispatchEvent(new CustomEvent('open-spec-import-modal', {
-                detail: { productId: productId }
+                detail: { productId: productId, sp8dConfigId: sp8dConfigId }
             }));
         }, 500);
         // 清除URL参数，避免刷新时重复打开
