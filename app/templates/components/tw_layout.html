@@ -360,8 +360,8 @@ document.addEventListener('submit', function(e) {
         </aside>
 
         <!-- 主内容区 -->
-        <main class="overflow-y-auto bg-background-light dark:bg-black"
-              :class="splitScreen.active ? 'hidden' : 'flex-1'">
+        <main class="flex-1 overflow-y-auto bg-background-light dark:bg-black"
+              :class="splitScreen.active && 'hidden'">
             {{ caller('content') if caller else '' }}
         </main>
 

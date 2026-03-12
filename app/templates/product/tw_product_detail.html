@@ -281,7 +281,7 @@
                                             {{ _('添加') }}
                                         </button>
                                         <!-- 引入按钮（仅引入产品显示） -->
-                                        {% if product.source_configuration_id %}
+                                        {% if product.source_configuration_id or product.sp8d_configuration_id %}
                                         <button id="importSpecsBtn" class="text-sm text-primary hover:text-primary-hover font-medium flex items-center gap-1">
                                             <span class="material-symbols-outlined text-base">download</span>
                                             {{ _('引入') }}
@@ -1321,7 +1321,7 @@
 <!-- 规格引入模态框（从配置版本引入规格） -->
 {% if product.source_configuration_id %}
 {{ tw_spec_import_modal() }}
-{{ tw_spec_import_script(product.id) }}
+{{ tw_spec_import_script(product.id, is_sp8d=product.sp8d_configuration_id is not none) }}
 {% endif %}
 
 <!-- 规格编辑模式脚本 -->
@@ -1331,7 +1331,8 @@
     const productId = {{ product.id }};
     const isMnLocked = {{ 'true' if is_mn_locked else 'false' }};
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-    const hasSourceConfiguration = {{ 'true' if product.source_configuration_id else 'false' }};
+    const hasSourceConfiguration = {{ 'true' if product.source_configuration_id or product.sp8d_configuration_id else 'false' }};
+    const isSp8dImport = {{ 'true' if product.sp8d_configuration_id else 'false' }};
     const sourceType = '{{ product.source_type or "manual" }}';
 
     // 引入按钮打开规格引入模态框（仅引入产品有此按钮）

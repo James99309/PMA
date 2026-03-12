@@ -142,7 +142,7 @@
 </div>
 {% endmacro %}
 
-{% macro tw_spec_import_script(product_id) %}
+{% macro tw_spec_import_script(product_id, is_sp8d=false) %}
 <script>
 function specImportModalData() {
     return {
@@ -152,6 +152,7 @@ function specImportModalData() {
         error: false,
         errorMessage: '',
         productId: {{ product_id }},
+        isSp8d: {{ 'true' if is_sp8d else 'false' }},
         configuration: {},
         specs: [],
         selectedOptionalIds: [],
@@ -177,7 +178,10 @@ function specImportModalData() {
             this.selectedOptionalIds = [];
 
             try {
-                const response = await fetch(`/api/products/${this.productId}/configuration-specs`);
+                const specsUrl = this.isSp8d
+                    ? `/api/products/${this.productId}/sp8d-configuration-specs`
+                    : `/api/products/${this.productId}/configuration-specs`;
+                const response = await fetch(specsUrl);
                 const data = await response.json();
                 if (data.success) {
                     this.configuration = data.data.configuration;

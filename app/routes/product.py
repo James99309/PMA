@@ -2080,6 +2080,7 @@ def create_product():
             region_id=region_id,
             # 配置来源信息
             source_configuration_id=source_configuration_id,
+            sp8d_configuration_id=int(request.form.get('sp8d_configuration_id')) if source_type == 'from_sp8d' and request.form.get('sp8d_configuration_id') else None,
             source_type=source_type,
             # 从配置引入时锁定MN编码（本地或远程配置都锁定）
             is_mn_locked=True if source_type in ['from_config', 'from_sp8d', 'from_spec'] else False
@@ -2151,51 +2152,6 @@ def create_product():
         
         logger.info(f'产品创建成功: ID={new_product.id}, MN={new_product.product_mn}, 名称={new_product.product_name}, 有图片={has_image}, 有PDF={has_pdf}')
         logger.info(f'[DEBUG] 保存后的配置信息: source_configuration_id={new_product.source_configuration_id}, source_type={new_product.source_type}, category_id={new_product.category_id}, subcategory_id={new_product.subcategory_id}, region_id={new_product.region_id}')
-
-        # === SP8D 导入产品时自动导入规格 ===
-        if source_type == 'from_sp8d':
-            sp8d_config_id = request.form.get('sp8d_configuration_id')
-            if sp8d_config_id:
-                try:
-                    from app.services.sp8d_api_service import sp8d_api_service
-                    from app.services.spec_service import SpecService
-
-                    # 获取 SP8D 规格数据
-                    spec_data = sp8d_api_service.get_configuration_specs(int(sp8d_config_id))
-
-                    if spec_data and spec_data.get('specs'):
-                        # 转换为本地规格格式并保存
-                        specs_to_save = []
-                        for idx, spec in enumerate(spec_data['specs']):
-                            specs_to_save.append({
-                                'field_name': spec.get('name', ''),
-                                'field_name_en': spec.get('name_en', ''),
-                                'field_value': spec.get('value', ''),
-                                'field_code': spec.get('code_char', ''),
-                                'display_order': idx + 1,
-                                'include_in_description': True
-                            })
-
-                        # 使用规格服务保存
-                        result = SpecService.save_specs(
-                            SpecService.TYPE_PRODUCT,
-                            new_product.id,
-                            specs_to_save
-                        )
-                        if result.get('success'):
-                            logger.info(f"已从SP8D导入 {len(specs_to_save)} 条规格到产品 {new_product.id}")
-                            # 生成编码定义快照
-                            from app.utils.product_helpers import generate_product_snapshot
-                            snapshot = generate_product_snapshot(product=new_product, source="sp8d_import")
-                            if snapshot:
-                                new_product.code_definition_snapshot = snapshot
-                        else:
-                            logger.warning(f"SP8D规格导入部分失败: {result.get('message')}")
-                    else:
-                        logger.info(f"SP8D配置 {sp8d_config_id} 没有规格数据")
-                except Exception as e:
-                    logger.error(f"导入SP8D规格失败: {e}")
-                    # 规格导入失败不影响产品创建，只记录日志
 
         # 构建响应
         response_data = {
@@ -4608,6 +4564,58 @@ def get_configuration_specs(product_id):
     })
 
 
+@bp.route('/api/products/<int:product_id>/sp8d-configuration-specs', methods=['GET'])
+@login_required
+@permission_required('product', 'edit')
+def get_sp8d_configuration_specs(product_id):
+    """获取SP8D远程配置的规格数据（代理SP8D API）
+
+    用于SP8D跨NAS导入产品时，在规格引入选择模态框中展示可选规格。
+    返回格式与本地 get_configuration_specs 一致。
+    """
+    product = Product.query.get_or_404(product_id)
+
+    if not product.sp8d_configuration_id:
+        return jsonify({'success': False, 'message': _('该产品没有关联的SP8D配置版本')})
+
+    try:
+        from app.services.sp8d_api_service import sp8d_api_service
+        spec_data = sp8d_api_service.get_configuration_specs(product.sp8d_configuration_id)
+
+        if not spec_data:
+            return jsonify({'success': False, 'message': _('无法从SP8D获取规格数据')})
+
+        # 转换为与本地 get_configuration_specs 相同的返回格式
+        config_info = spec_data.get('configuration', {})
+        raw_specs = spec_data.get('specs', [])
+
+        specs = []
+        for spec in raw_specs:
+            specs.append({
+                'template_item_id': spec.get('template_item_id'),
+                'name': spec.get('name', ''),
+                'name_en': spec.get('name_en', ''),
+                'value': spec.get('value', ''),
+                'unit': spec.get('unit', ''),
+                'category': spec.get('category', ''),
+                'use_in_code': spec.get('use_in_code', False),
+                'code_char': spec.get('code_char'),
+                'is_required': spec.get('use_in_code', False)
+            })
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'configuration': config_info,
+                'specs': specs
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"获取SP8D配置规格失败: {e}")
+        return jsonify({'success': False, 'message': _('获取SP8D规格数据失败')})
+
+
 @bp.route('/api/products/<int:product_id>/import-specs', methods=['POST'])
 @login_required
 @permission_required('product', 'edit')
@@ -4615,6 +4623,7 @@ def import_configuration_specs(product_id):
     """从配置导入规格到产品
 
     清空产品现有规格，导入选中的配置规格项。
+    支持本地配置(from_config)和SP8D远程配置(from_sp8d)。
     重新生成产品描述和 spec_mn。
 
     Args:
@@ -4632,11 +4641,17 @@ def import_configuration_specs(product_id):
             "redirect": "产品详情页URL"
         }
     """
-    from app.models.spec_template import ProductConfiguration, SpecTemplate, SpecTemplateItem
-    from app.models.spec_template import generate_safe_code_char
     from app.models.product_spec import ProductSpec
 
     product = Product.query.get_or_404(product_id)
+
+    # SP8D远程导入走单独逻辑
+    if product.source_type == 'from_sp8d' and product.sp8d_configuration_id:
+        return _import_sp8d_specs(product)
+
+    # 本地配置导入
+    from app.models.spec_template import ProductConfiguration, SpecTemplate, SpecTemplateItem
+    from app.models.spec_template import generate_safe_code_char
 
     if not product.source_configuration_id:
         return jsonify({'success': False, 'message': _('该产品没有关联的配置版本')})
@@ -4741,6 +4756,94 @@ def import_configuration_specs(product_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"导入规格失败: {str(e)}")
+        return jsonify({'success': False, 'message': _('导入失败: %(error)s', error=str(e))})
+
+
+def _import_sp8d_specs(product):
+    """从SP8D远程配置导入选中的规格到产品（内部辅助函数）"""
+    from app.models.product_spec import ProductSpec
+    from app.services.sp8d_api_service import sp8d_api_service
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': _('请求数据无效')})
+
+    selected_ids = set(data.get('spec_ids', []))
+
+    try:
+        # 从SP8D获取规格数据
+        spec_data = sp8d_api_service.get_configuration_specs(product.sp8d_configuration_id)
+        if not spec_data or not spec_data.get('specs'):
+            return jsonify({'success': False, 'message': _('无法从SP8D获取规格数据')})
+
+        config_info = spec_data.get('configuration', {})
+        all_specs = spec_data['specs']
+
+        # 清空现有规格
+        ProductSpec.query.filter_by(product_id=product.id).delete()
+
+        new_specs = []
+        for idx, spec in enumerate(all_specs):
+            if spec.get('template_item_id') not in selected_ids:
+                continue
+
+            ps = ProductSpec(
+                product_id=product.id,
+                field_name=spec.get('name', ''),
+                field_value=spec.get('value', ''),
+                field_code=spec.get('code_char', ''),
+                include_in_description=True,
+                display_order=idx
+            )
+            db.session.add(ps)
+            new_specs.append(ps)
+
+        db.session.flush()
+
+        # 重新生成产品描述
+        from app.routes.product_code import get_field_unit
+        description_parts = []
+        for spec in new_specs:
+            if spec.include_in_description and spec.field_value:
+                unit = get_field_unit(spec.field_name) or ''
+                unit_str = f" {unit}" if unit else ""
+                description_parts.append(f"{spec.field_name}: {spec.field_value}{unit_str}")
+        product.specification = ", ".join(description_parts) if description_parts else ""
+
+        # 使用SP8D配置的 mn_code
+        mn_code = config_info.get('mn_code')
+        if mn_code:
+            product.spec_mn = mn_code
+            product.product_mn = mn_code
+        else:
+            from app.utils.product_helpers import generate_spec_mn
+            spec_mn = generate_spec_mn(product)
+            if spec_mn:
+                product.spec_mn = spec_mn
+                product.product_mn = spec_mn
+
+        product.is_mn_locked = True
+
+        # 生成编码定义快照
+        from app.utils.product_helpers import generate_product_snapshot
+        snapshot = generate_product_snapshot(product=product, source="sp8d_import")
+        if snapshot:
+            product.code_definition_snapshot = snapshot
+
+        product.updated_at = datetime.now()
+        db.session.commit()
+
+        logger.info(f"产品 {product.id} 从SP8D成功导入 {len(new_specs)} 个规格项")
+
+        return jsonify({
+            'success': True,
+            'message': _('成功导入 %(count)d 个规格项', count=len(new_specs)),
+            'redirect': url_for('product.view_product_detail', id=product.id)
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"SP8D规格导入失败: {str(e)}")
         return jsonify({'success': False, 'message': _('导入失败: %(error)s', error=str(e))})
 
 

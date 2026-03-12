@@ -1,7 +1,7 @@
 {
-  "app_version": "1.29.49",
+  "app_version": "1.29.50",
   "environment": "production",
-  "timestamp": "2026-03-12 17:34:27",
+  "timestamp": "2026-03-13 00:17:12",
   "modules": {
     "user": {
       "files": {
@@ -66,12 +66,12 @@
     "product": {
       "files": {
         "app/routes/product.py": {
-          "hash": "29d2254c3470c3b568cfcf3270ab272d",
-          "last_modified": "2026-03-11 13:44:00"
+          "hash": "357b04c3314ed776fc6de31a3d73b483",
+          "last_modified": "2026-03-13 00:15:37"
         },
         "app/models/product.py": {
-          "hash": "b68b0fb04f14e3412c14d4296a95a9c6",
-          "last_modified": "2026-03-09 23:33:43"
+          "hash": "b0a4977495822ced8c3848c327155cea",
+          "last_modified": "2026-03-13 00:13:41"
         }
       },
       "status": "ok"
