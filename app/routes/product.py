@@ -4790,32 +4790,35 @@ def _import_sp8d_specs(product, sp8d_config_id):
         ProductSpec.query.filter_by(product_id=product.id).delete()
 
         new_specs = []
+        coded_spec_parts = []  # 用于生成产品描述（仅编码规格）
         for idx, spec in enumerate(all_specs):
             if spec.get('template_item_id') not in selected_ids:
                 continue
 
+            is_coded = spec.get('use_in_code', False)
             ps = ProductSpec(
                 product_id=product.id,
                 field_name=spec.get('name', ''),
+                field_name_en=spec.get('name_en', ''),
                 field_value=spec.get('value', ''),
-                field_code=spec.get('code_char', ''),
-                include_in_description=True,
+                field_code=spec.get('code_char', '') if is_coded else None,
+                include_in_description=is_coded,
                 display_order=idx
             )
             db.session.add(ps)
             new_specs.append(ps)
 
+            # 编码规格纳入产品描述（使用英文名 + 单位）
+            if is_coded and spec.get('value'):
+                name = spec.get('name_en') or spec.get('name', '')
+                unit = spec.get('unit', '')
+                unit_str = f" {unit}" if unit else ""
+                coded_spec_parts.append(f"{name}: {spec.get('value')}{unit_str}")
+
         db.session.flush()
 
-        # 重新生成产品描述
-        from app.routes.product_code import get_field_unit
-        description_parts = []
-        for spec in new_specs:
-            if spec.include_in_description and spec.field_value:
-                unit = get_field_unit(spec.field_name) or ''
-                unit_str = f" {unit}" if unit else ""
-                description_parts.append(f"{spec.field_name}: {spec.field_value}{unit_str}")
-        product.specification = ", ".join(description_parts) if description_parts else ""
+        # 产品描述仅包含编码规格
+        product.specification = ", ".join(coded_spec_parts) if coded_spec_parts else ""
 
         # 使用SP8D配置的 mn_code
         mn_code = config_info.get('mn_code')
