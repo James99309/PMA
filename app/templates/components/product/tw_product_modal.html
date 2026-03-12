@@ -440,19 +440,19 @@ window.ProductModal = (function() {
      */
     function populateCurrencies() {
         currencySelect.innerHTML = '';
+        const defaultCurrency = isOvsSystem ? 'USD' : 'CNY';
         if (config.currencies && config.currencies.length > 0) {
-            config.currencies.forEach((item, index) => {
+            config.currencies.forEach((item) => {
                 const option = document.createElement('option');
                 option.value = item[0];  // code
                 option.textContent = item[1];  // 只显示名称（中文：人民币，英文：CNY）
-                if (index === 0) option.selected = true;  // 默认选中第一个（CNY）
+                if (item[0] === defaultCurrency) option.selected = true;
                 currencySelect.appendChild(option);
             });
         } else {
-            // 如果没有传递货币数据，使用默认值
             const defaultOption = document.createElement('option');
-            defaultOption.value = 'CNY';
-            defaultOption.textContent = '{{ _("人民币") }}';
+            defaultOption.value = defaultCurrency;
+            defaultOption.textContent = defaultCurrency;
             defaultOption.selected = true;
             currencySelect.appendChild(defaultOption);
         }
@@ -1155,7 +1155,7 @@ window.ProductModal = (function() {
         document.getElementById('productName').value = product.name || '';
         document.getElementById('productModel').value = product.model || '';
         document.getElementById('retailPrice').value = product.retail_price || '';
-        document.getElementById('currency').value = product.currency || 'CNY';
+        document.getElementById('currency').value = product.currency || (isOvsSystem ? 'USD' : 'CNY');
         unitSelect.value = product.unit || '';
 
         // 设置产品状态

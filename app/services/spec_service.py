@@ -46,6 +46,63 @@ class SpecService:
             return DevProduct, DevProductSpec, 'dev_product_id', 'field_unit'
 
     @classmethod
+    def generate_description(cls, product_type, product_id):
+        """
+        根据已保存的规格生成产品描述字符串
+
+        只包含 include_in_description=True 的规格，按分类排序。
+        OVS 系统使用英文名称，SP8D 使用中文名称。
+
+        Args:
+            product_type: 'product' 或 'dev_product'
+            product_id: 产品ID
+
+        Returns:
+            str: 生成的描述字符串
+        """
+        ProductModel, SpecModel, id_field, unit_field = cls.get_models(product_type)
+
+        filter_kwargs = {id_field: product_id}
+        all_specs = SpecModel.query.filter_by(**filter_kwargs).all()
+
+        # 按分类→字典排序，与规格面板一致
+        from app.models.product_code import SpecificationDictionary
+        from app.models.spec_template import SpecCategory
+        spec_names = [s.field_name for s in all_specs]
+        dict_map = {d.name: d for d in SpecificationDictionary.query.filter(
+            SpecificationDictionary.name.in_(spec_names)).all()} if spec_names else {}
+        cat_order = {c.id: c.display_order for c in SpecCategory.query.all()}
+
+        def _desc_sort_key(spec):
+            d = dict_map.get(spec.field_name)
+            if d and d.category_id:
+                return (cat_order.get(d.category_id, 9999), d.display_order or 9999)
+            return (9999, getattr(spec, 'display_order', 9999))
+
+        all_specs.sort(key=_desc_sort_key)
+
+        # 检查是否为OVS系统，决定描述使用的语言
+        is_ovs = current_app.config.get('IS_OVS', False)
+
+        from app.routes.product_code import get_field_unit
+        description_parts = []
+        for spec in all_specs:
+            if spec.include_in_description and spec.field_value:
+                unit = getattr(spec, unit_field, '') or ''
+                # ProductSpec 没有 unit 列，回退到字典查询
+                if not unit:
+                    unit = get_field_unit(spec.field_name) or ''
+                unit_str = f" {unit}" if unit else ""
+                # OVS使用英文名称，SP8D使用中文名称
+                if is_ovs and hasattr(spec, 'field_name_en') and spec.field_name_en:
+                    field_display_name = spec.field_name_en
+                else:
+                    field_display_name = spec.field_name
+                description_parts.append(f"{field_display_name}: {spec.field_value}{unit_str}")
+
+        return ", ".join(description_parts) if description_parts else ""
+
+    @classmethod
     def save_specs(cls, product_type, product_id, specs_data, deleted_ids=None):
         """
         统一的规格保存方法
@@ -151,46 +208,8 @@ class SpecService:
 
             db.session.flush()
 
-            # 3. 生成产品描述（只包含 include_in_description=True 的规格）
-            # 按分类排序（SpecCategory.display_order → SpecificationDictionary.display_order）
-            filter_kwargs = {id_field: product_id}
-            all_specs = SpecModel.query.filter_by(**filter_kwargs).all()
-
-            # 查询排序依据：按分类→字典排序，与规格面板一致
-            from app.models.product_code import SpecificationDictionary
-            from app.models.spec_template import SpecCategory
-            spec_names = [s.field_name for s in all_specs]
-            dict_map = {d.name: d for d in SpecificationDictionary.query.filter(
-                SpecificationDictionary.name.in_(spec_names)).all()} if spec_names else {}
-            cat_order = {c.id: c.display_order for c in SpecCategory.query.all()}
-
-            def _desc_sort_key(spec):
-                d = dict_map.get(spec.field_name)
-                if d and d.category_id:
-                    return (cat_order.get(d.category_id, 9999), d.display_order or 9999)
-                return (9999, getattr(spec, 'display_order', 9999))
-
-            all_specs.sort(key=_desc_sort_key)
-
-            # 检查是否为OVS系统，决定描述使用的语言
-            is_ovs = current_app.config.get('IS_OVS', False)
-
-            from app.routes.product_code import get_field_unit
-            description_parts = []
-            for spec in all_specs:
-                if spec.include_in_description and spec.field_value:
-                    unit = getattr(spec, unit_field, '') or ''
-                    # ProductSpec 没有 unit 列，回退到字典查询
-                    if not unit:
-                        unit = get_field_unit(spec.field_name) or ''
-                    unit_str = f" {unit}" if unit else ""
-                    # OVS使用英文名称，SP8D使用中文名称
-                    if is_ovs and hasattr(spec, 'field_name_en') and spec.field_name_en:
-                        field_display_name = spec.field_name_en
-                    else:
-                        field_display_name = spec.field_name
-                    description_parts.append(f"{field_display_name}: {spec.field_value}{unit_str}")
-            new_description = ", ".join(description_parts) if description_parts else ""
+            # 3. 生成产品描述
+            new_description = cls.generate_description(product_type, product_id)
 
             # 4. 更新产品描述
             if product_type == cls.TYPE_PRODUCT:
@@ -200,9 +219,12 @@ class SpecService:
             product.updated_at = datetime.utcnow()
 
             # 5. 更新MN编码（如果适用）
-            # 引入产品（有source_configuration_id）跳过编码更新，保持从配置引入的编码
+            # 引入产品（有source_configuration_id 或 from_sp8d）跳过编码更新，保持从配置引入的编码
             product_mn = None
-            is_imported_product = product_type == cls.TYPE_PRODUCT and getattr(product, 'source_configuration_id', None)
+            is_imported_product = product_type == cls.TYPE_PRODUCT and (
+                getattr(product, 'source_configuration_id', None) or
+                getattr(product, 'source_type', None) == 'from_sp8d'
+            )
 
             if product_type == cls.TYPE_PRODUCT:
                 if is_imported_product:

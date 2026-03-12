@@ -4790,7 +4790,6 @@ def _import_sp8d_specs(product, sp8d_config_id):
         ProductSpec.query.filter_by(product_id=product.id).delete()
 
         new_specs = []
-        coded_spec_parts = []  # 用于生成产品描述（仅编码规格）
         for idx, spec in enumerate(all_specs):
             if spec.get('template_item_id') not in selected_ids:
                 continue
@@ -4808,17 +4807,11 @@ def _import_sp8d_specs(product, sp8d_config_id):
             db.session.add(ps)
             new_specs.append(ps)
 
-            # 编码规格纳入产品描述（使用英文名 + 单位）
-            if is_coded and spec.get('value'):
-                name = spec.get('name_en') or spec.get('name', '')
-                unit = spec.get('unit', '')
-                unit_str = f" {unit}" if unit else ""
-                coded_spec_parts.append(f"{name}: {spec.get('value')}{unit_str}")
-
         db.session.flush()
 
-        # 产品描述仅包含编码规格
-        product.specification = ", ".join(coded_spec_parts) if coded_spec_parts else ""
+        # 使用与 Edit+Apply 相同的描述生成逻辑
+        from app.services.spec_service import SpecService
+        product.specification = SpecService.generate_description('product', product.id)
 
         # 使用SP8D配置的 mn_code
         mn_code = config_info.get('mn_code')
