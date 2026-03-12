@@ -85,6 +85,7 @@ class SpecService:
 
             # 2. 更新或添加规格
             processed_ids = set()
+            newly_added_specs = set()
             display_order = 0
             for spec_data in specs_data:
                 spec_id = spec_data.get('id')
@@ -131,6 +132,7 @@ class SpecService:
 
                     new_spec = SpecModel(**new_spec_kwargs)
                     db.session.add(new_spec)
+                    newly_added_specs.add(new_spec)
                     logger.debug(f"添加规格: {field_name} = {field_value}")
 
                 display_order += 1
@@ -140,7 +142,7 @@ class SpecService:
             all_existing = SpecModel.query.filter_by(**existing_filter).all()
             orphan_count = 0
             for spec in all_existing:
-                if spec.id not in processed_ids and spec not in db.session.new:
+                if spec.id not in processed_ids and spec not in newly_added_specs:
                     logger.debug(f"清理孤儿规格: {spec.field_name} (id={spec.id})")
                     db.session.delete(spec)
                     orphan_count += 1

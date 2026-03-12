@@ -4,7 +4,7 @@
 提供型号级规格模板（SpecTemplate）的CRUD操作，
 以及模板规格项（SpecTemplateItem）的管理。
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, Response
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, Response, abort
 from flask_login import login_required, current_user
 from flask_babel import _
 import io
@@ -396,12 +396,36 @@ def _load_definition_indicators(definitions):
 spec_template_bp = Blueprint('spec_template', __name__, url_prefix='/dev-product/spec-templates')
 
 
+def _is_template_admin():
+    """检查当前用户是否有模板管理员权限（可查看所有模板）"""
+    return current_user.role.lower() in ('admin', 'ceo')
+
+
+def _check_template_owner(template):
+    """检查当前用户是否有权访问该模板，无权则 abort(403)"""
+    if _is_template_admin():
+        return
+    if template.created_by != current_user.id:
+        abort(403)
+
+
+def _check_config_owner(config):
+    """检查当前用户是否有权访问该配置版本（通过所属模板的 owner 判断）"""
+    if _is_template_admin():
+        return
+    if config.template and config.template.created_by != current_user.id:
+        abort(403)
+
+
 @spec_template_bp.route('/')
 @login_required
 @permission_required('product_code', 'view')
 def list_templates():
     """规格模板列表页"""
-    templates = SpecTemplate.query.filter_by(is_active=True).order_by(SpecTemplate.created_at.desc()).all()
+    query = SpecTemplate.query.filter_by(is_active=True)
+    if not _is_template_admin():
+        query = query.filter_by(created_by=current_user.id)
+    templates = query.order_by(SpecTemplate.created_at.desc()).all()
 
     return render_template(
         'spec_template/tw_list.html',
@@ -472,6 +496,7 @@ def create_template_page():
 def view_template(template_id):
     """查看规格模板详情"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
 
     # 获取模板中的规格项，按分类组织（优先 spec_dict，回退 definition）
@@ -498,6 +523,7 @@ def view_template(template_id):
 def edit_template_page(template_id):
     """编辑规格模板页面"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
     definitions = SpecificationDictionary.query.filter_by(is_active=True).order_by(
         SpecificationDictionary.category_id, SpecificationDictionary.display_order
@@ -577,7 +603,10 @@ def edit_template_page(template_id):
 @permission_required('product_code', 'view')
 def api_list_templates():
     """API: 获取规格模板列表"""
-    templates = SpecTemplate.query.filter_by(is_active=True).order_by(SpecTemplate.created_at.desc()).all()
+    query = SpecTemplate.query.filter_by(is_active=True)
+    if not _is_template_admin():
+        query = query.filter_by(created_by=current_user.id)
+    templates = query.order_by(SpecTemplate.created_at.desc()).all()
 
     return jsonify({
         'success': True,
@@ -665,6 +694,7 @@ def api_create_template():
 def api_get_template(template_id):
     """API: 获取规格模板详情"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
     result_data = template.to_dict()
     result_data['items'] = [item.to_dict() for item in template.items]
     return jsonify({
@@ -679,6 +709,7 @@ def api_get_template(template_id):
 def api_update_template(template_id):
     """API: 更新规格模板"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
     data = request.get_json()
 
     # 验证必填字段
@@ -840,6 +871,7 @@ def api_update_template(template_id):
 def api_delete_template(template_id):
     """API: 删除规格模板（软删除）"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
 
     # 检查是否有研发产品在使用
     dev_products_using = DevProduct.query.filter_by(spec_template_id=template_id).first()
@@ -864,6 +896,7 @@ def api_delete_template(template_id):
 def api_copy_template(template_id):
     """API: 复制规格模板"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
     data = request.get_json() or {}
 
     # 生成新的型号名称
@@ -945,6 +978,7 @@ def api_definitions_by_category():
 def spec_config_matrix_page(template_id):
     """矩阵式规格配置页面"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
 
     # 获取选中的配置ID（从配置版本管理页面跳转时传入）
     selected_config_id = request.args.get('config_id', type=int)
@@ -1106,6 +1140,7 @@ def spec_config_matrix_page(template_id):
 def configurations_page(template_id):
     """配置版本管理页面"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
     categories = SpecCategory.query.filter_by(is_active=True).order_by(SpecCategory.display_order).all()
 
     # 获取模板中的规格项，按分类组织
@@ -1143,6 +1178,7 @@ def configurations_page(template_id):
 def api_list_configurations(template_id):
     """API: 获取模板的配置版本列表"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
     configurations = ProductConfiguration.query.filter_by(
         template_id=template_id,
         is_active=True
@@ -1160,6 +1196,7 @@ def api_list_configurations(template_id):
 def api_create_configuration(template_id):
     """API: 创建配置版本"""
     template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
     data = request.get_json()
 
     # 验证必填字段
@@ -1225,6 +1262,7 @@ def api_get_configuration(config_id):
     """API: 获取配置版本详情"""
     try:
         config = ProductConfiguration.query.get_or_404(config_id)
+        _check_config_owner(config)
 
         # 获取配置值
         config_data = config.to_dict()
@@ -1256,6 +1294,7 @@ def api_get_configuration(config_id):
 def api_update_configuration(config_id):
     """API: 更新配置版本"""
     config = ProductConfiguration.query.get_or_404(config_id)
+    _check_config_owner(config)
     data = request.get_json()
 
     # 检查是否锁定（可生产/停产状态）
@@ -1341,6 +1380,7 @@ def api_update_configuration(config_id):
 def api_delete_configuration(config_id):
     """API: 删除配置版本（软删除）"""
     config = ProductConfiguration.query.get_or_404(config_id)
+    _check_config_owner(config)
 
     # 锁定状态（可生产/停产）不允许删除
     if config.mn_locked:
@@ -1367,6 +1407,7 @@ def api_delete_configuration(config_id):
 def api_copy_configuration(config_id):
     """API: 复制配置版本"""
     config = ProductConfiguration.query.get_or_404(config_id)
+    _check_config_owner(config)
     data = request.get_json() or {}
 
     # 生成新的配置编码
@@ -1413,6 +1454,8 @@ def api_copy_configuration(config_id):
 @permission_required('product_code', 'edit')
 def api_update_configurations_order(template_id):
     """API: 更新配置版本排序"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
     data = request.get_json() or {}
     order_list = data.get('order', [])  # [id1, id2, id3...]
 
@@ -1439,6 +1482,7 @@ def api_update_configurations_order(template_id):
 def api_update_config_values(config_id):
     """API: 批量更新配置版本的规格值"""
     config = ProductConfiguration.query.get_or_404(config_id)
+    _check_config_owner(config)
     data = request.get_json()
     values_data = data.get('values', [])
     save_all = data.get('save_all', False)  # 是否保存所有规格值（包括默认值）
@@ -1617,11 +1661,11 @@ def api_export_configurations(template_id):
     """API: 导出配置矩阵（只导出未锁定的配置）"""
     from app.services.spec_import_service import SpecImportService
 
+    template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
+
     try:
         excel_data = SpecImportService.export_configurations(template_id)
-
-        # 获取模板信息用于文件名
-        template = SpecTemplate.query.get(template_id)
         filename = f"{template.model}_配置矩阵.xlsx" if template else "配置矩阵.xlsx"
 
         return Response(
@@ -1647,6 +1691,9 @@ def api_export_configurations(template_id):
 @permission_required('product_code', 'edit')
 def api_import_configurations(template_id):
     """API: 导入配置矩阵"""
+    template = SpecTemplate.query.get_or_404(template_id)
+    _check_template_owner(template)
+
     from app.services.spec_import_service import SpecImportService
 
     # 检查文件
@@ -1715,6 +1762,7 @@ def validate_attachment_file(file):
 def api_get_item_attachments(item_id):
     """获取模板规格项的附件列表（默认附件）"""
     item = SpecTemplateItem.query.get_or_404(item_id)
+    _check_template_owner(item.template)
 
     attachments = SpecAttachment.query.filter_by(
         template_item_id=item_id
@@ -1735,6 +1783,7 @@ def api_upload_item_attachment(item_id):
     from app.utils.supabase_client import get_supabase_client
 
     item = SpecTemplateItem.query.get_or_404(item_id)
+    _check_template_owner(item.template)
 
     # 检查该规格是否允许附件
     if not item.spec_dict or not item.spec_dict.allow_attachment:
@@ -1811,6 +1860,11 @@ def api_delete_attachment(attachment_id):
     from app.utils.supabase_client import get_supabase_client
 
     attachment = SpecAttachment.query.get_or_404(attachment_id)
+    # 通过 template_item 或 config_value 反查模板 owner
+    if attachment.template_item:
+        _check_template_owner(attachment.template_item.template)
+    elif attachment.config_value and attachment.config_value.configuration:
+        _check_config_owner(attachment.config_value.configuration)
 
     try:
         # 删除云端文件
@@ -1841,6 +1895,10 @@ def api_preview_attachment(attachment_id):
     import requests
 
     attachment = SpecAttachment.query.get_or_404(attachment_id)
+    if attachment.template_item:
+        _check_template_owner(attachment.template_item.template)
+    elif attachment.config_value and attachment.config_value.configuration:
+        _check_config_owner(attachment.config_value.configuration)
 
     url = attachment.file_path
     filename = attachment.file_name
@@ -1874,6 +1932,7 @@ def api_preview_attachment(attachment_id):
 def api_get_config_attachments(config_id, item_id):
     """获取配置版本的规格附件（带回退逻辑）"""
     config = ProductConfiguration.query.get_or_404(config_id)
+    _check_config_owner(config)
     item = SpecTemplateItem.query.get_or_404(item_id)
 
     # 1. 先查找配置级附件
@@ -1922,6 +1981,7 @@ def api_upload_config_attachment(config_id, item_id):
     from app.utils.supabase_client import get_supabase_client
 
     config = ProductConfiguration.query.get_or_404(config_id)
+    _check_config_owner(config)
     item = SpecTemplateItem.query.get_or_404(item_id)
 
     # 检查配置是否锁定
