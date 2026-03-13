@@ -659,8 +659,8 @@ window.ProductModal = (function() {
             retailPriceInput.classList.add('text-slate-900', 'dark:text-slate-100');
         }
 
-        // 填充货币
-        if (modelInfo.currency) {
+        // 填充货币（OVS系统始终使用默认货币USD，不从SP8D继承CNY）
+        if (!isOvsSystem && modelInfo.currency) {
             currencySelectEl.value = modelInfo.currency;
             currencySelectEl.classList.remove('text-slate-400', 'dark:text-slate-500');
             currencySelectEl.classList.add('text-slate-900', 'dark:text-slate-100');

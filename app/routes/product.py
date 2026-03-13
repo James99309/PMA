@@ -4370,9 +4370,10 @@ def get_configurations_tree():
         cat_id = template.category_id
         sub_id = template.subcategory_id
 
-        # 检查是否已引入
+        # 检查是否已引入（排除已删除的产品）
         already_imported = Product.query.filter_by(
-            source_configuration_id=config.id
+            source_configuration_id=config.id,
+            is_deleted=False
         ).first() is not None
 
         # 获取状态显示文本

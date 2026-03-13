@@ -943,8 +943,8 @@ const ProductSpecModal = (function() {
                 }
             });
 
-            // 字段有差异：不同产品有不同值，或部分产品缺少该字段
-            const isDifferent = codeOptions.size > 1 || productsWithField < products.length;
+            // 字段有差异：不同产品有不同的实际取值（2+个不同值才算差异）
+            const isDifferent = codeOptions.size > 1;
 
             codeAnalysis.push({
                 position: position,
