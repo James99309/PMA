@@ -266,6 +266,8 @@ class SpecService:
                     logger.warning(f"重建快照失败（不影响保存）: {e}")
 
             # 6. 返回更新后的规格列表
+            filter_kwargs_final = {id_field: product_id}
+            all_specs = SpecModel.query.filter_by(**filter_kwargs_final).order_by(SpecModel.display_order).all()
             specs_list = []
             for spec in all_specs:
                 spec_dict = {

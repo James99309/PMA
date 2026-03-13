@@ -1195,6 +1195,12 @@ window.ProductModal = (function() {
 
         // 更新MN编码预览
         updateMNCodePreview();
+
+        // 编辑模式：显示产品已有的完整MN编码（含规格码部分）
+        if (product.product_mn) {
+            mnCodePreview.textContent = product.product_mn;
+            mnCodeInput.value = product.product_mn;
+        }
     }
 
     /**
