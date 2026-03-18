@@ -751,6 +751,7 @@ def create_spec_option(spec_id):
         new_option = SpecificationOption(
             spec_id=spec_id,
             value=value,
+            value_en=data.get('value_en', '').strip() if data.get('value_en') else None,
             code=code,
             description=data.get('description', '').strip() if data.get('description') else None,
             is_active=True,
@@ -875,6 +876,10 @@ def update_spec_option(option_id):
                 }), 400
 
             option.code = code
+
+        # 更新英文值
+        if 'value_en' in data:
+            option.value_en = data['value_en'].strip() if data['value_en'] else None
 
         # 更新描述
         if 'description' in data:

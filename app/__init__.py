@@ -530,7 +530,22 @@ def create_app(config_class=Config):
         # 创建数据库表
         db.create_all()
         logger.info("数据库表创建成功")
-            
+
+        # Auto-migrate: specification_options 添加 value_en 字段
+        try:
+            from sqlalchemy import inspect as sa_inspect, text as sa_text
+            insp = sa_inspect(db.engine)
+            spec_opt_cols = [col['name'] for col in insp.get_columns('specification_options')]
+            if 'value_en' not in spec_opt_cols:
+                with db.engine.connect() as conn:
+                    conn.execute(sa_text('ALTER TABLE specification_options ADD COLUMN value_en VARCHAR(100)'))
+                    conn.commit()
+                logger.info("Auto-migrate: specification_options.value_en 字段已添加")
+            else:
+                logger.debug("Auto-migrate: specification_options.value_en 已存在，跳过")
+        except Exception as e:
+            logger.warning(f"Auto-migrate specification_options.value_en 失败: {e}")
+
         # 版本检查
         try:
             from app.utils.version_check import update_version_check

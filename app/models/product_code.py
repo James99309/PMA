@@ -411,6 +411,7 @@ class SpecificationOption(db.Model):
     id = Column(Integer, primary_key=True)
     spec_id = Column(Integer, ForeignKey('specification_dictionary.id'), nullable=False)  # 所属规格
     value = Column(String(100), nullable=False)  # 指标值，如"400-450"
+    value_en = Column(String(100), nullable=True)  # 英文指标值
     code = Column(String(10), nullable=False)  # 指标编码，如"4"（智能生成）
     description = Column(Text)  # 描述
     is_active = Column(Boolean, default=True)  # 是否活跃
@@ -428,6 +429,7 @@ class SpecificationOption(db.Model):
             'id': self.id,
             'spec_id': self.spec_id,
             'value': self.value,
+            'value_en': self.value_en,
             'code': self.code,
             'description': self.description,
             'is_active': self.is_active,

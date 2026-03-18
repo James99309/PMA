@@ -521,7 +521,10 @@ class SpecDictManager {
 
                 optionsHtml += `
                     <tr data-option-id="${opt.id}">
-                        <td><strong>${this.escapeHtml(opt.value)}</strong></td>
+                        <td>
+                            <strong>${this.escapeHtml(opt.value)}</strong>
+                            ${opt.value_en ? `<br><small class="text-muted">${this.escapeHtml(opt.value_en)}</small>` : ''}
+                        </td>
                         <td class="text-center"><code class="fs-6">${this.escapeHtml(opt.code)}</code></td>
                         <td class="text-center">${statusBadge}</td>
                         <td class="text-center">
@@ -610,18 +613,24 @@ class SpecDictManager {
                                 <div class="card-body py-2">
                                     <input type="hidden" id="editOptionId-${specId}">
                                     <div class="row g-2 align-items-end">
-                                        <div class="col-md-4">
+                                        <div class="col-md-3">
                                             <label class="form-label small">指标值</label>
                                             <input type="text" class="form-control form-control-sm"
                                                    id="editOptionValue-${specId}">
                                         </div>
-                                        <div class="col-md-2">
+                                        <div class="col-md-3">
+                                            <label class="form-label small">英文值</label>
+                                            <input type="text" class="form-control form-control-sm"
+                                                   id="editOptionValueEn-${specId}"
+                                                   placeholder="English">
+                                        </div>
+                                        <div class="col-md-1">
                                             <label class="form-label small">编码</label>
                                             <input type="text" class="form-control form-control-sm"
                                                    id="editOptionCode-${specId}"
                                                    maxlength="1">
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <label class="form-label small">描述</label>
                                             <input type="text" class="form-control form-control-sm"
                                                    id="editOptionDesc-${specId}">
@@ -678,6 +687,7 @@ class SpecDictManager {
 
         document.getElementById(`editOptionId-${specId}`).value = optionId;
         document.getElementById(`editOptionValue-${specId}`).value = option.value;
+        document.getElementById(`editOptionValueEn-${specId}`).value = option.value_en || '';
         document.getElementById(`editOptionCode-${specId}`).value = option.code;
         document.getElementById(`editOptionDesc-${specId}`).value = option.description || '';
         document.getElementById(`editOptionForm-${specId}`).style.display = 'block';
@@ -735,6 +745,7 @@ class SpecDictManager {
     async updateOption(specId) {
         const optionId = document.getElementById(`editOptionId-${specId}`).value;
         const value = document.getElementById(`editOptionValue-${specId}`).value.trim();
+        const value_en = document.getElementById(`editOptionValueEn-${specId}`).value.trim();
         const code = document.getElementById(`editOptionCode-${specId}`).value.trim();
         const description = document.getElementById(`editOptionDesc-${specId}`).value.trim();
 
@@ -752,7 +763,7 @@ class SpecDictManager {
             const response = await fetch(`/api/spec-dictionary/options/${optionId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ value, code, description })
+                body: JSON.stringify({ value, value_en, code, description })
             });
 
             const result = await response.json();

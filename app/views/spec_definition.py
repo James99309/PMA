@@ -666,29 +666,28 @@ def api_list_indicators(definition_id):
     ).distinct().all()
     field_option_used_ids = {r[0] for r in field_option_refs}
 
-    # 批量检查 ProductSpec.field_code 引用
-    option_codes = [opt.code for opt in options if opt.code]
+    # 批量检查 ProductSpec.field_code 引用（查所有该规格下的使用情况，包括已删除的旧英文code）
+    code_to_value = {opt.code: opt.value for opt in options if opt.code}
     product_spec_used_codes = set()
     pending_sync_by_code = {}
-    if option_codes:
-        code_to_value = {opt.code: opt.value for opt in options if opt.code}
 
-        ps_rows = db.session.query(
-            ProductSpec.field_code,
-            ProductSpec.field_value,
-            db.func.count(ProductSpec.id)
-        ).filter(
-            ProductSpec.field_name == spec_dict.name,
-            ProductSpec.field_code.in_(option_codes)
-        ).group_by(ProductSpec.field_code, ProductSpec.field_value).all()
+    ps_rows = db.session.query(
+        ProductSpec.field_code,
+        ProductSpec.field_value,
+        db.func.count(ProductSpec.id)
+    ).filter(
+        ProductSpec.field_name == spec_dict.name,
+        ProductSpec.field_code.isnot(None),
+        ProductSpec.field_code != ''
+    ).group_by(ProductSpec.field_code, ProductSpec.field_value).all()
 
-        for code, value, cnt in ps_rows:
-            product_spec_used_codes.add(code)
-            if code in code_to_value and value != code_to_value[code]:
-                pending_sync_by_code.setdefault(code, []).append({
-                    'old_value': value,
-                    'count': cnt
-                })
+    for code, value, cnt in ps_rows:
+        product_spec_used_codes.add(code)
+        if code in code_to_value and value != code_to_value[code]:
+            pending_sync_by_code.setdefault(code, []).append({
+                'old_value': value,
+                'count': cnt
+            })
 
     data = []
     for opt in options:
