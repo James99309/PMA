@@ -1333,7 +1333,7 @@
         const options = {...(savedOptions || {})};
 
         // 收集该规格项在所有配置版本中的唯一值（支持 select 和 input）
-        const elements = document.querySelectorAll(`[data-item-id="${itemId}"]`);
+        const elements = document.querySelectorAll(`select[data-item-id="${itemId}"], input[data-item-id="${itemId}"]`);
         const allValues = [];
         elements.forEach(el => {
             const value = el.value.trim();

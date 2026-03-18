@@ -25,6 +25,7 @@ from app.models.product_code import (
     SpecificationDictionary, SpecificationOption
 )
 from app.models.dev_product import DevProduct
+from app.models.product import Product
 from app.decorators import permission_required
 
 logger = logging.getLogger(__name__)
@@ -464,8 +465,26 @@ def create_template_page():
         subcategories_by_category[subcat.category_id].append({
             'id': subcat.id,
             'name': subcat.name,
+            'name_en': subcat.name_en or '',
             'code_letter': subcat.code_letter
         })
+
+    # 按子分类收集产品库已有产品名称（供模板名称输入下拉参考）
+    # 中文名来自本地产品库(SP8D)，英文名来自子分类name_en(已同步OVS)
+    existing_products = Product.query.filter(
+        Product.subcategory_id.isnot(None),
+        Product.is_deleted == False
+    ).with_entities(
+        Product.subcategory_id,
+        Product.product_name
+    ).distinct().all()
+    product_names_by_subcategory = {}
+    for p in existing_products:
+        sub_id = str(p.subcategory_id)
+        if sub_id not in product_names_by_subcategory:
+            product_names_by_subcategory[sub_id] = []
+        if p.product_name and p.product_name not in product_names_by_subcategory[sub_id]:
+            product_names_by_subcategory[sub_id].append(p.product_name)
 
     # 规格定义数据（JSON格式，供前端动态排序使用）
     definitions_data = {}
@@ -486,6 +505,7 @@ def create_template_page():
         test_conditions=test_conditions,
         product_categories=product_categories,
         subcategories_by_category=subcategories_by_category,
+        product_names_by_subcategory=product_names_by_subcategory,
         is_edit=False
     )
 
@@ -569,8 +589,25 @@ def edit_template_page(template_id):
         subcategories_by_category[subcat.category_id].append({
             'id': subcat.id,
             'name': subcat.name,
+            'name_en': subcat.name_en or '',
             'code_letter': subcat.code_letter
         })
+
+    # 按子分类收集产品库已有产品名称（供模板名称输入下拉参考）
+    existing_products = Product.query.filter(
+        Product.subcategory_id.isnot(None),
+        Product.is_deleted == False
+    ).with_entities(
+        Product.subcategory_id,
+        Product.product_name
+    ).distinct().all()
+    product_names_by_subcategory = {}
+    for p in existing_products:
+        sub_id = str(p.subcategory_id)
+        if sub_id not in product_names_by_subcategory:
+            product_names_by_subcategory[sub_id] = []
+        if p.product_name and p.product_name not in product_names_by_subcategory[sub_id]:
+            product_names_by_subcategory[sub_id].append(p.product_name)
 
     # 规格定义数据（JSON格式，供前端动态排序使用）
     definitions_data = {}
@@ -592,6 +629,7 @@ def edit_template_page(template_id):
         selected_items=selected_items,
         product_categories=product_categories,
         subcategories_by_category=subcategories_by_category,
+        product_names_by_subcategory=product_names_by_subcategory,
         is_edit=True
     )
 

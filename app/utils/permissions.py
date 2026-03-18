@@ -23,7 +23,7 @@ def assign_user_default_permissions(user):
         logger.info(f"为用户 {user.username} (ID: {user.id}) 分配默认权限")
         
         # 定义模块列表
-        modules = ['customer', 'project', 'quotation', 'product', 'product_code', 'user', 'permission', 'inventory', 'settlement', 'order']
+        modules = ['customer', 'project', 'quotation', 'product', 'product_code', 'user', 'permission', 'inventory', 'settlement', 'order', 'system_diagram']
         
         # 删除该用户现有的所有权限（如果有）
         Permission.query.filter_by(user_id=user.id).delete()
@@ -120,6 +120,20 @@ def assign_user_default_permissions(user):
                     can_edit = False
                     can_delete = False
             
+            # 系统设计模块：内容创建模块，启用即拥有 create+edit（不给 delete）
+            if module == 'system_diagram':
+                if user.role == 'admin':
+                    can_view = True
+                    can_create = True
+                    can_edit = True
+                    can_delete = True
+                elif user.role not in ['user', 'permission']:
+                    # 所有业务角色都可以创建和编辑自己的系统设计图
+                    can_view = True
+                    can_create = True
+                    can_edit = True
+                    can_delete = False
+
             # 创建权限记录
             permission = Permission(
                 user_id=user.id,

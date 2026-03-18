@@ -10,8 +10,6 @@
 | #1370 | 9:50 PM | 🔵 | Customer Model Implements Shared Access with Enable Toggle | ~354 |
 | #1369 | 9:49 PM | 🔵 | System Has Existing Shared_With Pattern for Data Access Control | ~331 |
 | #1368 | " | 🔵 | Product Category Has Manager Assignment Field | ~282 |
-| #1367 | 9:47 PM | 🔵 | Product Model Has Owner Field for Product Manager Assignment | ~354 |
-| #1104 | 3:04 PM | 🔵 | Monthly Activity Snapshot Model Already Exists in Database Schema | ~380 |
 
 ### Feb 9, 2026
 
@@ -100,4 +98,11 @@
 | #6336 | 10:10 AM | 🔵 | QuotationDetail Model with Product Configuration and Implant Tracking | ~468 |
 | #6335 | " | 🔵 | Implant Total Amount Calculation with Multi-Currency Support | ~392 |
 | #6334 | " | 🔵 | Quotation Model with Multi-Stage Approval Workflow | ~379 |
+
+### Mar 18, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #7841 | 9:43 PM | 🔵 | Analysis of Legacy ProductSpec vs Modern SpecTemplate System Gap | ~1088 |
+| #7840 | 9:39 PM | 🔵 | Comprehensive Analysis of PMA Specification Template System Architecture | ~865 |
 </claude-mem-context>

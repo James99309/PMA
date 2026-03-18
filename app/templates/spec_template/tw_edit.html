@@ -173,15 +173,27 @@
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('模板名称') }}</label>
                                 <input type="text" x-model="templateData.name"
                                        @input="checkDirty()"
+                                       list="nameDatalist"
                                        class="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
                                        placeholder="{{ _('可选：产品名称') }}">
+                                <datalist id="nameDatalist">
+                                    <template x-for="suggestion in getNameSuggestions()" :key="suggestion">
+                                        <option :value="suggestion"></option>
+                                    </template>
+                                </datalist>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('模板名称（英文）') }}</label>
                                 <input type="text" x-model="templateData.name_en"
                                        @input="checkDirty()"
+                                       list="nameEnDatalist"
                                        class="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm"
                                        placeholder="{{ _('可选：Template Name (EN)') }}">
+                                <datalist id="nameEnDatalist">
+                                    <template x-for="suggestion in getNameEnSuggestions()" :key="suggestion">
+                                        <option :value="suggestion"></option>
+                                    </template>
+                                </datalist>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('描述') }}</label>
@@ -601,8 +613,10 @@
                 category_id: '{{ template.category_id if template and template.category_id else '' }}',
                 subcategory_id: '{{ template.subcategory_id if template and template.subcategory_id else '' }}'
             },
-            // 子分类数据（按分类ID组织）
+            // 子分类数据（按分类ID组织，含 name_en）
             subcategoriesData: {{ subcategories_by_category|default({})|tojson }},
+            // 产品库已有产品名称（按子分类ID组织，供名称下拉参考）
+            productNamesBySubcategory: {{ product_names_by_subcategory|default({})|tojson }},
             activeCategory: {{ categories[0].id if categories else 'null' }},
             selectedItems: {{ selected_items|default({})|tojson }},
             // 附件文件缓存 {item_id: [attachments]}
@@ -654,6 +668,32 @@
             getSubcategories() {
                 if (!this.templateData.category_id) return [];
                 return this.subcategoriesData[this.templateData.category_id] || [];
+            },
+
+            // 获取当前子分类的中文名称建议（子分类名 + 产品库已有名称）
+            getNameSuggestions() {
+                const subId = this.templateData.subcategory_id;
+                if (!subId) return [];
+                const suggestions = [];
+                // 子分类自身的中文名（首选）
+                const subcat = this.getSubcategories().find(s => String(s.id) === String(subId));
+                if (subcat && subcat.name) suggestions.push(subcat.name);
+                // 产品库同子分类下已有的产品名称
+                const productNames = this.productNamesBySubcategory[subId] || [];
+                for (const name of productNames) {
+                    if (name && !suggestions.includes(name)) suggestions.push(name);
+                }
+                return suggestions;
+            },
+
+            // 获取当前子分类的英文名称建议（子分类 name_en，来自 OVS 同步）
+            getNameEnSuggestions() {
+                const subId = this.templateData.subcategory_id;
+                if (!subId) return [];
+                const suggestions = [];
+                const subcat = this.getSubcategories().find(s => String(s.id) === String(subId));
+                if (subcat && subcat.name_en) suggestions.push(subcat.name_en);
+                return suggestions;
             },
 
             // 分类变更时清空子分类

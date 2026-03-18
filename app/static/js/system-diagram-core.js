@@ -1305,11 +1305,21 @@ async function autoSaveDiagram(){
   btn.classList.add('saving');btn.textContent=_t('自动保存中...');
   try{
     const name=document.getElementById('diagramNameInput').value.trim()||_t('未命名系统图');
+    let thumbnailSvg='';
+    try{
+      const thumbResult=await prepareExportSVG();
+      const tc=thumbResult.clone;
+      const bgRect=tc.querySelector(':scope > rect');if(bgRect)bgRect.remove();
+      tc.querySelectorAll('pattern, [fill="url(#gridSmall)"], [fill="url(#gridLarge)"]').forEach(el=>el.remove());
+      tc.removeAttribute('width');tc.removeAttribute('height');
+      tc.setAttribute('style','width:100%;height:100%;');
+      thumbnailSvg=new XMLSerializer().serializeToString(tc);
+    }catch(e){console.warn('Auto-save thumbnail generation failed:',e)}
     const headers={'Content-Type':'application/json'};
     if(!DIAGRAM_CONFIG.externalMode&&DIAGRAM_CONFIG.csrfToken){headers['X-CSRFToken']=DIAGRAM_CONFIG.csrfToken}
     const bodyData=DIAGRAM_CONFIG.externalMode
-      ?{name,diagramData:serializeDiagram()}
-      :{id:DIAGRAM_CONFIG.diagramId,name,projectId:DIAGRAM_CONFIG.projectId||null,diagramData:serializeDiagram()};
+      ?{name,diagramData:serializeDiagram(),thumbnailSvg}
+      :{id:DIAGRAM_CONFIG.diagramId,name,projectId:DIAGRAM_CONFIG.projectId||null,diagramData:serializeDiagram(),thumbnailSvg};
     const resp=await fetch(DIAGRAM_CONFIG.apiSave,{method:'POST',headers,body:JSON.stringify(bodyData)});
     const result=await resp.json();
     if(result.success){
