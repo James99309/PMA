@@ -524,7 +524,10 @@
                             <template x-for="(ind, idx) in indicatorItems" :key="ind.id">
                                 <div class="grid grid-cols-12 gap-3 px-6 py-3 border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/50 dark:hover:bg-slate-700/30 items-center transition-colors">
                                     <div class="col-span-1 text-sm text-slate-400 dark:text-slate-500" x-text="idx + 1"></div>
-                                    <div class="col-span-6 text-sm font-medium text-slate-800 dark:text-slate-200" x-text="ind.value"></div>
+                                    <div class="col-span-6">
+                                        <span class="text-sm font-medium text-slate-800 dark:text-slate-200" x-text="ind.value"></span>
+                                        <span class="block text-xs" :class="ind.value_en ? 'text-slate-400' : 'text-slate-300 dark:text-slate-600 italic'" x-text="ind.value_en || '{{ _('未设置英文') }}'"></span>
+                                    </div>
                                     <div class="col-span-3">
                                         <span class="inline-flex px-2.5 py-0.5 text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded" x-text="ind.code"></span>
                                     </div>
@@ -554,16 +557,14 @@
                             <input type="text" x-ref="indicatorNewValueInput"
                                    x-model="indicatorNewValue"
                                    @keydown.enter="addIndicator()"
+                                   @blur="suggestEn(indicatorNewValue, 'new')"
                                    :placeholder="'{{ _('输入指标值...') }}'"
                                    class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
                         </div>
-                        <div class="w-20">
-                            <div class="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-sm text-slate-500 dark:text-slate-400 flex items-center justify-center font-mono">{{ _('自动') }}</div>
-                        </div>
                         <button @click="addIndicator()"
-                                :disabled="!indicatorNewValue.trim() || indicatorAdding"
+                                :disabled="!indicatorNewValue.trim() || !indicatorNewValueEn.trim() || indicatorAdding"
                                 class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-sm font-medium transition-colors"
-                                :class="indicatorNewValue.trim() && !indicatorAdding ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'">
+                                :class="indicatorNewValue.trim() && indicatorNewValueEn.trim() && !indicatorAdding ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed'">
                             <span class="material-symbols-outlined" style="font-size: 16px;" x-show="!indicatorAdding">add</span>
                             <svg x-show="indicatorAdding" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -572,10 +573,21 @@
                             {{ _('添加') }}
                         </button>
                     </div>
-                    <p class="mt-2 text-xs text-slate-400 dark:text-slate-500 flex items-center gap-1">
-                        <span class="material-symbols-outlined" style="font-size: 14px;">info</span>
-                        {{ _('编码根据输入值智能生成') }}
-                    </p>
+                    <!-- value_en 输入行 -->
+                    <div class="flex items-center gap-2 mt-2">
+                        <input type="text" x-model="indicatorNewValueEn"
+                               @keydown.enter="addIndicator()"
+                               placeholder="English value"
+                               class="flex-1 h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                        <button @click="suggestEn(indicatorNewValue, 'new')"
+                                :disabled="suggestingEn || !indicatorNewValue.trim()"
+                                class="shrink-0 h-8 px-3 rounded-lg text-xs font-medium text-primary hover:bg-primary/10 border border-primary/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1"
+                                title="AI {{ _('建议英文值') }}">
+                            <svg x-show="suggestingEn" class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span class="material-symbols-outlined" style="font-size: 14px;" x-show="!suggestingEn">auto_awesome</span>
+                            AI {{ _('建议') }}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -653,8 +665,10 @@
             indicatorModalDef: null,
             indicatorItems: [],
             indicatorNewValue: '',
+            indicatorNewValueEn: '',
             indicatorLoading: false,
             indicatorAdding: false,
+            suggestingEn: false,
 
             // 修改追踪
             isDirty: false,
@@ -1158,12 +1172,13 @@
                     const response = await fetch(`/admin/spec-definitions/api/${this.indicatorModalDef.id}/indicators`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ value: value })
+                        body: JSON.stringify({ value: value, value_en: this.indicatorNewValueEn.trim() })
                     });
                     const result = await response.json();
                     if (result.success) {
                         this.showToast(result.message || '{{ _("添加成功") }}');
                         this.indicatorNewValue = '';
+                        this.indicatorNewValueEn = '';
                         await this.loadIndicators(this.indicatorModalDef.id);
                         this.$nextTick(() => {
                             this.$refs.indicatorNewValueInput && this.$refs.indicatorNewValueInput.focus();
@@ -1177,6 +1192,29 @@
                 } finally {
                     this.indicatorAdding = false;
                 }
+            },
+
+            // AI 建议英文值
+            async suggestEn(value, target) {
+                if (!value || !value.trim() || this.suggestingEn) return;
+                this.suggestingEn = true;
+                try {
+                    const resp = await fetch('/api/spec-dictionary/suggest-en', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: value.trim() })
+                    });
+                    const result = await resp.json();
+                    if (result.success) {
+                        if (target === 'new') this.indicatorNewValueEn = result.value_en;
+                    } else {
+                        this.showToast(result.message || '{{ _("AI 建议失败") }}', 'error');
+                    }
+                } catch (e) {
+                    console.error('suggestEn error:', e);
+                    this.showToast('{{ _("AI 建议请求失败") }}', 'error');
+                }
+                finally { this.suggestingEn = false; }
             },
 
             // 删除指标

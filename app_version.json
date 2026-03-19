@@ -1,7 +1,7 @@
 {
-  "app_version": "1.29.37",
+  "app_version": "1.29.38",
   "environment": "production",
-  "timestamp": "2026-03-15 06:33:38",
+  "timestamp": "2026-03-19 08:16:21",
   "modules": {
     "user": {
       "files": {
@@ -18,8 +18,8 @@
           "last_modified": "2026-02-12 22:50:04"
         },
         "app/utils/permissions.py": {
-          "hash": "7e19cb40909041ae68599fdb4257a427",
-          "last_modified": "2026-01-06 11:26:34"
+          "hash": "f51fae6a675827dac69156c59ce533db",
+          "last_modified": "2026-03-18 22:44:14"
         }
       },
       "status": "ok"

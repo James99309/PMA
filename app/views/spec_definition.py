@@ -738,6 +738,7 @@ def api_create_indicator(definition_id):
     option = SpecificationOption(
         spec_id=spec_dict.id,
         value=value,
+        value_en=(data.get('value_en') or '').strip() or None,
         code=code,
         is_active=True
     )
@@ -821,6 +822,11 @@ def api_update_indicator(option_id):
         return jsonify({'success': False, 'message': _('指标值已存在')}), 400
 
     option.value = new_value
+
+    # 更新英文值
+    if 'value_en' in data:
+        option.value_en = (data['value_en'] or '').strip() or None
+
     db.session.commit()
 
     response_data = option.to_dict()

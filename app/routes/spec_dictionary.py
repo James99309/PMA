@@ -1323,6 +1323,30 @@ def get_spec_tree():
         }), 500
 
 
+@spec_dict_bp.route('/suggest-en', methods=['POST'])
+@login_required
+def suggest_value_en():
+    """AI 建议英文指标值"""
+    data = request.get_json()
+    value = (data.get('value') or '').strip()
+    if not value:
+        return jsonify({'success': False, 'message': '值不能为空'}), 400
+
+    # 检测是否为英文（无中文字符）
+    import re
+    if not re.search(r'[\u4e00-\u9fff]', value):
+        # 已是英文，直接返回
+        return jsonify({'success': True, 'value_en': value})
+
+    # 中文 → 调 DeepSeek 翻译
+    from app.services.chat_translation_service import translate_text
+    result = translate_text(value, 'zh', 'en')
+    if result:
+        return jsonify({'success': True, 'value_en': result})
+    else:
+        return jsonify({'success': False, 'message': '翻译服务不可用'})
+
+
 @spec_dict_bp.route('/available-for-subcategory/<int:subcategory_id>', methods=['GET'])
 @login_required
 @permission_required('product_code', 'view')
