@@ -531,6 +531,19 @@ def create_app(config_class=Config):
         db.create_all()
         logger.info("数据库表创建成功")
 
+        # Auto-migrate: product_specs 添加 field_value_en 字段
+        try:
+            from sqlalchemy import inspect as sa_inspect, text as sa_text
+            insp = sa_inspect(db.engine)
+            ps_cols = [col['name'] for col in insp.get_columns('product_specs')]
+            if 'field_value_en' not in ps_cols:
+                with db.engine.connect() as conn:
+                    conn.execute(sa_text('ALTER TABLE product_specs ADD COLUMN field_value_en VARCHAR(255)'))
+                    conn.commit()
+                logger.info("Auto-migrate: product_specs.field_value_en 字段已添加")
+        except Exception as e:
+            logger.warning(f"Auto-migrate product_specs.field_value_en 失败: {e}")
+
         # Auto-migrate: specification_options 添加 value_en 字段
         try:
             from sqlalchemy import inspect as sa_inspect, text as sa_text

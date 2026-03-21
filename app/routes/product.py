@@ -3177,31 +3177,12 @@ def view_product_detail(id):
         name_to_category = {d.name: d.category_id for d in definitions}
         name_to_name_en = {d.name: d.name_en for d in definitions}
         name_to_display_order = {d.name: d.display_order for d in definitions}
-        name_to_dict_id = {d.name: d.id for d in definitions}
-
-        # 构建规格值英文翻译查找表: {(spec_dict_id, code): value_en}
-        from app.models.product_code import SpecificationOption
-        dict_ids = list(name_to_dict_id.values())
-        value_en_lookup = {}
-        if dict_ids:
-            options = SpecificationOption.query.filter(
-                SpecificationOption.spec_id.in_(dict_ids),
-                SpecificationOption.is_active == True
-            ).all()
-            for opt in options:
-                if opt.value_en:
-                    value_en_lookup[(opt.spec_id, opt.code)] = opt.value_en
-
         # 未分类的规格放入 category_id=0
         uncategorized_specs = []
         for spec in product_specs:
             # 添加英文名称：优先使用存储的英文名称，回退到 SpecificationDictionary
             if not spec.get('field_name_en'):
                 spec['field_name_en'] = name_to_name_en.get(spec['field_name'], '')
-            # 添加英文值：通过 (spec_dict_id, field_code) 查找 value_en
-            dict_id = name_to_dict_id.get(spec['field_name'])
-            code = spec.get('field_code', '')
-            spec['field_value_en'] = value_en_lookup.get((dict_id, code), '') if dict_id and code else ''
             cat_id = name_to_category.get(spec['field_name'])
             if cat_id and cat_id in category_map:
                 if cat_id not in specs_by_category:
@@ -4819,6 +4800,7 @@ def _import_sp8d_specs(product, sp8d_config_id):
                 field_name=spec.get('name', ''),
                 field_name_en=spec.get('name_en', ''),
                 field_value=spec.get('value', ''),
+                field_value_en=spec.get('value_en', '') or None,
                 field_code=spec.get('code_char', '') if is_coded else None,
                 include_in_description=is_coded,
                 display_order=idx

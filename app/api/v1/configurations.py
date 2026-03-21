@@ -322,6 +322,19 @@ def get_configuration_specs_api(config_id):
 
         specs = []
 
+        # 预加载所有规格选项的 value_en 查找表: {(spec_id, value): value_en}
+        from app.models.product_code import SpecificationOption
+        spec_dict_ids = [item.spec_dict_id for item in template.items if item.spec_dict_id]
+        value_en_lookup = {}
+        if spec_dict_ids:
+            options = SpecificationOption.query.filter(
+                SpecificationOption.spec_id.in_(spec_dict_ids),
+                SpecificationOption.is_active == True
+            ).all()
+            for opt in options:
+                if opt.value_en:
+                    value_en_lookup[(opt.spec_id, opt.value)] = opt.value_en
+
         # 遍历模板规格项
         for item in template.items:
             if not item.spec_dict:
@@ -342,11 +355,15 @@ def get_configuration_specs_api(config_id):
                 else:
                     code_char = code_char[:1]
 
+            # 查找英文规格值
+            value_en = value_en_lookup.get((item.spec_dict_id, value), '')
+
             specs.append({
                 'template_item_id': item.id,
                 'name': item.spec_dict.name,
                 'name_en': item.spec_dict.name_en,
                 'value': value,
+                'value_en': value_en,
                 'unit': item.spec_dict.unit or '',
                 'category': item.spec_dict.category.name if item.spec_dict.category else '',
                 'use_in_code': item.use_in_code,
