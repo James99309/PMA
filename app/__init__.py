@@ -384,15 +384,15 @@ def create_app(config_class=Config):
     app.register_blueprint(meeting)
     csrf.exempt(meeting)  # 豁免会议蓝图的CSRF保护（用于录音上传）
 
-    # 注册规格字典管理蓝图（全局规格定义管理）
-    from app.views.spec_definition import spec_definition_bp
-    app.register_blueprint(spec_definition_bp)
-    csrf.exempt(spec_definition_bp)
+    # 注册规格字典/模板管理蓝图（仅 SP8D/CN NAS 启用，OVS/SG NAS 数据通过物化视图只读同步）
+    if not app.config.get('IS_OVS'):
+        from app.views.spec_definition import spec_definition_bp
+        app.register_blueprint(spec_definition_bp)
+        csrf.exempt(spec_definition_bp)
 
-    # 注册规格模板管理蓝图（型号级规格模板管理）
-    from app.views.spec_template import spec_template_bp
-    app.register_blueprint(spec_template_bp)
-    csrf.exempt(spec_template_bp)
+        from app.views.spec_template import spec_template_bp
+        app.register_blueprint(spec_template_bp)
+        csrf.exempt(spec_template_bp)
 
     # 注册API v1蓝图
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')

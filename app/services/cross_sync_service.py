@@ -213,3 +213,31 @@ def push_task_to_peer(assignee_email, creator_name, task_title, due_date_str=Non
     due_info = f'，截止 {due_date_str}' if due_date_str else ''
     content = f'给你分配了任务「{task_title}」{due_info}'
     push_message_to_peer(assignee_email, creator_name, content, msg_type='task')
+
+
+def notify_peer_refresh_cache():
+    """通知对等端刷新物化视图缓存（CN 分类变更后调用，异步不阻塞）"""
+    if not is_cross_sync_enabled():
+        return
+
+    peer_url = os.environ.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+    api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+
+    def _do_refresh():
+        import requests
+        try:
+            resp = requests.post(
+                f'{peer_url}/cross-sync/refresh-cache',
+                json={},
+                headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                logger.info('通知对等端刷新缓存成功')
+            else:
+                logger.warning(f'通知对等端刷新缓存失败: status={resp.status_code}')
+        except Exception as e:
+            logger.warning(f'通知对等端刷新缓存异常: {e}')
+
+    thread = threading.Thread(target=_do_refresh, daemon=True)
+    thread.start()

@@ -12,13 +12,43 @@ import string
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text, update, Integer, case
 from datetime import datetime
+from functools import wraps
 from app.routes.spec_dictionary import generate_smart_code
 import logging
 
 logger = logging.getLogger(__name__)
 
+
+def notify_peer_on_success(f):
+    """装饰器：分类/子分类/编码字段变更成功后，通知对等端刷新缓存"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        response = f(*args, **kwargs)
+        # 判断返回是否成功（Flask 返回 tuple 或 Response）
+        if isinstance(response, tuple):
+            resp_data, status = response[0], response[1] if len(response) > 1 else 200
+        else:
+            resp_data, status = response, 200
+        if status in (200, 201):
+            try:
+                from app.services.cross_sync_service import notify_peer_refresh_cache
+                notify_peer_refresh_cache()
+            except Exception:
+                pass  # 不阻塞主流程
+        return response
+    return decorated
+
 # 创建蓝图
 product_code_bp = Blueprint('product_code', __name__, url_prefix='/product-code')
+
+
+@product_code_bp.before_request
+def block_on_ovs():
+    """OVS(SG NAS) 禁止访问产品编码管理模块 — 数据由 CN NAS 主库管理"""
+    from flask import current_app, abort
+    if current_app.config.get('IS_OVS'):
+        abort(403)
+
 
 # ============================================================================
 # 辅助函数
@@ -3911,6 +3941,7 @@ def get_categories_api():
 @login_required
 @product_manager_required
 @csrf.exempt
+@notify_peer_on_success
 def create_category_api():
     """创建产品分类"""
     try:
@@ -4002,6 +4033,7 @@ def get_category_api(category_id):
 @login_required
 @product_manager_required
 @csrf.exempt
+@notify_peer_on_success
 def update_category_api(category_id):
     """更新产品分类
 
@@ -4097,6 +4129,7 @@ def update_category_api(category_id):
 @login_required
 @product_manager_required
 @csrf.exempt
+@notify_peer_on_success
 def delete_category_api(category_id):
     """删除产品分类"""
     try:
@@ -4166,6 +4199,7 @@ def generate_category_code_api():
 @login_required
 @product_manager_required
 @csrf.exempt
+@notify_peer_on_success
 def create_subcategory_api():
     """
     创建产品名称（子分类）
@@ -4313,6 +4347,7 @@ def get_subcategory_api(subcategory_id):
 @login_required
 @product_manager_required
 @csrf.exempt
+@notify_peer_on_success
 def update_subcategory_api(subcategory_id):
     """
     更新产品子分类（产品名称）
@@ -4442,6 +4477,7 @@ def update_subcategory_api(subcategory_id):
 @login_required
 @product_manager_required
 @csrf.exempt
+@notify_peer_on_success
 def delete_subcategory_api(subcategory_id):
     """
     删除产品名称
@@ -4599,6 +4635,7 @@ def get_category_field(field_id):
 @feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
+@notify_peer_on_success
 def create_category_field():
     """
     创建分类级通用编码字段
@@ -4705,6 +4742,7 @@ def create_category_field():
 @feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
+@notify_peer_on_success
 def update_category_field(field_id):
     """
     更新分类级通用编码字段
@@ -4776,6 +4814,7 @@ def update_category_field(field_id):
 @feature_flag('LEGACY_SPEC_SYSTEM_ENABLED')  # [LegacySpecSystem] 旧规格系统特性开关
 @product_manager_required
 @csrf.exempt
+@notify_peer_on_success
 def delete_category_field(field_id):
     """删除分类级通用编码字段"""
     try:
