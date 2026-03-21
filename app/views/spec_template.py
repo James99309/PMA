@@ -613,11 +613,21 @@ def edit_template_page(template_id):
         if p.product_name and p.product_name not in product_names_by_subcategory[sub_id]:
             product_names_by_subcategory[sub_id].append(p.product_name)
 
-    # 计算被锁定的编码项（版本已被使用过且有活跃配置时，已有编码项不可修改）
+    # 计算被锁定的编码项（仅当配置已生成产品时，其编码项才不可修改）
     locked_code_item_ids = set()
     max_locked_order = 0
     active_configs = [c for c in template.configurations if c.deleted_at is None]
+    # 只有实际生成过产品的配置才触发编码项锁定
+    configs_with_products_ids = set()
     if active_configs and template.version_first_used_at is not None:
+        config_ids = [c.id for c in active_configs]
+        configs_with_products_ids = set(
+            row[0] for row in db.session.query(Product.source_configuration_id)
+            .filter(Product.source_configuration_id.in_(config_ids),
+                    Product.is_deleted == False)
+            .distinct().all()
+        )
+    if configs_with_products_ids:
         for item in template.items:
             if item.use_in_code:
                 locked_code_item_ids.add(item.spec_dict_id)
@@ -793,9 +803,18 @@ def api_update_template(template_id):
     )
 
     # ========== 编码项固化保护 ==========
-    # 当模板版本已被使用过（生成过MN编码）时，已有编码项不可删除、不可重排、不可取消编码
+    # 仅当配置已生成产品时，其编码项才不可删除、不可重排、不可取消编码
     active_configs = [c for c in template.configurations if c.deleted_at is None]
+    configs_with_products_ids = set()
     if active_configs and template.version_first_used_at is not None:
+        config_ids = [c.id for c in active_configs]
+        configs_with_products_ids = set(
+            row[0] for row in db.session.query(Product.source_configuration_id)
+            .filter(Product.source_configuration_id.in_(config_ids),
+                    Product.is_deleted == False)
+            .distinct().all()
+        )
+    if configs_with_products_ids:
         # 收集已有的编码项（use_in_code=True）信息
         locked_code_items = {}
         for item in template.items:
@@ -859,7 +878,7 @@ def api_update_template(template_id):
                     'success': False,
                     'code_protection_error': True,
                     'violations': violations,
-                    'message': _('模板已有 %(count)s 个活跃配置，编码项受固化保护', count=len(active_configs))
+                    'message': _('模板已有 %(count)s 个配置已生成产品，编码项受固化保护', count=len(configs_with_products_ids))
                 }), 409
 
     # 如果有结构性变更且当前版本已被使用过（绑定过）
