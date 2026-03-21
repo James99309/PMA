@@ -11,7 +11,7 @@ import io
 import logging
 from urllib.parse import quote
 from app import db
-from datetime import datetime
+from datetime import datetime, timezone
 from app.models.spec_template import (
     SpecCategory, SpecTemplate, SpecTemplateItem,
     TestMethodDictionary, TestConditionDictionary,
@@ -423,7 +423,7 @@ def _check_config_owner(config):
 @permission_required('product_code', 'view')
 def list_templates():
     """规格模板列表页"""
-    query = SpecTemplate.query.filter_by(is_active=True)
+    query = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
     if not _is_template_admin():
         query = query.filter_by(created_by=current_user.id)
     templates = query.order_by(SpecTemplate.created_at.desc()).all()
@@ -641,7 +641,7 @@ def edit_template_page(template_id):
 @permission_required('product_code', 'view')
 def api_list_templates():
     """API: 获取规格模板列表"""
-    query = SpecTemplate.query.filter_by(is_active=True)
+    query = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
     if not _is_template_admin():
         query = query.filter_by(created_by=current_user.id)
     templates = query.order_by(SpecTemplate.created_at.desc()).all()
@@ -664,7 +664,7 @@ def api_create_template():
         return jsonify({'success': False, 'message': _('产品型号不能为空')}), 400
 
     # 检查型号是否重复
-    existing = SpecTemplate.query.filter_by(model=data['model'], is_active=True).first()
+    existing = SpecTemplate.query.filter(SpecTemplate.model == data['model'], SpecTemplate.deleted_at.is_(None)).first()
     if existing:
         return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
 
@@ -758,7 +758,7 @@ def api_update_template(template_id):
     existing = SpecTemplate.query.filter(
         SpecTemplate.model == data['model'],
         SpecTemplate.id != template_id,
-        SpecTemplate.is_active == True
+        SpecTemplate.deleted_at.is_(None)
     ).first()
     if existing:
         return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
@@ -919,7 +919,7 @@ def api_delete_template(template_id):
             'message': _('该模板已被研发产品使用，无法删除')
         }), 400
 
-    template.is_active = False
+    template.deleted_at = datetime.now(timezone.utc)
     db.session.commit()
 
     return jsonify({
@@ -941,7 +941,7 @@ def api_copy_template(template_id):
     new_model = data.get('model', f"{template.model}_copy")
 
     # 检查新型号是否已存在
-    if SpecTemplate.query.filter_by(model=new_model, is_active=True).first():
+    if SpecTemplate.query.filter(SpecTemplate.model == new_model, SpecTemplate.deleted_at.is_(None)).first():
         return jsonify({'success': False, 'message': _('该型号的规格模板已存在')}), 400
 
     # 创建新模板
@@ -1034,7 +1034,7 @@ def spec_config_matrix_page(template_id):
             items_by_category[cat_id].append(item)
 
     # 获取所有活跃的配置版本
-    configurations = [c for c in template.configurations if c.is_active]
+    configurations = [c for c in template.configurations if c.deleted_at is None]
 
     # 构建规格值矩阵
     config_values_matrix = {}
@@ -1217,9 +1217,9 @@ def api_list_configurations(template_id):
     """API: 获取模板的配置版本列表"""
     template = SpecTemplate.query.get_or_404(template_id)
     _check_template_owner(template)
-    configurations = ProductConfiguration.query.filter_by(
-        template_id=template_id,
-        is_active=True
+    configurations = ProductConfiguration.query.filter(
+        ProductConfiguration.template_id == template_id,
+        ProductConfiguration.deleted_at.is_(None)
     ).order_by(ProductConfiguration.display_order.asc()).all()
 
     return jsonify({
@@ -1242,10 +1242,10 @@ def api_create_configuration(template_id):
         return jsonify({'success': False, 'message': _('配置编码不能为空')}), 400
 
     # 检查配置编码是否重复（排除已软删除的记录）
-    existing = ProductConfiguration.query.filter_by(
-        template_id=template_id,
-        config_code=data['config_code'],
-        is_active=True
+    existing = ProductConfiguration.query.filter(
+        ProductConfiguration.template_id == template_id,
+        ProductConfiguration.config_code == data['config_code'],
+        ProductConfiguration.deleted_at.is_(None)
     ).first()
     if existing:
         return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
@@ -1349,7 +1349,7 @@ def api_update_configuration(config_id):
             ProductConfiguration.template_id == config.template_id,
             ProductConfiguration.config_code == data['config_code'],
             ProductConfiguration.id != config_id,
-            ProductConfiguration.is_active == True
+            ProductConfiguration.deleted_at.is_(None)
         ).first()
         if existing:
             return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
@@ -1430,7 +1430,7 @@ def api_delete_configuration(config_id):
     # 检查是否有产品在使用
     # TODO: 检查产品库中是否有产品引用此配置
 
-    config.is_active = False
+    config.deleted_at = datetime.now(timezone.utc)
     db.session.commit()
 
     return jsonify({
@@ -1452,10 +1452,10 @@ def api_copy_configuration(config_id):
     new_code = data.get('config_code', f"{config.config_code}_copy")
 
     # 检查新编码是否已存在（排除已软删除的记录）
-    if ProductConfiguration.query.filter_by(
-        template_id=config.template_id,
-        config_code=new_code,
-        is_active=True
+    if ProductConfiguration.query.filter(
+        ProductConfiguration.template_id == config.template_id,
+        ProductConfiguration.config_code == new_code,
+        ProductConfiguration.deleted_at.is_(None)
     ).first():
         return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
 

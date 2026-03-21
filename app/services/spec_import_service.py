@@ -369,7 +369,7 @@ class SpecImportService:
                                       cat=template_info['category_name']))
 
             # 检查模板是否已存在
-            existing = SpecTemplate.query.filter_by(model=template_info['model'], is_active=True).first()
+            existing = SpecTemplate.query.filter(SpecTemplate.model == template_info['model'], SpecTemplate.deleted_at.is_(None)).first()
             if existing:
                 return {
                     'success': False,
@@ -561,7 +561,7 @@ class SpecImportService:
         # 筛选未锁定的配置（排除 production 和 discontinued 状态）
         unlocked_configs = [
             c for c in template.configurations
-            if c.is_active and not c.mn_locked
+            if c.deleted_at is None and not c.mn_locked
         ]
 
         if not unlocked_configs:

@@ -541,9 +541,6 @@
                                     <td class="sticky-col-2 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-400 dark:text-slate-500">
                                         {{ spec_unit or '-' }}
                                     </td>
-                                    <td class="sticky-col-3 bg-white dark:bg-slate-800 px-4 py-2 text-sm text-slate-400 dark:text-slate-500">
-                                        -
-                                    </td>
                                     {% for config in configurations %}
                                     <td class="px-1 py-1">
                                         {% set saved_value = config_values_matrix.get(config.id, {}).get(item_id, '') %}

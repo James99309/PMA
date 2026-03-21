@@ -12,7 +12,7 @@
 8. ProductConfigValue - 配置版本规格值
 9. SpecAttachment - 规格附件
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, Index, Integer, String, Text, DateTime, Boolean, JSON, ForeignKey, CheckConstraint, text
 from sqlalchemy.orm import relationship
 from app import db
@@ -161,7 +161,7 @@ class SpecTemplate(db.Model):
     description = Column(Text)  # 模板描述
     version = Column(String(20), default='V1.0')  # 模板版本
     version_first_used_at = Column(DateTime)  # 当前版本首次生成MN编码的时间（用于判断版本是否被绑定）
-    is_active = Column(Boolean, default=True)
+    deleted_at = Column(DateTime, nullable=True)  # 软删除
     created_by = Column(Integer, ForeignKey('users.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -181,7 +181,7 @@ class SpecTemplate(db.Model):
 
     __table_args__ = (
         Index('uix_spec_templates_model_active', 'model', unique=True,
-              postgresql_where=text('is_active = true')),
+              postgresql_where=text('deleted_at IS NULL')),
     )
 
     def __repr__(self):
@@ -197,7 +197,6 @@ class SpecTemplate(db.Model):
             'version': self.version,
             'version_first_used_at': self.version_first_used_at.isoformat() if self.version_first_used_at else None,
             'version_bound': self.version_first_used_at is not None,  # 当前版本是否已被使用过
-            'is_active': self.is_active,
             'created_by': self.created_by,
             'creator_name': self.creator.real_name if self.creator else None,
             'category_id': self.category_id,
@@ -207,7 +206,7 @@ class SpecTemplate(db.Model):
             'subcategory_name': self.subcategory.name if self.subcategory else None,
             'subcategory_code': self.subcategory.code_letter if self.subcategory else None,
             'item_count': len(self.items) if self.items else 0,
-            'config_count': len([c for c in self.configurations if c.is_active]) if self.configurations else 0,
+            'config_count': len([c for c in self.configurations if c.deleted_at is None]) if self.configurations else 0,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -318,7 +317,7 @@ class ProductConfiguration(db.Model):
     power_spec = Column(String(50))  # 供电规格
     power_cord_type = Column(String(50))  # 电源线类型
     notes = Column(Text)  # 备注
-    is_active = Column(Boolean, default=True)
+    deleted_at = Column(DateTime, nullable=True)  # 软删除
     display_order = Column(Integer, default=0)  # 显示顺序，用于拖动排序
     created_by = Column(Integer, ForeignKey('users.id'))
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -385,7 +384,6 @@ class ProductConfiguration(db.Model):
             'power_spec': self.power_spec,
             'power_cord_type': self.power_cord_type,
             'notes': self.notes,
-            'is_active': self.is_active,
             'display_order': self.display_order,
             'created_by': self.created_by,
             'creator_name': self.creator.real_name if self.creator else None,
