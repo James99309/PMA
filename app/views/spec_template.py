@@ -613,6 +613,16 @@ def edit_template_page(template_id):
         if p.product_name and p.product_name not in product_names_by_subcategory[sub_id]:
             product_names_by_subcategory[sub_id].append(p.product_name)
 
+    # 计算被锁定的编码项（有活跃配置时，已有编码项不可修改）
+    locked_code_item_ids = set()
+    max_locked_order = 0
+    active_configs = [c for c in template.configurations if c.deleted_at is None]
+    if active_configs:
+        for item in template.items:
+            if item.use_in_code:
+                locked_code_item_ids.add(item.spec_dict_id)
+                max_locked_order = max(max_locked_order, item.display_order or 0)
+
     # 规格定义数据（JSON格式，供前端动态排序使用）
     definitions_data = {}
     for category_id, defs in definitions_by_category.items():
@@ -631,6 +641,8 @@ def edit_template_page(template_id):
         test_methods=test_methods,
         test_conditions=test_conditions,
         selected_items=selected_items,
+        locked_code_item_ids=locked_code_item_ids,
+        max_locked_order=max_locked_order,
         product_categories=product_categories,
         subcategories_by_category=subcategories_by_category,
         product_names_by_subcategory=product_names_by_subcategory,

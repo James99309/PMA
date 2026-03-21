@@ -270,9 +270,12 @@
                                      :class="{ 'selected': isSelected(def.id) }">
                                     <div class="flex items-start gap-3">
                                         <!-- 复选框 - 只有点击这里才触发选中/取消 -->
-                                        <div class="flex-shrink-0 mt-0.5 cursor-pointer" @click="toggleSelection(def.id)">
+                                        <div class="flex-shrink-0 mt-0.5" @click="toggleSelection(def.id)"
+                                             :class="isSelected(def.id) && isCodeLocked(def.id) ? 'cursor-not-allowed' : 'cursor-pointer'">
                                             <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
-                                                 :class="isSelected(def.id) ? 'bg-primary border-primary' : 'border-slate-300 dark:border-slate-600 hover:border-primary'">
+                                                 :class="isSelected(def.id)
+                                                    ? (isCodeLocked(def.id) ? 'bg-primary border-primary opacity-50' : 'bg-primary border-primary')
+                                                    : 'border-slate-300 dark:border-slate-600 hover:border-primary'">
                                                 <span x-show="isSelected(def.id)" class="material-symbols-outlined text-white" style="font-size: 14px;">check</span>
                                             </div>
                                         </div>
@@ -286,14 +289,14 @@
                                                           x-text="selectedItems[def.id]?.display_order || ''"></span>
                                                     <button type="button" @click.stop="moveItemUp(def.id)"
                                                             class="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                                            :disabled="getItemValue(def.id, 'display_order') <= 1"
-                                                            :class="{'opacity-30 cursor-not-allowed': getItemValue(def.id, 'display_order') <= 1}">
+                                                            :disabled="isMoveUpDisabled(def.id)"
+                                                            :class="{'opacity-30 cursor-not-allowed': isMoveUpDisabled(def.id)}">
                                                         <span class="material-symbols-outlined" style="font-size: 16px;">keyboard_arrow_up</span>
                                                     </button>
                                                     <button type="button" @click.stop="moveItemDown(def.id)"
                                                             class="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                                            :disabled="getItemValue(def.id, 'display_order') >= getSelectedCount()"
-                                                            :class="{'opacity-30 cursor-not-allowed': getItemValue(def.id, 'display_order') >= getSelectedCount()}">
+                                                            :disabled="isMoveDownDisabled(def.id)"
+                                                            :class="{'opacity-30 cursor-not-allowed': isMoveDownDisabled(def.id)}">
                                                         <span class="material-symbols-outlined" style="font-size: 16px;">keyboard_arrow_down</span>
                                                     </button>
                                                 </div>
@@ -389,18 +392,25 @@
                                                                    class="form-checkbox rounded text-primary w-4 h-4">
                                                             <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('必填') }}</span>
                                                         </label>
-                                                        <label class="flex items-center gap-1.5 cursor-pointer">
+                                                        <label class="flex items-center gap-1.5"
+                                                               :class="isCodeLocked(def.id) ? 'cursor-not-allowed' : 'cursor-pointer'">
                                                             <input type="checkbox"
                                                                    :checked="getItemValue(def.id, 'use_in_code')"
                                                                    @change="setItemValue(def.id, 'use_in_code', $event.target.checked)"
-                                                                   class="form-checkbox rounded text-primary w-4 h-4">
-                                                            <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('参与编码') }}</span>
+                                                                   :disabled="isCodeLocked(def.id)"
+                                                                   class="form-checkbox rounded text-primary w-4 h-4"
+                                                                   :class="{'opacity-50': isCodeLocked(def.id)}">
+                                                            <span class="text-sm text-slate-700 dark:text-slate-300"
+                                                                  :class="{'opacity-50': isCodeLocked(def.id)}">{{ _('参与编码') }}</span>
                                                         </label>
                                                         <div class="flex items-center gap-1.5" x-show="getItemValue(def.id, 'use_in_code')">
-                                                            <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('位数') }}:</span>
+                                                            <span class="text-sm text-slate-600 dark:text-slate-400"
+                                                                  :class="{'opacity-50': isCodeLocked(def.id)}">{{ _('位数') }}:</span>
                                                             <select :value="getItemValue(def.id, 'code_length') || 1"
                                                                     @change="setItemValue(def.id, 'code_length', parseInt($event.target.value))"
-                                                                    class="form-select text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 py-1 px-2 w-14">
+                                                                    :disabled="isCodeLocked(def.id)"
+                                                                    class="form-select text-sm rounded border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 py-1 px-2 w-14"
+                                                                    :class="{'opacity-50': isCodeLocked(def.id)}">
                                                                 <option value="1">1</option>
                                                                 <option value="2">2</option>
                                                             </select>
@@ -637,6 +647,9 @@
             pendingDeleteAttachment: null,
             // 规格定义完整数据（按分类ID组织，供前端动态排序使用）
             definitionsData: {{ definitions_data|default({})|tojson }},
+            // 被锁定的编码项（有活跃配置时不可修改）
+            lockedCodeItemIds: new Set({{ locked_code_item_ids|default([])|list|tojson }}),
+            maxLockedOrder: {{ max_locked_order|default(0) }},
 
             categories: {{ categories|map(attribute='id')|list|tojson }},
             categoryNames: {
@@ -922,7 +935,15 @@
                 return !!this.selectedItems[definitionId];
             },
 
+            // 判断编码项是否被锁定（有活跃配置时已有编码项不可修改）
+            isCodeLocked(defId) {
+                return this.lockedCodeItemIds.has(defId);
+            },
+
             toggleSelection(definitionId) {
+                // 锁定的编码项不允许取消选中
+                if (this.selectedItems[definitionId] && this.isCodeLocked(definitionId)) return;
+
                 if (this.selectedItems[definitionId]) {
                     delete this.selectedItems[definitionId];
                     // 取消选中后重新排序（填补空缺的序号）
@@ -967,8 +988,53 @@
                 return Object.keys(this.selectedItems).length;
             },
 
+            // 判断上移是否被禁用
+            isMoveUpDisabled(defId) {
+                const item = this.selectedItems[defId];
+                if (!item) return true;
+                const order = item.display_order;
+                if (order <= 1) return true;
+                // 锁定编码项：不可移动
+                if (this.isCodeLocked(defId)) return true;
+                // 未锁定编码项：不能上移进入锁定区域
+                if (item.use_in_code) {
+                    const prevEntry = Object.entries(this.selectedItems).find(
+                        ([, i]) => i.display_order === order - 1
+                    );
+                    if (prevEntry && this.isCodeLocked(parseInt(prevEntry[0]))) return true;
+                }
+                // 非编码项：不能上移进入编码区域
+                if (!item.use_in_code) {
+                    const prevEntry = Object.entries(this.selectedItems).find(
+                        ([, i]) => i.display_order === order - 1
+                    );
+                    if (prevEntry && this.selectedItems[prevEntry[0]]?.use_in_code) return true;
+                }
+                return false;
+            },
+
+            // 判断下移是否被禁用
+            isMoveDownDisabled(defId) {
+                const item = this.selectedItems[defId];
+                if (!item) return true;
+                const order = item.display_order;
+                if (order >= this.getSelectedCount()) return true;
+                // 锁定编码项：不可移动
+                if (this.isCodeLocked(defId)) return true;
+                // 编码项：不能下移进入非编码区域
+                if (item.use_in_code) {
+                    const nextEntry = Object.entries(this.selectedItems).find(
+                        ([, i]) => i.display_order === order + 1
+                    );
+                    if (nextEntry && !this.selectedItems[nextEntry[0]]?.use_in_code) return true;
+                }
+                // 非编码项：不能下移进入锁定区域（不会发生，但防御性）
+                return false;
+            },
+
             // 上移规格项 (先动画后更新数据)
             moveItemUp(defId) {
+                if (this.isMoveUpDisabled(defId)) return;
                 const currentOrder = this.selectedItems[defId]?.display_order;
                 if (!currentOrder || currentOrder <= 1) return;
 
@@ -1015,6 +1081,7 @@
 
             // 下移规格项 (先动画后更新数据)
             moveItemDown(defId) {
+                if (this.isMoveDownDisabled(defId)) return;
                 const currentOrder = this.selectedItems[defId]?.display_order;
                 const maxOrder = this.getSelectedCount();
                 if (!currentOrder || currentOrder >= maxOrder) return;
@@ -1092,8 +1159,84 @@
                 if (!this.selectedItems[definitionId]) {
                     this.selectedItems[definitionId] = { definition_id: definitionId };
                 }
+                // 锁定的编码项：禁止修改 use_in_code / code_length
+                if (this.isCodeLocked(definitionId) && (field === 'use_in_code' || field === 'code_length')) return;
+
                 this.selectedItems[definitionId][field] = value;
+
+                // 新勾选"参与编码"时，自动排到编码项末尾（区域B末尾）
+                if (field === 'use_in_code' && value) {
+                    this.moveToCodeEnd(definitionId);
+                }
+                // 取消"参与编码"时，自动排到非编码区域开头
+                if (field === 'use_in_code' && !value) {
+                    this.moveToNonCodeStart(definitionId);
+                }
+
                 this.checkDirty();
+            },
+
+            // 将项移到编码区域末尾
+            moveToCodeEnd(defId) {
+                const items = Object.values(this.selectedItems);
+                // 找到所有编码项的最大 order
+                const codeItems = items.filter(i => i.use_in_code && i.definition_id !== defId);
+                const maxCodeOrder = codeItems.length > 0
+                    ? Math.max(...codeItems.map(i => i.display_order || 0))
+                    : this.maxLockedOrder;
+                const targetOrder = maxCodeOrder + 1;
+                const currentOrder = this.selectedItems[defId].display_order;
+
+                if (currentOrder === targetOrder) return;
+
+                // 把此项从当前位置拿出，插到 targetOrder
+                if (currentOrder > targetOrder) {
+                    // 向上移：targetOrder ~ currentOrder-1 的项都往下挪一位
+                    for (const item of items) {
+                        if (item.definition_id !== defId && item.display_order >= targetOrder && item.display_order < currentOrder) {
+                            item.display_order++;
+                        }
+                    }
+                } else {
+                    // 向下移：currentOrder+1 ~ targetOrder 的项都往上挪一位
+                    for (const item of items) {
+                        if (item.definition_id !== defId && item.display_order > currentOrder && item.display_order <= targetOrder) {
+                            item.display_order--;
+                        }
+                    }
+                }
+                this.selectedItems[defId].display_order = targetOrder;
+                this.reorderSelectedItems();
+            },
+
+            // 将项移到非编码区域开头
+            moveToNonCodeStart(defId) {
+                const items = Object.values(this.selectedItems);
+                // 找到所有编码项（不含自身）的最大 order
+                const codeItems = items.filter(i => i.use_in_code && i.definition_id !== defId);
+                const maxCodeOrder = codeItems.length > 0
+                    ? Math.max(...codeItems.map(i => i.display_order || 0))
+                    : this.maxLockedOrder;
+                const targetOrder = maxCodeOrder + 1;
+                const currentOrder = this.selectedItems[defId].display_order;
+
+                if (currentOrder === targetOrder) return;
+
+                if (currentOrder > targetOrder) {
+                    for (const item of items) {
+                        if (item.definition_id !== defId && item.display_order >= targetOrder && item.display_order < currentOrder) {
+                            item.display_order++;
+                        }
+                    }
+                } else {
+                    for (const item of items) {
+                        if (item.definition_id !== defId && item.display_order > currentOrder && item.display_order <= targetOrder) {
+                            item.display_order--;
+                        }
+                    }
+                }
+                this.selectedItems[defId].display_order = targetOrder;
+                this.reorderSelectedItems();
             },
 
             // 获取规格项的预设选项（返回 {value, code} 对象数组）
