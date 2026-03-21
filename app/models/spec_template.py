@@ -425,7 +425,7 @@ class ProductConfiguration(db.Model):
                         'database': 'sg',
                     })
             except Exception:
-                pass  # fdw 不可用时静默跳过
+                db.session.rollback()  # fdw 失败后回滚，避免污染后续查询
 
         return refs
 

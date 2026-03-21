@@ -1,5 +1,6 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script with context %}
 {% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
 {% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
@@ -58,6 +59,7 @@
         }
         [x-cloak] { display: none !important; }
         {{ render_tw_fixed_header_styles() }}
+        {{ render_tw_data_table_styles() }}
     </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark">
@@ -90,92 +92,86 @@
                 {% endif %}
             </div>
         {% elif page_slot == 'content' %}
-            <!-- 模板卡片列表 -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {% for template in templates %}
-                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg transition-shadow">
-                    <a href="{{ url_for('spec_template.configurations_page', template_id=template.id) }}" class="block p-5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
-                        <!-- 头部 -->
-                        <div class="flex items-start justify-between mb-4">
-                            <div>
-                                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ template.model }}</h3>
-                                {% if template.name %}
-                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ template.name }}</p>
-                                {% endif %}
-                            </div>
-                            <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                                {{ template.version }}
-                            </span>
-                        </div>
-
-                        <!-- 信息 -->
-                        <div class="space-y-2 mb-4">
-                            <div class="flex items-center text-sm text-slate-600 dark:text-slate-400">
-                                <span class="material-symbols-outlined mr-2" style="font-size: 18px;">tune</span>
-                                <span>{{ template.items|length }} {{ _('个规格项') }}</span>
-                            </div>
-                            <div class="flex items-center text-sm text-slate-600 dark:text-slate-400">
-                                <span class="material-symbols-outlined mr-2" style="font-size: 18px;">inventory_2</span>
-                                <span>{{ template.configurations|rejectattr('deleted_at')|list|length }} {{ _('个配置版本') }}</span>
-                            </div>
-                            <p class="text-sm text-slate-500 dark:text-slate-400 line-clamp-2 min-h-[1.25rem]">{% if template.description and template.description != 'None' %}{{ template.description }}{% endif %}</p>
-                        </div>
-
-                        <!-- 底部信息 -->
-                        <div class="flex items-center justify-between text-xs text-slate-400 dark:text-slate-500 pt-3 border-t border-slate-100 dark:border-slate-700">
-                            <span>{{ _('创建') }}: {{ template.created_at.strftime('%Y-%m-%d') if template.created_at else '-' }}</span>
-                            {% if template.creator %}
-                            <span>{{ template.creator.real_name or template.creator.username }}</span>
-                            {% endif %}
-                        </div>
+            <!-- 模板列表 -->
+            {% set table_columns = [
+                {'field': 'model', 'label': _('型号'), 'min_width': '160px'},
+                {'field': 'name', 'label': _('名称'), 'min_width': '140px'},
+                {'field': 'version', 'label': _('版本'), 'width': '80px', 'align': 'center'},
+                {'field': 'items_count', 'label': _('规格项'), 'width': '70px', 'align': 'center'},
+                {'field': 'config_count', 'label': _('配置'), 'width': '60px', 'align': 'center'},
+                {'field': 'created_at', 'label': _('创建'), 'min_width': '140px'},
+                {'field': 'actions', 'label': _('操作'), 'min_width': '120px', 'align': 'end'}
+            ] %}
+            {% call render_tw_data_table(
+                table_id='templateTable',
+                title=_('规格模板'),
+                total_count=templates|length,
+                columns=table_columns,
+                sort_field='created_at',
+                sort_order='desc',
+                max_height='calc(100vh - 220px)',
+                min_height='400px',
+                empty_text=_('暂无规格模板'),
+                empty_icon='description'
+            ) %}
+            {% for template in templates %}
+            <tr class="table-row-hover transition-colors">
+                <td class="p-3 whitespace-nowrap">
+                    <a href="{{ url_for('spec_template.configurations_page', template_id=template.id) }}"
+                       class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+                        {{ template.model }}
                     </a>
-
-                    <!-- 操作栏 -->
-                    <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
+                </td>
+                <td class="p-3 text-sm text-slate-500 dark:text-slate-400">
+                    {% if template.name and template.name != 'None' %}{{ template.name }}{% else %}-{% endif %}
+                </td>
+                <td class="p-3 whitespace-nowrap text-center">
+                    <span class="inline-flex items-center px-2.5 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" style="display:inline-flex;overflow:visible;">
+                        {{ template.version }}
+                    </span>
+                </td>
+                <td class="p-3 text-sm text-slate-600 dark:text-slate-400 text-center">
+                    {{ template.items|length }}
+                </td>
+                <td class="p-3 text-sm text-slate-600 dark:text-slate-400 text-center">
+                    {{ template.configurations|rejectattr('deleted_at')|list|length }}
+                </td>
+                <td class="p-3 text-sm text-slate-400 dark:text-slate-500 whitespace-nowrap">
+                    {{ template.created_at.strftime('%Y-%m-%d') if template.created_at else '-' }}{% if template.creator %} · {{ template.creator.real_name or template.creator.username }}{% endif %}
+                </td>
+                <td class="p-3 whitespace-nowrap">
+                    <div class="flex items-center justify-end gap-1">
                         <a href="{{ url_for('spec_template.view_template', template_id=template.id) }}"
-                           class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                           class="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                            title="{{ _('查看') }}">
-                            <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
+                            <span class="material-symbols-outlined" style="font-size: 16px;">visibility</span>
                         </a>
                         {% if has_permission('product_code', 'edit') %}
                         <a href="{{ url_for('spec_template.edit_template_page', template_id=template.id) }}"
-                           class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                           class="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                            title="{{ _('编辑') }}">
-                            <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                            <span class="material-symbols-outlined" style="font-size: 16px;">edit</span>
                         </a>
                         {% endif %}
                         {% if has_permission('product_code', 'create') %}
                         <button type="button" onclick="copyTemplate({{ template.id }}, '{{ template.model }}')"
-                           class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                           class="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
                            title="{{ _('复制') }}">
-                            <span class="material-symbols-outlined" style="font-size: 18px;">content_copy</span>
+                            <span class="material-symbols-outlined" style="font-size: 16px;">content_copy</span>
                         </button>
                         {% endif %}
                         {% if has_permission('product_code', 'delete') %}
                         <button type="button" onclick="confirmDeleteTemplate({{ template.id }}, '{{ template.model }}')"
-                           class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                           class="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                            title="{{ _('删除') }}">
-                            <span class="material-symbols-outlined" style="font-size: 18px;">delete</span>
+                            <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
                         </button>
                         {% endif %}
                     </div>
-                </div>
-                {% else %}
-                <!-- 空状态 -->
-                <div class="col-span-full flex flex-col items-center justify-center py-16 text-slate-400">
-                    <span class="material-symbols-outlined mb-3" style="font-size: 64px;">description</span>
-                    <p class="text-lg font-medium mb-2">{{ _('暂无规格模板') }}</p>
-                    <p class="text-sm mb-6">{{ _('创建一个规格模板来定义产品型号的规格结构') }}</p>
-                    {% if has_permission('product_code', 'create') %}
-                    <a href="{{ url_for('spec_template.create_template_page') }}"
-                       class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
-                        <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
-                        <span>{{ _('新建模板') }}</span>
-                    </a>
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
+                </td>
+            </tr>
+            {% endfor %}
+            {% endcall %}
         {% endif %}
         {% endcall %}
     {% endif %}
@@ -278,6 +274,7 @@
 
     <!-- 布局脚本 -->
     {{ render_tw_layout_script() }}
+    {{ render_tw_data_table_script(table_id='templateTable') }}
 
     <!-- 页面逻辑 -->
     <script>
