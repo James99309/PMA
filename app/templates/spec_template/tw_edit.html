@@ -170,7 +170,7 @@
                                        placeholder="{{ _('如：DRFT-BDA410/M') }}">
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('模板名称') }}</label>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('产品名称') }}</label>
                                 <input type="text" x-model="templateData.name"
                                        @input="checkDirty()"
                                        list="nameDatalist"
@@ -183,7 +183,7 @@
                                 </datalist>
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('模板名称（英文）') }}</label>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('产品名称（英文）') }}</label>
                                 <input type="text" x-model="templateData.name_en"
                                        @input="checkDirty()"
                                        list="nameEnDatalist"
