@@ -25,6 +25,7 @@
     </noscript>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script>
@@ -80,6 +81,15 @@
             position: relative;
             z-index: 10;
         }
+        /* 拖拽排序样式 */
+        .drag-handle { cursor: grab; }
+        .drag-handle:active { cursor: grabbing; }
+        .sort-ghost { opacity: 0.4; background: rgba(19, 127, 236, 0.1); }
+        .sort-drag { opacity: 0.9; }
+        .sort-item-locked .drag-handle { cursor: not-allowed; opacity: 0.3; }
+        /* 分类页签横向滚动隐藏滚动条 */
+        .category-tabs::-webkit-scrollbar { display: none; }
+        .category-tabs { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark">
@@ -131,7 +141,7 @@
         {% elif page_slot == 'content' %}
             <!-- 内容区域 -->
             <div class="flex items-start gap-6">
-                <!-- 左侧：基本信息 + 分类导航 -->
+                <!-- 左侧：基本信息 + 排序面板 -->
                 <div class="w-72 flex-shrink-0 flex flex-col gap-4">
                     <!-- 基本信息卡片 -->
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
@@ -210,35 +220,85 @@
                         </div>
                     </div>
 
-                    <!-- 分类导航 -->
+                    <!-- 排序面板 -->
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                         <div class="p-4">
-                            <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('规格分类') }}</h3>
+                            <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('排序') }}</h3>
                         </div>
-                        <nav class="py-2">
-                            {% for category in categories %}
-                            <button type="button" @click="activeCategory = {{ category.id }}"
-                               class="w-full flex items-center justify-between px-4 py-3 text-sm transition-colors"
-                               :class="activeCategory === {{ category.id }} ? 'bg-primary/10 text-primary border-l-2 border-primary' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'">
-                                <span class="truncate">{{ category.name }}</span>
-                                <span class="text-xs px-1.5 py-0.5 rounded-full"
-                                      :class="getSelectedCountInCategory({{ category.id }}) > 0 ? 'bg-primary/20 text-primary' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'"
-                                      x-text="getSelectedCountInCategory({{ category.id }})"></span>
-                            </button>
-                            {% endfor %}
-                        </nav>
+                        <div class="px-3 pb-3 max-h-[calc(100vh-480px)] overflow-y-auto">
+                            <!-- 空状态 -->
+                            <template x-if="getSortedCodeItems().length === 0 && getSortedNonCodeItems().length === 0">
+                                <div class="flex flex-col items-center justify-center py-6 text-slate-400">
+                                    <span class="material-symbols-outlined mb-1" style="font-size: 32px;">sort</span>
+                                    <span class="text-xs">{{ _('暂无已选规格项') }}</span>
+                                </div>
+                            </template>
+                            <!-- 编码区域 -->
+                            <template x-if="getSortedCodeItems().length > 0">
+                                <div>
+                                    <div class="text-xs font-medium text-slate-500 dark:text-slate-400 px-1 mb-1">{{ _('编码区域') }}</div>
+                                    <div x-ref="codeZoneSort" class="space-y-1">
+                                        <template x-for="item in getSortedCodeItems()" :key="'sort-code-' + item.definition_id">
+                                            <div :data-id="item.definition_id"
+                                                 class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50"
+                                                 :class="isCodeLocked(item.definition_id) ? 'sort-item-locked' : ''">
+                                                <span class="drag-handle material-symbols-outlined text-slate-400 flex-shrink-0" style="font-size: 14px;"
+                                                      x-text="isCodeLocked(item.definition_id) ? 'lock' : 'drag_indicator'"></span>
+                                                <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full flex-shrink-0"
+                                                      x-text="item.display_order"></span>
+                                                <span class="truncate text-slate-800 dark:text-slate-200" x-text="getDefInfo(item.definition_id).name"></span>
+                                                <span class="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-auto" x-text="getDefInfo(item.definition_id).categoryName"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                            <!-- 非编码区域 -->
+                            <template x-if="getSortedNonCodeItems().length > 0">
+                                <div :class="getSortedCodeItems().length > 0 ? 'mt-2' : ''">
+                                    <div class="text-xs font-medium text-slate-500 dark:text-slate-400 px-1 mb-1">{{ _('非编码区域') }}</div>
+                                    <div x-ref="nonCodeZoneSort" class="space-y-1">
+                                        <template x-for="item in getSortedNonCodeItems()" :key="'sort-noncode-' + item.definition_id">
+                                            <div :data-id="item.definition_id"
+                                                 class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                                                <span class="drag-handle material-symbols-outlined text-slate-400 flex-shrink-0" style="font-size: 14px;">drag_indicator</span>
+                                                <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-slate-400 rounded-full flex-shrink-0"
+                                                      x-text="item.display_order"></span>
+                                                <span class="truncate text-slate-800 dark:text-slate-200" x-text="getDefInfo(item.definition_id).name"></span>
+                                                <span class="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-auto" x-text="getDefInfo(item.definition_id).categoryName"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
                     </div>
                 </div>
 
                 <!-- 右侧：规格项列表（sticky固定，内部可滚动） -->
                 <div class="flex-1 min-w-0 sticky top-0 self-start bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col max-h-[calc(100vh-120px)]">
-                    <!-- 头部 -->
-                    <div class="flex-shrink-0 flex items-center justify-between p-4">
-                        <div>
-                            <h3 class="text-base font-semibold text-slate-900 dark:text-white" x-text="getCategoryName(activeCategory)"></h3>
-                            <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{{ _('勾选需要的规格项，并设置通用值') }}</p>
+                    <!-- 头部：水平分类页签 -->
+                    <div class="flex-shrink-0 border-b border-slate-200 dark:border-slate-700">
+                        <div class="category-tabs flex overflow-x-auto whitespace-nowrap px-4 pt-3">
+                            {% for category in categories %}
+                            <button type="button" @click="activeCategory = {{ category.id }}"
+                               class="relative px-4 py-2.5 text-sm font-medium transition-colors flex-shrink-0"
+                               :class="activeCategory === {{ category.id }}
+                                   ? 'text-primary'
+                                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'">
+                                <span>{{ category.name }}</span>
+                                <span x-show="getSelectedCountInCategory({{ category.id }}) > 0"
+                                      class="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] text-[11px] font-semibold rounded-full px-1"
+                                      :class="activeCategory === {{ category.id }} ? 'bg-primary text-white' : 'bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300'"
+                                      x-text="getSelectedCountInCategory({{ category.id }})"></span>
+                                <!-- 激活下划线 -->
+                                <span x-show="activeCategory === {{ category.id }}"
+                                      class="absolute bottom-0 left-2 right-2 h-0.5 bg-primary rounded-full"></span>
+                            </button>
+                            {% endfor %}
                         </div>
-                        <div class="flex items-center gap-2">
+                        <!-- 全选/取消全选 -->
+                        <div class="flex items-center gap-2 px-4 py-2">
                             <button type="button" @click="selectAllInCategory()"
                                class="text-sm text-primary hover:text-primary/80 transition-colors">
                                 {{ _('全选') }}
@@ -283,23 +343,10 @@
                                         <!-- 规格信息 -->
                                         <div class="flex-1 min-w-0">
                                             <div class="flex items-center gap-2 mb-1">
-                                                <!-- 选中时显示序号和上下按钮 -->
-                                                <div x-show="isSelected(def.id)" class="flex items-center gap-1">
-                                                    <span class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-primary rounded-full"
-                                                          x-text="selectedItems[def.id]?.display_order || ''"></span>
-                                                    <button type="button" @click.stop="moveItemUp(def.id)"
-                                                            class="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                                            :disabled="isMoveUpDisabled(def.id)"
-                                                            :class="{'opacity-30 cursor-not-allowed': isMoveUpDisabled(def.id)}">
-                                                        <span class="material-symbols-outlined" style="font-size: 16px;">keyboard_arrow_up</span>
-                                                    </button>
-                                                    <button type="button" @click.stop="moveItemDown(def.id)"
-                                                            class="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                                                            :disabled="isMoveDownDisabled(def.id)"
-                                                            :class="{'opacity-30 cursor-not-allowed': isMoveDownDisabled(def.id)}">
-                                                        <span class="material-symbols-outlined" style="font-size: 16px;">keyboard_arrow_down</span>
-                                                    </button>
-                                                </div>
+                                                <!-- 选中时显示序号 -->
+                                                <span x-show="isSelected(def.id)"
+                                                      class="inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-primary rounded-full"
+                                                      x-text="selectedItems[def.id]?.display_order || ''"></span>
                                                 <span class="spec-item-name font-medium text-slate-900 dark:text-white" x-text="def.name"></span>
                                                 <span x-show="def.name_en" class="text-xs text-slate-500 dark:text-slate-400" x-text="'(' + (def.name_en || '') + ')'"></span>
                                                 <span x-show="def.unit" class="text-xs px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded" x-text="def.unit"></span>
@@ -683,12 +730,92 @@
             indicatorAdding: false,
             suggestingEn: false,
 
+            // 扁平查找表 {defId: {name, categoryId, ...}}
+            definitionsFlat: {},
+
             // 修改追踪
             isDirty: false,
             initialState: null,
 
             getCategoryName(categoryId) {
                 return this.categoryNames[categoryId] || '';
+            },
+
+            // 返回编码区域已选项（按 display_order 排序）
+            getSortedCodeItems() {
+                return Object.values(this.selectedItems)
+                    .filter(i => i.use_in_code)
+                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            },
+
+            // 返回非编码区域已选项（按 display_order 排序）
+            getSortedNonCodeItems() {
+                return Object.values(this.selectedItems)
+                    .filter(i => !i.use_in_code)
+                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+            },
+
+            // 从 definitionsFlat 获取规格名和分类名
+            getDefInfo(defId) {
+                const info = this.definitionsFlat[defId];
+                if (!info) return { name: '', categoryName: '' };
+                return {
+                    name: info.name || '',
+                    categoryName: this.categoryNames[info.categoryId] || ''
+                };
+            },
+
+            // 初始化 SortableJS 实例
+            initSortable() {
+                if (this._codeSortable) this._codeSortable.destroy();
+                if (this._nonCodeSortable) this._nonCodeSortable.destroy();
+                this._codeSortable = null;
+                this._nonCodeSortable = null;
+
+                const codeEl = this.$refs.codeZoneSort;
+                const nonCodeEl = this.$refs.nonCodeZoneSort;
+
+                const commonOptions = {
+                    animation: 150,
+                    handle: '.drag-handle',
+                    filter: '.sort-item-locked',
+                    ghostClass: 'sort-ghost',
+                    dragClass: 'sort-drag',
+                };
+
+                if (codeEl) {
+                    this._codeSortable = new Sortable(codeEl, {
+                        ...commonOptions,
+                        onEnd: () => this.onSortEnd()
+                    });
+                }
+                if (nonCodeEl) {
+                    this._nonCodeSortable = new Sortable(nonCodeEl, {
+                        ...commonOptions,
+                        onEnd: () => this.onSortEnd()
+                    });
+                }
+            },
+
+            // 拖拽结束回调
+            onSortEnd() {
+                const codeIds = this.$refs.codeZoneSort
+                    ? Array.from(this.$refs.codeZoneSort.children)
+                        .filter(el => el.dataset.id)
+                        .map(el => parseInt(el.dataset.id))
+                    : [];
+                const nonCodeIds = this.$refs.nonCodeZoneSort
+                    ? Array.from(this.$refs.nonCodeZoneSort.children)
+                        .filter(el => el.dataset.id)
+                        .map(el => parseInt(el.dataset.id))
+                    : [];
+
+                [...codeIds, ...nonCodeIds].forEach((defId, index) => {
+                    if (this.selectedItems[defId]) {
+                        this.selectedItems[defId].display_order = index + 1;
+                    }
+                });
+                this.checkDirty();
             },
 
             // 获取当前分类下的子分类列表
@@ -732,6 +859,14 @@
                 // 设置全局引用，让外部函数可以调用组件方法
                 specTemplateEditorInstance = this;
 
+                // 构建扁平查找表
+                this.definitionsFlat = {};
+                for (const [catId, defs] of Object.entries(this.definitionsData)) {
+                    for (const def of defs) {
+                        this.definitionsFlat[def.id] = { ...def, categoryId: parseInt(catId) };
+                    }
+                }
+
                 // 保存初始的子分类ID，等 x-for 渲染完成后再设置
                 const savedSubcategoryId = this.templateData.subcategory_id;
                 if (savedSubcategoryId) {
@@ -749,13 +884,16 @@
                     this.saveInitialState();
                 }
 
-                // 初始化已选中项的排序（确保序号连续从1开始）
+                // 初始化已选中项的排序（修复历史数据，编码项排前面）
                 if (Object.keys(this.selectedItems).length > 0) {
-                    this.reorderSelectedItems();
+                    this.enforceZoneOrder();
                 }
 
                 // 初始化附件文件（编辑模式）
                 this.initAttachmentFiles();
+
+                // 初始化 SortableJS
+                this.$nextTick(() => this.initSortable());
             },
 
             // 初始化附件文件列表
@@ -905,6 +1043,7 @@
                 this.templateData = JSON.parse(JSON.stringify(this.initialState.templateData));
                 this.selectedItems = JSON.parse(JSON.stringify(this.initialState.selectedItems));
                 this.isDirty = false;
+                this.$nextTick(() => this.initSortable());
             },
 
             // 处理返回按钮点击
@@ -963,6 +1102,20 @@
                     };
                 }
                 this.checkDirty();
+                this.$nextTick(() => this.initSortable());
+            },
+
+            // 一次性整理：编码项排前面，非编码项排后面（修复历史数据）
+            enforceZoneOrder() {
+                const items = Object.values(this.selectedItems);
+                if (items.length === 0) return;
+                const codeItems = items.filter(i => i.use_in_code)
+                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+                const nonCodeItems = items.filter(i => !i.use_in_code)
+                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+                [...codeItems, ...nonCodeItems].forEach((item, index) => {
+                    this.selectedItems[item.definition_id].display_order = index + 1;
+                });
             },
 
             // 重新排序选中项（按当前 display_order 排序后重新分配 1, 2, 3...）
@@ -1167,10 +1320,12 @@
                 // 新勾选"参与编码"时，自动排到编码项末尾（区域B末尾）
                 if (field === 'use_in_code' && value) {
                     this.moveToCodeEnd(definitionId);
+                    this.$nextTick(() => this.initSortable());
                 }
                 // 取消"参与编码"时，自动排到非编码区域开头
                 if (field === 'use_in_code' && !value) {
                     this.moveToNonCodeStart(definitionId);
+                    this.$nextTick(() => this.initSortable());
                 }
 
                 this.checkDirty();
@@ -1474,6 +1629,7 @@
                     }
                 });
                 this.checkDirty();
+                this.$nextTick(() => this.initSortable());
             },
 
             deselectAllInCategory() {
@@ -1484,6 +1640,7 @@
                 // 取消后重新排序剩余项
                 this.reorderSelectedItems();
                 this.checkDirty();
+                this.$nextTick(() => this.initSortable());
             },
 
             async saveTemplate() {

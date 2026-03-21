@@ -613,11 +613,11 @@ def edit_template_page(template_id):
         if p.product_name and p.product_name not in product_names_by_subcategory[sub_id]:
             product_names_by_subcategory[sub_id].append(p.product_name)
 
-    # 计算被锁定的编码项（有活跃配置时，已有编码项不可修改）
+    # 计算被锁定的编码项（版本已被使用过且有活跃配置时，已有编码项不可修改）
     locked_code_item_ids = set()
     max_locked_order = 0
     active_configs = [c for c in template.configurations if c.deleted_at is None]
-    if active_configs:
+    if active_configs and template.version_first_used_at is not None:
         for item in template.items:
             if item.use_in_code:
                 locked_code_item_ids.add(item.spec_dict_id)
@@ -793,9 +793,9 @@ def api_update_template(template_id):
     )
 
     # ========== 编码项固化保护 ==========
-    # 当模板已有活跃配置时，已有编码项不可删除、不可重排、不可取消编码
+    # 当模板版本已被使用过（生成过MN编码）时，已有编码项不可删除、不可重排、不可取消编码
     active_configs = [c for c in template.configurations if c.deleted_at is None]
-    if active_configs:
+    if active_configs and template.version_first_used_at is not None:
         # 收集已有的编码项（use_in_code=True）信息
         locked_code_items = {}
         for item in template.items:
