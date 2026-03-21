@@ -30,6 +30,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "100.87.155.40:5432:5432"  # fdw 跨库查询（仅 Tailscale）
     networks:
       - pma-network
 
@@ -189,7 +191,8 @@ services:
 # 数据卷
 volumes:
   postgres_data:
-    driver: local
+    external: true
+    name: pma_sa_postgres_data
   pma_storage:
     driver: local
   pma_logs:
