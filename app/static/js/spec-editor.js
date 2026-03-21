@@ -1877,9 +1877,9 @@ class SpecEditor {
                     <span class="material-symbols-outlined text-lg">drag_indicator</span>
                 </span>
                 <div class="flex-1 grid grid-cols-3 gap-4">
-                    <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">${spec.field_name}</dt>
+                    <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">${document.documentElement.lang === 'en' && spec.field_name_en ? spec.field_name_en : spec.field_name}</dt>
                     <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
-                        <span class="value-display">${spec.field_value}</span>
+                        <span class="value-display">${document.documentElement.lang === 'en' && spec.field_value_en ? spec.field_value_en : spec.field_value}</span>
                         <span class="unit-display text-slate-400">${spec.unit || ''}</span>
                         <select class="value-select hidden w-32 px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200">
                             <option value="${spec.field_value}">${spec.field_value}</option>
@@ -1969,9 +1969,9 @@ class SpecEditor {
                         <span class="material-symbols-outlined text-lg">drag_indicator</span>
                     </span>
                     <div class="flex-1 grid grid-cols-3 gap-4">
-                        <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">${spec.field_name}</dt>
+                        <dt class="text-sm font-medium text-slate-500 dark:text-slate-400 spec-name">${document.documentElement.lang === 'en' && spec.field_name_en ? spec.field_name_en : spec.field_name}</dt>
                         <dd class="spec-value text-sm text-slate-900 dark:text-slate-200 col-span-2 mt-0 flex items-center gap-2">
-                            <span class="value-display">${spec.field_value}</span>
+                            <span class="value-display">${document.documentElement.lang === 'en' && spec.field_value_en ? spec.field_value_en : spec.field_value}</span>
                             <span class="unit-display text-slate-400">${spec.unit || ''}</span>
                             <select class="value-select hidden w-32 px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-200">
                                 <option value="${spec.field_value}">${spec.field_value}</option>

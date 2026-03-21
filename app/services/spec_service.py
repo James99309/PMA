@@ -587,6 +587,20 @@ class SpecService:
         name_to_category = {d.name: d.category_id for d in definitions}
         name_to_name_en = {d.name: d.name_en for d in definitions}
         name_to_display_order = {d.name: d.display_order for d in definitions}
+        name_to_dict_id = {d.name: d.id for d in definitions}
+
+        # 构建规格值英文翻译查找表: {(spec_dict_id, code): value_en}
+        from app.models.product_code import SpecificationOption
+        dict_ids = list(name_to_dict_id.values())
+        value_en_lookup = {}
+        if dict_ids:
+            options = SpecificationOption.query.filter(
+                SpecificationOption.spec_id.in_(dict_ids),
+                SpecificationOption.is_active == True
+            ).all()
+            for opt in options:
+                if opt.value_en:
+                    value_en_lookup[(opt.spec_id, opt.code)] = opt.value_en
 
         # 按分类分组
         specs_by_category = {}
@@ -603,6 +617,10 @@ class SpecService:
             spec_with_en = dict(spec)
             if not spec_with_en.get('field_name_en'):
                 spec_with_en['field_name_en'] = name_to_name_en.get(field_name, '')
+            # 添加英文值
+            dict_id = name_to_dict_id.get(field_name)
+            code = spec.get('field_code') or spec.get('code', '')
+            spec_with_en['field_value_en'] = value_en_lookup.get((dict_id, code), '') if dict_id and code else ''
 
             cat_id = name_to_category.get(field_name)
             if cat_id and cat_id in category_map:
