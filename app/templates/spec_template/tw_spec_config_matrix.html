@@ -389,6 +389,9 @@
                                             {% if config.region_name %}
                                             <span class="text-xs font-normal text-slate-400">{{ config.region_name }}</span>
                                             {% endif %}
+                                            {% if config.template_version %}
+                                            <span class="text-xs font-normal {% if config.template_version != template.version %}text-amber-500{% else %}text-slate-400{% endif %}">{{ config.template_version }}{% if config.template_version != template.version %} ⚠{% endif %}</span>
+                                            {% endif %}
                                             <!-- MN 编码预览 -->
                                             <div class="mn-preview-container mt-1 flex items-center gap-1" data-config-id="{{ config.id }}">
                                                 <span class="text-xs font-mono px-2 py-0.5 rounded {% if config.mn_locked %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400{% else %}bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary/90{% endif %}"

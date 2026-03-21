@@ -164,6 +164,12 @@
                                     <span class="material-symbols-outlined mr-2" style="font-size: 18px;">tune</span>
                                     <span>{{ config.config_values|length }} {{ _('个自定义规格值') }}</span>
                                 </div>
+                                {% if config.template_version %}
+                                <div class="flex items-center text-sm {% if config.template_version != template.version %}text-amber-600 dark:text-amber-400{% else %}text-slate-600 dark:text-slate-400{% endif %}">
+                                    <span class="material-symbols-outlined mr-2" style="font-size: 18px;">{% if config.template_version != template.version %}warning{% else %}verified{% endif %}</span>
+                                    <span>{{ config.template_version }}{% if config.template_version != template.version %} → {{ template.version }}{% endif %}</span>
+                                </div>
+                                {% endif %}
                             </div>
 
                             <!-- 底部信息 -->

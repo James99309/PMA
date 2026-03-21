@@ -446,9 +446,11 @@ def create_template_page():
     test_methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
     test_conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(TestConditionDictionary.display_order).all()
 
-    # 按分类组织规格项
+    # 按分类组织规格项（跳过无分类的条目，避免 None key 导致 JSON 序列化排序报错）
     definitions_by_category = {}
     for definition in definitions:
+        if definition.category_id is None:
+            continue
         if definition.category_id not in definitions_by_category:
             definitions_by_category[definition.category_id] = []
         definitions_by_category[definition.category_id].append(definition)
@@ -551,9 +553,11 @@ def edit_template_page(template_id):
     test_methods = TestMethodDictionary.query.filter_by(is_active=True).order_by(TestMethodDictionary.display_order).all()
     test_conditions = TestConditionDictionary.query.filter_by(is_active=True).order_by(TestConditionDictionary.display_order).all()
 
-    # 按分类组织规格项
+    # 按分类组织规格项（跳过无分类的条目，避免 None key 导致 JSON 序列化排序报错）
     definitions_by_category = {}
     for definition in definitions:
+        if definition.category_id is None:
+            continue
         if definition.category_id not in definitions_by_category:
             definitions_by_category[definition.category_id] = []
         definitions_by_category[definition.category_id].append(definition)
