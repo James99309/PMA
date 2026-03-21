@@ -148,7 +148,7 @@
                                 <span class="material-symbols-outlined text-green-600 dark:text-green-400" style="font-size: 24px;">inventory_2</span>
                             </div>
                             <div>
-                                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ template.configurations|length }}</p>
+                                <p class="text-2xl font-bold text-slate-900 dark:text-white">{{ template.configurations|rejectattr('deleted_at')|list|length }}</p>
                                 <p class="text-sm text-slate-500 dark:text-slate-400">{{ _('配置版本数') }}</p>
                             </div>
                         </div>
@@ -280,14 +280,15 @@
                 </div>
 
                 <!-- 配置版本列表 -->
-                {% if template.configurations %}
+                {% set active_configs = template.configurations|rejectattr('deleted_at')|list %}
+                {% if active_configs %}
                 <div class="mt-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                     <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700">
                         <h2 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('配置版本') }}</h2>
                     </div>
                     <div class="p-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {% for config in template.configurations %}
+                            {% for config in active_configs %}
                             <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-md transition-shadow">
                                 <div class="flex items-start justify-between mb-3">
                                     <div>

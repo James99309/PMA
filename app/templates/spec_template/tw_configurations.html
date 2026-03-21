@@ -79,7 +79,7 @@
             edit_btn={'show': false},
             extra_actions=[
                 {
-                    'show': has_permission('product_code', 'view') and template.configurations|selectattr('is_active')|selectattr('status', 'ne', 'production')|selectattr('status', 'ne', 'discontinued')|list|length > 0,
+                    'show': has_permission('product_code', 'view') and template.configurations|rejectattr('deleted_at')|selectattr('status', 'ne', 'production')|selectattr('status', 'ne', 'discontinued')|list|length > 0,
                     'label': _('导出配置'),
                     'onclick': 'exportConfigurations()',
                     'icon': 'download',
@@ -106,7 +106,7 @@
             <div x-data="configManager()">
                 <!-- 配置版本列表 -->
                 <div id="configurationsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                    {% for config in template.configurations if config.is_active %}
+                    {% for config in template.configurations if not config.deleted_at %}
                     <div data-config-id="{{ config.id }}" class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-lg transition-shadow group">
                         <a href="{{ url_for('spec_template.spec_config_matrix_page', template_id=template.id) }}?config_id={{ config.id }}" class="block p-5 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                             <!-- 头部 -->
