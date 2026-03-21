@@ -227,50 +227,46 @@
                         </div>
                         <div class="px-3 pb-3 max-h-[calc(100vh-480px)] overflow-y-auto">
                             <!-- 空状态 -->
-                            <template x-if="getSortedCodeItems().length === 0 && getSortedNonCodeItems().length === 0">
-                                <div class="flex flex-col items-center justify-center py-6 text-slate-400">
-                                    <span class="material-symbols-outlined mb-1" style="font-size: 32px;">sort</span>
-                                    <span class="text-xs">{{ _('暂无已选规格项') }}</span>
-                                </div>
-                            </template>
+                            <div x-show="getSortedCodeItems().length === 0 && getSortedNonCodeItems().length === 0"
+                                 class="flex flex-col items-center justify-center py-6 text-slate-400">
+                                <span class="material-symbols-outlined mb-1" style="font-size: 32px;">sort</span>
+                                <span class="text-xs">{{ _('暂无已选规格项') }}</span>
+                            </div>
                             <!-- 编码区域 -->
-                            <template x-if="getSortedCodeItems().length > 0">
-                                <div>
-                                    <div class="text-xs font-medium text-slate-500 dark:text-slate-400 px-1 mb-1">{{ _('编码区域') }}</div>
-                                    <div x-ref="codeZoneSort" class="space-y-1">
-                                        <template x-for="item in getSortedCodeItems()" :key="'sort-code-' + item.definition_id">
-                                            <div :data-id="item.definition_id"
-                                                 class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50"
-                                                 :class="isCodeLocked(item.definition_id) ? 'sort-item-locked' : ''">
-                                                <span class="drag-handle material-symbols-outlined text-slate-400 flex-shrink-0" style="font-size: 14px;"
-                                                      x-text="isCodeLocked(item.definition_id) ? 'lock' : 'drag_indicator'"></span>
-                                                <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full flex-shrink-0"
-                                                      x-text="item.display_order"></span>
-                                                <span class="truncate text-slate-800 dark:text-slate-200" x-text="getDefInfo(item.definition_id).name"></span>
-                                                <span class="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-auto" x-text="getDefInfo(item.definition_id).categoryName"></span>
-                                            </div>
-                                        </template>
-                                    </div>
+                            <div x-show="getSortedCodeItems().length > 0">
+                                <div class="text-xs font-medium text-slate-500 dark:text-slate-400 px-1 mb-1">{{ _('编码区域') }}</div>
+                                <div x-ref="codeZoneSort" class="space-y-1">
+                                    <template x-for="item in getSortedCodeItems()" :key="'sort-code-' + item.definition_id">
+                                        <div :data-id="item.definition_id"
+                                             class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50"
+                                             :class="isCodeLocked(item.definition_id) ? 'sort-item-locked' : ''">
+                                            <span class="drag-handle material-symbols-outlined text-slate-400 flex-shrink-0" style="font-size: 14px;"
+                                                  x-text="isCodeLocked(item.definition_id) ? 'lock' : 'drag_indicator'"></span>
+                                            <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full flex-shrink-0"
+                                                  x-text="item.display_order"></span>
+                                            <span class="truncate text-slate-800 dark:text-slate-200" x-text="getDefInfo(item.definition_id).name"></span>
+                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-auto" x-text="getDefInfo(item.definition_id).categoryName"></span>
+                                        </div>
+                                    </template>
                                 </div>
-                            </template>
+                            </div>
                             <!-- 非编码区域 -->
-                            <template x-if="getSortedNonCodeItems().length > 0">
-                                <div :class="getSortedCodeItems().length > 0 ? 'mt-2' : ''">
-                                    <div class="text-xs font-medium text-slate-500 dark:text-slate-400 px-1 mb-1">{{ _('非编码区域') }}</div>
-                                    <div x-ref="nonCodeZoneSort" class="space-y-1">
-                                        <template x-for="item in getSortedNonCodeItems()" :key="'sort-noncode-' + item.definition_id">
-                                            <div :data-id="item.definition_id"
-                                                 class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                                                <span class="drag-handle material-symbols-outlined text-slate-400 flex-shrink-0" style="font-size: 14px;">drag_indicator</span>
-                                                <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-slate-400 rounded-full flex-shrink-0"
-                                                      x-text="item.display_order"></span>
-                                                <span class="truncate text-slate-800 dark:text-slate-200" x-text="getDefInfo(item.definition_id).name"></span>
-                                                <span class="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-auto" x-text="getDefInfo(item.definition_id).categoryName"></span>
-                                            </div>
-                                        </template>
-                                    </div>
+                            <div x-show="getSortedNonCodeItems().length > 0"
+                                 :class="getSortedCodeItems().length > 0 ? 'mt-2' : ''">
+                                <div class="text-xs font-medium text-slate-500 dark:text-slate-400 px-1 mb-1">{{ _('非编码区域') }}</div>
+                                <div x-ref="nonCodeZoneSort" class="space-y-1">
+                                    <template x-for="item in getSortedNonCodeItems()" :key="'sort-noncode-' + item.definition_id">
+                                        <div :data-id="item.definition_id"
+                                             class="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                                            <span class="drag-handle material-symbols-outlined text-slate-400 flex-shrink-0" style="font-size: 14px;">drag_indicator</span>
+                                            <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-slate-400 rounded-full flex-shrink-0"
+                                                  x-text="item.display_order"></span>
+                                            <span class="truncate text-slate-800 dark:text-slate-200" x-text="getDefInfo(item.definition_id).name"></span>
+                                            <span class="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0 ml-auto" x-text="getDefInfo(item.definition_id).categoryName"></span>
+                                        </div>
+                                    </template>
                                 </div>
-                            </template>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -804,6 +800,7 @@
                     }
                 });
                 this.checkDirty();
+                this.$nextTick(() => this.initSortable());
             },
 
             // 获取当前分类下的子分类列表
@@ -1064,7 +1061,7 @@
 
             // 判断编码项是否被锁定（有活跃配置时已有编码项不可修改）
             isCodeLocked(defId) {
-                return this.lockedCodeItemIds.has(defId);
+                return this.lockedCodeItemIds.has(parseInt(defId));
             },
 
             toggleSelection(definitionId) {
