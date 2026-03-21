@@ -780,6 +780,76 @@ def api_update_template(template_id):
         new_subcategory_id=new_subcategory_id
     )
 
+    # ========== 编码项固化保护 ==========
+    # 当模板已有活跃配置时，已有编码项不可删除、不可重排、不可取消编码
+    active_configs = [c for c in template.configurations if c.deleted_at is None]
+    if active_configs:
+        # 收集已有的编码项（use_in_code=True）信息
+        locked_code_items = {}
+        for item in template.items:
+            if item.use_in_code:
+                locked_code_items[item.spec_dict_id] = {
+                    'name': item.spec_dict.name if item.spec_dict else str(item.spec_dict_id),
+                    'display_order': item.display_order,
+                    'code_length': item.code_length,
+                }
+
+        if locked_code_items:
+            max_locked_order = max(info['display_order'] for info in locked_code_items.values())
+
+            # 构建新提交的编码项映射
+            new_items_by_def_id = {}
+            for idx, item_data in enumerate(items_data):
+                def_id = item_data.get('definition_id')
+                if def_id:
+                    new_items_by_def_id[def_id] = item_data
+
+            violations = []
+
+            for def_id, locked_info in locked_code_items.items():
+                name = locked_info['name']
+
+                # 检查编码项是否被删除
+                if def_id not in new_items_by_def_id:
+                    violations.append(_('编码项「%(name)s」已被配置引用，不可删除', name=name))
+                    continue
+
+                new_data = new_items_by_def_id[def_id]
+
+                # 检查 use_in_code 是否被取消
+                if not new_data.get('use_in_code', False):
+                    violations.append(_('编码项「%(name)s」已被配置引用，不可取消编码', name=name))
+
+                # 检查 display_order 是否被更改
+                new_order = new_data.get('display_order', 0)
+                if new_order != locked_info['display_order']:
+                    violations.append(_('编码项「%(name)s」已被配置引用，不可更改顺序（当前: %(old)s, 提交: %(new)s）',
+                                        name=name, old=locked_info['display_order'], new=new_order))
+
+                # 检查 code_length 是否被更改
+                new_length = new_data.get('code_length', 1)
+                if new_length != locked_info['code_length']:
+                    violations.append(_('编码项「%(name)s」已被配置引用，不可更改编码长度', name=name))
+
+            # 检查新增编码项的 display_order 必须在已有编码项之后
+            for def_id, item_data in new_items_by_def_id.items():
+                if item_data.get('use_in_code', False) and def_id not in locked_code_items:
+                    new_order = item_data.get('display_order', 0)
+                    if new_order <= max_locked_order:
+                        definition = SpecificationDictionary.query.get(def_id)
+                        name = definition.name if definition else str(def_id)
+                        violations.append(
+                            _('新编码项「%(name)s」的顺序 %(order)s 必须大于已有编码项最大顺序 %(max)s',
+                              name=name, order=new_order, max=max_locked_order))
+
+            if violations:
+                return jsonify({
+                    'success': False,
+                    'code_protection_error': True,
+                    'violations': violations,
+                    'message': _('模板已有 %(count)s 个活跃配置，编码项受固化保护', count=len(active_configs))
+                }), 409
+
     # 如果有结构性变更且当前版本已被使用过（绑定过）
     if structural_check['has_changes'] and template.version_first_used_at is not None:
         # 检查前端是否确认了版本升级

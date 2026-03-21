@@ -390,8 +390,44 @@ class ProductConfiguration(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             # 编码规则快照
             'code_rule_version': self.code_rule_version,
-            'code_rule_snapshot': self.code_rule_snapshot
+            'code_rule_snapshot': self.code_rule_snapshot,
+            # 产品库引用信息（本地 + SG NAS）
+            'product_refs': self._get_product_refs()
         }
+
+    def _get_product_refs(self):
+        """获取引用此配置的产品列表（本地 + 跨库）"""
+        refs = []
+
+        # 本地产品库
+        for p in getattr(self, 'productized_products', []):
+            if not p.is_deleted:
+                refs.append({
+                    'id': p.id,
+                    'product_mn': p.product_mn,
+                    'product_name': p.product_name,
+                    'database': 'cn',
+                })
+
+        # SG NAS 产品库（通过 postgres_fdw 外部表，按 mn_code 匹配）
+        if self.mn_code:
+            try:
+                from sqlalchemy import text
+                result = db.session.execute(
+                    text('SELECT id, product_mn, product_name FROM sg_products WHERE product_mn = :mn_code'),
+                    {'mn_code': self.mn_code}
+                )
+                for row in result:
+                    refs.append({
+                        'id': row.id,
+                        'product_mn': row.product_mn,
+                        'product_name': row.product_name,
+                        'database': 'sg',
+                    })
+            except Exception:
+                pass  # fdw 不可用时静默跳过
+
+        return refs
 
 
 class ProductConfigValue(db.Model):
