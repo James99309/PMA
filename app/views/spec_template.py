@@ -1250,36 +1250,50 @@ def api_create_configuration(template_id):
     if existing:
         return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
 
+    # 自动查询区域名称
+    region_code = data.get('region')
+    region_name = data.get('region_name')
+    if region_code and not region_name:
+        field = ProductCodeField.query.filter_by(field_type='origin_location', code=region_code).first()
+        if field:
+            region_name = field.name
+
     # 创建配置版本
     config = ProductConfiguration(
         template_id=template_id,
         config_code=data['config_code'],
-        region=data.get('region'),
-        region_name=data.get('region_name'),
+        region=region_code,
+        region_name=region_name,
         status=data.get('status', 'development'),
         power_spec=data.get('power_spec'),
         power_cord_type=data.get('power_cord_type'),
         notes=data.get('notes'),
+        template_version=template.version,
         created_by=current_user.id
     )
     db.session.add(config)
     db.session.flush()
 
-    # 添加规格值（如果提供）
+    # 构建前端传入的覆盖值映射
     values_data = data.get('values', [])
+    override_map = {}
     for value_data in values_data:
-        if not value_data.get('template_item_id'):
-            continue
-        if not value_data.get('value'):
-            continue
+        tid = value_data.get('template_item_id')
+        if tid and value_data.get('value'):
+            override_map[tid] = value_data
 
-        config_value = ProductConfigValue(
-            configuration_id=config.id,
-            template_item_id=value_data['template_item_id'],
-            value=value_data['value'],
-            notes=value_data.get('notes')
-        )
-        db.session.add(config_value)
+    # 为每个模版规格项创建配置值（快照通用值，前端覆盖优先）
+    for item in template.items:
+        override = override_map.get(item.id)
+        value = override['value'] if override else item.general_value
+        if value:
+            config_value = ProductConfigValue(
+                configuration_id=config.id,
+                template_item_id=item.id,
+                value=value,
+                notes=override.get('notes') if override else None
+            )
+            db.session.add(config_value)
 
     # 生成 MN 编码（在添加配置值之后）
     config.mn_code = generate_mn_code(config, template)
@@ -1356,8 +1370,14 @@ def api_update_configuration(config_id):
 
         # 更新开发代号和区域
         config.config_code = data['config_code']
-        config.region = data.get('region')
-        config.region_name = data.get('region_name')
+        region_code = data.get('region')
+        region_name = data.get('region_name')
+        if region_code and not region_name:
+            field = ProductCodeField.query.filter_by(field_type='origin_location', code=region_code).first()
+            if field:
+                region_name = field.name
+        config.region = region_code
+        config.region_name = region_name
 
     # 更新其他基本信息（状态、备注等始终可以更新）
     config.status = data.get('status', config.status)
@@ -1460,23 +1480,39 @@ def api_copy_configuration(config_id):
         return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
 
     # 创建新配置版本
+    template = config.template
+    region_code = data.get('region', config.region)
+    region_name = data.get('region_name', config.region_name)
+    if region_code and not region_name:
+        field = ProductCodeField.query.filter_by(field_type='origin_location', code=region_code).first()
+        if field:
+            region_name = field.name
     new_config = ProductConfiguration(
         template_id=config.template_id,
         config_code=new_code,
-        region=data.get('region', config.region),
-        region_name=data.get('region_name', config.region_name),
+        region=region_code,
+        region_name=region_name,
         status='development',
         mn_code=None,  # MN编码需要重新生成
         power_spec=config.power_spec,
         power_cord_type=config.power_cord_type,
         notes=config.notes,
+        template_version=template.version if template else None,
         created_by=current_user.id
     )
     db.session.add(new_config)
     db.session.flush()
 
-    # 不复制规格值：新配置的所有规格项都显示默认值（灰色），用户修改后保存（黑色）
-    # MN编码保持为空，等待用户编辑时生成
+    # 复制源配置的规格值快照
+    for cv in config.config_values:
+        if cv.value:
+            new_cv = ProductConfigValue(
+                configuration_id=new_config.id,
+                template_item_id=cv.template_item_id,
+                value=cv.value,
+                notes=cv.notes
+            )
+            db.session.add(new_cv)
 
     db.session.commit()
 
@@ -1547,12 +1583,6 @@ def api_update_config_values(config_id):
     # 更新规格值
     for template_item_id, value_data in values_map.items():
         value = value_data.get('value')
-
-        # 如果用户没有输入值，使用默认值（通用值）
-        if not value:
-            template_item = SpecTemplateItem.query.get(template_item_id)
-            if template_item:
-                value = template_item.general_value
 
         existing_cv = ProductConfigValue.query.filter_by(
             configuration_id=config.id,

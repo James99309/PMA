@@ -1098,18 +1098,24 @@ class SpecImportService:
             config_code=data['config_code'],
             region=data.get('region'),
             status=data.get('status', 'development'),
+            template_version=template.version,
             created_by=user_id
         )
         db.session.add(config)
         db.session.flush()  # 获取ID
 
-        # 创建配置值
-        for value_data in data.get('values', []):
-            cv = ProductConfigValue(
-                configuration_id=config.id,
-                template_item_id=value_data['template_item_id'],
-                value=value_data['value']
-            )
-            db.session.add(cv)
+        # 构建导入数据中的覆盖值映射
+        override_map = {v['template_item_id']: v['value'] for v in data.get('values', []) if v.get('value')}
+
+        # 为每个模版规格项创建配置值（快照通用值，导入覆盖优先）
+        for item in template.items:
+            value = override_map.get(item.id, item.general_value)
+            if value:
+                cv = ProductConfigValue(
+                    configuration_id=config.id,
+                    template_item_id=item.id,
+                    value=value
+                )
+                db.session.add(cv)
 
         return config

@@ -289,7 +289,7 @@
                     <div class="p-6">
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {% for config in active_configs %}
-                            <div class="border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-md transition-shadow">
+                            <a href="{{ url_for('spec_template.spec_config_matrix_page', template_id=template.id) }}?config_id={{ config.id }}" class="block border border-slate-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer">
                                 <div class="flex items-start justify-between mb-3">
                                     <div>
                                         <p class="font-medium text-slate-900 dark:text-white">{{ config.config_code }}</p>
@@ -318,7 +318,7 @@
                                 {% if config.power_spec %}
                                 <p class="text-sm text-slate-500 dark:text-slate-500">{{ _('供电') }}: {{ config.power_spec }}</p>
                                 {% endif %}
-                            </div>
+                            </a>
                             {% endfor %}
                         </div>
                     </div>

@@ -317,6 +317,7 @@ class ProductConfiguration(db.Model):
     power_spec = Column(String(50))  # 供电规格
     power_cord_type = Column(String(50))  # 电源线类型
     notes = Column(Text)  # 备注
+    template_version = Column(String(20))  # 创建时的模版版本快照
     deleted_at = Column(DateTime, nullable=True)  # 软删除
     display_order = Column(Integer, default=0)  # 显示顺序，用于拖动排序
     created_by = Column(Integer, ForeignKey('users.id'))
@@ -358,14 +359,10 @@ class ProductConfiguration(db.Model):
         return self.status in ('production', 'discontinued')
 
     def get_spec_value(self, template_item_id):
-        """获取指定规格项的值，如果没有则返回通用值"""
+        """获取指定规格项的值"""
         for cv in self.config_values:
             if cv.template_item_id == template_item_id:
                 return cv.value
-        # 返回通用值
-        for item in self.template.items:
-            if item.id == template_item_id:
-                return item.general_value
         return None
 
     def to_dict(self):
@@ -384,6 +381,8 @@ class ProductConfiguration(db.Model):
             'power_spec': self.power_spec,
             'power_cord_type': self.power_cord_type,
             'notes': self.notes,
+            'template_version': self.template_version,
+            'version_match': self.template_version == self.template.version if self.template and self.template_version else None,
             'display_order': self.display_order,
             'created_by': self.created_by,
             'creator_name': self.creator.real_name if self.creator else None,
