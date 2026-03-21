@@ -154,6 +154,21 @@
                                     <span class="italic">MN: {{ _('待生成') }}</span>
                                     {% endif %}
                                 </div>
+                                {# 产品库引用标识 #}
+                                {% set refs = config._get_product_refs() %}
+                                {% if refs %}
+                                <div class="flex items-center flex-wrap gap-1.5 text-sm">
+                                    <span class="material-symbols-outlined mr-1 text-emerald-500" style="font-size: 18px;">link</span>
+                                    {% for ref in refs %}
+                                    <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded
+                                        {% if ref.database == 'sg' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
+                                        {% else %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400{% endif %}"
+                                        title="{{ ref.product_mn }}">
+                                        {{ ref.database|upper }} · {{ ref.product_name or ref.product_mn }}
+                                    </span>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
                                 {% if config.power_spec %}
                                 <div class="flex items-center text-sm text-slate-600 dark:text-slate-400">
                                     <span class="material-symbols-outlined mr-2" style="font-size: 18px;">bolt</span>
