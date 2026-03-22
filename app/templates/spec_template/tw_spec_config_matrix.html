@@ -387,7 +387,7 @@
                                         <div class="flex flex-col gap-1">
                                             <span class="font-semibold text-slate-700 dark:text-slate-300">{{ config.config_code }}</span>
                                             {% if config.region_name or config.template_version %}
-                                            <span class="text-xs font-normal {% if config.template_version and config.template_version != template.version %}text-amber-500{% else %}text-slate-400{% endif %}">{{ config.region_name }}{% if config.template_version %} {{ config.template_version }}{% if config.template_version != template.version %} ⚠{% endif %}{% endif %}</span>
+                                            <span class="text-xs font-normal {% if config.template_version and config.template_version != template.version and not config.mn_locked %}text-amber-500{% else %}text-slate-400{% endif %}">{{ config.region_name }}{% if config.template_version %} {{ config.template_version }}{% if config.template_version != template.version and not config.mn_locked %} ⚠{% endif %}{% endif %}</span>
                                             {% endif %}
                                             <!-- MN 编码预览 -->
                                             <div class="mn-preview-container mt-1 flex items-center gap-1" data-config-id="{{ config.id }}">

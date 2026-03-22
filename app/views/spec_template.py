@@ -424,8 +424,8 @@ def _check_config_owner(config):
 def list_templates():
     """规格模板列表页"""
     search = request.args.get('search', '').strip()
+    category_filter = request.args.get('category', '').strip()
     subcategory_filter = request.args.get('subcategory', '').strip()
-    name_filter = request.args.get('name', '').strip()
 
     query = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
     if not _is_template_admin():
@@ -439,34 +439,37 @@ def list_templates():
                 SpecTemplate.name.ilike(search_term)
             )
         )
+    if category_filter:
+        query = query.join(ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id).join(
+            ProductCategory, ProductSubcategory.category_id == ProductCategory.id
+        ).filter(ProductCategory.name == category_filter)
     if subcategory_filter:
-        query = query.join(ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id).filter(
-            ProductSubcategory.name == subcategory_filter
-        )
-    if name_filter:
-        query = query.filter(SpecTemplate.name == name_filter)
+        if not category_filter:
+            query = query.join(ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id)
+        query = query.filter(ProductSubcategory.name == subcategory_filter)
 
     templates = query.order_by(SpecTemplate.created_at.desc()).all()
 
-    # 构建筛选选项
+    # 构建筛选选项：从分类体系获取
     all_templates = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
     if not _is_template_admin():
         all_templates = all_templates.filter_by(created_by=current_user.id)
     all_templates = all_templates.all()
 
+    category_options = []
     subcategory_options = []
-    name_options = []
+    seen_cats = set()
     seen_subs = set()
-    seen_names = set()
     for t in all_templates:
-        if t.subcategory and t.subcategory.name not in seen_subs:
-            seen_subs.add(t.subcategory.name)
-            subcategory_options.append({'value': t.subcategory.name, 'label': t.subcategory.name})
-        if t.name and t.name != 'None' and t.name not in seen_names:
-            seen_names.add(t.name)
-            name_options.append({'value': t.name, 'label': t.name})
+        if t.subcategory:
+            if t.subcategory.category and t.subcategory.category.name not in seen_cats:
+                seen_cats.add(t.subcategory.category.name)
+                category_options.append({'value': t.subcategory.category.name, 'label': t.subcategory.category.name})
+            if t.subcategory.name not in seen_subs:
+                seen_subs.add(t.subcategory.name)
+                subcategory_options.append({'value': t.subcategory.name, 'label': t.subcategory.name})
+    category_options.sort(key=lambda x: x['label'])
     subcategory_options.sort(key=lambda x: x['label'])
-    name_options.sort(key=lambda x: x['label'])
 
     filter_config = {
         'action_url': url_for('spec_template.list_templates'),
@@ -479,18 +482,18 @@ def list_templates():
         },
         'filter_fields': [
             {
+                'name': 'category',
+                'label': _('分类'),
+                'all_option_text': _('全部分类'),
+                'current_value': category_filter,
+                'options': category_options
+            },
+            {
                 'name': 'subcategory',
                 'label': _('子分类'),
                 'all_option_text': _('全部子分类'),
                 'current_value': subcategory_filter,
                 'options': subcategory_options
-            },
-            {
-                'name': 'name',
-                'label': _('产品名称'),
-                'all_option_text': _('全部名称'),
-                'current_value': name_filter,
-                'options': name_options
             }
         ]
     }
@@ -972,8 +975,8 @@ def api_update_template(template_id):
     template.name = data.get('name')
     template.name_en = data.get('name_en')
     template.description = data.get('description')
-    # 只在用户明确要求或版本未被绑定时才直接更新版本号
-    if not structural_check['has_changes'] or template.version_first_used_at is None:
+    # 只在用户明确要求或版本未被绑定时才直接更新版本号（升版确认后不覆盖）
+    if (not structural_check['has_changes'] or template.version_first_used_at is None) and not data.get('confirm_version_upgrade'):
         template.version = data.get('version', template.version)
     template.category_id = new_category_id
     template.subcategory_id = new_subcategory_id
@@ -1067,14 +1070,39 @@ def api_update_template(template_id):
 
     db.session.commit()
 
+    # 自动更新未锁定配置的 MN 编码（结构变更后保持同步）
+    updated_configs = []
+    if structural_check['has_changes']:
+        unlocked_configs = [c for c in template.configurations
+                           if c.deleted_at is None and not c.mn_locked]
+        for config in unlocked_configs:
+            try:
+                new_mn = generate_mn_code(config, template=template)
+                config.mn_code = new_mn
+                config.template_version = template.version
+                updated_configs.append({
+                    'id': config.id,
+                    'config_code': config.config_code,
+                    'mn_code': new_mn
+                })
+            except Exception as e:
+                logger.warning(f'自动更新配置 {config.id} 编码失败: {e}')
+        if updated_configs:
+            db.session.commit()
+
     # 构建返回数据，包含 items 以便前端更新
     result_data = template.to_dict()
     result_data['items'] = [item.to_dict() for item in template.items]
 
+    msg = _('规格模板更新成功')
+    if updated_configs:
+        msg += _('，已自动更新 %(count)s 个未锁定配置的编码', count=len(updated_configs))
+
     return jsonify({
         'success': True,
-        'message': _('规格模板更新成功'),
-        'data': result_data
+        'message': msg,
+        'data': result_data,
+        'updated_configs': updated_configs
     })
 
 

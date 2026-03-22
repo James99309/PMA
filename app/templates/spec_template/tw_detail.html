@@ -316,8 +316,8 @@
                                 <p class="text-sm text-slate-600 dark:text-slate-400">MN: {{ config.mn_code }}</p>
                                 {% endif %}
                                 {% if config.template_version %}
-                                <p class="text-sm {% if config.template_version != template.version %}text-amber-600 dark:text-amber-400{% else %}text-slate-500 dark:text-slate-500{% endif %}">
-                                    {{ config.template_version }}{% if config.template_version != template.version %} → {{ template.version }}{% endif %}
+                                <p class="text-sm {% if config.template_version != template.version and not config.mn_locked %}text-amber-600 dark:text-amber-400{% else %}text-slate-500 dark:text-slate-500{% endif %}">
+                                    {{ config.template_version }}{% if config.template_version != template.version and not config.mn_locked %} → {{ template.version }}{% endif %}
                                 </p>
                                 {% endif %}
                                 {% if config.power_spec %}
