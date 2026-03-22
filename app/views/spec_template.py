@@ -1875,10 +1875,15 @@ def api_compare_product(config_id):
             ), {'pid': product_id}).fetchone()
             if row:
                 product_info = {'product_mn': row.product_mn, 'model': row.model, 'product_name': row.product_name}
-            # SG 产品规格：外部表仅有 sg_products，无 sg_product_specs
-            # 暂无法获取 SG 产品规格详情，对比只显示配置侧数据
+            # SG 产品规格通过外部表
+            sg_specs = db.session.execute(db.text(
+                "SELECT field_name, field_value FROM sg_product_specs "
+                "WHERE product_id = :pid AND field_value IS NOT NULL AND field_value != ''"
+            ), {'pid': product_id}).fetchall()
+            for s in sg_specs:
+                product_specs[s.field_name] = s.field_value
         except Exception as e:
-            logger.warning(f'查询 SG 产品失败: {e}')
+            logger.warning(f'查询 SG 产品规格失败: {e}')
 
     # 逐项对比
     comparison = []
