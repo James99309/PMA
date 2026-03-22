@@ -2031,12 +2031,14 @@ def api_link_product(config_id):
         product.source_configuration_id = config.id
         db.session.commit()
 
-        # 重建产品快照
+        # 重建产品快照 + 更新描述
         from app.utils.product_helpers import generate_product_snapshot
+        from app.services.spec_service import SpecService
         snap = generate_product_snapshot(product, source='link_to_config')
         if snap:
             product.code_definition_snapshot = snap
-            db.session.commit()
+        product.specification = SpecService.generate_description(SpecService.TYPE_PRODUCT, product.id)
+        db.session.commit()
 
         return jsonify({
             'success': True,

@@ -74,10 +74,13 @@ class SpecService:
         cat_order = {c.id: c.display_order for c in SpecCategory.query.all()}
 
         def _desc_sort_key(spec):
+            spec_order = getattr(spec, 'display_order', None)
+            if spec_order is not None and spec_order > 0:
+                return (0, spec_order)
             d = dict_map.get(spec.field_name)
             if d and d.category_id:
                 return (cat_order.get(d.category_id, 9999), d.display_order or 9999)
-            return (9999, getattr(spec, 'display_order', 9999))
+            return (9999, 9999)
 
         all_specs.sort(key=_desc_sort_key)
 

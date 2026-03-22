@@ -104,11 +104,13 @@ def cross_sync_product_specs():
 
         db.session.commit()
 
-        # 重建快照
+        # 重建快照 + 更新描述
+        from app.services.spec_service import SpecService
         snap = generate_product_snapshot(product, source='cross_sync')
         if snap:
             product.code_definition_snapshot = snap
-            db.session.commit()
+        product.specification = SpecService.generate_description(SpecService.TYPE_PRODUCT, product_id)
+        db.session.commit()
 
         logger.info(f'跨系统规格同步成功: 产品 {product_id}, {len(specs_data)} 条规格')
         return jsonify({
