@@ -4392,10 +4392,9 @@ def get_configurations_tree():
             ).first()
             if region_field:
                 region_id = region_field.id
-                # 当 region_name 为空时，从 ProductCodeField 获取名称
-                if not region_name_display:
-                    region_name_display = region_field.name
-                    region_name_en_display = region_field.name_en
+                # 始终以 ProductCodeField 为准，修正可能过期的 region_name
+                region_name_display = region_field.name
+                region_name_en_display = region_field.name_en
             else:
                 # 如果 field.code 是 '?' 则通过 option.code 查找
                 region_option = ProductCodeFieldOption.query.join(ProductCodeField).filter(

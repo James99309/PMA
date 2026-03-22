@@ -1694,12 +1694,15 @@ def api_copy_configuration(config_id):
 
     # 创建新配置版本
     template = config.template
-    region_code = data.get('region', config.region)
-    region_name = data.get('region_name', config.region_name)
-    if region_code and not region_name:
+    region_code = data.get('region') or config.region
+    # 始终根据 region_code 查询正确名称，避免使用旧配置的过期 region_name
+    region_name = None
+    if region_code:
         field = ProductCodeField.query.filter_by(field_type='origin_location', code=region_code).first()
         if field:
             region_name = field.name
+    if not region_name:
+        region_name = config.region_name
     new_config = ProductConfiguration(
         template_id=config.template_id,
         config_code=new_code,
