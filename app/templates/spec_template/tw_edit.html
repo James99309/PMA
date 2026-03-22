@@ -118,12 +118,24 @@
                 {% endif %}
             </div>
             <!-- 右侧：操作按钮 -->
-            <div class="flex items-center gap-3">
+            <div class="flex flex-wrap items-center justify-end gap-2 ml-auto">
                 <button type="button" @click="handleBack()"
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
                     <span class="material-symbols-outlined text-lg">arrow_back</span>
                     {{ _('返回') }}
                 </button>
+                {% if is_edit %}
+                <a href="{{ url_for('spec_template.spec_config_matrix_page', template_id=template.id) }}"
+                   class="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">grid_on</span>
+                    {{ _('规格配置矩阵') }}
+                </a>
+                <a href="{{ url_for('spec_template.configurations_page', template_id=template.id) }}"
+                   class="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">description</span>
+                    {{ _('配置版本') }}
+                </a>
+                {% endif %}
                 <button type="button" @click="resetToInitial()"
                    x-show="isDirty"
                    class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
