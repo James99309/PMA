@@ -225,6 +225,21 @@
                                        placeholder="{{ _('可选：模板描述') }}">
                             </div>
                             <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('计量单位') }}</label>
+                                <select x-model="templateData.unit" @change="checkDirty()"
+                                        class="form-select w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm">
+                                    <option value="">{{ _('请选择') }}</option>
+                                    <option value="套" :selected="templateData.unit === '套'">套</option>
+                                    <option value="个" :selected="templateData.unit === '个'">个</option>
+                                    <option value="台" :selected="templateData.unit === '台'">台</option>
+                                    <option value="米" :selected="templateData.unit === '米'">米</option>
+                                    <option value="根" :selected="templateData.unit === '根'">根</option>
+                                    <option value="批" :selected="templateData.unit === '批'">批</option>
+                                    <option value="次" :selected="templateData.unit === '次'">次</option>
+                                    <option value="个/年" :selected="templateData.unit === '个/年'">个/年</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('版本') }}</label>
                                 <div class="form-input w-full rounded-lg border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm cursor-not-allowed py-2 px-3"
                                      x-text="templateData.version || 'V1.0'"></div>
@@ -675,6 +690,7 @@
                 name_en: '{{ template.name_en if template else '' }}',
                 version: '{{ template.version if template else 'V1.0' }}',
                 description: '{{ template.description if template else '' }}',
+                unit: '{{ template.unit if template and template.unit else '' }}',
                 category_id: '{{ template.category_id if template and template.category_id else '' }}',
                 subcategory_id: '{{ template.subcategory_id if template and template.subcategory_id else '' }}'
             },
@@ -1680,6 +1696,7 @@
                     name_en: this.templateData.name_en || null,
                     version: this.templateData.version || 'V1.0',
                     description: this.templateData.description || null,
+                    unit: this.templateData.unit || null,
                     category_id: this.templateData.category_id ? parseInt(this.templateData.category_id) : null,
                     subcategory_id: this.templateData.subcategory_id ? parseInt(this.templateData.subcategory_id) : null,
                     items: items

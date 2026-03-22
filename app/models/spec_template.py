@@ -159,6 +159,7 @@ class SpecTemplate(db.Model):
     name = Column(String(200))  # 模板名称
     name_en = Column(String(200))  # 模板名称（英文）
     description = Column(Text)  # 模板描述
+    unit = Column(String(20))  # 产品计量单位（套、个、台、米等）
     version = Column(String(20), default='V1.0')  # 模板版本
     version_first_used_at = Column(DateTime)  # 当前版本首次生成MN编码的时间（用于判断版本是否被绑定）
     deleted_at = Column(DateTime, nullable=True)  # 软删除
@@ -194,6 +195,7 @@ class SpecTemplate(db.Model):
             'name': self.name,
             'name_en': self.name_en,
             'description': self.description,
+            'unit': self.unit,
             'version': self.version,
             'version_first_used_at': self.version_first_used_at.isoformat() if self.version_first_used_at else None,
             'version_bound': self.version_first_used_at is not None,  # 当前版本是否已被使用过

@@ -161,10 +161,10 @@ def get_configurations_tree():
                 ).first()
                 if region_field:
                     region_id = region_field.id
-                    # 当 region_name 为空时，从 ProductCodeField 获取名称
+                    # 始终获取英文名称；中文名称仅在为空时回退
+                    region_name_en_display = region_field.name_en
                     if not region_name_display:
                         region_name_display = region_field.name
-                        region_name_en_display = region_field.name_en
                 else:
                     region_option = ProductCodeFieldOption.query.join(ProductCodeField).filter(
                         ProductCodeField.field_type == 'origin_location',
@@ -180,16 +180,11 @@ def get_configurations_tree():
                 template.subcategory.name_en if template.subcategory else ''
             )
 
-            # 获取关联产品的 unit/unit_en
-            product_unit = ''
-            product_unit_en = ''
-            from app.models.product import Product as ProductModel
-            ref_product = ProductModel.query.filter_by(
-                source_configuration_id=config.id, is_deleted=False
-            ).first()
-            if ref_product:
-                product_unit = ref_product.unit or ''
-                product_unit_en = ref_product.unit_en or ''
+            # 从模版获取产品单位，映射英文
+            product_unit = template.unit or ''
+            unit_en_map = {'套': 'set', '个': 'pc', '台': 'unit', '米': 'meter', '根': 'pc',
+                           '批': 'lot', '次': 'time', '个/年': 'pc/yr'}
+            product_unit_en = unit_en_map.get(product_unit, product_unit)
 
             # 构建配置节点数据
             config_node = {

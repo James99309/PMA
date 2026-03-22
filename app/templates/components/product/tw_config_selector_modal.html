@@ -209,7 +209,7 @@ Tailwind 配置产品选择器模态框组件
                         </div>
                         <div class="flex items-center">
                             <span class="text-slate-500 dark:text-slate-400 mr-2">{{ _('区域') }}:</span>
-                            <span x-text="selectedConfig?.region_name || '-'" class="text-slate-800 dark:text-slate-200"></span>
+                            <span x-text="displayName(selectedConfig?.region_name_en, selectedConfig?.region_name) || '-'" class="text-slate-800 dark:text-slate-200"></span>
                         </div>
                         <div class="flex items-center">
                             <span class="text-slate-500 dark:text-slate-400 mr-2">{{ _('分类') }}:</span>

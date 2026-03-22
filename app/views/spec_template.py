@@ -772,6 +772,7 @@ def api_create_template():
         name=data.get('name'),
         name_en=data.get('name_en'),
         description=data.get('description'),
+        unit=data.get('unit'),
         version=data.get('version', 'V1.0'),
         category_id=data.get('category_id'),
         subcategory_id=data.get('subcategory_id'),
@@ -976,6 +977,8 @@ def api_update_template(template_id):
     template.name = data.get('name')
     template.name_en = data.get('name_en')
     template.description = data.get('description')
+    if data.get('unit') is not None:
+        template.unit = data.get('unit')
     # 只在用户明确要求或版本未被绑定时才直接更新版本号（升版确认后不覆盖）
     if (not structural_check['has_changes'] or template.version_first_used_at is None) and not data.get('confirm_version_upgrade'):
         template.version = data.get('version', template.version)
