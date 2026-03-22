@@ -1243,7 +1243,11 @@ def generator():
 @login_required
 def api_category_subcategories(id):
     """获取分类下的子分类列表（product 或 product_code 权限均可访问）"""
+    current_app.logger.info(f"[DEBUG] api_category_subcategories called: user={current_user.username}, role={current_user.role}, category_id={id}")
+    current_app.logger.info(f"[DEBUG] has product_code view: {current_user.has_permission('product_code', 'view')}")
+    current_app.logger.info(f"[DEBUG] has product view: {current_user.has_permission('product', 'view')}")
     if not (current_user.has_permission('product_code', 'view') or current_user.has_permission('product', 'view')):
+        current_app.logger.warning(f"[DEBUG] DENIED: user={current_user.username} has neither permission")
         abort(403)
     category = ProductCategory.query.get(id)
     if not category:
