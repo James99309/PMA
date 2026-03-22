@@ -911,6 +911,12 @@ window.ProductModal = (function() {
         importedConfig = configData;
         currentProductId = null;
 
+        // form.reset 后重新设置货币默认值
+        const _resetCurrency = () => {
+            const defCur = isOvsSystem ? 'USD' : 'CNY';
+            if (currencySelect) currencySelect.value = defCur;
+        };
+
         // 辅助函数：隐藏下拉框，显示只读文本
         function showReadonlyField(selectId, readonlyId, chineseName, englishName, idValue) {
             const selectEl = document.getElementById(selectId);
@@ -939,6 +945,7 @@ window.ProductModal = (function() {
         // 重置表单
         form.reset();
         document.getElementById('productId').value = '';
+        _resetCurrency();
 
         // 检测是否为远程配置（从SP8D导入）
         // 远程配置的 ID 是 SP8D 系统的，不能作为本地 FK

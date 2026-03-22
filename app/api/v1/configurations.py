@@ -125,11 +125,15 @@ def get_configurations_tree():
         from app.models.product import Product
 
         # 查询 pilot/production 状态的配置
-        configs = ProductConfiguration.query.filter(
+        region_filter = request.args.get('region')
+        query = ProductConfiguration.query.filter(
             ProductConfiguration.status.in_(['pilot', 'production']),
             ProductConfiguration.deleted_at.is_(None),
             ProductConfiguration.mn_code.isnot(None)
-        ).join(SpecTemplate).all()
+        ).join(SpecTemplate)
+        if region_filter:
+            query = query.filter(ProductConfiguration.region == region_filter)
+        configs = query.all()
 
         # 按分类/子分类组织成树
         category_map = {}

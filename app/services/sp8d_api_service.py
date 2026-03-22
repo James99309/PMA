@@ -68,9 +68,13 @@ class SP8DAPIService:
                 logger.error("SP8D API配置不完整，无法发起请求")
                 return None
 
-            # 发起GET请求
+            # 发起GET请求（传入本地区域码，只获取对应区域的配置）
+            from flask import current_app
+            local_region = current_app.config.get('PMA_DB_TYPE', '')
+            region_code = 'S' if local_region == 'ovs' else 'E'
             response = self.session.get(
                 f'{self.base_url}/configurations-tree',
+                params={'region': region_code},
                 timeout=10
             )
             response.raise_for_status()
