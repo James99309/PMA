@@ -827,16 +827,19 @@ class ProductSelector {
         const inputRect = input.getBoundingClientRect();
         const windowWidth = window.innerWidth;
         const windowHeight = window.innerHeight;
-        
+
         let top = inputRect.bottom + window.scrollY + 5;
         let left = inputRect.left + window.scrollX;
-        
-        // 临时添加到DOM以获取尺寸
-        menu.style.visibility = 'hidden';
-        document.body.appendChild(menu);
-        
+
+        // 临时添加到DOM以获取尺寸（已在DOM中时跳过隐藏）
+        const alreadyInDom = menu.parentNode === document.body;
+        if (!alreadyInDom) {
+            menu.style.visibility = 'hidden';
+            document.body.appendChild(menu);
+        }
+
         const menuRect = menu.getBoundingClientRect();
-        
+
         // 调整水平位置
         if (left + menuRect.width > windowWidth) {
             left = windowWidth - menuRect.width - 10;
@@ -844,12 +847,28 @@ class ProductSelector {
         if (left < 10) {
             left = 10;
         }
-        
+
+        // 计算上下可用空间
+        const spaceBelow = windowHeight - inputRect.bottom - 15;
+        const spaceAbove = inputRect.top - 15;
+
         // 调整垂直位置
-        if (top + menuRect.height > windowHeight + window.scrollY - 10) {
-            top = inputRect.top + window.scrollY - menuRect.height - 5;
+        if (spaceBelow >= Math.min(menuRect.height, 300)) {
+            // 向下显示
+            top = inputRect.bottom + window.scrollY + 5;
+        } else if (spaceAbove > spaceBelow) {
+            // 空间不足且上方更大，向上显示
+            top = inputRect.top + window.scrollY - Math.min(menuRect.height, spaceAbove) - 5;
         }
-        
+
+        // 动态限制列最大高度，确保不超出视口
+        const menuTop = top - window.scrollY;
+        const availableHeight = windowHeight - menuTop - 15;
+        const maxHeight = Math.max(Math.min(availableHeight, windowHeight * 0.7), 200);
+        menu.querySelectorAll('.menu-list').forEach(list => {
+            list.style.maxHeight = maxHeight + 'px';
+        });
+
         menu.style.position = 'absolute';
         menu.style.top = top + 'px';
         menu.style.left = left + 'px';
@@ -1011,6 +1030,7 @@ class ProductSelector {
         const subcategoriesContainer = menu.querySelector('.product-list');
         subcategoriesContainer.style.display = 'block';
         subcategoriesContainer.innerHTML = '<div class="menu-loading">加载中...</div>';
+        this.repositionActiveMenus();
 
         try {
             // 调用新的API接口获取子分类
@@ -1095,6 +1115,7 @@ class ProductSelector {
         const modelsContainer = menu.querySelector('.model-list');
         modelsContainer.style.display = 'block';
         modelsContainer.innerHTML = '<div class="menu-loading">加载中...</div>';
+        this.repositionActiveMenus();
 
         try {
             // 调用API接口获取该子分类下的所有产品
@@ -1373,7 +1394,8 @@ class ProductSelector {
         const modelsContainer = menu.querySelector('.model-list');
         modelsContainer.style.display = 'block';
         modelsContainer.innerHTML = '<div class="menu-loading">加载中...</div>';
-        
+        this.repositionActiveMenus();
+
         try {
             // 同时获取常规产品和临时产品的型号
             const [regularProducts, tempProducts] = await Promise.all([

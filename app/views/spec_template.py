@@ -914,14 +914,16 @@ def api_update_template(template_id):
     existing_definition_ids = {item['definition_id'] for item in items_data if item.get('definition_id')}
     for item in template.items:
         if item.spec_dict_id not in existing_definition_ids:
-            # 在删除前，为锁定配置的规格值保存孤立项信息
             for cv in item.config_values:
                 if cv.configuration and cv.configuration.mn_locked:
-                    # 保存规格信息，以便删除后仍能显示
+                    # 锁定配置：保存孤立项信息，以便删除后仍能显示
                     cv.orphaned_spec_name = item.spec_dict.name if item.spec_dict else None
                     cv.orphaned_spec_name_en = item.spec_dict.name_en if item.spec_dict else None
                     cv.orphaned_spec_unit = item.spec_dict.unit if item.spec_dict else None
                     cv.orphaned_category_id = item.spec_dict.category_id if item.spec_dict else None
+                else:
+                    # 未锁定配置：直接删除配置值，避免孤儿数据
+                    db.session.delete(cv)
             db.session.delete(item)
 
     # 更新或添加规格项
