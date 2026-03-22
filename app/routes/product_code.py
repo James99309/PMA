@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, flash, current_app, abort
 from flask_login import login_required, current_user
 from app import db
 from app.extensions import csrf
@@ -1241,9 +1241,10 @@ def generator():
 
 @product_code_bp.route('/api/category/<int:id>/subcategories', methods=['GET'])
 @login_required
-@permission_required('product_code', 'view')
 def api_category_subcategories(id):
-    """获取分类下的子分类列表"""
+    """获取分类下的子分类列表（product 或 product_code 权限均可访问）"""
+    if not (current_user.has_permission('product_code', 'view') or current_user.has_permission('product', 'view')):
+        abort(403)
     category = ProductCategory.query.get(id)
     if not category:
         return jsonify({'success': False, 'message': '分类不存在'}), 404
