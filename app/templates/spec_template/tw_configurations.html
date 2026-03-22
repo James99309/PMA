@@ -1034,19 +1034,24 @@
             list.innerHTML = '<div class="p-4 text-center text-sm text-slate-400">{{ _("无可关联的产品") }}</div>';
             return;
         }
-        list.innerHTML = products.map(p => `
-            <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0
-                ${p.selectable ? 'hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer' : 'opacity-40 cursor-not-allowed'}"
+        list.innerHTML = products.map(p => {
+            const isCurrent = p.linked_current;
+            const bgClass = isCurrent ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : '';
+            const interactClass = p.selectable ? 'hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer' : (isCurrent ? '' : 'opacity-40 cursor-not-allowed');
+            const reasonClass = isCurrent ? 'text-emerald-600 font-medium' : 'text-slate-400';
+            return `
+            <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0 ${bgClass} ${interactClass}"
                  onclick="${p.selectable ? `selectLinkProduct(${p.id}, this)` : ''}">
-                <input type="radio" name="linkProduct" value="${p.id}" ${p.selectable ? '' : 'disabled'}
-                    class="text-primary focus:ring-primary">
+                ${isCurrent
+                    ? '<span class="material-symbols-outlined text-emerald-500" style="font-size:20px;">check_circle</span>'
+                    : `<input type="radio" name="linkProduct" value="${p.id}" ${p.selectable ? '' : 'disabled'} class="text-primary focus:ring-primary">`}
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium text-slate-900 dark:text-white truncate">${p.product_mn || '-'}</div>
+                    <div class="text-sm font-medium ${isCurrent ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-900 dark:text-white'} truncate">${p.product_mn || '-'}</div>
                     <div class="text-xs text-slate-500">${p.product_name || ''} · ${p.model || ''}</div>
                 </div>
-                ${p.reason ? `<span class="text-xs text-slate-400 whitespace-nowrap">${p.reason}</span>` : ''}
-            </div>
-        `).join('');
+                ${p.reason ? `<span class="text-xs ${reasonClass} whitespace-nowrap">${p.reason}</span>` : ''}
+            </div>`;
+        }).join('');
     }
 
     function selectLinkProduct(productId, el) {
@@ -1061,33 +1066,113 @@
         if (!linkSelectedProductId || !linkConfigId) return;
         const btn = document.getElementById('linkProductSubmit');
         btn.disabled = true;
-        btn.textContent = '{{ _("关联中...") }}';
+        btn.textContent = '{{ _("对比中...") }}';
         document.getElementById('linkProductError').classList.add('hidden');
 
         try {
-            const resp = await fetch(`${API_BASE}/configurations/${linkConfigId}/link-product`, {
+            // 步骤1: 调用对比 API
+            const compResp = await fetch(`${API_BASE}/configurations/${linkConfigId}/compare-product`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json',
                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
                 body: JSON.stringify({ product_id: linkSelectedProductId, database: linkCurrentDb })
             });
-            const data = await resp.json();
-            if (data.success) {
-                showToast(data.message || '{{ _("关联成功") }}');
+            const compData = await compResp.json();
+            if (!compData.success) {
+                throw new Error(compData.message);
+            }
+
+            // 步骤2: 显示对比结果，等待用户确认
+            const confirmed = await showComparisonModal(compData);
+            if (!confirmed) {
+                btn.disabled = false;
+                btn.textContent = '{{ _("关联") }}';
+                return;
+            }
+
+            // 步骤3: 确认关联
+            btn.textContent = '{{ _("关联中...") }}';
+            const linkResp = await fetch(`${API_BASE}/configurations/${linkConfigId}/link-product`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json',
+                           'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+                body: JSON.stringify({ product_id: linkSelectedProductId, database: linkCurrentDb })
+            });
+            const linkData = await linkResp.json();
+            if (linkData.success) {
+                showToast(linkData.message || '{{ _("关联成功") }}');
                 closeLinkProductModal();
                 location.reload();
             } else {
-                document.getElementById('linkProductError').textContent = data.message;
-                document.getElementById('linkProductError').classList.remove('hidden');
-                btn.disabled = false;
-                btn.textContent = '{{ _("关联") }}';
+                throw new Error(linkData.message);
             }
         } catch (e) {
-            document.getElementById('linkProductError').textContent = '{{ _("操作失败") }}';
+            document.getElementById('linkProductError').textContent = e.message || '{{ _("操作失败") }}';
             document.getElementById('linkProductError').classList.remove('hidden');
             btn.disabled = false;
             btn.textContent = '{{ _("关联") }}';
         }
+    }
+
+    function showComparisonModal(data) {
+        return new Promise((resolve) => {
+            const comp = data.comparison;
+            const product = data.product;
+
+            let rowsHtml = comp.map(c => {
+                const icon = c.match ? '✓' : (c.product_missing ? '—' : '≠');
+                const rowClass = c.match ? '' : 'bg-amber-50 dark:bg-amber-900/10';
+                const iconClass = c.match ? 'text-emerald-500' : (c.product_missing ? 'text-slate-300' : 'text-amber-500');
+                return `<tr class="${rowClass}">
+                    <td class="px-3 py-2 text-xs">${c.use_in_code ? '<span class="text-primary font-bold">⚙</span> ' : ''}${c.field_name}</td>
+                    <td class="px-3 py-2 text-xs text-slate-700 dark:text-slate-300">${c.config_value || '<span class="text-slate-300">—</span>'}</td>
+                    <td class="px-3 py-2 text-center"><span class="${iconClass} text-sm font-bold">${icon}</span></td>
+                    <td class="px-3 py-2 text-xs text-slate-700 dark:text-slate-300">${c.product_value || '<span class="text-slate-300">—</span>'}</td>
+                </tr>`;
+            }).join('');
+
+            const modalHtml = `
+                <div id="comparisonModal" class="fixed inset-0 z-[60]" onclick="if(event.target===this){document.getElementById('comparisonModal').remove(); window._compResolve(false);}">
+                    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
+                    <div class="fixed inset-0 flex items-center justify-center p-4">
+                        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onclick="event.stopPropagation();">
+                            <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('规格对比') }}</h3>
+                                <p class="text-sm text-slate-500 mt-1">${product.product_mn || ''} · ${product.product_name || ''} · ${product.model || ''}</p>
+                                <div class="flex gap-4 mt-2 text-xs">
+                                    <span class="text-emerald-600">✓ {{ _('一致') }} ${data.matched}</span>
+                                    <span class="text-amber-600">≠ {{ _('差异') }} ${data.diff}</span>
+                                </div>
+                            </div>
+                            <div class="flex-1 overflow-y-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="sticky top-0 bg-slate-50 dark:bg-slate-700">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('规格') }}</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('配置值') }}</th>
+                                            <th class="px-3 py-2 text-center text-xs font-medium text-slate-500 w-10"></th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('产品值') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">${rowsHtml}</tbody>
+                                </table>
+                            </div>
+                            <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50">
+                                <p class="text-xs text-slate-500 mb-3">{{ _('确认后：配置值将同步到产品规格，产品将关联到此配置') }}</p>
+                                <div class="flex justify-end gap-3">
+                                    <button type="button" onclick="document.getElementById('comparisonModal').remove(); window._compResolve(false);"
+                                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg">{{ _('取消') }}</button>
+                                    <button type="button" onclick="document.getElementById('comparisonModal').remove(); window._compResolve(true);"
+                                        class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg">{{ _('确认关联') }}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+
+            window._compResolve = resolve;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        });
     }
     </script>
 </body>

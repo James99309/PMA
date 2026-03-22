@@ -1776,10 +1776,22 @@ def api_linkable_products(config_id):
         ).order_by(Product.product_name, Product.model, Product.product_mn).all()
         for p in products:
             p_region = p.product_mn[0] if p.product_mn else ''
-            already_linked = p.source_configuration_id is not None
+            linked_to_current = p.source_configuration_id == config.id
+            linked_to_other = p.source_configuration_id is not None and not linked_to_current
             name_match = (p.product_name == template_name) if template_name else True
             region_match = not (config.region and p_region and p_region != config.region)
-            selectable = not already_linked and name_match and region_match
+            selectable = not linked_to_current and not linked_to_other and name_match and region_match
+
+            if linked_to_current:
+                reason = _('当前关联')
+            elif linked_to_other:
+                reason = _('已关联其他配置')
+            elif not name_match:
+                reason = _('名称不一致')
+            elif not region_match:
+                reason = _('地区不一致')
+            else:
+                reason = ''
 
             products_data.append({
                 'id': p.id,
@@ -1788,7 +1800,8 @@ def api_linkable_products(config_id):
                 'model': p.model,
                 'status': p.status,
                 'selectable': selectable,
-                'reason': _('已关联') if already_linked else (_('名称不一致') if not name_match else (_('地区不一致') if not region_match else ''))
+                'linked_current': linked_to_current,
+                'reason': reason
             })
     elif database == 'sg':
         try:
@@ -1825,11 +1838,84 @@ def api_linkable_products(config_id):
     return jsonify({'success': True, 'products': products_data})
 
 
+@spec_template_bp.route('/api/configurations/<int:config_id>/compare-product', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_compare_product(config_id):
+    """API: 对比配置规格值与产品规格值"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    data = request.get_json()
+    product_id = data.get('product_id')
+    database = data.get('database', 'cn')
+
+    if not product_id:
+        return jsonify({'success': False, 'message': _('请选择产品')}), 400
+
+    template = config.template
+    # 配置值映射: template_item_id → value
+    config_values = {cv.template_item_id: cv.value for cv in config.config_values}
+
+    # 获取产品规格
+    product_specs = {}
+    product_info = {}
+    if database == 'cn':
+        from app.models.product import Product
+        from app.models.product_spec import ProductSpec
+        product = Product.query.get_or_404(product_id)
+        product_info = {'product_mn': product.product_mn, 'model': product.model, 'product_name': product.product_name}
+        for s in ProductSpec.query.filter_by(product_id=product.id).all():
+            if s.field_value:
+                product_specs[s.field_name] = s.field_value
+    elif database == 'sg':
+        try:
+            row = db.session.execute(db.text(
+                "SELECT product_mn, product_name, model FROM sg_products WHERE id = :pid"
+            ), {'pid': product_id}).fetchone()
+            if row:
+                product_info = {'product_mn': row.product_mn, 'model': row.model, 'product_name': row.product_name}
+            # SG 产品规格通过外部表
+            sg_specs = db.session.execute(db.text(
+                "SELECT field_name, field_value FROM sg_product_specs WHERE product_id = :pid AND field_value IS NOT NULL AND field_value != ''"
+            ), {'pid': product_id}).fetchall()
+            for s in sg_specs:
+                product_specs[s.field_name] = s.field_value
+        except Exception as e:
+            logger.warning(f'查询 SG 产品规格失败: {e}')
+
+    # 逐项对比
+    comparison = []
+    for item in sorted(template.items, key=lambda x: x.display_order):
+        spec_name = item.spec_dict.name if item.spec_dict else None
+        if not spec_name:
+            continue
+        config_val = config_values.get(item.id) or item.general_value or ''
+        product_val = product_specs.get(spec_name, '')
+        comparison.append({
+            'field_name': spec_name,
+            'field_name_en': item.spec_dict.name_en if item.spec_dict else '',
+            'use_in_code': item.use_in_code,
+            'config_value': config_val,
+            'product_value': product_val,
+            'match': config_val == product_val,
+            'product_missing': not product_val,
+            'config_missing': not config_val
+        })
+
+    return jsonify({
+        'success': True,
+        'product': product_info,
+        'comparison': comparison,
+        'total': len(comparison),
+        'matched': sum(1 for c in comparison if c['match']),
+        'diff': sum(1 for c in comparison if not c['match'])
+    })
+
+
 @spec_template_bp.route('/api/configurations/<int:config_id>/link-product', methods=['POST'])
 @login_required
 @permission_required('product_code', 'edit')
 def api_link_product(config_id):
-    """API: 将已有产品关联到配置"""
+    """API: 确认关联产品 — 产品规格同步为配置值"""
     config = ProductConfiguration.query.get_or_404(config_id)
     _check_config_owner(config)
     data = request.get_json()
@@ -1847,37 +1933,73 @@ def api_link_product(config_id):
         if product.source_configuration_id:
             return jsonify({'success': False, 'message': _('该产品已关联到其他配置')}), 400
 
-        # 关联产品
-        product.source_configuration_id = config.id
-
-        # 同步产品规格到配置值（如果配置还没有值）
+        # 产品规格映射
         specs = ProductSpec.query.filter_by(product_id=product.id).all()
         spec_map = {s.field_name: s for s in specs}
-        existing_item_ids = {cv.template_item_id for cv in config.config_values}
 
+        # 同步：用配置值更新产品规格，配置缺的从产品补
         for item in config.template.items:
-            if item.id in existing_item_ids:
-                continue
             spec_name = item.spec_dict.name if item.spec_dict else None
             if not spec_name:
                 continue
-            ps = spec_map.get(spec_name)
-            if ps and ps.field_value:
-                db.session.add(ProductConfigValue(
-                    configuration_id=config.id,
-                    template_item_id=item.id,
-                    value=ps.field_value
-                ))
 
+            # 配置值
+            config_cv = None
+            for cv in config.config_values:
+                if cv.template_item_id == item.id:
+                    config_cv = cv
+                    break
+            config_val = config_cv.value if config_cv else (item.general_value or '')
+
+            # 产品规格
+            ps = spec_map.get(spec_name)
+
+            if config_val:
+                # 配置有值 → 更新产品规格为配置值
+                if ps:
+                    ps.field_value = config_val
+                else:
+                    new_ps = ProductSpec(
+                        product_id=product.id,
+                        field_name=spec_name,
+                        field_name_en=item.spec_dict.name_en if item.spec_dict else '',
+                        field_value=config_val,
+                        display_order=item.display_order
+                    )
+                    db.session.add(new_ps)
+                # 确保配置值存在
+                if not config_cv:
+                    db.session.add(ProductConfigValue(
+                        configuration_id=config.id,
+                        template_item_id=item.id,
+                        value=config_val
+                    ))
+            elif ps and ps.field_value:
+                # 配置无值但产品有 → 补到配置
+                if not config_cv:
+                    db.session.add(ProductConfigValue(
+                        configuration_id=config.id,
+                        template_item_id=item.id,
+                        value=ps.field_value
+                    ))
+
+        # 建立关联
+        product.source_configuration_id = config.id
         db.session.commit()
+
+        # 重建产品快照
+        from app.utils.product_helpers import generate_product_snapshot
+        snap = generate_product_snapshot(product, source='link_to_config')
+        if snap:
+            product.code_definition_snapshot = snap
+            db.session.commit()
+
         return jsonify({
             'success': True,
-            'message': _('已关联产品 %(mn)s', mn=product.product_mn or product.model)
+            'message': _('已关联产品 %(mn)s，规格已同步', mn=product.product_mn or product.model)
         })
 
     elif database == 'sg':
-        # SG 产品：在 CN 配置中记录关联（不修改 SG 数据库）
-        # 通过 MN 号匹配确认
         try:
             row = db.session.execute(db.text(
                 "SELECT product_mn, product_name, model FROM sg_products WHERE id = :pid"
@@ -1885,7 +2007,6 @@ def api_link_product(config_id):
             if not row:
                 return jsonify({'success': False, 'message': _('SG 产品不存在')}), 404
 
-            # 更新配置的 MN 为 SG 产品的 MN（如果配置未锁定且无 MN）
             if not config.mn_locked and not config.mn_code:
                 config.mn_code = row.product_mn
                 db.session.commit()
