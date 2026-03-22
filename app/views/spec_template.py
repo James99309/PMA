@@ -1997,7 +1997,7 @@ def api_link_product(config_id):
                 ps.field_name_en = sd.name_en or ps.field_name_en or ''
                 ps.unit = sd.unit or ps.unit or ''
                 ps.display_order = item.display_order
-                ps.include_in_description = True
+                ps.include_in_description = item.use_in_code
             else:
                 new_ps = ProductSpec(
                     product_id=product.id,
@@ -2007,7 +2007,7 @@ def api_link_product(config_id):
                     field_code=field_code,
                     unit=sd.unit or '',
                     display_order=item.display_order,
-                    include_in_description=True
+                    include_in_description=item.use_in_code
                 )
                 db.session.add(new_ps)
 
@@ -2125,7 +2125,7 @@ def api_link_product(config_id):
                             'field_code': field_code,
                             'unit': sd.unit or '',
                             'display_order': item.display_order,
-                            'include_in_description': True
+                            'include_in_description': item.use_in_code
                         })
 
                     resp = http_requests.post(

@@ -92,12 +92,14 @@ class SpecService:
             if spec.include_in_description and spec.field_value:
                 unit = getattr(spec, 'unit', '') or getattr(spec, unit_field, '') or ''
                 unit_str = f" {unit}" if unit else ""
-                # OVS使用英文名称，SP8D使用中文名称
-                if is_ovs and hasattr(spec, 'field_name_en') and spec.field_name_en:
-                    field_display_name = spec.field_name_en
+                # OVS使用英文名称和英文值，SP8D使用中文
+                if is_ovs:
+                    field_display_name = (getattr(spec, 'field_name_en', '') or spec.field_name)
+                    field_display_value = (getattr(spec, 'field_value_en', '') or spec.field_value)
                 else:
                     field_display_name = spec.field_name
-                description_parts.append(f"{field_display_name}: {spec.field_value}{unit_str}")
+                    field_display_value = spec.field_value
+                description_parts.append(f"{field_display_name}: {field_display_value}{unit_str}")
 
         return ", ".join(description_parts) if description_parts else ""
 

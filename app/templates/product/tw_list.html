@@ -174,7 +174,7 @@
                     </td>
                     <!-- 单位 -->
                     <td class="p-3 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                        {{ product.unit or '-' }}
+                        {{ (product.unit_en if config.IS_OVS and product.unit_en else product.unit) or '-' }}
                     </td>
                     <!-- 价格 -->
                     <td class="p-3 whitespace-nowrap text-sm text-right font-medium text-slate-700 dark:text-slate-300">
