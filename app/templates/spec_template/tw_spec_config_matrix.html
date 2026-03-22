@@ -1381,7 +1381,21 @@
 
         // 从预览选项中获取编码
         if (options[value]) {
-            let code = options[value];
+            let rawCode = options[value];
+            // 验证每个字符是否为安全字符（与后端 generate_safe_code_char 一致）
+            let code = '';
+            for (const ch of rawCode) {
+                if (SAFE_CHARS.includes(ch)) {
+                    code += ch;
+                } else {
+                    const num = parseInt(ch);
+                    if (!isNaN(num)) {
+                        code += SAFE_CHARS[num % SAFE_CHARS.length];
+                    } else {
+                        code += 'X';
+                    }
+                }
+            }
             while (code.length < len) code += 'X';
             return code.substring(0, len);
         }
