@@ -1580,14 +1580,14 @@ def api_update_configuration(config_id):
 
     # 区域和配置名称始终可更新（不受锁定限制）
     region_code = data.get('region')
-    region_name = data.get('region_name')
-    if region_code and not region_name:
-        field = ProductCodeField.query.filter_by(field_type='origin_location', code=region_code).first()
-        if field:
-            region_name = field.name
     if 'region' in data:
         config.region = region_code
-        config.region_name = region_name
+        # 始终从 ProductCodeField 查 region_name，不用前端传的旧值
+        if region_code:
+            field = ProductCodeField.query.filter_by(field_type='origin_location', code=region_code).first()
+            config.region_name = field.name if field else region_code
+        else:
+            config.region_name = None
     if 'config_code' in data and is_locked:
         # 锁定时配置名称也可改（不影响MN）
         config.config_code = data['config_code']
