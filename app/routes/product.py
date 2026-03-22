@@ -3034,20 +3034,24 @@ def toggle_product_status(id):
 @login_required
 @permission_required('product', 'view')  # 添加产品查看权限装饰器
 def get_product_units():
-    """获取去重后的产品单位列表"""
+    """获取去重后的产品单位列表（含中英文）"""
     try:
         logger.debug('正在获取产品单位列表...')
-        # 使用 distinct 获取唯一的单位列表
-        units = db.session.query(Product.unit).distinct().filter(
+        units = db.session.query(Product.unit, Product.unit_en).distinct().filter(
             Product.unit.isnot(None)
         ).all()
-        
-        # 将结果转换为列表
-        unit_list = [unit[0] for unit in units if unit[0]]
-        
-        # 排序单位列表
-        unit_list.sort()
-        
+
+        is_ovs = Config.IS_OVS
+        unit_list = []
+        seen = set()
+        for u, u_en in units:
+            if not u or u in seen:
+                continue
+            seen.add(u)
+            display = (u_en or u) if is_ovs else u
+            unit_list.append({'value': u, 'value_en': u_en or '', 'display': display})
+
+        unit_list.sort(key=lambda x: x['display'])
         logger.debug(f'找到 {len(unit_list)} 个单位')
         return jsonify(unit_list)
         

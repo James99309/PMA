@@ -702,18 +702,12 @@
             form.querySelector('[name="status"]').value = config.status || 'development';
             form.querySelector('[name="notes"]').value = config.notes || '';
 
-            // 锁定状态下禁用开发代号和适用区域
+            // 锁定状态：开发代号和区域始终可编辑，只锁定MN编码
             const isLocked = config.mn_locked;
-            configCodeField.disabled = isLocked;
-            regionField.disabled = isLocked;
-
-            if (isLocked) {
-                configCodeField.classList.add('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
-                regionField.classList.add('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
-            } else {
-                configCodeField.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
-                regionField.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
-            }
+            configCodeField.disabled = false;
+            regionField.disabled = false;
+            configCodeField.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
+            regionField.classList.remove('bg-slate-100', 'dark:bg-slate-700', 'cursor-not-allowed');
 
             // 显示MN编码（锁定时添加锁定图标）
             const mnDisplay = document.getElementById('mn_code_display');

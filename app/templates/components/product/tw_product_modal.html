@@ -466,14 +466,28 @@ window.ProductModal = (function() {
         try {
             const response = await fetch(config.urls.getUnits);
             const data = await response.json();
-            // API 直接返回数组格式
             if (Array.isArray(data) && data.length > 0) {
                 unitSelect.innerHTML = '<option value="">{{ _("请选择单位") }}</option>';
-                data.forEach(unit => {
+                const unitEnInput = document.getElementById('unit_en');
+                data.forEach(item => {
                     const option = document.createElement('option');
-                    option.value = unit;
-                    option.textContent = unit;
+                    // 兼容新旧格式：对象 {value, value_en, display} 或纯字符串
+                    if (typeof item === 'object') {
+                        option.value = item.value;
+                        option.textContent = item.display;
+                        option.dataset.unitEn = item.value_en || '';
+                    } else {
+                        option.value = item;
+                        option.textContent = item;
+                    }
                     unitSelect.appendChild(option);
+                });
+                // 选择单位时自动填充 unit_en
+                unitSelect.addEventListener('change', function() {
+                    const selected = this.options[this.selectedIndex];
+                    if (unitEnInput && selected.dataset.unitEn !== undefined) {
+                        unitEnInput.value = selected.dataset.unitEn;
+                    }
                 });
             }
         } catch (error) {
