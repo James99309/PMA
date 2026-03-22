@@ -1083,8 +1083,8 @@
             }
 
             // 步骤2: 显示对比结果，等待用户确认
-            const confirmed = await showComparisonModal(compData);
-            if (!confirmed) {
+            const result = await showComparisonModal(compData);
+            if (!result) {
                 btn.disabled = false;
                 btn.textContent = '{{ _("关联") }}';
                 return;
@@ -1092,7 +1092,7 @@
 
             // 步骤3: 确认关联
             btn.textContent = '{{ _("关联中...") }}';
-            const syncMn = document.getElementById('syncMnCheckbox')?.checked || false;
+            const syncMn = result.syncMn || false;
             const linkResp = await fetch(`${API_BASE}/configurations/${linkConfigId}/link-product`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json',
@@ -1153,7 +1153,7 @@
             }).join('');
 
             const modalHtml = `
-                <div id="comparisonModal" class="fixed inset-0 z-[60]" onclick="if(event.target===this){document.getElementById('comparisonModal').remove(); window._compResolve(false);}">
+                <div id="comparisonModal" class="fixed inset-0 z-[60]" onclick="if(event.target===this){document.getElementById('comparisonModal').remove(); window._compResolve(null);}">
                     <div class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
                     <div class="fixed inset-0 flex items-center justify-center p-4">
                         <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onclick="event.stopPropagation();">
@@ -1182,9 +1182,9 @@
                             <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50">
                                 <p class="text-xs text-slate-500 mb-3">{{ _('确认后：配置值将同步到产品规格，产品将关联到此配置。双方编码保持不变。') }}</p>
                                 <div class="flex justify-end gap-3">
-                                    <button type="button" onclick="document.getElementById('comparisonModal').remove(); window._compResolve(false);"
+                                    <button type="button" onclick="document.getElementById('comparisonModal').remove(); window._compResolve(null);"
                                         class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg">{{ _('取消') }}</button>
-                                    <button type="button" onclick="document.getElementById('comparisonModal').remove(); window._compResolve(true);"
+                                    <button type="button" onclick="const s=document.getElementById('syncMnCheckbox'); window._compResult={syncMn:s?s.checked:false}; document.getElementById('comparisonModal').remove(); window._compResolve(window._compResult);"
                                         class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg">{{ _('确认关联') }}</button>
                                 </div>
                             </div>
