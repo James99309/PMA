@@ -44,9 +44,14 @@ product_code_bp = Blueprint('product_code', __name__, url_prefix='/product-code'
 
 @product_code_bp.before_request
 def block_on_ovs():
-    """OVS(SG NAS) 禁止访问产品编码管理模块 — 数据由 CN NAS 主库管理"""
+    """OVS(SG NAS) 禁止访问产品编码管理模块 — 数据由 CN NAS 主库管理
+    但允许子分类查询等只读 API（产品编辑需要）"""
     from flask import current_app, abort
     if current_app.config.get('IS_OVS'):
+        # 允许 OVS 访问的只读 API 白名单
+        allowed_paths = ['/api/category/', '/api/subcategory/']
+        if any(request.path.startswith(product_code_bp.url_prefix + p) for p in allowed_paths):
+            return  # 放行
         abort(403)
 
 
@@ -1243,11 +1248,7 @@ def generator():
 @login_required
 def api_category_subcategories(id):
     """获取分类下的子分类列表（product 或 product_code 权限均可访问）"""
-    current_app.logger.info(f"[DEBUG] api_category_subcategories called: user={current_user.username}, role={current_user.role}, category_id={id}")
-    current_app.logger.info(f"[DEBUG] has product_code view: {current_user.has_permission('product_code', 'view')}")
-    current_app.logger.info(f"[DEBUG] has product view: {current_user.has_permission('product', 'view')}")
     if not (current_user.has_permission('product_code', 'view') or current_user.has_permission('product', 'view')):
-        current_app.logger.warning(f"[DEBUG] DENIED: user={current_user.username} has neither permission")
         abort(403)
     category = ProductCategory.query.get(id)
     if not category:
