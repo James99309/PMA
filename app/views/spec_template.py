@@ -440,63 +440,49 @@ def list_templates():
                 SpecTemplate.name.ilike(search_term)
             )
         )
+    # 统一 join 分类表（筛选+排序共用）
+    query = query.outerjoin(ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id
+    ).outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
+
     if category_filter:
-        query = query.join(ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id).join(
-            ProductCategory, ProductSubcategory.category_id == ProductCategory.id
-        ).filter(ProductCategory.name == category_filter)
+        query = query.filter(ProductCategory.name == category_filter)
     if subcategory_filter:
-        if not category_filter:
-            query = query.join(ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id)
         query = query.filter(ProductSubcategory.name == subcategory_filter)
 
-    templates = query.order_by(SpecTemplate.created_at.desc()).all()
+    # 按分类、子分类、创建时间排序
+    query = query.order_by(
+        ProductCategory.name.asc().nullslast(),
+        ProductSubcategory.name.asc().nullslast(),
+        SpecTemplate.created_at.desc()
+    )
+    templates = query.all()
 
-    # 构建筛选选项：从分类体系获取
+    # 构建分类→子分类树（仅包含有模板的分类）
     all_templates = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
     if not _is_template_admin():
         all_templates = all_templates.filter_by(created_by=current_user.id)
     all_templates = all_templates.all()
 
-    category_options = []
-    subcategory_options = []
-    seen_cats = set()
-    seen_subs = set()
+    category_tree = {}  # {cat_name: {'subcategories': [sub_name, ...]}}
     for t in all_templates:
-        if t.subcategory:
-            if t.subcategory.parent_category and t.subcategory.parent_category.name not in seen_cats:
-                seen_cats.add(t.subcategory.parent_category.name)
-                category_options.append({'value': t.subcategory.parent_category.name, 'label': t.subcategory.parent_category.name})
-            if t.subcategory.name not in seen_subs:
-                seen_subs.add(t.subcategory.name)
-                subcategory_options.append({'value': t.subcategory.name, 'label': t.subcategory.name})
-    category_options.sort(key=lambda x: x['label'])
-    subcategory_options.sort(key=lambda x: x['label'])
+        if t.subcategory and t.subcategory.parent_category:
+            cat_name = t.subcategory.parent_category.name
+            sub_name = t.subcategory.name
+            if cat_name not in category_tree:
+                category_tree[cat_name] = set()
+            category_tree[cat_name].add(sub_name)
+    # 转为排序后的列表
+    category_tree_sorted = [
+        {'name': cat, 'subcategories': sorted(list(subs))}
+        for cat, subs in sorted(category_tree.items())
+    ]
 
     filter_config = {
         'action_url': url_for('spec_template.list_templates'),
-        'form_id': 'filterForm',
-        'search_field': {
-            'name': 'search',
-            'label': _('搜索'),
-            'placeholder': _('搜索名称或型号'),
-            'value': search,
-        },
-        'filter_fields': [
-            {
-                'name': 'category',
-                'label': _('分类'),
-                'all_option_text': _('全部分类'),
-                'current_value': category_filter,
-                'options': category_options
-            },
-            {
-                'name': 'subcategory',
-                'label': _('子分类'),
-                'all_option_text': _('全部子分类'),
-                'current_value': subcategory_filter,
-                'options': subcategory_options
-            }
-        ]
+        'search_value': search,
+        'category_filter': category_filter,
+        'subcategory_filter': subcategory_filter,
+        'category_tree': category_tree_sorted,
     }
 
     return render_template(
