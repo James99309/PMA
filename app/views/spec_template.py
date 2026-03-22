@@ -1875,14 +1875,10 @@ def api_compare_product(config_id):
             ), {'pid': product_id}).fetchone()
             if row:
                 product_info = {'product_mn': row.product_mn, 'model': row.model, 'product_name': row.product_name}
-            # SG 产品规格通过外部表
-            sg_specs = db.session.execute(db.text(
-                "SELECT field_name, field_value FROM sg_product_specs WHERE product_id = :pid AND field_value IS NOT NULL AND field_value != ''"
-            ), {'pid': product_id}).fetchall()
-            for s in sg_specs:
-                product_specs[s.field_name] = s.field_value
+            # SG 产品规格：外部表仅有 sg_products，无 sg_product_specs
+            # 暂无法获取 SG 产品规格详情，对比只显示配置侧数据
         except Exception as e:
-            logger.warning(f'查询 SG 产品规格失败: {e}')
+            logger.warning(f'查询 SG 产品失败: {e}')
 
     # 逐项对比
     comparison = []
@@ -1942,15 +1938,29 @@ def api_link_product(config_id):
         if product.source_configuration_id:
             return jsonify({'success': False, 'message': _('该产品已关联到其他配置')}), 400
 
-        # 产品规格映射
+        # 产品现有规格
         specs = ProductSpec.query.filter_by(product_id=product.id).all()
         spec_map = {s.field_name: s for s in specs}
+        synced_spec_names = set()
 
-        # 同步：用配置值更新产品规格，配置缺的从产品补
+        # 预加载编码映射: field_name+value → code
+        from app.models.product_code import SpecificationOption
+        spec_dict_ids = [item.spec_dict_id for item in config.template.items if item.spec_dict_id]
+        all_options = SpecificationOption.query.filter(
+            SpecificationOption.spec_id.in_(spec_dict_ids),
+            SpecificationOption.is_active == True
+        ).all() if spec_dict_ids else []
+        code_lookup = {}  # (spec_id, value) → code
+        for opt in all_options:
+            code_lookup[(opt.spec_id, opt.value)] = opt.code
+
+        # 完整同步：配置 → 产品规格（值、编码、顺序、英文名、单位）
         for item in config.template.items:
-            spec_name = item.spec_dict.name if item.spec_dict else None
-            if not spec_name:
+            sd = item.spec_dict
+            if not sd:
                 continue
+            spec_name = sd.name
+            synced_spec_names.add(spec_name)
 
             # 配置值
             config_cv = None
@@ -1960,37 +1970,41 @@ def api_link_product(config_id):
                     break
             config_val = config_cv.value if config_cv else (item.general_value or '')
 
-            # 产品规格
-            ps = spec_map.get(spec_name)
+            # 查编码
+            field_code = code_lookup.get((sd.id, config_val), '') if config_val else ''
 
-            if config_val:
-                # 配置有值 → 更新产品规格为配置值
-                if ps:
-                    ps.field_value = config_val
-                else:
-                    new_ps = ProductSpec(
-                        product_id=product.id,
-                        field_name=spec_name,
-                        field_name_en=item.spec_dict.name_en if item.spec_dict else '',
-                        field_value=config_val,
-                        display_order=item.display_order
-                    )
-                    db.session.add(new_ps)
-                # 确保配置值存在
-                if not config_cv:
-                    db.session.add(ProductConfigValue(
-                        configuration_id=config.id,
-                        template_item_id=item.id,
-                        value=config_val
-                    ))
-            elif ps and ps.field_value:
-                # 配置无值但产品有 → 补到配置
-                if not config_cv:
-                    db.session.add(ProductConfigValue(
-                        configuration_id=config.id,
-                        template_item_id=item.id,
-                        value=ps.field_value
-                    ))
+            # 更新或创建产品规格
+            ps = spec_map.get(spec_name)
+            if ps:
+                ps.field_value = config_val
+                ps.field_code = field_code
+                ps.field_name_en = sd.name_en or ps.field_name_en or ''
+                ps.unit = sd.unit or ps.unit or ''
+                ps.display_order = item.display_order
+            else:
+                new_ps = ProductSpec(
+                    product_id=product.id,
+                    field_name=spec_name,
+                    field_name_en=sd.name_en or '',
+                    field_value=config_val,
+                    field_code=field_code,
+                    unit=sd.unit or '',
+                    display_order=item.display_order
+                )
+                db.session.add(new_ps)
+
+            # 确保配置值存在
+            if config_val and not config_cv:
+                db.session.add(ProductConfigValue(
+                    configuration_id=config.id,
+                    template_item_id=item.id,
+                    value=config_val
+                ))
+
+        # 删除产品中多余的规格（模版没有的）
+        for spec_name, ps in spec_map.items():
+            if spec_name not in synced_spec_names:
+                db.session.delete(ps)
 
         # 如果用户勾选了同步 MN，将配置编码更新为产品编码并锁定
         if data.get('sync_mn') and product.product_mn and not config.mn_locked:
