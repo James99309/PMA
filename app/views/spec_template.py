@@ -1763,51 +1763,61 @@ def api_linkable_products(config_id):
     database = request.args.get('db', 'cn')
     template = config.template
 
+    # 模版的名称（产品名称）用于匹配
+    template_name = template.name
+
     products_data = []
     if database == 'cn':
-        # CN 本地产品：同子分类、未删除、未关联
         from app.models.product import Product
+        # 同子分类、未软删除的所有产品（包括已关联的，用于显示）
         products = Product.query.filter(
             Product.subcategory_id == template.subcategory_id,
-            Product.is_deleted == False,
-            Product.source_configuration_id.is_(None)
-        ).order_by(Product.model, Product.product_mn).all()
+            Product.is_deleted == False
+        ).order_by(Product.product_name, Product.model, Product.product_mn).all()
         for p in products:
-            # 从 MN 第一位推断产品地区
             p_region = p.product_mn[0] if p.product_mn else ''
+            already_linked = p.source_configuration_id is not None
+            name_match = (p.product_name == template_name) if template_name else True
+            region_match = not (config.region and p_region and p_region != config.region)
+            selectable = not already_linked and name_match and region_match
+
             products_data.append({
                 'id': p.id,
                 'product_mn': p.product_mn,
                 'product_name': p.product_name,
                 'model': p.model,
                 'status': p.status,
-                'region_mismatch': bool(config.region and p_region and p_region != config.region)
+                'selectable': selectable,
+                'reason': _('已关联') if already_linked else (_('名称不一致') if not name_match else (_('地区不一致') if not region_match else ''))
             })
     elif database == 'sg':
-        # SG 产品通过外部表查询
         try:
             rows = db.session.execute(db.text(
                 "SELECT id, product_mn, product_name, model FROM sg_products "
                 "WHERE product_mn IS NOT NULL AND product_mn != '' "
-                "ORDER BY model, product_mn"
+                "ORDER BY product_name, model, product_mn"
             )).fetchall()
-            # 排除已被 CN 配置关联的 SG 产品（通过 MN 匹配）
+            # 已被 CN 配置关联的 MN 集合
             linked_mns = {c.mn_code for c in ProductConfiguration.query.filter(
                 ProductConfiguration.deleted_at.is_(None),
                 ProductConfiguration.mn_code.isnot(None)
             ).all()}
             for r in rows:
                 p_region = r.product_mn[0] if r.product_mn else ''
+                already_linked = r.product_mn in linked_mns
+                # SG 产品名称与模版名称匹配（SG 用英文名，模版用中文名，暂不强制名称匹配）
+                region_match = not (config.region and p_region and p_region != config.region)
+                selectable = not already_linked and region_match
+
                 products_data.append({
                     'id': r.id,
                     'product_mn': r.product_mn,
                     'product_name': r.product_name,
                     'model': r.model,
                     'status': 'active',
-                    'region_mismatch': bool(config.region and p_region and p_region != config.region),
-                    'already_linked': r.product_mn in linked_mns
+                    'selectable': selectable,
+                    'reason': _('已关联') if already_linked else (_('地区不一致') if not region_match else '')
                 })
-            products_data = [p for p in products_data if not p.get('already_linked')]
         except Exception as e:
             logger.warning(f'查询 SG 产品失败: {e}')
             return jsonify({'success': True, 'products': [], 'message': _('SG 产品库不可用')})
