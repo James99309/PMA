@@ -462,9 +462,9 @@ def list_templates():
     seen_subs = set()
     for t in all_templates:
         if t.subcategory:
-            if t.subcategory.category and t.subcategory.category.name not in seen_cats:
-                seen_cats.add(t.subcategory.category.name)
-                category_options.append({'value': t.subcategory.category.name, 'label': t.subcategory.category.name})
+            if t.subcategory.parent_category and t.subcategory.parent_category.name not in seen_cats:
+                seen_cats.add(t.subcategory.parent_category.name)
+                category_options.append({'value': t.subcategory.parent_category.name, 'label': t.subcategory.parent_category.name})
             if t.subcategory.name not in seen_subs:
                 seen_subs.add(t.subcategory.name)
                 subcategory_options.append({'value': t.subcategory.name, 'label': t.subcategory.name})
