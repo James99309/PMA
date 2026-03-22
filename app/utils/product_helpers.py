@@ -273,7 +273,7 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
             defn = name_to_def.get(spec.field_name)
             # use_in_code: 有 field_code 即参与编码
             use_in_code = bool(spec.field_code and spec.field_code.strip())
-            unit = defn.unit if defn else None
+            unit = getattr(spec, 'unit', '') or (defn.unit if defn else None)
 
             snapshot["code_parts"].append({
                 "position": idx,

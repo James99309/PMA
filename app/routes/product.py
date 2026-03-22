@@ -1710,12 +1710,9 @@ def get_product_specs(product_id):
         specs = ProductSpec.query.filter_by(product_id=product_id).order_by(ProductSpec.display_order).all()
 
         # 转换为字典并添加position信息
-        from app.routes.product_code import get_field_unit
         spec_list = []
         for spec in specs:
             spec_dict = spec.to_dict()
-            # 补充单位（ProductSpec 无 unit 列，从规格字典查询）
-            spec_dict['unit'] = get_field_unit(spec.field_name) or ''
 
             # 获取规格字段的position（用于MN编码排序）
             if product.subcategory_id and spec.field_name:
@@ -3142,7 +3139,6 @@ def view_product_detail(id):
     """查看产品详情页面"""
     try:
         from app.models.product_spec import ProductSpec
-        from app.routes.product_code import get_field_unit
 
         # 获取产品详情
         product = Product.query.get_or_404(id)
@@ -3583,12 +3579,12 @@ def get_products_by_subcategory_api():
         if subcategory_obj and hasattr(subcategory_obj, 'image_path'):
             subcategory_image = subcategory_obj.image_path
 
-        # 构建产品数据 + 按名称分组
-        name_groups = {}
+        # 构建产品数据 + 按型号(model)分组
+        model_groups_dict = {}
         for product in products:
-            name = product.product_name or product.model or '未命名产品'
-            if name not in name_groups:
-                name_groups[name] = []
+            model_key = product.model or product.product_name or '未命名产品'
+            if model_key not in model_groups_dict:
+                model_groups_dict[model_key] = []
 
             config_count = config_counts.get(product.id, 0)
 
@@ -3599,7 +3595,7 @@ def get_products_by_subcategory_api():
             if not effective_image:
                 effective_image = subcategory_image
 
-            name_groups[name].append({
+            model_groups_dict[model_key].append({
                 'id': product.id,
                 'product_name': product.product_name,
                 'model': product.model,
@@ -3622,9 +3618,9 @@ def get_products_by_subcategory_api():
             })
 
         result = sorted([
-            {'product_name': name, 'model': name, 'count': len(plist), 'products': plist}
-            for name, plist in name_groups.items()
-        ], key=lambda x: x['product_name'])
+            {'product_name': plist[0]['product_name'] if plist else model, 'model': model, 'count': len(plist), 'products': plist}
+            for model, plist in model_groups_dict.items()
+        ], key=lambda x: x['model'])
 
         return jsonify({
             'success': True,
@@ -3813,10 +3809,9 @@ def export_products():
     """导出产品库为Excel文件"""
     try:
         from app.models.product_spec import ProductSpec
-        from app.routes.product_code import get_field_unit
 
         # 辅助函数：获取产品规格的展示文本（优先从 ProductSpec 表，回退到 specification 字段）
-        def get_product_spec_display(product, ProductSpec_model, get_unit_func):
+        def get_product_spec_display(product, ProductSpec_model):
             """获取产品规格的展示文本"""
             # 优先从 code_definition_snapshot 获取
             if product.code_definition_snapshot:
@@ -3826,8 +3821,8 @@ def export_products():
                 for part in code_parts:
                     field_name = part.get('field_name', '')
                     value = part.get('value', '')
+                    unit = part.get('unit', '')
                     if field_name and value:
-                        unit = get_unit_func(field_name) if get_unit_func else ''
                         display_value = f"{value} {unit}" if unit else value
                         spec_parts.append(f"{field_name}: {display_value}")
                 if spec_parts:
@@ -3839,7 +3834,7 @@ def export_products():
                 spec_parts = []
                 for spec in specs:
                     if spec.field_name and spec.field_value:
-                        unit = get_unit_func(spec.field_name) if get_unit_func else ''
+                        unit = getattr(spec, 'unit', '') or ''
                         display_value = f"{spec.field_value} {unit}" if unit else spec.field_value
                         spec_parts.append(f"{spec.field_name}: {display_value}")
                 if spec_parts:
@@ -3935,7 +3930,7 @@ def export_products():
                 subcategory_name,                   # 子分类（产品系列）
                 product.product_name or '',         # 产品名称（产品本身的名称）
                 product.model or '',
-                get_product_spec_display(product, ProductSpec, get_field_unit),  # 从 ProductSpec 表获取规格
+                get_product_spec_display(product, ProductSpec),  # 从 ProductSpec 表获取规格
                 product.brand or '',
                 product.unit or '',
                 float(product.retail_price) if product.retail_price else '',
@@ -3992,7 +3987,7 @@ def export_products():
                     for part in code_parts:
                         field_name = part.get('field_name', '')
                         if field_name:
-                            unit = get_field_unit(field_name)
+                            unit = part.get('unit', '')
                             value = part.get('value', '')
                             # 合并值和单位显示
                             display_value = f"{value} {unit}" if value and unit else value
@@ -4007,7 +4002,7 @@ def export_products():
                     specs = ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.id).all()
                     for spec in specs:
                         if spec.field_name:
-                            unit = get_field_unit(spec.field_name)
+                            unit = getattr(spec, 'unit', '') or ''
                             value = spec.field_value or ''
                             # 合并值和单位显示
                             display_value = f"{value} {unit}" if value and unit else value
@@ -4194,14 +4189,12 @@ def public_product_info(product_mn):
         }
 
     # 获取单位信息
-    from app.routes.product_code import get_field_unit
     specs_with_unit = []
     for spec in specs:
-        unit = get_field_unit(spec.field_name) or ''
         specs_with_unit.append({
             'name': spec.field_name,
             'value': spec.field_value or '-',
-            'unit': unit,
+            'unit': getattr(spec, 'unit', '') or '',
             'code': spec.field_code
         })
 
@@ -4703,6 +4696,7 @@ def import_configuration_specs(product_id):
                 field_name=item.spec_dict.name,
                 field_value=value,
                 field_code=code_char,
+                unit=item.spec_dict.unit or None,
                 include_in_description=True,
                 display_order=display_order
             )
@@ -4713,12 +4707,10 @@ def import_configuration_specs(product_id):
         db.session.flush()
 
         # 重新生成产品描述（包含单位）
-        from app.routes.product_code import get_field_unit
         description_parts = []
         for spec in new_specs:
             if spec.include_in_description and spec.field_value:
-                unit = get_field_unit(spec.field_name) or ''
-                unit_str = f" {unit}" if unit else ""
+                unit_str = f" {spec.unit}" if spec.unit else ""
                 description_parts.append(f"{spec.field_name}: {spec.field_value}{unit_str}")
         product.specification = ", ".join(description_parts) if description_parts else ""
 
@@ -4802,6 +4794,7 @@ def _import_sp8d_specs(product, sp8d_config_id):
                 field_value=spec.get('value', ''),
                 field_value_en=spec.get('value_en', '') or None,
                 field_code=spec.get('code_char', '') if is_coded else None,
+                unit=spec.get('unit', '') or None,
                 include_in_description=is_coded,
                 display_order=idx
             )

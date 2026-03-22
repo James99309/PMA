@@ -1117,14 +1117,14 @@ class ProductSelector {
             // 标准模式：按型号分组显示
             const modelGroups = productsData.model_groups;
 
-            // ⭐ 使用 JSON 快照计算同名产品的规格差异（用于高亮显示）
-            // 按 product_name 分组，然后对每组使用 findDiffPositions 分析
+            // ⭐ 使用 JSON 快照计算同型号产品的规格差异（用于高亮显示）
+            // 按 model 分组，然后对每组使用 findDiffPositions 分析
             const allProducts = modelGroups.flatMap(mg => mg.products);
             const diffPositionsMap = new Map(); // product.id -> diffPositions
 
             if (window.SpecAnalyzer) {
-                // 按产品名称分组
-                const groups = window.SpecAnalyzer.groupByName(allProducts, 'product_name');
+                // 按型号分组
+                const groups = window.SpecAnalyzer.groupByName(allProducts, 'model');
 
                 // 对每组计算差异位置
                 Object.values(groups).forEach(groupProducts => {

@@ -544,6 +544,27 @@ def create_app(config_class=Config):
         except Exception as e:
             logger.warning(f"Auto-migrate product_specs.field_value_en 失败: {e}")
 
+        # Auto-migrate: product_specs 添加 unit 字段
+        try:
+            if 'unit' not in ps_cols:
+                with db.engine.connect() as conn:
+                    conn.execute(sa_text('ALTER TABLE product_specs ADD COLUMN unit VARCHAR(20)'))
+                    conn.commit()
+                logger.info("Auto-migrate: product_specs.unit 字段已添加")
+        except Exception as e:
+            logger.warning(f"Auto-migrate product_specs.unit 失败: {e}")
+
+        # Auto-migrate: products 添加 unit_en 字段
+        try:
+            prod_cols = [col['name'] for col in insp.get_columns('products')]
+            if 'unit_en' not in prod_cols:
+                with db.engine.connect() as conn:
+                    conn.execute(sa_text('ALTER TABLE products ADD COLUMN unit_en VARCHAR(20)'))
+                    conn.commit()
+                logger.info("Auto-migrate: products.unit_en 字段已添加")
+        except Exception as e:
+            logger.warning(f"Auto-migrate products.unit_en 失败: {e}")
+
         # Auto-migrate: specification_options 添加 value_en 字段
         try:
             from sqlalchemy import inspect as sa_inspect, text as sa_text

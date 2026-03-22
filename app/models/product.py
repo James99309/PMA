@@ -13,7 +13,8 @@ class Product(db.Model):
     model = db.Column(db.String(100))  # 具体型号
     specification = db.Column(db.Text)  # 规格说明
     brand = db.Column(db.String(50))  # 品牌
-    unit = db.Column(db.String(20))  # 单位(Set)
+    unit = db.Column(db.String(20))  # 单位（中文）
+    unit_en = db.Column(db.String(20))  # 单位（英文）
     retail_price = db.Column(db.Numeric(10, 2))  # 市场单价
     currency = db.Column(db.String(10), default='CNY')  # 货币类型
     status = db.Column(db.String(20), default='active')  # 产品状态：'active'(生产中), 'discontinued'(已停产), 'upcoming'(待上市)
