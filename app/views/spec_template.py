@@ -1780,7 +1780,7 @@ def api_linkable_products(config_id):
             linked_to_other = p.source_configuration_id is not None and not linked_to_current
             name_match = (p.product_name == template_name) if template_name else True
             region_match = not (config.region and p_region and p_region != config.region)
-            selectable = not linked_to_current and not linked_to_other and name_match and region_match
+            selectable = not linked_to_current and not linked_to_other and name_match
 
             if linked_to_current:
                 reason = _('当前关联')
@@ -1789,7 +1789,7 @@ def api_linkable_products(config_id):
             elif not name_match:
                 reason = _('名称不一致')
             elif not region_match:
-                reason = _('地区不一致')
+                reason = _('地区码不同')
             else:
                 reason = ''
 
@@ -1805,11 +1805,13 @@ def api_linkable_products(config_id):
             })
     elif database == 'sg':
         try:
+            # SG 产品按 model 匹配模版型号过滤
             rows = db.session.execute(db.text(
                 "SELECT id, product_mn, product_name, model FROM sg_products "
                 "WHERE product_mn IS NOT NULL AND product_mn != '' "
+                "AND UPPER(model) = UPPER(:template_model) "
                 "ORDER BY product_name, model, product_mn"
-            )).fetchall()
+            ), {'template_model': template.model}).fetchall()
             # 已被 CN 配置关联的 MN 集合
             linked_mns = {c.mn_code for c in ProductConfiguration.query.filter(
                 ProductConfiguration.deleted_at.is_(None),
@@ -1818,9 +1820,8 @@ def api_linkable_products(config_id):
             for r in rows:
                 p_region = r.product_mn[0] if r.product_mn else ''
                 already_linked = r.product_mn in linked_mns
-                # SG 产品名称与模版名称匹配（SG 用英文名，模版用中文名，暂不强制名称匹配）
                 region_match = not (config.region and p_region and p_region != config.region)
-                selectable = not already_linked and region_match
+                selectable = not already_linked
 
                 products_data.append({
                     'id': r.id,
@@ -1829,7 +1830,8 @@ def api_linkable_products(config_id):
                     'model': r.model,
                     'status': 'active',
                     'selectable': selectable,
-                    'reason': _('已关联') if already_linked else (_('地区不一致') if not region_match else '')
+                    'linked_current': False,
+                    'reason': _('已关联') if already_linked else (_('地区码不同') if not region_match else '')
                 })
         except Exception as e:
             logger.warning(f'查询 SG 产品失败: {e}')
@@ -1901,9 +1903,16 @@ def api_compare_product(config_id):
             'config_missing': not config_val
         })
 
+    product_mn = product_info.get('product_mn', '')
+    config_mn = config.mn_code or ''
+    mn_match = product_mn == config_mn
+
     return jsonify({
         'success': True,
         'product': product_info,
+        'config_mn': config_mn,
+        'mn_match': mn_match,
+        'mn_locked': config.mn_locked,
         'comparison': comparison,
         'total': len(comparison),
         'matched': sum(1 for c in comparison if c['match']),
@@ -1982,6 +1991,11 @@ def api_link_product(config_id):
                         template_item_id=item.id,
                         value=ps.field_value
                     ))
+
+        # 如果用户勾选了同步 MN，将配置编码更新为产品编码并锁定
+        if data.get('sync_mn') and product.product_mn and not config.mn_locked:
+            config.mn_code = product.product_mn
+            config.status = 'production'  # 锁定编码，防止"更新编码"覆盖
 
         # 建立关联
         product.source_configuration_id = config.id
