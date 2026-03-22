@@ -127,7 +127,7 @@ def get_configurations_tree():
         # 查询 pilot/production 状态的配置
         configs = ProductConfiguration.query.filter(
             ProductConfiguration.status.in_(['pilot', 'production']),
-            ProductConfiguration.is_active == True,
+            ProductConfiguration.deleted_at.is_(None),
             ProductConfiguration.mn_code.isnot(None)
         ).join(SpecTemplate).all()
 
