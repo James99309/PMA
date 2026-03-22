@@ -175,16 +175,20 @@
                                 </div>
                                 {% if config.template_version %}
                                 <div class="flex items-center text-sm">
-                                    <span class="material-symbols-outlined mr-2 {% if config.template_version != template.version %}text-amber-500{% else %}text-slate-400{% endif %}" style="font-size: 18px;">{% if config.template_version != template.version %}warning{% else %}verified{% endif %}</span>
-                                    <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-mono font-medium rounded
-                                        {% if config.template_version != template.version %}bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400
-                                        {% else %}bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400{% endif %}">
+                                    {% if config.template_version != template.version and not config.mn_locked %}
+                                    {# 仅未锁定配置显示版本不一致警告 #}
+                                    <span class="material-symbols-outlined mr-2 text-amber-500" style="font-size: 18px;">warning</span>
+                                    <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-mono font-medium rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                                         {{ config.template_version }}
                                     </span>
-                                    {% if config.template_version != template.version %}
                                     <span class="material-symbols-outlined mx-1 text-amber-400" style="font-size: 14px;">arrow_forward</span>
                                     <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-mono font-medium rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
                                         {{ template.version }}
+                                    </span>
+                                    {% else %}
+                                    <span class="material-symbols-outlined mr-2 text-slate-400" style="font-size: 18px;">verified</span>
+                                    <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-mono font-medium rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                                        {{ config.template_version }}
                                     </span>
                                     {% endif %}
                                 </div>
