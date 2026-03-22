@@ -2040,13 +2040,38 @@ def api_link_product(config_id):
             if not row:
                 return jsonify({'success': False, 'message': _('SG 产品不存在')}), 404
 
-            if not config.mn_locked and not config.mn_code:
+            # 同步 MN：将配置编码更新为 SG 产品编码并锁定
+            if data.get('sync_mn') and row.product_mn and not config.mn_locked:
                 config.mn_code = row.product_mn
-                db.session.commit()
+                config.status = 'production'
+
+            # 同步 SG 产品规格到配置值
+            sg_specs = db.session.execute(db.text(
+                "SELECT field_name, field_value FROM sg_product_specs "
+                "WHERE product_id = :pid AND field_value IS NOT NULL AND field_value != ''"
+            ), {'pid': product_id}).fetchall()
+            sg_spec_map = {s.field_name: s.field_value for s in sg_specs}
+
+            existing_item_ids = {cv.template_item_id for cv in config.config_values}
+            for item in config.template.items:
+                if item.id in existing_item_ids:
+                    continue
+                spec_name = item.spec_dict.name if item.spec_dict else None
+                if not spec_name:
+                    continue
+                val = sg_spec_map.get(spec_name)
+                if val:
+                    db.session.add(ProductConfigValue(
+                        configuration_id=config.id,
+                        template_item_id=item.id,
+                        value=val
+                    ))
+
+            db.session.commit()
 
             return jsonify({
                 'success': True,
-                'message': _('已记录 SG 产品关联 %(mn)s（需在 SG NAS 部署后生效）', mn=row.product_mn)
+                'message': _('已关联 SG 产品 %(mn)s', mn=row.product_mn)
             })
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)}), 500
