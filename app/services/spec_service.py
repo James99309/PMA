@@ -473,6 +473,7 @@ class SpecService:
                 'field_value_en': getattr(spec, 'field_value_en', '') or '',
                 'field_code': getattr(spec, 'field_code', '') or '',
                 'unit': getattr(spec, 'unit', '') or '',
+                'display_order': getattr(spec, 'display_order', 0) or 0,
                 'include_in_description': getattr(spec, 'include_in_description', True),
                 'is_missing': False,
                 'is_coded': is_coded,  # 基于 use_in_code 判断，而非 field_code
