@@ -146,7 +146,7 @@ def check_mn_code_duplicate(mn_code, exclude_dev_product_id=None, exclude_produc
 
         config_query = ProductConfiguration.query.filter(
             ProductConfiguration.mn_code == mn_code,
-            ProductConfiguration.is_active == True
+            ProductConfiguration.deleted_at.is_(None)
         )
         if exclude_config_id:
             config_query = config_query.filter(ProductConfiguration.id != exclude_config_id)
