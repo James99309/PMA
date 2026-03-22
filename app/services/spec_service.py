@@ -610,9 +610,9 @@ class SpecService:
             if cat.id in specs_by_category:
                 sorted_specs = sorted(
                     specs_by_category[cat.id],
-                    key=lambda s: name_to_display_order.get(
+                    key=lambda s: s.get('display_order', name_to_display_order.get(
                         s.get('field_name') or s.get('name', ''), 9999
-                    )
+                    ))
                 )
                 spec_categories.append({
                     'id': cat.id,

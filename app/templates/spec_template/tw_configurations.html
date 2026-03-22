@@ -1049,7 +1049,10 @@
                     <div class="text-sm font-medium ${isCurrent ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-900 dark:text-white'} truncate">${p.product_mn || '-'}</div>
                     <div class="text-xs text-slate-500">${p.product_name || ''} · ${p.model || ''}</div>
                 </div>
-                ${p.reason ? `<span class="text-xs ${reasonClass} whitespace-nowrap">${p.reason}</span>` : ''}
+                ${isCurrent
+                    ? `<button type="button" onclick="event.stopPropagation(); unlinkProduct(${p.id})"
+                        class="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">{{ _('解耦') }}</button>`
+                    : (p.reason ? `<span class="text-xs ${reasonClass} whitespace-nowrap">${p.reason}</span>` : '')}
             </div>`;
         }).join('');
     }
@@ -1112,6 +1115,28 @@
             document.getElementById('linkProductError').classList.remove('hidden');
             btn.disabled = false;
             btn.textContent = '{{ _("关联") }}';
+        }
+    }
+
+    async function unlinkProduct(productId) {
+        if (!confirm('{{ _("确定要解除关联吗？配置将恢复为开发中状态，编码将按模版规则重新生成。") }}')) return;
+        try {
+            const resp = await fetch(`${API_BASE}/configurations/${linkConfigId}/unlink-product`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json',
+                           'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+                body: JSON.stringify({ product_id: productId, database: linkCurrentDb })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast(data.message);
+                closeLinkProductModal();
+                location.reload();
+            } else {
+                showToast(data.message || '{{ _("解耦失败") }}', 'error');
+            }
+        } catch (e) {
+            showToast('{{ _("操作失败") }}', 'error');
         }
     }
 

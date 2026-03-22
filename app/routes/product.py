@@ -827,6 +827,7 @@ def edit_product_page(id):
             'field_value': spec.field_value,
             'field_code': spec.field_code,
             'field_id': spec_field_info.get('id'),  # 添加 field_id
+            'display_order': spec.display_order,  # 用于分类内排序
             'is_saved': True,  # 标记为已保存的规格，前端将以只读方式显示
             'is_coded': is_coded,  # 是否为编码规格（基于 use_in_code 判断）
             'include_in_description': spec.include_in_description if spec.include_in_description is not None else False

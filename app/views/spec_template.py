@@ -2102,20 +2102,22 @@ def api_link_product(config_id):
                         if not cv_val:
                             cv_val = item.general_value or ''
 
-                        # 查编码
+                        # 查编码和英文值
                         field_code = ''
+                        field_value_en = ''
                         if cv_val:
                             opt = db.session.execute(db.text(
-                                "SELECT code FROM specification_options WHERE spec_id = :sid AND value = :val AND is_active = true LIMIT 1"
+                                "SELECT code, value_en FROM specification_options WHERE spec_id = :sid AND value = :val AND is_active = true LIMIT 1"
                             ), {'sid': sd.id, 'val': cv_val}).fetchone()
                             if opt:
-                                field_code = opt.code
+                                field_code = opt.code or ''
+                                field_value_en = opt.value_en or ''
 
                         specs_payload.append({
                             'field_name': sd.name,
                             'field_name_en': sd.name_en or '',
                             'field_value': cv_val,
-                            'field_value_en': '',
+                            'field_value_en': field_value_en,
                             'field_code': field_code,
                             'unit': sd.unit or '',
                             'display_order': item.display_order
@@ -2143,6 +2145,57 @@ def api_link_product(config_id):
             })
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)}), 500
+
+    return jsonify({'success': False, 'message': _('不支持的数据库类型')}), 400
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>/unlink-product', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_unlink_product(config_id):
+    """API: 解除产品与配置的关联"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    _check_config_owner(config)
+    data = request.get_json()
+    product_id = data.get('product_id')
+    database = data.get('database', 'cn')
+
+    if not product_id:
+        return jsonify({'success': False, 'message': _('请选择产品')}), 400
+
+    if database == 'cn':
+        from app.models.product import Product
+        product = Product.query.get_or_404(product_id)
+
+        if product.source_configuration_id != config.id:
+            return jsonify({'success': False, 'message': _('该产品未关联到此配置')}), 400
+
+        # 解除关联
+        product.source_configuration_id = None
+
+        # 配置恢复为开发中，重新生成 MN
+        config.status = 'development'
+        new_mn = generate_mn_code(config, template=config.template)
+        config.mn_code = new_mn
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('已解除关联，配置编码已更新为 %(mn)s', mn=new_mn)
+        })
+
+    elif database == 'sg':
+        # SG 产品解耦：清除配置 MN 匹配，恢复为开发中
+        config.status = 'development'
+        new_mn = generate_mn_code(config, template=config.template)
+        config.mn_code = new_mn
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': _('已解除 SG 产品关联，配置编码已更新为 %(mn)s', mn=new_mn)
+        })
 
     return jsonify({'success': False, 'message': _('不支持的数据库类型')}), 400
 
