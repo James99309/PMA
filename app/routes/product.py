@@ -1874,6 +1874,7 @@ def create_product():
             'specification': request.form.get('specification'),
             'brand': request.form.get('brand'),
             'unit': request.form.get('unit'),
+            'unit_en': request.form.get('unit_en', ''),
             'status': request.form.get('status', 'active'),  # 默认为生产中
             'retail_price': request.form.get('retail_price'),
             'currency': request.form.get('currency', Config.DEFAULT_CURRENCY)  # 默认货币
@@ -2067,6 +2068,7 @@ def create_product():
             specification=product_data['specification'],
             brand=product_data['brand'],
             unit=product_data['unit'],
+            unit_en=product_data.get('unit_en', ''),
             retail_price=product_data['retail_price'],
             currency=product_data['currency'],
             status=product_data['status'],
@@ -4796,8 +4798,8 @@ def _import_sp8d_specs(product, sp8d_config_id):
                 field_value_en=spec.get('value_en', '') or None,
                 field_code=spec.get('code_char', '') if is_coded else None,
                 unit=spec.get('unit', '') or None,
-                include_in_description=is_coded,
-                display_order=idx
+                include_in_description=spec.get('include_in_description', is_coded),
+                display_order=spec.get('display_order', idx)
             )
             db.session.add(ps)
             new_specs.append(ps)

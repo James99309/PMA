@@ -165,6 +165,7 @@ ProductModal.openEdit(productId);  // 打开编辑模态框
                                     class="form-select block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-primary text-sm shadow-sm">
                                     <option value="">{{ _('请选择单位') }}</option>
                                 </select>
+                                <input type="hidden" id="unit_en" name="unit_en" value="">
                             </div>
                         </div>
 
@@ -991,6 +992,12 @@ window.ProductModal = (function() {
             if (configData.mn_code) {
                 mnCodePreview.textContent = configData.mn_code;
                 mnCodeInput.value = configData.mn_code;
+            }
+
+            // 设置 unit_en（从 CN API 返回的真实数据）
+            if (configData.unit_en) {
+                const unitEnEl = document.getElementById('unit_en');
+                if (unitEnEl) unitEnEl.value = configData.unit_en;
             }
 
             // 锁定型号字段和MN编码预览区域

@@ -1557,7 +1557,7 @@ def api_update_configuration(config_id):
     # 检查是否锁定（可生产/停产状态）
     is_locked = config.mn_locked
 
-    # 锁定状态下不更新开发代号和区域
+    # 锁定状态下不更新开发代号，但区域和名称始终可改
     if not is_locked:
         # 验证必填字段
         if not data.get('config_code'):
@@ -1573,16 +1573,21 @@ def api_update_configuration(config_id):
         if existing:
             return jsonify({'success': False, 'message': _('该配置编码已存在')}), 400
 
-        # 更新开发代号和区域
         config.config_code = data['config_code']
-        region_code = data.get('region')
-        region_name = data.get('region_name')
-        if region_code and not region_name:
-            field = ProductCodeField.query.filter_by(field_type='origin_location', code=region_code).first()
-            if field:
-                region_name = field.name
+
+    # 区域和配置名称始终可更新（不受锁定限制）
+    region_code = data.get('region')
+    region_name = data.get('region_name')
+    if region_code and not region_name:
+        field = ProductCodeField.query.filter_by(field_type='origin_location', code=region_code).first()
+        if field:
+            region_name = field.name
+    if 'region' in data:
         config.region = region_code
         config.region_name = region_name
+    if 'config_code' in data and is_locked:
+        # 锁定时配置名称也可改（不影响MN）
+        config.config_code = data['config_code']
 
     # 更新其他基本信息（状态、备注等始终可以更新）
     config.status = data.get('status', config.status)

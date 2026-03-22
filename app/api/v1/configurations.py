@@ -180,6 +180,17 @@ def get_configurations_tree():
                 template.subcategory.name_en if template.subcategory else ''
             )
 
+            # 获取关联产品的 unit/unit_en
+            product_unit = ''
+            product_unit_en = ''
+            from app.models.product import Product as ProductModel
+            ref_product = ProductModel.query.filter_by(
+                source_configuration_id=config.id, is_deleted=False
+            ).first()
+            if ref_product:
+                product_unit = ref_product.unit or ''
+                product_unit_en = ref_product.unit_en or ''
+
             # 构建配置节点数据
             config_node = {
                 'id': config.id,
@@ -202,6 +213,8 @@ def get_configurations_tree():
                 'subcategory_name_en': template.subcategory.name_en if template.subcategory else None,
                 'product_name': product_name,
                 'product_name_en': product_name_en,
+                'unit': product_unit,
+                'unit_en': product_unit_en,
                 'already_imported': already_imported
             }
 
@@ -367,11 +380,13 @@ def get_configuration_specs_api(config_id):
                 'unit': item.spec_dict.unit or '',
                 'category': item.spec_dict.category.name if item.spec_dict.category else '',
                 'use_in_code': item.use_in_code,
-                'code_char': code_char
+                'code_char': code_char,
+                'display_order': item.display_order,
+                'include_in_description': item.use_in_code
             })
 
-        # 按编码规格优先排序
-        specs.sort(key=lambda x: (not x['use_in_code'], x['category']))
+        # 按 display_order 排序（编码字段在前）
+        specs.sort(key=lambda x: x.get('display_order', 9999))
 
         logger.info(f"获取配置 {config_id} 的规格数据，共 {len(specs)} 条")
 
