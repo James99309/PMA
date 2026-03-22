@@ -4,6 +4,7 @@
 提供型号级规格模板（SpecTemplate）的CRUD操作，
 以及模板规格项（SpecTemplateItem）的管理。
 """
+import os
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, Response, abort, current_app
 from flask_login import login_required, current_user
 from flask_babel import _
@@ -1819,9 +1820,19 @@ def api_linkable_products(config_id):
             ).all()}
             for r in rows:
                 p_region = r.product_mn[0] if r.product_mn else ''
-                already_linked = r.product_mn in linked_mns
+                linked_to_current = r.product_mn == config.mn_code if config.mn_code else False
+                linked_to_other = r.product_mn in linked_mns and not linked_to_current
                 region_match = not (config.region and p_region and p_region != config.region)
-                selectable = not already_linked
+                selectable = not linked_to_current and not linked_to_other
+
+                if linked_to_current:
+                    reason = _('当前关联')
+                elif linked_to_other:
+                    reason = _('已关联其他配置')
+                elif not region_match:
+                    reason = _('地区码不同')
+                else:
+                    reason = ''
 
                 products_data.append({
                     'id': r.id,
@@ -1830,8 +1841,8 @@ def api_linkable_products(config_id):
                     'model': r.model,
                     'status': 'active',
                     'selectable': selectable,
-                    'linked_current': False,
-                    'reason': _('已关联') if already_linked else (_('地区码不同') if not region_match else '')
+                    'linked_current': linked_to_current,
+                    'reason': reason
                 })
         except Exception as e:
             logger.warning(f'查询 SG 产品失败: {e}')
@@ -2069,9 +2080,66 @@ def api_link_product(config_id):
 
             db.session.commit()
 
+            # 调用 SG NAS API 同步产品规格
+            sg_sync_msg = ''
+            try:
+                import requests as http_requests
+                sg_api_url = current_app.config.get('SG_NAS_WEB_URL', '').rstrip('/')
+                cross_api_key = os.environ.get('CROSS_SYSTEM_API_KEY', '')
+                if sg_api_url and cross_api_key:
+                    # 构建规格数据
+                    specs_payload = []
+                    for item in config.template.items:
+                        sd = item.spec_dict
+                        if not sd:
+                            continue
+                        # 配置值
+                        cv_val = ''
+                        for cv in config.config_values:
+                            if cv.template_item_id == item.id:
+                                cv_val = cv.value
+                                break
+                        if not cv_val:
+                            cv_val = item.general_value or ''
+
+                        # 查编码
+                        field_code = ''
+                        if cv_val:
+                            opt = db.session.execute(db.text(
+                                "SELECT code FROM specification_options WHERE spec_id = :sid AND value = :val AND is_active = true LIMIT 1"
+                            ), {'sid': sd.id, 'val': cv_val}).fetchone()
+                            if opt:
+                                field_code = opt.code
+
+                        specs_payload.append({
+                            'field_name': sd.name,
+                            'field_name_en': sd.name_en or '',
+                            'field_value': cv_val,
+                            'field_value_en': '',
+                            'field_code': field_code,
+                            'unit': sd.unit or '',
+                            'display_order': item.display_order
+                        })
+
+                    resp = http_requests.post(
+                        f'{sg_api_url}/api/v1/cross-sync/sync-product-specs',
+                        json={'product_id': product_id, 'specs': specs_payload},
+                        headers={'X-API-Key': cross_api_key},
+                        timeout=15
+                    )
+                    if resp.status_code == 200:
+                        sg_sync_msg = _('，SG 产品规格已同步')
+                    else:
+                        sg_sync_msg = _('，SG 规格同步失败: %(msg)s', msg=resp.json().get('message', ''))
+                else:
+                    sg_sync_msg = _('（SG API 未配置，需手动同步规格）')
+            except Exception as sync_err:
+                logger.warning(f'SG 规格同步失败: {sync_err}')
+                sg_sync_msg = _('（SG 规格同步失败: %(err)s）', err=str(sync_err))
+
             return jsonify({
                 'success': True,
-                'message': _('已关联 SG 产品 %(mn)s', mn=row.product_mn)
+                'message': _('已关联 SG 产品 %(mn)s', mn=row.product_mn) + sg_sync_msg
             })
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)}), 500
