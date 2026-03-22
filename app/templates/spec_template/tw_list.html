@@ -4,6 +4,7 @@
 {% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
 {% from 'components/tw_form_fields.html' import tw_form_field, tw_form_textarea with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+{% from 'components/tw_filter_bar.html' import render_tw_filter_bar, render_tw_filter_bar_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -63,7 +64,7 @@
     </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark">
-    {% call(slot) render_tw_layout(active_page='spec_template', show_search=true) %}
+    {% call(slot) render_tw_layout(active_page='spec_template', show_search=true, search_value=filter_config.search_field.value) %}
     {% if slot == 'content' %}
         <!-- 主内容 -->
         {% call(page_slot) render_tw_fixed_page() %}
@@ -92,6 +93,14 @@
                 {% endif %}
             </div>
         {% elif page_slot == 'content' %}
+            <!-- 筛选栏 -->
+            {{ render_tw_filter_bar(
+                form_id='filterForm',
+                action_url=filter_config.action_url,
+                filter_fields=filter_config.filter_fields,
+                search_value=filter_config.search_field.value,
+                cols=2
+            ) }}
             <!-- 模板列表 -->
             {% set table_columns = [
                 {'field': 'name', 'label': _('名称'), 'min_width': '140px'},
@@ -272,6 +281,8 @@
     <!-- 确认模态框脚本 -->
     {{ tw_confirm_modal_script() }}
 
+    <!-- 筛选栏脚本 -->
+    {{ render_tw_filter_bar_script(form_id='filterForm') }}
     <!-- 布局脚本 -->
     {{ render_tw_layout_script() }}
     {{ render_tw_data_table_script(table_id='templateTable') }}

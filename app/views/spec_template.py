@@ -423,14 +423,82 @@ def _check_config_owner(config):
 @permission_required('product_code', 'view')
 def list_templates():
     """规格模板列表页"""
+    search = request.args.get('search', '').strip()
+    subcategory_filter = request.args.get('subcategory', '').strip()
+    name_filter = request.args.get('name', '').strip()
+
     query = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
     if not _is_template_admin():
         query = query.filter_by(created_by=current_user.id)
+
+    if search:
+        search_term = f'%{search}%'
+        query = query.filter(
+            db.or_(
+                SpecTemplate.model.ilike(search_term),
+                SpecTemplate.name.ilike(search_term)
+            )
+        )
+    if subcategory_filter:
+        query = query.join(ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id).filter(
+            ProductSubcategory.name == subcategory_filter
+        )
+    if name_filter:
+        query = query.filter(SpecTemplate.name == name_filter)
+
     templates = query.order_by(SpecTemplate.created_at.desc()).all()
+
+    # 构建筛选选项
+    all_templates = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
+    if not _is_template_admin():
+        all_templates = all_templates.filter_by(created_by=current_user.id)
+    all_templates = all_templates.all()
+
+    subcategory_options = []
+    name_options = []
+    seen_subs = set()
+    seen_names = set()
+    for t in all_templates:
+        if t.subcategory and t.subcategory.name not in seen_subs:
+            seen_subs.add(t.subcategory.name)
+            subcategory_options.append({'value': t.subcategory.name, 'label': t.subcategory.name})
+        if t.name and t.name != 'None' and t.name not in seen_names:
+            seen_names.add(t.name)
+            name_options.append({'value': t.name, 'label': t.name})
+    subcategory_options.sort(key=lambda x: x['label'])
+    name_options.sort(key=lambda x: x['label'])
+
+    filter_config = {
+        'action_url': url_for('spec_template.list_templates'),
+        'form_id': 'filterForm',
+        'search_field': {
+            'name': 'search',
+            'label': _('搜索'),
+            'placeholder': _('搜索名称或型号'),
+            'value': search,
+        },
+        'filter_fields': [
+            {
+                'name': 'subcategory',
+                'label': _('子分类'),
+                'all_option_text': _('全部子分类'),
+                'current_value': subcategory_filter,
+                'options': subcategory_options
+            },
+            {
+                'name': 'name',
+                'label': _('产品名称'),
+                'all_option_text': _('全部名称'),
+                'current_value': name_filter,
+                'options': name_options
+            }
+        ]
+    }
 
     return render_template(
         'spec_template/tw_list.html',
-        templates=templates
+        templates=templates,
+        filter_config=filter_config
     )
 
 
