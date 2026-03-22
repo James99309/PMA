@@ -158,12 +158,13 @@
                                 {% set refs = config._get_product_refs() %}
                                 <div class="flex items-center flex-wrap gap-1.5 text-sm min-h-[24px]">
                                     {% if refs %}
-                                    <span class="material-symbols-outlined mr-1 text-emerald-500" style="font-size: 18px;">link</span>
                                     {% for ref in refs %}
-                                    <span class="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded
+                                    <span onclick="event.preventDefault(); event.stopPropagation(); window.open('{% if ref.database == 'sg' %}{{ config_sg_base_url }}/products/{{ ref.id }}/detail{% else %}{{ url_for('product.view_product_detail', id=ref.id) }}{% endif %}', '_blank');"
+                                       class="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded cursor-pointer hover:opacity-80 transition-opacity
                                         {% if ref.database == 'sg' %}bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400
                                         {% else %}bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400{% endif %}"
                                         title="{{ ref.product_mn }}">
+                                        <span class="material-symbols-outlined" style="font-size: 14px;">link</span>
                                         {{ ref.database|upper }} · {{ ref.product_name or ref.product_mn }}
                                     </span>
                                     {% endfor %}
@@ -220,6 +221,16 @@
                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                title="{{ _('编辑') }}">
                                 <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
+                            </button>
+                            {% endif %}
+                            {% if has_permission('product_code', 'edit') %}
+                            {% set has_refs = config._get_product_refs()|length > 0 %}
+                            <button type="button" onclick="openLinkProductModal({{ config.id }}, '{{ config.config_code }}', '{{ config.region or '' }}')"
+                               class="inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors
+                                   {% if has_refs %}text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20
+                                   {% else %}text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20{% endif %}"
+                               title="{{ _('关联已有产品') }}">
+                                <span class="material-symbols-outlined" style="font-size: 18px;">link</span>
                             </button>
                             {% endif %}
                             {% if has_permission('product_code', 'create') %}
@@ -432,6 +443,52 @@
         variant='danger',
         show_error=true
     ) }}
+
+    <!-- 关联已有产品模态框 -->
+    <div id="linkProductModal" class="fixed inset-0 z-50 hidden" onclick="if(event.target===this) closeLinkProductModal()">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg" onclick="event.stopPropagation()">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('关联已有产品') }}</h3>
+                    <button type="button" onclick="closeLinkProductModal()" class="text-slate-400 hover:text-slate-600">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <div class="p-5">
+                    <!-- 数据库切换 -->
+                    <div class="flex gap-2 mb-4">
+                        <button type="button" id="linkDbCN" onclick="switchLinkDb('cn')"
+                            class="px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-white">CN</button>
+                        <button type="button" id="linkDbSG" onclick="switchLinkDb('sg')"
+                            class="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300">SG</button>
+                    </div>
+                    <!-- 搜索 -->
+                    <input type="text" id="linkProductSearch" placeholder="{{ _('搜索产品 MN 或名称...') }}"
+                        oninput="searchLinkProducts()"
+                        class="w-full mb-3 px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
+                    <!-- 产品列表 -->
+                    <div id="linkProductList" class="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                        <div class="p-4 text-center text-sm text-slate-400">{{ _('加载中...') }}</div>
+                    </div>
+                    <!-- 提示 -->
+                    <p id="linkProductHint" class="mt-2 text-xs text-slate-400 hidden"></p>
+                    <!-- 错误 -->
+                    <div id="linkProductError" class="mt-2 text-sm text-red-600 hidden"></div>
+                </div>
+                <div class="flex justify-end gap-3 px-5 py-4 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onclick="closeLinkProductModal()"
+                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
+                        {{ _('取消') }}
+                    </button>
+                    <button type="button" id="linkProductSubmit" onclick="submitLinkProduct()" disabled
+                        class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        {{ _('关联') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- 表单模态框脚本 -->
     {{ tw_form_modal_script() }}
@@ -906,6 +963,131 @@
             });
         }
     });
+
+    // ========== 关联已有产品 ==========
+    let linkConfigId = null;
+    let linkConfigRegion = '';
+    let linkCurrentDb = 'cn';
+    let linkSelectedProductId = null;
+    let linkProductsCache = {};
+
+    function openLinkProductModal(configId, configCode, region) {
+        linkConfigId = configId;
+        linkConfigRegion = region;
+        linkSelectedProductId = null;
+        linkProductsCache = {};
+        document.getElementById('linkProductSearch').value = '';
+        document.getElementById('linkProductError').classList.add('hidden');
+        document.getElementById('linkProductSubmit').disabled = true;
+        document.getElementById('linkProductModal').classList.remove('hidden');
+        switchLinkDb('cn');
+    }
+
+    function closeLinkProductModal() {
+        document.getElementById('linkProductModal').classList.add('hidden');
+    }
+
+    function switchLinkDb(db) {
+        linkCurrentDb = db;
+        linkSelectedProductId = null;
+        document.getElementById('linkProductSubmit').disabled = true;
+        document.getElementById('linkDbCN').className = db === 'cn'
+            ? 'px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-white'
+            : 'px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300';
+        document.getElementById('linkDbSG').className = db === 'sg'
+            ? 'px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-white'
+            : 'px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300';
+        loadLinkProducts();
+    }
+
+    async function loadLinkProducts() {
+        const list = document.getElementById('linkProductList');
+        list.innerHTML = '<div class="p-4 text-center text-sm text-slate-400">{{ _("加载中...") }}</div>';
+        try {
+            const resp = await fetch(`${API_BASE}/configurations/${linkConfigId}/linkable-products?db=${linkCurrentDb}`);
+            const data = await resp.json();
+            if (data.success) {
+                linkProductsCache[linkCurrentDb] = data.products;
+                renderLinkProducts(data.products);
+            } else {
+                list.innerHTML = `<div class="p-4 text-center text-sm text-red-500">${data.message}</div>`;
+            }
+        } catch (e) {
+            list.innerHTML = '<div class="p-4 text-center text-sm text-red-500">{{ _("加载失败") }}</div>';
+        }
+    }
+
+    function searchLinkProducts() {
+        const term = document.getElementById('linkProductSearch').value.toLowerCase().trim();
+        const products = linkProductsCache[linkCurrentDb] || [];
+        const filtered = term ? products.filter(p =>
+            (p.product_mn || '').toLowerCase().includes(term) ||
+            (p.product_name || '').toLowerCase().includes(term) ||
+            (p.model || '').toLowerCase().includes(term)
+        ) : products;
+        renderLinkProducts(filtered);
+    }
+
+    function renderLinkProducts(products) {
+        const list = document.getElementById('linkProductList');
+        if (!products.length) {
+            list.innerHTML = '<div class="p-4 text-center text-sm text-slate-400">{{ _("无可关联的产品") }}</div>';
+            return;
+        }
+        list.innerHTML = products.map(p => `
+            <div class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer border-b border-slate-100 dark:border-slate-700 last:border-0 ${p.region_mismatch ? 'opacity-50' : ''}"
+                 onclick="${p.region_mismatch ? '' : `selectLinkProduct(${p.id}, this)`}">
+                <input type="radio" name="linkProduct" value="${p.id}" ${p.region_mismatch ? 'disabled' : ''}
+                    class="text-primary focus:ring-primary">
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-slate-900 dark:text-white truncate">${p.product_mn || '-'}</div>
+                    <div class="text-xs text-slate-500">${p.product_name || ''} · ${p.model || ''}</div>
+                </div>
+                ${p.region_mismatch ? '<span class="text-xs text-amber-500">{{ _("地区不一致") }}</span>' : ''}
+            </div>
+        `).join('');
+    }
+
+    function selectLinkProduct(productId, el) {
+        linkSelectedProductId = productId;
+        document.getElementById('linkProductSubmit').disabled = false;
+        document.querySelectorAll('#linkProductList > div').forEach(d => d.classList.remove('bg-primary/5'));
+        el.classList.add('bg-primary/5');
+        el.querySelector('input[type=radio]').checked = true;
+    }
+
+    async function submitLinkProduct() {
+        if (!linkSelectedProductId || !linkConfigId) return;
+        const btn = document.getElementById('linkProductSubmit');
+        btn.disabled = true;
+        btn.textContent = '{{ _("关联中...") }}';
+        document.getElementById('linkProductError').classList.add('hidden');
+
+        try {
+            const resp = await fetch(`${API_BASE}/configurations/${linkConfigId}/link-product`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json',
+                           'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
+                body: JSON.stringify({ product_id: linkSelectedProductId, database: linkCurrentDb })
+            });
+            const data = await resp.json();
+            if (data.success) {
+                showToast(data.message || '{{ _("关联成功") }}');
+                closeLinkProductModal();
+                location.reload();
+            } else {
+                document.getElementById('linkProductError').textContent = data.message;
+                document.getElementById('linkProductError').classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = '{{ _("关联") }}';
+            }
+        } catch (e) {
+            document.getElementById('linkProductError').textContent = '{{ _("操作失败") }}';
+            document.getElementById('linkProductError').classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = '{{ _("关联") }}';
+        }
+    }
     </script>
 </body>
 </html>

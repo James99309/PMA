@@ -900,7 +900,7 @@ def product_list_ajax():
         query = Product.query.options(
             joinedload(Product.category_obj),
             joinedload(Product.subcategory_obj)
-        )
+        ).filter(Product.is_deleted == False)
 
         # 产品停产状态过滤：只有产品经理、解决方案经理和管理员可以查看停产产品
         if current_user.role not in ['admin', 'product_manager', 'solution_manager']:

@@ -68,6 +68,10 @@ class Config:
     IS_SP8D = 'iqcyimnjtnmomvfuwjzw' in DATABASE_URL or PMA_DB_TYPE == 'sp8d'
     IS_OVS = 'pqzviljbpfoqvyfulakl' in DATABASE_URL or PMA_DB_TYPE == 'ovs'
 
+    # 跨 NAS 产品库跳转 URL
+    SG_NAS_WEB_URL = os.environ.get('SG_NAS_WEB_URL', 'https://sg-pma.jamesgpone.win')
+    CN_NAS_WEB_URL = os.environ.get('CN_NAS_WEB_URL', 'https://pma.jamesgpone.win')
+
     # ========== 系统货币配置（基于数据库类型，与语言设置解耦） ==========
     # 货币和单位由数据库类型决定，不随用户语言切换而改变
     if IS_OVS:

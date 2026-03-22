@@ -4,7 +4,7 @@
 提供型号级规格模板（SpecTemplate）的CRUD操作，
 以及模板规格项（SpecTemplateItem）的管理。
 """
-from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, Response, abort
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for, send_file, Response, abort, current_app
 from flask_login import login_required, current_user
 from flask_babel import _
 import io
@@ -1409,7 +1409,8 @@ def configurations_page(template_id):
         items_by_category=items_by_category,
         config_status=CONFIG_STATUS,
         status_options=status_options,
-        region_options=region_options
+        region_options=region_options,
+        config_sg_base_url=current_app.config.get('SG_NAS_WEB_URL', '')
     )
 
 
@@ -1751,6 +1752,142 @@ def api_update_configurations_order(template_id):
         'success': True,
         'message': _('排序已保存')
     })
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>/linkable-products', methods=['GET'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_linkable_products(config_id):
+    """API: 获取可关联到配置的产品列表"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    database = request.args.get('db', 'cn')
+    template = config.template
+
+    products_data = []
+    if database == 'cn':
+        # CN 本地产品：同子分类、未删除、未关联
+        from app.models.product import Product
+        products = Product.query.filter(
+            Product.subcategory_id == template.subcategory_id,
+            Product.is_deleted == False,
+            Product.source_configuration_id.is_(None)
+        ).order_by(Product.model, Product.product_mn).all()
+        for p in products:
+            # 从 MN 第一位推断产品地区
+            p_region = p.product_mn[0] if p.product_mn else ''
+            products_data.append({
+                'id': p.id,
+                'product_mn': p.product_mn,
+                'product_name': p.product_name,
+                'model': p.model,
+                'status': p.status,
+                'region_mismatch': bool(config.region and p_region and p_region != config.region)
+            })
+    elif database == 'sg':
+        # SG 产品通过外部表查询
+        try:
+            rows = db.session.execute(db.text(
+                "SELECT id, product_mn, product_name, model FROM sg_products "
+                "WHERE product_mn IS NOT NULL AND product_mn != '' "
+                "ORDER BY model, product_mn"
+            )).fetchall()
+            # 排除已被 CN 配置关联的 SG 产品（通过 MN 匹配）
+            linked_mns = {c.mn_code for c in ProductConfiguration.query.filter(
+                ProductConfiguration.deleted_at.is_(None),
+                ProductConfiguration.mn_code.isnot(None)
+            ).all()}
+            for r in rows:
+                p_region = r.product_mn[0] if r.product_mn else ''
+                products_data.append({
+                    'id': r.id,
+                    'product_mn': r.product_mn,
+                    'product_name': r.product_name,
+                    'model': r.model,
+                    'status': 'active',
+                    'region_mismatch': bool(config.region and p_region and p_region != config.region),
+                    'already_linked': r.product_mn in linked_mns
+                })
+            products_data = [p for p in products_data if not p.get('already_linked')]
+        except Exception as e:
+            logger.warning(f'查询 SG 产品失败: {e}')
+            return jsonify({'success': True, 'products': [], 'message': _('SG 产品库不可用')})
+
+    return jsonify({'success': True, 'products': products_data})
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>/link-product', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_link_product(config_id):
+    """API: 将已有产品关联到配置"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    _check_config_owner(config)
+    data = request.get_json()
+    product_id = data.get('product_id')
+    database = data.get('database', 'cn')
+
+    if not product_id:
+        return jsonify({'success': False, 'message': _('请选择产品')}), 400
+
+    if database == 'cn':
+        from app.models.product import Product
+        from app.models.product_spec import ProductSpec
+        product = Product.query.get_or_404(product_id)
+
+        if product.source_configuration_id:
+            return jsonify({'success': False, 'message': _('该产品已关联到其他配置')}), 400
+
+        # 关联产品
+        product.source_configuration_id = config.id
+
+        # 同步产品规格到配置值（如果配置还没有值）
+        specs = ProductSpec.query.filter_by(product_id=product.id).all()
+        spec_map = {s.field_name: s for s in specs}
+        existing_item_ids = {cv.template_item_id for cv in config.config_values}
+
+        for item in config.template.items:
+            if item.id in existing_item_ids:
+                continue
+            spec_name = item.spec_dict.name if item.spec_dict else None
+            if not spec_name:
+                continue
+            ps = spec_map.get(spec_name)
+            if ps and ps.field_value:
+                db.session.add(ProductConfigValue(
+                    configuration_id=config.id,
+                    template_item_id=item.id,
+                    value=ps.field_value
+                ))
+
+        db.session.commit()
+        return jsonify({
+            'success': True,
+            'message': _('已关联产品 %(mn)s', mn=product.product_mn or product.model)
+        })
+
+    elif database == 'sg':
+        # SG 产品：在 CN 配置中记录关联（不修改 SG 数据库）
+        # 通过 MN 号匹配确认
+        try:
+            row = db.session.execute(db.text(
+                "SELECT product_mn, product_name, model FROM sg_products WHERE id = :pid"
+            ), {'pid': product_id}).fetchone()
+            if not row:
+                return jsonify({'success': False, 'message': _('SG 产品不存在')}), 404
+
+            # 更新配置的 MN 为 SG 产品的 MN（如果配置未锁定且无 MN）
+            if not config.mn_locked and not config.mn_code:
+                config.mn_code = row.product_mn
+                db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'message': _('已记录 SG 产品关联 %(mn)s（需在 SG NAS 部署后生效）', mn=row.product_mn)
+            })
+        except Exception as e:
+            return jsonify({'success': False, 'message': str(e)}), 500
+
+    return jsonify({'success': False, 'message': _('不支持的数据库类型')}), 400
 
 
 @spec_template_bp.route('/api/configurations/<int:config_id>/values', methods=['PUT'])
