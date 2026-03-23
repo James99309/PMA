@@ -1298,6 +1298,9 @@ const ProductSpecModal = (function() {
             // 显示完整信息
             selectedInfoEl.classList.remove('hidden');
 
+            // 更新产品图片（跟随规格选择切换）
+            updateProductInfo(state.selectedProduct);
+
             // 左侧：产品名称下显示品牌
             if (brandLeftEl) {
                 brandLeftEl.textContent = state.selectedProduct.brand || '--';

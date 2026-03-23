@@ -1212,6 +1212,7 @@ class ProductSelector {
                             <div class="product-line-1">
                                 <h3 class="product-name-title">${modelGroup.product_name || firstProduct.product_name || ''}</h3>
                             </div>
+                            ${modelGroup.model ? `<div class="product-model">${modelGroup.model}</div>` : ''}
                             <div class="product-count">点击选择 (${modelGroup.count} 个型号/规格)</div>
                         </div>
                         <div class="product-price-area">
