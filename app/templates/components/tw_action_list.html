@@ -370,7 +370,7 @@ Tailwind 行动记录列表组件
                     {% endif %}
 
                     {# 沟通内容 #}
-                    <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-3 mt-1">{{ action.communication|truncate(150) }}</p>
+                    <p class="text-sm text-slate-600 dark:text-slate-300 line-clamp-3 mt-1" title="{{ action.communication }}">{{ action.communication|truncate(150) }}</p>
 
                     {# 时间显示 #}
                     {% if time_format == 'relative' %}

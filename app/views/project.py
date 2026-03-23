@@ -4853,7 +4853,7 @@ def api_create_project():
             region=data.get('region', ''),
             city=data.get('city', ''),
             owner_id=current_user.id,
-            vendor_sales_manager_id=None,
+            vendor_sales_manager_id=current_user.id if current_user.is_vendor_user() else None,
             authorization_code=data.get('authorization_code', ''),
             stage_description=data.get('stage_description', ''),
             created_by=current_user.id,
