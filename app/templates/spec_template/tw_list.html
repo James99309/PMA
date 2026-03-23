@@ -64,7 +64,7 @@
     </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark">
-    {% call(slot) render_tw_layout(active_page='spec_template', show_search=true, search_value=filter_config.search_field.value) %}
+    {% call(slot) render_tw_layout(active_page='spec_template', show_search=true, search_value=filter_config.search_value) %}
     {% if slot == 'content' %}
         <!-- 主内容 -->
         {% call(page_slot) render_tw_fixed_page() %}
