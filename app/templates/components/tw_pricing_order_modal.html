@@ -775,9 +775,23 @@ window.PricingOrderModal = (function() {
         const po = state.pricingOrder;
         const isApprovalMode = po && po.is_approval_context && po.status === 'pending';
 
-        // 审批模式下直接关闭（修改不会保存，无需确认）
+        // 审批模式下也检查未保存的修改
         if (isApprovalMode) {
-            forceClose();
+            if (state.isDirty) {
+                if (typeof openConfirmModal === 'function') {
+                    openConfirmModal('pricingDiscardChangesModal', {
+                        onConfirm: function() {
+                            forceClose();
+                        }
+                    });
+                } else {
+                    if (confirm('{{ _("您有未保存的修改，确定要放弃这些修改吗？") }}')) {
+                        forceClose();
+                    }
+                }
+            } else {
+                forceClose();
+            }
             return;
         }
 
@@ -991,8 +1005,13 @@ window.PricingOrderModal = (function() {
             enableChannelEditing(true);
         } else if (po.is_approval_context && po.status === 'pending') {
             // 审批模式：根据当前步骤的可编辑字段控制
-            // 审批过程中不显示保存按钮 - 只有点击审批确认才会保存数据，否则放弃修改
-            saveBtn?.classList.add('hidden');
+            const hasEditableFields = po.editable_fields && po.editable_fields.length > 0;
+            if (hasEditableFields) {
+                // 有可编辑字段时显示保存按钮，允许审批人先保存修改再决定是否审批
+                saveBtn?.classList.remove('hidden');
+            } else {
+                saveBtn?.classList.add('hidden');
+            }
             applyApprovalFieldControl(po.editable_fields || []);
         } else {
             // 只读模式
@@ -1376,7 +1395,10 @@ window.PricingOrderModal = (function() {
     function confirmSave() {
         openConfirmModal('pricingSaveConfirmModal', {
             onConfirm: function() {
-                savePricingOrder();
+                const po = state.pricingOrder;
+                const isApprovalMode = po && po.is_approval_context && po.status === 'pending';
+                // 审批模式下跳过基本信息保存（审批人通常没有渠道编辑权限）
+                savePricingOrder({ skipBasicInfo: isApprovalMode });
             }
         });
     }
