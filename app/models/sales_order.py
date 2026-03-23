@@ -79,6 +79,11 @@ class SalesOrder(db.Model):
         return self.delivery_date.strftime('%Y-%m-%d') if self.delivery_date else ''
 
     @property
+    def procured_quantity(self):
+        """总已采购数量"""
+        return sum(detail.procured_quantity or 0 for detail in self.details)
+
+    @property
     def shipped_quantity(self):
         """已发货数量"""
         return sum(detail.shipped_quantity or 0 for detail in self.details)
@@ -117,7 +122,8 @@ class SalesOrderDetail(db.Model):
     discount = Column(Numeric(5, 4), default=1.0000)  # 折扣率
     total_price = Column(Numeric(15, 2), default=0)  # 总价
 
-    # 发货和签收状态
+    # 采购、发货和签收状态
+    procured_quantity = Column(Integer, default=0)  # 已纳入采购的数量
     shipped_quantity = Column(Integer, default=0)  # 已发货数量
     received_quantity = Column(Integer, default=0)  # 已签收数量
     status = Column(String(20), default='pending')
@@ -136,6 +142,11 @@ class SalesOrderDetail(db.Model):
 
     def __repr__(self):
         return f'<SalesOrderDetail {self.product_name}: {self.quantity}>'
+
+    @property
+    def remaining_to_procure(self):
+        """剩余未采购数量"""
+        return max(0, self.quantity - (self.procured_quantity or 0))
 
     @property
     def remaining_to_ship(self):

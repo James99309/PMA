@@ -17,7 +17,8 @@ class Shipment(db.Model):
     shipment_number = Column(String(50), unique=True, nullable=False)  # SHP202501-001
 
     # 关联订单
-    sales_order_id = Column(Integer, ForeignKey('sales_orders.id'), nullable=False)
+    sales_order_id = Column(Integer, ForeignKey('sales_orders.id'), nullable=True)  # 目标客户订单（发给代理商时填写）
+    purchase_order_id = Column(Integer, ForeignKey('purchase_orders.id'), nullable=True)  # 来源采购单
 
     # 物流信息
     carrier = Column(String(100), nullable=True)  # 承运商
@@ -74,6 +75,7 @@ class Shipment(db.Model):
 
     # 关系
     sales_order = relationship('SalesOrder', backref='shipments')
+    purchase_order = relationship('PurchaseOrder', backref='shipments')
     created_by = relationship('User', backref='created_shipments')
 
     def __repr__(self):
@@ -112,7 +114,8 @@ class ShipmentDetail(db.Model):
 
     id = Column(Integer, primary_key=True)
     shipment_id = Column(Integer, ForeignKey('shipments.id'), nullable=False)
-    sales_order_detail_id = Column(Integer, ForeignKey('sales_order_details.id'), nullable=True)  # 关联订单明细
+    sales_order_detail_id = Column(Integer, ForeignKey('sales_order_details.id'), nullable=True)  # 关联客户订单明细
+    purchase_order_detail_id = Column(Integer, ForeignKey('purchase_order_details.id'), nullable=True)  # 关联采购订单明细
     product_id = Column(Integer, ForeignKey('products.id'), nullable=False)
 
     # 产品信息（冗余存储）
@@ -140,6 +143,7 @@ class ShipmentDetail(db.Model):
     # 关系
     shipment = relationship('Shipment', backref='details')
     sales_order_detail = relationship('SalesOrderDetail', backref='shipment_details')
+    purchase_order_detail = relationship('PurchaseOrderDetail', backref='shipment_details')
     product = relationship('Product', backref='shipment_details')
 
     def __repr__(self):
