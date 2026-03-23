@@ -287,6 +287,12 @@
         window.sortTable = function(field) {
             listManager.sortBy(field);
         };
+
+        // 从通知面板跳转时，自动打开指定批价单模态框
+        const openOrderId = new URLSearchParams(window.location.search).get('open');
+        if (openOrderId) {
+            openPricingOrderModal(parseInt(openOrderId));
+        }
     })();
     </script>
 
