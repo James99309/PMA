@@ -635,25 +635,8 @@ def update_total_discount_rate(order_id):
             pricing_order.pricing_total_discount_rate = discount_rate_decimal
             pricing_order.pricing_total_amount = sum(d.total_price or 0 for d in details)
 
-            # 同步更新结算单明细（批价单 → 结算单）
-            from app.models.pricing_order import SettlementOrderDetail, SettlementOrder
-            for detail in details:
-                settlement_detail = SettlementOrderDetail.query.filter_by(
-                    pricing_detail_id=detail.id
-                ).first()
-                if settlement_detail and settlement_detail.market_price and settlement_detail.market_price > 0:
-                    settlement_detail.discount_rate = discount_rate_decimal
-                    settlement_detail.unit_price = settlement_detail.market_price * discount_rate_decimal
-                    settlement_detail.total_price = settlement_detail.unit_price * settlement_detail.quantity
-
-            # 更新结算单总折扣率和总金额
-            pricing_order.settlement_total_discount_rate = discount_rate_decimal
-            pricing_order.calculate_settlement_totals(recalculate_discount_rate=False)
-
-            # 更新独立结算单总额
-            settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order.id).first()
-            if settlement_order:
-                settlement_order.calculate_totals()
+            # 注意：修改批价单折扣率时，不再同步覆盖结算单折扣率
+            # 结算单有独立的折扣率，由用户在结算 tab 中单独设置
         else:
             # 结算单更新不影响批价单
             pricing_order.settlement_total_discount_rate = discount_rate_decimal

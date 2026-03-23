@@ -719,22 +719,22 @@ class PricingOrderService:
                     pricing_detail.discount_rate = unit_price / pricing_detail.market_price
             
             pricing_detail.calculate_prices()
-            
-            # 同步更新结算单明细
+
+            # 同步更新结算单明细：只同步数量，不同步折扣率和单价
+            # 结算单的折扣率/单价由用户在结算 tab 中独立设置
             settlement_detail = SettlementOrderDetail.query.filter_by(
                 pricing_detail_id=detail_id
             ).first()
             if settlement_detail:
-                settlement_detail.quantity = pricing_detail.quantity
-                settlement_detail.discount_rate = pricing_detail.discount_rate
-                settlement_detail.unit_price = pricing_detail.unit_price
-                settlement_detail.calculate_prices()
-            
+                if quantity is not None:
+                    settlement_detail.quantity = pricing_detail.quantity
+                    settlement_detail.calculate_prices()
+
             # 重新计算总额
             pricing_order = PricingOrder.query.get(pricing_order_id)
             pricing_order.calculate_pricing_totals()
             pricing_order.calculate_settlement_totals()
-            
+
             # 更新结算单总额
             settlement_order = SettlementOrder.query.filter_by(pricing_order_id=pricing_order_id).first()
             if settlement_order:
@@ -797,18 +797,10 @@ class PricingOrderService:
                 for detail in pricing_order.pricing_details:
                     detail.discount_rate = total_discount_rate
                     detail.calculate_prices()
-                    
-                    # 同步更新结算单明细
-                    settlement_detail = SettlementOrderDetail.query.filter_by(
-                        pricing_detail_id=detail.id
-                    ).first()
-                    if settlement_detail:
-                        settlement_detail.discount_rate = total_discount_rate
-                        settlement_detail.calculate_prices()
-                
+                    # 注意：不同步结算单明细，结算单有独立折扣率
+
                 pricing_order.pricing_total_discount_rate = total_discount_rate
                 pricing_order.calculate_pricing_totals()
-                pricing_order.calculate_settlement_totals()
                 
             else:  # settlement
                 # 🔥 关键修复：更新结算单时不影响批价单

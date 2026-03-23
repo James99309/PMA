@@ -443,7 +443,7 @@ def product_list():
     product_types = [{'value': t[0], 'label': t[0]} for t in product_types if t[0]]
 
     categories = ProductCategory.get_ordered_list()
-    categories = [{'value': cat.name, 'label': cat.name} for cat in categories]
+    categories = [{'value': cat.name, 'label': (cat.name_en or cat.name) if Config.IS_OVS else cat.name} for cat in categories]
 
     brands = db.session.query(Product.brand).distinct().filter(
         Product.brand.isnot(None), Product.brand != ''
