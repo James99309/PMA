@@ -194,6 +194,8 @@ def api_get_order(order_id):
                 'unit': d.unit,
                 'unit_price': float(d.unit_price or 0),
                 'total_price': float(d.total_price or 0),
+                'procured_quantity': d.procured_quantity or 0,
+                'remaining_to_procure': d.remaining_to_procure,
                 'shipped_quantity': d.shipped_quantity,
                 'received_quantity': d.received_quantity,
                 'remaining_to_ship': d.remaining_to_ship,

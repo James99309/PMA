@@ -132,6 +132,7 @@
                             <tr>
                                 <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('产品') }}</th>
                                 <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('数量') }}</th>
+                                <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('已采购') }}</th>
                                 <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('已发') }}</th>
                                 <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('已收') }}</th>
                                 <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('单价') }}</th>
@@ -147,6 +148,11 @@
                                 </td>
                                 <td class="p-3 text-right text-slate-700 dark:text-slate-300">{{ detail.quantity }} {{ detail.unit or '' }}</td>
                                 <td class="p-3 text-right">
+                                    <span class="{% if (detail.procured_quantity or 0) >= detail.quantity %}text-green-600 dark:text-green-400{% elif (detail.procured_quantity or 0) > 0 %}text-amber-600 dark:text-amber-400{% else %}text-slate-400 dark:text-slate-500{% endif %}">
+                                        {{ detail.procured_quantity or 0 }}
+                                    </span>
+                                </td>
+                                <td class="p-3 text-right">
                                     <span class="{% if detail.shipped_quantity >= detail.quantity %}text-green-600 dark:text-green-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">
                                         {{ detail.shipped_quantity or 0 }}
                                     </span>
@@ -161,13 +167,13 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="6" class="p-8 text-center text-slate-500 dark:text-slate-400">{{ _('暂无明细') }}</td>
+                                <td colspan="7" class="p-8 text-center text-slate-500 dark:text-slate-400">{{ _('暂无明细') }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
                         <tfoot class="bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
                             <tr>
-                                <td colspan="5" class="p-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('合计') }}</td>
+                                <td colspan="6" class="p-3 text-right font-medium text-slate-700 dark:text-slate-300">{{ _('合计') }}</td>
                                 <td class="p-3 text-right font-bold text-slate-900 dark:text-white">¥{{ "%.2f"|format(order.total_amount or 0) }}</td>
                             </tr>
                         </tfoot>
@@ -184,6 +190,16 @@
                             {{ _('交付进度') }}
                         </h3>
                         <div class="space-y-3">
+                            <!-- 采购进度 -->
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="text-slate-500 dark:text-slate-400">{{ _('已采购') }}</span>
+                                <span class="font-medium text-slate-900 dark:text-white">{{ order.procured_quantity }} / {{ order.total_quantity }}</span>
+                            </div>
+                            <div class="w-full h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                                {% set proc_percent = (order.procured_quantity / order.total_quantity * 100) if order.total_quantity > 0 else 0 %}
+                                <div class="h-full bg-amber-500 rounded-full" style="width: {{ proc_percent|round(1) }}%"></div>
+                            </div>
+                            <!-- 发货进度 -->
                             <div class="flex items-center justify-between text-sm">
                                 <span class="text-slate-500 dark:text-slate-400">{{ _('已发货') }}</span>
                                 <span class="font-medium text-slate-900 dark:text-white">{{ order.shipped_quantity }} / {{ order.total_quantity }}</span>
