@@ -93,19 +93,28 @@
                 {% endif %}
             </div>
         {% elif page_slot == 'content' %}
-            <!-- 筛选栏：级联分类选择 -->
+            <!-- 筛选栏：级联分类选择 - 数据通过 script 注入避免 JSON 双引号破坏 x-data 属性 -->
+            <script>
+                window.__specFilterData = {
+                    categoryTree: {{ filter_config.category_tree | tojson }},
+                    selectedCategory: {{ filter_config.category_filter | tojson }},
+                    selectedSubcategory: {{ filter_config.subcategory_filter | tojson }},
+                    actionUrl: {{ filter_config.action_url | tojson }},
+                    allLabel: {{ _('全部分类') | tojson }}
+                };
+            </script>
             <div class="mb-4 sm:mb-6" x-data="{
                 open: false,
                 hoveredCat: '',
-                categoryTree: {{ filter_config.category_tree | tojson }},
-                selectedCategory: '{{ filter_config.category_filter }}',
-                selectedSubcategory: '{{ filter_config.subcategory_filter }}',
+                categoryTree: window.__specFilterData.categoryTree,
+                selectedCategory: window.__specFilterData.selectedCategory,
+                selectedSubcategory: window.__specFilterData.selectedSubcategory,
                 get displayText() {
                     if (this.selectedSubcategory) {
                         return this.selectedCategory + ' / ' + this.selectedSubcategory;
                     }
                     if (this.selectedCategory) return this.selectedCategory;
-                    return '{{ _('全部分类') }}';
+                    return window.__specFilterData.allLabel;
                 },
                 get hoveredSubs() {
                     const cat = this.categoryTree.find(c => c.name === this.hoveredCat);
@@ -116,7 +125,7 @@
                     const params = new URLSearchParams(window.location.search);
                     if (cat) { params.set('category', cat); } else { params.delete('category'); }
                     if (sub) { params.set('subcategory', sub); } else { params.delete('subcategory'); }
-                    window.location.href = '{{ filter_config.action_url }}?' + params.toString();
+                    window.location.href = window.__specFilterData.actionUrl + '?' + params.toString();
                 }
             }" @click.outside="open = false">
                 <div class="flex items-center gap-3">
