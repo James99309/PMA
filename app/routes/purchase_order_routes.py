@@ -1262,6 +1262,15 @@ def api_procurement_demands():
                 'source': 'CN'
             })
 
+        # 尝试拉取对端NAS（SG）的需求，失败不影响本地
+        from app.services.cross_sync_service import fetch_peer_procurement_demands
+        try:
+            sg_demands = fetch_peer_procurement_demands()
+            if sg_demands:
+                demands.extend(sg_demands)
+        except Exception as sg_e:
+            logger.warning(f"拉取SG需求失败（不影响本地）: {sg_e}")
+
         return jsonify({'success': True, 'demands': demands})
     except Exception as e:
         logger.error(f"获取需求池失败: {str(e)}")
