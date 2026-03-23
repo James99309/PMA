@@ -1655,13 +1655,12 @@ window.PricingOrderModal = (function() {
         // 计算小计
         const totalPrice = unitPrice * quantity;
 
-        // 更新行数据（本地）
+        // 更新行数据（本地）- 排除用户正在编辑的字段，避免格式化覆盖输入
         if (window.EditableTable) {
-            window.EditableTable.updateRowData(tableId, rowId, {
-                discount: discount,
-                unit_price: unitPrice,
-                total_price: totalPrice
-            });
+            const updateData = { total_price: totalPrice };
+            if (changedField !== 'discount') updateData.discount = discount;
+            if (changedField !== 'unit_price') updateData.unit_price = unitPrice;
+            window.EditableTable.updateRowData(tableId, rowId, updateData);
         }
 
         // 记录待保存的明细修改
