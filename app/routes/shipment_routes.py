@@ -10,6 +10,7 @@ from decimal import Decimal
 from app import db
 from app.models.shipment import Shipment, ShipmentDetail
 from app.models.sales_order import SalesOrder, SalesOrderDetail
+from app.models.inventory import PurchaseOrder, PurchaseOrderDetail
 from app.services.shipment_service import ShipmentService
 from app.decorators import permission_required
 import logging
@@ -393,4 +394,205 @@ def api_get_shippable_details(order_id):
             'delivery_phone': order.delivery_phone
         },
         'details': shippable_details
+    })
+
+
+@shipment_bp.route('/api/po/<int:po_id>/dispatchable-details', methods=['GET'])
+@login_required
+@permission_required('shipment', 'view')
+def api_get_dispatchable_details(po_id):
+    """获取采购订单中可发货（已到货未发出）的明细列表"""
+    po = PurchaseOrder.query.get(po_id)
+    if not po:
+        return jsonify({'success': False, 'message': '采购订单不存在'})
+
+    dispatchable_details = []
+    for detail in po.details:
+        remaining = detail.remaining_to_dispatch
+        if remaining > 0:
+            dispatchable_details.append({
+                'id': detail.id,
+                'product_id': detail.product_id,
+                'product_name': detail.product_name,
+                'product_model': detail.product_model,
+                'quantity': detail.quantity,
+                'received_quantity': detail.received_quantity or 0,
+                'dispatched_quantity': detail.dispatched_quantity or 0,
+                'remaining_to_dispatch': remaining,
+                'unit': detail.unit,
+                'sales_order_detail_id': detail.sales_order_detail_id
+            })
+
+    return jsonify({
+        'success': True,
+        'purchase_order': {
+            'id': po.id,
+            'order_number': po.order_number,
+            'supplier_name': po.company.company_name if po.company else '',
+        },
+        'details': dispatchable_details
+    })
+
+
+@shipment_bp.route('/api/create-from-po', methods=['POST'])
+@login_required
+@permission_required('shipment', 'create')
+def api_create_from_po():
+    """从采购订单创建发货单"""
+    try:
+        data = request.get_json()
+        purchase_order_id = data.get('purchase_order_id')
+        destination_type = data.get('destination_type')  # 'sales_order' or 'warehouse'
+        sales_order_id = data.get('sales_order_id')
+        details = data.get('details', [])
+
+        if not purchase_order_id:
+            return jsonify({'success': False, 'message': '缺少采购订单ID'})
+
+        if not details:
+            return jsonify({'success': False, 'message': '请选择要发货的产品'})
+
+        if destination_type == 'sales_order' and not sales_order_id:
+            return jsonify({'success': False, 'message': '请选择目标客户订单'})
+
+        # 验证采购订单
+        po = PurchaseOrder.query.get(purchase_order_id)
+        if not po:
+            return jsonify({'success': False, 'message': '采购订单不存在'})
+
+        # 验证客户订单（如果有）
+        sales_order = None
+        if sales_order_id:
+            sales_order = SalesOrder.query.get(sales_order_id)
+            if not sales_order:
+                return jsonify({'success': False, 'message': '客户订单不存在'})
+
+        # 创建发货单
+        shipment = Shipment(
+            shipment_number=ShipmentService.generate_shipment_number(),
+            purchase_order_id=purchase_order_id,
+            sales_order_id=sales_order_id if destination_type == 'sales_order' else None,
+            carrier=data.get('carrier'),
+            tracking_number=data.get('tracking_number'),
+            shipping_method=data.get('shipping_method'),
+            ship_from=data.get('ship_from'),
+            ship_to=data.get('ship_to'),
+            contact_name=data.get('contact_name'),
+            contact_phone=data.get('contact_phone'),
+            total_packages=data.get('total_packages', 1),
+            notes=data.get('notes'),
+            status='pending',
+            created_by_id=current_user.id
+        )
+
+        # 处理日期
+        if data.get('ship_date'):
+            try:
+                shipment.ship_date = datetime.strptime(data['ship_date'], '%Y-%m-%d')
+            except ValueError:
+                pass
+
+        if data.get('expected_arrival'):
+            try:
+                shipment.expected_arrival = datetime.strptime(data['expected_arrival'], '%Y-%m-%d')
+            except ValueError:
+                pass
+
+        db.session.add(shipment)
+        db.session.flush()  # 获取 shipment.id
+
+        # 创建发货明细
+        for item in details:
+            po_detail_id = item.get('purchase_order_detail_id')
+            quantity = int(item.get('quantity', 0))
+
+            if quantity <= 0:
+                continue
+
+            # 验证PO明细
+            po_detail = PurchaseOrderDetail.query.get(po_detail_id)
+            if not po_detail:
+                db.session.rollback()
+                return jsonify({'success': False, 'message': f'采购明细 ID {po_detail_id} 不存在'})
+
+            # 验证数量不超过可发数量
+            remaining = po_detail.remaining_to_dispatch
+            if quantity > remaining:
+                db.session.rollback()
+                return jsonify({
+                    'success': False,
+                    'message': f'{po_detail.product_name} 可发数量为 {remaining}，不能发 {quantity}'
+                })
+
+            # 创建发货明细
+            shipment_detail = ShipmentDetail(
+                shipment_id=shipment.id,
+                purchase_order_detail_id=po_detail_id,
+                sales_order_detail_id=item.get('sales_order_detail_id') if destination_type == 'sales_order' else None,
+                product_id=item.get('product_id', po_detail.product_id),
+                product_name=item.get('product_name', po_detail.product_name),
+                product_model=item.get('product_model', po_detail.product_model),
+                quantity=quantity,
+                unit=item.get('unit', po_detail.unit),
+                status='pending'
+            )
+            db.session.add(shipment_detail)
+
+            # 更新采购明细的已发货数量
+            po_detail.dispatched_quantity = (po_detail.dispatched_quantity or 0) + quantity
+
+            # 如果是发给客户订单，同时更新客户订单明细的发货数量
+            if destination_type == 'sales_order' and item.get('sales_order_detail_id'):
+                so_detail = SalesOrderDetail.query.get(item['sales_order_detail_id'])
+                if so_detail:
+                    so_detail.shipped_quantity = (so_detail.shipped_quantity or 0) + quantity
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': f'发货单 {shipment.shipment_number} 创建成功',
+            'shipment_id': shipment.id,
+            'shipment_number': shipment.shipment_number,
+            'redirect_url': url_for('shipment.detail_view', shipment_id=shipment.id)
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"从采购订单创建发货单失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'创建失败: {str(e)}'})
+
+
+@shipment_bp.route('/api/available-sales-orders', methods=['GET'])
+@login_required
+@permission_required('shipment', 'view')
+def api_available_sales_orders():
+    """获取可选的客户订单列表（状态为 confirmed 或 preparing）"""
+    search = request.args.get('search', '').strip()
+
+    query = SalesOrder.query.filter(
+        SalesOrder.status.in_(['confirmed', 'preparing'])
+    )
+
+    if search:
+        query = query.filter(
+            db.or_(
+                SalesOrder.order_number.ilike(f'%{search}%'),
+            )
+        )
+
+    orders = query.order_by(SalesOrder.created_at.desc()).limit(50).all()
+
+    return jsonify({
+        'success': True,
+        'orders': [{
+            'id': o.id,
+            'order_number': o.order_number,
+            'customer_name': o.customer.company_name if o.customer else '',
+            'status': o.status,
+            'delivery_address': o.delivery_address,
+            'delivery_contact': o.delivery_contact,
+            'delivery_phone': o.delivery_phone,
+            'total_quantity': o.total_quantity
+        } for o in orders]
     })

@@ -673,7 +673,7 @@
 
     // 其他模态框（待完善）
     function openTestReportModal(type) { showToast('{{ _("测试报告上传功能开发中") }}', 'info'); }
-    function openShipmentModal() { showToast('{{ _("发货确认功能开发中") }}', 'info'); }
+    function openShipmentModal() { document.getElementById('shipmentFromPoModal').classList.remove('hidden'); loadDispatchableDetails(); loadAvailableSalesOrders(); }
     function openAcceptanceModal() { showToast('{{ _("验收入库功能开发中") }}', 'info'); }
     function openAddDetailModal() {
         // 打开编辑模态框以添加/修改明细
@@ -815,7 +815,347 @@
             }
         }, 100);
     });
+
+    // ========== 发货模态框逻辑 ==========
+    let shipDispatchableDetails = [];  // 可发货明细缓存
+    let shipSelectedDestType = 'sales_order';
+
+    function closeShipmentModal() {
+        document.getElementById('shipmentFromPoModal').classList.add('hidden');
+    }
+
+    function onDestTypeChange(value) {
+        shipSelectedDestType = value;
+        const soSection = document.getElementById('salesOrderSection');
+        if (value === 'sales_order') {
+            soSection.classList.remove('hidden');
+        } else {
+            soSection.classList.add('hidden');
+        }
+    }
+
+    async function loadDispatchableDetails() {
+        const body = document.getElementById('shipDetailBody');
+        const loading = document.getElementById('shipDetailLoading');
+        const empty = document.getElementById('shipDetailEmpty');
+
+        if (loading) loading.classList.remove('hidden');
+        if (empty) empty.classList.add('hidden');
+
+        try {
+            const response = await fetch(`/shipment/api/po/${orderId}/dispatchable-details`, {
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const result = await response.json();
+
+            if (loading) loading.classList.add('hidden');
+
+            if (result.success && result.details.length > 0) {
+                shipDispatchableDetails = result.details;
+                renderDispatchableRows(result.details);
+            } else {
+                shipDispatchableDetails = [];
+                body.innerHTML = '';
+                empty.classList.remove('hidden');
+            }
+        } catch (error) {
+            console.error('加载可发货明细失败:', error);
+            if (loading) loading.classList.add('hidden');
+            body.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-red-500">{{ _('加载失败') }}</td></tr>`;
+        }
+    }
+
+    function renderDispatchableRows(details) {
+        const body = document.getElementById('shipDetailBody');
+        body.innerHTML = details.map(d => `
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50" data-detail-id="${d.id}">
+                <td class="p-2.5">
+                    <div class="text-sm font-medium text-slate-900 dark:text-white truncate max-w-[180px]" title="${d.product_name}">${d.product_name}</div>
+                </td>
+                <td class="p-2.5 text-sm text-slate-600 dark:text-slate-400">${d.product_model || '-'}</td>
+                <td class="p-2.5 text-center text-sm text-slate-700 dark:text-slate-300">${d.received_quantity}</td>
+                <td class="p-2.5 text-center text-sm text-slate-500 dark:text-slate-400">${d.dispatched_quantity}</td>
+                <td class="p-2.5 text-center text-sm font-medium text-green-600 dark:text-green-400">${d.remaining_to_dispatch}</td>
+                <td class="p-2.5 text-center">
+                    <input type="number" min="0" max="${d.remaining_to_dispatch}" value="${d.remaining_to_dispatch}"
+                           data-detail-id="${d.id}" data-max="${d.remaining_to_dispatch}"
+                           class="ship-qty-input w-20 h-8 px-2 text-center text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
+                           onchange="validateShipQty(this)">
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function validateShipQty(input) {
+        const max = parseInt(input.dataset.max) || 0;
+        let val = parseInt(input.value) || 0;
+        if (val < 0) val = 0;
+        if (val > max) val = max;
+        input.value = val;
+    }
+
+    async function loadAvailableSalesOrders() {
+        const select = document.getElementById('shipSalesOrderId');
+        try {
+            const response = await fetch('/shipment/api/available-sales-orders', {
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const result = await response.json();
+            if (result.success) {
+                // 保留第一个占位项
+                select.innerHTML = `<option value="">{{ _('选择客户订单...') }}</option>`;
+                result.orders.forEach(o => {
+                    const opt = document.createElement('option');
+                    opt.value = o.id;
+                    opt.textContent = `${o.order_number} - ${o.customer_name || ''}`;
+                    opt.dataset.address = o.delivery_address || '';
+                    opt.dataset.contact = o.delivery_contact || '';
+                    opt.dataset.phone = o.delivery_phone || '';
+                    select.appendChild(opt);
+                });
+            }
+        } catch (error) {
+            console.error('加载客户订单失败:', error);
+        }
+    }
+
+    function onSalesOrderChange(soId) {
+        const hint = document.getElementById('soHint');
+        if (!soId) {
+            hint.classList.add('hidden');
+            return;
+        }
+        const opt = document.querySelector(`#shipSalesOrderId option[value="${soId}"]`);
+        if (opt && opt.dataset.address) {
+            hint.textContent = `{{ _('收货地址') }}: ${opt.dataset.address}`;
+            hint.classList.remove('hidden');
+        } else {
+            hint.classList.add('hidden');
+        }
+    }
+
+    async function submitShipmentFromPo() {
+        const destType = shipSelectedDestType;
+        const salesOrderId = document.getElementById('shipSalesOrderId').value;
+
+        // 验证
+        if (destType === 'sales_order' && !salesOrderId) {
+            showToast('{{ _("请选择目标客户订单") }}', 'warning');
+            return;
+        }
+
+        // 收集发货明细
+        const qtyInputs = document.querySelectorAll('.ship-qty-input');
+        const details = [];
+        qtyInputs.forEach(input => {
+            const qty = parseInt(input.value) || 0;
+            if (qty > 0) {
+                const detailId = parseInt(input.dataset.detailId);
+                const detailData = shipDispatchableDetails.find(d => d.id === detailId);
+                if (detailData) {
+                    const item = {
+                        purchase_order_detail_id: detailId,
+                        product_id: detailData.product_id,
+                        product_name: detailData.product_name,
+                        product_model: detailData.product_model,
+                        quantity: qty,
+                        unit: detailData.unit
+                    };
+                    if (destType === 'sales_order' && detailData.sales_order_detail_id) {
+                        item.sales_order_detail_id = detailData.sales_order_detail_id;
+                    }
+                    details.push(item);
+                }
+            }
+        });
+
+        if (details.length === 0) {
+            showToast('{{ _("请输入发货数量") }}', 'warning');
+            return;
+        }
+
+        const submitBtn = document.getElementById('shipSubmitBtn');
+        const originalHtml = submitBtn.innerHTML;
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<span class="material-symbols-outlined animate-spin text-base">progress_activity</span> {{ _('创建中...') }}`;
+
+        try {
+            const payload = {
+                purchase_order_id: orderId,
+                destination_type: destType,
+                sales_order_id: destType === 'sales_order' ? parseInt(salesOrderId) : null,
+                carrier: document.getElementById('shipCarrier').value.trim(),
+                tracking_number: document.getElementById('shipTrackingNumber').value.trim(),
+                ship_date: document.getElementById('shipDate').value,
+                expected_arrival: document.getElementById('shipExpectedArrival').value,
+                notes: document.getElementById('shipNotes').value.trim(),
+                details: details
+            };
+
+            const response = await fetch('/shipment/api/create-from-po', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast(result.message, 'success');
+                closeShipmentModal();
+                // 延迟后跳转到发货单详情或刷新当前页面
+                setTimeout(() => {
+                    if (result.redirect_url) {
+                        window.open(result.redirect_url, '_blank');
+                    }
+                    location.reload();
+                }, 800);
+            } else {
+                showToast(result.message || '{{ _("创建失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('创建发货单失败:', error);
+            showToast('{{ _("操作失败") }}', 'error');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalHtml;
+        }
+    }
     </script>
+
+    <!-- ========== 发货创建模态框 ========== -->
+    <div id="shipmentFromPoModal" class="fixed inset-0 z-50 hidden">
+        <div class="fixed inset-0 bg-black/50" onclick="closeShipmentModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+                <!-- 头部 -->
+                <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
+                        <span class="material-symbols-outlined text-primary mr-1 align-middle">local_shipping</span>
+                        {{ _('创建发货单') }}
+                    </h3>
+                    <button onclick="closeShipmentModal()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+
+                <!-- 内容区 - 可滚动 -->
+                <div class="overflow-y-auto p-4 space-y-5 flex-1">
+                    <!-- 发货方向 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('发货去向') }}</label>
+                        <div class="flex gap-4">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="shipDestType" value="sales_order" checked
+                                       onchange="onDestTypeChange(this.value)"
+                                       class="w-4 h-4 text-primary border-slate-300 focus:ring-primary">
+                                <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('发给客户订单') }}</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="shipDestType" value="warehouse"
+                                       onchange="onDestTypeChange(this.value)"
+                                       class="w-4 h-4 text-primary border-slate-300 focus:ring-primary">
+                                <span class="text-sm text-slate-700 dark:text-slate-300">{{ _('入公司仓库') }}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 客户订单选择（仅当发给客户订单时显示） -->
+                    <div id="salesOrderSection">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            {{ _('目标客户订单') }} <span class="text-red-500">*</span>
+                        </label>
+                        <select id="shipSalesOrderId"
+                                onchange="onSalesOrderChange(this.value)"
+                                class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                            <option value="">{{ _('选择客户订单...') }}</option>
+                        </select>
+                        <p id="soHint" class="mt-1 text-xs text-slate-400 hidden"></p>
+                    </div>
+
+                    <!-- 发货明细表格 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('发货明细') }}</label>
+                        <div class="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                            <table class="w-full text-sm">
+                                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                                    <tr>
+                                        <th class="p-2.5 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">{{ _('产品') }}</th>
+                                        <th class="p-2.5 text-left text-xs font-semibold text-slate-500 dark:text-slate-400">{{ _('型号') }}</th>
+                                        <th class="p-2.5 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">{{ _('到货') }}</th>
+                                        <th class="p-2.5 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">{{ _('已发') }}</th>
+                                        <th class="p-2.5 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">{{ _('可发') }}</th>
+                                        <th class="p-2.5 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 w-28">{{ _('本次发货') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="shipDetailBody" class="divide-y divide-slate-200 dark:divide-slate-700">
+                                    <tr id="shipDetailLoading">
+                                        <td colspan="6" class="p-6 text-center text-slate-400">
+                                            <span class="material-symbols-outlined animate-spin">progress_activity</span>
+                                            <span class="ml-2">{{ _('加载中...') }}</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p id="shipDetailEmpty" class="hidden mt-2 text-sm text-amber-600 dark:text-amber-400">
+                            <span class="material-symbols-outlined text-sm align-middle mr-1">info</span>
+                            {{ _('没有可发货的产品（需先有到货记录）') }}
+                        </p>
+                    </div>
+
+                    <!-- 物流信息 -->
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('物流信息') }}</label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('承运商') }}</label>
+                                <input type="text" id="shipCarrier" placeholder="{{ _('物流公司名称') }}"
+                                       class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('运单号') }}</label>
+                                <input type="text" id="shipTrackingNumber" placeholder="{{ _('物流单号') }}"
+                                       class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('发货日期') }}</label>
+                                <input type="date" id="shipDate"
+                                       class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('预计到达') }}</label>
+                                <input type="date" id="shipExpectedArrival"
+                                       class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 备注 -->
+                    <div>
+                        <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('备注') }}</label>
+                        <textarea id="shipNotes" rows="2" placeholder="{{ _('发货备注信息') }}"
+                                  class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm resize-none"></textarea>
+                    </div>
+                </div>
+
+                <!-- 底部操作栏 -->
+                <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700 shrink-0">
+                    <button onclick="closeShipmentModal()"
+                            class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg">
+                        {{ _('取消') }}
+                    </button>
+                    <button id="shipSubmitBtn" onclick="submitShipmentFromPo()"
+                            class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-base">local_shipping</span>
+                        {{ _('创建发货单') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- 审批确认模态框 -->
     {{ render_tw_approval_modals() }}
