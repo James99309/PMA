@@ -30,6 +30,7 @@ def list_view():
     # 获取筛选参数
     status = request.args.get('status', '')
     search = request.args.get('search', '').strip()
+    purchase_order_id = request.args.get('purchase_order_id', type=int)
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
 
@@ -39,6 +40,10 @@ def list_view():
     # 状态筛选
     if status:
         query = query.filter(Shipment.status == status)
+
+    # 采购订单筛选
+    if purchase_order_id:
+        query = query.filter(Shipment.purchase_order_id == purchase_order_id)
 
     # 搜索
     if search:
