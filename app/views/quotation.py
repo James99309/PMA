@@ -114,41 +114,38 @@ def list_quotations():
         # 使用通用工具应用基本筛选（owner_filter, project_stage_filter）
         query = apply_filters_to_query(query, Quotation, filters, QUOTATION_FILTER_CONFIG)
 
-        # 标记是否已经JOIN了Project表
-        project_joined = False
-
-        # 全局搜索（同时搜索报价单编号和项目名称，需要JOIN）
+        # 全局搜索（使用子查询避免与 content_filter 的 Project JOIN 冲突）
         if search:
-            query = query.join(Project, Quotation.project_id == Project.id)
+            matching_project_ids = db.session.query(Project.id).filter(
+                Project.project_name.ilike(f'%{search}%')
+            )
             query = query.filter(
                 or_(
                     Quotation.quotation_number.ilike(f'%{search}%'),
-                    Project.project_name.ilike(f'%{search}%')
+                    Quotation.project_id.in_(matching_project_ids)
                 )
             )
-            project_joined = True
 
-        # 项目名称单独搜索（需要JOIN）
-        if project_search and not search:  # 避免重复JOIN
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
-            query = query.filter(Project.project_name.ilike(f'%{project_search}%'))
+        # 项目名称单独搜索（使用子查询）
+        if project_search and not search:
+            matching_project_ids = db.session.query(Project.id).filter(
+                Project.project_name.ilike(f'%{project_search}%')
+            )
+            query = query.filter(Quotation.project_id.in_(matching_project_ids))
 
-        # 项目类型筛选（需要JOIN Project表，特殊处理）
+        # 项目类型筛选（使用子查询避免 JOIN 冲突）
         if project_type_filter:
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
-
             if project_type_filter == 'channel_follow':
-                query = query.filter(Project.project_type == 'channel_follow')
+                type_cond = Project.project_type == 'channel_follow'
             elif project_type_filter == 'sales_focus':
-                query = query.filter(Project.project_type.in_(['sales_focus', 'sales_key']))
+                type_cond = Project.project_type.in_(['sales_focus', 'sales_key'])
             elif project_type_filter == 'marketing_focus':
-                query = query.filter(Project.project_type.in_(['sales_focus', 'sales_key', 'channel_follow']))
+                type_cond = Project.project_type.in_(['sales_focus', 'sales_key', 'channel_follow'])
             else:
-                query = query.filter(Project.project_type == project_type_filter)
+                type_cond = Project.project_type == project_type_filter
+
+            matching_project_ids = db.session.query(Project.id).filter(type_cond)
+            query = query.filter(Quotation.project_id.in_(matching_project_ids))
 
         # 保存过滤后的查询（无 ORDER BY），用于统计聚合
         filtered_query = query
@@ -157,14 +154,10 @@ def list_quotations():
         # 5. 应用排序
         # ============================================================
         if sort_field == 'project_name':
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
+            query = query.outerjoin(Project, Quotation.project_id == Project.id)
             order_attr = Project.project_name
         elif sort_field == 'project_type':
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
+            query = query.outerjoin(Project, Quotation.project_id == Project.id)
             order_attr = Project.project_type
         elif hasattr(Quotation, sort_field):
             order_attr = getattr(Quotation, sort_field)
@@ -686,26 +679,24 @@ def quotations_list_ajax():
         # ============================================================
         query = apply_filters_to_query(query, Quotation, filters, QUOTATION_FILTER_CONFIG)
 
-        # 标记是否已经JOIN了Project表
-        project_joined = False
-
-        # 搜索同时包含项目名称（需要JOIN）
+        # 搜索（使用子查询避免与 content_filter 的 Project JOIN 冲突）
         if search:
-            query = query.join(Project, Quotation.project_id == Project.id)
+            matching_project_ids = db.session.query(Project.id).filter(
+                Project.project_name.ilike(f'%{search}%')
+            )
             query = query.filter(
                 or_(
                     Quotation.quotation_number.ilike(f'%{search}%'),
-                    Project.project_name.ilike(f'%{search}%')
+                    Quotation.project_id.in_(matching_project_ids)
                 )
             )
-            project_joined = True
 
-        # 项目类型筛选（需要JOIN Project表）
+        # 项目类型筛选（使用子查询避免 JOIN 冲突）
         if project_type_filter:
-            if not project_joined:
-                query = query.join(Project, Quotation.project_id == Project.id)
-                project_joined = True
-            query = query.filter(Project.project_type == project_type_filter)
+            matching_project_ids = db.session.query(Project.id).filter(
+                Project.project_type == project_type_filter
+            )
+            query = query.filter(Quotation.project_id.in_(matching_project_ids))
 
         # ============================================================
         # 4. 应用排序

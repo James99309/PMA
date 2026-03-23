@@ -720,7 +720,8 @@ window.PricingOrderModal = (function() {
             totalDiscount: null,    // 总折扣率修改（兼容旧逻辑）
             pricingDiscount: undefined,    // 批价单折扣率修改
             settlementDiscount: undefined, // 结算单折扣率修改
-            details: {},            // 明细修改 {detailId: {field: value}}
+            details: {},            // 批价单明细修改 {detailId: {field: value}}
+            settlementDetails: {},  // 结算单明细修改 {detailId: {field: value}}
             deletedDetails: []      // 待删除的明细ID列表
         }
     };
@@ -824,7 +825,10 @@ window.PricingOrderModal = (function() {
         state.pendingChanges = {
             basicInfo: null,
             totalDiscount: null,
+            pricingDiscount: undefined,
+            settlementDiscount: undefined,
             details: {},
+            settlementDetails: {},
             deletedDetails: []
         };
         window.dispatchEvent(new CustomEvent('close-pricing-modal'));
@@ -897,7 +901,10 @@ window.PricingOrderModal = (function() {
         state.pendingChanges = {
             basicInfo: null,
             totalDiscount: null,
+            pricingDiscount: undefined,
+            settlementDiscount: undefined,
             details: {},
+            settlementDetails: {},
             deletedDetails: []
         };
 
@@ -1493,7 +1500,7 @@ window.PricingOrderModal = (function() {
                 }
             }
 
-            // 3. 如果有单个明细修改，逐个提交
+            // 3. 如果有批价单明细修改，逐个提交
             if (Object.keys(state.pendingChanges.details).length > 0) {
                 for (const [detailId, changes] of Object.entries(state.pendingChanges.details)) {
                     const detailResponse = await fetch(`/pricing_order/${state.pricingOrderId}/update_pricing_detail`, {
@@ -1514,9 +1521,38 @@ window.PricingOrderModal = (function() {
                     if (!detailData.success) {
                         hasError = true;
                         if (!silentMode) {
-                            showToast(detailData.message || '{{ _("保存明细失败") }}', 'error');
+                            showToast(detailData.message || '{{ _("保存批价明细失败") }}', 'error');
                         }
-                        break;  // 出错时停止
+                        break;
+                    } else {
+                        lastResponseData = detailData;
+                    }
+                }
+            }
+
+            // 3.1 如果有结算单明细修改，逐个提交
+            if (!hasError && Object.keys(state.pendingChanges.settlementDetails).length > 0) {
+                for (const [detailId, changes] of Object.entries(state.pendingChanges.settlementDetails)) {
+                    const detailResponse = await fetch(`/pricing_order/${state.pricingOrderId}/update_settlement_detail`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        },
+                        body: JSON.stringify({
+                            detail_id: parseInt(detailId),
+                            discount_rate: changes.discount_rate,
+                            unit_price: changes.unit_price
+                        })
+                    });
+
+                    const detailData = await detailResponse.json();
+                    if (!detailData.success) {
+                        hasError = true;
+                        if (!silentMode) {
+                            showToast(detailData.message || '{{ _("保存结算明细失败") }}', 'error');
+                        }
+                        break;
                     } else {
                         lastResponseData = detailData;
                     }
@@ -1556,6 +1592,7 @@ window.PricingOrderModal = (function() {
                     pricingDiscount: undefined,
                     settlementDiscount: undefined,
                     details: {},
+                    settlementDetails: {},
                     deletedDetails: []
                 };
 
@@ -1645,9 +1682,9 @@ window.PricingOrderModal = (function() {
             // 折扣率变化 → 计算单价
             unitPrice = marketPrice * (discount / 100);
         } else if (changedField === 'unit_price') {
-            // 单价变化 → 计算折扣率
+            // 单价变化 → 计算折扣率（保留2位小数）
             if (marketPrice > 0) {
-                discount = (unitPrice / marketPrice) * 100;
+                discount = Math.round((unitPrice / marketPrice) * 10000) / 100;
             }
         }
         // quantity 变化不需要重算其他字段
@@ -1663,11 +1700,10 @@ window.PricingOrderModal = (function() {
             window.EditableTable.updateRowData(tableId, rowId, updateData);
         }
 
-        // 记录待保存的明细修改
-        if (!state.pendingChanges.details[detailId]) {
-            state.pendingChanges.details[detailId] = {};
-        }
-        state.pendingChanges.details[detailId] = {
+        // 记录待保存的明细修改（区分批价单和结算单）
+        const isSettlement = tableId === 'settlementDetailTable';
+        const targetDetails = isSettlement ? state.pendingChanges.settlementDetails : state.pendingChanges.details;
+        targetDetails[detailId] = {
             discount_rate: discount / 100,
             unit_price: unitPrice,
             quantity: quantity
@@ -1732,6 +1768,9 @@ window.PricingOrderModal = (function() {
         // 从待保存的明细修改中移除（如果有的话）
         if (state.pendingChanges.details[detailId]) {
             delete state.pendingChanges.details[detailId];
+        }
+        if (state.pendingChanges.settlementDetails[detailId]) {
+            delete state.pendingChanges.settlementDetails[detailId];
         }
 
         // 标记为已修改
