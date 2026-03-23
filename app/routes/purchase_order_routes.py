@@ -793,6 +793,21 @@ def api_accept_delivery(order_id):
         order.actual_arrival_date = datetime.now()
         order.status = 'stored'
 
+        # 备货型明细（无关联客户订单）自动入公司仓库
+        from app.utils.inventory_helpers import update_inventory
+        for detail in order.details:
+            if not detail.sales_order_detail_id and (detail.received_quantity or 0) > 0:
+                update_inventory(
+                    company_id=order.company_id,
+                    product_id=detail.product_id,
+                    quantity_change=detail.received_quantity,
+                    transaction_type='in',
+                    reference_type='order',
+                    reference_id=order.id,
+                    description=f'采购订单 {order.order_number} 备货入库',
+                    user_id=current_user.id
+                )
+
         db.session.commit()
         return jsonify({'success': True, 'message': '验收入库完成'})
 

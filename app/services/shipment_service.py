@@ -273,10 +273,27 @@ class ShipmentService:
 
             # 更新客户订单状态
             sales_order = shipment.sales_order
-            if sales_order.received_quantity >= sales_order.total_quantity:
-                sales_order.status = 'delivered'
-                sales_order.received_by = shipment.received_by
-                sales_order.received_date = shipment.received_date
+            if sales_order:
+                if sales_order.received_quantity >= sales_order.total_quantity:
+                    sales_order.status = 'delivered'
+                    sales_order.received_by = shipment.received_by
+                    sales_order.received_date = shipment.received_date
+
+                # 代理商签收后，自动增加代理商仓库库存
+                if sales_order.customer_id:
+                    from app.utils.inventory_helpers import update_inventory
+                    for detail in shipment.details:
+                        if detail.received_quantity and detail.received_quantity > 0:
+                            update_inventory(
+                                company_id=sales_order.customer_id,
+                                product_id=detail.product_id,
+                                quantity_change=detail.received_quantity,
+                                transaction_type='in',
+                                reference_type='shipment',
+                                reference_id=shipment.id,
+                                description=f'发货单 {shipment.shipment_number} 签收入库',
+                                user_id=current_user_id
+                            )
 
             db.session.commit()
             logger.info(f"发货单 {shipment.shipment_number} 已签收")
