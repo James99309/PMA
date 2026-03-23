@@ -8,6 +8,7 @@ from flask_login import login_required, current_user
 from datetime import datetime
 from app import db
 from app.models.inventory import PurchaseOrder, PurchaseOrderDetail
+from app.models.sales_order import SalesOrder, SalesOrderDetail
 from app.models.customer import Company
 from app.models.product import Product
 from app.models.user import User
@@ -1201,6 +1202,55 @@ def api_get_delivery_changes(order_id):
             'created_at': c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else None
         } for c in changes]
     })
+
+
+# ============== 需求池 API ==============
+
+@purchase_order_bp.route('/api/procurement-demands', methods=['GET'])
+@login_required
+@permission_required('order', 'view')
+def api_procurement_demands():
+    """获取待采购需求池（本地SO中 remaining_to_procure > 0 的明细）"""
+    try:
+        search = request.args.get('search', '').strip()
+
+        query = db.session.query(SalesOrderDetail).join(
+            SalesOrder, SalesOrderDetail.sales_order_id == SalesOrder.id
+        ).filter(
+            SalesOrder.status.in_(['confirmed', 'preparing']),
+            SalesOrderDetail.quantity > db.func.coalesce(SalesOrderDetail.procured_quantity, 0)
+        )
+
+        if search:
+            query = query.filter(db.or_(
+                SalesOrderDetail.product_name.ilike(f'%{search}%'),
+                SalesOrderDetail.product_model.ilike(f'%{search}%'),
+                SalesOrder.order_number.ilike(f'%{search}%')
+            ))
+
+        details = query.order_by(SalesOrder.created_at.desc()).all()
+
+        demands = []
+        for d in details:
+            demands.append({
+                'sales_order_detail_id': d.id,
+                'sales_order_id': d.sales_order_id,
+                'order_number': d.sales_order.order_number if d.sales_order else '',
+                'customer_name': d.sales_order.customer.company_name if d.sales_order and d.sales_order.customer else '',
+                'product_id': d.product_id,
+                'product_name': d.product_name,
+                'product_model': d.product_model,
+                'quantity': d.quantity,
+                'procured_quantity': d.procured_quantity or 0,
+                'remaining_to_procure': d.remaining_to_procure,
+                'unit': d.unit,
+                'source': 'CN'
+            })
+
+        return jsonify({'success': True, 'demands': demands})
+    except Exception as e:
+        logger.error(f"获取需求池失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)})
 
 
 # 辅助函数已移至 app/helpers/purchase_order_helpers.py
