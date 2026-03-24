@@ -519,7 +519,7 @@
     }
 
     // 其他模态框（待完善）
-    function openTestReportModal(type) { showToast('{{ _("测试报告上传功能开发中") }}', 'info'); }
+    // openTestReportModal 已在上方通过通用上传组件实现
     function openShipmentModal() { document.getElementById('shipmentFromPoModal').classList.remove('hidden'); loadDispatchableDetails(); loadAvailableSalesOrders(); }
     function openAcceptanceModal() { showToast('{{ _("验收入库功能开发中") }}', 'info'); }
     function openAddDetailModal() {
