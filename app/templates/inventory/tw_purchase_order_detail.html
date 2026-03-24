@@ -6,6 +6,7 @@
 {% from 'components/tw_table_card.html' import tw_table_card with context %}
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
+{% from 'components/tw_upload_confirm_modal.html' import tw_upload_confirm_modal, tw_upload_confirm_modal_script with context %}
 {% from 'components/tw_purchase_order_form.html' import tw_purchase_order_form_modal, tw_purchase_order_form_styles, tw_purchase_order_form_script with context %}
 {% from 'components/tw_signature_pad.html' import tw_signature_pad, tw_signature_pad_script with context %}
 {% from 'components/tw_approval_flow.html' import render_tw_approval_flow_card, render_tw_approval_flow_script, render_tw_approval_modals with context %}
@@ -352,75 +353,32 @@
     {% endif %}
     {% endcall %}
 
-    <!-- 供应商确认模态框 -->
-    <div id="supplierConfirmModal" class="fixed inset-0 z-50 hidden">
-        <div class="fixed inset-0 bg-black/50" onclick="closeSupplierConfirmModal()"></div>
-        <div class="fixed inset-0 flex items-center justify-center p-4">
-            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
-                <div class="flex items-center justify-between p-4">
-                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('供应商确认') }}</h3>
-                    <button onclick="closeSupplierConfirmModal()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
-                        <span class="material-symbols-outlined">close</span>
-                    </button>
-                </div>
-                <div class="p-4 space-y-4 overflow-y-auto flex-1">
-                    <!-- 订单信息摘要 -->
-                    <div class="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-1.5">
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-slate-500 dark:text-slate-400">{{ _('PO单号') }}</span>
-                            <span class="font-medium text-slate-900 dark:text-white">{{ order.order_number }}</span>
-                        </div>
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-slate-500 dark:text-slate-400">{{ _('供应商') }}</span>
-                            <span class="font-medium text-slate-900 dark:text-white">{{ order.company.company_name if order.company else '-' }}</span>
-                        </div>
-                        <div class="flex items-center justify-between text-sm">
-                            <span class="text-slate-500 dark:text-slate-400">{{ _('订单金额') }}</span>
-                            <span class="font-medium text-slate-900 dark:text-white">
-                                {% if order.currency == 'USD' %}${% else %}¥{% endif %}{{ "%.2f"|format(order.total_amount or 0) }}
-                            </span>
-                        </div>
-                    </div>
+    <!-- 供应商确认模态框（复用通用上传组件） -->
+    {{ tw_upload_confirm_modal(
+        modal_id='supplierConfirmModal',
+        title=_('供应商确认'),
+        file_label=_('确认回执'),
+        file_hint=_('点击或拖拽上传供应商盖章确认单'),
+        submit_text=_('确认供应商已确认'),
+        summary_items=[
+            {'label': _('PO单号'), 'value': order.order_number},
+            {'label': _('供应商'), 'value': order.company.company_name if order.company else '-'},
+            {'label': _('订单金额'), 'value': ('$' if order.currency == 'USD' else '¥') ~ "%.2f"|format(order.total_amount or 0)}
+        ]
+    ) }}
 
-                    <!-- 确认回执上传（必填） -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                            {{ _('确认回执') }} <span class="text-red-500">*</span>
-                        </label>
-                        <div id="scFileUploadArea"
-                             class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer"
-                             onclick="document.getElementById('scConfirmationFile').click()">
-                            <input type="file" id="scConfirmationFile" accept=".pdf,.jpg,.jpeg,.png" class="hidden"
-                                   onchange="handleFileSelect(this)">
-                            <span class="material-symbols-outlined text-4xl text-slate-400 dark:text-slate-500">upload_file</span>
-                            <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">{{ _('点击或拖拽上传供应商盖章确认单') }}</p>
-                            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">{{ _('支持 PDF、JPG、PNG 格式，最大 10MB') }}</p>
-                        </div>
-                        <div id="scFilePreview" class="hidden mt-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-primary">description</span>
-                                <span id="scFileName" class="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[300px]"></span>
-                            </div>
-                            <button type="button" onclick="removeSelectedFile()" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
-                                <span class="material-symbols-outlined text-slate-500 text-sm">close</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- 备注 -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('备注') }}</label>
-                        <textarea id="scConfirmationNotes" rows="2" placeholder="{{ _('可选备注信息') }}"
-                                  class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm resize-none"></textarea>
-                    </div>
-
-                </div>
-                <div class="flex items-center justify-end gap-3 p-4">
-                    <button onclick="closeSupplierConfirmModal()" class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg">{{ _('取消') }}</button>
-                    <button id="scSubmitBtn" onclick="submitSupplierConfirm()" class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                        {{ _('确认供应商已确认') }}
-                    </button>
-                </div>
+    <!-- 测试报告上传模态框（复用通用上传组件） -->
+    {{ tw_upload_confirm_modal(
+        modal_id='testReportModal',
+        title=_('上传测试报告'),
+        file_label=_('测试报告'),
+        file_hint=_('点击或拖拽上传测试报告文件'),
+        submit_text=_('提交测试报告'),
+        summary_items=[
+            {'label': _('PO单号'), 'value': order.order_number},
+            {'label': _('当前阶段'), 'value': _('测试')}
+        ]
+    ) }}
             </div>
         </div>
     </div>
@@ -467,6 +425,7 @@
         variant='danger'
     ) }}
     {{ tw_confirm_modal_script() }}
+    {{ tw_upload_confirm_modal_script() }}
 
     {{ render_tw_layout_script() }}
     {{ tw_purchase_order_form_script(
@@ -512,117 +471,24 @@
         });
     }
 
-    // ========== 供应商确认模态框 ==========
-    let selectedConfirmFile = null;
-
+    // ========== 供应商确认（使用通用上传组件） ==========
     function openSupplierConfirmModal() {
-        // 重置表单
-        selectedConfirmFile = null;
-        document.getElementById('scFileUploadArea').classList.remove('hidden');
-        document.getElementById('scFilePreview').classList.add('hidden');
-        document.getElementById('scConfirmationFile').value = '';
-        document.getElementById('scConfirmationNotes').value = '';
-        // 显示模态框
-        document.getElementById('supplierConfirmModal').classList.remove('hidden');
-    }
-
-    function closeSupplierConfirmModal() {
-        document.getElementById('supplierConfirmModal').classList.add('hidden');
-    }
-
-    function handleFileSelect(input) {
-        const file = input.files[0];
-        if (!file) return;
-
-        // 验证文件类型
-        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-        if (!allowedTypes.includes(file.type)) {
-            showToast('{{ _("请上传 PDF、JPG 或 PNG 格式的文件") }}', 'warning');
-            input.value = '';
-            return;
-        }
-
-        // 验证文件大小（最大10MB）
-        if (file.size > 10 * 1024 * 1024) {
-            showToast('{{ _("文件大小不能超过 10MB") }}', 'warning');
-            input.value = '';
-            return;
-        }
-
-        selectedConfirmFile = file;
-        document.getElementById('scFileName').textContent = file.name;
-        document.getElementById('scFileUploadArea').classList.add('hidden');
-        document.getElementById('scFilePreview').classList.remove('hidden');
-    }
-
-    function removeSelectedFile() {
-        selectedConfirmFile = null;
-        document.getElementById('scConfirmationFile').value = '';
-        document.getElementById('scFileUploadArea').classList.remove('hidden');
-        document.getElementById('scFilePreview').classList.add('hidden');
-    }
-
-    async function submitSupplierConfirm() {
-        // 验证必填文件
-        if (!selectedConfirmFile) {
-            showToast('{{ _("请上传供应商盖章确认回执") }}', 'warning');
-            return;
-        }
-
-        const submitBtn = document.getElementById('scSubmitBtn');
-        const originalText = submitBtn.textContent;
-        submitBtn.disabled = true;
-        submitBtn.textContent = '{{ _("上传中...") }}';
-
-        try {
-            // 创建FormData上传文件，确认日期用当前时间自动填
-            const formData = new FormData();
-            formData.append('confirmation_file', selectedConfirmFile);
-            formData.append('confirmed_by', '');
-            formData.append('confirmed_date', new Date().toISOString().split('T')[0]);
-            formData.append('notes', document.getElementById('scConfirmationNotes').value);
-
-            const response = await fetch(`/purchase-order/api/${orderId}/supplier-confirm`, {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrfToken },
-                body: formData
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                showToast('{{ _("确认成功") }}', 'success');
-                setTimeout(() => location.reload(), 500);
-            } else {
-                showToast(result.message || '{{ _("操作失败") }}', 'error');
+        openUploadModal('supplierConfirmModal', {
+            submitUrl: `/purchase-order/api/${orderId}/supplier-confirm`,
+            extraData: {
+                confirmed_by: '',
+                confirmed_date: new Date().toISOString().split('T')[0]
             }
-        } catch (error) {
-            console.error('Error:', error);
-            showToast('{{ _("操作失败") }}', 'error');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = originalText;
-        }
+        });
     }
 
-    // 拖拽上传支持
-    const uploadArea = document.getElementById('scFileUploadArea');
-    if (uploadArea) {
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('border-primary', 'bg-primary/5');
-        });
-        uploadArea.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('border-primary', 'bg-primary/5');
-        });
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('border-primary', 'bg-primary/5');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                const input = document.getElementById('scConfirmationFile');
-                input.files = files;
-                handleFileSelect(input);
+    // ========== 测试报告上传（使用通用上传组件） ==========
+    function openTestReportModal() {
+        openUploadModal('testReportModal', {
+            submitUrl: `/purchase-order/api/${orderId}/test-report`,
+            extraData: {
+                test_category: 'factory',
+                test_status: 'passed'
             }
         });
     }

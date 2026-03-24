@@ -310,13 +310,10 @@ def api_supplier_confirm(order_id):
         if order.status != 'approved':
             return jsonify({'success': False, 'message': '订单尚未内部审批通过，无法进行供应商确认'})
 
-        # 检查是否有文件上传
-        if 'confirmation_file' not in request.files:
+        # 检查是否有文件上传（兼容通用组件的 'file' 和旧的 'confirmation_file'）
+        file = request.files.get('file') or request.files.get('confirmation_file')
+        if not file or file.filename == '':
             return jsonify({'success': False, 'message': '请上传供应商确认回执文件'})
-
-        file = request.files['confirmation_file']
-        if file.filename == '':
-            return jsonify({'success': False, 'message': '请选择文件'})
 
         # 验证文件类型
         allowed_extensions = {'pdf', 'jpg', 'jpeg', 'png'}
@@ -778,17 +775,28 @@ def api_upload_test_report(order_id):
     """上传测试报告"""
     try:
         order = PurchaseOrder.query.get_or_404(order_id)
-        data = request.get_json()
 
-        test_type = data.get('test_type')  # factory / site_fat / incoming
-        test_result = data.get('test_result')  # passed / failed / conditional
+        # 支持 FormData（从通用上传组件）和 JSON
+        test_category = request.form.get('test_category') or (request.get_json() or {}).get('test_type', 'factory')
+        test_status = request.form.get('test_status') or (request.get_json() or {}).get('test_result', 'passed')
 
-        if test_type == 'factory':
-            order.factory_test_status = test_result
-        elif test_type in ['site_fat', 'incoming']:
-            order.verification_test_status = test_result
+        # 上传文件
+        report_file = request.files.get('file')
+        if report_file:
+            from app.helpers.purchase_order_helpers import upload_file_to_storage
+            file_url = upload_file_to_storage(
+                order, report_file.read(), report_file.filename,
+                report_file.content_type, subfolder='test-reports'
+            )
+            if file_url:
+                order.factory_test_report_url = file_url
 
-        # 如果两个测试都通过，更新状态为tested
+        if test_category == 'factory':
+            order.factory_test_status = test_status
+        elif test_category in ['site_fat', 'incoming', 'verification']:
+            order.verification_test_status = test_status
+
+        # 如果工厂测试通过，更新状态为tested
         if order.factory_test_status == 'passed' and order.verification_test_status in ['passed', 'not_required']:
             order.status = 'tested'
 
