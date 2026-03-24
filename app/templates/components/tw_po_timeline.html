@@ -67,7 +67,7 @@
                 {'key': 'testing', 'label': '测试', 'date_field': 'milestone_test_complete_date'},
                 {'key': 'packaging', 'label': '包装', 'date_field': none},
                 {'key': 'ready', 'label': '待发货', 'date_field': 'milestone_ship_date'},
-                {'key': 'delivered', 'label': '到货', 'date_field': 'confirmed_date'}
+                {'key': 'delivered', 'label': '到货', 'date_field': 'actual_arrival_date'}
             ] %}
             {% set stage_order = {'preparing': 0, 'producing': 1, 'testing': 2, 'packaging': 3, 'ready': 4, 'delivered': 5} %}
             {# 供应商确认后，默认从备料阶段开始（order为-1表示还未进入生产流程） #}
