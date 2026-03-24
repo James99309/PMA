@@ -344,10 +344,18 @@
         window.location.href = '{{ url_for("purchase_order.detail_view", order_id=0) }}'.replace('0', orderId);
     }
 
+    let _deleteOrderId = null;
     function deletePurchaseOrder(orderId, orderNumber) {
-        if (!confirm(`{{ _('确定要删除采购订单') }} ${orderNumber} {{ _('吗？此操作不可恢复。') }}`)) return;
+        _deleteOrderId = orderId;
+        // 更新模态框消息
+        const msgEl = document.querySelector('#deletePOListModal .confirm-message, #deletePOListModal [data-confirm-message]');
+        if (msgEl) msgEl.textContent = `{{ _('确定要删除采购订单') }} ${orderNumber} {{ _('吗？此操作不可恢复。') }}`;
+        showConfirmModal('deletePOListModal', doDeletePO);
+    }
 
-        fetch(`/purchase-order/api/${orderId}/delete`, {
+    function doDeletePO() {
+        if (!_deleteOrderId) return;
+        fetch(`/purchase-order/api/${_deleteOrderId}/delete`, {
             method: 'DELETE',
             headers: {
                 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
@@ -364,5 +372,16 @@
         .catch(() => alert('{{ _("网络错误") }}'));
     }
     </script>
+
+    <!-- 删除确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='deletePOListModal',
+        title=_('删除采购订单'),
+        message=_('确定要删除此采购订单吗？此操作不可恢复。'),
+        confirm_text=_('确认删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
+    {{ tw_confirm_modal_script() }}
 </body>
 </html>

@@ -211,11 +211,28 @@ def api_delete_order(order_id):
         if order.status != 'draft':
             return jsonify({'success': False, 'message': '只能删除草稿状态的订单'})
 
-        # 删除明细
+        # 收集关联的 SO 明细 ID（删除后需要刷新 procured_quantity）
+        linked_so_detail_ids = set()
         for detail in order.details:
+            if detail.sales_order_detail_id:
+                linked_so_detail_ids.add(detail.sales_order_detail_id)
             db.session.delete(detail)
 
         db.session.delete(order)
+        db.session.flush()
+
+        # 释放已扣除的采购量：重新计算关联 SO 明细的 procured_quantity
+        if linked_so_detail_ids:
+            for so_detail_id in linked_so_detail_ids:
+                so_detail = SalesOrderDetail.query.get(so_detail_id)
+                if so_detail:
+                    total_procured = db.session.query(
+                        db.func.coalesce(db.func.sum(PurchaseOrderDetail.quantity), 0)
+                    ).filter(
+                        PurchaseOrderDetail.sales_order_detail_id == so_detail_id
+                    ).scalar()
+                    so_detail.procured_quantity = total_procured
+
         db.session.commit()
         logger.info(f"删除采购订单 {order.order_number}")
 

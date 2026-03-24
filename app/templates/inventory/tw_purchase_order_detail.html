@@ -81,6 +81,14 @@
             {% if order.status in ['approved', 'confirmed', 'producing', 'tested', 'shipped', 'stored', 'completed'] %}
             {{ tw_btn_outline(_('导出PO'), onclick='exportPO()', icon='download', size='sm') }}
             {% endif %}
+            {# 删除按钮（仅草稿） #}
+            {% if has_permission('order', 'edit') and order.status == 'draft' %}
+            <button onclick="showConfirmModal('deletePOModal', deletePurchaseOrder)"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 hover:text-white border border-red-300 hover:bg-red-600 rounded-lg transition-colors">
+                <span class="material-symbols-outlined text-lg">delete</span>
+                <span class="hidden sm:inline">{{ _('删除') }}</span>
+            </button>
+            {% endif %}
             {# 提交审批/重新提交按钮 #}
             {% if has_permission('order', 'edit') and order.status in ['draft', 'rejected', 'recalled'] and order.created_by_id == current_user.id %}
             <button onclick="submitForApproval()"
@@ -468,6 +476,14 @@
         cancel_text=_('取消'),
         variant='warning'
     ) }}
+    {{ tw_confirm_modal(
+        modal_id='deletePOModal',
+        title=_('删除采购订单'),
+        message=_('确定要删除采购订单 ') ~ order.order_number ~ _(' 吗？此操作不可恢复。'),
+        confirm_text=_('确认删除'),
+        cancel_text=_('取消'),
+        variant='danger'
+    ) }}
     {{ tw_confirm_modal_script() }}
 
     {{ render_tw_layout_script() }}
@@ -680,6 +696,24 @@
         openEditBasicInfoModal();
     }
     function exportPO() { showToast('{{ _("导出功能开发中") }}', 'info'); }
+
+    function deletePurchaseOrder() {
+        fetch('/purchase-order/api/{{ order.id }}/delete', {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '{{ url_for("purchase_order.list_view") }}';
+            } else {
+                showToast(data.message || '{{ _("删除失败") }}', 'error');
+            }
+        })
+        .catch(() => showToast('{{ _("网络错误") }}', 'error'));
+    }
 
     // ========== 序列号加载 ==========
     async function loadSerialNumbers() {
