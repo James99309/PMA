@@ -200,6 +200,33 @@ def api_create():
         return jsonify({'success': False, 'message': f'创建失败: {str(e)}'})
 
 
+@purchase_order_bp.route('/api/<int:order_id>/delete', methods=['DELETE'])
+@login_required
+@permission_required('order', 'edit')
+def api_delete_order(order_id):
+    """删除采购订单（仅草稿状态）"""
+    try:
+        order = PurchaseOrder.query.get_or_404(order_id)
+
+        if order.status != 'draft':
+            return jsonify({'success': False, 'message': '只能删除草稿状态的订单'})
+
+        # 删除明细
+        for detail in order.details:
+            db.session.delete(detail)
+
+        db.session.delete(order)
+        db.session.commit()
+        logger.info(f"删除采购订单 {order.order_number}")
+
+        return jsonify({'success': True, 'message': f'采购订单 {order.order_number} 已删除'})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除采购订单失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'})
+
+
 @purchase_order_bp.route('/api/<int:order_id>/update', methods=['PUT'])
 @login_required
 @permission_required('order', 'edit')

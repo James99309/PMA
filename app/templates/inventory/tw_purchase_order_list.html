@@ -253,6 +253,13 @@
                                            title="{{ _('编辑') }}">
                                             <span class="material-symbols-outlined text-lg">edit</span>
                                         </button>
+                                        {% if order.status == 'draft' %}
+                                        <button onclick="deletePurchaseOrder({{ order.id }}, '{{ order.order_number }}')"
+                                           class="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-400 hover:text-red-600"
+                                           title="{{ _('删除') }}">
+                                            <span class="material-symbols-outlined text-lg">delete</span>
+                                        </button>
+                                        {% endif %}
                                         {% endif %}
                                     </div>
                                 </td>
@@ -335,6 +342,26 @@
     // 打开编辑模态框 - 跳转到详情页编辑
     function openEditModal(orderId) {
         window.location.href = '{{ url_for("purchase_order.detail_view", order_id=0) }}'.replace('0', orderId);
+    }
+
+    function deletePurchaseOrder(orderId, orderNumber) {
+        if (!confirm(`{{ _('确定要删除采购订单') }} ${orderNumber} {{ _('吗？此操作不可恢复。') }}`)) return;
+
+        fetch(`/purchase-order/api/${orderId}/delete`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert(data.message || '{{ _("删除失败") }}');
+            }
+        })
+        .catch(() => alert('{{ _("网络错误") }}'));
     }
     </script>
 </body>
