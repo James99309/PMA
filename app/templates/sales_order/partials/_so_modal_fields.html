@@ -114,9 +114,16 @@
         <span class="material-symbols-outlined text-base">add</span>
         {{ _('添加产品') }}
     </button>
-    <!-- 右侧：总计 -->
+    <!-- 右侧：货币选择和总计 -->
     <div class="flex items-baseline gap-3">
-        <span class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('合计') }}:</span>
+        <select id="soCurrency" name="currency" data-field-code="currency" class="form-select rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm w-auto">
+            {% for code, name in currency_options|default([('CNY', '人民币'), ('USD', '美元')]) %}
+            <option value="{{ code }}" {% if code == (sales_order.currency if sales_order else default_currency|default('CNY')) %}selected{% endif %}>
+                {{ name }}
+            </option>
+            {% endfor %}
+        </select>
+        <span class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('总计金额') }}:</span>
         <span id="soTotalAmount" class="text-2xl font-bold text-primary">{{ '{:,.2f}'.format(sales_order.total_amount or 0) if sales_order else '0.00' }}</span>
     </div>
 </div>
