@@ -446,7 +446,7 @@
             const response = await fetch(`/purchase-order/api/${orderId}/advance-stage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({ target_stage: pendingStage })
+                body: JSON.stringify({ new_stage: pendingStage })
             });
             const result = await response.json();
             if (result.success) {
