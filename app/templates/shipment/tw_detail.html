@@ -1,6 +1,6 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_info_card.html' import tw_info_card, tw_info_row with context %}
-{% from 'components/tw_table_card.html' import tw_table_card with context %}
+{% from 'components/tw_table_card.html' import render_tw_table_card with context %}
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
 <!DOCTYPE html>
@@ -95,43 +95,46 @@
                 <!-- 左侧主内容 -->
                 <div class="lg:col-span-2 space-y-6">
                     <!-- 物流信息 -->
-                    {% call tw_info_card(title=_('物流信息'), icon='local_shipping') %}
-                        {{ tw_info_row(_('承运商'), shipment.carrier or '-') }}
-                        {{ tw_info_row(_('运单号'), shipment.tracking_number or '-') }}
-                        {{ tw_info_row(_('运输方式'), {
-                            'truck': '陆运',
-                            'air': '空运',
-                            'express': '快递',
-                            'self_pickup': '自提'
-                        }.get(shipment.shipping_method, shipment.shipping_method or '-')) }}
-                        {{ tw_info_row(_('发货日期'), shipment.formatted_ship_date or '-') }}
-                        {{ tw_info_row(_('预计到达'), shipment.formatted_expected_arrival or '-') }}
-                        {% if shipment.actual_arrival %}
-                        {{ tw_info_row(_('实际到达'), shipment.actual_arrival.strftime('%Y-%m-%d') if shipment.actual_arrival else '-') }}
-                        {% endif %}
-                    {% endcall %}
+                    {{ tw_info_card(
+                        title=_('物流信息'),
+                        columns=2,
+                        items=[
+                            {'label': _('承运商'), 'value': shipment.carrier or '-'},
+                            {'label': _('运单号'), 'value': shipment.tracking_number or '-'},
+                            {'label': _('运输方式'), 'value': {'truck': '陆运', 'air': '空运', 'express': '快递', 'self_pickup': '自提'}.get(shipment.shipping_method, shipment.shipping_method or '-')},
+                            {'label': _('发货日期'), 'value': shipment.formatted_ship_date or '-'},
+                            {'label': _('预计到达'), 'value': shipment.formatted_expected_arrival or '-'},
+                            {'label': _('实际到达'), 'value': shipment.actual_arrival.strftime('%Y-%m-%d') if shipment.actual_arrival else '-'}
+                        ]
+                    ) }}
 
                     <!-- 收发货地址 -->
-                    {% call tw_info_card(title=_('收发货信息'), icon='location_on') %}
-                        {% if shipment.ship_from %}
-                        {{ tw_info_row(_('发货地址'), shipment.ship_from) }}
-                        {% endif %}
-                        {{ tw_info_row(_('收货地址'), shipment.ship_to or '-') }}
-                        {{ tw_info_row(_('收货人'), shipment.contact_name or '-') }}
-                        {{ tw_info_row(_('联系电话'), shipment.contact_phone or '-') }}
-                    {% endcall %}
+                    {{ tw_info_card(
+                        title=_('收发货信息'),
+                        columns=2,
+                        items=[
+                            {'label': _('发货地址'), 'value': shipment.ship_from or '-'},
+                            {'label': _('收货地址'), 'value': shipment.ship_to or '-'},
+                            {'label': _('收货人'), 'value': shipment.contact_name or '-'},
+                            {'label': _('联系电话'), 'value': shipment.contact_phone or '-'}
+                        ]
+                    ) }}
 
                     <!-- 签收信息 -->
                     {% if shipment.status == 'received' %}
-                    {% call tw_info_card(title=_('签收信息'), icon='check_circle') %}
-                        {{ tw_info_row(_('签收人'), shipment.received_by or '-') }}
-                        {{ tw_info_row(_('签收日期'), shipment.received_date.strftime('%Y-%m-%d %H:%M') if shipment.received_date else '-') }}
-                        {{ tw_info_row(_('签收备注'), shipment.received_notes or '-') }}
-                    {% endcall %}
+                    {{ tw_info_card(
+                        title=_('签收信息'),
+                        columns=2,
+                        items=[
+                            {'label': _('签收人'), 'value': shipment.received_by or '-'},
+                            {'label': _('签收日期'), 'value': shipment.received_date.strftime('%Y-%m-%d %H:%M') if shipment.received_date else '-'},
+                            {'label': _('签收备注'), 'value': shipment.received_notes or '-'}
+                        ]
+                    ) }}
                     {% endif %}
 
                     <!-- 发货明细 -->
-                    {% call tw_table_card(title=_('发货明细'), icon='inventory_2', count=shipment.details|length) %}
+                    {% call render_tw_table_card(title=_('发货明细') ~ ' (' ~ shipment.details|length ~ ')') %}
                     <table class="w-full">
                         <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                             <tr>
