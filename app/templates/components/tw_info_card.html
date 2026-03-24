@@ -105,7 +105,7 @@ Tailwind 信息卡片组件
     </div>
     {% endif %}
 
-    <div class="{% if columns == 2 %}grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4{% else %}flex flex-col gap-4{% endif %} text-sm">
+    <div class="{% if columns == 3 %}grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4{% elif columns == 2 %}grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4{% else %}flex flex-col gap-4{% endif %} text-sm">
         {% for item in items %}
         {% set has_value = item.value is defined and item.value is not none and item.value != '' %}
         {% set should_hide = item.hide_empty and not has_value and not item.badge %}
