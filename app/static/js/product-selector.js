@@ -80,32 +80,21 @@ class ProductSelector {
      * 初始化产品配置模态框（增强版 - 支持自动重试）
      */
     initConfigModal() {
-        console.log('🔍 Checking ProductConfigModal initialization...');
-        console.log('  - ProductConfigModal class defined:', typeof ProductConfigModal !== 'undefined');
-        console.log('  - Modal DOM element exists:', !!document.getElementById('productConfigModal'));
-
-        // 如果 ProductConfigModal 未定义，启动自动重试机制（防御性编程）
+        // 如果 ProductConfigModal 未定义，安静降级（部分页面不需要配置弹窗）
         if (typeof ProductConfigModal === 'undefined') {
-            console.warn('⚠️ ProductConfigModal not yet loaded, setting up retry mechanism...');
-
             let retryCount = 0;
-            const maxRetries = 10;  // 最多重试10次
+            const maxRetries = 5;
 
             const retryInterval = setInterval(() => {
                 retryCount++;
-                console.log(`  🔄 Retry #${retryCount}...`);
-
                 if (typeof ProductConfigModal !== 'undefined' && document.getElementById('productConfigModal')) {
                     clearInterval(retryInterval);
                     this.configModal = new ProductConfigModal(this);
-                    console.log(`✅ Product config modal initialized successfully (after ${retryCount} retry)`);
                 } else if (retryCount >= maxRetries) {
                     clearInterval(retryInterval);
-                    console.error(`❌ ProductConfigModal initialization failed after ${maxRetries} retries`);
-                    console.error('   - ProductConfigModal:', typeof ProductConfigModal);
-                    console.error('   - Modal element:', document.getElementById('productConfigModal'));
+                    // 安静降级：skipConfigModal 模式下不需要配置弹窗
                 }
-            }, 100);  // 每100ms重试一次
+            }, 200);
             return;
         }
 
