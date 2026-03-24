@@ -67,7 +67,7 @@
                 time=order.supplier_confirmed_date.strftime('%Y-%m-%d %H:%M') if order.supplier_confirmed_date else '',
                 subtitle=order.supplier_confirmed_by or '',
                 show_line=true,
-                action_btn={'label': _('查看'), 'onclick': "window.open('" ~ order.supplier_confirmation_file ~ "', '_blank')", 'icon': 'visibility'} if order.supplier_confirmation_file else none
+                action_btn={'label': _('查看采购确认单'), 'onclick': "window.open('" ~ order.supplier_confirmation_file ~ "', '_blank')", 'icon': 'visibility'} if order.supplier_confirmation_file else none
             ) }}
             {% endif %}
 
