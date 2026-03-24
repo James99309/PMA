@@ -576,9 +576,11 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             cellsHtml += '<td class="' + alignClass + '" data-col-key="' + col.key + '">';
 
             if (col.type === 'product-selector') {
-                // 产品选择器
+                // 产品选择器 — 有产品数据时标记为 has-value
+                var hasProduct = value && value.toString().trim();
+                var triggerClass = hasProduct ? 'product-selector-trigger has-value' : 'product-selector-trigger placeholder';
                 cellsHtml += '<div class="product-selector-cell">';
-                cellsHtml += '<button type="button" class="product-selector-trigger placeholder" ';
+                cellsHtml += '<button type="button" class="' + triggerClass + '" ';
                 cellsHtml += 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" ';
                 cellsHtml += 'onclick="window.EditableTable.openProductSelector(\'' + tableId + '\', \'' + rowId + '\')">';
                 cellsHtml += value || instance.config.i18n.selectProduct;
