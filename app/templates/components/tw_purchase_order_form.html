@@ -544,7 +544,10 @@ function renderDemandPool() {
             <td class="p-2 text-xs text-slate-600 dark:text-slate-300">${d.customer_name}</td>
             <td class="p-2 text-xs text-slate-900 dark:text-white">${d.product_name}</td>
             <td class="p-2 text-xs text-slate-500">${d.product_model || ''}</td>
-            <td class="p-2 text-xs text-right font-medium">${d.remaining_to_procure}</td>
+            <td class="p-2 text-right">
+                <input type="number" data-idx="${i}" class="demand-qty w-16 h-7 px-1 text-xs text-right rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary"
+                    value="${d.remaining_to_procure}" min="1" max="${d.remaining_to_procure}">
+            </td>
         </tr>
     `).join('');
 }
@@ -565,15 +568,18 @@ function importSelectedDemands() {
         });
     }
 
-    // 导入选中的需求
+    // 导入选中的需求（读取用户调整后的数量）
     checks.forEach(chk => {
-        const d = demandPoolData[parseInt(chk.dataset.idx)];
+        const idx = parseInt(chk.dataset.idx);
+        const d = demandPoolData[idx];
         if (d) {
+            const qtyInput = document.querySelector(`.demand-qty[data-idx="${idx}"]`);
+            const qty = qtyInput ? Math.min(parseInt(qtyInput.value) || d.remaining_to_procure, d.remaining_to_procure) : d.remaining_to_procure;
             window.EditableTable.addRow('poProductTable', null, {
                 product_id: d.product_id,
                 product_name: d.product_name,
                 product_model: d.product_model,
-                quantity: d.remaining_to_procure,
+                quantity: qty,
                 unit: d.unit || '台',
                 sales_order_detail_id: d.sales_order_detail_id
             });
