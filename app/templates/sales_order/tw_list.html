@@ -5,12 +5,15 @@
 {% from 'components/tw_form_modal.html' import tw_form_modal, tw_form_modal_script with context %}
 {% from 'macros/product_config_modal.html' import render_product_config_modal with context %}
 
-{# 客户订单产品明细列配置 #}
+{# 客户订单产品明细列配置 — 与报价单一致 #}
 {% set so_product_columns = [
-    {'key': 'product_name', 'label': _('产品名称'), 'type': 'product-selector', 'required': true, 'width': '180px'},
-    {'key': 'product_model', 'label': _('型号'), 'type': 'text', 'readonly': true, 'width': '120px'},
+    {'key': 'product_name', 'label': _('产品名称'), 'type': 'product-selector', 'required': true, 'width': '160px'},
+    {'key': 'product_model', 'label': _('产品型号'), 'type': 'text', 'readonly': true, 'width': '120px'},
+    {'key': 'product_desc', 'label': _('产品描述'), 'type': 'text', 'readonly': true, 'width': '400px'},
     {'key': 'brand', 'label': _('品牌'), 'type': 'text', 'readonly': true, 'width': '80px'},
     {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '60px'},
+    {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'},
+    {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '80px', 'align': 'right', 'default': '100'},
     {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '100px', 'align': 'right'},
     {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': '1'},
     {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'}
