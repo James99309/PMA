@@ -649,14 +649,14 @@ class ProductSelector {
      * 绑定全局事件
      */
     bindGlobalEvents() {
-        // 点击外部关闭菜单
-        document.addEventListener('click', (e) => {
+        // 点击外部关闭菜单（使用捕获阶段，确保在模态框内也能触发）
+        document.addEventListener('mousedown', (e) => {
             if (!e.target.closest('.product-menu-container') &&
                 !e.target.classList.contains('product-name') &&
                 !e.target.closest('.product-selector-trigger')) {
                 this.closeAllMenus();
             }
-        });
+        }, true);
         
         // ESC键关闭菜单
         document.addEventListener('keydown', (e) => {
