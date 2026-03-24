@@ -793,11 +793,13 @@ def api_upload_test_report(order_id):
 
         if test_category == 'factory':
             order.factory_test_status = test_status
+            if test_status == 'passed':
+                order.factory_test_signed_at = datetime.now()
         elif test_category in ['site_fat', 'incoming', 'verification']:
             order.verification_test_status = test_status
 
-        # 如果工厂测试通过，自动推进到包装阶段
-        if order.factory_test_status == 'passed' and order.verification_test_status in ['passed', 'not_required']:
+        # 工厂测试通过即可推进（验证测试在到货后单独处理）
+        if order.factory_test_status == 'passed':
             order.status = 'tested'
             # 自动推进 production_status: testing → packaging
             if order.production_status == 'testing':
