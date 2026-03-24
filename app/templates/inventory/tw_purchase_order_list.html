@@ -347,10 +347,10 @@
     let _deleteOrderId = null;
     function deletePurchaseOrder(orderId, orderNumber) {
         _deleteOrderId = orderId;
-        // 更新模态框消息
-        const msgEl = document.querySelector('#deletePOListModal .confirm-message, #deletePOListModal [data-confirm-message]');
-        if (msgEl) msgEl.textContent = `{{ _('确定要删除采购订单') }} ${orderNumber} {{ _('吗？此操作不可恢复。') }}`;
-        showConfirmModal('deletePOListModal', doDeletePO);
+        openConfirmModal('deletePOListModal', {
+            message: `{{ _('确定要删除采购订单') }} ${orderNumber} {{ _('吗？此操作不可恢复。') }}`,
+            onConfirm: doDeletePO
+        });
     }
 
     function doDeletePO() {

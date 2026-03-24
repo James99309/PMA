@@ -83,7 +83,7 @@
             {% endif %}
             {# 删除按钮（仅草稿） #}
             {% if has_permission('order', 'edit') and order.status == 'draft' %}
-            <button onclick="showConfirmModal('deletePOModal', deletePurchaseOrder)"
+            <button onclick="openConfirmModal('deletePOModal', { onConfirm: deletePurchaseOrder })"
                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-600 hover:text-white border border-red-300 hover:bg-red-600 rounded-lg transition-colors">
                 <span class="material-symbols-outlined text-lg">delete</span>
                 <span class="hidden sm:inline">{{ _('删除') }}</span>
