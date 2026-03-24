@@ -796,12 +796,23 @@ def api_upload_test_report(order_id):
         elif test_category in ['site_fat', 'incoming', 'verification']:
             order.verification_test_status = test_status
 
-        # 如果工厂测试通过，更新状态为tested
+        # 如果工厂测试通过，自动推进到包装阶段
         if order.factory_test_status == 'passed' and order.verification_test_status in ['passed', 'not_required']:
             order.status = 'tested'
+            # 自动推进 production_status: testing → packaging
+            if order.production_status == 'testing':
+                from app.services.po_progress_service import PurchaseOrderProgressService
+                PurchaseOrderProgressService.advance_stage(
+                    order_id=order.id,
+                    new_stage='packaging',
+                    operator_info={
+                        'user_id': current_user.id,
+                        'reason': '测试报告上传通过，自动推进'
+                    }
+                )
 
         db.session.commit()
-        return jsonify({'success': True, 'message': '测试报告已上传'})
+        return jsonify({'success': True, 'message': '测试报告已上传，阶段已推进'})
 
     except Exception as e:
         db.session.rollback()
