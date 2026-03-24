@@ -406,14 +406,15 @@ def api_get_shippable_details(order_id):
 @login_required
 @permission_required('shipment', 'view')
 def api_get_dispatchable_details(po_id):
-    """获取采购订单中可发货（已到货未发出）的明细列表"""
+    """获取采购订单中可发货的明细列表"""
     po = PurchaseOrder.query.get(po_id)
     if not po:
         return jsonify({'success': False, 'message': '采购订单不存在'})
 
     dispatchable_details = []
     for detail in po.details:
-        remaining = detail.remaining_to_dispatch
+        # 可发数量 = 总量 - 已发出量（不依赖到货记录）
+        remaining = max(0, detail.quantity - (detail.dispatched_quantity or 0))
         if remaining > 0:
             dispatchable_details.append({
                 'id': detail.id,
