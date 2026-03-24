@@ -22,21 +22,89 @@
 <input type="hidden" id="soFormId" name="sales_order_id" value="{{ sales_order.id }}">
 {% endif %}
 
-<!-- 客户选择 -->
-<div>
-    <label for="soCustomerId" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
+<!-- 客户选择（搜索式） -->
+<div class="relative">
+    <label for="soCustomerSearch" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">
         {{ _('客户') }} <span class="text-red-500">*</span>
     </label>
-    <select id="soCustomerId" name="customer_id"
-            data-field-code="customer_id"
-            class="form-select block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm"
-            required>
-        <option value="">{{ _('请选择客户') }}</option>
-        {% for c in customers %}
-        <option value="{{ c.id }}" {% if sales_order and sales_order.customer_id == c.id %}selected{% endif %}>{{ c.company_name }}</option>
-        {% endfor %}
-    </select>
+    <div class="relative">
+        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+        <input type="text" id="soCustomerSearch"
+               class="form-input block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:border-primary focus:ring-2 focus:ring-primary text-sm pl-10 pr-10"
+               placeholder="{{ _('搜索客户名称...') }}"
+               {% if sales_order and sales_order.customer %}value="{{ sales_order.customer.company_name }}"{% endif %}
+               autocomplete="off">
+        <input type="hidden" id="soCustomerId" name="customer_id" value="{{ sales_order.customer_id if sales_order else '' }}">
+        <button type="button" id="soClearCustomerBtn"
+                onclick="clearSOCustomer()"
+                class="{% if not (sales_order and sales_order.customer) %}hidden{% endif %} absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+            <span class="material-symbols-outlined text-lg">close</span>
+        </button>
+        <div id="soCustomerDropdown" class="hidden absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            <div id="soCustomerResults" class="py-1"></div>
+        </div>
+    </div>
 </div>
+<script>
+(function() {
+    const customers = {{ customers|map(attribute='id')|list|tojson }};
+    const customerNames = {{ customers|map(attribute='company_name')|list|tojson }};
+    const searchInput = document.getElementById('soCustomerSearch');
+    const hiddenInput = document.getElementById('soCustomerId');
+    const dropdown = document.getElementById('soCustomerDropdown');
+    const results = document.getElementById('soCustomerResults');
+    const clearBtn = document.getElementById('soClearCustomerBtn');
+    let debounceTimer;
+
+    searchInput.addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            const q = this.value.trim().toLowerCase();
+            if (q.length === 0) { dropdown.classList.add('hidden'); return; }
+            const matches = [];
+            for (let i = 0; i < customers.length; i++) {
+                if (customerNames[i].toLowerCase().includes(q)) {
+                    matches.push({ id: customers[i], name: customerNames[i] });
+                }
+                if (matches.length >= 10) break;
+            }
+            if (matches.length === 0) {
+                results.innerHTML = '<div class="px-4 py-2 text-sm text-slate-400">{{ _("无匹配客户") }}</div>';
+            } else {
+                results.innerHTML = matches.map(m =>
+                    `<div class="px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-primary/10 cursor-pointer" onclick="selectSOCustomer(${m.id}, '${m.name.replace(/'/g, "\\'")}')">${m.name}</div>`
+                ).join('');
+            }
+            dropdown.classList.remove('hidden');
+        }, 200);
+    });
+
+    searchInput.addEventListener('focus', function() {
+        if (this.value.trim() && !hiddenInput.value) {
+            this.dispatchEvent(new Event('input'));
+        }
+    });
+
+    document.addEventListener('mousedown', function(e) {
+        if (!dropdown.contains(e.target) && e.target !== searchInput) {
+            dropdown.classList.add('hidden');
+        }
+    }, true);
+})();
+
+function selectSOCustomer(id, name) {
+    document.getElementById('soCustomerId').value = id;
+    document.getElementById('soCustomerSearch').value = name;
+    document.getElementById('soCustomerDropdown').classList.add('hidden');
+    document.getElementById('soClearCustomerBtn').classList.remove('hidden');
+}
+
+function clearSOCustomer() {
+    document.getElementById('soCustomerId').value = '';
+    document.getElementById('soCustomerSearch').value = '';
+    document.getElementById('soClearCustomerBtn').classList.add('hidden');
+}
+</script>
 
 <!-- 交付信息 -->
 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -45,7 +113,18 @@
         <input type="date" id="soDeliveryDate" name="delivery_date"
                data-field-code="delivery_date"
                class="form-input block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm"
-               value="{{ sales_order.delivery_date.strftime('%Y-%m-%d') if sales_order and sales_order.delivery_date else '' }}">
+               value="{{ sales_order.delivery_date.strftime('%Y-%m-%d') if sales_order and sales_order.delivery_date else (now()|default(none) and ''  ) }}">
+        <script>
+            // 默认交付日期：今天+20天
+            (function() {
+                var el = document.getElementById('soDeliveryDate');
+                if (el && !el.value) {
+                    var d = new Date();
+                    d.setDate(d.getDate() + 20);
+                    el.value = d.toISOString().split('T')[0];
+                }
+            })();
+        </script>
     </div>
     <div>
         <label for="soShippingMethod" class="block text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{{ _('运输方式') }}</label>

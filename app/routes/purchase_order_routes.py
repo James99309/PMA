@@ -1291,6 +1291,11 @@ def api_procurement_demands():
 
         demands = []
         for d in details:
+            # 获取产品描述（从SO明细的specification或产品库）
+            product_desc = d.specification or ''
+            if not product_desc and d.product:
+                product_desc = d.product.specification or ''
+
             demands.append({
                 'sales_order_detail_id': d.id,
                 'sales_order_id': d.sales_order_id,
@@ -1299,6 +1304,7 @@ def api_procurement_demands():
                 'product_id': d.product_id,
                 'product_name': d.product_name,
                 'product_model': d.product_model,
+                'product_desc': product_desc,
                 'quantity': d.quantity,
                 'procured_quantity': d.procured_quantity or 0,
                 'remaining_to_procure': d.remaining_to_procure,
