@@ -120,8 +120,9 @@
                             {'icon': 'calendar_today', 'label': _('订单日期'), 'value': order.formatted_order_date},
                             {'icon': 'event', 'label': _('需求日期'), 'value': order.required_date.strftime('%Y-%m-%d') if order.required_date else '-'},
                             {'icon': 'event_available', 'label': _('确认日期'), 'value': order.confirmed_date.strftime('%Y-%m-%d') if order.confirmed_date else _('待确认')},
-                            {'icon': 'public', 'label': _('贸易术语'), 'value': (order.incoterms or '-') ~ (' ' ~ order.ship_to[:20] if order.ship_to else '')},
+                            {'icon': 'public', 'label': _('贸易术语'), 'value': order.incoterms or '-'},
                             {'icon': 'local_shipping', 'label': _('运输方式'), 'value': {'truck': '汽运', 'air': '空运', 'express': '快递', 'self_pickup': '自提'}.get(order.shipping_method, order.shipping_method or '-')},
+                            {'icon': 'place', 'label': _('交货地点'), 'value': order.ship_to or '-'},
                             {'icon': 'payments', 'label': _('付款条件'), 'value': order.payment_terms or '-'},
                             {'icon': 'category', 'label': _('订单类别'), 'value': {'channel': '渠道订单', 'direct': '直销订单'}.get(order.order_category, order.order_category or '-')}
                         ],
@@ -131,15 +132,16 @@
                     <!-- 订单明细表格 -->
                     {% call tw_card_shell(title=_('订单明细'), action_btn={'label': _('添加产品'), 'icon': 'add', 'onclick': 'openAddDetailModal()'} if has_permission('order', 'edit') and order.status == 'draft' else none) %}
                     <div class="overflow-x-auto">
-                        <table class="w-full">
+                        <table class="w-full min-w-[700px]">
                             <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                                 <tr>
-                                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('行号') }}</th>
-                                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('产品描述') }}</th>
-                                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('型号') }}</th>
-                                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('数量') }}</th>
-                                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('单价') }}</th>
-                                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('金额') }}</th>
+                                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap w-10">{{ _('行号') }}</th>
+                                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('产品描述') }}</th>
+                                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('型号') }}</th>
+                                    <th class="p-3 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('产品编号') }}</th>
+                                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('数量') }}</th>
+                                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('单价') }}</th>
+                                    <th class="p-3 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase whitespace-nowrap">{{ _('金额') }}</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
@@ -149,21 +151,22 @@
                                     <td class="p-3">
                                         <div class="text-sm font-medium text-slate-900 dark:text-white">{{ detail.product_name }}</div>
                                         {% if detail.product_desc %}
-                                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ detail.product_desc[:50] }}{% if detail.product_desc|length > 50 %}...{% endif %}</div>
+                                        <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ detail.product_desc[:80] }}{% if detail.product_desc|length > 80 %}...{% endif %}</div>
                                         {% endif %}
                                     </td>
-                                    <td class="p-3 text-sm text-slate-600 dark:text-slate-400">{{ detail.product_model or '-' }}</td>
-                                    <td class="p-3 text-sm text-right text-slate-900 dark:text-white">{{ detail.quantity }} {{ detail.unit or '' }}</td>
-                                    <td class="p-3 text-sm text-right text-slate-600 dark:text-slate-400">
+                                    <td class="p-3 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">{{ detail.product_model or '-' }}</td>
+                                    <td class="p-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ detail.product.product_mn if detail.product and detail.product.product_mn else '-' }}</td>
+                                    <td class="p-3 text-sm text-right text-slate-900 dark:text-white whitespace-nowrap">{{ detail.quantity }} {{ detail.unit or '' }}</td>
+                                    <td class="p-3 text-sm text-right text-slate-600 dark:text-slate-400 whitespace-nowrap">
                                         {% if order.currency == 'USD' %}${% else %}¥{% endif %}{{ "%.2f"|format(detail.unit_price or 0) }}
                                     </td>
-                                    <td class="p-3 text-sm text-right font-medium text-slate-900 dark:text-white">
+                                    <td class="p-3 text-sm text-right font-medium text-slate-900 dark:text-white whitespace-nowrap">
                                         {% if order.currency == 'USD' %}${% else %}¥{% endif %}{{ "%.2f"|format(detail.total_price or 0) }}
                                     </td>
                                 </tr>
                                 {% else %}
                                 <tr>
-                                    <td colspan="6" class="p-6 text-center text-slate-500 dark:text-slate-400">
+                                    <td colspan="7" class="p-6 text-center text-slate-500 dark:text-slate-400">
                                         {{ _('暂无明细数据') }}
                                     </td>
                                 </tr>
@@ -172,7 +175,7 @@
                             {% if order.details %}
                             <tfoot class="bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
                                 <tr>
-                                    <td colspan="3" class="p-3 text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('合计') }}</td>
+                                    <td colspan="4" class="p-3 text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('合计') }}</td>
                                     <td class="p-3 text-sm text-right font-medium text-slate-900 dark:text-white">{{ order.total_quantity or 0 }}</td>
                                     <td class="p-3"></td>
                                     <td class="p-3 text-sm text-right font-bold text-slate-900 dark:text-white">
