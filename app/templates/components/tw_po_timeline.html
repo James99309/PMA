@@ -57,7 +57,7 @@
                 time=order.supplier_confirmed_date.strftime('%Y-%m-%d') if order.supplier_confirmed_date else '',
                 subtitle=order.supplier_confirmed_by if order.supplier_confirmed else _('待确认'),
                 show_line=true,
-                action_btn={'label': _('确认'), 'onclick': 'openSupplierConfirmModal()'} if can_edit and order.status == 'approved' and not order.supplier_confirmed else none
+                action_btn={'label': _('确认'), 'onclick': 'openSupplierConfirmModal()'} if can_edit and order.status == 'approved' and not order.supplier_confirmed and order.created_by_id == current_user_id else none
             ) }}
 
             {# 生产阶段配置 - 供应商确认后才进入生产流程，从"备料"开始 #}
