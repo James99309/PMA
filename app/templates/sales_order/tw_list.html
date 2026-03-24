@@ -1,6 +1,20 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
 {% from 'components/tw_stat_card.html' import tw_stat_card, tw_stat_cards_grid with context %}
+{% from 'components/tw_editable_table.html' import tw_editable_table, tw_editable_table_styles, tw_editable_table_script with context %}
+{% from 'macros/product_config_modal.html' import render_product_config_modal with context %}
+
+{# 客户订单产品明细列配置 #}
+{% set so_product_columns = [
+    {'key': 'product_name', 'label': _('产品名称'), 'type': 'product-selector', 'required': true, 'width': '180px'},
+    {'key': 'product_model', 'label': _('型号'), 'type': 'text', 'readonly': true, 'width': '120px'},
+    {'key': 'brand', 'label': _('品牌'), 'type': 'text', 'readonly': true, 'width': '80px'},
+    {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '60px'},
+    {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '100px', 'align': 'right'},
+    {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': '1'},
+    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'}
+] %}
+
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -43,6 +57,7 @@
         .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
         [x-cloak] { display: none !important; }
         {{ render_tw_fixed_header_styles() }}
+        {{ tw_editable_table_styles() }}
     </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark">
@@ -270,39 +285,25 @@
                                 </div>
                             </div>
 
-                            <!-- 产品明细 -->
+                            <!-- 产品明细（复用 tw_editable_table 组件 + 产品选择器） -->
                             <div>
-                                <div class="flex items-center justify-between mb-2">
-                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('产品明细') }} <span class="text-red-500">*</span></label>
-                                    <button type="button" onclick="addProductRow()" class="inline-flex items-center gap-1 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-medium transition-colors">
-                                        <span class="material-symbols-outlined text-sm">add</span>
+                                {{ tw_editable_table(
+                                    table_id='soProductTable',
+                                    columns=so_product_columns,
+                                    data=[],
+                                    show_add_btn=false,
+                                    show_delete_btn=true,
+                                    currency=default_currency|default('CNY')
+                                ) }}
+                                <div class="flex items-center justify-between mt-3">
+                                    <button type="button" class="inline-flex items-center gap-2 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                        onclick="window.EditableTable.addRow('soProductTable')">
+                                        <span class="material-symbols-outlined text-base">add</span>
                                         {{ _('添加产品') }}
                                     </button>
-                                </div>
-                                <div class="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-lg">
-                                    <table class="w-full text-sm">
-                                        <thead class="bg-slate-50 dark:bg-slate-700/50">
-                                            <tr>
-                                                <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 w-[25%]">{{ _('产品名称') }}</th>
-                                                <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 w-[20%]">{{ _('型号') }}</th>
-                                                <th class="px-3 py-2 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 w-[10%]">{{ _('数量') }}</th>
-                                                <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 w-[10%]">{{ _('单位') }}</th>
-                                                <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 w-[15%]">{{ _('单价') }}</th>
-                                                <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 w-[15%]">{{ _('小计') }}</th>
-                                                <th class="px-3 py-2 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 w-[5%]"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="soProductRows" class="divide-y divide-slate-200 dark:divide-slate-700">
-                                            <!-- 产品行通过JS动态添加 -->
-                                        </tbody>
-                                        <tfoot class="bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
-                                            <tr>
-                                                <td colspan="5" class="px-3 py-2 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">{{ _('合计') }}</td>
-                                                <td class="px-3 py-2 text-right text-sm font-bold text-slate-900 dark:text-white" id="soTotalAmount">¥0.00</td>
-                                                <td></td>
-                                            </tr>
-                                        </tfoot>
-                                    </table>
+                                    <div class="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                        {{ _('合计') }}: <span id="soTotalAmount" class="text-slate-900 dark:text-white">¥0.00</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -330,7 +331,16 @@
     {% endif %}
     {% endcall %}
 
+    <!-- 产品选择器模态框（复用报价单组件） -->
+    {{ render_product_config_modal() }}
+
     {{ render_tw_layout_script() }}
+    {{ tw_editable_table_script(table_id='soProductTable', config={
+        'currency': default_currency|default('CNY'),
+        'currencySymbol': '¥',
+        'totalSelector': '#soTotalAmount'
+    }) }}
+    <script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
     <script>
     function filterByStatus(status) {
         const form = document.getElementById('filterForm');
@@ -338,19 +348,17 @@
         form.submit();
     }
 
-    /* ---- 新建客户订单 Modal 逻辑 ---- */
-    let soRowIndex = 0;
-
+    /* ---- 新建客户订单 Modal ---- */
     function openCreateSOModal() {
         const modal = document.getElementById('createSOModal');
         modal.classList.remove('hidden');
-        // Alpine v3: 用 _x_dataStack 设置 show
         if (modal._x_dataStack) {
             modal._x_dataStack[0].show = true;
         }
         // 确保至少有一行产品
-        if (document.getElementById('soProductRows').children.length === 0) {
-            addProductRow();
+        const table = document.querySelector('#soProductTable tbody');
+        if (!table || table.children.length === 0) {
+            window.EditableTable.addRow('soProductTable');
         }
     }
 
@@ -362,55 +370,6 @@
         setTimeout(() => modal.classList.add('hidden'), 200);
     }
 
-    function addProductRow() {
-        const tbody = document.getElementById('soProductRows');
-        const idx = soRowIndex++;
-        const inputCls = 'w-full h-8 px-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-1 focus:ring-primary focus:border-transparent';
-        const tr = document.createElement('tr');
-        tr.className = 'so-product-row';
-        tr.dataset.idx = idx;
-        tr.innerHTML = `
-            <td class="px-2 py-1.5"><input type="text" data-field="product_name" class="${inputCls}" placeholder="{{ _('产品名称') }}"></td>
-            <td class="px-2 py-1.5"><input type="text" data-field="product_model" class="${inputCls}" placeholder="{{ _('型号') }}"></td>
-            <td class="px-2 py-1.5"><input type="number" data-field="quantity" min="1" value="1" class="${inputCls} text-center" oninput="calcRowTotal(this)"></td>
-            <td class="px-2 py-1.5"><input type="text" data-field="unit" value="{{ _('个') }}" class="${inputCls}" style="width:60px"></td>
-            <td class="px-2 py-1.5"><input type="number" data-field="unit_price" min="0" step="0.01" value="0" class="${inputCls} text-right" oninput="calcRowTotal(this)"></td>
-            <td class="px-2 py-1.5 text-right text-sm font-medium text-slate-900 dark:text-white row-total">¥0.00</td>
-            <td class="px-2 py-1.5 text-center">
-                <button type="button" onclick="removeProductRow(this)" class="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
-                    <span class="material-symbols-outlined text-sm">delete</span>
-                </button>
-            </td>
-        `;
-        tbody.appendChild(tr);
-    }
-
-    function removeProductRow(btn) {
-        const tbody = document.getElementById('soProductRows');
-        if (tbody.children.length <= 1) return;  // 至少保留一行
-        btn.closest('tr').remove();
-        calcGrandTotal();
-    }
-
-    function calcRowTotal(el) {
-        const tr = el.closest('tr');
-        const qty = parseFloat(tr.querySelector('[data-field="quantity"]').value) || 0;
-        const price = parseFloat(tr.querySelector('[data-field="unit_price"]').value) || 0;
-        const total = qty * price;
-        tr.querySelector('.row-total').textContent = '¥' + total.toFixed(2);
-        calcGrandTotal();
-    }
-
-    function calcGrandTotal() {
-        let sum = 0;
-        document.querySelectorAll('#soProductRows .so-product-row').forEach(tr => {
-            const qty = parseFloat(tr.querySelector('[data-field="quantity"]').value) || 0;
-            const price = parseFloat(tr.querySelector('[data-field="unit_price"]').value) || 0;
-            sum += qty * price;
-        });
-        document.getElementById('soTotalAmount').textContent = '¥' + sum.toFixed(2);
-    }
-
     function submitCreateSO() {
         const customerId = document.getElementById('soCustomerId').value;
         if (!customerId) {
@@ -418,40 +377,25 @@
             return;
         }
 
-        // 收集产品明细
-        const details = [];
-        let valid = true;
-        document.querySelectorAll('#soProductRows .so-product-row').forEach((tr, i) => {
-            const name = tr.querySelector('[data-field="product_name"]').value.trim();
-            const model = tr.querySelector('[data-field="product_model"]').value.trim();
-            const qty = parseInt(tr.querySelector('[data-field="quantity"]').value) || 0;
-            const unit = tr.querySelector('[data-field="unit"]').value.trim();
-            const price = parseFloat(tr.querySelector('[data-field="unit_price"]').value) || 0;
+        // 从 EditableTable 获取产品明细
+        const tableData = window.EditableTable.getData('soProductTable');
+        const details = tableData.filter(row => row.product_name && row.product_name.trim());
 
-            if (!name) {
-                alert('{{ _("第") }} ' + (i + 1) + ' {{ _("行产品名称不能为空") }}');
-                valid = false;
-                return;
-            }
-            if (qty <= 0) {
-                alert('{{ _("第") }} ' + (i + 1) + ' {{ _("行数量必须大于0") }}');
-                valid = false;
-                return;
-            }
-
-            details.push({
-                product_name: name,
-                product_model: model,
-                quantity: qty,
-                unit: unit || '个',
-                unit_price: price
-            });
-        });
-
-        if (!valid) return;
         if (details.length === 0) {
             alert('{{ _("请至少添加一个产品") }}');
             return;
+        }
+
+        // 验证
+        for (let i = 0; i < details.length; i++) {
+            if (!details[i].product_id) {
+                alert('{{ _("第") }} ' + (i + 1) + ' {{ _("行请通过产品选择器选择产品") }}');
+                return;
+            }
+            if (!details[i].quantity || parseInt(details[i].quantity) <= 0) {
+                alert('{{ _("第") }} ' + (i + 1) + ' {{ _("行数量必须大于0") }}');
+                return;
+            }
         }
 
         const payload = {
@@ -463,7 +407,15 @@
             shipping_method: document.getElementById('soShippingMethod').value || null,
             freight_terms: document.getElementById('soFreightTerms').value || null,
             notes: document.getElementById('soNotes').value.trim() || null,
-            details: details
+            details: details.map(d => ({
+                product_id: d.product_id,
+                product_name: d.product_name,
+                product_model: d.product_model || '',
+                quantity: parseInt(d.quantity) || 1,
+                unit: d.unit || '个',
+                unit_price: parseFloat(d.unit_price) || 0,
+                discount: 1.0
+            }))
         };
 
         const btn = document.getElementById('soSubmitBtn');
@@ -481,11 +433,7 @@
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                if (data.redirect_url) {
-                    window.location.href = data.redirect_url;
-                } else {
-                    window.location.reload();
-                }
+                window.location.href = data.redirect_url || '/sales-order/';
             } else {
                 alert(data.message || '{{ _("创建失败") }}');
                 btn.disabled = false;
