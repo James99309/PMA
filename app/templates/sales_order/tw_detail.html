@@ -1,7 +1,7 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_detail_layout.html' import render_tw_detail_layout with context %}
-{% from 'components/tw_info_card.html' import tw_info_card, tw_info_row with context %}
-{% from 'components/tw_table_card.html' import tw_table_card with context %}
+{% from 'components/tw_info_card.html' import tw_info_card with context %}
+{% from 'components/tw_table_card.html' import render_tw_table_card with context %}
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
 <!DOCTYPE html>
@@ -101,32 +101,42 @@
                 <!-- 左侧主内容 -->
                 <div class="lg:col-span-2 space-y-6">
                     <!-- 订单信息 -->
-                    {% call tw_info_card(title=_('订单信息'), icon='receipt_long') %}
-                        {{ tw_info_row(_('订单号'), order.order_number) }}
-                        {{ tw_info_row(_('客户'), order.customer.company_name if order.customer else '-') }}
-                        {{ tw_info_row(_('来源批价单'), order.pricing_order.order_number if order.pricing_order else '-') }}
-                        {{ tw_info_row(_('关联项目'), order.project.project_name if order.project else '-') }}
-                        {{ tw_info_row(_('订单总额'), '¥' ~ "%.2f"|format(order.total_amount or 0)) }}
-                        {{ tw_info_row(_('总数量'), order.total_quantity ~ ' 件') }}
-                    {% endcall %}
+                    {{ tw_info_card(
+                        title=_('订单信息'),
+                        columns=2,
+                        show_icon=false,
+                        items=[
+                            {'label': _('订单号'), 'value': order.order_number},
+                            {'label': _('客户'), 'value': order.customer.company_name if order.customer else '-'},
+                            {'label': _('来源批价单'), 'value': order.pricing_order.order_number if order.pricing_order else '-'},
+                            {'label': _('关联项目'), 'value': order.project.project_name if order.project else '-'},
+                            {'label': _('订单总额'), 'value': '¥' ~ "%.2f"|format(order.total_amount or 0)},
+                            {'label': _('总数量'), 'value': (order.total_quantity|string) ~ ' ' ~ _('件')}
+                        ]
+                    ) }}
 
                     <!-- 交付信息 -->
-                    {% call tw_info_card(title=_('交付信息'), icon='local_shipping') %}
-                        {{ tw_info_row(_('期望交付日期'), order.formatted_delivery_date or '-') }}
-                        {{ tw_info_row(_('交付地址'), order.delivery_address or '-') }}
-                        {{ tw_info_row(_('收货联系人'), order.delivery_contact or '-') }}
-                        {{ tw_info_row(_('联系电话'), order.delivery_phone or '-') }}
-                        {{ tw_info_row(_('运输方式'), {
-                            'truck': '陆运',
-                            'air': '空运',
-                            'express': '快递',
-                            'self_pickup': '自提'
-                        }.get(order.shipping_method, order.shipping_method or '-')) }}
-                        {{ tw_info_row(_('运费承担'), {'seller': '卖方承担', 'buyer': '买方承担'}.get(order.freight_terms, order.freight_terms or '-')) }}
-                    {% endcall %}
+                    {{ tw_info_card(
+                        title=_('交付信息'),
+                        columns=2,
+                        show_icon=false,
+                        items=[
+                            {'label': _('期望交付日期'), 'value': order.formatted_delivery_date or '-'},
+                            {'label': _('交付地址'), 'value': order.delivery_address or '-'},
+                            {'label': _('收货联系人'), 'value': order.delivery_contact or '-'},
+                            {'label': _('联系电话'), 'value': order.delivery_phone or '-'},
+                            {'label': _('运输方式'), 'value': _({
+                                'truck': '陆运',
+                                'air': '空运',
+                                'express': '快递',
+                                'self_pickup': '自提'
+                            }.get(order.shipping_method, order.shipping_method or '-'))},
+                            {'label': _('运费承担'), 'value': _({'seller': '卖方承担', 'buyer': '买方承担'}.get(order.freight_terms, order.freight_terms or '-'))}
+                        ]
+                    ) }}
 
                     <!-- 订单明细 -->
-                    {% call tw_table_card(title=_('订单明细'), icon='inventory_2', count=order.details|length) %}
+                    {% call render_tw_table_card(title=_('订单明细') ~ ' (' ~ order.details|length ~ ')') %}
                     <table class="w-full">
                         <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                             <tr>
@@ -252,7 +262,7 @@
 
                     <!-- 元数据 -->
                     {{ tw_metadata_card_simple(
-                        created_by=order.created_by,
+                        creator=order.created_by.real_name if order.created_by else '-',
                         created_at=order.created_at,
                         updated_at=order.updated_at
                     ) }}
@@ -269,7 +279,7 @@
         message=_('确定要取消此订单吗？此操作不可恢复。'),
         confirm_text=_('确认取消'),
         cancel_text=_('返回'),
-        confirm_style='danger'
+        variant='danger'
     ) }}
 
     <!-- 创建发货单模态框 -->
