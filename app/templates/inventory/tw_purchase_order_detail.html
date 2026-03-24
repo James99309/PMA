@@ -356,14 +356,14 @@
     <div id="supplierConfirmModal" class="fixed inset-0 z-50 hidden">
         <div class="fixed inset-0 bg-black/50" onclick="closeSupplierConfirmModal()"></div>
         <div class="fixed inset-0 flex items-center justify-center p-4">
-            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg" onclick="event.stopPropagation()">
-                <div class="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+                <div class="flex items-center justify-between p-4">
                     <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('供应商确认') }}</h3>
                     <button onclick="closeSupplierConfirmModal()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
                         <span class="material-symbols-outlined">close</span>
                     </button>
                 </div>
-                <div class="p-4 space-y-4">
+                <div class="p-4 space-y-4 overflow-y-auto flex-1">
                     <!-- 订单信息摘要 -->
                     <div class="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg space-y-1.5">
                         <div class="flex items-center justify-between text-sm">
@@ -407,20 +407,6 @@
                         </div>
                     </div>
 
-                    <!-- 确认人 -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('确认人') }}</label>
-                        <input type="text" id="scConfirmedBy" placeholder="{{ _('供应商联系人姓名') }}"
-                               class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
-                    </div>
-
-                    <!-- 确认日期 -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('确认日期') }}</label>
-                        <input type="date" id="scConfirmedDate" value="{{ now().strftime('%Y-%m-%d') if now is defined else '' }}"
-                               class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
-                    </div>
-
                     <!-- 备注 -->
                     <div>
                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('备注') }}</label>
@@ -428,15 +414,8 @@
                                   class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm resize-none"></textarea>
                     </div>
 
-                    <!-- 签名 -->
-                    {{ tw_signature_pad(
-                        container_id='scSignaturePad',
-                        label=_('确认签名'),
-                        required=true,
-                        height=120
-                    ) }}
                 </div>
-                <div class="flex items-center justify-end gap-3 p-4 border-t border-slate-200 dark:border-slate-700">
+                <div class="flex items-center justify-end gap-3 p-4">
                     <button onclick="closeSupplierConfirmModal()" class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg">{{ _('取消') }}</button>
                     <button id="scSubmitBtn" onclick="submitSupplierConfirm()" class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
                         {{ _('确认供应商已确认') }}
@@ -542,15 +521,9 @@
         document.getElementById('scFileUploadArea').classList.remove('hidden');
         document.getElementById('scFilePreview').classList.add('hidden');
         document.getElementById('scConfirmationFile').value = '';
-        document.getElementById('scConfirmedBy').value = '';
-        document.getElementById('scConfirmedDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('scConfirmationNotes').value = '';
         // 显示模态框
         document.getElementById('supplierConfirmModal').classList.remove('hidden');
-        // 延迟初始化签字板（等待模态框显示后 DOM 更新完成）
-        setTimeout(() => {
-            SignaturePadManager.reinit('scSignaturePad');
-        }, 50);
     }
 
     function closeSupplierConfirmModal() {
@@ -596,29 +569,18 @@
             return;
         }
 
-        // 验证签名
-        const signaturePad = SignaturePadManager.get('scSignaturePad');
-        if (!signaturePad || signaturePad.isEmpty()) {
-            showToast('{{ _("请签名确认") }}', 'warning');
-            return;
-        }
-
         const submitBtn = document.getElementById('scSubmitBtn');
         const originalText = submitBtn.textContent;
         submitBtn.disabled = true;
         submitBtn.textContent = '{{ _("上传中...") }}';
 
         try {
-            // 获取签名 base64
-            const signatureData = signaturePad.toDataURL();
-
-            // 创建FormData上传文件
+            // 创建FormData上传文件，确认日期用当前时间自动填
             const formData = new FormData();
             formData.append('confirmation_file', selectedConfirmFile);
-            formData.append('confirmed_by', document.getElementById('scConfirmedBy').value);
-            formData.append('confirmed_date', document.getElementById('scConfirmedDate').value);
+            formData.append('confirmed_by', '');
+            formData.append('confirmed_date', new Date().toISOString().split('T')[0]);
             formData.append('notes', document.getElementById('scConfirmationNotes').value);
-            formData.append('signature', signatureData);
 
             const response = await fetch(`/purchase-order/api/${orderId}/supplier-confirm`, {
                 method: 'POST',
