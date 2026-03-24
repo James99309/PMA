@@ -60,6 +60,17 @@
                 action_btn={'label': _('确认'), 'onclick': 'openSupplierConfirmModal()'} if can_edit and order.status == 'approved' and not order.supplier_confirmed and order.created_by_id == current_user_id else none
             ) }}
 
+            {# 从 stage_history 构建每个阶段的实际完成时间映射 #}
+            {% set stage_completed_dates = {} %}
+            {% for h in order.stage_history %}
+                {% if h.to_stage and h.created_at %}
+                    {# to_stage 表示进入该阶段的时间，也意味着 from_stage 完成 #}
+                    {% if h.from_stage %}
+                        {% set _ = stage_completed_dates.update({h.from_stage: h.created_at}) %}
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+
             {# 生产阶段配置 - 供应商确认后才进入生产流程，从"备料"开始 #}
             {% set stage_config = [
                 {'key': 'preparing', 'label': '备料', 'date_field': none},
@@ -80,9 +91,11 @@
             {% set is_future = stage_num > current_stage_order %}
             {% set is_last_stage = loop.last %}
 
-            {# 获取计划日期 #}
+            {# 获取日期：已完成阶段用实际完成时间，未完成用计划日期 #}
             {% set planned_date = none %}
-            {% if stage.date_field %}
+            {% if is_completed and stage.key in stage_completed_dates %}
+                {% set planned_date = stage_completed_dates[stage.key] %}
+            {% elif stage.date_field %}
                 {% set planned_date = order[stage.date_field] %}
             {% endif %}
 
