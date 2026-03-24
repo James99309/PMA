@@ -301,8 +301,8 @@ class PurchaseOrderDetail(db.Model):
 
     @property
     def remaining_to_dispatch(self):
-        """剩余未发出数量（已到货但未分配发货）"""
-        return max(0, (self.received_quantity or 0) - (self.dispatched_quantity or 0))
+        """剩余可发数量（总量 - 已发出量）"""
+        return max(0, self.quantity - (self.dispatched_quantity or 0))
 
     @property
     def source_label(self):

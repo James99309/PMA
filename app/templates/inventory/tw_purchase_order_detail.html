@@ -988,7 +988,8 @@
                             <div>
                                 <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('发货日期') }}</label>
                                 <input type="date" id="shipDate"
-                                       class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+                                       class="w-full h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
+                                       value="{{ today.strftime('%Y-%m-%d') if today else '' }}">
                             </div>
                             <div>
                                 <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('预计到达') }}</label>
