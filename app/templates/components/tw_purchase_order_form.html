@@ -553,6 +553,19 @@ function importSelectedDemands() {
     const checks = document.querySelectorAll('.demand-check:checked');
     if (checks.length === 0) return;
 
+    // 先删除所有空行（没有产品名的行）
+    const tbody = document.querySelector('#poProductTable tbody');
+    if (tbody) {
+        Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+            const nameBtn = tr.querySelector('[data-field="product_name"] button, [data-field="product_name"]');
+            const nameText = nameBtn ? nameBtn.textContent.trim() : '';
+            if (!nameText || nameText === '{{ _("点击选择产品...") }}') {
+                tr.remove();
+            }
+        });
+    }
+
+    // 导入选中的需求
     checks.forEach(chk => {
         const d = demandPoolData[parseInt(chk.dataset.idx)];
         if (d) {
@@ -566,6 +579,10 @@ function importSelectedDemands() {
             });
         }
     });
+
+    // 在末尾加一个空行供手动添加
+    window.EditableTable.addRow('poProductTable');
+
     closeDemandPoolPanel();
     if (typeof showToast === 'function') showToast(`{{ _("已导入") }} ${checks.length} {{ _("条需求") }}`, 'success');
 }
