@@ -501,6 +501,8 @@ function closePurchaseOrderFormModal(modalId) {
 // ============== 需求池导入 ==============
 let demandPoolVisible = false;
 let demandPoolData = [];
+// 记录当前表格中已从需求池导入的数量 { sales_order_detail_id: quantity }
+let importedDemandQty = {};
 
 function openDemandPoolPanel() {
     demandPoolVisible = true;
@@ -519,6 +521,9 @@ function closeDemandPoolPanel() {
 
 async function loadDemandPool(search = '') {
     try {
+        // 扫描当前表格中已导入的需求数量
+        _scanImportedDemands();
+
         const resp = await fetch(`/purchase-order/api/procurement-demands?search=${encodeURIComponent(search)}`);
         const data = await resp.json();
         if (data.success) {
@@ -530,23 +535,49 @@ async function loadDemandPool(search = '') {
     }
 }
 
+function _scanImportedDemands() {
+    // 从 EditableTable 的行数据中收集已导入的 sales_order_detail_id 和数量
+    importedDemandQty = {};
+    const instance = window.EditableTable && window.EditableTable.instances && window.EditableTable.instances['poProductTable'];
+    if (instance && instance.rows) {
+        instance.rows.forEach(r => {
+            const soDetailId = r.data && r.data.sales_order_detail_id;
+            if (soDetailId) {
+                const qty = parseInt(r.data.quantity) || 0;
+                importedDemandQty[soDetailId] = (importedDemandQty[soDetailId] || 0) + qty;
+            }
+        });
+    }
+}
+
 function renderDemandPool() {
     const tbody = document.getElementById('demandPoolBody');
     if (!tbody) return;
-    if (demandPoolData.length === 0) {
+
+    // 过滤掉已全部导入的需求，调整剩余可导入数量
+    const displayData = [];
+    demandPoolData.forEach((d, i) => {
+        const alreadyImported = importedDemandQty[d.sales_order_detail_id] || 0;
+        const adjustedRemaining = d.remaining_to_procure - alreadyImported;
+        if (adjustedRemaining > 0) {
+            displayData.push({ ...d, _originalIdx: i, _adjustedRemaining: adjustedRemaining });
+        }
+    });
+
+    if (displayData.length === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">{{ _("暂无待采购需求") }}</td></tr>';
         return;
     }
-    tbody.innerHTML = demandPoolData.map((d, i) => `
+    tbody.innerHTML = displayData.map((d, di) => `
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 border-b border-slate-100 dark:border-slate-700">
-            <td class="p-2"><input type="checkbox" data-idx="${i}" class="demand-check rounded border-slate-300"></td>
+            <td class="p-2"><input type="checkbox" data-idx="${d._originalIdx}" class="demand-check rounded border-slate-300"></td>
             <td class="p-2 text-xs text-primary">${d.order_number}</td>
             <td class="p-2 text-xs text-slate-600 dark:text-slate-300">${d.customer_name}</td>
             <td class="p-2 text-xs text-slate-900 dark:text-white">${d.product_name}</td>
             <td class="p-2 text-xs text-slate-500">${d.product_model || ''}</td>
             <td class="p-2 text-right">
-                <input type="number" data-idx="${i}" class="demand-qty w-16 h-7 px-1 text-xs text-right rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary"
-                    value="${d.remaining_to_procure}" min="1" max="${d.remaining_to_procure}">
+                <input type="number" data-idx="${d._originalIdx}" class="demand-qty w-16 h-7 px-1 text-xs text-right rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary"
+                    value="${d._adjustedRemaining}" min="1" max="${d._adjustedRemaining}">
             </td>
         </tr>
     `).join('');
