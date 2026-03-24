@@ -307,7 +307,7 @@
     {% endcall %}
 
     <!-- 新建采购订单模态框 -->
-    {{ tw_purchase_order_form_modal(modal_id='createOrderModal', mode='create', suppliers=suppliers) }}
+    {{ tw_purchase_order_form_modal(modal_id='createOrderModal', mode='create', suppliers=suppliers, currency_options=currency_options) }}
 
     {{ render_tw_layout_script() }}
     {{ tw_purchase_order_form_script(

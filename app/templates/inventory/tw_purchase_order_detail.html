@@ -447,7 +447,7 @@
     </div>
 
     <!-- 编辑采购订单模态框 -->
-    {{ tw_purchase_order_form_modal(modal_id='editOrderModal', mode='edit', order=order, suppliers=suppliers) }}
+    {{ tw_purchase_order_form_modal(modal_id='editOrderModal', mode='edit', order=order, suppliers=suppliers, currency_options=currency_options) }}
 
     <!-- 阶段推进确认模态框 -->
     {{ tw_confirm_modal(
