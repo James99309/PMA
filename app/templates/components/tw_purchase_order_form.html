@@ -556,7 +556,7 @@ function importSelectedDemands() {
     checks.forEach(chk => {
         const d = demandPoolData[parseInt(chk.dataset.idx)];
         if (d) {
-            window.EditableTable.addRow('poProductTable', {
+            window.EditableTable.addRow('poProductTable', null, {
                 product_id: d.product_id,
                 product_name: d.product_name,
                 product_model: d.product_model,
