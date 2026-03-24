@@ -806,7 +806,7 @@ def api_upload_test_report(order_id):
                 from app.services.po_progress_service import PurchaseOrderProgressService
                 PurchaseOrderProgressService.advance_stage(
                     order_id=order.id,
-                    new_stage='packaging',
+                    new_stage='ready',
                     operator_info={
                         'user_id': current_user.id,
                         'reason': '测试报告上传通过，自动推进'

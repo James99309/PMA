@@ -87,11 +87,10 @@
                 {'key': 'preparing', 'label': '备料', 'date_field': none},
                 {'key': 'producing', 'label': '生产', 'date_field': none},
                 {'key': 'testing', 'label': '测试', 'date_field': 'milestone_test_complete_date'},
-                {'key': 'packaging', 'label': '包装', 'date_field': none},
                 {'key': 'ready', 'label': '待发货', 'date_field': 'milestone_ship_date'},
                 {'key': 'delivered', 'label': '到货', 'date_field': 'actual_arrival_date'}
             ] %}
-            {% set stage_order = {'preparing': 0, 'producing': 1, 'testing': 2, 'packaging': 3, 'ready': 4, 'delivered': 5} %}
+            {% set stage_order = {'preparing': 0, 'producing': 1, 'testing': 2, 'ready': 3, 'delivered': 4} %}
             {# 供应商确认后，默认从备料阶段开始（order为-1表示还未进入生产流程） #}
             {% set current_stage_order = stage_order.get(order.production_status, -1) %}
 
@@ -165,11 +164,12 @@
                 time=time_text,
                 stage_key=stage.key,
                 show_line=true,
-                can_click=can_click,
+                can_click=can_click and stage.key != 'ready',
                 show_test_conditions=false,
                 show_test_upload=is_current and stage.key == 'testing' and can_edit,
                 show_test_view=is_completed and stage.key == 'testing' and order.factory_test_report_url,
                 test_report_url=order.factory_test_report_url if stage.key == 'testing' else '',
+                show_shipment_btn=is_current and stage.key == 'ready' and can_edit,
                 order=order
             ) }}
             {% endfor %}
@@ -272,7 +272,7 @@
 {# ========================================
    生产阶段节点（可点击推进）
    ======================================== #}
-{% macro render_production_stage_node(title, status='pending', time='', stage_key='', show_line=true, can_click=false, show_test_conditions=false, show_test_upload=false, show_test_view=false, test_report_url='', order=none) %}
+{% macro render_production_stage_node(title, status='pending', time='', stage_key='', show_line=true, can_click=false, show_test_conditions=false, show_test_upload=false, show_test_view=false, test_report_url='', show_shipment_btn=false, order=none) %}
 <div class="relative pl-8 pb-14 {% if can_click %}cursor-pointer group{% endif %}"
      {% if can_click %}onclick="advanceToStage('{{ stage_key }}')"{% endif %}>
     {# 向上连接线（连接到上一个节点） #}
@@ -400,6 +400,17 @@
     </div>
     {% endif %}
 
+    {# 待发货阶段创建发货单按钮 #}
+    {% if show_shipment_btn %}
+    <div class="mt-3">
+        <button onclick="openShipmentModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
+            <span class="material-symbols-outlined text-base">local_shipping</span>
+            {{ _('创建发货单') }}
+        </button>
+        <p class="text-[10px] text-slate-400 mt-1">{{ _('支持分批发货，可选择发给客户订单或入仓库') }}</p>
+    </div>
+    {% endif %}
+
     {# 可点击提示 #}
     {% if can_click %}
     <p class="text-[10px] text-slate-400 dark:text-slate-500 mt-1 group-hover:text-primary transition-colors">
@@ -425,12 +436,11 @@
         'preparing': '{{ _("备料") }}',
         'producing': '{{ _("生产") }}',
         'testing': '{{ _("测试") }}',
-        'packaging': '{{ _("包装") }}',
         'ready': '{{ _("待发货") }}',
         'delivered': '{{ _("到货") }}'
     };
 
-    const stageOrder = {'preparing': 0, 'producing': 1, 'testing': 2, 'packaging': 3, 'ready': 4, 'delivered': 5};
+    const stageOrder = {'preparing': 0, 'producing': 1, 'testing': 2, 'ready': 3, 'delivered': 4};
 
     let pendingStage = null;
 
@@ -443,7 +453,7 @@
         }
 
         // 如果当前是测试阶段且要推进到包装或之后，需要检查条件
-        if (currentStage === 'testing' && stageOrder[targetStage] >= stageOrder['packaging']) {
+        if (currentStage === 'testing' && stageOrder[targetStage] >= stageOrder['ready']) {
             checkAndAdvanceStage(targetStage);
         } else {
             confirmAdvanceStage(targetStage);
