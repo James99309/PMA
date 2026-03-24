@@ -75,7 +75,9 @@
             {{ render_tw_purchase_order_status_badge(order.status) }}
         {% elif page_slot == 'actions' %}
             {{ tw_btn_outline(_('返回'), href=url_for('purchase_order.list_view'), icon='arrow_back', size='sm') }}
-            {# 编辑按钮已移至编辑模态框入口 #}
+            {% if has_permission('order', 'edit') and order.status in ['draft', 'rejected', 'recalled'] %}
+            {{ tw_btn_outline(_('编辑'), onclick='openEditBasicInfoModal()', icon='edit', size='sm') }}
+            {% endif %}
             {% if order.status in ['approved', 'confirmed', 'producing', 'tested', 'shipped', 'stored', 'completed'] %}
             {{ tw_btn_outline(_('导出PO'), onclick='exportPO()', icon='download', size='sm') }}
             {% endif %}
@@ -124,11 +126,11 @@
                             {'icon': 'payments', 'label': _('付款条件'), 'value': order.payment_terms or '-'},
                             {'icon': 'category', 'label': _('订单类别'), 'value': {'channel': '渠道订单', 'direct': '直销订单'}.get(order.order_category, order.order_category or '-')}
                         ],
-                        action_btn=none
+                        action_btn={'label': _('编辑'), 'icon': 'edit', 'onclick': 'openEditBasicInfoModal()'} if has_permission('order', 'edit') and order.status in ['draft', 'rejected', 'recalled'] else none
                     ) }}
 
                     <!-- 订单明细表格 -->
-                    {% call tw_card_shell(title=_('订单明细')) %}
+                    {% call tw_card_shell(title=_('订单明细'), action_btn={'label': _('添加产品'), 'icon': 'add', 'onclick': 'openAddDetailModal()'} if has_permission('order', 'edit') and order.status in ['draft', 'rejected', 'recalled'] else none) %}
                     <div class="overflow-x-auto">
                         <table class="w-full min-w-[700px]">
                             <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
