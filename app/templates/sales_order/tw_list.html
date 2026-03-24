@@ -55,6 +55,10 @@
                 <span class="text-sm text-slate-500 dark:text-slate-400">
                     {{ _('共') }} {{ pagination.total }} {{ _('条记录') }}
                 </span>
+                <button onclick="openCreateSOModal()" class="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors">
+                    <span class="material-symbols-outlined text-lg">add</span>
+                    {{ _('新建客户订单') }}
+                </button>
             </div>
         {% elif page_slot == 'content' %}
             <!-- 统计卡片 -->
@@ -198,6 +202,129 @@
                 </div>
                 {% endif %}
             </div>
+            <!-- 新建客户订单 Modal -->
+            <div id="createSOModal" class="fixed inset-0 z-50 hidden" x-data="{ show: false }" x-show="show" x-cloak
+                 x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                 x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0">
+                <!-- Backdrop -->
+                <div class="fixed inset-0 bg-black/50" @click="show = false; document.getElementById('createSOModal').classList.add('hidden')"></div>
+                <!-- Modal Content -->
+                <div class="fixed inset-0 flex items-start justify-center pt-10 pb-10 overflow-y-auto">
+                    <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-4xl mx-4 my-4"
+                         @click.stop>
+                        <!-- Header -->
+                        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('新建客户订单') }}</h3>
+                            <button onclick="closeCreateSOModal()" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400">
+                                <span class="material-symbols-outlined">close</span>
+                            </button>
+                        </div>
+                        <!-- Body -->
+                        <div class="px-6 py-4 space-y-6">
+                            <!-- 客户选择 -->
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('客户') }} <span class="text-red-500">*</span></label>
+                                <select id="soCustomerId" class="w-full h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                                    <option value="">{{ _('请选择客户') }}</option>
+                                    {% for c in customers %}
+                                    <option value="{{ c.id }}">{{ c.company_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- 交付信息 -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('期望交付日期') }}</label>
+                                    <input type="date" id="soDeliveryDate" class="w-full h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('运输方式') }}</label>
+                                    <select id="soShippingMethod" class="w-full h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                                        <option value="">{{ _('请选择') }}</option>
+                                        <option value="truck">{{ _('陆运') }}</option>
+                                        <option value="air">{{ _('空运') }}</option>
+                                        <option value="express">{{ _('快递') }}</option>
+                                        <option value="self_pickup">{{ _('自提') }}</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('收货联系人') }}</label>
+                                    <input type="text" id="soDeliveryContact" class="w-full h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="{{ _('联系人姓名') }}">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('收货电话') }}</label>
+                                    <input type="text" id="soDeliveryPhone" class="w-full h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="{{ _('联系电话') }}">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('交付地址') }}</label>
+                                    <input type="text" id="soDeliveryAddress" class="w-full h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="{{ _('详细地址') }}">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('运费承担') }}</label>
+                                    <select id="soFreightTerms" class="w-full h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent">
+                                        <option value="">{{ _('请选择') }}</option>
+                                        <option value="seller">{{ _('卖方承担') }}</option>
+                                        <option value="buyer">{{ _('买方承担') }}</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 产品明细 -->
+                            <div>
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('产品明细') }} <span class="text-red-500">*</span></label>
+                                    <button type="button" onclick="addProductRow()" class="inline-flex items-center gap-1 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-medium transition-colors">
+                                        <span class="material-symbols-outlined text-sm">add</span>
+                                        {{ _('添加产品') }}
+                                    </button>
+                                </div>
+                                <div class="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-lg">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-slate-50 dark:bg-slate-700/50">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 w-[25%]">{{ _('产品名称') }}</th>
+                                                <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 w-[20%]">{{ _('型号') }}</th>
+                                                <th class="px-3 py-2 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 w-[10%]">{{ _('数量') }}</th>
+                                                <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 w-[10%]">{{ _('单位') }}</th>
+                                                <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 w-[15%]">{{ _('单价') }}</th>
+                                                <th class="px-3 py-2 text-right text-xs font-semibold text-slate-500 dark:text-slate-400 w-[15%]">{{ _('小计') }}</th>
+                                                <th class="px-3 py-2 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 w-[5%]"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="soProductRows" class="divide-y divide-slate-200 dark:divide-slate-700">
+                                            <!-- 产品行通过JS动态添加 -->
+                                        </tbody>
+                                        <tfoot class="bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
+                                            <tr>
+                                                <td colspan="5" class="px-3 py-2 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">{{ _('合计') }}</td>
+                                                <td class="px-3 py-2 text-right text-sm font-bold text-slate-900 dark:text-white" id="soTotalAmount">¥0.00</td>
+                                                <td></td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- 备注 -->
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('备注') }}</label>
+                                <textarea id="soNotes" rows="2" class="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-primary focus:border-transparent" placeholder="{{ _('订单备注信息') }}"></textarea>
+                            </div>
+                        </div>
+                        <!-- Footer -->
+                        <div class="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                            <button onclick="closeCreateSOModal()" class="px-4 py-2 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 text-slate-700 dark:text-white rounded-lg text-sm font-medium transition-colors">
+                                {{ _('取消') }}
+                            </button>
+                            <button onclick="submitCreateSO()" id="soSubmitBtn" class="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium transition-colors">
+                                <span class="material-symbols-outlined text-lg">save</span>
+                                {{ _('创建订单') }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         {% endif %}
         {% endcall %}
     {% endif %}
@@ -209,6 +336,163 @@
         const form = document.getElementById('filterForm');
         form.querySelector('input[name="status"]').value = status;
         form.submit();
+    }
+
+    /* ---- 新建客户订单 Modal 逻辑 ---- */
+    let soRowIndex = 0;
+
+    function openCreateSOModal() {
+        const modal = document.getElementById('createSOModal');
+        modal.classList.remove('hidden');
+        // 触发 Alpine show
+        modal.__x.$data.show = true;
+        // 确保至少有一行产品
+        if (document.getElementById('soProductRows').children.length === 0) {
+            addProductRow();
+        }
+    }
+
+    function closeCreateSOModal() {
+        const modal = document.getElementById('createSOModal');
+        modal.__x.$data.show = false;
+        setTimeout(() => modal.classList.add('hidden'), 200);
+    }
+
+    function addProductRow() {
+        const tbody = document.getElementById('soProductRows');
+        const idx = soRowIndex++;
+        const inputCls = 'w-full h-8 px-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-1 focus:ring-primary focus:border-transparent';
+        const tr = document.createElement('tr');
+        tr.className = 'so-product-row';
+        tr.dataset.idx = idx;
+        tr.innerHTML = `
+            <td class="px-2 py-1.5"><input type="text" data-field="product_name" class="${inputCls}" placeholder="{{ _('产品名称') }}"></td>
+            <td class="px-2 py-1.5"><input type="text" data-field="product_model" class="${inputCls}" placeholder="{{ _('型号') }}"></td>
+            <td class="px-2 py-1.5"><input type="number" data-field="quantity" min="1" value="1" class="${inputCls} text-center" oninput="calcRowTotal(this)"></td>
+            <td class="px-2 py-1.5"><input type="text" data-field="unit" value="{{ _('个') }}" class="${inputCls}" style="width:60px"></td>
+            <td class="px-2 py-1.5"><input type="number" data-field="unit_price" min="0" step="0.01" value="0" class="${inputCls} text-right" oninput="calcRowTotal(this)"></td>
+            <td class="px-2 py-1.5 text-right text-sm font-medium text-slate-900 dark:text-white row-total">¥0.00</td>
+            <td class="px-2 py-1.5 text-center">
+                <button type="button" onclick="removeProductRow(this)" class="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-red-500">
+                    <span class="material-symbols-outlined text-sm">delete</span>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    }
+
+    function removeProductRow(btn) {
+        const tbody = document.getElementById('soProductRows');
+        if (tbody.children.length <= 1) return;  // 至少保留一行
+        btn.closest('tr').remove();
+        calcGrandTotal();
+    }
+
+    function calcRowTotal(el) {
+        const tr = el.closest('tr');
+        const qty = parseFloat(tr.querySelector('[data-field="quantity"]').value) || 0;
+        const price = parseFloat(tr.querySelector('[data-field="unit_price"]').value) || 0;
+        const total = qty * price;
+        tr.querySelector('.row-total').textContent = '¥' + total.toFixed(2);
+        calcGrandTotal();
+    }
+
+    function calcGrandTotal() {
+        let sum = 0;
+        document.querySelectorAll('#soProductRows .so-product-row').forEach(tr => {
+            const qty = parseFloat(tr.querySelector('[data-field="quantity"]').value) || 0;
+            const price = parseFloat(tr.querySelector('[data-field="unit_price"]').value) || 0;
+            sum += qty * price;
+        });
+        document.getElementById('soTotalAmount').textContent = '¥' + sum.toFixed(2);
+    }
+
+    function submitCreateSO() {
+        const customerId = document.getElementById('soCustomerId').value;
+        if (!customerId) {
+            alert('{{ _("请选择客户") }}');
+            return;
+        }
+
+        // 收集产品明细
+        const details = [];
+        let valid = true;
+        document.querySelectorAll('#soProductRows .so-product-row').forEach((tr, i) => {
+            const name = tr.querySelector('[data-field="product_name"]').value.trim();
+            const model = tr.querySelector('[data-field="product_model"]').value.trim();
+            const qty = parseInt(tr.querySelector('[data-field="quantity"]').value) || 0;
+            const unit = tr.querySelector('[data-field="unit"]').value.trim();
+            const price = parseFloat(tr.querySelector('[data-field="unit_price"]').value) || 0;
+
+            if (!name) {
+                alert('{{ _("第") }} ' + (i + 1) + ' {{ _("行产品名称不能为空") }}');
+                valid = false;
+                return;
+            }
+            if (qty <= 0) {
+                alert('{{ _("第") }} ' + (i + 1) + ' {{ _("行数量必须大于0") }}');
+                valid = false;
+                return;
+            }
+
+            details.push({
+                product_name: name,
+                product_model: model,
+                quantity: qty,
+                unit: unit || '个',
+                unit_price: price
+            });
+        });
+
+        if (!valid) return;
+        if (details.length === 0) {
+            alert('{{ _("请至少添加一个产品") }}');
+            return;
+        }
+
+        const payload = {
+            customer_id: parseInt(customerId),
+            delivery_date: document.getElementById('soDeliveryDate').value || null,
+            delivery_address: document.getElementById('soDeliveryAddress').value.trim() || null,
+            delivery_contact: document.getElementById('soDeliveryContact').value.trim() || null,
+            delivery_phone: document.getElementById('soDeliveryPhone').value.trim() || null,
+            shipping_method: document.getElementById('soShippingMethod').value || null,
+            freight_terms: document.getElementById('soFreightTerms').value || null,
+            notes: document.getElementById('soNotes').value.trim() || null,
+            details: details
+        };
+
+        const btn = document.getElementById('soSubmitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined text-lg animate-spin">progress_activity</span> {{ _("创建中...") }}';
+
+        fetch('/sales-order/api/create-direct', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    window.location.reload();
+                }
+            } else {
+                alert(data.message || '{{ _("创建失败") }}');
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined text-lg">save</span> {{ _("创建订单") }}';
+            }
+        })
+        .catch(err => {
+            alert('{{ _("网络错误，请重试") }}');
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined text-lg">save</span> {{ _("创建订单") }}';
+        });
     }
     </script>
 </body>
