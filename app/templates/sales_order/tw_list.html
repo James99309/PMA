@@ -156,13 +156,26 @@
                                     </span>
                                 </td>
                                 <td class="p-4">
+                                    {# 综合进度：采购10% + 发货60% + 签收30% = 100% #}
                                     {% set total = order.total_quantity or 1 %}
-                                    {% set proc_pct = ((order.procured_quantity / total * 100) if total > 0 else 0)|round(0)|int %}
+                                    {% set proc_ratio = (order.procured_quantity / total) if total > 0 else 0 %}
+                                    {% set ship_ratio = (order.shipped_quantity / total) if total > 0 else 0 %}
+                                    {% set recv_ratio = (order.received_quantity / total) if total > 0 else 0 %}
+                                    {% set overall = ((proc_ratio * 10 + ship_ratio * 60 + recv_ratio * 30)|round(0))|int %}
+                                    {% set overall = [overall, 100]|min %}
                                     <div class="flex items-center justify-center gap-2">
-                                        <div class="w-24 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
-                                            <div class="h-full bg-amber-500 rounded-full" style="width: {{ proc_pct }}%"></div>
+                                        <div class="w-24 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden flex">
+                                            {% if recv_ratio > 0 %}
+                                            <div class="h-full bg-green-500" style="width: {{ (recv_ratio * 30)|round(0)|int }}%"></div>
+                                            {% endif %}
+                                            {% if ship_ratio > 0 %}
+                                            <div class="h-full bg-cyan-500" style="width: {{ (ship_ratio * 60)|round(0)|int }}%"></div>
+                                            {% endif %}
+                                            {% if proc_ratio > 0 %}
+                                            <div class="h-full bg-amber-500" style="width: {{ (proc_ratio * 10)|round(0)|int }}%"></div>
+                                            {% endif %}
                                         </div>
-                                        <span class="text-xs text-slate-500 dark:text-slate-400">{{ proc_pct }}%</span>
+                                        <span class="text-xs text-slate-500 dark:text-slate-400">{{ overall }}%</span>
                                     </div>
                                 </td>
                                 <td class="p-4 text-center">
