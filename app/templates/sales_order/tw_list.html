@@ -344,8 +344,10 @@
     function openCreateSOModal() {
         const modal = document.getElementById('createSOModal');
         modal.classList.remove('hidden');
-        // 触发 Alpine show
-        modal.__x.$data.show = true;
+        // Alpine v3: 用 _x_dataStack 设置 show
+        if (modal._x_dataStack) {
+            modal._x_dataStack[0].show = true;
+        }
         // 确保至少有一行产品
         if (document.getElementById('soProductRows').children.length === 0) {
             addProductRow();
@@ -354,7 +356,9 @@
 
     function closeCreateSOModal() {
         const modal = document.getElementById('createSOModal');
-        modal.__x.$data.show = false;
+        if (modal._x_dataStack) {
+            modal._x_dataStack[0].show = false;
+        }
         setTimeout(() => modal.classList.add('hidden'), 200);
     }
 
