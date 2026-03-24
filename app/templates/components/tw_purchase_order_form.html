@@ -205,8 +205,9 @@
                                     <select id="{{ modal_id }}_currency"
                                         class="h-9 px-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                                         onchange="POFormModal.onCurrencyChange(this.value)">
-                                        <option value="CNY" {{ 'selected' if default_currency == 'CNY' }}>CNY (¥)</option>
-                                        <option value="USD" {{ 'selected' if default_currency == 'USD' }}>USD ($)</option>
+                                        {% for code, name in currency_options|default([('CNY', '人民币'), ('USD', '美元')]) %}
+                                        <option value="{{ code }}" {{ 'selected' if code == default_currency }}>{{ name }}</option>
+                                        {% endfor %}
                                     </select>
                                 </div>
                                 <span class="text-sm text-slate-600 dark:text-slate-400">
