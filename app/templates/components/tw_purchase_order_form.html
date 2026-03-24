@@ -600,20 +600,45 @@ function importSelectedDemands() {
     }
 
     // 导入选中的需求（读取用户调整后的数量）
+    const instance = window.EditableTable.instances && window.EditableTable.instances['poProductTable'];
     checks.forEach(chk => {
         const idx = parseInt(chk.dataset.idx);
         const d = demandPoolData[idx];
         if (d) {
             const qtyInput = document.querySelector(`.demand-qty[data-idx="${idx}"]`);
-            const qty = qtyInput ? Math.min(parseInt(qtyInput.value) || d.remaining_to_procure, d.remaining_to_procure) : d.remaining_to_procure;
-            window.EditableTable.addRow('poProductTable', null, {
-                product_id: d.product_id,
-                product_name: d.product_name,
-                product_model: d.product_model,
-                quantity: qty,
-                unit: d.unit || '台',
-                sales_order_detail_id: d.sales_order_detail_id
-            });
+            const maxQty = d.remaining_to_procure - (importedDemandQty[d.sales_order_detail_id] || 0);
+            const qty = qtyInput ? Math.min(parseInt(qtyInput.value) || maxQty, maxQty) : maxQty;
+
+            // 检查表格中是否已有同一个 sales_order_detail_id 的行
+            let existingRow = null;
+            if (instance && instance.rows) {
+                existingRow = instance.rows.find(r => r.data && r.data.sales_order_detail_id == d.sales_order_detail_id);
+            }
+
+            if (existingRow) {
+                // 累加数量到已有行
+                const newQty = (parseInt(existingRow.data.quantity) || 0) + qty;
+                existingRow.data.quantity = newQty;
+                const row = document.getElementById(existingRow.rowId);
+                if (row) {
+                    const qtyEl = row.querySelector('input[data-col-key="quantity"]');
+                    if (qtyEl) qtyEl.value = newQty;
+                }
+                // 触发金额重算
+                if (window.EditableTable.recalculateRow) {
+                    window.EditableTable.recalculateRow('poProductTable', existingRow.rowId);
+                }
+            } else {
+                // 新增行
+                window.EditableTable.addRow('poProductTable', null, {
+                    product_id: d.product_id,
+                    product_name: d.product_name,
+                    product_model: d.product_model,
+                    quantity: qty,
+                    unit: d.unit || '台',
+                    sales_order_detail_id: d.sales_order_detail_id
+                });
+            }
         }
     });
 
