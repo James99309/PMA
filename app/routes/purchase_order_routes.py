@@ -96,6 +96,7 @@ def list_view():
         Company.company_type == 'supplier'
     ).order_by(Company.company_name).all()
 
+    from app.utils.dictionary_helpers import get_currency_type_options
     return render_template(
         'inventory/tw_purchase_order_list.html',
         orders=orders,
@@ -106,7 +107,8 @@ def list_view():
         current_supplier_id=supplier_id,
         current_test_status=test_status,
         current_overdue=(overdue == '1'),
-        search=search
+        search=search,
+        currency_options=get_currency_type_options()
     )
 
 
@@ -127,12 +129,14 @@ def detail_view(order_id):
     # 判断是否为供应链用户（可以调整交期）
     is_supply_chain = is_supply_chain_user(current_user)
 
+    from app.utils.dictionary_helpers import get_currency_type_options
     return render_template(
         'inventory/tw_purchase_order_detail.html',
         order=order,
         suppliers=suppliers,
         is_supply_chain=is_supply_chain,
-        today=date.today()
+        today=date.today(),
+        currency_options=get_currency_type_options()
     )
 
 

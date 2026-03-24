@@ -196,7 +196,7 @@ function clearSOCustomer() {
     <!-- 右侧：货币选择和总计 -->
     <div class="flex items-baseline gap-3">
         <select id="soCurrency" name="currency" data-field-code="currency" class="form-select rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm w-auto">
-            {% for code, name in currency_options|default([('CNY', '人民币'), ('USD', '美元')]) %}
+            {% for code, name in currency_options %}
             <option value="{{ code }}" {% if code == (sales_order.currency if sales_order else default_currency|default('CNY')) %}selected{% endif %}>
                 {{ name }}
             </option>

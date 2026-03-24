@@ -69,6 +69,7 @@ def list_view():
         Company.company_type.in_(['customer', 'dealer', 'distributor'])
     ).order_by(Company.company_name).all()
 
+    from app.utils.dictionary_helpers import get_currency_type_options
     return render_template(
         'sales_order/tw_list.html',
         orders=orders,
@@ -77,7 +78,8 @@ def list_view():
         customers=customers,
         current_status=status,
         current_customer_id=customer_id,
-        search=search
+        search=search,
+        currency_options=get_currency_type_options()
     )
 
 
