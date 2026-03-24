@@ -556,13 +556,13 @@ function importSelectedDemands() {
     const checks = document.querySelectorAll('.demand-check:checked');
     if (checks.length === 0) return;
 
-    // 先删除所有空行（没有产品名的行）
+    // 先删除空行（产品选择器还是 placeholder 状态的行）
     const tbody = document.querySelector('#poProductTable tbody');
     if (tbody) {
         Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
-            const nameBtn = tr.querySelector('[data-field="product_name"] button, [data-field="product_name"]');
-            const nameText = nameBtn ? nameBtn.textContent.trim() : '';
-            if (!nameText || nameText === '{{ _("点击选择产品...") }}') {
+            const trigger = tr.querySelector('.product-selector-trigger');
+            // 只删除没有选过产品的行（没有 has-value class）
+            if (trigger && !trigger.classList.contains('has-value')) {
                 tr.remove();
             }
         });
