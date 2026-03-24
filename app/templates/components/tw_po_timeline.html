@@ -247,7 +247,8 @@
             {% endif %}
             {% if action_btn %}
             <button onclick="{{ action_btn.onclick }}"
-                class="mt-2 text-xs px-2 py-1 text-primary hover:bg-primary/10 rounded transition-colors">
+                class="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-primary hover:text-primary/80 border border-primary/30 hover:border-primary/50 rounded-lg transition-colors">
+                {% if action_btn.icon %}<span class="material-symbols-outlined text-sm">{{ action_btn.icon }}</span>{% endif %}
                 {{ action_btn.label }}
             </button>
             {% endif %}
@@ -312,9 +313,7 @@
             {% elif status == 'overdue' %}text-red-600 dark:text-red-400 font-semibold
             {% else %}text-slate-400 dark:text-slate-500 {% if can_click %}group-hover:text-primary{% endif %}{% endif %}">
             {{ title }}
-            {% if status == 'completed' %}
-            <span class="text-green-500 ml-1">✓</span>
-            {% elif status == 'current' %}
+            {% if status == 'current' %}
             <span class="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded ml-2">{{ _('进行中') }}</span>
             {% elif status == 'overdue' %}
             <span class="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded ml-2">{{ _('超期') }}</span>
