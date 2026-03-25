@@ -573,7 +573,6 @@
     // ========== 发货模态框逻辑 ==========
     let shipDispatchableDetails = [];  // 可发货明细缓存
     let shipSelectedDestType = 'sales_order';
-    let shipCourierFile = null;  // 快递单文件
 
     function closeShipmentModal() {
         document.getElementById('shipmentFromPoModal').classList.add('hidden');
@@ -810,42 +809,31 @@
         submitBtn.innerHTML = `<span class="material-symbols-outlined animate-spin text-base">progress_activity</span> {{ _('创建中...') }}`;
 
         try {
-            // 使用 FormData 支持文件上传
-            const formData = new FormData();
-            formData.append('purchase_order_id', orderId);
-            formData.append('destination_type', destType);
-            if (destType === 'sales_order' && salesOrderId) {
-                formData.append('sales_order_id', salesOrderId);
-            }
-            formData.append('carrier', document.getElementById('shipCarrier').value.trim());
-            formData.append('tracking_number', document.getElementById('shipTrackingNumber').value.trim());
-            formData.append('ship_date', document.getElementById('shipDate').value);
-            formData.append('expected_arrival', document.getElementById('shipExpectedArrival').value);
-            formData.append('notes', document.getElementById('shipNotes').value.trim());
-            formData.append('details', JSON.stringify(details));
-
-            // 附加快递单文件
-            if (shipCourierFile) {
-                formData.append('courier_document', shipCourierFile);
-            }
-
             const response = await fetch('/shipment/api/create-from-po', {
                 method: 'POST',
-                headers: { 'X-CSRFToken': csrfToken },
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({
+                    purchase_order_id: orderId,
+                    destination_type: destType,
+                    sales_order_id: destType === 'sales_order' ? salesOrderId : null,
+                    carrier: document.getElementById('shipCarrier').value.trim(),
+                    tracking_number: document.getElementById('shipTrackingNumber').value.trim(),
+                    ship_date: document.getElementById('shipDate').value,
+                    expected_arrival: document.getElementById('shipExpectedArrival').value,
+                    notes: document.getElementById('shipNotes').value.trim(),
+                    details: details
+                })
             });
 
             const result = await response.json();
             if (result.success) {
                 showToast(result.message, 'success');
                 closeShipmentModal();
-                // 延迟后跳转到发货单详情或刷新当前页面
-                setTimeout(() => {
-                    if (result.redirect_url) {
-                        window.open(result.redirect_url, '_blank');
-                    }
-                    location.reload();
-                }, 800);
+                // 刷新发货记录
+                loadShipmentRecords();
             } else {
                 showToast(result.message || '{{ _("创建失败") }}', 'error');
             }
@@ -856,34 +844,6 @@
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalHtml;
         }
-    }
-
-    // ========== 快递单上传 ==========
-    function handleCourierFile(input) {
-        const file = input.files[0];
-        if (!file) return;
-        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
-        if (!allowedTypes.includes(file.type)) {
-            showToast('{{ _("请上传 PDF、JPG 或 PNG 格式的文件") }}', 'warning');
-            input.value = '';
-            return;
-        }
-        if (file.size > 10 * 1024 * 1024) {
-            showToast('{{ _("文件大小不能超过 10MB") }}', 'warning');
-            input.value = '';
-            return;
-        }
-        shipCourierFile = file;
-        document.getElementById('courierFileArea').classList.add('hidden');
-        document.getElementById('courierFilePreview').classList.remove('hidden');
-        document.getElementById('courierFileName').textContent = file.name;
-    }
-
-    function removeCourierFile() {
-        shipCourierFile = null;
-        document.getElementById('courierFileInput').value = '';
-        document.getElementById('courierFileArea').classList.remove('hidden');
-        document.getElementById('courierFilePreview').classList.add('hidden');
     }
 
     // ========== 发货单操作 ==========
@@ -916,13 +876,8 @@
     }
 
     function openReceiveShipmentModal(shipmentId) {
-        openUploadModal('receiveShipmentModal', {
-            submitUrl: `/shipment/api/${shipmentId}/receive-with-file`,
-            extraData: { received_by: '{{ current_user.real_name or current_user.username }}' },
-            onSuccess: function() {
-                loadShipmentRecords();
-            }
-        });
+        // 打开发货单详情模态框（含签收工作流）
+        openShipmentDetailModal(shipmentId);
     }
 
     // ========== 发货单详情模态框 ==========
@@ -963,33 +918,31 @@
         }
     }
 
+    // ========== 发货单详情模态框 - 完整工作流 ==========
+    let _sdmCurrentShipment = null;  // 当前查看的发货单数据
+    let _sdmCourierFile = null;      // 待上传的快递单文件
+    let _sdmReceiptFile = null;      // 待上传的签收回执文件
+
     function renderShipmentDetail(s) {
+        _sdmCurrentShipment = s;
+        _sdmCourierFile = null;
+        _sdmReceiptFile = null;
+
         const content = document.getElementById('shipmentDetailContent');
         const loading = document.getElementById('shipmentDetailLoading');
         loading.classList.add('hidden');
         content.classList.remove('hidden');
 
-        // 基本信息
+        // 头部：发货单号 + 状态
         document.getElementById('sdm_number').textContent = s.shipment_number;
         document.getElementById('sdm_status').innerHTML = `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getShipmentStatusClass(s.status)}">${s.status_label}</span>`;
+
+        // 基本信息网格
         document.getElementById('sdm_target').textContent = s.target;
         document.getElementById('sdm_carrier').textContent = s.carrier || '-';
         document.getElementById('sdm_tracking').textContent = s.tracking_number || '-';
         document.getElementById('sdm_ship_date').textContent = s.ship_date || '-';
         document.getElementById('sdm_expected').textContent = s.expected_arrival || '-';
-
-        // 快递单文档
-        const docsEl = document.getElementById('sdm_documents');
-        if (s.documents && s.documents.length > 0) {
-            docsEl.innerHTML = s.documents.map(doc => `
-                <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded border border-primary/20">
-                    <span class="material-symbols-outlined text-sm">description</span>
-                    ${doc.name || '{{ _("快递单") }}'}
-                </a>
-            `).join(' ');
-        } else {
-            docsEl.innerHTML = '<span class="text-xs text-slate-400">-</span>';
-        }
 
         // 明细表
         const detailBody = document.getElementById('sdm_detailBody');
@@ -1009,32 +962,98 @@
             `;
         }).join('');
 
-        // 操作按钮区域
+        // 重置所有动态区域
+        document.getElementById('sdm_courier_section').classList.add('hidden');
+        document.getElementById('sdm_receipt_section').classList.add('hidden');
+        document.getElementById('sdm_upload_courier').classList.add('hidden');
+        document.getElementById('sdm_upload_receipt').classList.add('hidden');
+        // 重置上传预览
+        document.getElementById('sdm_courier_drop_area').classList.remove('hidden');
+        document.getElementById('sdm_courier_file_preview').classList.add('hidden');
+        document.getElementById('sdm_receipt_drop_area').classList.remove('hidden');
+        document.getElementById('sdm_receipt_file_preview').classList.add('hidden');
+
         const actionsEl = document.getElementById('sdm_actions');
-        if (s.status === 'shipped' || s.status === 'in_transit' || s.status === 'delivered') {
+        const docsEl = document.getElementById('sdm_documents');
+
+        if (s.status === 'pending') {
+            // === PENDING: 显示上传快递单区域 + 确认发货按钮 ===
+            document.getElementById('sdm_upload_courier').classList.remove('hidden');
+            // 如果已有快递单文档（创建时就上传了），也显示
+            if (s.documents && s.documents.length > 0) {
+                document.getElementById('sdm_courier_section').classList.remove('hidden');
+                docsEl.innerHTML = s.documents.map(doc => `
+                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded border border-primary/20">
+                        <span class="material-symbols-outlined text-sm">description</span>
+                        ${doc.name || '{{ _("快递单") }}'}
+                    </a>
+                `).join(' ');
+            }
             actionsEl.innerHTML = `
-                <button onclick="confirmReceiveShipment(${s.id})"
-                    class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
+                <button id="sdm_confirm_ship_btn" onclick="sdmConfirmShip()"
+                    class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span class="material-symbols-outlined text-base">local_shipping</span>
+                    {{ _('确认发货') }}
+                </button>
+            `;
+
+        } else if (s.status === 'shipped' || s.status === 'in_transit' || s.status === 'delivered') {
+            // === SHIPPED: 显示快递单 + 上传签收单区域 + 确认签收按钮 ===
+            // 快递单文档
+            if (s.documents && s.documents.length > 0) {
+                document.getElementById('sdm_courier_section').classList.remove('hidden');
+                docsEl.innerHTML = s.documents.map(doc => `
+                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded border border-primary/20">
+                        <span class="material-symbols-outlined text-sm">description</span>
+                        ${doc.name || '{{ _("快递单") }}'}
+                    </a>
+                `).join(' ');
+            }
+            // 上传签收单
+            document.getElementById('sdm_upload_receipt').classList.remove('hidden');
+            actionsEl.innerHTML = `
+                <button id="sdm_confirm_receive_btn" onclick="sdmConfirmReceive()"
+                    class="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                     <span class="material-symbols-outlined text-base">check_circle</span>
                     {{ _('确认签收') }}
                 </button>
             `;
+
         } else if (s.status === 'received') {
+            // === RECEIVED: 显示快递单 + 签收单 + 签收信息 ===
+            // 快递单文档
+            if (s.documents && s.documents.length > 0) {
+                document.getElementById('sdm_courier_section').classList.remove('hidden');
+                docsEl.innerHTML = s.documents.map(doc => `
+                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded border border-primary/20">
+                        <span class="material-symbols-outlined text-sm">description</span>
+                        ${doc.name || '{{ _("快递单") }}'}
+                    </a>
+                `).join(' ');
+            }
+            // 签收信息
+            const receiptSection = document.getElementById('sdm_receipt_section');
+            receiptSection.classList.remove('hidden');
             const proofHtml = s.delivery_proof && s.delivery_proof.length > 0
-                ? s.delivery_proof.map(p => `
-                    <a href="${p.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded border border-primary/20">
+                ? `<div class="mt-2 flex flex-wrap gap-2">${s.delivery_proof.map(p => `
+                    <a href="${p.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/30 rounded border border-green-200 dark:border-green-700">
                         <span class="material-symbols-outlined text-sm">description</span>
                         ${p.name || '{{ _("签收单") }}'}
                     </a>
-                `).join(' ')
-                : '<span class="text-xs text-slate-400">{{ _("无签收单") }}</span>';
-            actionsEl.innerHTML = `
-                <div class="flex items-center gap-2">
-                    <span class="text-sm text-slate-500">{{ _('签收人') }}: ${s.received_by || '-'}</span>
-                    <span class="text-sm text-slate-500">{{ _('签收日期') }}: ${s.received_date || '-'}</span>
+                `).join(' ')}</div>`
+                : '';
+            document.getElementById('sdm_receipt_info').innerHTML = `
+                <div class="flex items-center gap-3 text-sm">
+                    <span class="inline-flex items-center gap-1 text-green-700 dark:text-green-400 font-medium">
+                        <span class="material-symbols-outlined text-lg">verified</span>
+                        {{ _('已签收') }}
+                    </span>
+                    <span class="text-slate-600 dark:text-slate-400">{{ _('签收人') }}: ${s.received_by || '-'}</span>
+                    <span class="text-slate-600 dark:text-slate-400">{{ _('签收日期') }}: ${s.received_date || '-'}</span>
                 </div>
-                <div class="mt-2">${proofHtml}</div>
+                ${proofHtml}
             `;
+            actionsEl.innerHTML = '';
         } else {
             actionsEl.innerHTML = '';
         }
@@ -1042,21 +1061,151 @@
 
     function closeShipmentDetailModal() {
         document.getElementById('shipmentDetailModal').classList.add('hidden');
+        _sdmCurrentShipment = null;
+        _sdmCourierFile = null;
+        _sdmReceiptFile = null;
     }
 
-    // ========== 签收确认（复用 tw_upload_confirm_modal） ==========
-    function confirmReceiveShipment(shipmentId) {
-        closeShipmentDetailModal();
-        openUploadModal('receiveShipmentModal', {
-            submitUrl: `/shipment/api/${shipmentId}/receive-with-file`,
-            extraData: {
-                received_by: '{{ current_user.real_name or current_user.username }}'
-            },
-            onSuccess: function(result) {
-                showToast(result.message || '{{ _("签收成功") }}', 'success');
-                setTimeout(() => location.reload(), 800);
+    // ========== 快递单文件处理 ==========
+    function _validateUploadFile(file) {
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+        if (!allowedTypes.includes(file.type)) {
+            showToast('{{ _("请上传 PDF、JPG 或 PNG 格式的文件") }}', 'warning');
+            return false;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+            showToast('{{ _("文件大小不能超过 10MB") }}', 'warning');
+            return false;
+        }
+        return true;
+    }
+
+    function handleSdmCourierFile(input) {
+        const file = input.files[0];
+        if (!file || !_validateUploadFile(file)) { input.value = ''; return; }
+        _sdmCourierFile = file;
+        document.getElementById('sdm_courier_drop_area').classList.add('hidden');
+        document.getElementById('sdm_courier_file_preview').classList.remove('hidden');
+        document.getElementById('sdm_courier_file_name').textContent = file.name;
+    }
+
+    function handleSdmCourierDrop(event) {
+        const file = event.dataTransfer.files[0];
+        if (!file || !_validateUploadFile(file)) return;
+        _sdmCourierFile = file;
+        document.getElementById('sdm_courier_drop_area').classList.add('hidden');
+        document.getElementById('sdm_courier_file_preview').classList.remove('hidden');
+        document.getElementById('sdm_courier_file_name').textContent = file.name;
+    }
+
+    function removeSdmCourierFile() {
+        _sdmCourierFile = null;
+        document.getElementById('sdm_courier_file_input').value = '';
+        document.getElementById('sdm_courier_drop_area').classList.remove('hidden');
+        document.getElementById('sdm_courier_file_preview').classList.add('hidden');
+    }
+
+    function handleSdmReceiptFile(input) {
+        const file = input.files[0];
+        if (!file || !_validateUploadFile(file)) { input.value = ''; return; }
+        _sdmReceiptFile = file;
+        document.getElementById('sdm_receipt_drop_area').classList.add('hidden');
+        document.getElementById('sdm_receipt_file_preview').classList.remove('hidden');
+        document.getElementById('sdm_receipt_file_name').textContent = file.name;
+    }
+
+    function handleSdmReceiptDrop(event) {
+        const file = event.dataTransfer.files[0];
+        if (!file || !_validateUploadFile(file)) return;
+        _sdmReceiptFile = file;
+        document.getElementById('sdm_receipt_drop_area').classList.add('hidden');
+        document.getElementById('sdm_receipt_file_preview').classList.remove('hidden');
+        document.getElementById('sdm_receipt_file_name').textContent = file.name;
+    }
+
+    function removeSdmReceiptFile() {
+        _sdmReceiptFile = null;
+        document.getElementById('sdm_receipt_file_input').value = '';
+        document.getElementById('sdm_receipt_drop_area').classList.remove('hidden');
+        document.getElementById('sdm_receipt_file_preview').classList.add('hidden');
+    }
+
+    // ========== 确认发货（上传快递单 + 状态变更） ==========
+    async function sdmConfirmShip() {
+        if (!_sdmCurrentShipment) return;
+
+        const btn = document.getElementById('sdm_confirm_ship_btn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="material-symbols-outlined animate-spin text-base">progress_activity</span> {{ _('处理中...') }}`;
+
+        try {
+            const formData = new FormData();
+            formData.append('ship_date', new Date().toISOString().split('T')[0]);
+            if (_sdmCourierFile) {
+                formData.append('file', _sdmCourierFile);
             }
-        });
+
+            const response = await fetch(`/shipment/api/${_sdmCurrentShipment.id}/ship`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast(result.message || '{{ _("发货成功") }}', 'success');
+                closeShipmentDetailModal();
+                loadShipmentRecords();
+            } else {
+                showToast(result.message || '{{ _("操作失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('确认发货失败:', error);
+            showToast('{{ _("操作失败") }}', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
+    // ========== 确认签收（上传签收单 + 状态变更） ==========
+    async function sdmConfirmReceive() {
+        if (!_sdmCurrentShipment) return;
+
+        const btn = document.getElementById('sdm_confirm_receive_btn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="material-symbols-outlined animate-spin text-base">progress_activity</span> {{ _('处理中...') }}`;
+
+        try {
+            const formData = new FormData();
+            formData.append('received_by', '{{ current_user.real_name or current_user.username }}');
+            if (_sdmReceiptFile) {
+                formData.append('file', _sdmReceiptFile);
+            }
+
+            const response = await fetch(`/shipment/api/${_sdmCurrentShipment.id}/receive-with-file`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrfToken },
+                body: formData
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                showToast(result.message || '{{ _("签收成功") }}', 'success');
+                closeShipmentDetailModal();
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(result.message || '{{ _("操作失败") }}', 'error');
+            }
+        } catch (error) {
+            console.error('确认签收失败:', error);
+            showToast('{{ _("操作失败") }}', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
     }
     </script>
 
@@ -1169,28 +1318,6 @@
                         </div>
                     </div>
 
-                    <!-- 快递单上传 -->
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('上传快递单') }}</label>
-                        <div id="courierFileArea"
-                             class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
-                             onclick="document.getElementById('courierFileInput').click()">
-                            <input type="file" id="courierFileInput" accept=".pdf,.jpg,.jpeg,.png" class="hidden"
-                                   onchange="handleCourierFile(this)">
-                            <span class="material-symbols-outlined text-3xl text-slate-400 dark:text-slate-500">upload_file</span>
-                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ _('点击或拖拽上传快递单（PDF/JPG/PNG）') }}</p>
-                        </div>
-                        <div id="courierFilePreview" class="hidden mt-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-between">
-                            <div class="flex items-center gap-2">
-                                <span class="material-symbols-outlined text-primary text-sm">description</span>
-                                <span id="courierFileName" class="text-xs text-slate-700 dark:text-slate-300 truncate max-w-[280px]"></span>
-                            </div>
-                            <button type="button" onclick="removeCourierFile()" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
-                                <span class="material-symbols-outlined text-slate-500 text-sm">close</span>
-                            </button>
-                        </div>
-                    </div>
-
                     <!-- 备注 -->
                     <div>
                         <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('备注') }}</label>
@@ -1215,17 +1342,18 @@
         </div>
     </div>
 
-    <!-- ========== 发货单详情模态框 ========== -->
+    <!-- ========== 发货单详情模态框（完整工作流） ========== -->
     <div id="shipmentDetailModal" class="fixed inset-0 z-50 hidden">
         <div class="fixed inset-0 bg-black/50" onclick="closeShipmentDetailModal()"></div>
         <div class="fixed inset-0 flex items-center justify-center p-4">
             <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
                 <!-- 头部 -->
-                <div class="flex items-center justify-between p-4 shrink-0">
-                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">
-                        <span class="material-symbols-outlined text-primary mr-1 align-middle">local_shipping</span>
-                        {{ _('发货单详情') }}
-                    </h3>
+                <div class="flex items-center justify-between p-4 shrink-0 border-b border-slate-200 dark:border-slate-700">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">local_shipping</span>
+                        <span id="sdm_number" class="text-lg font-semibold text-slate-900 dark:text-white"></span>
+                        <span id="sdm_status" class="ml-1"></span>
+                    </div>
                     <button onclick="closeShipmentDetailModal()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
                         <span class="material-symbols-outlined">close</span>
                     </button>
@@ -1238,16 +1366,8 @@
 
                 <!-- 内容区 - 可滚动 -->
                 <div id="shipmentDetailContent" class="hidden overflow-y-auto p-4 space-y-4 flex-1">
-                    <!-- 基本信息 -->
+                    <!-- 基本信息网格 -->
                     <div class="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                        <div>
-                            <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('发货单号') }}</span>
-                            <div id="sdm_number" class="text-sm font-medium text-slate-900 dark:text-white mt-0.5"></div>
-                        </div>
-                        <div>
-                            <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('状态') }}</span>
-                            <div id="sdm_status" class="mt-0.5"></div>
-                        </div>
                         <div>
                             <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('目标') }}</span>
                             <div id="sdm_target" class="text-sm text-slate-700 dark:text-slate-300 mt-0.5"></div>
@@ -1267,10 +1387,6 @@
                         <div>
                             <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('预计到达') }}</span>
                             <div id="sdm_expected" class="text-sm text-slate-700 dark:text-slate-300 mt-0.5"></div>
-                        </div>
-                        <div>
-                            <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('快递单') }}</span>
-                            <div id="sdm_documents" class="mt-0.5"></div>
                         </div>
                     </div>
 
@@ -1292,6 +1408,69 @@
                         </div>
                     </div>
 
+                    <!-- 快递单文档区域（shipped/received 时显示） -->
+                    <div id="sdm_courier_section" class="hidden">
+                        <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('快递单') }}</h4>
+                        <div id="sdm_documents" class="flex flex-wrap gap-2"></div>
+                    </div>
+
+                    <!-- 签收信息区域（received 时显示） -->
+                    <div id="sdm_receipt_section" class="hidden">
+                        <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('签收信息') }}</h4>
+                        <div id="sdm_receipt_info" class="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                        </div>
+                    </div>
+
+                    <!-- pending: 上传快递单区域 -->
+                    <div id="sdm_upload_courier" class="hidden">
+                        <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('上传快递单') }}</h4>
+                        <div id="sdm_courier_drop_area"
+                             class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-4 text-center hover:border-primary transition-colors cursor-pointer"
+                             onclick="document.getElementById('sdm_courier_file_input').click()"
+                             ondragover="event.preventDefault(); this.classList.add('border-primary', 'bg-primary/5')"
+                             ondragleave="this.classList.remove('border-primary', 'bg-primary/5')"
+                             ondrop="event.preventDefault(); this.classList.remove('border-primary', 'bg-primary/5'); handleSdmCourierDrop(event)">
+                            <input type="file" id="sdm_courier_file_input" accept=".pdf,.jpg,.jpeg,.png" class="hidden"
+                                   onchange="handleSdmCourierFile(this)">
+                            <span class="material-symbols-outlined text-3xl text-slate-400 dark:text-slate-500">upload_file</span>
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ _('点击或拖拽上传快递单（PDF/JPG/PNG）') }}</p>
+                        </div>
+                        <div id="sdm_courier_file_preview" class="hidden mt-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-sm">description</span>
+                                <span id="sdm_courier_file_name" class="text-xs text-slate-700 dark:text-slate-300 truncate max-w-[280px]"></span>
+                            </div>
+                            <button type="button" onclick="removeSdmCourierFile()" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
+                                <span class="material-symbols-outlined text-slate-500 text-sm">close</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- shipped: 上传签收单区域 -->
+                    <div id="sdm_upload_receipt" class="hidden">
+                        <h4 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('上传签收单') }}</h4>
+                        <div id="sdm_receipt_drop_area"
+                             class="relative border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-4 text-center hover:border-green-500 transition-colors cursor-pointer"
+                             onclick="document.getElementById('sdm_receipt_file_input').click()"
+                             ondragover="event.preventDefault(); this.classList.add('border-green-500', 'bg-green-50')"
+                             ondragleave="this.classList.remove('border-green-500', 'bg-green-50')"
+                             ondrop="event.preventDefault(); this.classList.remove('border-green-500', 'bg-green-50'); handleSdmReceiptDrop(event)">
+                            <input type="file" id="sdm_receipt_file_input" accept=".pdf,.jpg,.jpeg,.png" class="hidden"
+                                   onchange="handleSdmReceiptFile(this)">
+                            <span class="material-symbols-outlined text-3xl text-slate-400 dark:text-slate-500">receipt_long</span>
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ _('点击或拖拽上传签收回执单（PDF/JPG/PNG）') }}</p>
+                        </div>
+                        <div id="sdm_receipt_file_preview" class="hidden mt-2 p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-green-600 text-sm">description</span>
+                                <span id="sdm_receipt_file_name" class="text-xs text-slate-700 dark:text-slate-300 truncate max-w-[280px]"></span>
+                            </div>
+                            <button type="button" onclick="removeSdmReceiptFile()" class="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded">
+                                <span class="material-symbols-outlined text-slate-500 text-sm">close</span>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- 操作按钮区域 -->
                     <div id="sdm_actions" class="pt-2">
                     </div>
@@ -1299,18 +1478,6 @@
             </div>
         </div>
     </div>
-
-    <!-- 签收确认上传模态框（复用通用上传组件） -->
-    {{ tw_upload_confirm_modal(
-        modal_id='receiveShipmentModal',
-        title=_('确认签收'),
-        file_label=_('签收回执单'),
-        file_hint=_('点击或拖拽上传签收回执单'),
-        submit_text=_('确认签收'),
-        summary_items=[
-            {'label': _('采购订单'), 'value': order.order_number}
-        ]
-    ) }}
 
     <!-- 审批确认模态框 -->
     {{ render_tw_approval_modals() }}

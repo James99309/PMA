@@ -78,15 +78,34 @@ def list_view():
 @permission_required('shipment', 'view')
 def detail_view(shipment_id):
     """发货记录详情页"""
+    import json as json_mod
+
     shipment = Shipment.query.get_or_404(shipment_id)
 
     # 获取物流时间线
     timeline = ShipmentService.get_tracking_timeline(shipment_id)
 
+    # 解析文档 JSON 供模板使用
+    courier_docs = []
+    if shipment.documents:
+        try:
+            courier_docs = json_mod.loads(shipment.documents)
+        except (json_mod.JSONDecodeError, TypeError):
+            pass
+
+    receipt_docs = []
+    if shipment.delivery_proof:
+        try:
+            receipt_docs = json_mod.loads(shipment.delivery_proof)
+        except (json_mod.JSONDecodeError, TypeError):
+            pass
+
     return render_template(
         'shipment/tw_detail.html',
         shipment=shipment,
-        timeline=timeline
+        timeline=timeline,
+        courier_docs=courier_docs,
+        receipt_docs=receipt_docs
     )
 
 
@@ -242,20 +261,71 @@ def api_delete_shipment(shipment_id):
 @login_required
 @permission_required('shipment', 'edit')
 def api_confirm_ship(shipment_id):
-    """确认发货"""
-    data = request.get_json() or {}
-    ship_date = None
+    """确认发货（支持快递单文件上传）
 
-    if data.get('ship_date'):
-        try:
-            ship_date = datetime.strptime(data['ship_date'], '%Y-%m-%d')
-        except ValueError:
-            pass
+    接受 JSON 或 FormData：
+    - JSON: { ship_date: '2026-01-01' }
+    - FormData: file (快递单文件) + ship_date
+    上传快递单后自动变更状态为 shipped
+    """
+    try:
+        import json as json_mod, uuid
 
-    success, message = ShipmentService.confirm_shipment(
-        shipment_id, current_user.id, ship_date
-    )
-    return jsonify({'success': success, 'message': message})
+        shipment = Shipment.query.get(shipment_id)
+        if not shipment:
+            return jsonify({'success': False, 'message': '发货单不存在'})
+
+        if shipment.status != 'pending':
+            return jsonify({'success': False, 'message': f'当前状态 {shipment.status_label} 不允许确认发货'})
+
+        # 兼容 JSON 和 FormData
+        if request.content_type and 'application/json' in request.content_type:
+            data = request.get_json() or {}
+            courier_file = None
+        else:
+            data = request.form.to_dict()
+            courier_file = request.files.get('file')
+
+        # 处理快递单文件上传
+        if courier_file and courier_file.filename:
+            from app.helpers.purchase_order_helpers import upload_file_to_storage
+            po = shipment.purchase_order
+            if po:
+                file_ext = courier_file.filename.rsplit('.', 1)[-1].lower() if '.' in courier_file.filename else 'pdf'
+                content_types = {'pdf': 'application/pdf', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png'}
+                content_type = content_types.get(file_ext, 'application/octet-stream')
+                unique_id = uuid.uuid4().hex[:8]
+                filename = f"courier_{datetime.now().strftime('%Y%m%d')}_{unique_id}.{file_ext}"
+                file_content = courier_file.read()
+                file_url = upload_file_to_storage(po, file_content, filename, content_type, subfolder='courier')
+                if file_url:
+                    # 合并到现有 documents
+                    existing_docs = []
+                    if shipment.documents:
+                        try:
+                            existing_docs = json_mod.loads(shipment.documents)
+                        except (json_mod.JSONDecodeError, TypeError):
+                            pass
+                    existing_docs.append({'name': courier_file.filename, 'url': file_url})
+                    shipment.documents = json_mod.dumps(existing_docs)
+
+        # 解析发货日期
+        ship_date = None
+        if data.get('ship_date'):
+            try:
+                ship_date = datetime.strptime(data['ship_date'], '%Y-%m-%d')
+            except ValueError:
+                pass
+
+        success, message = ShipmentService.confirm_shipment(
+            shipment_id, current_user.id, ship_date
+        )
+        return jsonify({'success': success, 'message': message})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"确认发货失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'})
 
 
 @shipment_bp.route('/api/<int:shipment_id>/receive', methods=['POST'])

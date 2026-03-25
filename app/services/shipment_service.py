@@ -191,9 +191,9 @@ class ShipmentService:
             # 更新客户订单明细的发货数量
             ShipmentService._update_order_shipped_quantity(shipment)
 
-            # 更新客户订单状态
+            # 更新客户订单状态（仅当关联了客户订单时）
             sales_order = shipment.sales_order
-            if sales_order.status in ['confirmed', 'preparing']:
+            if sales_order and sales_order.status in ['confirmed', 'preparing']:
                 # 检查是否全部发货
                 if sales_order.shipped_quantity >= sales_order.total_quantity:
                     sales_order.status = 'shipped'
