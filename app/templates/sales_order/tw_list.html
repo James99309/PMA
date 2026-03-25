@@ -13,7 +13,7 @@
     {'key': 'brand', 'label': _('品牌'), 'type': 'text', 'readonly': true, 'width': '80px'},
     {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '50px'},
     {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'width': '110px', 'align': 'right'},
-    {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '70px', 'align': 'right', 'default': '100'},
+    {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '80px', 'align': 'right', 'default': '100'},
     {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '120px', 'align': 'right'},
     {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '70px', 'align': 'right', 'default': '1'},
     {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '120px', 'align': 'right'}
@@ -163,19 +163,11 @@
                                     {% set recv_ratio = (order.received_quantity / total) if total > 0 else 0 %}
                                     {% set overall = ((proc_ratio * 10 + ship_ratio * 60 + recv_ratio * 30)|round(0))|int %}
                                     {% set overall = [overall, 100]|min %}
-                                    <div class="flex items-center justify-center gap-2">
-                                        <div class="w-24 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden flex">
-                                            {% if recv_ratio > 0 %}
-                                            <div class="h-full bg-green-500" style="width: {{ (recv_ratio * 30)|round(0)|int }}%"></div>
-                                            {% endif %}
-                                            {% if ship_ratio > 0 %}
-                                            <div class="h-full bg-cyan-500" style="width: {{ (ship_ratio * 60)|round(0)|int }}%"></div>
-                                            {% endif %}
-                                            {% if proc_ratio > 0 %}
-                                            <div class="h-full bg-amber-500" style="width: {{ (proc_ratio * 10)|round(0)|int }}%"></div>
-                                            {% endif %}
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-20 h-2 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden">
+                                            <div class="h-full bg-primary rounded-full" style="width: {{ overall }}%"></div>
                                         </div>
-                                        <span class="text-xs text-slate-500 dark:text-slate-400">{{ overall }}%</span>
+                                        <span class="text-xs text-slate-500 dark:text-slate-400 w-8 text-right">{{ overall }}%</span>
                                     </div>
                                 </td>
                                 <td class="p-4 text-center">
