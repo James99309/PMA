@@ -991,18 +991,24 @@
         const actionsEl = document.getElementById('sdm_actions');
         const docsEl = document.getElementById('sdm_documents');
 
+        // 通用文件渲染函数（文件名+日期）
+        function renderDocLink(doc, date, iconColor) {
+            const truncName = doc.name && doc.name.length > 30 ? doc.name.substring(0, 30) + '...' : (doc.name || '');
+            return `<div class="flex items-center justify-between py-1">
+                <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1.5 text-sm text-primary hover:underline" title="${doc.name}">
+                    <span class="material-symbols-outlined text-base ${iconColor}">description</span>
+                    <span class="truncate max-w-[220px]">${truncName}</span>
+                </a>
+                <span class="text-xs text-slate-400 shrink-0 ml-2">${date || ''}</span>
+            </div>`;
+        }
+
         if (s.status === 'pending') {
-            // === PENDING: 显示上传快递单区域 + 确认发货按钮 ===
+            // === PENDING: 上传快递单 + 确认发货 ===
             document.getElementById('sdm_upload_courier').classList.remove('hidden');
-            // 如果已有快递单文档（创建时就上传了），也显示
             if (s.documents && s.documents.length > 0) {
                 document.getElementById('sdm_courier_section').classList.remove('hidden');
-                docsEl.innerHTML = s.documents.map(doc => `
-                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors">
-                        <span class="material-symbols-outlined text-base text-primary">description</span>
-                        ${doc.name || '{{ _("快递单") }}'}
-                    </a>
-                `).join(' ');
+                docsEl.innerHTML = s.documents.map(doc => renderDocLink(doc, s.ship_date, 'text-primary')).join('');
             }
             actionsEl.innerHTML = `
                 <button id="sdm_confirm_ship_btn" onclick="sdmConfirmShip()"
@@ -1013,18 +1019,11 @@
             `;
 
         } else if (s.status === 'shipped' || s.status === 'in_transit' || s.status === 'delivered') {
-            // === SHIPPED: 显示快递单 + 上传签收单区域 + 确认签收按钮 ===
-            // 快递单文档
+            // === SHIPPED: 快递单 + 上传签收单 + 确认签收 ===
             if (s.documents && s.documents.length > 0) {
                 document.getElementById('sdm_courier_section').classList.remove('hidden');
-                docsEl.innerHTML = s.documents.map(doc => `
-                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors">
-                        <span class="material-symbols-outlined text-base text-primary">description</span>
-                        ${doc.name || '{{ _("快递单") }}'}
-                    </a>
-                `).join(' ');
+                docsEl.innerHTML = s.documents.map(doc => renderDocLink(doc, s.ship_date, 'text-primary')).join('');
             }
-            // 上传签收单
             document.getElementById('sdm_upload_receipt').classList.remove('hidden');
             actionsEl.innerHTML = `
                 <button id="sdm_confirm_receive_btn" onclick="sdmConfirmReceive()"
@@ -1035,39 +1034,17 @@
             `;
 
         } else if (s.status === 'received') {
-            // === RECEIVED: 显示快递单 + 签收单 + 签收信息 ===
-            // 快递单文档
+            // === RECEIVED: 快递单 + 签收回执（文件+日期，无签收人） ===
             if (s.documents && s.documents.length > 0) {
                 document.getElementById('sdm_courier_section').classList.remove('hidden');
-                docsEl.innerHTML = s.documents.map(doc => `
-                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors">
-                        <span class="material-symbols-outlined text-base text-primary">description</span>
-                        ${doc.name || '{{ _("快递单") }}'}
-                    </a>
-                `).join(' ');
+                docsEl.innerHTML = s.documents.map(doc => renderDocLink(doc, s.ship_date, 'text-primary')).join('');
             }
-            // 签收信息
             const receiptSection = document.getElementById('sdm_receipt_section');
             receiptSection.classList.remove('hidden');
             const proofHtml = s.delivery_proof && s.delivery_proof.length > 0
-                ? `<div class="mt-2 flex flex-wrap gap-2">${s.delivery_proof.map(p => `
-                    <a href="${p.url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors">
-                        <span class="material-symbols-outlined text-base text-green-600">description</span>
-                        ${p.name || '{{ _("签收单") }}'}
-                    </a>
-                `).join(' ')}</div>`
+                ? s.delivery_proof.map(p => renderDocLink(p, s.received_date, 'text-green-600')).join('')
                 : '';
-            document.getElementById('sdm_receipt_info').innerHTML = `
-                <div class="flex items-center gap-3 text-sm">
-                    <span class="inline-flex items-center gap-1 text-green-700 dark:text-green-400 font-medium">
-                        <span class="material-symbols-outlined text-lg">verified</span>
-                        {{ _('已签收') }}
-                    </span>
-                    <span class="text-slate-600 dark:text-slate-400">{{ _('签收人') }}: ${s.received_by || '-'}</span>
-                    <span class="text-slate-600 dark:text-slate-400">{{ _('签收日期') }}: ${s.received_date || '-'}</span>
-                </div>
-                ${proofHtml}
-            `;
+            document.getElementById('sdm_receipt_info').innerHTML = proofHtml;
             actionsEl.innerHTML = '';
         } else {
             actionsEl.innerHTML = '';

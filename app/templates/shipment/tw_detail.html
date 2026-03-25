@@ -115,62 +115,43 @@
                         ]
                     ) }}
 
-                    <!-- 快递单文档（shipped 和 received 时显示） -->
-                    {% if courier_docs and shipment.status in ['shipped', 'in_transit', 'delivered', 'received'] %}
+                    <!-- 快递单（只读显示：文件+上传日期） -->
+                    {% if courier_docs %}
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                         <h3 class="text-base font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">description</span>
                             {{ _('快递单') }}
                         </h3>
-                        <div class="flex flex-wrap gap-2">
-                            {% for doc in courier_docs %}
+                        {% for doc in courier_docs %}
+                        <div class="flex items-center justify-between py-1.5">
                             <a href="{{ doc.url }}" target="_blank"
-                               class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/10 rounded-lg border border-primary/20 transition-colors max-w-full" title="{{ doc.name }}">
-                                <span class="material-symbols-outlined text-base shrink-0">description</span>
+                               class="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline" title="{{ doc.name }}">
+                                <span class="material-symbols-outlined text-base">description</span>
                                 <span class="truncate max-w-[250px]">{{ doc.name or _('快递单') }}</span>
                             </a>
-                            {% endfor %}
+                            <span class="text-xs text-slate-400">{{ shipment.ship_date.strftime('%Y-%m-%d') if shipment.ship_date else '' }}</span>
                         </div>
+                        {% endfor %}
                     </div>
                     {% endif %}
 
-                    <!-- 签收信息及签收回执（received 时显示） -->
-                    {% if shipment.status == 'received' %}
+                    <!-- 签收回执（只读显示：文件+签收日期，无签收人） -->
+                    {% if shipment.status == 'received' and receipt_docs %}
                     <div class="bg-white dark:bg-slate-800 rounded-xl border border-green-200 dark:border-green-800 p-4">
                         <h3 class="text-base font-semibold text-green-700 dark:text-green-400 mb-3 flex items-center gap-2">
                             <span class="material-symbols-outlined">verified</span>
-                            {{ _('签收信息') }}
+                            {{ _('签收回执') }}
                         </h3>
-                        <div class="grid grid-cols-2 gap-3 mb-3">
-                            <div>
-                                <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('签收人') }}</span>
-                                <div class="text-sm text-slate-700 dark:text-slate-300 mt-0.5">{{ shipment.received_by or '-' }}</div>
-                            </div>
-                            <div>
-                                <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('签收日期') }}</span>
-                                <div class="text-sm text-slate-700 dark:text-slate-300 mt-0.5">{{ shipment.received_date.strftime('%Y-%m-%d %H:%M') if shipment.received_date else '-' }}</div>
-                            </div>
-                            {% if shipment.received_notes %}
-                            <div class="col-span-2">
-                                <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('签收备注') }}</span>
-                                <div class="text-sm text-slate-700 dark:text-slate-300 mt-0.5">{{ shipment.received_notes }}</div>
-                            </div>
-                            {% endif %}
+                        {% for doc in receipt_docs %}
+                        <div class="flex items-center justify-between py-1.5">
+                            <a href="{{ doc.url }}" target="_blank"
+                               class="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 dark:text-green-400 hover:underline" title="{{ doc.name }}">
+                                <span class="material-symbols-outlined text-base">description</span>
+                                <span class="truncate max-w-[250px]">{{ doc.name or _('签收单') }}</span>
+                            </a>
+                            <span class="text-xs text-slate-400">{{ shipment.received_date.strftime('%Y-%m-%d') if shipment.received_date else '' }}</span>
                         </div>
-                        {% if receipt_docs %}
-                        <div class="pt-3 border-t border-green-100 dark:border-green-900">
-                            <span class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2 block">{{ _('签收回执') }}</span>
-                            <div class="flex flex-wrap gap-2">
-                                {% for doc in receipt_docs %}
-                                <a href="{{ doc.url }}" target="_blank"
-                                   class="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-700 transition-colors max-w-full" title="{{ doc.name }}">
-                                    <span class="material-symbols-outlined text-base shrink-0">description</span>
-                                    <span class="truncate max-w-[250px]">{{ doc.name or _('签收单') }}</span>
-                                </a>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endif %}
+                        {% endfor %}
                     </div>
                     {% endif %}
 
