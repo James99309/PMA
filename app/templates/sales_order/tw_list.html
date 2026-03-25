@@ -7,16 +7,16 @@
 
 {# 客户订单产品明细列配置 — 与报价单一致 #}
 {% set so_product_columns = [
-    {'key': 'product_name', 'label': _('产品名称'), 'type': 'product-selector', 'required': true, 'width': '160px'},
-    {'key': 'product_model', 'label': _('产品型号'), 'type': 'text', 'readonly': true, 'width': '120px'},
-    {'key': 'product_desc', 'label': _('产品描述'), 'type': 'text', 'readonly': true, 'width': '400px'},
+    {'key': 'product_name', 'label': _('产品名称'), 'type': 'product-selector', 'required': true, 'width': '140px'},
+    {'key': 'product_model', 'label': _('产品型号'), 'type': 'text', 'readonly': true, 'width': '110px'},
+    {'key': 'product_desc', 'label': _('产品描述'), 'type': 'text', 'readonly': true, 'width': '250px'},
     {'key': 'brand', 'label': _('品牌'), 'type': 'text', 'readonly': true, 'width': '80px'},
-    {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '60px'},
-    {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'},
-    {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '80px', 'align': 'right', 'default': '100'},
-    {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '100px', 'align': 'right'},
-    {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': '1'},
-    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'}
+    {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '50px'},
+    {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'width': '110px', 'align': 'right'},
+    {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '70px', 'align': 'right', 'default': '100'},
+    {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '120px', 'align': 'right'},
+    {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '70px', 'align': 'right', 'default': '1'},
+    {'key': 'total_price', 'label': _('小计'), 'type': 'currency', 'readonly': true, 'width': '120px', 'align': 'right'}
 ] %}
 
 <!DOCTYPE html>
