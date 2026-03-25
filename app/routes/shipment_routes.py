@@ -209,6 +209,35 @@ def api_get_shipment(shipment_id):
     })
 
 
+@shipment_bp.route('/api/<int:shipment_id>/delete', methods=['DELETE'])
+@login_required
+@permission_required('shipment', 'edit')
+def api_delete_shipment(shipment_id):
+    """删除发货单（仅 pending 且无快递单时可删）"""
+    try:
+        shipment = Shipment.query.get_or_404(shipment_id)
+        if shipment.status != 'pending':
+            return jsonify({'success': False, 'message': '只能删除待发货状态的发货单'})
+        if shipment.documents:
+            return jsonify({'success': False, 'message': '已上传快递单的发货单不能删除'})
+
+        # 恢复 PO 明细的 dispatched_quantity
+        for detail in shipment.details:
+            if detail.purchase_order_detail_id:
+                po_detail = PurchaseOrderDetail.query.get(detail.purchase_order_detail_id)
+                if po_detail:
+                    po_detail.dispatched_quantity = max(0, (po_detail.dispatched_quantity or 0) - detail.quantity)
+            db.session.delete(detail)
+
+        db.session.delete(shipment)
+        db.session.commit()
+        return jsonify({'success': True, 'message': '发货单已删除'})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"删除发货单失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'删除失败: {str(e)}'})
+
+
 @shipment_bp.route('/api/<int:shipment_id>/ship', methods=['POST'])
 @login_required
 @permission_required('shipment', 'edit')

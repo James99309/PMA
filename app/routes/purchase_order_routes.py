@@ -428,6 +428,8 @@ def api_get_shipments(order_id):
                 'id': s.id,
                 'shipment_number': s.shipment_number,
                 'target': target_label,
+                'customer_name': s.sales_order.customer.company_name if s.sales_order and s.sales_order.customer else '',
+                'sales_order_number': s.sales_order.order_number if s.sales_order else '',
                 'total_quantity': s.total_quantity,
                 'status': s.status,
                 'status_label': s.status_label,
