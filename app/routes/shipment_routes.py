@@ -881,7 +881,7 @@ def api_available_sales_orders():
     search = request.args.get('search', '').strip()
 
     query = SalesOrder.query.filter(
-        SalesOrder.status.in_(['confirmed', 'preparing'])
+        SalesOrder.status.in_(['confirmed', 'preparing', 'shipped', 'delivered'])
     )
 
     if search:
