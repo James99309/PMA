@@ -283,6 +283,14 @@
     <script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
 
     <script>
+    // 监听总计金额更新
+    document.addEventListener('grandTotalUpdated', function(e) {
+        if (e.detail && e.detail.tableId === 'soProductTable') {
+            const el = document.getElementById('soTotalAmount');
+            if (el) el.textContent = e.detail.formatted || '0.00';
+        }
+    });
+
     function filterByStatus(status) {
         const form = document.getElementById('filterForm');
         form.querySelector('input[name="status"]').value = status;
