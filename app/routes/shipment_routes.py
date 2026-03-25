@@ -456,6 +456,7 @@ def _check_auto_acceptance(shipment):
         # 自动推进PO到验收入库
         po.status = 'stored'
         po.production_status = 'completed'
+        po.production_progress = 100
         po.acceptance_status = 'passed'
         po.acceptance_date = datetime.now()
         po.actual_arrival_date = datetime.now()

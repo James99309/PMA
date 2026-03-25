@@ -137,12 +137,12 @@
                                 <th class="p-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('状态') }}</th>
                                 <th class="p-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('测试') }}</th>
                                 <th class="p-4 text-left text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('交期') }}</th>
-                                <th class="p-4 text-center text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">{{ _('操作') }}</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
                             {% for order in orders %}
-                            <tr class="{% if order.is_overdue %}bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20{% else %}hover:bg-slate-50 dark:hover:bg-slate-700/50{% endif %} transition-colors">
+                            <tr class="{% if order.is_overdue %}bg-red-50/50 dark:bg-red-900/10 hover:bg-red-50 dark:hover:bg-red-900/20{% else %}hover:bg-slate-50 dark:hover:bg-slate-700/50{% endif %} transition-colors cursor-pointer"
+                                onclick="window.location='{{ url_for('purchase_order.detail_view', order_id=order.id) }}'">
                                 <td class="p-4">
                                     <div class="flex items-center gap-2">
                                         {% if order.is_overdue %}
@@ -240,33 +240,10 @@
                                         {% endif %}
                                     </div>
                                 </td>
-                                <td class="p-4 text-center">
-                                    <div class="flex items-center justify-center gap-1">
-                                        <a href="{{ url_for('purchase_order.detail_view', order_id=order.id) }}"
-                                           class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
-                                           title="{{ _('查看详情') }}">
-                                            <span class="material-symbols-outlined text-lg">visibility</span>
-                                        </a>
-                                        {% if has_permission('order', 'edit') %}
-                                        <button onclick="openEditModal({{ order.id }})"
-                                           class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"
-                                           title="{{ _('编辑') }}">
-                                            <span class="material-symbols-outlined text-lg">edit</span>
-                                        </button>
-                                        {% if order.status == 'draft' %}
-                                        <button onclick="deletePurchaseOrder({{ order.id }}, '{{ order.order_number }}')"
-                                           class="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-red-400 hover:text-red-600"
-                                           title="{{ _('删除') }}">
-                                            <span class="material-symbols-outlined text-lg">delete</span>
-                                        </button>
-                                        {% endif %}
-                                        {% endif %}
-                                    </div>
-                                </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="8" class="p-8 text-center">
+                                <td colspan="7" class="p-8 text-center">
                                     <div class="flex flex-col items-center gap-2">
                                         <span class="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">inbox</span>
                                         <span class="text-slate-500 dark:text-slate-400">{{ _('暂无数据') }}</span>
