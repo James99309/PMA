@@ -815,8 +815,6 @@
         const qtyInput = document.querySelector(`[data-detail-id="${detailId}"]`);
         const qty = qtyInput ? parseInt(qtyInput.value) || 0 : 0;
         return generateSnList(prefix, startStr, qty);
-        }
-        return result;
     }
 
     function validateShipQty(input) {
