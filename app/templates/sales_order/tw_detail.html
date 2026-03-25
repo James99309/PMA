@@ -262,7 +262,7 @@
 
                     <!-- 元数据 -->
                     {{ tw_metadata_card_simple(
-                        creator=order.created_by.real_name if order.created_by else '-',
+                        creator=order.created_by,
                         created_at=order.created_at,
                         updated_at=order.updated_at
                     ) }}

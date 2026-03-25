@@ -369,7 +369,7 @@
 
                     <!-- 元数据 -->
                     {{ tw_metadata_card_simple(
-                        creator=shipment.created_by.real_name if shipment.created_by else '-',
+                        creator=shipment.created_by,
                         created_at=shipment.created_at,
                         updated_at=shipment.updated_at
                     ) }}
