@@ -87,10 +87,9 @@
                 {'key': 'preparing', 'label': '备料', 'date_field': none},
                 {'key': 'producing', 'label': '生产', 'date_field': none},
                 {'key': 'testing', 'label': '测试', 'date_field': 'milestone_test_complete_date'},
-                {'key': 'ready', 'label': '待发货', 'date_field': 'milestone_ship_date'},
-                {'key': 'delivered', 'label': '到货', 'date_field': 'actual_arrival_date'}
+                {'key': 'ready', 'label': '待发货', 'date_field': 'milestone_ship_date'}
             ] %}
-            {% set stage_order = {'preparing': 0, 'producing': 1, 'testing': 2, 'ready': 3, 'delivered': 4} %}
+            {% set stage_order = {'preparing': 0, 'producing': 1, 'testing': 2, 'ready': 3} %}
             {# 供应商确认后，默认从备料阶段开始（order为-1表示还未进入生产流程） #}
             {% set current_stage_order = stage_order.get(order.production_status, -1) %}
 
@@ -174,15 +173,14 @@
             ) }}
             {% endfor %}
 
-            {# 验收入库节点 - 最后一个节点不需要连线 #}
+            {# 验收入库节点 - 全部发货单签收后自动完成，不可手动触发 #}
             {% set acceptance_status = 'completed' if order.acceptance_status == 'passed' else 'pending' %}
             {{ render_timeline_node(
                 title=_('验收入库'),
                 status=acceptance_status,
                 time=order.acceptance_date.strftime('%Y-%m-%d %H:%M') if order.acceptance_date else '',
-                subtitle=_('已完成') if order.acceptance_status == 'passed' else _('待验收'),
-                show_line=false,
-                action_btn={'label': _('验收'), 'onclick': 'openAcceptanceModal()'} if can_edit and order.status == 'shipped' else none
+                subtitle=_('已完成') if order.acceptance_status == 'passed' else _('所有发货单签收后自动完成'),
+                show_line=false
             ) }}
         </div>
         {% endif %}
@@ -436,11 +434,10 @@
         'preparing': '{{ _("备料") }}',
         'producing': '{{ _("生产") }}',
         'testing': '{{ _("测试") }}',
-        'ready': '{{ _("待发货") }}',
-        'delivered': '{{ _("到货") }}'
+        'ready': '{{ _("待发货") }}'
     };
 
-    const stageOrder = {'preparing': 0, 'producing': 1, 'testing': 2, 'ready': 3, 'delivered': 4};
+    const stageOrder = {'preparing': 0, 'producing': 1, 'testing': 2, 'ready': 3};
 
     let pendingStage = null;
 

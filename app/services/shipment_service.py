@@ -268,6 +268,28 @@ class ShipmentService:
                 detail.received_quantity = detail.quantity
                 detail.status = 'received'
 
+            # 更新关联的序列号状态为 delivered
+            try:
+                if shipment.id:
+                    from app.models.product_serial_number import ProductSerialNumber
+                    sn_records = ProductSerialNumber.query.filter_by(shipment_id=shipment.id).all()
+                    for sn in sn_records:
+                        sn.status = 'delivered'
+                    # 也检查明细中记录的序列号
+                    for detail in shipment.details:
+                        if detail.serial_numbers:
+                            import json as _json
+                            try:
+                                sn_list = _json.loads(detail.serial_numbers)
+                                for sn_str in sn_list:
+                                    sn_record = ProductSerialNumber.query.filter_by(serial_number=sn_str).first()
+                                    if sn_record and sn_record.status != 'delivered':
+                                        sn_record.status = 'delivered'
+                            except (ValueError, TypeError):
+                                pass
+            except Exception as sn_err:
+                logger.warning(f"更新序列号签收状态失败（非致命）: {sn_err}")
+
             # 更新客户订单明细的签收数量
             ShipmentService._update_order_received_quantity(shipment)
 

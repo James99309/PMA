@@ -386,6 +386,83 @@ def api_supplier_confirm(order_id):
         return jsonify({'success': False, 'message': f'操作失败: {str(e)}'})
 
 
+@purchase_order_bp.route('/api/<int:order_id>/shipments', methods=['GET'])
+@login_required
+@permission_required('order', 'view')
+def api_get_shipments(order_id):
+    """获取采购订单关联的发货记录"""
+    try:
+        from app.models.shipment import Shipment
+        import json
+
+        order = PurchaseOrder.query.get_or_404(order_id)
+        shipments = Shipment.query.filter_by(
+            purchase_order_id=order_id
+        ).order_by(Shipment.created_at.desc()).all()
+
+        data = []
+        for s in shipments:
+            # 目标显示
+            if s.sales_order:
+                target = s.sales_order.order_number
+                target_label = f'SO: {target}'
+            else:
+                target_label = '公司仓库'
+
+            # 解析文档
+            documents = []
+            if s.documents:
+                try:
+                    documents = json.loads(s.documents)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            delivery_proof_list = []
+            if s.delivery_proof:
+                try:
+                    delivery_proof_list = json.loads(s.delivery_proof)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            data.append({
+                'id': s.id,
+                'shipment_number': s.shipment_number,
+                'target': target_label,
+                'total_quantity': s.total_quantity,
+                'status': s.status,
+                'status_label': s.status_label,
+                'ship_date': s.formatted_ship_date,
+                'carrier': s.carrier or '',
+                'tracking_number': s.tracking_number or '',
+                'expected_arrival': s.formatted_expected_arrival,
+                'received_date': s.received_date.strftime('%Y-%m-%d') if s.received_date else '',
+                'received_by': s.received_by or '',
+                'documents': documents,
+                'delivery_proof': delivery_proof_list,
+                'notes': s.notes or '',
+                'details': [{
+                    'id': d.id,
+                    'product_name': d.product_name,
+                    'product_model': d.product_model or '',
+                    'quantity': d.quantity,
+                    'unit': d.unit or '',
+                    'serial_numbers': json.loads(d.serial_numbers) if d.serial_numbers else [],
+                    'status': d.status,
+                    'received_quantity': d.received_quantity or 0
+                } for d in s.details]
+            })
+
+        return jsonify({
+            'success': True,
+            'shipments': data,
+            'total': len(data)
+        })
+
+    except Exception as e:
+        logger.error(f"获取发货记录失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'})
+
+
 @purchase_order_bp.route('/api/<int:order_id>/serial-numbers', methods=['GET'])
 @login_required
 @permission_required('order', 'view')

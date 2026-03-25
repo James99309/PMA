@@ -257,11 +257,127 @@ def api_confirm_receive(shipment_id):
         success, message = ShipmentService.confirm_receipt(
             shipment_id, receipt_info, current_user.id
         )
+
+        if success:
+            # Step 5: 检查该PO的所有发货单是否都已签收 → 自动推进验收入库
+            shipment = Shipment.query.get(shipment_id)
+            if shipment:
+                _check_auto_acceptance(shipment)
+
         return jsonify({'success': success, 'message': message})
 
     except Exception as e:
         logger.error(f"确认签收失败: {str(e)}")
         return jsonify({'success': False, 'message': f'操作失败: {str(e)}'})
+
+
+@shipment_bp.route('/api/<int:shipment_id>/receive-with-file', methods=['POST'])
+@login_required
+@permission_required('shipment', 'edit')
+def api_confirm_receive_with_file(shipment_id):
+    """确认签收（支持文件上传）- 供 tw_upload_confirm_modal 组件调用"""
+    try:
+        import json as json_mod, uuid
+
+        shipment = Shipment.query.get(shipment_id)
+        if not shipment:
+            return jsonify({'success': False, 'message': '发货单不存在'})
+
+        if shipment.status not in ['shipped', 'in_transit', 'delivered']:
+            return jsonify({'success': False, 'message': f'当前状态 {shipment.status_label} 不允许签收'})
+
+        # 处理签收回执文件
+        delivery_proof = []
+        file = request.files.get('file')
+        if file and file.filename:
+            from app.helpers.purchase_order_helpers import upload_file_to_storage
+            po = shipment.purchase_order
+            if po:
+                file_ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else 'pdf'
+                content_types = {'pdf': 'application/pdf', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png'}
+                content_type = content_types.get(file_ext, 'application/octet-stream')
+                unique_id = uuid.uuid4().hex[:8]
+                filename = f"receipt_{datetime.now().strftime('%Y%m%d')}_{unique_id}.{file_ext}"
+                file_content = file.read()
+                file_url = upload_file_to_storage(po, file_content, filename, content_type, subfolder='receipt')
+                if file_url:
+                    delivery_proof.append({'name': file.filename, 'url': file_url})
+
+        received_by = request.form.get('received_by', current_user.real_name or current_user.username)
+        notes = request.form.get('notes', '')
+
+        receipt_info = {
+            'received_by': received_by,
+            'received_notes': notes,
+            'received_date': datetime.now(),
+            'delivery_proof': delivery_proof
+        }
+
+        success, message = ShipmentService.confirm_receipt(
+            shipment_id, receipt_info, current_user.id
+        )
+
+        if success:
+            # Step 5: 检查该PO的所有发货单是否都已签收 → 自动推进验收入库
+            _check_auto_acceptance(shipment)
+
+        return jsonify({'success': success, 'message': message})
+
+    except Exception as e:
+        logger.error(f"确认签收（含文件）失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'操作失败: {str(e)}'})
+
+
+def _check_auto_acceptance(shipment):
+    """检查PO关联的所有发货单是否全部签收，自动推进验收入库"""
+    try:
+        po_id = shipment.purchase_order_id
+        if not po_id:
+            return
+
+        po = PurchaseOrder.query.get(po_id)
+        if not po or po.status in ['stored', 'completed', 'cancelled']:
+            return
+
+        # 查询该PO下所有发货单
+        all_shipments = Shipment.query.filter_by(purchase_order_id=po_id).all()
+        if not all_shipments:
+            return
+
+        # 检查是否全部签收
+        all_received = all(s.status == 'received' for s in all_shipments)
+        if not all_received:
+            return
+
+        # 自动推进PO到验收入库
+        po.status = 'stored'
+        po.acceptance_status = 'passed'
+        po.acceptance_date = datetime.now()
+        po.actual_arrival_date = datetime.now()
+
+        # 备货型明细自动入库
+        from app.utils.inventory_helpers import update_inventory
+        for detail in po.details:
+            if not detail.sales_order_detail_id:
+                qty = detail.dispatched_quantity or detail.quantity or 0
+                if qty > 0:
+                    update_inventory(
+                        company_id=po.company_id,
+                        product_id=detail.product_id,
+                        quantity_change=qty,
+                        transaction_type='in',
+                        reference_type='order',
+                        reference_id=po.id,
+                        description=f'采购订单 {po.order_number} 全部签收自动入库',
+                        user_id=shipment.created_by_id
+                    )
+
+        db.session.commit()
+        logger.info(f"采购订单 {po.order_number} 所有发货单已签收，自动推进验收入库")
+
+    except Exception as e:
+        logger.error(f"自动验收入库检查失败: {str(e)}")
+        # 不要 rollback，因为签收操作已成功，自动验收失败不应影响签收结果
 
 
 @shipment_bp.route('/api/<int:shipment_id>/tracking', methods=['GET'])
@@ -444,13 +560,31 @@ def api_get_dispatchable_details(po_id):
 @login_required
 @permission_required('shipment', 'create')
 def api_create_from_po():
-    """从采购订单创建发货单"""
+    """从采购订单创建发货单（支持 JSON 和 FormData）"""
     try:
-        data = request.get_json()
+        import json as json_mod
+
+        # 兼容 JSON 和 FormData 两种提交方式
+        if request.content_type and 'application/json' in request.content_type:
+            data = request.get_json()
+            details = data.get('details', [])
+            courier_file = None
+        else:
+            data = request.form.to_dict()
+            details_str = data.get('details', '[]')
+            try:
+                details = json_mod.loads(details_str)
+            except (json_mod.JSONDecodeError, TypeError):
+                details = []
+            courier_file = request.files.get('courier_document')
+
         purchase_order_id = data.get('purchase_order_id')
+        if purchase_order_id:
+            purchase_order_id = int(purchase_order_id)
         destination_type = data.get('destination_type')  # 'sales_order' or 'warehouse'
         sales_order_id = data.get('sales_order_id')
-        details = data.get('details', [])
+        if sales_order_id:
+            sales_order_id = int(sales_order_id)
 
         if not purchase_order_id:
             return jsonify({'success': False, 'message': '缺少采购订单ID'})
@@ -473,6 +607,21 @@ def api_create_from_po():
             if not sales_order:
                 return jsonify({'success': False, 'message': '客户订单不存在'})
 
+        # 处理快递单文件上传
+        courier_doc_info = None
+        if courier_file and courier_file.filename:
+            from app.helpers.purchase_order_helpers import upload_file_to_storage
+            import uuid
+            file_ext = courier_file.filename.rsplit('.', 1)[-1].lower() if '.' in courier_file.filename else 'pdf'
+            content_types = {'pdf': 'application/pdf', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png'}
+            content_type = content_types.get(file_ext, 'application/octet-stream')
+            unique_id = uuid.uuid4().hex[:8]
+            filename = f"courier_{datetime.now().strftime('%Y%m%d')}_{unique_id}.{file_ext}"
+            file_content = courier_file.read()
+            file_url = upload_file_to_storage(po, file_content, filename, content_type, subfolder='courier')
+            if file_url:
+                courier_doc_info = {'name': courier_file.filename, 'url': file_url}
+
         # 创建发货单
         shipment = Shipment(
             shipment_number=ShipmentService.generate_shipment_number(),
@@ -490,6 +639,10 @@ def api_create_from_po():
             status='pending',
             created_by_id=current_user.id
         )
+
+        # 保存快递单文档信息
+        if courier_doc_info:
+            shipment.documents = json_mod.dumps([courier_doc_info])
 
         # 处理日期
         if data.get('ship_date'):
@@ -530,6 +683,10 @@ def api_create_from_po():
                     'message': f'{po_detail.product_name} 可发数量为 {remaining}，不能发 {quantity}'
                 })
 
+            # 处理序列号
+            serial_numbers = item.get('serial_numbers', [])
+            serial_numbers_json = json_mod.dumps(serial_numbers) if serial_numbers else None
+
             # 创建发货明细
             shipment_detail = ShipmentDetail(
                 shipment_id=shipment.id,
@@ -540,6 +697,7 @@ def api_create_from_po():
                 product_model=item.get('product_model', po_detail.product_model),
                 quantity=quantity,
                 unit=item.get('unit', po_detail.unit),
+                serial_numbers=serial_numbers_json,
                 status='pending'
             )
             db.session.add(shipment_detail)
@@ -552,6 +710,19 @@ def api_create_from_po():
                 so_detail = SalesOrderDetail.query.get(item['sales_order_detail_id'])
                 if so_detail:
                     so_detail.shipped_quantity = (so_detail.shipped_quantity or 0) + quantity
+
+            # 更新 ProductSerialNumber 记录（如果提供了SN）
+            if serial_numbers:
+                try:
+                    from app.models.product_serial_number import ProductSerialNumber
+                    for sn_str in serial_numbers:
+                        sn_record = ProductSerialNumber.query.filter_by(serial_number=sn_str).first()
+                        if sn_record:
+                            sn_record.shipment_id = shipment.id
+                            sn_record.status = 'shipped'
+                            sn_record.ship_out_date = datetime.now()
+                except Exception as sn_err:
+                    logger.warning(f"更新序列号记录失败（非致命）: {sn_err}")
 
         db.session.commit()
 
