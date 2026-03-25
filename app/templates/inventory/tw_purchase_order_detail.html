@@ -586,6 +586,8 @@
         } else {
             soSection.classList.add('hidden');
         }
+        // 切换目标类型后重新加载明细
+        loadDispatchableDetails();
     }
 
     async function loadDispatchableDetails() {
@@ -597,7 +599,13 @@
         if (empty) empty.classList.add('hidden');
 
         try {
-            const response = await fetch(`/shipment/api/po/${orderId}/dispatchable-details`, {
+            // 如果选了目标SO，传 sales_order_id 过滤只显示匹配的产品
+            const destType = document.querySelector('input[name="shipDestType"]:checked')?.value;
+            const soSelect = document.getElementById('shipSalesOrderId');
+            const soId = (destType === 'sales_order' && soSelect) ? soSelect.value : '';
+            const params = soId ? `?sales_order_id=${soId}` : '';
+
+            const response = await fetch(`/shipment/api/po/${orderId}/dispatchable-details${params}`, {
                 headers: { 'X-CSRFToken': csrfToken }
             });
             const result = await response.json();
@@ -747,15 +755,17 @@
         const hint = document.getElementById('soHint');
         if (!soId) {
             hint.classList.add('hidden');
-            return;
-        }
-        const opt = document.querySelector(`#shipSalesOrderId option[value="${soId}"]`);
-        if (opt && opt.dataset.address) {
-            hint.textContent = `{{ _('收货地址') }}: ${opt.dataset.address}`;
-            hint.classList.remove('hidden');
         } else {
-            hint.classList.add('hidden');
+            const opt = document.querySelector(`#shipSalesOrderId option[value="${soId}"]`);
+            if (opt && opt.dataset.address) {
+                hint.textContent = `{{ _('收货地址') }}: ${opt.dataset.address}`;
+                hint.classList.remove('hidden');
+            } else {
+                hint.classList.add('hidden');
+            }
         }
+        // 重新加载明细（根据选中的SO过滤）
+        loadDispatchableDetails();
     }
 
     async function submitShipmentFromPo() {

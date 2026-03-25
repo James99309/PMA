@@ -628,12 +628,17 @@ def api_get_shippable_details(order_id):
 @login_required
 @permission_required('shipment', 'view')
 def api_get_dispatchable_details(po_id):
-    """获取采购订单中可发货的明细列表"""
+    """获取采购订单中可发货的明细列表
+
+    可选参数 sales_order_id：如果指定，只返回能匹配该SO的明细
+    """
     po = PurchaseOrder.query.get(po_id)
     if not po:
         return jsonify({'success': False, 'message': '采购订单不存在'})
 
-    from app.models.sales_order import SalesOrderDetail
+    target_so_id = request.args.get('sales_order_id', type=int)
+
+    from app.models.sales_order import SalesOrder, SalesOrderDetail
     dispatchable_details = []
     for detail in po.details:
         # PO可发 = 总量 - 已发出量
@@ -641,12 +646,35 @@ def api_get_dispatchable_details(po_id):
         if po_remaining <= 0:
             continue
 
-        # 如果关联了SO明细，取SO可发量的最小值
         so_remaining = None
-        if detail.sales_order_detail_id:
-            so_detail = SalesOrderDetail.query.get(detail.sales_order_detail_id)
-            if so_detail:
-                so_remaining = so_detail.remaining_to_ship
+        matched_so_detail_id = detail.sales_order_detail_id
+
+        if target_so_id:
+            # 指定了目标SO：只显示能匹配该SO的产品
+            if detail.sales_order_detail_id:
+                # PO明细已关联SO明细，检查是否属于目标SO
+                so_detail = SalesOrderDetail.query.get(detail.sales_order_detail_id)
+                if so_detail and so_detail.sales_order_id == target_so_id:
+                    so_remaining = so_detail.remaining_to_ship
+                else:
+                    continue  # 不属于目标SO，跳过
+            else:
+                # PO明细未关联SO，尝试按product_id匹配目标SO的明细
+                so_detail = SalesOrderDetail.query.filter_by(
+                    sales_order_id=target_so_id,
+                    product_id=detail.product_id
+                ).first()
+                if so_detail and so_detail.remaining_to_ship > 0:
+                    so_remaining = so_detail.remaining_to_ship
+                    matched_so_detail_id = so_detail.id
+                else:
+                    continue  # 目标SO中没有这个产品，跳过
+        else:
+            # 未指定SO（入仓库模式）：显示所有可发明细
+            if detail.sales_order_detail_id:
+                so_detail = SalesOrderDetail.query.get(detail.sales_order_detail_id)
+                if so_detail:
+                    so_remaining = so_detail.remaining_to_ship
 
         # 实际可发 = min(PO可发, SO可发)
         remaining = min(po_remaining, so_remaining) if so_remaining is not None else po_remaining
@@ -663,7 +691,7 @@ def api_get_dispatchable_details(po_id):
                 'remaining_to_dispatch': remaining,
                 'so_remaining_to_ship': so_remaining,
                 'unit': detail.unit,
-                'sales_order_detail_id': detail.sales_order_detail_id
+                'sales_order_detail_id': matched_so_detail_id
             })
 
     return jsonify({
