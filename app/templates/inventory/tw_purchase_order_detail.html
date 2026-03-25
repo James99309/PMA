@@ -946,15 +946,20 @@
 
         // 明细表
         const detailBody = document.getElementById('sdm_detailBody');
-        detailBody.innerHTML = s.details.map(d => {
-            const snHtml = d.serial_numbers && d.serial_numbers.length > 0
-                ? `<div class="text-xs text-slate-400 mt-0.5">SN: ${d.serial_numbers.join(', ')}</div>`
+        detailBody.innerHTML = s.details.map((d, idx) => {
+            const snTag = d.serial_numbers && d.serial_numbers.length > 0
+                ? `<button onclick="event.stopPropagation(); openSnPanel(${JSON.stringify(d.serial_numbers).replace(/"/g, '&quot;')}, '${d.product_name}', '${d.product_model || ''}')"
+                     class="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded transition-colors">
+                     <span class="material-symbols-outlined text-xs">qr_code_2</span>SN:${d.serial_numbers.length}
+                   </button>`
                 : '';
             return `
                 <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <td class="p-2.5">
-                        <div class="text-sm font-medium text-slate-900 dark:text-white">${d.product_name}</div>
-                        ${snHtml}
+                        <div class="flex items-center">
+                            <span class="text-sm font-medium text-slate-900 dark:text-white">${d.product_name}</span>
+                            ${snTag}
+                        </div>
                     </td>
                     <td class="p-2.5 text-sm text-slate-600 dark:text-slate-400">${d.product_model || '-'}</td>
                     <td class="p-2.5 text-center text-sm text-slate-900 dark:text-white">${d.quantity} ${d.unit}</td>
@@ -983,8 +988,8 @@
             if (s.documents && s.documents.length > 0) {
                 document.getElementById('sdm_courier_section').classList.remove('hidden');
                 docsEl.innerHTML = s.documents.map(doc => `
-                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded border border-primary/20">
-                        <span class="material-symbols-outlined text-sm">description</span>
+                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors">
+                        <span class="material-symbols-outlined text-base text-primary">description</span>
                         ${doc.name || '{{ _("快递单") }}'}
                     </a>
                 `).join(' ');
@@ -1003,8 +1008,8 @@
             if (s.documents && s.documents.length > 0) {
                 document.getElementById('sdm_courier_section').classList.remove('hidden');
                 docsEl.innerHTML = s.documents.map(doc => `
-                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded border border-primary/20">
-                        <span class="material-symbols-outlined text-sm">description</span>
+                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors">
+                        <span class="material-symbols-outlined text-base text-primary">description</span>
                         ${doc.name || '{{ _("快递单") }}'}
                     </a>
                 `).join(' ');
@@ -1025,8 +1030,8 @@
             if (s.documents && s.documents.length > 0) {
                 document.getElementById('sdm_courier_section').classList.remove('hidden');
                 docsEl.innerHTML = s.documents.map(doc => `
-                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10 rounded border border-primary/20">
-                        <span class="material-symbols-outlined text-sm">description</span>
+                    <a href="${doc.url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors">
+                        <span class="material-symbols-outlined text-base text-primary">description</span>
                         ${doc.name || '{{ _("快递单") }}'}
                     </a>
                 `).join(' ');
@@ -1036,8 +1041,8 @@
             receiptSection.classList.remove('hidden');
             const proofHtml = s.delivery_proof && s.delivery_proof.length > 0
                 ? `<div class="mt-2 flex flex-wrap gap-2">${s.delivery_proof.map(p => `
-                    <a href="${p.url}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-green-700 hover:bg-green-100 dark:text-green-400 dark:hover:bg-green-900/30 rounded border border-green-200 dark:border-green-700">
-                        <span class="material-symbols-outlined text-sm">description</span>
+                    <a href="${p.url}" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 transition-colors">
+                        <span class="material-symbols-outlined text-base text-green-600">description</span>
                         ${p.name || '{{ _("签收单") }}'}
                     </a>
                 `).join(' ')}</div>`
@@ -1131,6 +1136,55 @@
     }
 
     // ========== 确认发货（上传快递单 + 状态变更） ==========
+    // ========== SN序列号面板 ==========
+    let _currentSnList = [];
+    let _currentSnProduct = '';
+    let _currentSnModel = '';
+
+    function openSnPanel(snList, productName, productModel) {
+        _currentSnList = snList;
+        _currentSnProduct = productName;
+        _currentSnModel = productModel;
+        document.getElementById('snPanelTitle').textContent = `${productName} ${productModel} - {{ _('序列号') }} (${snList.length})`;
+        document.getElementById('snPanelBody').innerHTML = snList.map((sn, i) => `
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                <td class="px-3 py-1.5 text-xs text-slate-400">${i + 1}</td>
+                <td class="px-3 py-1.5 text-sm font-mono text-slate-900 dark:text-white">${sn}</td>
+            </tr>
+        `).join('');
+        document.getElementById('snPanel').classList.remove('hidden');
+    }
+
+    function closeSnPanel() {
+        document.getElementById('snPanel').classList.add('hidden');
+    }
+
+    function exportSnPdf() {
+        if (!_currentSnList.length) return;
+        // 构建简单的打印页面
+        const printHtml = `
+            <html><head><title>SN - ${_currentSnProduct}</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                h2 { margin-bottom: 5px; }
+                p { color: #666; margin-bottom: 15px; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; font-size: 12px; }
+                th { background: #f5f5f5; font-weight: 600; }
+                td.num { text-align: center; width: 50px; }
+            </style></head><body>
+            <h2>${_currentSnProduct} ${_currentSnModel}</h2>
+            <p>{{ _('序列号清单') }} - ${_currentSnList.length} {{ _('个') }}</p>
+            <table>
+                <thead><tr><th style="width:50px">{{ _('序号') }}</th><th>{{ _('序列号') }}</th></tr></thead>
+                <tbody>${_currentSnList.map((sn, i) => `<tr><td class="num">${i+1}</td><td>${sn}</td></tr>`).join('')}</tbody>
+            </table></body></html>`;
+        const w = window.open('', '_blank');
+        w.document.write(printHtml);
+        w.document.close();
+        w.print();
+    }
+
     async function sdmConfirmShip() {
         if (!_sdmCurrentShipment) return;
 
@@ -1474,6 +1528,42 @@
                     <!-- 操作按钮区域 -->
                     <div id="sdm_actions" class="pt-2">
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SN序列号详情面板 -->
+    <div id="snPanel" class="fixed inset-0 z-[60] hidden">
+        <div class="fixed inset-0 bg-black/50" onclick="closeSnPanel()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onclick="event.stopPropagation()">
+                <div class="flex items-center justify-between p-4">
+                    <h3 class="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">qr_code_2</span>
+                        <span id="snPanelTitle">{{ _('序列号列表') }}</span>
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <button onclick="exportSnPdf()" class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg border border-primary/30 transition-colors">
+                            <span class="material-symbols-outlined text-sm">download</span>
+                            {{ _('导出PDF') }}
+                        </button>
+                        <button onclick="closeSnPanel()" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">
+                            <span class="material-symbols-outlined">close</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex-1 overflow-auto px-4 pb-4">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 dark:bg-slate-700/50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500 w-12">{{ _('序号') }}</th>
+                                <th class="px-3 py-2 text-left text-xs font-semibold text-slate-500">{{ _('序列号') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody id="snPanelBody" class="divide-y divide-slate-100 dark:divide-slate-700">
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
