@@ -443,17 +443,22 @@ def _check_auto_acceptance(shipment):
         if not po or po.status in ['stored', 'completed', 'cancelled']:
             return
 
-        # 查询该PO下所有发货单
+        # 条件1：所有PO明细都已发完
+        all_dispatched = all(
+            (d.dispatched_quantity or 0) >= d.quantity for d in po.details
+        )
+        if not all_dispatched:
+            return
+
+        # 条件2：所有发货单都已签收
         all_shipments = Shipment.query.filter_by(purchase_order_id=po_id).all()
         if not all_shipments:
             return
-
-        # 检查是否全部签收
         all_received = all(s.status == 'received' for s in all_shipments)
         if not all_received:
             return
 
-        # 自动推进PO到验收入库
+        # 两个条件都满足，自动推进PO到验收入库
         po.status = 'stored'
         po.production_status = 'completed'
         po.production_progress = 100
