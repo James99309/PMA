@@ -871,11 +871,7 @@ def api_create_from_po():
             # 更新采购明细的已发货数量
             po_detail.dispatched_quantity = (po_detail.dispatched_quantity or 0) + quantity
 
-            # 如果是发给客户订单，同时更新客户订单明细的发货数量
-            if destination_type == 'sales_order' and item.get('sales_order_detail_id'):
-                so_detail = SalesOrderDetail.query.get(item['sales_order_detail_id'])
-                if so_detail:
-                    so_detail.shipped_quantity = (so_detail.shipped_quantity or 0) + quantity
+            # shipped_quantity 在确认发货(confirm_ship)时才更新，创建时不更新
 
             # 更新 ProductSerialNumber 记录（如果提供了SN）
             if serial_numbers:
