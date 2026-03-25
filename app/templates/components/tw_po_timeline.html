@@ -91,7 +91,8 @@
             ] %}
             {% set stage_order = {'preparing': 0, 'producing': 1, 'testing': 2, 'ready': 3} %}
             {# 供应商确认后，默认从备料阶段开始（order为-1表示还未进入生产流程） #}
-            {% set current_stage_order = stage_order.get(order.production_status, -1) %}
+            {# completed = 所有阶段已完成，设为比最大值还大 #}
+            {% set current_stage_order = 999 if order.production_status == 'completed' else stage_order.get(order.production_status, -1) %}
 
             {% for stage in stage_config %}
             {% set stage_num = loop.index0 %}
