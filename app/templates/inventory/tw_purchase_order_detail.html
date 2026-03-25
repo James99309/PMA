@@ -887,26 +887,32 @@
     }
 
     // ========== 发货单操作 ==========
+    let _pendingDeleteShipmentId = null;
     function deleteShipment(shipmentId, shipmentNumber) {
+        _pendingDeleteShipmentId = shipmentId;
         openConfirmModal('deletePOModal', {
             title: '{{ _("删除发货单") }}',
             message: `{{ _('确定要删除发货单') }} ${shipmentNumber} {{ _('吗？') }}`,
-            onConfirm: async function() {
-                try {
-                    const resp = await fetch(`/shipment/api/${shipmentId}/delete`, {
-                        method: 'DELETE',
-                        headers: { 'X-CSRFToken': csrfToken }
-                    });
-                    const result = await resp.json();
-                    if (result.success) {
-                        showToast('{{ _("发货单已删除") }}', 'success');
-                        loadShipmentRecords();
-                    } else {
-                        showToast(result.message || '{{ _("删除失败") }}', 'error');
-                    }
-                } catch (e) { showToast('{{ _("操作失败") }}', 'error'); }
-            }
+            onConfirm: executeDeleteShipment
         });
+    }
+
+    async function executeDeleteShipment() {
+        if (!_pendingDeleteShipmentId) return;
+        try {
+            const resp = await fetch(`/shipment/api/${_pendingDeleteShipmentId}/delete`, {
+                method: 'DELETE',
+                headers: { 'X-CSRFToken': csrfToken }
+            });
+            const result = await resp.json();
+            if (result.success) {
+                showToast('{{ _("发货单已删除") }}', 'success');
+                loadShipmentRecords();
+            } else {
+                showToast(result.message || '{{ _("删除失败") }}', 'error');
+            }
+        } catch (e) { showToast('{{ _("操作失败") }}', 'error'); }
+        _pendingDeleteShipmentId = null;
     }
 
     function openReceiveShipmentModal(shipmentId) {
