@@ -715,6 +715,8 @@
             if (result.success && result.details.length > 0) {
                 shipDispatchableDetails = result.details;
                 renderDispatchableRows(result.details);
+                // 初始化SN预览
+                result.details.forEach(d => updateSnPreview(d.id));
             } else {
                 shipDispatchableDetails = [];
                 body.innerHTML = '';
@@ -747,14 +749,25 @@
             </tr>
             <tr class="bg-slate-50/50 dark:bg-slate-800/30" data-sn-row="${d.id}">
                 <td colspan="6" class="px-2.5 py-2">
-                    <div class="flex items-center gap-3">
-                        <label class="flex items-center gap-1.5 shrink-0 cursor-pointer">
-                            <input type="checkbox" data-no-sn="${d.id}" onchange="toggleSnInput(${d.id}, this.checked)"
-                                   class="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
-                            <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('无序列号') }}</span>
-                        </label>
-                        <input type="text" data-sn-input="${d.id}" placeholder="{{ _('SN001-SN005 或逗号分隔') }}"
-                               class="sn-input flex-1 h-7 px-2 text-xs rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary">
+                    <div class="sn-area" data-sn-area="${d.id}">
+                        <div class="flex items-center gap-3 mb-1.5">
+                            <label class="flex items-center gap-1.5 shrink-0 cursor-pointer">
+                                <input type="checkbox" data-no-sn="${d.id}" onchange="toggleSnInput(${d.id}, this.checked)"
+                                       class="w-3.5 h-3.5 rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary">
+                                <span class="text-xs text-slate-500 dark:text-slate-400">{{ _('无序列号') }}</span>
+                            </label>
+                        </div>
+                        <div class="sn-fields flex items-center gap-2" data-sn-fields="${d.id}">
+                            <span class="text-xs text-slate-500 shrink-0">{{ _('SN前缀') }}:</span>
+                            <input type="text" data-sn-prefix="${d.id}" value="${d.product_model ? d.product_model + '-' : ''}"
+                                   class="h-7 w-32 px-2 text-xs rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary"
+                                   oninput="updateSnPreview(${d.id})">
+                            <span class="text-xs text-slate-500 shrink-0">{{ _('起始号') }}:</span>
+                            <input type="text" data-sn-start="${d.id}" value="001"
+                                   class="h-7 w-16 px-2 text-xs text-center rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary"
+                                   oninput="updateSnPreview(${d.id})">
+                        </div>
+                        <div class="sn-preview mt-1 text-[10px] text-slate-400 dark:text-slate-500 truncate" data-sn-preview="${d.id}"></div>
                     </div>
                 </td>
             </tr>
@@ -762,36 +775,46 @@
     }
 
     function toggleSnInput(detailId, noSn) {
-        const snInput = document.querySelector(`[data-sn-input="${detailId}"]`);
-        if (snInput) {
-            snInput.disabled = noSn;
-            snInput.classList.toggle('opacity-50', noSn);
-            if (noSn) snInput.value = '';
+        const fields = document.querySelector(`[data-sn-fields="${detailId}"]`);
+        const preview = document.querySelector(`[data-sn-preview="${detailId}"]`);
+        if (fields) fields.classList.toggle('hidden', noSn);
+        if (preview) {
+            preview.classList.toggle('hidden', noSn);
+            if (noSn) preview.textContent = '';
         }
     }
 
-    // 解析SN输入 (支持 SN001-SN005 范围和逗号分隔)
-    function parseSerialNumbers(input) {
-        if (!input || !input.trim()) return [];
-        const parts = input.split(/[,，\s]+/).map(s => s.trim()).filter(Boolean);
+    function updateSnPreview(detailId) {
+        const prefix = document.querySelector(`[data-sn-prefix="${detailId}"]`)?.value || '';
+        const startStr = document.querySelector(`[data-sn-start="${detailId}"]`)?.value || '001';
+        const qtyInput = document.querySelector(`[data-detail-id="${detailId}"]`);
+        const qty = qtyInput ? parseInt(qtyInput.value) || 0 : 0;
+        const preview = document.querySelector(`[data-sn-preview="${detailId}"]`);
+        if (!preview) return;
+        const snList = generateSnList(prefix, startStr, qty);
+        preview.textContent = snList.length > 0 ? '{{ _("预览") }}: ' + snList.join(', ') : '';
+    }
+
+    function generateSnList(prefix, startStr, count) {
+        if (!prefix || !startStr || count <= 0) return [];
+        const start = parseInt(startStr);
+        if (isNaN(start)) return [];
+        const padLen = startStr.length;
         const result = [];
-        for (const part of parts) {
-            const rangeMatch = part.match(/^(.+?)(\d+)\s*[-~]\s*\1?(\d+)$/);
-            if (rangeMatch) {
-                const prefix = rangeMatch[1];
-                const start = parseInt(rangeMatch[2]);
-                const end = parseInt(rangeMatch[3]);
-                const padLen = rangeMatch[2].length;
-                if (!isNaN(start) && !isNaN(end) && end >= start && (end - start) < 1000) {
-                    for (let i = start; i <= end; i++) {
-                        result.push(prefix + String(i).padStart(padLen, '0'));
-                    }
-                } else {
-                    result.push(part);
-                }
-            } else {
-                result.push(part);
-            }
+        for (let i = 0; i < count; i++) {
+            result.push(prefix + String(start + i).padStart(padLen, '0'));
+        }
+        return result;
+    }
+
+    function getSnListForDetail(detailId) {
+        const noSn = document.querySelector(`[data-no-sn="${detailId}"]`);
+        if (noSn && noSn.checked) return [];
+        const prefix = document.querySelector(`[data-sn-prefix="${detailId}"]`)?.value || '';
+        const startStr = document.querySelector(`[data-sn-start="${detailId}"]`)?.value || '001';
+        const qtyInput = document.querySelector(`[data-detail-id="${detailId}"]`);
+        const qty = qtyInput ? parseInt(qtyInput.value) || 0 : 0;
+        return generateSnList(prefix, startStr, qty);
         }
         return result;
     }
@@ -802,6 +825,9 @@
         if (val < 0) val = 0;
         if (val > max) val = max;
         input.value = val;
+        // 数量变化后更新SN预览
+        const detailId = input.dataset.detailId;
+        if (detailId) updateSnPreview(detailId);
     }
 
     async function loadAvailableSalesOrders() {
@@ -874,11 +900,10 @@
                     if (destType === 'sales_order' && detailData.sales_order_detail_id) {
                         item.sales_order_detail_id = detailData.sales_order_detail_id;
                     }
-                    // 收集序列号
-                    const noSnCheckbox = document.querySelector(`[data-no-sn="${detailId}"]`);
-                    const snInput = document.querySelector(`[data-sn-input="${detailId}"]`);
-                    if (noSnCheckbox && !noSnCheckbox.checked && snInput && snInput.value.trim()) {
-                        item.serial_numbers = parseSerialNumbers(snInput.value);
+                    // 收集序列号（前缀+起始号自动生成）
+                    const snList = getSnListForDetail(detailId);
+                    if (snList.length > 0) {
+                        item.serial_numbers = snList;
                     }
                     details.push(item);
                 }
