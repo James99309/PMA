@@ -1380,7 +1380,7 @@ def api_procurement_demands():
         query = db.session.query(SalesOrderDetail).join(
             SalesOrder, SalesOrderDetail.sales_order_id == SalesOrder.id
         ).filter(
-            SalesOrder.status.in_(['confirmed', 'preparing']),
+            SalesOrder.status.in_(['confirmed', 'preparing', 'shipped', 'delivered']),
             SalesOrderDetail.quantity > db.func.coalesce(SalesOrderDetail.procured_quantity, 0)
         )
 
