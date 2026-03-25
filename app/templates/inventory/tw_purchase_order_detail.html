@@ -461,7 +461,7 @@
                         : '{{ _("入仓库") }}';
                     // 操作按钮：pending可删除，shipped可签收，received显示已签收
                     let actionHtml = '';
-                    if (s.status === 'pending' && !s.documents) {
+                    if (s.status === 'pending' && (!s.documents || s.documents.length === 0)) {
                         actionHtml = `<button onclick="event.stopPropagation(); deleteShipment(${s.id}, '${s.shipment_number}')"
                             class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">
                             <span class="material-symbols-outlined text-sm">delete</span>{{ _('删除') }}</button>`;
