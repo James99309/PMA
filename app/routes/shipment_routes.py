@@ -926,6 +926,13 @@ def api_available_sales_orders():
 
     orders = query.order_by(SalesOrder.created_at.desc()).limit(50).all()
 
+    # 只返回还有未发完明细的SO
+    available_orders = []
+    for o in orders:
+        has_remaining = any(d.remaining_to_ship > 0 for d in o.details)
+        if has_remaining:
+            available_orders.append(o)
+
     return jsonify({
         'success': True,
         'orders': [{
@@ -937,5 +944,5 @@ def api_available_sales_orders():
             'delivery_contact': o.delivery_contact,
             'delivery_phone': o.delivery_phone,
             'total_quantity': o.total_quantity
-        } for o in orders]
+        } for o in available_orders]
     })
