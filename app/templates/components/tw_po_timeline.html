@@ -168,7 +168,7 @@
                 show_test_upload=is_current and stage.key == 'testing' and can_edit,
                 show_test_view=is_completed and stage.key == 'testing' and order.factory_test_report_url,
                 test_report_url=order.factory_test_report_url if stage.key == 'testing' else '',
-                show_shipment_btn=is_current and stage.key == 'ready' and can_edit,
+                show_shipment_btn=is_current and stage.key == 'ready' and can_edit and order.details|selectattr('remaining_to_dispatch', 'gt', 0)|list|length > 0,
                 order=order
             ) }}
             {% endfor %}
@@ -398,7 +398,7 @@
     </div>
     {% endif %}
 
-    {# 待发货阶段创建发货单按钮 #}
+    {# 待发货阶段创建发货单按钮（还有未发完的明细时显示） #}
     {% if show_shipment_btn %}
     <div class="mt-3">
         <button onclick="openShipmentModal()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg transition-colors">
@@ -407,6 +407,8 @@
         </button>
         <p class="text-[10px] text-slate-400 mt-1">{{ _('支持分批发货，可选择发给客户订单或入仓库') }}</p>
     </div>
+    {% elif stage_key == 'ready' and status == 'current' %}
+    <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">{{ _('全部已发货，等待签收中') }}</p>
     {% endif %}
 
     {# 可点击提示 #}
