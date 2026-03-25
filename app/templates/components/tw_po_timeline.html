@@ -158,9 +158,19 @@
             {# 可点击推进的阶段 #}
             {% set can_click = is_future and can_edit and order.status in ['approved', 'confirmed', 'producing', 'tested'] %}
 
+            {# 待发货阶段：判断是否还有未发完的明细 #}
+            {% set has_undispatched = order.details|selectattr('remaining_to_dispatch', 'gt', 0)|list|length > 0 %}
+
+            {# 待发货阶段标题和状态覆盖 #}
+            {% set ready_title = _(stage.label) %}
+            {% set ready_status = node_status %}
+            {% if stage.key == 'ready' and is_current and not has_undispatched %}
+                {% set ready_title = _('发货中') %}
+            {% endif %}
+
             {{ render_production_stage_node(
-                title=_(stage.label),
-                status=node_status,
+                title=ready_title if stage.key == 'ready' else _(stage.label),
+                status=ready_status,
                 time=time_text,
                 stage_key=stage.key,
                 show_line=true,
@@ -169,7 +179,7 @@
                 show_test_upload=is_current and stage.key == 'testing' and can_edit,
                 show_test_view=is_completed and stage.key == 'testing' and order.factory_test_report_url,
                 test_report_url=order.factory_test_report_url if stage.key == 'testing' else '',
-                show_shipment_btn=is_current and stage.key == 'ready' and can_edit and order.details|selectattr('remaining_to_dispatch', 'gt', 0)|list|length > 0,
+                show_shipment_btn=is_current and stage.key == 'ready' and can_edit and has_undispatched,
                 order=order
             ) }}
             {% endfor %}
@@ -409,7 +419,10 @@
         <p class="text-[10px] text-slate-400 mt-1">{{ _('支持分批发货，可选择发给客户订单或入仓库') }}</p>
     </div>
     {% elif stage_key == 'ready' and status == 'current' %}
-    <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">{{ _('全部已发货，等待签收中') }}</p>
+    <p class="mt-2 text-xs text-amber-600 dark:text-amber-400">
+        <span class="material-symbols-outlined text-xs align-middle">hourglass_top</span>
+        {{ _('全部已发货，等待签收中') }}
+    </p>
     {% endif %}
 
     {# 可点击提示 #}
