@@ -240,12 +240,17 @@ def api_delete_shipment(shipment_id):
         if shipment.documents:
             return jsonify({'success': False, 'message': '已上传快递单的发货单不能删除'})
 
-        # 恢复 PO 明细的 dispatched_quantity
+        # 恢复 PO 明细的 dispatched_quantity 和 SO 明细的 shipped_quantity
+        from app.models.sales_order import SalesOrderDetail
         for detail in shipment.details:
             if detail.purchase_order_detail_id:
                 po_detail = PurchaseOrderDetail.query.get(detail.purchase_order_detail_id)
                 if po_detail:
                     po_detail.dispatched_quantity = max(0, (po_detail.dispatched_quantity or 0) - detail.quantity)
+            if detail.sales_order_detail_id:
+                so_detail = SalesOrderDetail.query.get(detail.sales_order_detail_id)
+                if so_detail:
+                    so_detail.shipped_quantity = max(0, (so_detail.shipped_quantity or 0) - detail.quantity)
             db.session.delete(detail)
 
         db.session.delete(shipment)
