@@ -632,10 +632,24 @@ def api_get_dispatchable_details(po_id):
     if not po:
         return jsonify({'success': False, 'message': '采购订单不存在'})
 
+    from app.models.sales_order import SalesOrderDetail
     dispatchable_details = []
     for detail in po.details:
-        # 可发数量 = 总量 - 已发出量（不依赖到货记录）
-        remaining = max(0, detail.quantity - (detail.dispatched_quantity or 0))
+        # PO可发 = 总量 - 已发出量
+        po_remaining = max(0, detail.quantity - (detail.dispatched_quantity or 0))
+        if po_remaining <= 0:
+            continue
+
+        # 如果关联了SO明细，取SO可发量的最小值
+        so_remaining = None
+        if detail.sales_order_detail_id:
+            so_detail = SalesOrderDetail.query.get(detail.sales_order_detail_id)
+            if so_detail:
+                so_remaining = so_detail.remaining_to_ship
+
+        # 实际可发 = min(PO可发, SO可发)
+        remaining = min(po_remaining, so_remaining) if so_remaining is not None else po_remaining
+
         if remaining > 0:
             dispatchable_details.append({
                 'id': detail.id,
@@ -646,6 +660,7 @@ def api_get_dispatchable_details(po_id):
                 'received_quantity': detail.received_quantity or 0,
                 'dispatched_quantity': detail.dispatched_quantity or 0,
                 'remaining_to_dispatch': remaining,
+                'so_remaining_to_ship': so_remaining,
                 'unit': detail.unit,
                 'sales_order_detail_id': detail.sales_order_detail_id
             })
@@ -779,14 +794,26 @@ def api_create_from_po():
                 db.session.rollback()
                 return jsonify({'success': False, 'message': f'采购明细 ID {po_detail_id} 不存在'})
 
-            # 验证数量不超过可发数量
+            # 验证数量不超过PO可发数量
             remaining = po_detail.remaining_to_dispatch
             if quantity > remaining:
                 db.session.rollback()
                 return jsonify({
                     'success': False,
-                    'message': f'{po_detail.product_name} 可发数量为 {remaining}，不能发 {quantity}'
+                    'message': f'{po_detail.product_name} PO可发数量为 {remaining}，不能发 {quantity}'
                 })
+
+            # 验证数量不超过SO可发数量（如有关联）
+            so_detail_id = item.get('sales_order_detail_id') or po_detail.sales_order_detail_id
+            if so_detail_id and destination_type == 'sales_order':
+                from app.models.sales_order import SalesOrderDetail as SOD
+                so_detail = SOD.query.get(so_detail_id)
+                if so_detail and quantity > so_detail.remaining_to_ship:
+                    db.session.rollback()
+                    return jsonify({
+                        'success': False,
+                        'message': f'{po_detail.product_name} 客户订单剩余可发 {so_detail.remaining_to_ship}，不能发 {quantity}'
+                    })
 
             # 处理序列号
             serial_numbers = item.get('serial_numbers', [])
