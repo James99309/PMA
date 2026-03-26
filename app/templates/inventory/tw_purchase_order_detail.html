@@ -468,7 +468,7 @@
                     } else if (s.status === 'shipped' || s.status === 'in_transit') {
                         actionHtml = `<button onclick="event.stopPropagation(); openReceiveShipmentModal(${s.id})"
                             class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors">
-                            <span class="material-symbols-outlined text-sm">check_circle</span>{{ _('签收') }}</button>`;
+                            {{ _('待签收') }}</button>`;
                     } else if (s.status === 'received') {
                         actionHtml = `<span class="text-xs text-green-600 dark:text-green-400 font-medium">✓ {{ _('已签收') }}</span>`;
                     }

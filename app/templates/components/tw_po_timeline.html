@@ -243,9 +243,7 @@
                 {% elif status == 'overdue' %}text-red-600 dark:text-red-400
                 {% else %}text-slate-500 dark:text-slate-400{% endif %}">
                 {{ title }}
-                {% if status == 'completed' %}
-                <span class="text-xs text-green-600 dark:text-green-400 font-medium ml-2">✓</span>
-                {% elif status == 'current' %}
+                {% if status == 'current' %}
                 <span class="text-xs text-amber-600 dark:text-amber-400 font-medium ml-2">{{ _('当前') }}</span>
                 {% elif status == 'overdue' %}
                 <span class="text-xs text-red-600 dark:text-red-400 font-medium ml-2">{{ _('超期') }}</span>
