@@ -601,6 +601,9 @@ $(document).ready(function() {
     // 初始化产品明细管理器（通过宏已初始化）
     // 产品明细管理器会在 init_product_detail_scripts() 中自动初始化
 
+    // 记录页面加载时间（用于工作项时长计算，挂到 window 上供全局函数访问）
+    window._pageLoadTime = new Date().toTimeString().split(' ')[0];
+
     // 绑定表单提交事件
     $('#quotation-form').on('submit', function(e) {
         e.preventDefault();
@@ -773,7 +776,8 @@ function submitQuotationAsJson(productDetails) {
                 price_adjustment_total: detail.price_adjustment_total || 0,
                 pending_product_creation: detail.pending_product_creation || false
             })),
-            return_to: $('input[name="return_to"]').val() || ''
+            return_to: $('input[name="return_to"]').val() || '',
+            page_load_time: window._pageLoadTime
         };
         
         console.log('JSON数据准备完成:', jsonData);

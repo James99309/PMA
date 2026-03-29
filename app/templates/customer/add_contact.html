@@ -22,6 +22,7 @@
                 <div class="card-body">
                     <form method="POST" class="needs-validation" novalidate>
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="page_open_time" id="pageOpenTime">
                         <div class="mb-3">
                             <label for="name" class="form-label">{{ _('姓名') }}</label>
                             <input type="text" class="form-control" id="name" name="name" required>
@@ -100,4 +101,10 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('pageOpenTime').value = new Date().toTimeString().split(' ')[0];
+</script>
 {% endblock %}

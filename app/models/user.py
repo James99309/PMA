@@ -413,15 +413,6 @@ class User(db.Model, UserMixin):
                 if u.id not in viewable_ids:
                     viewable_ids.append(u.id)
         
-        # 产品经理和解决方案经理可以查看所有报价单所有者的数据
-        if self.role in ['product_manager', 'solution_manager']:
-            from app.models.quotation import Quotation
-            # 获取所有报价单所有者的ID
-            owner_ids = db.session.query(Quotation.owner_id).distinct().all()
-            for owner_id in owner_ids:
-                if owner_id[0] and owner_id[0] not in viewable_ids:
-                    viewable_ids.append(owner_id[0])
-        
         # 服务经理可以查看所有客户和项目相关人员的数据
         if self.role == 'service':
             from app.models.customer import Company

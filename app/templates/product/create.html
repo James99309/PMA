@@ -145,6 +145,7 @@
         <div class="card-body">
             <form id="productForm" method="POST" action="{% if product %}{{ url_for('product.update_product', id=product.id) }}{% else %}{{ url_for('product.create_product') }}{% endif %}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="page_open_time" id="pageOpenTime">
                 <!-- 产品类型：research=研发产品, standard=标准产品 -->
                 <input type="hidden" name="product_type" value="{{ product_type if product_type else 'standard' }}">
 
@@ -510,6 +511,9 @@
 <script src="{{ url_for('static', filename='js/select-with-quick-add.js') }}"></script>
 
 <script>
+// 记录页面打开时间（用于工作时长计算）
+document.getElementById('pageOpenTime').value = new Date().toTimeString().split(' ')[0];
+
 document.addEventListener('DOMContentLoaded', function() {
     // 获取表单元素
     const form = document.getElementById('productForm');

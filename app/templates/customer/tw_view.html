@@ -1018,6 +1018,9 @@
             // 初始化主要联系人状态
             window._addContactPrimary = false;
 
+            // 记录模态框打开时间（用于工作时长计算）
+            const _contactModalOpenTime = new Date().toTimeString().split(' ')[0];
+
             openFormModal('addContactModal', {
                 onSubmit: async function(formData) {
                     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -1030,7 +1033,8 @@
                         phone: formData.phone || '',
                         email: formData.email || '',
                         notes: formData.notes || '',
-                        is_primary: window._addContactPrimary || false
+                        is_primary: window._addContactPrimary || false,
+                        page_open_time: _contactModalOpenTime
                     };
 
                     // 验证必填字段

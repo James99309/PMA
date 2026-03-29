@@ -502,6 +502,18 @@ render_tw_source_badge, render_tw_customer_status_badge with context %}
                 });
                 isNameValid = true;
 
+                // 记录模态框打开时间（用于工作时长计算）
+                const pageOpenTimeInput = document.querySelector('#customerFormModal-form [name="page_open_time"]');
+                if (!pageOpenTimeInput) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'page_open_time';
+                    input.value = new Date().toTimeString().split(' ')[0];
+                    document.getElementById('customerFormModal-form').appendChild(input);
+                } else {
+                    pageOpenTimeInput.value = new Date().toTimeString().split(' ')[0];
+                }
+
                 // 打开模态框
                 openFormModal('customerFormModal', {
                     title: '{{ _("新建客户") }}',

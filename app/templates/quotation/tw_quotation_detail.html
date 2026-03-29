@@ -258,7 +258,7 @@
                 {'field': 'product_mn', 'label': _('产品编码')}
             ] %}
 
-            {# 确认状态徽章配置（三态：none/pending/confirmed） #}
+            {# 确认状态徽章配置（四态：none/pending/confirmed/reconfirm） #}
             {% set confirm_badge = none %}
             {% set badge_status = quotation.confirmation_badge_status %}
             {% if badge_status == 'confirmed' %}
@@ -269,6 +269,15 @@
                     'class': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
                     'onclick': 'showConfirmationDetail()',
                     'filled': true
+                } %}
+            {% elif badge_status == 'reconfirm' %}
+                {% set confirm_badge = {
+                    'id': 'confirmStatusBtn',
+                    'text': _('再次确认'),
+                    'icon': 'refresh',
+                    'class': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+                    'onclick': 'showConfirmationDetail()',
+                    'filled': false
                 } %}
             {% elif badge_status == 'pending' %}
                 {% set confirm_badge = {
@@ -604,6 +613,7 @@
     // 样式常量
     const CONFIRM_STYLES = {
         'confirmed': { class: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: 'check_circle', filled: true },
+        'reconfirm': { class: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400', icon: 'refresh', filled: false },
         'pending': { class: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: 'hourglass_top', filled: false },
         'none': { class: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700', icon: 'assignment', filled: false }
     };
@@ -774,6 +784,9 @@
         if (status === 'confirmed') {
             text.textContent = '{{ _("已确认") }}';
             btn.onclick = showConfirmationDetail;
+        } else if (status === 'reconfirm') {
+            text.textContent = total > 0 ? `{{ _("再次确认") }} (${confirmed}/${total})` : '{{ _("再次确认") }}';
+            btn.onclick = showConfirmationDetail;
         } else if (status === 'pending') {
             text.textContent = total > 0 ? `{{ _("待确认") }} (${confirmed}/${total})` : '{{ _("待确认") }}';
             btn.onclick = showConfirmationDetail;
@@ -783,13 +796,13 @@
         }
     }
 
-    // 页面加载时，如果是pending状态，获取进度数字
-    {% if quotation.confirmation_badge_status == 'pending' %}
+    // 页面加载时，如果是pending或reconfirm状态，获取进度数字
+    {% if quotation.confirmation_badge_status in ['pending', 'reconfirm'] %}
     fetch(`/quotation/{{ quotation.id }}/confirmation-tasks`)
     .then(r => r.json())
     .then(data => {
         if (data.success && data.total > 0) {
-            updateConfirmBadge('pending', data.confirmed, data.total);
+            updateConfirmBadge('{{ quotation.confirmation_badge_status }}', data.confirmed, data.total);
         }
     }).catch(() => {});
     {% endif %}

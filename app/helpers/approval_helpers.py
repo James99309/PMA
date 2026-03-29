@@ -5417,10 +5417,7 @@ def _update_business_object_approval_status(instance, action, user_id, comment):
                         'timestamp': datetime.now().isoformat(),
                         'approval_instance_id': instance.id
                     })
-                    
-                    # 添加待确认徽章（新增逻辑）
-                    quotation.set_pending_confirmation_badge()
-                    
+
                     current_app.logger.info(f"报价单 {quotation.quotation_number} 审批状态已更新为: {target_approval_status}")
                     
                 elif action == ApprovalAction.REJECT:

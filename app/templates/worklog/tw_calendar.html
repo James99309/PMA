@@ -1054,8 +1054,12 @@
                                 <div class="bg-slate-50 dark:bg-slate-800 rounded-lg p-3">
                                     <div class="text-slate-500 dark:text-slate-400">{{ _('时间') }}</div>
                                     <div class="font-medium text-slate-900 dark:text-white mt-1"
-                                         x-text="viewData.is_all_day ? '{{ _('全天') }}' : ((viewData.start_time || '-') + ' ~ ' + (viewData.end_time || '-'))"></div>
+                                         x-text="viewData.is_all_day ? '{{ _('全天') }}' : (viewData.start_time === viewData.end_time ? (viewData.start_time || '-') : ((viewData.start_time || '-') + ' ~ ' + (viewData.end_time || '-')))"></div>
                                 </div>
+                            </div>
+                            <div x-show="viewData.actual_hours" class="text-sm">
+                                <span class="text-slate-500 dark:text-slate-400">{{ _('累计时长') }}:</span>
+                                <span class="font-medium text-slate-900 dark:text-white ml-2" x-text="viewData.actual_hours >= 1 ? (viewData.actual_hours.toFixed(1) + ' {{ _('小时') }}') : (Math.round(viewData.actual_hours * 60) + ' {{ _('分钟') }}')"></span>
                             </div>
                             <div x-show="viewData.project_name" class="text-sm">
                                 <span class="text-slate-500 dark:text-slate-400">{{ _('关联项目') }}:</span>
@@ -1066,8 +1070,8 @@
                                 <a :href="'/customer/' + viewData.customer_id + '/view'" class="text-blue-600 dark:text-blue-400 hover:underline ml-2" x-text="viewData.customer_name"></a>
                             </div>
                             <div x-show="viewData.description">
-                                <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('描述') }}</div>
-                                <p class="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-lg p-3" x-text="viewData.description"></p>
+                                <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('操作记录') }}</div>
+                                <p class="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-lg p-3 whitespace-pre-line" x-text="viewData.description"></p>
                             </div>
                             <div x-show="viewData.execution_notes">
                                 <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('执行备注') }}</div>
