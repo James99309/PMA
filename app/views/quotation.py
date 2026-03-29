@@ -49,6 +49,7 @@ quotation = Blueprint('quotation', __name__)
 QUOTATION_FILTER_CONFIG = {
     'owner_filter': {'type': 'exact', 'field': 'owner_id'},
     'project_stage_filter': {'type': 'exact', 'field': 'project_stage'},
+    'confirm_filter': {'type': 'exact', 'field': 'confirmation_badge_status'},
     # search 和 project_type_filter 需要关联 Project 表，在查询中手动处理
 }
 
@@ -325,6 +326,18 @@ def list_quotations():
                     'current_value': project_stage_filter if project_stage_filter and request.args else '',
                     'col_width': 2,
                     'options': project_stage_options
+                },
+                {
+                    'name': 'confirm_filter',
+                    'label': _('确认状态'),
+                    'all_option_text': _('全部状态'),
+                    'current_value': request.args.get('confirm_filter', ''),
+                    'col_width': 2,
+                    'options': [
+                        {'value': 'pending', 'label': _('待确认')},
+                        {'value': 'confirmed', 'label': _('已确认')},
+                        {'value': 'reconfirm', 'label': _('再次确认')},
+                    ]
                 }
             ],
             
