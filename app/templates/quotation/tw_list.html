@@ -166,12 +166,23 @@
                     <td class="p-3 whitespace-nowrap">
                         {{ render_tw_owner_badge(quotation.owner) }}
                     </td>
-                    <!-- 报价单编号 -->
+                    <!-- 报价单编号 + 确认状态圆点 -->
                     <td class="p-3 whitespace-nowrap" style="min-width: 160px; width: 180px;">
-                        <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}"
-                           class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
-                            {{ quotation.quotation_number }}
-                        </a>
+                        <div class="flex items-center gap-1">
+                            {% if quotation.confirmation_badge_status == 'confirmed' %}
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" title="{{ _('已确认') }}"></span>
+                            {% elif quotation.confirmation_badge_status == 'pending' %}
+                                <span class="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" title="{{ _('待确认') }}"></span>
+                            {% elif quotation.confirmation_badge_status == 'reconfirm' %}
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" title="{{ _('再次确认') }}"></span>
+                            {% else %}
+                                <span class="w-1.5 h-1.5 flex-shrink-0"></span>
+                            {% endif %}
+                            <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}"
+                               class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+                                {{ quotation.quotation_number }}
+                            </a>
+                        </div>
                     </td>
                     <!-- 关联项目 -->
                     <td class="p-3 whitespace-nowrap" style="min-width: 200px; width: 240px;">

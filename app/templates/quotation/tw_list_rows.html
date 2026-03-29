@@ -4,7 +4,20 @@
 {% for quotation in quotations %}
 <tr class="table-row-hover transition-colors">
     {{ tw_cell_badge(render_tw_owner_badge(quotation.owner)) }}
-    {{ tw_cell_link(url_for('quotation.view_quotation', id=quotation.id), quotation.quotation_number, min_width='160px') }}
+    <td class="p-3 whitespace-nowrap" style="min-width: 160px">
+        <div class="flex items-center gap-1">
+            {% if quotation.confirmation_badge_status == 'confirmed' %}
+                <span class="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" title="{{ _('已确认') }}"></span>
+            {% elif quotation.confirmation_badge_status == 'pending' %}
+                <span class="w-1.5 h-1.5 rounded-full bg-orange-500 flex-shrink-0" title="{{ _('待确认') }}"></span>
+            {% elif quotation.confirmation_badge_status == 'reconfirm' %}
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" title="{{ _('再次确认') }}"></span>
+            {% else %}
+                <span class="w-1.5 h-1.5 flex-shrink-0"></span>
+            {% endif %}
+            <a href="{{ url_for('quotation.view_quotation', id=quotation.id) }}" class="text-primary hover:underline font-medium">{{ quotation.quotation_number }}</a>
+        </div>
+    </td>
     {% if quotation.project %}
     {{ tw_cell_link_secondary(url_for('project.view_project', project_id=quotation.project.id), quotation.project.project_name, title=quotation.project.project_name) }}
     {% else %}

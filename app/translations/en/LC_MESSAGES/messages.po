@@ -8170,6 +8170,12 @@ msgstr "Total Duration"
 msgid "操作记录"
 msgstr "Activity Log"
 
+msgid "确认状态"
+msgstr "Confirmation Status"
+
+msgid "全部状态"
+msgstr "All Status"
+
 msgid "指派确认人"
 msgstr "Assign Reviewer"
 
