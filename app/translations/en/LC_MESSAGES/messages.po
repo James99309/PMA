@@ -8125,6 +8125,51 @@ msgstr "Request Confirmation"
 msgid "待确认"
 msgstr "Pending Confirmation"
 
+msgid "再次确认"
+msgstr "Reconfirmation Required"
+
+msgid "创建报价单"
+msgstr "Create Quotation"
+
+msgid "编辑报价单"
+msgstr "Edit Quotation"
+
+msgid "报价单确认"
+msgstr "Quotation Confirmed"
+
+msgid "创建项目"
+msgstr "Create Project"
+
+msgid "项目推进"
+msgstr "Project Advancement"
+
+msgid "创建客户"
+msgstr "Create Customer"
+
+msgid "编辑客户"
+msgstr "Edit Customer"
+
+msgid "创建联系人"
+msgstr "Create Contact"
+
+msgid "编辑联系人"
+msgstr "Edit Contact"
+
+msgid "添加行动记录"
+msgstr "Add Action Record"
+
+msgid "创建产品"
+msgstr "Create Product"
+
+msgid "编辑产品"
+msgstr "Edit Product"
+
+msgid "累计时长"
+msgstr "Total Duration"
+
+msgid "操作记录"
+msgstr "Activity Log"
+
 msgid "指派确认人"
 msgstr "Assign Reviewer"
 

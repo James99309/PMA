@@ -201,6 +201,7 @@
 
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="page_open_time" id="pageOpenTime">
         <!-- 项目信息卡片 -->
         <div class="card mb-4">
             <div class="card-header">
@@ -314,6 +315,9 @@
 <script src="{{ url_for('static', filename='js/vendor-sales-manager-selector.js') }}"></script>
 
 <script>
+// 记录页面打开时间
+document.getElementById('pageOpenTime').value = new Date().toTimeString().split(' ')[0];
+
 // 国际化文本变量
 const i18nTexts = {
     loading: '{{ _("加载中...") }}',

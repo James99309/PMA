@@ -41,6 +41,7 @@ from datetime import datetime
 from sqlalchemy import func, and_, or_, text, case
 from flask import url_for
 from app.decorators import permission_required, admin_required
+from app.utils.work_item_recorder import record_activity
 import os
 import io
 import uuid
@@ -749,6 +750,9 @@ def create():
 
         # 提交事务
         db.session.commit()
+        record_activity('create', 'product', new_product.product_name, current_user,
+            description=f'创建产品 {new_product.product_name}',
+            start_time_str=request.form.get('page_open_time'))
 
         logger.info(f'产品创建成功: ID={new_product.id}, MN={new_product.product_mn}, spec_mn={new_product.spec_mn}, 型号={new_product.model}')
 
@@ -2148,7 +2152,10 @@ def create_product():
         if new_product not in db.session:
             db.session.add(new_product)
         db.session.commit()
-        
+        record_activity('create', 'product', new_product.product_name, current_user,
+            description=f'创建产品 {new_product.product_name}',
+            start_time_str=request.form.get('page_open_time'))
+
         logger.info(f'产品创建成功: ID={new_product.id}, MN={new_product.product_mn}, 名称={new_product.product_name}, 有图片={has_image}, 有PDF={has_pdf}')
         logger.info(f'[DEBUG] 保存后的配置信息: source_configuration_id={new_product.source_configuration_id}, source_type={new_product.source_type}, category_id={new_product.category_id}, subcategory_id={new_product.subcategory_id}, region_id={new_product.region_id}')
 
@@ -2419,6 +2426,9 @@ def update_product(id):
 
         # 提交事务
         db.session.commit()
+        record_activity('edit', 'product', product.product_name, current_user,
+            description=f'编辑产品 {product.product_name}',
+            start_time_str=request.form.get('page_open_time'))
 
         logger.info(f'产品更新成功: ID={product.id}, MN={product.product_mn}, 型号={product.model}')
 
@@ -2749,6 +2759,9 @@ def update_product_api(id):
         if data_changed or image_changed or pdf_changed:
             logger.info(f'产品数据已变更，正在提交更新: ID={product.id}')
             db.session.commit()
+            record_activity('edit', 'product', product.product_name, current_user,
+                description=f'编辑产品 {product.product_name}',
+                start_time_str=request.form.get('page_open_time'))
             return jsonify({
                 'success': True,
                 'message': '产品更新成功',

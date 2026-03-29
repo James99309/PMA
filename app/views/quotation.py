@@ -8,7 +8,7 @@ from app.models.customer import Company, Contact
 from app.models.product import Product  # 添加产品模型导入
 from app.models.user import User  # 添加User模型导入
 from app.utils.product_helpers import find_product_by_name_and_model  # 产品查询辅助函数
-from datetime import datetime
+from datetime import datetime, date
 from sqlalchemy import or_, func
 from sqlalchemy.orm import joinedload
 from app import db
@@ -29,8 +29,9 @@ from app.models.settings import SystemSettings
 from zoneinfo import ZoneInfo
 from app.utils.role_mappings import get_role_display_name
 from app.helpers.approval_helpers import get_object_approval_instance, get_current_step_info, can_user_approve
+from app.utils.work_item_recorder import record_activity
 from sqlalchemy import event
-from app.models.quotation import update_quotation_product_signature, QuotationDetail
+from app.models.quotation import update_quotation_implant_total, QuotationDetail
 from app.utils.query_filters import (
     extract_filter_params, apply_filters_to_query, extract_sort_params,
     extract_pagination_params
@@ -1424,12 +1425,35 @@ def create_quotation():
                     # 注意：项目金额更新交由SQLAlchemy事件监听器处理，此处无需手动更新
                     current_app.logger.info('项目报价金额将由事件监听器自动更新')
 
-                    # 发送站内消息给解决方案经理 - 已禁用（app.utils.solution_manager_notifications模块已删除）
-                    # try:
-                    #     from app.utils.solution_manager_notifications import send_quotation_internal_message
-                    #     send_quotation_internal_message(quotation, current_user.id, 'created')
-                    # except Exception as msg_err:
-                    #     current_app.logger.warning(f"发送报价单创建消息失败: {str(msg_err)}")
+                    # 设置待确认状态并创建待办任务给厂家的解决方案经理
+                    try:
+                        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+                        from app.models.user import User
+                        quotation.set_pending_confirmation_badge()
+                        sm_users = User.query.filter(
+                            User.role == 'solution_manager',
+                            User.company_name == current_user.company_name,
+                            User._is_active == True
+                        ).all()
+                        for sm in sm_users:
+                            if sm.id != current_user.id:
+                                task = QuotationConfirmationTask(
+                                    quotation_id=quotation.id,
+                                    assignee_id=sm.id,
+                                    requester_id=current_user.id,
+                                    message=f'新建报价单 {quotation.quotation_number}，请确认产品明细',
+                                    status='pending'
+                                )
+                                db.session.add(task)
+                        db.session.commit()
+                    except Exception as msg_err:
+                        current_app.logger.warning(f"创建报价单确认任务失败: {str(msg_err)}")
+
+                    # 记录创建报价单到日历工作项
+                    record_activity('create', 'quotation', quotation.quotation_number, current_user,
+                        project_id=quotation.project_id, customer_id=quotation.customer_id,
+                        start_time_str=data.get('page_load_time'),
+                        description=f'为项目 {quotation.project.project_name if quotation.project else ""} 创建报价单')
 
                     # 检查并创建配置产品到研发产品库
                     try:
@@ -1700,7 +1724,7 @@ def edit_quotation(id):
                 
                 # 安全地移除事件监听器，避免重复触发
                 try:
-                    event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                    event.remove(QuotationDetail, 'after_delete', update_quotation_implant_total)
                 except Exception:
                     # 如果监听器不存在，忽略错误
                     pass
@@ -1938,45 +1962,17 @@ def edit_quotation(id):
                 finally:
                     # 安全地重新注册事件监听器
                     try:
-                        if not event.contains(QuotationDetail, 'after_insert', update_quotation_product_signature):
-                            event.listen(QuotationDetail, 'after_insert', update_quotation_product_signature)
-                        if not event.contains(QuotationDetail, 'after_update', update_quotation_product_signature):
-                            event.listen(QuotationDetail, 'after_update', update_quotation_product_signature)
-                        if not event.contains(QuotationDetail, 'after_delete', update_quotation_product_signature):
-                            event.listen(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                        if not event.contains(QuotationDetail, 'after_insert', update_quotation_implant_total):
+                            event.listen(QuotationDetail, 'after_insert', update_quotation_implant_total)
+                        if not event.contains(QuotationDetail, 'after_update', update_quotation_implant_total):
+                            event.listen(QuotationDetail, 'after_update', update_quotation_implant_total)
+                        if not event.contains(QuotationDetail, 'after_delete', update_quotation_implant_total):
+                            event.listen(QuotationDetail, 'after_delete', update_quotation_implant_total)
                     except Exception:
                         # 忽略重新注册时的错误
                         pass
                     
-                    # 在重新注册事件监听器后立即进行签名检测和状态处理
-                    try:
-                        # 检测产品明细是否发生变化
-                        new_product_signature = quotation.calculate_product_signature()
-                        product_details_changed = old_product_signature != new_product_signature
-                        
-                        # 如果产品明细发生关键变化，手动清除确认状态
-                        if product_details_changed and quotation.confirmation_badge_status == 'confirmed':
-                            quotation.confirmation_badge_status = 'none'
-                            quotation.confirmation_badge_color = None
-                            quotation.confirmed_by = None
-                            quotation.confirmed_at = None
-                            current_app.logger.info(f"报价单 {quotation.id} 的产品明细发生关键变化（行数或MN号），已手动清除确认状态")
-                        
-                        # 更新产品签名
-                        quotation.product_signature = new_product_signature
-                        current_app.logger.debug(f"产品签名更新: {old_product_signature} -> {new_product_signature}, 变化: {product_details_changed}")
-                        
-                        # 临时再次禁用事件监听器，避免在提交时触发
-                        try:
-                            event.remove(QuotationDetail, 'after_insert', update_quotation_product_signature)
-                            event.remove(QuotationDetail, 'after_update', update_quotation_product_signature)
-                            event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
-                        except Exception:
-                            # 如果监听器不存在，忽略错误
-                            pass
-                        
-                    except Exception as signature_error:
-                        current_app.logger.error(f"处理产品签名和确认状态时出错: {str(signature_error)}")
+                    pass
                 
                 # 记录变更历史
                 try:
@@ -2000,6 +1996,19 @@ def edit_quotation(id):
                         
                 db.session.commit()
 
+                # commit 后检测签名变化并更新确认状态
+                try:
+                    new_product_signature = quotation.calculate_product_signature()
+                    if old_product_signature and new_product_signature != old_product_signature:
+                        if quotation.confirmation_badge_status == 'confirmed':
+                            quotation.confirmation_badge_status = 'reconfirm'
+                            quotation.confirmation_badge_color = '#f59e0b'
+                            current_app.logger.info(f"报价单 {quotation.id} 配置变更，状态改为再次确认")
+                    quotation.product_signature = new_product_signature
+                    db.session.commit()
+                except Exception as sig_err:
+                    current_app.logger.warning(f"签名检测失败: {str(sig_err)}")
+
                 # 检查并创建配置产品到研发产品库
                 try:
                     created_products = create_products_from_configured_specs(quotation)
@@ -2008,6 +2017,40 @@ def edit_quotation(id):
                         current_app.logger.info(f'报价单 {quotation.id} 创建了 {len(created_products)} 个研发产品')
                 except Exception as e:
                     current_app.logger.error(f'创建研发产品失败: {str(e)}')
+
+                # 配置变更时创建再次确认待办任务给解决方案经理
+                if quotation.confirmation_badge_status == 'reconfirm':
+                    try:
+                        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+                        sm_users = User.query.filter(
+                            User.role == 'solution_manager',
+                            User.company_name == current_user.company_name,
+                            User._is_active == True
+                        ).all()
+                        for sm in sm_users:
+                            if sm.id != current_user.id:
+                                existing = QuotationConfirmationTask.query.filter_by(
+                                    quotation_id=quotation.id,
+                                    assignee_id=sm.id,
+                                    status='pending'
+                                ).first()
+                                if not existing:
+                                    task = QuotationConfirmationTask(
+                                        quotation_id=quotation.id,
+                                        assignee_id=sm.id,
+                                        requester_id=current_user.id,
+                                        message=f'报价单 {quotation.quotation_number} 配置已变更，请再次确认',
+                                        status='pending'
+                                    )
+                                    db.session.add(task)
+                        db.session.commit()
+                    except Exception as reconfirm_err:
+                        current_app.logger.warning(f"创建再次确认任务失败: {str(reconfirm_err)}")
+
+                record_activity('edit', 'quotation', quotation.quotation_number, current_user,
+                    project_id=quotation.project_id, customer_id=quotation.customer_id,
+                    start_time_str=request.form.get('page_open_time'),
+                    description=f'编辑报价单 {quotation.quotation_number}')
 
                 flash(_('报价单更新成功！'), 'success')
                 return redirect(url_for('quotation.view_quotation', id=quotation.id))
@@ -2142,15 +2185,21 @@ def delete_quotation(id):
             
             current_app.logger.info(f"已删除 {len(quotation_approvals)} 个报价单审批实例和 {approval_record_count} 个审批记录")
         
+        # 删除报价单确认任务
+        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+        confirmation_tasks = QuotationConfirmationTask.query.filter_by(quotation_id=id).all()
+        for ct in confirmation_tasks:
+            db.session.delete(ct)
+
         # === 新增：显式删除报价单明细 ===
         from app.models.quotation import QuotationDetail
         quotation_details = QuotationDetail.query.filter_by(quotation_id=id).all()
-        
+
         if quotation_details:
             for detail in quotation_details:
                 db.session.delete(detail)
             current_app.logger.info(f"已删除 {len(quotation_details)} 个报价单明细")
-        
+
         # 删除积分流水
         try:
             from app.helpers.product_points import delete_quotation_points
@@ -2204,14 +2253,19 @@ def batch_delete_quotations():
                                 # 删除审批实例
                                 db.session.delete(approval)
                         
+                        # 删除报价单确认任务
+                        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+                        for ct in QuotationConfirmationTask.query.filter_by(quotation_id=quotation_id).all():
+                            db.session.delete(ct)
+
                         # === 新增：显式删除报价单明细 ===
                         from app.models.quotation import QuotationDetail
                         quotation_details = QuotationDetail.query.filter_by(quotation_id=quotation_id).all()
-                        
+
                         if quotation_details:
                             for detail in quotation_details:
                                 db.session.delete(detail)
-                        
+
                         # 删除积分流水
                         try:
                             from app.helpers.product_points import delete_quotation_points
@@ -3435,10 +3489,8 @@ def save_quotation(id):
         # 专门捕获关键字段用于变更历史显示
         old_amount = quotation.amount or 0
         old_details_count = len(quotation.details) if quotation.details else 0
-
-        # 捕获修改前的产品明细签名，用于检测变化
         old_product_signature = quotation.calculate_product_signature()
-        
+
         # 使用 request.get_json() 获取JSON数据
         data = request.get_json()
         
@@ -3512,9 +3564,9 @@ def save_quotation(id):
         
         # 临时禁用事件监听器，避免删除重建过程中触发不必要的签名变化
         try:
-            event.remove(QuotationDetail, 'after_insert', update_quotation_product_signature)
-            event.remove(QuotationDetail, 'after_update', update_quotation_product_signature)
-            event.remove(QuotationDetail, 'after_delete', update_quotation_product_signature)
+            event.remove(QuotationDetail, 'after_insert', update_quotation_implant_total)
+            event.remove(QuotationDetail, 'after_update', update_quotation_implant_total)
+            event.remove(QuotationDetail, 'after_delete', update_quotation_implant_total)
         except Exception:
             # 如果监听器不存在，忽略错误
             pass
@@ -3566,27 +3618,6 @@ def save_quotation(id):
             for detail_obj in created_details:
                 quotation.details.append(detail_obj)
 
-            # 在提交前进行签名检测和状态处理
-            try:
-                # 检测产品明细是否发生变化
-                new_product_signature = quotation.calculate_product_signature()
-                product_details_changed = old_product_signature != new_product_signature
-                
-                # 如果产品明细发生关键变化，手动清除确认状态
-                if product_details_changed and quotation.confirmation_badge_status == 'confirmed':
-                    quotation.confirmation_badge_status = 'none'
-                    quotation.confirmation_badge_color = None
-                    quotation.confirmed_by = None
-                    quotation.confirmed_at = None
-                    current_app.logger.info(f"报价单 {quotation.id} 的产品明细发生关键变化（行数或MN号），已手动清除确认状态")
-                
-                # 更新产品签名
-                quotation.product_signature = new_product_signature
-                current_app.logger.debug(f"产品签名更新: {old_product_signature} -> {new_product_signature}, 变化: {product_details_changed}")
-                
-            except Exception as signature_error:
-                current_app.logger.error(f"处理产品签名和确认状态时出错: {str(signature_error)}")
-            
             # 计算植入总额
             try:
                 quotation.calculate_implant_total_amount()
@@ -3619,12 +3650,48 @@ def save_quotation(id):
                     current_app.logger.error(f'创建研发产品失败: {str(create_err)}')
                     # 不影响报价单保存成功
 
-                # 发送站内消息给解决方案经理 - 已禁用（app.utils.solution_manager_notifications模块已删除）
-                # try:
-                #     from app.utils.solution_manager_notifications import send_quotation_internal_message
-                #     send_quotation_internal_message(quotation, current_user.id, 'updated')
-                # except Exception as msg_err:
-                #     current_app.logger.warning(f"发送报价单修改消息失败: {str(msg_err)}")
+                # commit 后检测签名变化并更新确认状态
+                try:
+                    new_product_signature = quotation.calculate_product_signature()
+                    if old_product_signature and new_product_signature != old_product_signature:
+                        if quotation.confirmation_badge_status == 'confirmed':
+                            quotation.confirmation_badge_status = 'reconfirm'
+                            quotation.confirmation_badge_color = '#f59e0b'
+                            current_app.logger.info(f"报价单 {quotation.id} 配置变更(JSON路径)，状态改为再次确认")
+                    quotation.product_signature = new_product_signature
+                    db.session.commit()
+                except Exception as sig_err:
+                    current_app.logger.warning(f"签名检测失败: {str(sig_err)}")
+
+                # 配置变更时创建再次确认待办任务给解决方案经理
+                if quotation.confirmation_badge_status == 'reconfirm':
+                    try:
+                        from app.models.quotation_confirmation_task import QuotationConfirmationTask
+                        from app.models.user import User
+                        sm_users = User.query.filter(
+                            User.role == 'solution_manager',
+                            User.company_name == current_user.company_name,
+                            User._is_active == True
+                        ).all()
+                        for sm in sm_users:
+                            if sm.id != current_user.id:
+                                existing = QuotationConfirmationTask.query.filter_by(
+                                    quotation_id=quotation.id,
+                                    assignee_id=sm.id,
+                                    status='pending'
+                                ).first()
+                                if not existing:
+                                    task = QuotationConfirmationTask(
+                                        quotation_id=quotation.id,
+                                        assignee_id=sm.id,
+                                        requester_id=current_user.id,
+                                        message=f'报价单 {quotation.quotation_number} 配置已变更，请再次确认',
+                                        status='pending'
+                                    )
+                                    db.session.add(task)
+                        db.session.commit()
+                    except Exception as msg_err:
+                        current_app.logger.warning(f"创建再次确认任务失败: {str(msg_err)}")
 
             except Exception as commit_error:
                 db.session.rollback()
@@ -3639,12 +3706,12 @@ def save_quotation(id):
             # 确保事件监听器在任何情况下都能恢复
             try:
                 # 安全地重新注册事件监听器
-                if not event.contains(QuotationDetail, 'after_insert', update_quotation_product_signature):
-                    event.listen(QuotationDetail, 'after_insert', update_quotation_product_signature)
-                if not event.contains(QuotationDetail, 'after_update', update_quotation_product_signature):
-                    event.listen(QuotationDetail, 'after_update', update_quotation_product_signature)
-                if not event.contains(QuotationDetail, 'after_delete', update_quotation_product_signature):
-                    event.listen(QuotationDetail, 'after_delete', update_quotation_product_signature)
+                if not event.contains(QuotationDetail, 'after_insert', update_quotation_implant_total):
+                    event.listen(QuotationDetail, 'after_insert', update_quotation_implant_total)
+                if not event.contains(QuotationDetail, 'after_update', update_quotation_implant_total):
+                    event.listen(QuotationDetail, 'after_update', update_quotation_implant_total)
+                if not event.contains(QuotationDetail, 'after_delete', update_quotation_implant_total):
+                    event.listen(QuotationDetail, 'after_delete', update_quotation_implant_total)
                 current_app.logger.debug("事件监听器已安全恢复")
             except Exception as restore_error:
                 current_app.logger.error(f"恢复事件监听器时出错: {str(restore_error)}")
@@ -3701,6 +3768,10 @@ def save_quotation(id):
             db.session.commit()
         except Exception as project_update_error:
             current_app.logger.warning(f"更新项目金额失败: {str(project_update_error)}")
+
+        record_activity('edit', 'quotation', quotation.quotation_number, current_user,
+            project_id=quotation.project_id, customer_id=quotation.customer_id,
+            description=f'编辑报价单 {quotation.quotation_number}')
 
         # 快速返回成功响应
         if detail_errors:
@@ -3858,13 +3929,43 @@ def toggle_product_detail_confirmation(quotation_id):
             action = 'confirmed'
             message = '已确认产品明细'
 
+        # 确认时同步完成待办任务
+        if action == 'confirmed':
+            from app.models.quotation_confirmation_task import QuotationConfirmationTask
+            pending_task = QuotationConfirmationTask.query.filter_by(
+                quotation_id=quotation_id,
+                assignee_id=current_user.id,
+                status='pending'
+            ).first()
+            if pending_task:
+                pending_task.status = 'confirmed'
+                pending_task.confirmed_at = datetime.now()
+
         # 保存到数据库
         db.session.commit()
-        
+
+        # 确认时记录到日历工作项（同一天同一报价单只记录一次）
+        if action == 'confirmed':
+            record_activity('confirm', 'quotation', quotation.quotation_number, current_user,
+                project_id=quotation.project_id, customer_id=quotation.customer_id,
+                description=f'报价单确认 {quotation.quotation_number}')
+
+            # 将确认人加入项目共享（支持人员）
+            try:
+                project = quotation.project
+                if project and current_user.id != project.owner_id:
+                    shared = project.shared_with_users or []
+                    if current_user.id not in shared:
+                        project.shared_with_users = shared + [current_user.id]
+                        project.share_enabled = True
+                        db.session.commit()
+            except Exception as share_err:
+                current_app.logger.warning(f"添加项目共享人员失败: {str(share_err)}")
+
         # 记录确认信息
         confirmed_by = current_user.real_name or current_user.username
         confirmed_at = quotation.confirmed_at.strftime('%Y-%m-%d %H:%M') if quotation.confirmed_at else None
-        
+
         return jsonify({
             'success': True,
             'message': message,
@@ -3975,12 +4076,12 @@ def create_confirmation_tasks(quotation_id):
 
             # 创建WorkItem日程
             work_item = WorkItem(
-                title=f'产品确认: {quotation_obj.quotation_number}',
+                title=f'报价单确认: {quotation_obj.quotation_number}',
                 description=message_text or f'请确认报价单 {quotation_obj.quotation_number} 的产品选型和配置清单',
                 planned_date=datetime.now(ZoneInfo('Asia/Shanghai')).date(),
                 end_date=due_date.date() if due_date else None,
                 is_all_day=True,
-                work_type='product_confirmation',
+                work_type='presales_support',
                 status='planned',
                 owner_id=uid,
                 project_id=quotation_obj.project_id
@@ -4103,6 +4204,23 @@ def confirm_quotation_task(quotation_id):
                 db.session.add(msg)
 
         db.session.commit()
+
+        # 记录到日历工作项（同一天同一报价单只记录一次）
+        record_activity('confirm', 'quotation', quotation_obj.quotation_number, current_user,
+            project_id=quotation_obj.project_id, customer_id=quotation_obj.customer_id,
+            description=f'报价单确认 {quotation_obj.quotation_number}')
+
+        # 将确认人加入项目共享（支持人员）
+        try:
+            project = quotation_obj.project
+            if project and current_user.id != project.owner_id:
+                shared = project.shared_with_users or []
+                if current_user.id not in shared:
+                    project.shared_with_users = shared + [current_user.id]
+                    project.share_enabled = True
+                    db.session.commit()
+        except Exception as share_err:
+            current_app.logger.warning(f"添加项目共享人员失败: {str(share_err)}")
 
         return jsonify({
             'success': True,

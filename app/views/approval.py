@@ -1471,10 +1471,7 @@ def approve_quotation(quotation_id):
                 'comment': comment,
                 'timestamp': datetime.now().isoformat()
             })
-            
-            # 添加待确认徽章（新增逻辑）
-            quotation.set_pending_confirmation_badge()
-            
+
             message = f'报价单已通过 {QuotationApprovalStatus.APPROVAL_STATUS_LABELS.get(target_approval_status, {}).get("zh", target_approval_status)} 审核'
             
         else:  # action == 'reject'

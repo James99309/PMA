@@ -29,7 +29,7 @@ from app.models.projectpm_stage_history import ProjectStageHistory  # 导入阶�
 from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, INDUSTRY_OPTIONS, get_industry_options, get_project_type_options, get_report_source_options, get_product_situation_options, get_project_stage_options, get_default_currency, get_currency_symbol, get_amount_unit_config, get_activity_status_options
 from app.services.exchange_rate_service import exchange_rate_service
 from app.utils.chinese_mapping_manager import mapping_manager
-from sqlalchemy import or_, func
+from sqlalchemy import or_, func, case
 from sqlalchemy.orm import joinedload
 from app.helpers.project_helpers import is_project_editable
 from app.utils.activity_tracker import check_company_activity, update_active_status
@@ -38,6 +38,7 @@ from zoneinfo import ZoneInfo
 from app.utils.role_mappings import get_role_display_name
 from flask import after_this_request
 from app.utils.change_tracker import ChangeTracker
+from app.utils.work_item_recorder import record_activity
 from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
 from app.utils.access_control import can_start_approval
 from app.utils.query_filters import (
@@ -187,19 +188,28 @@ def list_projects():
     )
 
     query = apply_filters_to_query(query, Project, filters, PROJECT_FILTER_CONFIG)
-    sort, order = extract_sort_params(request.args, default_sort='updated_at', default_order='desc')
-    
+    sort, order = extract_sort_params(request.args, default_sort='activity_status', default_order='desc')
+
     # 添加排序条件
     try:
         # 特殊处理：当按项目名称排序时，实际按奖励星星数量排序
         if sort == 'project_name':
             # 按星星数量排序，空值排在最后
             if order == 'desc':
-                # 降序：星星多的在前，空值在最后
                 sort_column = Project.rating.desc().nullslast()
             else:
-                # 升序：星星少的在前，空值在最后  
                 sort_column = Project.rating.asc().nullslast()
+        elif sort == 'activity_status':
+            # 按活跃度优先级排序（highly_active=6 > active=5 > ... > frozen=0）
+            from app.utils.dictionary_helpers import ACTIVITY_STATUS_PRIORITY
+            priority_expr = case(
+                *[(Project.activity_status == k, v) for k, v in ACTIVITY_STATUS_PRIORITY.items()],
+                else_=0
+            )
+            if order == 'desc':
+                sort_column = priority_expr.desc()
+            else:
+                sort_column = priority_expr.asc()
         else:
             # 其他字段按原逻辑排序
             sort_column = getattr(Project, sort, Project.id)
@@ -207,7 +217,7 @@ def list_projects():
                 sort_column = sort_column.desc()
             else:
                 sort_column = sort_column.asc()
-        
+
         # 关键优化：首次加载只获取前30个项目，其余通过滚动加载
         initial_page_size = 30
         projects = query.order_by(sort_column).limit(initial_page_size).all()
@@ -665,9 +675,17 @@ def project_list_ajax():
                 'owner_id': create_user_relation_config(Project.owner_id),
                 'vendor_sales_manager_id': create_user_relation_config(Project.vendor_sales_manager_id)
             },
-            'default_sort': {'field': 'updated_at', 'direction': 'desc'}
+            'default_sort': {'field': 'activity_status', 'direction': 'desc'}
         }
-        
+
+        # 添加活跃度优先级排序映射
+        from app.utils.dictionary_helpers import ACTIVITY_STATUS_PRIORITY
+        activity_priority_expr = case(
+            *[(Project.activity_status == k, v) for k, v in ACTIVITY_STATUS_PRIORITY.items()],
+            else_=0
+        )
+        sorting_config['field_mappings']['activity_status'] = activity_priority_expr
+
         # 创建排序服务并应用排序
         sorting_service = SortingService(Project, sorting_config)
         query = sorting_service.apply_sort(query, sort_field, sort_direction)
@@ -1446,7 +1464,13 @@ def add_project():
                 ChangeTracker.log_create(project)
             except Exception as track_err:
                 logger.warning(f"记录项目创建历史失败: {str(track_err)}")
-            
+
+            # 记录工作项
+            record_activity('create', 'project', project.project_name, current_user,
+                project_id=project.id,
+                start_time_str=request.form.get('page_open_time'),
+                description=f'创建项目 {project.project_name}')
+
             # 新增：每次保存后自动刷新活跃度
             update_active_status(project)
             
@@ -2342,15 +2366,12 @@ def update_project_stage_business_logic(project_id, new_stage, current_user_id):
             
             # 检查报价单是否有审核标记
             has_approval = (
-                # 传统审核流程：有审核状态且不是pending/rejected，且有已审核阶段
-                (latest_quotation.approval_status and 
-                 latest_quotation.approval_status != 'pending' and
-                 latest_quotation.approval_status != 'rejected' and
-                 latest_quotation.approved_stages) or
-                # 或者有确认徽章（产品明细已确认）
-                (latest_quotation.confirmation_badge_status == 'confirmed')
+                latest_quotation.approval_status and
+                latest_quotation.approval_status != 'pending' and
+                latest_quotation.approval_status != 'rejected' and
+                latest_quotation.approved_stages
             )
-            
+
             if not has_approval:
                 return {'error': f'报价单 {latest_quotation.quotation_number} 尚未完成审核，无法推进到签约阶段。请先完成报价单审核流程。'}
             
@@ -2518,13 +2539,10 @@ def update_project_stage():
             else:
                 # 检查报价单是否有审核标记
                 has_approval = (
-                    # 传统审核流程：有审核状态且不是pending/rejected，且有已审核阶段
-                    (latest_quotation.approval_status and 
-                     latest_quotation.approval_status != 'pending' and
-                     latest_quotation.approval_status != 'rejected' and
-                     latest_quotation.approved_stages) or
-                    # 或者有确认徽章（产品明细已确认）
-                    (latest_quotation.confirmation_badge_status == 'confirmed')
+                    latest_quotation.approval_status and
+                    latest_quotation.approval_status != 'pending' and
+                    latest_quotation.approval_status != 'rejected' and
+                    latest_quotation.approved_stages
                 )
                 
                 if not has_approval:
@@ -2649,7 +2667,11 @@ def update_project_stage():
             current_app.logger.info(f"开始更新项目活跃度状态")
             update_active_status(project, commit=True)
             current_app.logger.info(f"项目ID={project.id}的阶段从{old_stage}更新为{new_stage}，历史记录已添加")
-            
+
+            # 记录工作项
+            record_activity('advance_stage', 'project', project.project_name, current_user,
+                project_id=project.id, description=f'项目推进 {project.project_name}')
+
             # 提交后再单独重新计算项目评分（避免事务冲突）
             @after_this_request
             def calculate_score(response):
@@ -2784,6 +2806,12 @@ def add_action_for_project(project_id):
             )
             db.session.add(action)
             db.session.commit()
+
+            # 记录日历工作项
+            record_activity('create', 'action', project.project_name, current_user,
+                customer_id=int(company_id) if company_id and company_id.isdigit() else None,
+                project_id=project_id, description=f'添加行动记录 {project.project_name}')
+
             # 新增：每次添加行动记录后自动刷新项目活跃度和更新时间
             project.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
             update_active_status(project, commit=False)
@@ -2791,7 +2819,7 @@ def add_action_for_project(project_id):
             # 如果关联了客户，更新客户活跃状态
             if company_id and company_id.isdigit():
                 check_company_activity(company_id=int(company_id), days_threshold=1)
-            
+
             flash('行动记录添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project_id))
     
@@ -2874,6 +2902,11 @@ def api_add_action(project_id):
         )
         db.session.add(action)
         db.session.commit()
+
+        # 记录日历工作项
+        record_activity('create', 'action', project_obj.project_name, current_user,
+            customer_id=int(company_id) if company_id else None,
+            project_id=project_id, description=f'添加行动记录 {project_obj.project_name}')
 
         # 更新项目活跃度和更新时间
         project_obj.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
@@ -4869,6 +4902,13 @@ def api_create_project():
             ChangeTracker.log_create(new_project)
         except Exception as track_err:
             logger.warning(f"记录项目创建历史失败: {str(track_err)}")
+
+        # 记录工作项
+        data = request.get_json() or {}
+        record_activity('create', 'project', new_project.project_name, current_user,
+            project_id=new_project.id,
+            start_time_str=data.get('page_open_time'),
+            description=f'创建项目 {new_project.project_name}')
 
         # 触发 AI 网络调研（后台线程）
         try:

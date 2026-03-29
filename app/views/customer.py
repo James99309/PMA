@@ -28,6 +28,7 @@ from app.utils.user_helpers import generate_user_tree_data
 from app.utils.activity_tracker import check_company_activity, update_active_status
 from zoneinfo import ZoneInfo
 from app.utils.change_tracker import ChangeTracker
+from app.utils.work_item_recorder import record_activity
 # 添加审批相关函数导入
 from app.helpers.approval_helpers import get_object_approval_instance, get_available_templates
 from app.utils.access_control import can_start_approval
@@ -1711,13 +1712,19 @@ def add_contact(company_id):
         # 添加到数据库
         db.session.add(contact)
         db.session.commit()
-        
+
         # 记录创建历史
         try:
             ChangeTracker.log_create(contact)
         except Exception as track_err:
             logger.warning(f"记录联系人创建历史失败: {str(track_err)}")
-        
+
+        # 记录日历工作项（按客户名合并同天联系人操作）
+        record_activity('create', 'contact', company.company_name, current_user,
+            customer_id=contact.company_id,
+            start_time_str=request.form.get('page_open_time'),
+            description=f'创建 {contact.name}')
+
         # 新增：每次添加联系人后自动刷新客户活跃度和更新时间
         company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
         update_active_status(company)
@@ -1774,7 +1781,12 @@ def edit_contact(company_id, contact_id):
             ChangeTracker.log_update(contact, old_values, new_values)
         except Exception as track_err:
             logger.warning(f"记录联系人变更历史失败: {str(track_err)}")
-        
+
+        record_activity('edit', 'contact', company.company_name, current_user,
+            customer_id=contact.company_id,
+            start_time_str=request.form.get('page_open_time'),
+            description=f'编辑 {contact.name}')
+
         flash('联系人信息更新成功！', 'success')
         return redirect(url_for('customer.list_contacts', company_id=contact.company_id))
     return render_template('customer/edit_contact.html', contact=contact, COMPANY_TYPE_OPTIONS=get_company_type_options(),
@@ -1837,9 +1849,14 @@ def add_action_api(contact_id):
         )
         db.session.add(action)
         db.session.commit()
+
+        # 记录日历工作项
+        record_activity('create', 'action', company.company_name, current_user,
+            customer_id=company.id, project_id=action.project_id, description=f'添加行动记录 {company.company_name}')
+
         # 返回成功信息和新创建的行动记录信息
         return jsonify({
-            'success': True, 
+            'success': True,
             'message': '行动记录添加成功',
             'data': {
                 'id': action.id,
@@ -1903,6 +1920,10 @@ def quick_add_action_api():
         db.session.add(action)
         db.session.commit()
 
+        # 记录日历工作项
+        record_activity('create', 'action', company.company_name, current_user,
+            customer_id=company_id, project_id=action.project_id, description=f'添加行动记录 {company.company_name}')
+
         return jsonify({
             'success': True,
             'message': _('行动记录添加成功'),
@@ -1961,6 +1982,10 @@ def api_add_action_for_company(company_id):
         )
         db.session.add(action)
         db.session.commit()
+
+        # 记录日历工作项
+        record_activity('create', 'action', company.company_name, current_user,
+            customer_id=company_id, project_id=action.project_id, description=f'添加行动记录 {company.company_name}')
 
         # 更新客户活跃状态
         check_company_activity(company_id=company_id, days_threshold=1)
@@ -2050,6 +2075,12 @@ def api_add_contact(company_id):
             ChangeTracker.log_create(contact)
         except Exception as track_err:
             logger.warning(f"记录联系人创建历史失败: {str(track_err)}")
+
+        # 记录日历工作项（按客户名合并同天联系人操作）
+        record_activity('create', 'contact', company.company_name, current_user,
+            customer_id=contact.company_id,
+            start_time_str=data.get('page_open_time'),
+            description=f'创建 {contact.name}')
 
         # 更新客户活跃度
         company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
@@ -2386,6 +2417,11 @@ def api_create_company():
         except Exception as track_err:
             logger.warning(f"记录客户创建历史失败: {str(track_err)}")
 
+        # 记录日历工作项
+        record_activity('create', 'customer', company.company_name, current_user,
+            customer_id=company.id, description=f'创建客户 {company.company_name}',
+            start_time_str=data.get('page_open_time'))
+
         # 自动触发 AI 后台调研
         try:
             from app.services.ai_research_service import AIResearchService
@@ -2467,6 +2503,10 @@ def api_update_company(company_id):
 
         # 更新客户活跃状态
         check_company_activity(company_id=company_id, days_threshold=1)
+
+        record_activity('edit', 'customer', company.company_name, current_user,
+            customer_id=company.id,
+            description=f'编辑客户 {company.company_name}')
 
         return jsonify({
             'success': True,
@@ -3717,6 +3757,11 @@ def add_action_for_company(company_id):
             )
             db.session.add(action)
             db.session.commit()
+
+            # 记录日历工作项
+            record_activity('create', 'action', company.company_name, current_user,
+                customer_id=company_id, project_id=action.project_id, description=f'添加行动记录 {company.company_name}')
+
             # 新增：每次添加行动记录后自动刷新客户活跃度和更新时间
             company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
             update_active_status(company)

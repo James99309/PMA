@@ -92,7 +92,7 @@ class Quotation(db.Model):
     approval_history = db.Column(db.JSON, default=list)  # 审核历史记录
     
     # 统一确认徽章字段
-    confirmation_badge_status = db.Column(db.String(20), default='none')  # none/pending/confirmed
+    confirmation_badge_status = db.Column(db.String(20), default='none')  # none/pending/confirmed/reconfirm
     confirmation_badge_color = db.Column(db.String(20))  # 徽章颜色
     confirmed_by = db.Column(db.Integer, db.ForeignKey('users.id'))  # 确认人
     confirmed_at = db.Column(db.DateTime)  # 确认时间
@@ -319,15 +319,13 @@ class Quotation(db.Model):
         """更新产品明细签名"""
         new_signature = self.calculate_product_signature()
         old_signature = self.product_signature
-        
-        # 如果签名发生变化且当前有确认徽章，则清除徽章
+
+        # 如果签名发生变化且当前已确认，转为再次确认状态
         if old_signature and new_signature != old_signature:
             if self.confirmation_badge_status == 'confirmed':
-                self.confirmation_badge_status = 'none'
-                self.confirmation_badge_color = None
-                self.confirmed_by = None
-                self.confirmed_at = None
-        
+                self.confirmation_badge_status = 'reconfirm'
+                self.confirmation_badge_color = '#f59e0b'  # 琥珀色
+
         self.product_signature = new_signature
     
     def set_confirmation_badge(self, color, user_id):
@@ -347,26 +345,34 @@ class Quotation(db.Model):
         self.confirmed_at = None
     
     def set_pending_confirmation_badge(self):
-        """设置待确认徽章（审批后自动添加）"""
+        """设置待确认徽章（创建报价单时自动添加）"""
         if self.confirmation_badge_status == 'none':
             self.confirmation_badge_status = 'pending'
-            self.confirmation_badge_color = '#6c757d'  # 默认灰色
+            self.confirmation_badge_color = '#f97316'  # 橙色
             self.product_signature = self.calculate_product_signature()
-    
+
+    def set_reconfirm_badge(self):
+        """设置再次确认徽章（已确认后配置变化时触发）"""
+        if self.confirmation_badge_status == 'confirmed':
+            self.confirmation_badge_status = 'reconfirm'
+            self.confirmation_badge_color = '#f59e0b'  # 琥珀色
+
     @property
     def confirmation_badge_html(self):
         """获取确认徽章HTML"""
         if self.confirmation_badge_status == 'none':
             return ''
-        
+
         if self.confirmation_badge_status == 'pending':
-            return f'<span class="badge confirmation-badge" style="background-color: #6c757d; color: white; font-size: 0.75rem;" title="待确认">✓</span>'
+            return '<span class="badge confirmation-badge" style="background-color: #f97316; color: white; font-size: 0.75rem;" title="待确认">○</span>'
+        elif self.confirmation_badge_status == 'reconfirm':
+            return '<span class="badge confirmation-badge" style="background-color: #f59e0b; color: white; font-size: 0.75rem;" title="配置已变更，需再次确认">⟳</span>'
         elif self.confirmation_badge_status == 'confirmed':
             color = self.confirmation_badge_color or '#28a745'
             confirmer_name = self.confirmer.real_name if self.confirmer else '未知'
             confirmed_time = self.confirmed_at.strftime('%Y-%m-%d %H:%M') if self.confirmed_at else ''
             return f'<span class="badge confirmation-badge" style="background-color: {color}; color: white; font-size: 0.75rem;" title="已确认 - {confirmer_name} ({confirmed_time})">✓</span>'
-        
+
         return ''
 
 # 添加SQLAlchemy事件监听器
@@ -534,83 +540,23 @@ class QuotationDetail(db.Model):
 @event.listens_for(QuotationDetail, 'after_insert')
 @event.listens_for(QuotationDetail, 'after_update')
 @event.listens_for(QuotationDetail, 'after_delete')
-def update_quotation_product_signature(mapper, connection, target):
-    """产品明细变化时更新报价单的产品签名和植入总额合计"""
+def update_quotation_implant_total(mapper, connection, target):
+    """产品明细变化时更新报价单的植入总额合计"""
     try:
-        # 获取报价单ID
         quotation_id = target.quotation_id
         if quotation_id:
-            # 计算新的签名（只关注行数和MN号）
             result = connection.execute(text("""
-                SELECT 
-                    COUNT(*) as detail_count,
-                    COALESCE(
-                        JSON_AGG(
-                            COALESCE(product_mn, '')
-                            ORDER BY COALESCE(product_mn, '')
-                        ),
-                        '[]'::json
-                    ) as mn_list,
-                    COALESCE(SUM(implant_subtotal), 0) as implant_total
-                FROM quotation_details 
+                SELECT COALESCE(SUM(implant_subtotal), 0) as implant_total
+                FROM quotation_details
                 WHERE quotation_id = :quotation_id
             """), {"quotation_id": quotation_id})
-            
+
             row = result.fetchone()
             if row:
-                detail_count = row[0]
-                mn_list_json = row[1]
-                implant_total = row[2]
-                
-                # 构造签名数据（只包含行数和MN号列表）
-                signature_data = {
-                    'count': detail_count,
-                    'mn_list': mn_list_json if isinstance(mn_list_json, list) else []
-                }
-                
-                # 生成签名
-                import json
-                import hashlib
-                signature_string = json.dumps(signature_data, sort_keys=True)
-                new_signature = hashlib.md5(signature_string.encode()).hexdigest()
-                
-                # 检查当前报价单的确认徽章状态
-                quotation_result = connection.execute(text("""
-                    SELECT confirmation_badge_status, product_signature
-                    FROM quotations 
+                connection.execute(text("""
+                    UPDATE quotations
+                    SET implant_total_amount = :implant_total
                     WHERE id = :quotation_id
-                """), {"quotation_id": quotation_id})
-                
-                quotation_row = quotation_result.fetchone()
-                if quotation_row:
-                    current_status = quotation_row[0]
-                    old_signature = quotation_row[1]
-                    
-                    # 如果签名发生变化且当前有确认徽章，则清除徽章（静默处理）
-                    if old_signature and new_signature != old_signature and current_status == 'confirmed':
-                        connection.execute(text("""
-                            UPDATE quotations 
-                            SET 
-                                confirmation_badge_status = 'none',
-                                confirmation_badge_color = NULL,
-                                confirmed_by = NULL,
-                                confirmed_at = NULL,
-                                product_signature = :new_signature,
-                                implant_total_amount = :implant_total
-                            WHERE id = :quotation_id
-                        """), {"quotation_id": quotation_id, "new_signature": new_signature, "implant_total": implant_total})
-                        
-                        # 记录日志（仅用于调试和审计）
-                        print(f"报价单 {quotation_id} 的产品明细发生关键变化（行数或MN号），已自动清除数据库确认状态")
-                    else:
-                        # 只更新签名和植入总额合计
-                        connection.execute(text("""
-                            UPDATE quotations 
-                            SET 
-                                product_signature = :new_signature,
-                                implant_total_amount = :implant_total
-                            WHERE id = :quotation_id
-                        """), {"quotation_id": quotation_id, "new_signature": new_signature, "implant_total": implant_total})
-                        
+                """), {"quotation_id": quotation_id, "implant_total": row[0]})
     except Exception as e:
-        print(f"更新产品签名和植入总额合计时发生错误: {str(e)}") 
+        print(f"更新植入总额合计时发生错误: {str(e)}") 

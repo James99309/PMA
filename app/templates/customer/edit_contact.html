@@ -12,6 +12,7 @@
                 <div class="card-body">
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="page_open_time" id="pageOpenTime">
                         <div class="row mb-3">
                             <div class="col-md-6">
                                 <label for="name" class="form-label">{{ _('姓名') }}</label>
@@ -92,4 +93,10 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('pageOpenTime').value = new Date().toTimeString().split(' ')[0];
+</script>
 {% endblock %}

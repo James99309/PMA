@@ -530,6 +530,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     {% endif %}
 
+    // 记录页面打开时间（用于工作项时长计算）
+    const _pageOpenTime = new Date().toTimeString().split(' ')[0];
+
     // 表单提交处理
     document.getElementById('quotationForm').addEventListener('submit', function(e) {
         e.preventDefault();
@@ -563,6 +566,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 设置隐藏字段
         document.getElementById('productDetailsData').value = JSON.stringify(productDetails);
+
+        // 传递页面打开时间
+        let pageTimeInput = document.getElementById('pageOpenTime');
+        if (!pageTimeInput) {
+            pageTimeInput = document.createElement('input');
+            pageTimeInput.type = 'hidden';
+            pageTimeInput.name = 'page_open_time';
+            pageTimeInput.id = 'pageOpenTime';
+            this.appendChild(pageTimeInput);
+        }
+        pageTimeInput.value = _pageOpenTime;
 
         // 显示加载状态
         const submitBtn = document.getElementById('submit-btn');
