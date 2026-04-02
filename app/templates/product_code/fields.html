@@ -861,7 +861,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% if not any_own_field_used and fields %}
 <!-- 排序功能 -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/sortablejs/Sortable.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/sortable-list.js') }}"></script>
 <script>
 // 自定义函数：更新整个表格的序号（跨 tbody 连续）
@@ -1016,7 +1016,7 @@ function initOptionsSortable() {
 </script>
 {% else %}
 <!-- 即使规格行不可拖拽，也需要支持指标徽章排序 -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/sortablejs/Sortable.min.js') }}"></script>
 <script>
 // 初始化指标徽章拖拽排序
 function initOptionsSortable() {

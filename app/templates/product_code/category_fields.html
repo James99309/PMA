@@ -247,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% if not any_field_used and fields %}
 <!-- 拖拽排序功能 -->
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/sortablejs/Sortable.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/sortable-list.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {

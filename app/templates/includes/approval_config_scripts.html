@@ -4,7 +4,7 @@
 
 {# 基础依赖库 #}
 {% if can_modify %}
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/sortablejs/Sortable.min.js') }}"></script>
 {% endif %}
 
 {# 权限配置对象 - 必须在模块加载前初始化 #}

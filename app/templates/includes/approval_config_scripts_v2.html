@@ -9,7 +9,7 @@
     document.addEventListener('DOMContentLoaded', function() {
       if (document.querySelector('#stepList, .step-list')) {
         const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js';
+        script.src = '{{ url_for("static", filename="vendor/sortablejs/Sortable.min.js") }}';
         script.async = true;
         document.head.appendChild(script);
       }

@@ -34,8 +34,8 @@
     <!-- FullCalendar 6.x 的全局包已包含CSS，无需单独引入 -->
     <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
     {{ tw_mention_preview_script() }}
-    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
     <script>
         tailwind.config = {
             darkMode: "class",
@@ -1723,8 +1723,8 @@
 {{ render_file_preview_script(modal_id='worklogFilePreviewModal') }}
 
 <!-- FullCalendar JS -->
-<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
-<script src='https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.10/locales/zh-cn.global.min.js'></script>
+<script src="{{ url_for('static', filename='vendor/fullcalendar/index.global.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/fullcalendar/zh-cn.global.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/common/tw-notification.js') }}"></script>
 <script src="{{ url_for('static', filename='js/common/tw-badge.js') }}"></script>
 
