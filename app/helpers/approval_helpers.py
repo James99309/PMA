@@ -5889,7 +5889,10 @@ def get_user_pricing_order_approvals(user_id, status=None, page=1, per_page=20):
             }
             if hasattr(status, 'name') and status.name in status_map:
                 query = query.filter(PricingOrder.status == status_map[status.name])
-    
+    else:
+        # 默认排除已完成的审批（approved/rejected），审批中心只显示待处理项
+        query = query.filter(PricingOrder.status.notin_(['approved', 'rejected']))
+
     # 按创建时间倒序排列
     query = query.order_by(PricingOrder.created_at.desc())
     
