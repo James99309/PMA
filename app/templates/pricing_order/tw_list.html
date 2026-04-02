@@ -291,7 +291,8 @@
         // 从通知面板跳转时，自动打开指定批价单模态框
         const openOrderId = new URLSearchParams(window.location.search).get('open');
         if (openOrderId) {
-            openPricingOrderModal(parseInt(openOrderId));
+            // 延迟确保 Alpine.js 模态框组件已初始化
+            setTimeout(() => openPricingOrderModal(parseInt(openOrderId)), 300);
         }
     })();
     </script>
