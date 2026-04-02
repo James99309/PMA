@@ -487,6 +487,20 @@ def convert_approval_item(item, tab):
                 result['creator'] = item.created_by if hasattr(item, 'created_by') else None
                 result['status'] = item.approval_status if hasattr(item, 'approval_status') else 'draft'
                 result['started_at'] = item.created_at if hasattr(item, 'created_at') else None
+
+            # 获取 wrapper 类型的当前审批人（需要使用真实的 ApprovalInstance）
+            try:
+                from app.models.approval import ApprovalInstance as AI
+                approval_inst = AI.query.filter_by(
+                    object_type=item.object_type,
+                    object_id=item.object_id
+                ).order_by(AI.id.desc()).first()
+                if approval_inst:
+                    current_step = approval_inst.get_current_step_info()
+                    if current_step:
+                        result['current_approver'] = get_step_actual_approver(current_step, approval_inst)
+            except Exception:
+                pass
         else:
             # ApprovalInstance
             result['id'] = item.id
@@ -2149,7 +2163,7 @@ def build_approval_list_config(tab, object_type=None, status=None, pending_count
             'field': 'order_number',  # 用于排序的字段名
             'label': _('批价单编号'),
             'type': 'link',
-            'url_template': '/pricing_order/detail/{id}',
+            'url_template': '/pricing_order/{id}',
             'width': '180px',
             'render': 'render_pricing_order_number',
             'sortable': True,
