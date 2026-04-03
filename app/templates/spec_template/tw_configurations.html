@@ -223,16 +223,14 @@
                                 <span class="material-symbols-outlined" style="font-size: 18px;">edit</span>
                             </button>
                             {% endif %}
-                            {% if has_permission('product_code', 'edit') %}
                             {% set has_refs = config._get_product_refs()|length > 0 %}
-                            <button type="button" onclick="openLinkProductModal({{ config.id }}, '{{ config.config_code }}', '{{ config.region or '' }}')"
+                            <button type="button" onclick="{% if has_refs %}openProductCompareModal({{ config.id }}){% endif %}"
                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg transition-colors
-                                   {% if has_refs %}text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20
-                                   {% else %}text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20{% endif %}"
-                               title="{{ _('关联已有产品') }}">
+                                   {% if has_refs %}text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 cursor-pointer
+                                   {% else %}text-slate-300 dark:text-slate-600 cursor-default{% endif %}"
+                               title="{% if has_refs %}{{ _('查看产品对比') }}{% else %}{{ _('无关联产品') }}{% endif %}">
                                 <span class="material-symbols-outlined" style="font-size: 18px;">link</span>
                             </button>
-                            {% endif %}
                             {% if has_permission('product_code', 'create') %}
                             <button type="button" onclick="copyConfig({{ config.id }}, '{{ config.config_code }}')"
                                class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-slate-500 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
@@ -444,47 +442,19 @@
         show_error=true
     ) }}
 
-    <!-- 关联已有产品模态框 -->
-    <div id="linkProductModal" class="fixed inset-0 z-50 hidden" onclick="if(event.target===this) closeLinkProductModal()">
+    <!-- 配置-产品对比模态框 -->
+    <div id="productCompareModal" class="fixed inset-0 z-50 hidden" onclick="if(event.target===this) closeProductCompareModal()">
         <div class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
         <div class="fixed inset-0 flex items-center justify-center p-4">
-            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg" onclick="event.stopPropagation()">
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-5xl max-h-[85vh] flex flex-col" onclick="event.stopPropagation()">
                 <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('关联已有产品') }}</h3>
-                    <button type="button" onclick="closeLinkProductModal()" class="text-slate-400 hover:text-slate-600">
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('配置 vs 产品库对比') }}</h3>
+                    <button type="button" onclick="closeProductCompareModal()" class="text-slate-400 hover:text-slate-600">
                         <span class="material-symbols-outlined">close</span>
                     </button>
                 </div>
-                <div class="p-5">
-                    <!-- 数据库切换 -->
-                    <div class="flex gap-2 mb-4">
-                        <button type="button" id="linkDbCN" onclick="switchLinkDb('cn')"
-                            class="px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-white">CN</button>
-                        <button type="button" id="linkDbSG" onclick="switchLinkDb('sg')"
-                            class="px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300">SG</button>
-                    </div>
-                    <!-- 搜索 -->
-                    <input type="text" id="linkProductSearch" placeholder="{{ _('搜索产品 MN 或名称...') }}"
-                        oninput="searchLinkProducts()"
-                        class="w-full mb-3 px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                    <!-- 产品列表 -->
-                    <div id="linkProductList" class="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg">
-                        <div class="p-4 text-center text-sm text-slate-400">{{ _('加载中...') }}</div>
-                    </div>
-                    <!-- 提示 -->
-                    <p id="linkProductHint" class="mt-2 text-xs text-slate-400 hidden"></p>
-                    <!-- 错误 -->
-                    <div id="linkProductError" class="mt-2 text-sm text-red-600 hidden"></div>
-                </div>
-                <div class="flex justify-end gap-3 px-5 py-4 border-t border-slate-200 dark:border-slate-700">
-                    <button type="button" onclick="closeLinkProductModal()"
-                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg">
-                        {{ _('取消') }}
-                    </button>
-                    <button type="button" id="linkProductSubmit" onclick="submitLinkProduct()" disabled
-                        class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                        {{ _('关联') }}
-                    </button>
+                <div id="productCompareContent" class="flex-1 overflow-y-auto p-5">
+                    <div class="text-center text-sm text-slate-400 py-8">{{ _('加载中...') }}</div>
                 </div>
             </div>
         </div>
@@ -958,262 +928,109 @@
         }
     });
 
-    // ========== 关联已有产品 ==========
-    let linkConfigId = null;
-    let linkConfigRegion = '';
-    let linkCurrentDb = 'cn';
-    let linkSelectedProductId = null;
-    let linkProductsCache = {};
+    // ========== 配置-产品对比（只读） ==========
 
-    function openLinkProductModal(configId, configCode, region) {
-        linkConfigId = configId;
-        linkConfigRegion = region;
-        linkSelectedProductId = null;
-        linkProductsCache = {};
-        document.getElementById('linkProductSearch').value = '';
-        document.getElementById('linkProductError').classList.add('hidden');
-        document.getElementById('linkProductSubmit').disabled = true;
-        document.getElementById('linkProductModal').classList.remove('hidden');
-        switchLinkDb('cn');
+    function openProductCompareModal(configId) {
+        const modal = document.getElementById('productCompareModal');
+        const content = document.getElementById('productCompareContent');
+        content.innerHTML = '<div class="text-center text-sm text-slate-400 py-8">{{ _("加载中...") }}</div>';
+        modal.classList.remove('hidden');
+        loadProductComparison(configId);
     }
 
-    function closeLinkProductModal() {
-        document.getElementById('linkProductModal').classList.add('hidden');
+    function closeProductCompareModal() {
+        document.getElementById('productCompareModal').classList.add('hidden');
     }
 
-    function switchLinkDb(db) {
-        linkCurrentDb = db;
-        linkSelectedProductId = null;
-        document.getElementById('linkProductSubmit').disabled = true;
-        document.getElementById('linkDbCN').className = db === 'cn'
-            ? 'px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-white'
-            : 'px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300';
-        document.getElementById('linkDbSG').className = db === 'sg'
-            ? 'px-3 py-1.5 text-sm font-medium rounded-lg bg-primary text-white'
-            : 'px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-300';
-        loadLinkProducts();
-    }
-
-    async function loadLinkProducts() {
-        const list = document.getElementById('linkProductList');
-        list.innerHTML = '<div class="p-4 text-center text-sm text-slate-400">{{ _("加载中...") }}</div>';
+    async function loadProductComparison(configId) {
+        const content = document.getElementById('productCompareContent');
         try {
-            const resp = await fetch(`${API_BASE}/configurations/${linkConfigId}/linkable-products?db=${linkCurrentDb}`);
+            const resp = await fetch(`${API_BASE}/configurations/${configId}/product-comparison`);
             const data = await resp.json();
-            if (data.success) {
-                linkProductsCache[linkCurrentDb] = data.products;
-                renderLinkProducts(data.products);
-            } else {
-                list.innerHTML = `<div class="p-4 text-center text-sm text-red-500">${data.message}</div>`;
-            }
-        } catch (e) {
-            list.innerHTML = '<div class="p-4 text-center text-sm text-red-500">{{ _("加载失败") }}</div>';
-        }
-    }
-
-    function searchLinkProducts() {
-        const term = document.getElementById('linkProductSearch').value.toLowerCase().trim();
-        const products = linkProductsCache[linkCurrentDb] || [];
-        const filtered = term ? products.filter(p =>
-            (p.product_mn || '').toLowerCase().includes(term) ||
-            (p.product_name || '').toLowerCase().includes(term) ||
-            (p.model || '').toLowerCase().includes(term)
-        ) : products;
-        renderLinkProducts(filtered);
-    }
-
-    function renderLinkProducts(products) {
-        const list = document.getElementById('linkProductList');
-        if (!products.length) {
-            list.innerHTML = '<div class="p-4 text-center text-sm text-slate-400">{{ _("无可关联的产品") }}</div>';
-            return;
-        }
-        list.innerHTML = products.map(p => {
-            const isCurrent = p.linked_current;
-            const bgClass = isCurrent ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : '';
-            const interactClass = p.selectable ? 'hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer' : (isCurrent ? '' : 'opacity-40 cursor-not-allowed');
-            const reasonClass = isCurrent ? 'text-emerald-600 font-medium' : 'text-slate-400';
-            return `
-            <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-700 last:border-0 ${bgClass} ${interactClass}"
-                 onclick="${p.selectable ? `selectLinkProduct(${p.id}, this)` : ''}">
-                ${isCurrent
-                    ? '<span class="material-symbols-outlined text-emerald-500" style="font-size:20px;">check_circle</span>'
-                    : `<input type="radio" name="linkProduct" value="${p.id}" ${p.selectable ? '' : 'disabled'} class="text-primary focus:ring-primary">`}
-                <div class="flex-1 min-w-0">
-                    <div class="text-sm font-medium ${isCurrent ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-900 dark:text-white'} truncate">${p.product_mn || '-'}</div>
-                    <div class="text-xs text-slate-500">${p.product_name || ''} · ${p.model || ''}</div>
-                </div>
-                ${isCurrent
-                    ? `<button type="button" onclick="event.stopPropagation(); unlinkProduct(${p.id})"
-                        class="px-2 py-1 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors">{{ _('解耦') }}</button>`
-                    : (p.reason ? `<span class="text-xs ${reasonClass} whitespace-nowrap">${p.reason}</span>` : '')}
-            </div>`;
-        }).join('');
-    }
-
-    function selectLinkProduct(productId, el) {
-        linkSelectedProductId = productId;
-        document.getElementById('linkProductSubmit').disabled = false;
-        document.querySelectorAll('#linkProductList > div').forEach(d => d.classList.remove('bg-primary/5'));
-        el.classList.add('bg-primary/5');
-        el.querySelector('input[type=radio]').checked = true;
-    }
-
-    async function submitLinkProduct() {
-        if (!linkSelectedProductId || !linkConfigId) return;
-        const btn = document.getElementById('linkProductSubmit');
-        btn.disabled = true;
-        btn.textContent = '{{ _("对比中...") }}';
-        document.getElementById('linkProductError').classList.add('hidden');
-
-        try {
-            // 步骤1: 调用对比 API
-            const compResp = await fetch(`${API_BASE}/configurations/${linkConfigId}/compare-product`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json',
-                           'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
-                body: JSON.stringify({ product_id: linkSelectedProductId, database: linkCurrentDb })
-            });
-            const compData = await compResp.json();
-            if (!compData.success) {
-                throw new Error(compData.message);
-            }
-
-            // 步骤2: 显示对比结果，等待用户确认
-            const result = await showComparisonModal(compData);
-            if (!result) {
-                btn.disabled = false;
-                btn.textContent = '{{ _("关联") }}';
+            if (!data.success || !data.has_products) {
+                content.innerHTML = '<div class="text-center text-sm text-slate-400 py-8">{{ _("无关联产品") }}</div>';
                 return;
             }
-
-            // 步骤3: 确认关联
-            btn.textContent = '{{ _("关联中...") }}';
-            const syncMn = result.syncMn || false;
-            const linkResp = await fetch(`${API_BASE}/configurations/${linkConfigId}/link-product`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json',
-                           'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
-                body: JSON.stringify({ product_id: linkSelectedProductId, database: linkCurrentDb, sync_mn: syncMn })
-            });
-            const linkData = await linkResp.json();
-            if (linkData.success) {
-                showToast(linkData.message || '{{ _("关联成功") }}');
-                closeLinkProductModal();
-                location.reload();
-            } else {
-                throw new Error(linkData.message);
-            }
+            content.innerHTML = renderProductComparison(data);
         } catch (e) {
-            document.getElementById('linkProductError').textContent = e.message || '{{ _("操作失败") }}';
-            document.getElementById('linkProductError').classList.remove('hidden');
-            btn.disabled = false;
-            btn.textContent = '{{ _("关联") }}';
+            content.innerHTML = '<div class="text-center text-sm text-red-500 py-8">{{ _("加载失败") }}</div>';
         }
     }
 
-    async function unlinkProduct(productId) {
-        if (!confirm('{{ _("确定要解除关联吗？配置将恢复为开发中状态，编码将按模版规则重新生成。") }}')) return;
-        try {
-            const resp = await fetch(`${API_BASE}/configurations/${linkConfigId}/unlink-product`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json',
-                           'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content },
-                body: JSON.stringify({ product_id: productId, database: linkCurrentDb })
-            });
-            const data = await resp.json();
-            if (data.success) {
-                showToast(data.message);
-                closeLinkProductModal();
-                location.reload();
-            } else {
-                showToast(data.message || '{{ _("解耦失败") }}', 'error');
-            }
-        } catch (e) {
-            showToast('{{ _("操作失败") }}', 'error');
-        }
-    }
+    function renderProductComparison(data) {
+        const cfg = data.config;
+        let html = '';
 
-    function showComparisonModal(data) {
-        return new Promise((resolve) => {
-            const comp = data.comparison;
-            const product = data.product;
+        for (const prod of data.products) {
+            const dbLabel = prod.database === 'cn'
+                ? '<span class="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded">CN</span>'
+                : '<span class="px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 rounded">SG</span>';
+            const mnMatch = cfg.mn_code === prod.product_mn;
+            const mnIcon = mnMatch ? '<span class="text-emerald-500">\u2713</span>' : '<span class="text-amber-500">\u2260</span>';
 
-            // MN 对比 + 可选同步勾选框（配置编码更新为产品编码）
-            let mnHtml = '';
-            if (!data.mn_match && product.product_mn) {
-                const canSync = !data.mn_locked;
-                mnHtml = `<div class="mb-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600">
-                    <div class="text-xs text-slate-500 mb-2">
-                        {{ _("产品编码") }}: <span class="font-mono font-semibold">${product.product_mn}</span>
-                        &nbsp;&nbsp;{{ _("配置编码") }}: <span class="font-mono">${data.config_mn || '{{ _("无") }}'}</span>
-                    </div>
-                    <label class="flex items-center gap-2 ${canSync ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}">
-                        <input type="checkbox" id="syncMnCheckbox" ${canSync ? '' : 'disabled'}
-                            class="rounded border-slate-300 text-primary focus:ring-primary">
-                        <span class="text-sm text-slate-700 dark:text-slate-300">
-                            {{ _("更新配置编码为产品编码") }}
-                        </span>
-                        ${canSync ? '' : '<span class="text-xs text-slate-400">{{ _("(配置编码已锁定)") }}</span>'}
-                    </label>
-                </div>`;
+            const prodSpecMap = {};
+            for (const s of prod.specs) {
+                prodSpecMap[s.field_name] = s;
             }
 
-            let rowsHtml = comp.map(c => {
-                const icon = c.match ? '✓' : (c.product_missing ? '—' : '≠');
-                const rowClass = c.match ? '' : 'bg-amber-50 dark:bg-amber-900/10';
-                const iconClass = c.match ? 'text-emerald-500' : (c.product_missing ? 'text-slate-300' : 'text-amber-500');
-                return `<tr class="${rowClass}">
-                    <td class="px-3 py-2 text-xs">${c.use_in_code ? '<span class="text-primary font-bold">⚙</span> ' : ''}${c.field_name}</td>
-                    <td class="px-3 py-2 text-xs text-slate-700 dark:text-slate-300">${c.config_value || '<span class="text-slate-300">—</span>'}</td>
-                    <td class="px-3 py-2 text-center"><span class="${iconClass} text-sm font-bold">${icon}</span></td>
-                    <td class="px-3 py-2 text-xs text-slate-700 dark:text-slate-300">${c.product_value || '<span class="text-slate-300">—</span>'}</td>
+            let specRows = '';
+            let matchCount = 0, diffCount = 0;
+            for (const cs of cfg.specs) {
+                const ps = prodSpecMap[cs.field_name] || {};
+                const valMatch = (cs.value || '') === (ps.value || '');
+                const codeMatch = (cs.field_code || '') === (ps.field_code || '');
+                const allMatch = valMatch && codeMatch;
+                if (allMatch) matchCount++; else diffCount++;
+
+                const rowClass = allMatch ? '' : 'bg-amber-50 dark:bg-amber-900/10';
+                const codeIcon = cs.use_in_code ? '<span class="text-primary font-bold mr-1">&#9881;</span>' : '';
+                const valIcon = valMatch ? '' : '<span class="text-amber-500 text-[10px] ml-1">\u2260</span>';
+                const codeValIcon = codeMatch ? '' : '<span class="text-amber-500 text-[10px] ml-1">\u2260</span>';
+
+                specRows += `<tr class="${rowClass}">
+                    <td class="px-3 py-1.5 text-xs">${codeIcon}${cs.field_name}</td>
+                    <td class="px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300">${cs.value || '<span class="text-slate-300">-</span>'}</td>
+                    <td class="px-3 py-1.5 text-xs font-mono text-slate-500">${cs.field_code || '-'}</td>
+                    <td class="px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300">${ps.value || '<span class="text-slate-300">-</span>'}${valIcon}</td>
+                    <td class="px-3 py-1.5 text-xs font-mono text-slate-500">${ps.field_code || '-'}${codeValIcon}</td>
                 </tr>`;
-            }).join('');
+            }
 
-            const modalHtml = `
-                <div id="comparisonModal" class="fixed inset-0 z-[60]" onclick="if(event.target===this){document.getElementById('comparisonModal').remove(); window._compResolve(null);}">
-                    <div class="fixed inset-0 bg-black/50 backdrop-blur-sm"></div>
-                    <div class="fixed inset-0 flex items-center justify-center p-4">
-                        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onclick="event.stopPropagation();">
-                            <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-                                <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('规格对比') }}</h3>
-                                <p class="text-sm text-slate-500 mt-1">${product.product_mn || ''} · ${product.product_name || ''} · ${product.model || ''}</p>
-                                <div class="flex gap-4 mt-2 text-xs">
-                                    <span class="text-emerald-600">✓ {{ _('一致') }} ${data.matched}</span>
-                                    <span class="text-amber-600">≠ {{ _('差异') }} ${data.diff}</span>
-                                </div>
-                            </div>
-                            <div class="flex-1 overflow-y-auto">
-                                ${mnHtml}
-                                <table class="w-full text-sm">
-                                    <thead class="sticky top-0 bg-slate-50 dark:bg-slate-700">
-                                        <tr>
-                                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('规格') }}</th>
-                                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('配置值') }}</th>
-                                            <th class="px-3 py-2 text-center text-xs font-medium text-slate-500 w-10"></th>
-                                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('产品值') }}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">${rowsHtml}</tbody>
-                                </table>
-                            </div>
-                            <div class="px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50">
-                                <p class="text-xs text-slate-500 mb-3">{{ _('确认后：配置值将同步到产品规格，产品将关联到此配置。双方编码保持不变。') }}</p>
-                                <div class="flex justify-end gap-3">
-                                    <button type="button" onclick="document.getElementById('comparisonModal').remove(); window._compResolve(null);"
-                                        class="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg">{{ _('取消') }}</button>
-                                    <button type="button" onclick="const s=document.getElementById('syncMnCheckbox'); window._compResult={syncMn:s?s.checked:false}; document.getElementById('comparisonModal').remove(); window._compResolve(window._compResult);"
-                                        class="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary/90 rounded-lg">{{ _('确认关联') }}</button>
-                                </div>
-                            </div>
+            html += `
+            <div class="mb-6 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                <div class="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            ${dbLabel}
+                            <span class="font-mono font-semibold text-sm">${prod.product_mn || '-'}</span>
+                            <span class="text-xs text-slate-500">${prod.model || ''}</span>
+                        </div>
+                        <div class="text-xs text-slate-500 mt-1">${prod.product_name || ''}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs">MN: ${mnIcon} <span class="font-mono">${cfg.mn_code}</span> vs <span class="font-mono">${prod.product_mn}</span></div>
+                        <div class="flex gap-3 mt-1 text-xs justify-end">
+                            <span class="text-emerald-600">\u2713 ${matchCount}</span>
+                            <span class="text-amber-600">\u2260 ${diffCount}</span>
                         </div>
                     </div>
-                </div>`;
+                </div>
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 dark:bg-slate-700">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 w-1/5">{{ _('\u89c4\u683c') }}</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('\u914d\u7f6e\u503c') }}</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 w-16">Code</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('\u4ea7\u54c1\u503c') }}</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 w-16">Code</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">${specRows}</tbody>
+                </table>
+            </div>`;
+        }
 
-            window._compResolve = resolve;
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-        });
+        return html;
     }
     </script>
 </body>

@@ -2274,6 +2274,120 @@ def api_update_config_values(config_id):
     })
 
 
+# ==================== 配置产品对比 API ====================
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>/product-comparison', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def api_config_product_comparison(config_id):
+    """API: 获取配置与关联产品的完整对比数据（只读）"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    refs = config._get_product_refs()
+
+    if not refs:
+        return jsonify({'success': True, 'has_products': False, 'products': []})
+
+    template = config.template
+    # 配置侧数据
+    config_values = {cv.template_item_id: cv.value for cv in config.config_values}
+
+    # 预加载编码映射
+    spec_dict_ids = [item.spec_dict_id for item in template.items if item.spec_dict_id]
+    all_options = SpecificationOption.query.filter(
+        SpecificationOption.spec_id.in_(spec_dict_ids),
+        SpecificationOption.is_active == True
+    ).all() if spec_dict_ids else []
+    code_lookup = {(opt.spec_id, opt.value): opt.code for opt in all_options}
+
+    # 配置规格列表
+    config_specs = []
+    for item in sorted(template.items, key=lambda x: x.display_order):
+        sd = item.spec_dict
+        if not sd:
+            continue
+        val = config_values.get(item.id) or item.general_value or ''
+        fc = code_lookup.get((sd.id, val), '') if val else ''
+        config_specs.append({
+            'field_name': sd.name,
+            'field_name_en': sd.name_en or '',
+            'value': val,
+            'field_code': fc,
+            'use_in_code': item.use_in_code,
+            'unit': sd.unit or '',
+            'display_order': item.display_order
+        })
+
+    # 每个关联产品的数据
+    products_data = []
+    for ref in refs:
+        p_data = {
+            'database': ref['database'],
+            'product_id': ref['id'],
+            'product_mn': ref['product_mn'],
+            'product_name': ref.get('product_name', ''),
+            'specs': [],
+            'snapshot': None,
+            'description': ''
+        }
+
+        if ref['database'] == 'cn':
+            from app.models.product_spec import ProductSpec
+            product = Product.query.get(ref['id'])
+            if product:
+                p_data['model'] = product.model or ''
+                p_data['description'] = product.specification or ''
+                p_data['snapshot'] = product.code_definition_snapshot
+                for s in ProductSpec.query.filter_by(product_id=product.id).order_by(ProductSpec.display_order).all():
+                    p_data['specs'].append({
+                        'field_name': s.field_name,
+                        'field_name_en': s.field_name_en or '',
+                        'value': s.field_value or '',
+                        'field_code': s.field_code or '',
+                        'unit': s.unit or '',
+                        'display_order': s.display_order
+                    })
+        elif ref['database'] == 'sg':
+            try:
+                row = db.session.execute(db.text(
+                    "SELECT model, product_name FROM sg_products WHERE id = :pid"
+                ), {'pid': ref['id']}).fetchone()
+                if row:
+                    p_data['model'] = row.model or ''
+                    p_data['product_name'] = row.product_name or p_data['product_name']
+                sg_specs = db.session.execute(db.text(
+                    "SELECT field_name, field_name_en, field_value, field_value_en, field_code, unit, display_order "
+                    "FROM sg_product_specs WHERE product_id = :pid ORDER BY display_order"
+                ), {'pid': ref['id']}).fetchall()
+                for s in sg_specs:
+                    p_data['specs'].append({
+                        'field_name': s.field_name,
+                        'field_name_en': s.field_name_en or '',
+                        'value': s.field_value or '',
+                        'field_code': s.field_code or '',
+                        'unit': s.unit or '',
+                        'display_order': s.display_order
+                    })
+            except Exception as e:
+                logger.warning(f'查询 SG 产品数据失败: {e}')
+                db.session.rollback()
+
+        products_data.append(p_data)
+
+    return jsonify({
+        'success': True,
+        'has_products': True,
+        'config': {
+            'config_code': config.config_code,
+            'mn_code': config.mn_code or '',
+            'status': config.status,
+            'region': config.region or '',
+            'specs': config_specs
+        },
+        'products': products_data
+    })
+
+
 # ==================== 配置同步 API ====================
 
 
