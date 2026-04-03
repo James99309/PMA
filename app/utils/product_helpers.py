@@ -274,8 +274,8 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
         # 构建 code_parts
         for idx, spec in enumerate(specs_sorted):
             defn = name_to_def.get(spec.field_name)
-            # use_in_code: 有 field_code 即参与编码
-            use_in_code = bool(spec.field_code and spec.field_code.strip())
+            # use_in_code: 从 ProductSpec 存储的模版标记读取，兼容无标记的老数据
+            use_in_code = spec.use_in_code if spec.use_in_code is not None else bool(spec.field_code and spec.field_code.strip())
             unit = getattr(spec, 'unit', '') or (defn.unit if defn else None)
 
             if is_ovs:

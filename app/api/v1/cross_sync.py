@@ -97,6 +97,7 @@ def cross_sync_product_specs():
                 field_value=spec.get('field_value', ''),
                 field_value_en=spec.get('field_value_en', ''),
                 field_code=spec.get('field_code', ''),
+                use_in_code=spec.get('use_in_code', False),
                 unit=spec.get('unit', ''),
                 display_order=spec.get('display_order', 0),
                 include_in_description=spec.get('include_in_description', True)

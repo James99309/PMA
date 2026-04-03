@@ -278,13 +278,19 @@ class ProductCreationService:
             return True  # 没有规格数据也算成功
 
         # 构建规格数据列表（SpecService 格式：无 id 即为新增）
+        # 从表单中获取 use_in_code 状态
+        use_in_code_list = request.form.getlist('use_in_code_indexed[]')
         spec_data_list = []
         for i in range(len(spec_names)):
             if spec_names[i].strip():  # 只处理非空规格
+                field_code = spec_codes[i] if i < len(spec_codes) and spec_codes[i] != '0' else None
+                # 优先从表单获取 use_in_code，回退到 bool(field_code)
+                use_in_code = (use_in_code_list[i] == '1') if i < len(use_in_code_list) else bool(field_code)
                 spec_data_list.append({
                     'field_name': spec_names[i],
                     'field_value': spec_values[i] if i < len(spec_values) else '',
-                    'field_code': spec_codes[i] if i < len(spec_codes) and spec_codes[i] != '0' else None,
+                    'field_code': field_code,
+                    'use_in_code': use_in_code,
                     'include_in_description': True
                 })
 

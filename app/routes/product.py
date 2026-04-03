@@ -2356,6 +2356,17 @@ def update_product(id):
         # 只有当前端提交了规格数据时才更新规格
         # 如果前端没有规格表单（如详情编辑页面），则保留现有规格不做修改
         if spec_names:
+            # 从模版获取编码字段定义，用于设置 use_in_code
+            from app.models.spec_template import SpecTemplate
+            tmpl = SpecTemplate.query.filter_by(
+                model=product.model
+            ).filter(SpecTemplate.deleted_at.is_(None)).first()
+            template_use_in_code = {}
+            if tmpl:
+                for item in tmpl.items:
+                    if item.spec_dict:
+                        template_use_in_code[item.spec_dict.name] = bool(item.use_in_code)
+
             # 先删除所有现有规格（简单粗暴但可靠的更新方式）
             from app.models.product_spec import ProductSpec
             ProductSpec.query.filter_by(product_id=product.id).delete()
@@ -2363,13 +2374,16 @@ def update_product(id):
             spec_data_list = []
             for i in range(len(spec_names)):
                 if spec_names[i].strip():
+                    field_name = spec_names[i]
                     # 获取是否纳入描述的状态，值为 '1' 表示勾选
                     include_in_desc = (i < len(include_in_descriptions) and
                                       include_in_descriptions[i] == '1')
+                    field_code = spec_codes[i] if i < len(spec_codes) and spec_codes[i] != '0' else None
                     spec_data_list.append({
-                        'field_name': spec_names[i],
+                        'field_name': field_name,
                         'field_value': spec_values[i] if i < len(spec_values) else '',
-                        'field_code': spec_codes[i] if i < len(spec_codes) and spec_codes[i] != '0' else None,
+                        'field_code': field_code,
+                        'use_in_code': template_use_in_code.get(field_name, bool(field_code)),
                         'include_in_description': include_in_desc,
                         'action': 'create'
                     })
@@ -2959,8 +2973,9 @@ def delete_product(id):
             except Exception as e:
                 logger.warning(f"删除产品PDF文件失败: {str(e)}")
         
-        # 跨系统通知：如果是从 SP8D 导入的产品，通知 CN 解锁配置
-        if getattr(product, 'source_type', '') == 'from_sp8d' and product.product_mn:
+        # 跨系统通知：有 MN 的产品删除时通知对端解锁配置
+        # 不限 source_type，因为历史产品可能没有标记 from_sp8d
+        if product.product_mn:
             try:
                 import requests as http_requests
                 peer_url = current_app.config.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
@@ -4782,6 +4797,7 @@ def import_configuration_specs(product_id):
                 field_name=item.spec_dict.name,
                 field_value=value,
                 field_code=code_char,
+                use_in_code=bool(item.use_in_code),
                 unit=item.spec_dict.unit or None,
                 include_in_description=True,
                 display_order=display_order
@@ -4880,6 +4896,7 @@ def _import_sp8d_specs(product, sp8d_config_id):
                 field_value=spec.get('value', ''),
                 field_value_en=spec.get('value_en', '') or None,
                 field_code=spec.get('code_char', '') if is_coded else None,
+                use_in_code=is_coded,
                 unit=spec.get('unit', '') or None,
                 include_in_description=spec.get('include_in_description', is_coded),
                 display_order=spec.get('display_order', idx)

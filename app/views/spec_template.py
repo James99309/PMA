@@ -2427,6 +2427,7 @@ def _sync_config_to_cn_product(config, product):
         if ps:
             ps.field_value = config_val
             ps.field_code = field_code
+            ps.use_in_code = bool(item.use_in_code)
             ps.field_name_en = sd.name_en or ps.field_name_en or ''
             ps.unit = sd.unit or ps.unit or ''
             ps.display_order = item.display_order
@@ -2438,6 +2439,7 @@ def _sync_config_to_cn_product(config, product):
                 field_name_en=sd.name_en or '',
                 field_value=config_val,
                 field_code=field_code,
+                use_in_code=bool(item.use_in_code),
                 unit=sd.unit or '',
                 display_order=item.display_order,
                 include_in_description=item.use_in_code
@@ -2490,6 +2492,7 @@ def _build_sg_specs_payload(config):
             'field_value': cv_val,
             'field_value_en': field_value_en,
             'field_code': field_code,
+            'use_in_code': bool(item.use_in_code),
             'unit': sd.unit or '',
             'display_order': item.display_order,
             'include_in_description': item.use_in_code

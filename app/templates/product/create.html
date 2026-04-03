@@ -1479,12 +1479,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // 移除之前添加的临时隐藏字段
         form.querySelectorAll('.temp-include-field').forEach(el => el.remove());
+        form.querySelectorAll('.temp-use-in-code-field').forEach(el => el.remove());
 
-        // 为每个规格行添加对应的 include_in_description 状态
+        // 为每个规格行添加对应的 include_in_description 和 use_in_code 状态
         rows.forEach((row, index) => {
             const checkbox = row.querySelector('.include-in-description');
             if (checkbox) {
-                // 添加隐藏字段，值为 '1' (勾选) 或 '0' (未勾选)
                 const hiddenField = document.createElement('input');
                 hiddenField.type = 'hidden';
                 hiddenField.name = 'include_in_description_indexed[]';
@@ -1492,6 +1492,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 hiddenField.className = 'temp-include-field';
                 form.appendChild(hiddenField);
             }
+            // use_in_code 从行的 dataset 获取（来源：模版定义）
+            const useInCodeField = document.createElement('input');
+            useInCodeField.type = 'hidden';
+            useInCodeField.name = 'use_in_code_indexed[]';
+            useInCodeField.value = row.dataset.useInCode === 'true' ? '1' : '0';
+            useInCodeField.className = 'temp-use-in-code-field';
+            form.appendChild(useInCodeField);
         });
 
         // 检查MN编码重复

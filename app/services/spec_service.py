@@ -151,6 +151,7 @@ class SpecService:
                 field_name_en = spec_data.get('field_name_en', '').strip() if spec_data.get('field_name_en') else ''
                 field_value = spec_data.get('field_value', '').strip()
                 field_code = spec_data.get('field_code') or None
+                use_in_code = spec_data.get('use_in_code', False)
                 include_in_description = spec_data.get('include_in_description', True)
 
                 if not field_name or not field_value:
@@ -165,6 +166,8 @@ class SpecService:
                         spec.include_in_description = include_in_description
                         if hasattr(spec, 'field_code'):
                             spec.field_code = field_code
+                        if hasattr(spec, 'use_in_code'):
+                            spec.use_in_code = use_in_code
                         if hasattr(spec, 'display_order'):
                             spec.display_order = display_order
                         # 保存英文名称（如果提供且模型支持）
@@ -182,6 +185,8 @@ class SpecService:
                     }
                     if hasattr(SpecModel, 'field_code'):
                         new_spec_kwargs['field_code'] = field_code
+                    if hasattr(SpecModel, 'use_in_code'):
+                        new_spec_kwargs['use_in_code'] = use_in_code
                     if hasattr(SpecModel, 'display_order'):
                         new_spec_kwargs['display_order'] = display_order
                     # 保存英文名称（如果提供且模型支持）

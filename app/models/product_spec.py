@@ -20,6 +20,7 @@ class ProductSpec(db.Model):
     field_value = Column(String(255), nullable=False)  # 规格值
     field_value_en = Column(String(255), nullable=True)  # 规格值（英文）
     field_code = Column(String(10), nullable=True)  # 规格编码（用于MN号生成）
+    use_in_code = Column(Boolean, default=False)  # 是否参与MN编码（来源：SpecTemplateItem.use_in_code）
     unit = Column(String(20), nullable=True)  # 规格单位（如 dB、MHz、kg）
     include_in_description = Column(Boolean, default=False)  # 是否纳入产品描述
     display_order = Column(Integer, default=0)  # 显示顺序
@@ -42,6 +43,7 @@ class ProductSpec(db.Model):
             'field_value': self.field_value,
             'field_value_en': self.field_value_en or '',
             'field_code': self.field_code,
+            'use_in_code': bool(self.use_in_code),
             'unit': self.unit or '',
             'include_in_description': self.include_in_description if self.include_in_description is not None else False,
             'display_order': self.display_order
