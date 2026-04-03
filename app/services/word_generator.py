@@ -742,21 +742,52 @@ class WordGenerator:
                     for child in detail.configurations:
                         all_details.append(child)
 
-            # 如果明细数量超过模板示例行数，需要插入新行
-            if len(all_details) > template_detail_count:
-                # 在最后一个模板行之后插入额外的行
-                extra_rows = len(all_details) - template_detail_count
-                ws.insert_rows(detail_start_row + template_detail_count, extra_rows)
+            # 插入行前处理合并单元格（openpyxl insert_rows 不能正确移动合并区域）
+            from openpyxl.styles import Alignment, Font
+            from copy import copy
 
-            # 填充明细数据
-            from openpyxl.styles import Alignment
+            insert_point = detail_start_row + template_detail_count  # 行19
+            extra_rows = max(0, len(all_details) - template_detail_count)
 
-            # 定义对齐样式
+            if extra_rows > 0:
+                # 收集并解除插入点以下的所有合并单元格
+                merges_to_shift = []
+                for merge in list(ws.merged_cells.ranges):
+                    if merge.min_row >= insert_point:
+                        cell = ws.cell(row=merge.min_row, column=merge.min_col)
+                        merges_to_shift.append({
+                            'min_row': merge.min_row,
+                            'max_row': merge.max_row,
+                            'min_col': merge.min_col,
+                            'max_col': merge.max_col,
+                            'value': cell.value,
+                            'font': copy(cell.font),
+                            'alignment': copy(cell.alignment),
+                        })
+                        ws.unmerge_cells(str(merge))
+
+                # 插入新行
+                ws.insert_rows(insert_point, extra_rows)
+
+                # 在偏移后的位置重新合并并恢复内容
+                for m in merges_to_shift:
+                    new_min = m['min_row'] + extra_rows
+                    new_max = m['max_row'] + extra_rows
+                    ws.merge_cells(start_row=new_min, start_column=m['min_col'],
+                                   end_row=new_max, end_column=m['max_col'])
+                    cell = ws.cell(row=new_min, column=m['min_col'])
+                    cell.value = m['value']
+                    cell.font = m['font']
+                    cell.alignment = m['alignment']
+
+            # 定义样式
             align_top = Alignment(vertical='top')
             align_top_wrap = Alignment(wrap_text=True, vertical='top')
             align_top_center = Alignment(horizontal='center', vertical='top')
             align_top_right = Alignment(horizontal='right', vertical='top')
+            currency_fmt = '\\¥#,##0'
 
+            # 填充明细数据
             for idx, detail in enumerate(all_details):
                 row = detail_start_row + idx
 
@@ -788,13 +819,15 @@ class WordGenerator:
                 ws[f'E{row}'] = detail.quantity or 0
                 ws[f'E{row}'].alignment = align_top_center
 
-                # 单价 - 右对齐顶部
+                # 单价 - 右对齐顶部 + 货币格式
                 ws[f'F{row}'] = detail.unit_price or 0
                 ws[f'F{row}'].alignment = align_top_right
+                ws[f'F{row}'].number_format = currency_fmt
 
-                # 金额公式 - 右对齐顶部
+                # 金额公式 - 右对齐顶部 + 货币格式
                 ws[f'G{row}'] = f'=E{row}*F{row}'
                 ws[f'G{row}'].alignment = align_top_right
+                ws[f'G{row}'].number_format = currency_fmt
 
                 # 产品编码MN - 顶部对齐
                 mn_code = detail.configured_mn or detail.product_mn or ''
@@ -812,13 +845,31 @@ class WordGenerator:
             detail_end_row = detail_start_row + max(len(all_details), template_detail_count) - 1
             summary_row = detail_end_row + 2  # 空一行后的汇总行
 
-            # 设置汇总行（新模板格式：G列是标签，H列是数值）
+            # 清除汇总区域可能残留的模板内容
+            for r in range(summary_row, summary_row + 3):
+                for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
+                    ws[f'{col}{r}'] = None
+
+            # 设置汇总行
+            summary_fmt = '\\¥#,##0.00'
             ws[f'G{summary_row}'] = '小计 Subtotal'
+            ws[f'G{summary_row}'].alignment = align_top_right
+            ws[f'G{summary_row}'].font = Font(bold=True)
             ws[f'H{summary_row}'] = f'=SUM(G{detail_start_row}:G{detail_end_row})'
+            ws[f'H{summary_row}'].number_format = summary_fmt
+            ws[f'H{summary_row}'].font = Font(bold=True)
+
             ws[f'G{summary_row + 1}'] = '税费 VAT (0%)'
+            ws[f'G{summary_row + 1}'].alignment = align_top_right
             ws[f'H{summary_row + 1}'] = 0
+            ws[f'H{summary_row + 1}'].number_format = summary_fmt
+
             ws[f'G{summary_row + 2}'] = '总计 TOTAL'
+            ws[f'G{summary_row + 2}'].alignment = align_top_right
+            ws[f'G{summary_row + 2}'].font = Font(bold=True)
             ws[f'H{summary_row + 2}'] = f'=H{summary_row}+H{summary_row + 1}'
+            ws[f'H{summary_row + 2}'].number_format = summary_fmt
+            ws[f'H{summary_row + 2}'].font = Font(bold=True)
 
             # 设置页面打印选项 - 适应一页宽度，纵向布局
             from openpyxl.worksheet.properties import PageSetupProperties
