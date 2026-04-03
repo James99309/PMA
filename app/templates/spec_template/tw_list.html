@@ -93,7 +93,7 @@
                 {% endif %}
             </div>
         {% elif page_slot == 'content' %}
-            <!-- 筛选栏：级联分类选择 - 数据通过 script 注入避免 JSON 双引号破坏 x-data 属性 -->
+            <!-- 双层分类页签 -->
             <script>
                 window.__specFilterData = {
                     categoryTree: {{ filter_config.category_tree | tojson }},
@@ -104,70 +104,57 @@
                 };
             </script>
             <div class="mb-4 sm:mb-6" x-data="{
-                open: false,
-                hoveredCat: '',
                 categoryTree: window.__specFilterData.categoryTree,
                 selectedCategory: window.__specFilterData.selectedCategory,
                 selectedSubcategory: window.__specFilterData.selectedSubcategory,
-                get displayText() {
-                    if (this.selectedSubcategory) {
-                        return this.selectedCategory + ' / ' + this.selectedSubcategory;
-                    }
-                    if (this.selectedCategory) return this.selectedCategory;
-                    return window.__specFilterData.allLabel;
-                },
-                get hoveredSubs() {
-                    const cat = this.categoryTree.find(c => c.name === this.hoveredCat);
+                get currentSubs() {
+                    const cat = this.categoryTree.find(c => c.name === this.selectedCategory);
                     return cat ? cat.subcategories : [];
                 },
                 select(cat, sub) {
-                    this.open = false;
                     const params = new URLSearchParams(window.location.search);
                     if (cat) { params.set('category', cat); } else { params.delete('category'); }
                     if (sub) { params.set('subcategory', sub); } else { params.delete('subcategory'); }
                     window.location.href = window.__specFilterData.actionUrl + '?' + params.toString();
                 }
-            }" @click.outside="open = false">
-                <div class="flex items-center gap-3">
-                    <!-- 级联分类按钮 -->
-                    <div class="relative">
-                        <button @click="open = !open"
-                                class="h-9 px-3 rounded-lg border text-sm flex items-center gap-1.5"
-                                :class="selectedCategory ? 'border-primary bg-primary/5 text-primary' : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800'">
-                            <span class="material-symbols-outlined" style="font-size: 18px;">category</span>
-                            <span x-text="displayText" class="truncate max-w-[240px]"></span>
-                            <svg x-show="selectedCategory" @click.stop="select('', '')" class="w-4 h-4 flex-shrink-0 text-slate-400 hover:text-red-500 cursor-pointer" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                            <svg x-show="!selectedCategory" class="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            }">
+                <!-- 第一层：主分类 -->
+                <div class="border-b border-slate-200 dark:border-slate-700">
+                    <nav class="flex overflow-x-auto -mb-px gap-1" aria-label="Categories">
+                        <button @click="select('', '')"
+                                class="whitespace-nowrap py-2.5 px-4 border-b-2 text-sm font-medium transition-colors"
+                                :class="!selectedCategory ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400'">
+                            {{ _('全部') }}
                         </button>
-                        <!-- 级联菜单面板 -->
-                        <div x-show="open" x-transition.opacity
-                             class="absolute top-full left-0 mt-1 z-50 flex bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                            <!-- Level 1: 分类 -->
-                            <div class="w-36 max-h-72 overflow-y-auto border-r border-slate-200 dark:border-slate-700 py-1">
-                                <div @click="select('', '')"
-                                     class="px-3 py-2 text-sm cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500">{{ _('全部分类') }}</div>
-                                <template x-for="cat in categoryTree" :key="cat.name">
-                                    <div @mouseenter="hoveredCat = cat.name"
-                                         @click="select(cat.name, '')"
-                                         class="px-3 py-2 text-sm cursor-pointer flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-700"
-                                         :class="hoveredCat === cat.name ? 'bg-primary/5 text-primary' : (selectedCategory === cat.name ? 'text-primary font-medium' : '')">
-                                        <span x-text="cat.name" class="truncate"></span>
-                                        <svg class="w-3 h-3 flex-shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                                    </div>
-                                </template>
-                            </div>
-                            <!-- Level 2: 子分类 -->
-                            <div x-show="hoveredSubs.length" class="w-40 max-h-72 overflow-y-auto py-1">
-                                <template x-for="sub in hoveredSubs" :key="sub">
-                                    <div @click="select(hoveredCat, sub)"
-                                         class="px-3 py-2 text-sm cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700"
-                                         :class="selectedSubcategory === sub && selectedCategory === hoveredCat ? 'bg-primary/5 text-primary font-medium' : ''">
-                                        <span x-text="sub" class="truncate"></span>
-                                    </div>
-                                </template>
-                            </div>
-                        </div>
-                    </div>
+                        <template x-for="cat in categoryTree" :key="cat.name">
+                            <button @click="select(cat.name, '')"
+                                    class="whitespace-nowrap py-2.5 px-4 border-b-2 text-sm font-medium transition-colors"
+                                    :class="selectedCategory === cat.name ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400'">
+                                <span x-text="cat.name"></span>
+                                <span class="ml-1.5 text-xs px-1.5 py-0.5 rounded-full"
+                                      :class="selectedCategory === cat.name ? 'bg-primary/10 text-primary' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'"
+                                      x-text="cat.subcategories.length"></span>
+                            </button>
+                        </template>
+                    </nav>
+                </div>
+                <!-- 第二层：子分类（选中主分类后显示） -->
+                <div x-show="selectedCategory && currentSubs.length > 0" x-transition
+                     class="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50">
+                    <nav class="flex overflow-x-auto gap-1 px-2" aria-label="Subcategories">
+                        <button @click="select(selectedCategory, '')"
+                                class="whitespace-nowrap py-2 px-3 text-xs font-medium transition-colors rounded-t"
+                                :class="!selectedSubcategory ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'">
+                            {{ _('全部') }}
+                        </button>
+                        <template x-for="sub in currentSubs" :key="sub">
+                            <button @click="select(selectedCategory, sub)"
+                                    class="whitespace-nowrap py-2 px-3 text-xs font-medium transition-colors rounded-t"
+                                    :class="selectedSubcategory === sub ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'">
+                                <span x-text="sub"></span>
+                            </button>
+                        </template>
+                    </nav>
                 </div>
             </div>
             <!-- 模板列表 -->
