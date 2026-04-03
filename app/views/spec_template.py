@@ -469,10 +469,11 @@ def list_templates():
     query = query.outerjoin(ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id
     ).outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
 
-    if category_filter:
-        query = query.filter(ProductCategory.name == category_filter)
-    if subcategory_filter:
-        query = query.filter(ProductSubcategory.name == subcategory_filter)
+    # 分类过滤已改为前端页签切换，后端不再过滤
+    # if category_filter:
+    #     query = query.filter(ProductCategory.name == category_filter)
+    # if subcategory_filter:
+    #     query = query.filter(ProductSubcategory.name == subcategory_filter)
 
     # 按分类、子分类、创建时间排序
     query = query.order_by(

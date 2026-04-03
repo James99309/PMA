@@ -93,41 +93,55 @@
                 {% endif %}
             </div>
         {% elif page_slot == 'content' %}
-            <!-- 双层分类页签 -->
+            <!-- 双层分类页签（前端过滤，不刷新页面） -->
             <script>
                 window.__specFilterData = {
                     categoryTree: {{ filter_config.category_tree | tojson }},
-                    selectedCategory: {{ filter_config.category_filter | tojson }},
-                    selectedSubcategory: {{ filter_config.subcategory_filter | tojson }},
-                    actionUrl: {{ filter_config.action_url | tojson }},
-                    allLabel: {{ _('全部分类') | tojson }}
+                    allLabel: {{ _('全部') | tojson }}
                 };
             </script>
             <div class="mb-4 sm:mb-6" x-data="{
                 categoryTree: window.__specFilterData.categoryTree,
-                selectedCategory: window.__specFilterData.selectedCategory,
-                selectedSubcategory: window.__specFilterData.selectedSubcategory,
+                selectedCategory: '',
+                selectedSubcategory: '',
                 get currentSubs() {
                     const cat = this.categoryTree.find(c => c.name === this.selectedCategory);
                     return cat ? cat.subcategories : [];
                 },
-                select(cat, sub) {
-                    const params = new URLSearchParams(window.location.search);
-                    if (cat) { params.set('category', cat); } else { params.delete('category'); }
-                    if (sub) { params.set('subcategory', sub); } else { params.delete('subcategory'); }
-                    window.location.href = window.__specFilterData.actionUrl + '?' + params.toString();
+                selectCat(cat) {
+                    this.selectedCategory = cat;
+                    this.selectedSubcategory = '';
+                    this.filterRows();
+                },
+                selectSub(sub) {
+                    this.selectedSubcategory = sub;
+                    this.filterRows();
+                },
+                filterRows() {
+                    const rows = document.querySelectorAll('#templateTable tbody tr[data-category]');
+                    let visibleCount = 0;
+                    rows.forEach(row => {
+                        const cat = row.dataset.category;
+                        const sub = row.dataset.subcategory;
+                        const show = (!this.selectedCategory || cat === this.selectedCategory)
+                                  && (!this.selectedSubcategory || sub === this.selectedSubcategory);
+                        row.style.display = show ? '' : 'none';
+                        if (show) visibleCount++;
+                    });
+                    const countEl = document.getElementById('templateTableCount');
+                    if (countEl) countEl.textContent = visibleCount;
                 }
             }">
                 <!-- 第一层：主分类 -->
                 <div class="border-b border-slate-200 dark:border-slate-700">
                     <nav class="flex overflow-x-auto -mb-px gap-1" aria-label="Categories">
-                        <button @click="select('', '')"
+                        <button @click="selectCat('')"
                                 class="whitespace-nowrap py-2.5 px-4 border-b-2 text-sm font-medium transition-colors"
                                 :class="!selectedCategory ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400'">
                             {{ _('全部') }}
                         </button>
                         <template x-for="cat in categoryTree" :key="cat.name">
-                            <button @click="select(cat.name, '')"
+                            <button @click="selectCat(cat.name)"
                                     class="whitespace-nowrap py-2.5 px-4 border-b-2 text-sm font-medium transition-colors"
                                     :class="selectedCategory === cat.name ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400'">
                                 <span x-text="cat.name"></span>
@@ -138,17 +152,17 @@
                         </template>
                     </nav>
                 </div>
-                <!-- 第二层：子分类（选中主分类后显示） -->
+                <!-- 第二层：子分类 -->
                 <div x-show="selectedCategory && currentSubs.length > 0" x-transition
                      class="border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-800/50">
                     <nav class="flex overflow-x-auto gap-1 px-2" aria-label="Subcategories">
-                        <button @click="select(selectedCategory, '')"
+                        <button @click="selectSub('')"
                                 class="whitespace-nowrap py-2 px-3 text-xs font-medium transition-colors rounded-t"
                                 :class="!selectedSubcategory ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'">
                             {{ _('全部') }}
                         </button>
                         <template x-for="sub in currentSubs" :key="sub">
-                            <button @click="select(selectedCategory, sub)"
+                            <button @click="selectSub(sub)"
                                     class="whitespace-nowrap py-2 px-3 text-xs font-medium transition-colors rounded-t"
                                     :class="selectedSubcategory === sub ? 'text-primary border-b-2 border-primary' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'">
                                 <span x-text="sub"></span>
@@ -180,7 +194,9 @@
                 empty_icon='description'
             ) %}
             {% for template in templates %}
-            <tr class="table-row-hover transition-colors">
+            <tr class="table-row-hover transition-colors"
+                data-category="{{ template.category.name if template.category else '' }}"
+                data-subcategory="{{ template.subcategory.name if template.subcategory else '' }}">
                 <td class="p-3 text-sm text-slate-500 dark:text-slate-400">
                     {% if template.name and template.name != 'None' %}{{ template.name }}{% else %}-{% endif %}
                 </td>
