@@ -489,18 +489,18 @@ def list_templates():
         all_templates = all_templates.filter_by(created_by=current_user.id)
     all_templates = all_templates.all()
 
-    category_tree = {}  # {cat_name: {'subcategories': [sub_name, ...]}}
+    category_tree = {}  # {cat_name: {'order': int, 'subs': {sub_name: order}}}
     for t in all_templates:
         if t.subcategory and t.subcategory.parent_category:
-            cat_name = t.subcategory.parent_category.name
-            sub_name = t.subcategory.name
-            if cat_name not in category_tree:
-                category_tree[cat_name] = set()
-            category_tree[cat_name].add(sub_name)
-    # 转为排序后的列表
+            cat = t.subcategory.parent_category
+            sub = t.subcategory
+            if cat.name not in category_tree:
+                category_tree[cat.name] = {'order': cat.display_order or 0, 'subs': {}}
+            category_tree[cat.name]['subs'][sub.name] = sub.display_order or 0
+    # 按 display_order 排序
     category_tree_sorted = [
-        {'name': cat, 'subcategories': sorted(list(subs))}
-        for cat, subs in sorted(category_tree.items())
+        {'name': cat, 'subcategories': [s for s, _ in sorted(info['subs'].items(), key=lambda x: x[1])]}
+        for cat, info in sorted(category_tree.items(), key=lambda x: x[1]['order'])
     ]
 
     filter_config = {
