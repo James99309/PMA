@@ -991,14 +991,14 @@
                     <td class="px-3 py-1.5 text-xs">${codeIcon}${cs.field_name}</td>
                     <td class="px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300">${cs.value || '<span class="text-slate-300">-</span>'}</td>
                     <td class="px-3 py-1.5 text-xs font-mono text-slate-500">${cs.field_code || '-'}</td>
-                    <td class="px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300">${ps.value || '<span class="text-slate-300">-</span>'}${valIcon}</td>
+                    <td class="px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 border-l-2 border-slate-200 dark:border-slate-600">${ps.value || '<span class="text-slate-300">-</span>'}${valIcon}</td>
                     <td class="px-3 py-1.5 text-xs font-mono text-slate-500">${ps.field_code || '-'}${codeValIcon}</td>
                 </tr>`;
             }
 
             html += `
-            <div class="mb-6 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                <div class="px-4 py-3 bg-slate-50 dark:bg-slate-700/50 flex items-center justify-between">
+            <div class="mb-6">
+                <div class="px-4 py-3 flex items-center justify-between">
                     <div>
                         <div class="flex items-center gap-2">
                             ${dbLabel}
@@ -1015,18 +1015,24 @@
                         </div>
                     </div>
                 </div>
-                <table class="w-full text-sm">
-                    <thead class="bg-slate-50 dark:bg-slate-700">
-                        <tr>
-                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 w-1/5">{{ _('\u89c4\u683c') }}</th>
-                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('\u914d\u7f6e\u503c') }}</th>
-                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 w-16">Code</th>
-                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('\u4ea7\u54c1\u503c') }}</th>
-                            <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 w-16">Code</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">${specRows}</tbody>
-                </table>
+                <div class="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-50 dark:bg-slate-700 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 w-1/6">{{ _('\u89c4\u683c') }}</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-slate-500">{{ _('\u914d\u7f6e\u503c') }}</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 w-14">Code</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 border-l-2 border-slate-200 dark:border-slate-600">{{ _('\u4ea7\u54c1\u503c') }}</th>
+                                <th class="px-3 py-2 text-left text-xs font-medium text-slate-500 w-14">Code</th>
+                            </tr>
+                        </thead>
+                    </table>
+                    <div class="max-h-[50vh] overflow-y-auto">
+                        <table class="w-full text-sm">
+                            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">${specRows}</tbody>
+                        </table>
+                    </div>
+                </div>
             </div>`;
         }
 
