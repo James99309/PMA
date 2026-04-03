@@ -268,6 +268,9 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
         # 过滤空值规格（防御性）
         specs_sorted = [s for s in specs_sorted if s.field_value and s.field_value.strip()]
 
+        # OVS（SG）使用英文名称和值，SP8D（CN）使用中文
+        is_ovs = current_app.config.get('IS_OVS', False)
+
         # 构建 code_parts
         for idx, spec in enumerate(specs_sorted):
             defn = name_to_def.get(spec.field_name)
@@ -275,12 +278,19 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
             use_in_code = bool(spec.field_code and spec.field_code.strip())
             unit = getattr(spec, 'unit', '') or (defn.unit if defn else None)
 
+            if is_ovs:
+                display_name = (getattr(spec, 'field_name_en', '') or spec.field_name)
+                display_value = (getattr(spec, 'field_value_en', '') or spec.field_value)
+            else:
+                display_name = spec.field_name
+                display_value = spec.field_value
+
             snapshot["code_parts"].append({
                 "position": idx,
-                "field_name": spec.field_name,
+                "field_name": display_name,
                 "field_code": spec.field_code if spec.field_code else "",
                 "code": spec.field_code if spec.field_code else "",
-                "value": spec.field_value if spec.field_value else "",
+                "value": display_value if display_value else "",
                 "unit": unit or "",
                 "use_in_code": use_in_code,
                 "description": ""

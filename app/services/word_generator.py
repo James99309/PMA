@@ -735,7 +735,7 @@ class WordGenerator:
             # 收集所有明细（包括子产品）
             all_details = []
             for detail in quotation.details:
-                if detail.is_accessory:
+                if detail.is_accessory and detail.parent_item_id:
                     continue
                 all_details.append(detail)
                 if detail.configurations:
@@ -932,7 +932,7 @@ class WordGenerator:
             # 收集所有明细（包括子产品）
             all_details = []
             for detail in quotation.details:
-                if detail.is_accessory:
+                if detail.is_accessory and detail.parent_item_id:
                     continue
                 all_details.append(detail)
                 if detail.configurations:

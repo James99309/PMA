@@ -1094,7 +1094,10 @@ def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CUR
                 config_info['detail'].parent_item_id = parent_detail.id
                 current_app.logger.debug(f"配置产品 {config_info['detail'].product_name} 关联到父产品 {parent_detail.product_name} (ID={parent_detail.id})")
             else:
-                current_app.logger.warning(f"配置产品 {config_info['detail'].product_name} 找不到父产品，parent_row_id={config_info['parent_row_id']}")
+                # 找不到父产品，回退为独立产品
+                config_info['detail'].is_accessory = False
+                config_info['detail'].is_editable = True
+                current_app.logger.warning(f"配置产品 {config_info['detail'].product_name} 找不到父产品，已回退为独立产品，parent_row_id={config_info['parent_row_id']}")
 
         current_app.logger.info(f"配置产品父子关系建立完成")
 
@@ -1401,7 +1404,10 @@ def create_quotation():
                                 config_info['detail'].parent_item_id = parent_detail.id
                                 current_app.logger.debug(f"配置产品 {config_info['detail'].product_name} 关联到父产品 {parent_detail.product_name} (ID={parent_detail.id})")
                             else:
-                                current_app.logger.warning(f"配置产品 {config_info['detail'].product_name} 找不到父产品，parent_row_id={config_info['parent_row_id']}")
+                                # 找不到父产品，回退为独立产品
+                                config_info['detail'].is_accessory = False
+                                config_info['detail'].is_editable = True
+                                current_app.logger.warning(f"配置产品 {config_info['detail'].product_name} 找不到父产品，已回退为独立产品，parent_row_id={config_info['parent_row_id']}")
 
                         current_app.logger.info(f"配置产品父子关系建立完成")
 
@@ -1968,7 +1974,10 @@ def edit_quotation(id):
                                 config_info['detail'].parent_item_id = parent_detail.id
                                 current_app.logger.debug(f"配置产品 {config_info['detail'].product_name} 关联到父产品 {parent_detail.product_name}")
                             else:
-                                current_app.logger.warning(f"配置产品 {config_info['detail'].product_name} 找不到父产品，parent_row_id={config_info['parent_row_id']}")
+                                # 找不到父产品，回退为独立产品
+                                config_info['detail'].is_accessory = False
+                                config_info['detail'].is_editable = True
+                                current_app.logger.warning(f"配置产品 {config_info['detail'].product_name} 找不到父产品，已回退为独立产品，parent_row_id={config_info['parent_row_id']}")
 
                         current_app.logger.info(f"配置产品父子关系建立完成")
 

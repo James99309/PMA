@@ -130,8 +130,7 @@ def generate_mn_code(config, template=None, save_snapshot=True):
         # 从规格字典查找编码（唯一来源），fallback 到 item.options 向后兼容
         code_char = get_code_from_dictionary(item.spec_dict_id, value) if item.spec_dict_id else None
         if not code_char:
-            code_options = item.options or {}
-            code_char = generate_safe_code_char(value, code_options)
+            code_char = generate_safe_code_char(value, item.options or {})
 
         # 编码固定1位（code_length=2 已废弃，字典编码统一为1位字符）
         final_code_char = code_char[:1]
@@ -144,7 +143,7 @@ def generate_mn_code(config, template=None, save_snapshot=True):
             "definition_name": item.spec_dict.name if item.spec_dict else None,
             "display_order": item.display_order,
             "code_length": item.code_length,
-            "options": code_options,
+            "options": item.options or {},
             "value": value,
             "code_char": final_code_char
         })
