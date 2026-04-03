@@ -3646,25 +3646,37 @@ def get_products_by_subcategory_api():
 
         # 为 snapshot 中的 field_name 补充英文名（从 product_specs 批量查）
         all_product_ids = [p['id'] for plist in model_groups_dict.values() for p in plist]
-        if all_product_ids:
+        # IS_OVS 环境：给 snapshot 补上英文字段名和英文值
+        if all_product_ids and Config.IS_OVS:
             from app.models.product_spec import ProductSpec
-            spec_en_rows = db.session.query(ProductSpec.field_name, ProductSpec.field_name_en).filter(
-                ProductSpec.product_id.in_(all_product_ids),
-                ProductSpec.field_name_en.isnot(None),
-                ProductSpec.field_name_en != ''
-            ).distinct().all()
-            field_name_en_map = {row.field_name: row.field_name_en for row in spec_en_rows}
+            # 批量查英文字段名和英文值
+            spec_en_rows = db.session.query(
+                ProductSpec.product_id, ProductSpec.field_name,
+                ProductSpec.field_name_en, ProductSpec.field_value, ProductSpec.field_value_en
+            ).filter(
+                ProductSpec.product_id.in_(all_product_ids)
+            ).all()
 
-            # IS_OVS 环境：给每个产品的 snapshot 补上 field_name_en
-            if Config.IS_OVS:
-                for plist in model_groups_dict.values():
-                    for p in plist:
-                        snapshot = p.get('code_definition_snapshot')
-                        if snapshot and 'code_parts' in snapshot:
-                            for part in snapshot['code_parts']:
-                                fn = part.get('field_name', '')
-                                if fn and fn in field_name_en_map:
-                                    part['field_name_en'] = field_name_en_map[fn]
+            # 构建映射: field_name → field_name_en, (product_id, field_name) → field_value_en
+            field_name_en_map = {}
+            field_value_en_map = {}
+            for row in spec_en_rows:
+                if row.field_name_en:
+                    field_name_en_map[row.field_name] = row.field_name_en
+                if row.field_value_en:
+                    field_value_en_map[(row.product_id, row.field_name)] = row.field_value_en
+
+            for plist in model_groups_dict.values():
+                for p in plist:
+                    snapshot = p.get('code_definition_snapshot')
+                    if snapshot and 'code_parts' in snapshot:
+                        for part in snapshot['code_parts']:
+                            fn = part.get('field_name', '')
+                            if fn and fn in field_name_en_map:
+                                part['field_name_en'] = field_name_en_map[fn]
+                            val_en = field_value_en_map.get((p['id'], fn))
+                            if val_en:
+                                part['value_en'] = val_en
 
         # 补充子分类显示名（按环境）
         if Config.IS_OVS and subcategory_obj and hasattr(subcategory_obj, 'name_en') and subcategory_obj.name_en:
@@ -4597,8 +4609,7 @@ def get_configuration_specs(product_id):
             'is_required': item.use_in_code  # 编码规格强制必选
         })
 
-    # 按编码规格优先排序
-    specs.sort(key=lambda x: (not x['use_in_code'], x['category']))
+    # 保持模版 display_order 排序（template.items 已按 display_order 排序）
 
     return jsonify({
         'success': True,

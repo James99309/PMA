@@ -936,7 +936,7 @@ const ProductSpecModal = (function() {
                     if (matchingField) {
                         productsWithField++;
                         const codeValue = matchingField.code;
-                        const indicatorValue = matchingField.value;
+                        const indicatorValue = matchingField.value_en || matchingField.value;
                         const unitValue = matchingField.unit || null;
 
                         if (!codeOptions.has(codeValue)) {
@@ -1403,7 +1403,7 @@ const ProductSpecModal = (function() {
         snapshot.forEach(field => {
             const fieldName = field.field_name || field.name || '';
             const displayName = (state.fieldNameEnMap && state.fieldNameEnMap[fieldName]) || field.field_name_en || fieldName;
-            const value = field.value || '';
+            const value = field.value_en || field.value || '';
             const unit = field.unit || '';
             const unitText = unit ? ` ${unit}` : '';
 

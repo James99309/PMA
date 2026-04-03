@@ -1301,7 +1301,7 @@ class ProductSelector {
             this.openProductConfigModal({
                 category: category,
                 subcategory: subcategory,
-                subcategoryEn: this._subcategoryNameEn || '',
+                subcategoryDisplayName: this._subcategoryDisplayName || '',
                 product_name: modelGroup.product_name,
                 model: modelGroup.model,
                 products: products
