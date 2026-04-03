@@ -124,3 +124,142 @@ def cross_sync_product_specs():
         db.session.rollback()
         logger.error(f'跨系统规格同步失败: 产品 {product_id}, {e}')
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_v1_bp.route('/cross-sync/lock-config', methods=['POST'])
+@require_api_key_or_jwt
+def cross_sync_lock_config():
+    """SG 导入产品后通知 CN 锁定对应配置
+
+    Request body:
+    {
+        "config_id": 31,           # CN 配置 ID
+        "product_mn": "SOMWCER8T3J" # SG 产品的 MN 编码
+    }
+    """
+    data = request.get_json()
+    config_id = data.get('config_id')
+    product_mn = data.get('product_mn')
+
+    if not config_id or not product_mn:
+        return jsonify({'success': False, 'message': '缺少 config_id 或 product_mn'}), 400
+
+    try:
+        from app.models.spec_template import ProductConfiguration
+        from app.views.spec_template import generate_mn_code, generate_code_rule_snapshot
+
+        config = ProductConfiguration.query.get(config_id)
+        if not config or config.deleted_at:
+            return jsonify({'success': False, 'message': f'配置 {config_id} 不存在'}), 404
+
+        old_mn = config.mn_code
+        config.mn_code = product_mn
+        config.status = 'production'
+
+        # 重建 code_rule_snapshot（使用当前 MN，不重新生成）
+        from app.views.spec_template import get_code_from_dictionary, generate_safe_code_char
+        code_items = sorted(
+            [item for item in config.template.items if item.use_in_code],
+            key=lambda x: x.display_order
+        )
+        code_items_data = []
+        for item in code_items:
+            value = None
+            for cv in config.config_values:
+                if cv.template_item_id == item.id:
+                    value = cv.value
+                    break
+            if not value:
+                value = item.general_value
+            code_char = get_code_from_dictionary(item.spec_dict_id, value) if item.spec_dict_id else None
+            if not code_char:
+                code_char = generate_safe_code_char(value, item.options or {})
+            code_items_data.append({
+                "item_id": item.id,
+                "definition_name": item.spec_dict.name if item.spec_dict else None,
+                "display_order": item.display_order,
+                "code_length": item.code_length,
+                "options": item.options or {},
+                "value": value,
+                "code_char": (code_char or 'X')[:1]
+            })
+        config.code_rule_snapshot = generate_code_rule_snapshot(config, product_mn, code_items_data)
+
+        db.session.commit()
+        logger.info(f'跨系统锁定配置: config_id={config_id}, old_mn={old_mn}, new_mn={product_mn}')
+        return jsonify({
+            'success': True,
+            'message': f'配置 {config_id} 已锁定，MN 更新为 {product_mn}'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'跨系统锁定配置失败: config_id={config_id}, {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_v1_bp.route('/cross-sync/unlock-config', methods=['POST'])
+@require_api_key_or_jwt
+def cross_sync_unlock_config():
+    """SG 删除产品后通知 CN 解锁对应配置
+
+    仅在该配置没有其他关联产品时解锁。
+
+    Request body:
+    {
+        "product_mn": "SOMWCER8T3J"  # 被删除的 SG 产品 MN
+    }
+    """
+    data = request.get_json()
+    product_mn = data.get('product_mn')
+
+    if not product_mn:
+        return jsonify({'success': False, 'message': '缺少 product_mn'}), 400
+
+    try:
+        from app.models.spec_template import ProductConfiguration
+        from app.models.product import Product
+
+        # 找到 MN 匹配的配置
+        config = ProductConfiguration.query.filter_by(mn_code=product_mn).first()
+        if not config:
+            return jsonify({'success': True, 'message': f'未找到 MN={product_mn} 的配置，无需操作'})
+
+        # 检查是否还有 CN 关联产品
+        cn_count = Product.query.filter_by(
+            source_configuration_id=config.id,
+            is_deleted=False
+        ).count()
+
+        # 检查是否还有 SG 关联产品（排除刚删除的那个）
+        sg_count = db.session.execute(db.text(
+            "SELECT COUNT(*) FROM sg_products WHERE product_mn = :mn"
+        ), {'mn': product_mn}).scalar() or 0
+
+        if cn_count > 0 or sg_count > 0:
+            logger.info(f'配置 {config.id} 仍有关联产品 (CN={cn_count}, SG={sg_count})，保持锁定')
+            return jsonify({
+                'success': True,
+                'message': f'配置仍有 {cn_count + sg_count} 个关联产品，保持锁定'
+            })
+
+        # 无关联产品，解锁并重新生成 MN
+        old_status = config.status
+        config.status = 'development'
+
+        from app.views.spec_template import generate_mn_code
+        new_mn = generate_mn_code(config)
+        if new_mn:
+            config.mn_code = new_mn
+
+        db.session.commit()
+        logger.info(f'跨系统解锁配置: config_id={config.id}, {old_status} → development, MN={new_mn}')
+        return jsonify({
+            'success': True,
+            'message': f'配置 {config.id} 已解锁，新 MN={new_mn}'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'跨系统解锁配置失败: product_mn={product_mn}, {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500

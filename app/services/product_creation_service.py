@@ -171,6 +171,31 @@ class ProductCreationService:
 
             current_app.logger.info(f'产品创建成功: ID={new_product.id}, MN={mn_code}, 型号={model}, 类型={product_type}')
 
+            # 8.5. 跨系统导入：通知 CN 锁定配置
+            sp8d_config_id = request.form.get('sp8d_configuration_id')
+            source_type_val = request.form.get('source_type', '')
+            if source_type_val == 'from_sp8d' and sp8d_config_id and mn_code:
+                try:
+                    import os
+                    import requests as http_requests
+                    peer_url = current_app.config.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+                    api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+                    if peer_url and api_key:
+                        resp = http_requests.post(
+                            f'{peer_url}/api/v1/cross-sync/lock-config',
+                            json={'config_id': int(sp8d_config_id), 'product_mn': mn_code},
+                            headers={'X-API-Key': api_key},
+                            timeout=10
+                        )
+                        if resp.status_code == 200:
+                            current_app.logger.info(f'已通知 CN 锁定配置 {sp8d_config_id}')
+                        else:
+                            current_app.logger.warning(f'CN 锁定配置失败: {resp.text}')
+                    else:
+                        current_app.logger.warning('跨系统 API 未配置，无法通知 CN 锁定配置')
+                except Exception as lock_err:
+                    current_app.logger.warning(f'通知 CN 锁定配置异常: {lock_err}')
+
             # 跳转到产品详情页以便补充规格
             # 注：研发库已废弃(2025-12-26)，统一使用产品详情页
             final_redirect_url = url_for('product.view_product_detail', id=new_product.id)

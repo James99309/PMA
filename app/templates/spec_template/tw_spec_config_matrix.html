@@ -403,11 +403,9 @@
                                                 </span>
                                                 {% endif %}
                                             </div>
-                                            {% if config.mn_locked %}
                                             <span id="sync-status-{{ config.id }}"
                                                   class="hidden mt-1 text-[10px] px-1.5 py-0.5 rounded-full cursor-pointer inline-block">
                                             </span>
-                                            {% endif %}
                                         </div>
                                     </th>
                                     {% endfor %}
@@ -2166,8 +2164,7 @@
      * 加载所有锁定配置的同步状态
      */
     async function loadSyncStatuses() {
-        for (const [configId, isLocked] of Object.entries(CONFIG_MN_LOCKED)) {
-            if (!isLocked) continue;
+        for (const configId of Object.keys(CONFIG_MN_LOCKED)) {
             try {
                 const resp = await fetch(`${API_BASE}/configurations/${configId}/sync-status`);
                 if (!resp.ok) continue;

@@ -2097,10 +2097,25 @@ def api_unlink_product(config_id):
         # 解除关联
         product.source_configuration_id = None
 
-        # 配置恢复为开发中，重新生成 MN
-        config.status = 'development'
-        new_mn = generate_mn_code(config, template=config.template)
-        config.mn_code = new_mn
+        # 检查是否还有其他关联产品（CN 本地 + SG）再决定是否解锁
+        other_cn = Product.query.filter(
+            Product.source_configuration_id == config.id,
+            Product.id != product_id,
+            Product.is_deleted == False
+        ).count()
+        sg_count = 0
+        if config.mn_code:
+            sg_count = db.session.execute(db.text(
+                "SELECT COUNT(*) FROM sg_products WHERE product_mn = :mn"
+            ), {'mn': config.mn_code}).scalar() or 0
+
+        if other_cn == 0 and sg_count == 0:
+            # 无其他关联产品，解锁并重新生成 MN
+            config.status = 'development'
+            new_mn = generate_mn_code(config, template=config.template)
+            config.mn_code = new_mn
+        else:
+            new_mn = config.mn_code  # 保持锁定
 
         db.session.commit()
 
@@ -2371,11 +2386,8 @@ def _build_sg_specs_payload(config):
 @login_required
 @permission_required('product_code', 'view')
 def api_config_sync_status(config_id):
-    """API: 获取锁定配置的产品同步状态"""
+    """API: 获取配置的产品同步状态（所有有关联产品的配置）"""
     config = ProductConfiguration.query.get_or_404(config_id)
-
-    if not config.mn_locked:
-        return jsonify({'sync_status': 'not_locked'})
 
     # 查找 CN 关联产品
     cn_products = Product.query.filter_by(
@@ -2467,12 +2479,9 @@ def api_config_sync_status(config_id):
 @login_required
 @permission_required('product_code', 'edit')
 def api_sync_config_to_products(config_id):
-    """API: 将锁定配置的规格值同步到所有关联产品"""
+    """API: 将配置的规格值同步到所有关联产品"""
     config = ProductConfiguration.query.get_or_404(config_id)
     _check_config_owner(config)
-
-    if not config.mn_locked:
-        return jsonify({'success': False, 'message': _('仅锁定配置可同步')}), 400
 
     results = {'cn_synced': 0, 'sg_synced': 0, 'errors': []}
 

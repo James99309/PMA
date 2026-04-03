@@ -2959,10 +2959,30 @@ def delete_product(id):
             except Exception as e:
                 logger.warning(f"删除产品PDF文件失败: {str(e)}")
         
+        # 跨系统通知：如果是从 SP8D 导入的产品，通知 CN 解锁配置
+        if getattr(product, 'source_type', '') == 'from_sp8d' and product.product_mn:
+            try:
+                import requests as http_requests
+                peer_url = current_app.config.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+                api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+                if peer_url and api_key:
+                    resp = http_requests.post(
+                        f'{peer_url}/api/v1/cross-sync/unlock-config',
+                        json={'product_mn': product.product_mn},
+                        headers={'X-API-Key': api_key},
+                        timeout=10
+                    )
+                    if resp.status_code == 200:
+                        logger.info(f'已通知 CN 解锁配置 (MN={product.product_mn})')
+                    else:
+                        logger.warning(f'CN 解锁配置失败: {resp.text}')
+            except Exception as unlock_err:
+                logger.warning(f'通知 CN 解锁配置异常: {unlock_err}')
+
         # 删除产品记录
         db.session.delete(product)
         db.session.commit()
-        
+
         logger.info(f'{current_user.role} {current_user.username} 删除了产品: {product_name} (ID: {id})')
         
         return jsonify({
