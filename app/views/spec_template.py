@@ -1976,92 +1976,26 @@ def api_link_product(config_id):
         if product.source_configuration_id:
             return jsonify({'success': False, 'message': _('该产品已关联到其他配置')}), 400
 
-        # 产品现有规格
-        specs = ProductSpec.query.filter_by(product_id=product.id).all()
-        spec_map = {s.field_name: s for s in specs}
-        synced_spec_names = set()
-
-        # 预加载编码映射: field_name+value → code
-        from app.models.product_code import SpecificationOption
-        spec_dict_ids = [item.spec_dict_id for item in config.template.items if item.spec_dict_id]
-        all_options = SpecificationOption.query.filter(
-            SpecificationOption.spec_id.in_(spec_dict_ids),
-            SpecificationOption.is_active == True
-        ).all() if spec_dict_ids else []
-        code_lookup = {}  # (spec_id, value) → code
-        for opt in all_options:
-            code_lookup[(opt.spec_id, opt.value)] = opt.code
-
-        # 完整同步：配置 → 产品规格（值、编码、顺序、英文名、单位）
+        # 确保配置值存在（通用值回填）
+        existing_item_ids = {cv.template_item_id for cv in config.config_values}
         for item in config.template.items:
-            sd = item.spec_dict
-            if not sd:
-                continue
-            spec_name = sd.name
-            synced_spec_names.add(spec_name)
-
-            # 配置值
-            config_cv = None
-            for cv in config.config_values:
-                if cv.template_item_id == item.id:
-                    config_cv = cv
-                    break
-            config_val = config_cv.value if config_cv else (item.general_value or '')
-
-            # 查编码
-            field_code = code_lookup.get((sd.id, config_val), '') if config_val else ''
-
-            # 更新或创建产品规格
-            ps = spec_map.get(spec_name)
-            if ps:
-                ps.field_value = config_val
-                ps.field_code = field_code
-                ps.field_name_en = sd.name_en or ps.field_name_en or ''
-                ps.unit = sd.unit or ps.unit or ''
-                ps.display_order = item.display_order
-                ps.include_in_description = item.use_in_code
-            else:
-                new_ps = ProductSpec(
-                    product_id=product.id,
-                    field_name=spec_name,
-                    field_name_en=sd.name_en or '',
-                    field_value=config_val,
-                    field_code=field_code,
-                    unit=sd.unit or '',
-                    display_order=item.display_order,
-                    include_in_description=item.use_in_code
-                )
-                db.session.add(new_ps)
-
-            # 确保配置值存在
-            if config_val and not config_cv:
+            if item.id not in existing_item_ids and item.general_value:
                 db.session.add(ProductConfigValue(
                     configuration_id=config.id,
                     template_item_id=item.id,
-                    value=config_val
+                    value=item.general_value
                 ))
-
-        # 删除产品中多余的规格（模版没有的）
-        for spec_name, ps in spec_map.items():
-            if spec_name not in synced_spec_names:
-                db.session.delete(ps)
 
         # 如果用户勾选了同步 MN，将配置编码更新为产品编码并锁定
         if data.get('sync_mn') and product.product_mn and not config.mn_locked:
             config.mn_code = product.product_mn
-            config.status = 'production'  # 锁定编码，防止"更新编码"覆盖
+            config.status = 'production'
 
         # 建立关联
         product.source_configuration_id = config.id
-        db.session.commit()
 
-        # 重建产品快照 + 更新描述
-        from app.utils.product_helpers import generate_product_snapshot
-        from app.services.spec_service import SpecService
-        snap = generate_product_snapshot(product, source='link_to_config')
-        if snap:
-            product.code_definition_snapshot = snap
-        product.specification = SpecService.generate_description(SpecService.TYPE_PRODUCT, product.id)
+        # 同步配置 → 产品规格（复用辅助函数）
+        _sync_config_to_cn_product(config, product)
         db.session.commit()
 
         return jsonify({
@@ -2113,43 +2047,7 @@ def api_link_product(config_id):
                 sg_api_url = current_app.config.get('SG_NAS_WEB_URL', '').rstrip('/')
                 cross_api_key = os.environ.get('CROSS_SYSTEM_API_KEY', '')
                 if sg_api_url and cross_api_key:
-                    # 构建规格数据
-                    specs_payload = []
-                    for item in config.template.items:
-                        sd = item.spec_dict
-                        if not sd:
-                            continue
-                        # 配置值
-                        cv_val = ''
-                        for cv in config.config_values:
-                            if cv.template_item_id == item.id:
-                                cv_val = cv.value
-                                break
-                        if not cv_val:
-                            cv_val = item.general_value or ''
-
-                        # 查编码和英文值
-                        field_code = ''
-                        field_value_en = ''
-                        if cv_val:
-                            opt = db.session.execute(db.text(
-                                "SELECT code, value_en FROM specification_options WHERE spec_id = :sid AND value = :val AND is_active = true LIMIT 1"
-                            ), {'sid': sd.id, 'val': cv_val}).fetchone()
-                            if opt:
-                                field_code = opt.code or ''
-                                field_value_en = opt.value_en or ''
-
-                        specs_payload.append({
-                            'field_name': sd.name,
-                            'field_name_en': sd.name_en or '',
-                            'field_value': cv_val,
-                            'field_value_en': field_value_en,
-                            'field_code': field_code,
-                            'unit': sd.unit or '',
-                            'display_order': item.display_order,
-                            'include_in_description': item.use_in_code
-                        })
-
+                    specs_payload = _build_sg_specs_payload(config)
                     resp = http_requests.post(
                         f'{sg_api_url}/api/v1/cross-sync/sync-product-specs',
                         json={'product_id': product_id, 'specs': specs_payload},
@@ -2237,6 +2135,7 @@ def api_update_config_values(config_id):
     data = request.get_json()
     values_data = data.get('values', [])
     save_all = data.get('save_all', False)  # 是否保存所有规格值（包括默认值）
+    locked_update = data.get('locked_update', False)  # 锁定配置补填缺失字段
 
     # 收集需要更新编码映射的模板项
     items_to_update_options = {}  # {template_item_id: value}
@@ -2314,6 +2213,35 @@ def api_update_config_values(config_id):
             }), 409
 
         config.mn_code = new_mn_code
+    elif locked_update and items_to_update_options:
+        # 锁定配置补填缺失字段：MN 不变，重建 code_rule_snapshot
+        code_items = sorted(
+            [item for item in config.template.items if item.use_in_code],
+            key=lambda x: x.display_order
+        )
+        code_items_data = []
+        for item in code_items:
+            value = None
+            for cv in config.config_values:
+                if cv.template_item_id == item.id:
+                    value = cv.value
+                    break
+            if not value:
+                value = item.general_value
+            code_char = get_code_from_dictionary(item.spec_dict_id, value) if item.spec_dict_id else None
+            if not code_char:
+                code_options = item.options or {}
+                code_char = generate_safe_code_char(value, code_options)
+            code_items_data.append({
+                "item_id": item.id,
+                "definition_name": item.spec_dict.name if item.spec_dict else None,
+                "display_order": item.display_order,
+                "code_length": item.code_length,
+                "options": item.options or {},
+                "value": value,
+                "code_char": (code_char or 'X')[:1]
+            })
+        config.code_rule_snapshot = generate_code_rule_snapshot(config, config.mn_code, code_items_data)
 
     db.session.commit()
 
@@ -2330,6 +2258,283 @@ def api_update_config_values(config_id):
         'mn_code': config.mn_code,
         'mn_locked': mn_locked,
         'updated_options': updated_item_options  # 返回更新后的 options
+    })
+
+
+# ==================== 配置同步 API ====================
+
+
+def _sync_config_to_cn_product(config, product):
+    """将配置规格值同步到 CN 产品"""
+    from app.models.product_spec import ProductSpec
+
+    specs = ProductSpec.query.filter_by(product_id=product.id).all()
+    spec_map = {s.field_name: s for s in specs}
+    synced_spec_names = set()
+
+    # 预加载编码映射
+    spec_dict_ids = [item.spec_dict_id for item in config.template.items if item.spec_dict_id]
+    all_options = SpecificationOption.query.filter(
+        SpecificationOption.spec_id.in_(spec_dict_ids),
+        SpecificationOption.is_active == True
+    ).all() if spec_dict_ids else []
+    code_lookup = {(opt.spec_id, opt.value): opt.code for opt in all_options}
+
+    for item in config.template.items:
+        sd = item.spec_dict
+        if not sd:
+            continue
+        spec_name = sd.name
+        synced_spec_names.add(spec_name)
+
+        config_cv = None
+        for cv in config.config_values:
+            if cv.template_item_id == item.id:
+                config_cv = cv
+                break
+        config_val = config_cv.value if config_cv else (item.general_value or '')
+        field_code = code_lookup.get((sd.id, config_val), '') if config_val else ''
+
+        ps = spec_map.get(spec_name)
+        if ps:
+            ps.field_value = config_val
+            ps.field_code = field_code
+            ps.field_name_en = sd.name_en or ps.field_name_en or ''
+            ps.unit = sd.unit or ps.unit or ''
+            ps.display_order = item.display_order
+            ps.include_in_description = item.use_in_code
+        else:
+            new_ps = ProductSpec(
+                product_id=product.id,
+                field_name=spec_name,
+                field_name_en=sd.name_en or '',
+                field_value=config_val,
+                field_code=field_code,
+                unit=sd.unit or '',
+                display_order=item.display_order,
+                include_in_description=item.use_in_code
+            )
+            db.session.add(new_ps)
+
+    # 删除多余规格
+    for spec_name, ps in spec_map.items():
+        if spec_name not in synced_spec_names:
+            db.session.delete(ps)
+
+    # 重建快照 + 描述
+    from app.utils.product_helpers import generate_product_snapshot
+    from app.services.spec_service import SpecService
+    snap = generate_product_snapshot(product, source='config_sync')
+    if snap:
+        product.code_definition_snapshot = snap
+    product.specification = SpecService.generate_description(SpecService.TYPE_PRODUCT, product.id)
+
+
+def _build_sg_specs_payload(config):
+    """构建 SG 产品规格同步 payload"""
+    specs_payload = []
+    for item in config.template.items:
+        sd = item.spec_dict
+        if not sd:
+            continue
+        cv_val = ''
+        for cv in config.config_values:
+            if cv.template_item_id == item.id:
+                cv_val = cv.value
+                break
+        if not cv_val:
+            cv_val = item.general_value or ''
+
+        field_code = ''
+        field_value_en = ''
+        if cv_val:
+            opt = db.session.execute(db.text(
+                "SELECT code, value_en FROM specification_options "
+                "WHERE spec_id = :sid AND value = :val AND is_active = true LIMIT 1"
+            ), {'sid': sd.id, 'val': cv_val}).fetchone()
+            if opt:
+                field_code = opt.code or ''
+                field_value_en = opt.value_en or ''
+
+        specs_payload.append({
+            'field_name': sd.name,
+            'field_name_en': sd.name_en or '',
+            'field_value': cv_val,
+            'field_value_en': field_value_en,
+            'field_code': field_code,
+            'unit': sd.unit or '',
+            'display_order': item.display_order,
+            'include_in_description': item.use_in_code
+        })
+    return specs_payload
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>/sync-status', methods=['GET'])
+@login_required
+@permission_required('product_code', 'view')
+def api_config_sync_status(config_id):
+    """API: 获取锁定配置的产品同步状态"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+
+    if not config.mn_locked:
+        return jsonify({'sync_status': 'not_locked'})
+
+    # 查找 CN 关联产品
+    cn_products = Product.query.filter_by(
+        source_configuration_id=config.id,
+        is_deleted=False
+    ).all()
+
+    # 查找 SG 关联产品（通过 MN 匹配）
+    sg_products = []
+    if config.mn_code:
+        sg_rows = db.session.execute(db.text(
+            "SELECT id, product_mn FROM sg_products WHERE product_mn = :mn"
+        ), {'mn': config.mn_code}).fetchall()
+        sg_products = [{'id': r.id, 'product_mn': r.product_mn} for r in sg_rows]
+
+    if not cn_products and not sg_products:
+        return jsonify({'sync_status': 'no_products', 'cn_count': 0, 'sg_count': 0})
+
+    # 构建配置值映射: field_name → value
+    config_spec_map = {}
+    for item in config.template.items:
+        sd = item.spec_dict
+        if not sd:
+            continue
+        cv_val = None
+        for cv in config.config_values:
+            if cv.template_item_id == item.id:
+                cv_val = cv.value
+                break
+        if not cv_val:
+            cv_val = item.general_value or ''
+        config_spec_map[sd.name] = cv_val
+
+    # 比较 CN 产品
+    from app.models.product_spec import ProductSpec
+    cn_diffs = []
+    for product in cn_products:
+        specs = {s.field_name: s.field_value for s in ProductSpec.query.filter_by(product_id=product.id).all()}
+        diff_fields = []
+        for field_name, config_val in config_spec_map.items():
+            product_val = specs.get(field_name, '')
+            if config_val != product_val:
+                diff_fields.append({
+                    'field': field_name,
+                    'config_val': config_val,
+                    'product_val': product_val
+                })
+        if diff_fields:
+            cn_diffs.append({
+                'product_id': product.id,
+                'product_mn': product.product_mn,
+                'diffs': diff_fields
+            })
+
+    # 比较 SG 产品
+    sg_diffs = []
+    for sg_p in sg_products:
+        sg_specs = db.session.execute(db.text(
+            "SELECT field_name, field_value FROM sg_product_specs WHERE product_id = :pid"
+        ), {'pid': sg_p['id']}).fetchall()
+        specs = {s.field_name: s.field_value for s in sg_specs}
+        diff_fields = []
+        for field_name, config_val in config_spec_map.items():
+            product_val = specs.get(field_name, '')
+            if config_val != product_val:
+                diff_fields.append({
+                    'field': field_name,
+                    'config_val': config_val,
+                    'product_val': product_val
+                })
+        if diff_fields:
+            sg_diffs.append({
+                'product_id': sg_p['id'],
+                'product_mn': sg_p['product_mn'],
+                'diffs': diff_fields
+            })
+
+    has_diffs = bool(cn_diffs or sg_diffs)
+    return jsonify({
+        'sync_status': 'needs_sync' if has_diffs else 'synced',
+        'cn_count': len(cn_products),
+        'sg_count': len(sg_products),
+        'cn_diffs': cn_diffs,
+        'sg_diffs': sg_diffs
+    })
+
+
+@spec_template_bp.route('/api/configurations/<int:config_id>/sync-products', methods=['POST'])
+@login_required
+@permission_required('product_code', 'edit')
+def api_sync_config_to_products(config_id):
+    """API: 将锁定配置的规格值同步到所有关联产品"""
+    config = ProductConfiguration.query.get_or_404(config_id)
+    _check_config_owner(config)
+
+    if not config.mn_locked:
+        return jsonify({'success': False, 'message': _('仅锁定配置可同步')}), 400
+
+    results = {'cn_synced': 0, 'sg_synced': 0, 'errors': []}
+
+    # 同步 CN 产品
+    cn_products = Product.query.filter_by(
+        source_configuration_id=config.id,
+        is_deleted=False
+    ).all()
+
+    for product in cn_products:
+        try:
+            _sync_config_to_cn_product(config, product)
+            results['cn_synced'] += 1
+        except Exception as e:
+            results['errors'].append(f'CN {product.product_mn}: {str(e)}')
+
+    db.session.commit()
+
+    # 同步 SG 产品
+    if config.mn_code:
+        sg_rows = db.session.execute(db.text(
+            "SELECT id, product_mn FROM sg_products WHERE product_mn = :mn"
+        ), {'mn': config.mn_code}).fetchall()
+
+        if sg_rows:
+            specs_payload = _build_sg_specs_payload(config)
+
+            import requests as http_requests
+            sg_api_url = current_app.config.get('SG_NAS_WEB_URL', '').rstrip('/')
+            cross_api_key = os.environ.get('CROSS_SYSTEM_API_KEY', '')
+
+            if sg_api_url and cross_api_key:
+                for sg_row in sg_rows:
+                    try:
+                        resp = http_requests.post(
+                            f'{sg_api_url}/api/v1/cross-sync/sync-product-specs',
+                            json={'product_id': sg_row.id, 'specs': specs_payload},
+                            headers={'X-API-Key': cross_api_key},
+                            timeout=15
+                        )
+                        if resp.status_code == 200:
+                            results['sg_synced'] += 1
+                        else:
+                            results['errors'].append(
+                                f'SG {sg_row.product_mn}: {resp.json().get("message", "unknown error")}'
+                            )
+                    except Exception as e:
+                        results['errors'].append(f'SG {sg_row.product_mn}: {str(e)}')
+            else:
+                results['errors'].append(_('SG API 未配置'))
+
+    total = results['cn_synced'] + results['sg_synced']
+    msg = _('已同步 %(n)d 个产品', n=total)
+    if results['errors']:
+        msg += _('，%(n)d 个失败', n=len(results['errors']))
+
+    return jsonify({
+        'success': True,
+        'message': msg,
+        **results
     })
 
 

@@ -11025,3 +11025,39 @@ msgstr "Add to new building..."
 
 msgid "添加独立楼层"
 msgstr "Add independent floor"
+
+msgid "新"
+msgstr "NEW"
+
+msgid "未同步"
+msgstr "Not Synced"
+
+msgid "已同步"
+msgstr "Synced"
+
+msgid "点击同步到产品"
+msgstr "Click to sync to products"
+
+msgid "所有产品已同步"
+msgstr "All products synced"
+
+msgid "确认将配置规格同步到所有关联产品？"
+msgstr "Confirm sync configuration specs to all linked products?"
+
+msgid "同步中..."
+msgstr "Syncing..."
+
+msgid "同步请求失败"
+msgstr "Sync request failed"
+
+msgid "同步失败"
+msgstr "Sync failed"
+
+msgid "仅锁定配置可同步"
+msgstr "Only locked configurations can be synced"
+
+msgid "已同步 %(n)d 个产品"
+msgstr "Synced %(n)d products"
+
+msgid "，%(n)d 个失败"
+msgstr ", %(n)d failed"

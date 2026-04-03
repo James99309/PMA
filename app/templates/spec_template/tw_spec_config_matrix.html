@@ -403,6 +403,11 @@
                                                 </span>
                                                 {% endif %}
                                             </div>
+                                            {% if config.mn_locked %}
+                                            <span id="sync-status-{{ config.id }}"
+                                                  class="hidden mt-1 text-[10px] px-1.5 py-0.5 rounded-full cursor-pointer inline-block">
+                                            </span>
+                                            {% endif %}
                                         </div>
                                     </th>
                                     {% endfor %}
@@ -454,11 +459,12 @@
                                     <td class="px-1 py-1">
                                         {% set saved_value = config_values_matrix.get(config.id, {}).get(item.id, '') %}
                                         {% if config.mn_locked %}
-                                        {# 锁定配置：只显示文本，不显示输入框 #}
+                                        {% if saved_value %}
+                                        {# 锁定配置已有值：只读显示 #}
                                         <div class="flex items-center gap-1">
                                             <span class="flex-1 text-sm text-center py-1.5 text-slate-700 dark:text-slate-300"
                                                  title="{{ _('MN编码已锁定，不可编辑') }}">
-                                                {{ saved_value or '-' }}
+                                                {{ saved_value }}
                                             </span>
                                             {% if item.spec_dict.allow_attachment %}
                                             <button type="button"
@@ -473,6 +479,28 @@
                                             </button>
                                             {% endif %}
                                         </div>
+                                        {% else %}
+                                        {# 锁定配置缺失值：可编辑下拉 + "新"标签 #}
+                                        <div class="flex items-center gap-1 relative">
+                                            {% set opts = definition_indicators.get(item.spec_dict_id, []) %}
+                                            {% set opt_values = opts | map(attribute='value') | list %}
+                                            <select data-config-id="{{ config.id }}"
+                                                    data-item-id="{{ item.id }}"
+                                                    data-def-id="{{ item.spec_dict_id }}"
+                                                    data-def-name="{{ item.spec_dict.name }}"
+                                                    data-general-value="{{ item.general_value or '' }}"
+                                                    data-original=""
+                                                    data-locked-new="true"
+                                                    @change="handleSelectChange($event.target)"
+                                                    class="matrix-select rounded flex-1 ring-1 ring-emerald-300 dark:ring-emerald-600">
+                                                <option value="">{{ '-' if (item.general_value and item.general_value in opt_values) else (item.general_value or '-') }}</option>
+                                                {% for opt in opts %}
+                                                <option value="{{ opt.value }}">{{ opt.value }}</option>
+                                                {% endfor %}
+                                            </select>
+                                            <span class="absolute -top-2 -right-1 text-[10px] leading-none px-1 py-0.5 bg-emerald-500 text-white rounded z-10">{{ _('新') }}</span>
+                                        </div>
+                                        {% endif %}
                                         {% else %}
                                         {# 未锁定配置：下拉选择 #}
                                         <div class="flex items-center gap-1">
@@ -1977,14 +2005,19 @@
             let conflictErrors = [];
 
             // 逐个配置版本保存
-            for (const [configId, values] of Object.entries(allValuesByConfig)) {
-                // 跳过锁定的配置
+            for (let [configId, values] of Object.entries(allValuesByConfig)) {
+                // 锁定的配置：只发送新填入的值
+                let isLockedUpdate = false;
                 if (CONFIG_MN_LOCKED[configId]) {
-                    continue;
+                    const newValues = values.filter(v => v.is_locked_new && v.value);
+                    if (newValues.length === 0) {
+                        continue;  // 没有新值，跳过
+                    }
+                    values = newValues;
+                    isLockedUpdate = true;
                 }
 
                 try {
-                    // 始终传入所有值，后端会处理默认值和MN编码生成
                     const response = await fetch(`${API_BASE}/configurations/${configId}/values`, {
                         method: 'PUT',
                         headers: {
@@ -1993,7 +2026,8 @@
                         },
                         body: JSON.stringify({
                             values: values,
-                            save_all: true  // 标记为保存所有值（包括使用默认值的）
+                            save_all: !isLockedUpdate,
+                            locked_update: isLockedUpdate
                         })
                     });
 
@@ -2004,8 +2038,16 @@
                         values.forEach(v => {
                             const el = document.querySelector(`.matrix-select[data-config-id="${configId}"][data-item-id="${v.template_item_id}"]`);
                             if (el) {
-                                el.dataset.original = v.value || '';
-                                el.classList.remove('modified');
+                                // 锁定配置新值保存后：select 替换为只读文本
+                                if (el.dataset.lockedNew === 'true' && v.value) {
+                                    const container = el.closest('.relative');
+                                    if (container) {
+                                        container.innerHTML = `<span class="flex-1 text-sm text-center py-1.5 text-slate-700 dark:text-slate-300">${v.value}</span>`;
+                                    }
+                                } else {
+                                    el.dataset.original = v.value || '';
+                                    el.classList.remove('modified');
+                                }
                             }
                         });
                         // 同步更新 CODE_ITEMS 的 options
@@ -2022,6 +2064,10 @@
                             CONFIG_SAVED_MN_CODES[configId] = result.mn_code;
                         }
                         updateMNPreview(configId);
+                        // 锁定配置保存后刷新同步状态
+                        if (isLockedUpdate) {
+                            loadSyncStatuses();
+                        }
                     } else if (result.error_type === 'mn_code_conflict') {
                         errorCount++;
                         conflictErrors.push({
@@ -2104,12 +2150,114 @@
 
             valuesByConfig[configId].push({
                 template_item_id: parseInt(itemId),
-                value: value || null
+                value: value || null,
+                is_locked_new: sel.dataset.lockedNew === 'true'
             });
         });
 
         return valuesByConfig;
     }
+
+    // ============================================
+    // 产品同步功能
+    // ============================================
+
+    /**
+     * 加载所有锁定配置的同步状态
+     */
+    async function loadSyncStatuses() {
+        for (const [configId, isLocked] of Object.entries(CONFIG_MN_LOCKED)) {
+            if (!isLocked) continue;
+            try {
+                const resp = await fetch(`${API_BASE}/configurations/${configId}/sync-status`);
+                if (!resp.ok) continue;
+                const data = await resp.json();
+                updateSyncStatusUI(configId, data);
+            } catch (e) {
+                console.warn(`Failed to load sync status for config ${configId}:`, e);
+            }
+        }
+    }
+
+    /**
+     * 更新同步状态 UI
+     */
+    function updateSyncStatusUI(configId, data) {
+        const el = document.getElementById(`sync-status-${configId}`);
+        if (!el) return;
+
+        if (data.sync_status === 'no_products') {
+            el.classList.add('hidden');
+            return;
+        }
+
+        el.classList.remove('hidden');
+        const total = (data.cn_count || 0) + (data.sg_count || 0);
+
+        // 清除之前的样式
+        el.className = 'mt-1 text-[10px] px-1.5 py-0.5 rounded-full inline-block';
+
+        if (data.sync_status === 'needs_sync') {
+            const diffCount = (data.cn_diffs || []).length + (data.sg_diffs || []).length;
+            el.classList.add('bg-orange-100', 'text-orange-700', 'dark:bg-orange-900/30', 'dark:text-orange-400', 'cursor-pointer');
+            el.textContent = `${diffCount}/${total} {{ _("未同步") }}`;
+            el.title = '{{ _("点击同步到产品") }}';
+            el.onclick = () => syncConfigToProducts(configId);
+        } else if (data.sync_status === 'synced') {
+            el.classList.add('bg-emerald-100', 'text-emerald-700', 'dark:bg-emerald-900/30', 'dark:text-emerald-400');
+            el.textContent = `${total} {{ _("已同步") }}`;
+            el.title = '{{ _("所有产品已同步") }}';
+            el.onclick = null;
+            el.style.cursor = 'default';
+        }
+    }
+
+    /**
+     * 执行配置到产品的同步
+     */
+    async function syncConfigToProducts(configId) {
+        if (!confirm('{{ _("确认将配置规格同步到所有关联产品？") }}')) return;
+
+        const el = document.getElementById(`sync-status-${configId}`);
+        if (!el) return;
+        const originalText = el.textContent;
+        el.textContent = '{{ _("同步中...") }}';
+        el.classList.add('animate-pulse');
+
+        try {
+            const resp = await fetch(`${API_BASE}/configurations/${configId}/sync-products`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content
+                }
+            });
+            const result = await resp.json();
+            el.classList.remove('animate-pulse');
+
+            if (result.success) {
+                showToast(result.message, 'success');
+                // 刷新同步状态
+                const statusResp = await fetch(`${API_BASE}/configurations/${configId}/sync-status`);
+                if (statusResp.ok) {
+                    const statusData = await statusResp.json();
+                    updateSyncStatusUI(configId, statusData);
+                }
+            } else {
+                showToast(result.message || '{{ _("同步失败") }}', 'error');
+                el.textContent = originalText;
+            }
+        } catch (e) {
+            el.classList.remove('animate-pulse');
+            el.textContent = originalText;
+            showToast('{{ _("同步请求失败") }}', 'error');
+        }
+    }
+
+    // 页面加载后自动检查同步状态
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(loadSyncStatuses, 500);
+    });
 
     // ============================================
     // 配置导出导入功能
