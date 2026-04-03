@@ -874,6 +874,20 @@
                                 </div>
                             </div>
 
+                            <!-- 附件上传 -->
+                            <div x-show="isOwner">
+                                {{ render_new_file_upload(
+                                    container_id='workItemAttachmentUpload',
+                                    entity_type='workitem',
+                                    accept_types='image/*,.pdf',
+                                    max_file_size=5242880,
+                                    max_files=10,
+                                    label=_('附件'),
+                                    show_label=true,
+                                    compact=false
+                                ) }}
+                            </div>
+
                             <!-- 共享用户 -->
                             <div class="pt-4 border-t border-slate-200 dark:border-slate-700" x-show="isOwner">
                                 <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('共享给') }}</label>
@@ -1076,6 +1090,23 @@
                             <div x-show="viewData.execution_notes">
                                 <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('执行备注') }}</div>
                                 <p class="text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-lg p-3" x-text="viewData.execution_notes"></p>
+                            </div>
+
+                            <!-- 附件 -->
+                            <div x-show="viewData.attachments && viewData.attachments.length > 0">
+                                <div class="text-sm text-slate-500 dark:text-slate-400 mb-1">{{ _('附件') }}</div>
+                                <div class="flex flex-wrap gap-2">
+                                    <template x-for="(att, idx) in (viewData.attachments || [])" :key="idx">
+                                        <a :href="`/worklog/api/items/${viewData.id}/preview-attachment/${idx}`"
+                                           target="_blank"
+                                           class="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-sm hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                                            <span class="material-symbols-outlined text-base"
+                                                  :class="att.type === 'pdf' ? 'text-red-500' : 'text-primary'"
+                                                  x-text="att.type === 'pdf' ? 'picture_as_pdf' : 'image'"></span>
+                                            <span class="truncate max-w-[100px]" x-text="att.filename"></span>
+                                        </a>
+                                    </template>
+                                </div>
                             </div>
 
                             <!-- 会议专属区域 -->
@@ -1754,7 +1785,8 @@ function workCalendar() {
         logData: {},
         logPreviewMode: false,
         isReadonlyLog: false,  // 查看他人日志时为只读模式
-        fileUploadInstance: null,  // 文件上传组件实例
+        fileUploadInstance: null,  // 文件上传组件实例（日志用）
+        workItemFileUploadInstance: null,  // 文件上传组件实例（工作项用）
         pendingFilesCount: 0,      // 待上传文件数量（响应式）
         pendingFilesData: [],      // 待上传文件数据（响应式）
         saving: false,
@@ -2627,6 +2659,14 @@ function workCalendar() {
             // 组合输入框组件已在 resetFormData 中初始化
             document.getElementById('workItemModal').classList.remove('hidden');
             document.body.style.overflow = 'hidden';
+
+            // 初始化工作项附件上传组件（新建模式）
+            this.$nextTick(() => {
+                const container = document.getElementById('workItemAttachmentUpload');
+                if (container && window.FileUploadComponent) {
+                    this.workItemFileUploadInstance = new FileUploadComponent(container);
+                }
+            });
         },
 
         async openEditModal(itemId, props) {
@@ -2689,6 +2729,29 @@ function workCalendar() {
 
                 document.getElementById('workItemModal').classList.remove('hidden');
                 document.body.style.overflow = 'hidden';
+
+                // 初始化工作项附件上传组件（编辑模式）
+                this.$nextTick(() => {
+                    const container = document.getElementById('workItemAttachmentUpload');
+                    if (container && window.FileUploadComponent) {
+                        this.workItemFileUploadInstance = new FileUploadComponent(container);
+                        this.workItemFileUploadInstance.setEntityId(itemId);
+                        this.workItemFileUploadInstance.uploadApi = `/worklog/api/items/${itemId}/upload-attachment`;
+                        this.workItemFileUploadInstance.deleteApi = `/worklog/api/items/${itemId}/delete-attachment/{index}`;
+                        this.workItemFileUploadInstance.previewApi = `/worklog/api/items/${itemId}/preview-attachment/{index}`;
+                        // 渲染已有附件
+                        const attachments = item.attachments || [];
+                        attachments.forEach((att, idx) => {
+                            this.workItemFileUploadInstance.addFileItem({
+                                filename: att.filename,
+                                url: att.url,
+                                size: att.size,
+                                type: att.type,
+                                index: idx
+                            });
+                        });
+                    }
+                });
             }
         },
 
@@ -2698,6 +2761,17 @@ function workCalendar() {
             document.body.style.overflow = '';
             this.editingItem = null;
             this.resetFormData();
+            // 清理工作项附件上传组件
+            if (this.workItemFileUploadInstance) {
+                this.workItemFileUploadInstance.clearPendingFiles();
+                this.workItemFileUploadInstance = null;
+            }
+            // 清空附件容器DOM
+            const uploadContainer = document.getElementById('workItemAttachmentUpload');
+            if (uploadContainer) {
+                const fileList = uploadContainer.querySelector('.file-list');
+                if (fileList) fileList.innerHTML = '';
+            }
             // 通知共享用户选择器模态框重置状态
             window.dispatchEvent(new CustomEvent('reset-workitem-user-selector'));
         },
@@ -2960,6 +3034,16 @@ function workCalendar() {
                 });
                 const data = await response.json();
                 if (data.success) {
+                    // 上传待上传的附件
+                    if (this.workItemFileUploadInstance) {
+                        const pendingFiles = this.workItemFileUploadInstance.getPendingFiles();
+                        if (pendingFiles.length > 0) {
+                            const itemId = data.data.id;
+                            await this.workItemFileUploadInstance.uploadPendingFiles(
+                                `/worklog/api/items/${itemId}/upload-attachment`
+                            );
+                        }
+                    }
                     window.TwNotification?.show(data.message || '{{ _("保存成功") }}', 'success');
                     this.calendar.refetchEvents();
                     this.closeWorkItemModal();

@@ -1493,6 +1493,202 @@ def delete_daily_log(log_date):
 
 
 # ============================================================
+# 工作项附件相关 API
+# ============================================================
+
+@worklog.route('/api/items/<int:item_id>/upload-attachment', methods=['POST'])
+@login_required
+def upload_workitem_attachment(item_id):
+    """上传工作项附件（图片或PDF）"""
+    from werkzeug.utils import secure_filename
+    import uuid
+
+    work_item = WorkItem.query.get(item_id)
+    if not work_item or work_item.is_deleted:
+        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
+
+    if work_item.owner_id != current_user.id:
+        return jsonify({'success': False, 'message': _('无权操作此工作项')}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': _('未选择文件')})
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': _('未选择文件')})
+
+    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'heic', 'heif', 'pdf'}
+    if not ('.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
+        return jsonify({'success': False, 'message': _('不支持的文件格式，支持：PNG、JPG、GIF、WEBP、HEIC、PDF')})
+
+    try:
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+
+        if file_size > 5 * 1024 * 1024:
+            return jsonify({'success': False, 'message': _('文件大小超过5MB限制')})
+
+        original_filename = file.filename
+        ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else 'bin'
+
+        existing_names = [att.get('filename') for att in work_item.attachments_list]
+        if original_filename in existing_names:
+            base = original_filename.rsplit('.', 1)[0] if '.' in original_filename else original_filename
+            counter = 1
+            while f"{base}-{counter}.{ext}" in existing_names:
+                counter += 1
+            original_filename = f"{base}-{counter}.{ext}"
+
+        file_type = 'pdf' if ext == 'pdf' else 'image'
+
+        from app.utils.smart_storage_manager import get_smart_storage
+        file.seek(0)
+        smart_storage = get_smart_storage()
+
+        result = smart_storage.upload_file(
+            object_id=work_item.id,
+            file=file,
+            filename=original_filename,
+            file_type='attachment',
+            bucket_type='invoice',
+            business_type='workitem'
+        )
+
+        logger.info(f"工作项附件上传结果: {result}")
+
+        if result and result.get('url'):
+            work_item.add_attachment(
+                filename=original_filename,
+                url=result.get('url'),
+                size=file_size,
+                file_type=file_type
+            )
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'message': _('上传成功'),
+                'data': {
+                    'filename': original_filename,
+                    'url': result.get('url'),
+                    'size': file_size,
+                    'type': file_type,
+                    'index': len(work_item.attachments_list) - 1
+                }
+            })
+        else:
+            return jsonify({'success': False, 'message': _('上传失败')})
+
+    except Exception as e:
+        logger.error(f"上传工作项附件失败: {e}")
+        return jsonify({'success': False, 'message': f'{_("上传失败")}: {str(e)}'}), 500
+
+
+@worklog.route('/api/items/<int:item_id>/delete-attachment/<int:index>', methods=['DELETE', 'POST'])
+@login_required
+def delete_workitem_attachment(item_id, index):
+    """删除工作项附件"""
+    work_item = WorkItem.query.get(item_id)
+    if not work_item or work_item.is_deleted:
+        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
+
+    if work_item.owner_id != current_user.id:
+        return jsonify({'success': False, 'message': _('无权操作此工作项')}), 403
+
+    attachment = work_item.get_attachment(index)
+    if not attachment:
+        return jsonify({'success': False, 'message': _('附件不存在')}), 404
+
+    if work_item.remove_attachment(index):
+        db.session.commit()
+        return jsonify({'success': True, 'message': _('删除成功')})
+    else:
+        return jsonify({'success': False, 'message': _('删除失败')}), 500
+
+
+@worklog.route('/api/items/<int:item_id>/preview-attachment/<int:index>')
+@login_required
+def preview_workitem_attachment(item_id, index):
+    """预览/下载工作项附件"""
+    import requests as http_requests
+    from flask import Response
+    from urllib.parse import quote
+
+    work_item = WorkItem.query.get(item_id)
+    if not work_item or work_item.is_deleted:
+        return jsonify({'success': False, 'message': _('工作项不存在')}), 404
+
+    if not can_view_work_item(current_user, work_item):
+        return jsonify({'success': False, 'message': _('无权查看此工作项')}), 403
+
+    attachment = work_item.get_attachment(index)
+    if not attachment:
+        return jsonify({'success': False, 'message': _('附件不存在')}), 404
+
+    url = attachment.get('url')
+    filename = attachment.get('filename', 'attachment')
+    file_type = attachment.get('type', 'image')
+
+    force_download = request.args.get('download') == '1'
+
+    if file_type == 'pdf':
+        mime_type = 'application/pdf'
+    else:
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else 'bin'
+        mime_map = {
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+            'png': 'image/png', 'gif': 'image/gif',
+            'webp': 'image/webp', 'heic': 'image/heic',
+            'pdf': 'application/pdf'
+        }
+        mime_type = mime_map.get(ext, 'application/octet-stream')
+
+    encoded_filename = quote(filename, safe='')
+    disposition_type = 'attachment' if force_download else 'inline'
+
+    try:
+        if url and url.startswith('/storage/nas/'):
+            from app.views.storage import _get_file_with_fallback
+            from urllib.parse import urlparse, parse_qs
+
+            parsed = urlparse(url)
+            path_parts = parsed.path.split('/')
+            bucket_type = path_parts[3] if len(path_parts) > 3 else 'invoice'
+            query_params = parse_qs(parsed.query)
+            nas_path = query_params.get('path', [''])[0]
+
+            if nas_path:
+                file_content, source = _get_file_with_fallback(nas_path, bucket_type)
+                if file_content:
+                    headers = {
+                        'Content-Type': mime_type,
+                        'Content-Disposition': f"{disposition_type}; filename*=UTF-8''{encoded_filename}",
+                        'X-Storage-Source': source or 'unknown'
+                    }
+                    return Response(file_content, headers=headers)
+                else:
+                    return jsonify({'success': False, 'message': _('文件获取失败')}), 404
+
+        elif url and (url.startswith('http://') or url.startswith('https://')):
+            resp = http_requests.get(url, timeout=30)
+            if resp.status_code == 200:
+                headers = {
+                    'Content-Type': mime_type,
+                    'Content-Disposition': f"{disposition_type}; filename*=UTF-8''{encoded_filename}"
+                }
+                return Response(resp.content, headers=headers)
+            else:
+                return jsonify({'success': False, 'message': _('文件获取失败')}), 404
+        else:
+            return jsonify({'success': False, 'message': _('无效的文件URL')}), 400
+
+    except Exception as e:
+        logger.error(f"预览工作项附件失败: {e}")
+        return jsonify({'success': False, 'message': f'{_("预览失败")}: {str(e)}'}), 500
+
+
+# ============================================================
 # 日志附件上传相关 API
 # ============================================================
 

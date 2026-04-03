@@ -72,6 +72,9 @@ class WorkItem(db.Model):
     # 共享字段
     shared_with_users = Column(JSON, default=list)  # 共享用户ID列表 [3, 5, 8]
 
+    # 附件
+    attachments = Column(Text, nullable=True)  # JSON: [{filename, url, size, type, uploaded_at}]
+
     # 工作类型颜色映射（9个大类颜色）
     TYPE_COLORS = {
         # 通用-其他 - 灰色 #64748b
@@ -255,6 +258,44 @@ class WorkItem(db.Model):
         """获取工作类型标签"""
         return self.TYPE_LABELS.get(self.work_type, '其他')
 
+    @property
+    def attachments_list(self):
+        """获取附件列表"""
+        if not self.attachments:
+            return []
+        try:
+            return json.loads(self.attachments)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def add_attachment(self, filename, url, size, file_type):
+        """添加附件"""
+        attachments = self.attachments_list
+        attachments.append({
+            'filename': filename,
+            'url': url,
+            'size': size,
+            'type': file_type,
+            'uploaded_at': datetime.now().isoformat()
+        })
+        self.attachments = json.dumps(attachments)
+
+    def remove_attachment(self, index):
+        """移除指定索引的附件"""
+        attachments = self.attachments_list
+        if 0 <= index < len(attachments):
+            attachments.pop(index)
+            self.attachments = json.dumps(attachments) if attachments else None
+            return True
+        return False
+
+    def get_attachment(self, index):
+        """获取指定索引的附件"""
+        attachments = self.attachments_list
+        if 0 <= index < len(attachments):
+            return attachments[index]
+        return None
+
     def to_dict(self):
         """转换为字典"""
         return {
@@ -285,6 +326,7 @@ class WorkItem(db.Model):
             'shared_with_users': self.shared_with_users or [],
             'is_invalidated': self.is_invalidated,
             'is_business_trip': self.is_business_trip,
+            'attachments': self.attachments_list,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
