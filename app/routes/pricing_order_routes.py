@@ -783,15 +783,10 @@ def evaluate_branch_condition_for_display(branch_condition, pricing_order):
         # 获取对象字段值（实现特殊处理逻辑）
         field_value = None
         
-        # 特殊处理：批价单的 project_type 字段
-        if field == 'project_type' and hasattr(pricing_order, 'quotation'):
-            if pricing_order.quotation and hasattr(pricing_order.quotation, 'project_type'):
-                field_value = pricing_order.quotation.project_type
-            elif hasattr(pricing_order, 'project') and pricing_order.project and hasattr(pricing_order.project, 'project_type'):
-                # 后备方案：如果没有报价单，从关联项目获取
+        # 特殊处理：批价单的 project_type 字段 — 从关联项目获取（报价单创建时项目可能未审批，project_type 为空）
+        if field == 'project_type':
+            if hasattr(pricing_order, 'project') and pricing_order.project:
                 field_value = pricing_order.project.project_type
-            else:
-                pass
         
         # 通用字段获取
         if field_value is None:
@@ -2664,6 +2659,18 @@ def submit_pricing_order_approval(order_id):
                 'message': '只有草稿或被拒绝状态的批价单才能提交审批'
             })
         
+        # 校验关联项目是否有类型（分支审批依赖 project_type）
+        if pricing_order.project and not pricing_order.project.project_type:
+            return jsonify({
+                'success': False,
+                'message': '关联项目未设置类型，无法提交批价单审批'
+            }), 400
+        if not pricing_order.project:
+            return jsonify({
+                'success': False,
+                'message': '批价单未关联项目，无法提交审批'
+            }), 400
+
         # 获取请求数据并保存（使用 silent=True 避免空body时抛出异常）
         data = request.get_json(silent=True) or {}
         logger.info(f"[V2审批] 收到请求数据: {data}")
@@ -2753,6 +2760,18 @@ def resubmit_pricing_order_approval(order_id):
                 'message': '只有创建人可以重新提交审批'
             }), 403
         
+        # 校验关联项目是否有类型（分支审批依赖 project_type）
+        if pricing_order.project and not pricing_order.project.project_type:
+            return jsonify({
+                'success': False,
+                'message': '关联项目未设置类型，无法提交批价单审批'
+            }), 400
+        if not pricing_order.project:
+            return jsonify({
+                'success': False,
+                'message': '批价单未关联项目，无法提交审批'
+            }), 400
+
         # 获取请求数据并保存（使用 silent=True 避免空body时抛出异常）
         data = request.get_json(silent=True) or {}
 

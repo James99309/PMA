@@ -146,6 +146,7 @@ class ProductSelector {
                 products: config.products || [],
                 category: config.category || '',
                 subcategory: config.subcategory || '',
+                subcategoryDisplayName: config.subcategoryDisplayName || '',
                 model: config.model || '',
                 onConfirm: function(result) {
                     console.log('✅ ProductSpecModal confirmed:', result);
@@ -913,16 +914,21 @@ class ProductSelector {
                 '服务': 'support_agent'
             };
 
-            categories.forEach(category => {
+            categories.forEach(categoryData => {
+                // 兼容旧格式（纯字符串）和新格式（{name, name_en, icon_svg}）
+                const catName = typeof categoryData === 'string' ? categoryData : categoryData.name;
+                const catDisplayName = typeof categoryData === 'string' ? categoryData : (categoryData.display_name || categoryData.name);
+                const catIconSvg = typeof categoryData === 'object' ? categoryData.icon_svg : null;
+
                 const item = document.createElement('div');
                 item.className = 'menu-item';
-                const icon = categoryIcons[category] || 'category';
+                const icon = categoryIcons[catName] || 'category';
                 item.innerHTML = `
-                    <span class="material-symbols-outlined category-icon">${icon}</span>
-                    <span class="category-name">${category}</span>
+                    ${catIconSvg ? catIconSvg : `<span class="material-symbols-outlined category-icon">${icon}</span>`}
+                    <span class="category-name">${catDisplayName}</span>
                     <span class="material-symbols-outlined menu-arrow">chevron_right</span>
                 `;
-                item.dataset.category = category;
+                item.dataset.category = catName;
                 
                 // 添加鼠标悬停和点击事件
                 let hoverTimer;
@@ -945,44 +951,41 @@ class ProductSelector {
                     if (!hasSearchContent || isEditingExistingProduct) {
                         // 延迟展开，避免快速滑过时误触
                         hoverTimer = setTimeout(() => {
-                            this.selectCategory(menu, category);
+                            this.selectCategory(menu, catName);
                         }, 200);
                     }
                 });
-                
+
                 item.addEventListener('mouseleave', () => {
                     // 移除悬停视觉反馈
                     item.classList.remove('hover-expanding');
-                    
+
                     // 清除延迟定时器
                     if (hoverTimer) {
                         clearTimeout(hoverTimer);
                     }
                 });
-                
+
                 item.addEventListener('click', () => {
                     // 立即选择类别
                     if (hoverTimer) {
                         clearTimeout(hoverTimer);
                     }
-                    
+
                     // 检查是否在搜索模式下（输入框有内容且不是完整的产品名称）
                     const input = this.currentInput || this.findInputForMenu(menu);
                     const inputValue = input ? input.value.trim() : '';
                     const hasSearchContent = inputValue.length > 0;
-                    
-                    // 检查输入的内容是否是一个完整的产品名称（编辑模式）
-                    // 如果输入值看起来像一个完整的产品名称（不是简单的搜索关键词），
-                    // 则不应该触发搜索模式的分类选择逻辑
-                    const isEditingExistingProduct = hasSearchContent && 
-                        (inputValue.length > 4 && inputValue !== category && 
+
+                    const isEditingExistingProduct = hasSearchContent &&
+                        (inputValue.length > 4 && inputValue !== catName &&
                          !['基站', '合路平台', '直放站', '功率/耦合器', '对讲机'].includes(inputValue));
-                    
+
                     if (hasSearchContent && !isEditingExistingProduct) {
                         // 搜索模式下直接选择分类作为产品名称
-                        console.log('🔧 搜索模式下选择分类:', category);
+                        console.log('🔧 搜索模式下选择分类:', catName);
                         const categoryProduct = {
-                            product_name: category,
+                            product_name: catName,
                             product_model: '',
                             product_desc: '',
                             brand: '',
@@ -990,16 +993,16 @@ class ProductSelector {
                             market_price: 0,
                             status: 'category_selection'
                         };
-                        
+
                         if (this.config.onSelect) {
                             this.config.onSelect(categoryProduct, input);
                         }
-                        
+
                         // 关闭菜单
                         this.closeMenu(menu);
                     } else {
                         // 正常模式下展开产品列表
-                        this.selectCategory(menu, category);
+                        this.selectCategory(menu, catName);
                     }
                 });
                 
@@ -1051,12 +1054,12 @@ class ProductSelector {
                 item.className = 'menu-item';
                 item.innerHTML = `
                     <div class="product-info">
-                        <div class="product-title">${subcategory.name}</div>
+                        <div class="product-title">${subcategory.display_name || subcategory.name}</div>
                         <div class="product-count">${subcategory.count} ${this.config.i18n.products}</div>
                     </div>
                     <span class="material-symbols-outlined menu-arrow">chevron_right</span>
                 `;
-                item.dataset.subcategory = subcategory.name;
+                item.dataset.subcategory = subcategory.name;  // 保持用中文名作为 key（API 查询用）
                 item.dataset.category = category;
 
                 // 添加鼠标悬停和点击事件
@@ -1120,6 +1123,8 @@ class ProductSelector {
         try {
             // 调用API接口获取该子分类下的所有产品
             const productsData = await this.fetchData('productsBySubcategory', { category, subcategory });
+            // 保存子分类英文名（从 API 响应获取）
+            this._subcategoryDisplayName = productsData?.subcategory_display_name || '';
 
             modelsContainer.innerHTML = '';
 
@@ -1263,6 +1268,7 @@ class ProductSelector {
                 this.openProductConfigModal({
                     category: category,
                     subcategory: subcategory,
+                    subcategoryDisplayName: this._subcategoryDisplayName || '',
                     product_name: modelGroup.product_name,
                     model: modelGroup.model,
                     products: products
@@ -1295,6 +1301,7 @@ class ProductSelector {
             this.openProductConfigModal({
                 category: category,
                 subcategory: subcategory,
+                subcategoryEn: this._subcategoryNameEn || '',
                 product_name: modelGroup.product_name,
                 model: modelGroup.model,
                 products: products

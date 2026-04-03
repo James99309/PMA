@@ -720,6 +720,7 @@ const ProductSpecModal = (function() {
             onConfirm: config.onConfirm || null,
             category: config.category || '',
             subcategory: config.subcategory || '',
+            subcategoryDisplayName: config.subcategoryDisplayName || '',
             model: config.model || ''
         };
 
@@ -728,7 +729,7 @@ const ProductSpecModal = (function() {
 
         // 更新标题
         if (elements.specCategoryTitle && state.subcategory) {
-            elements.specCategoryTitle.textContent = state.subcategory;
+            elements.specCategoryTitle.textContent = state.subcategoryDisplayName || state.subcategory;
         }
 
         // 更新产品基本信息
@@ -885,6 +886,9 @@ const ProductSpecModal = (function() {
         const seenFieldNames = new Set();
         let hasAnySnapshot = false;
 
+        // 收集字段名的中英文映射
+        const fieldNameEnMap = {};
+
         products.forEach(product => {
             const snapshot = parseSnapshot(product.code_definition_snapshot);
             if (snapshot.length > 0) hasAnySnapshot = true;
@@ -894,8 +898,15 @@ const ProductSpecModal = (function() {
                     seenFieldNames.add(fieldName);
                     allFieldNames.push(fieldName);
                 }
+                // 收集英文名
+                if (field.field_name_en && !fieldNameEnMap[fieldName]) {
+                    fieldNameEnMap[fieldName] = field.field_name_en;
+                }
             });
         });
+
+        // 保存到 state 供渲染时使用
+        state.fieldNameEnMap = fieldNameEnMap;
 
         if (!hasAnySnapshot) {
             // 产品无编码字段（配件/软件/许可类），设置空字段列表继续流程
@@ -942,6 +953,16 @@ const ProductSpecModal = (function() {
                     console.error('Error parsing product snapshot:', e);
                 }
             });
+
+            // 字段只存在于部分产品 → 为缺失的产品添加虚拟"无"选项
+            if (productsWithField > 0 && productsWithField < products.length) {
+                codeOptions.set('_NONE_', {
+                    code: '_NONE_',
+                    value: '{{ _("无") }}',
+                    unit: null,
+                    count: products.length - productsWithField
+                });
+            }
 
             // 字段有差异：不同产品有不同的实际取值（2+个不同值才算差异）
             const isDifferent = codeOptions.size > 1;
@@ -997,7 +1018,7 @@ const ProductSpecModal = (function() {
         state.selectableFields.forEach(field => {
             html += `
                 <div class="spec-field-group" data-position="${field.position}">
-                    <div class="spec-field-label">${escapeHtml(field.fieldName)}</div>
+                    <div class="spec-field-label">${escapeHtml(state.fieldNameEnMap[field.fieldName] || field.fieldName)}</div>
                     <div class="spec-options-container">
             `;
 
@@ -1052,23 +1073,24 @@ const ProductSpecModal = (function() {
      * 选择规格选项
      */
     function selectOption(position, code, value, unit) {
-        // 用户手动选择：只清除下级自动选中的字段（上级保持不变，严格自上而下级联）
+        // 第一层可自由切换，其他层禁止点击已灰化选项
+        const firstPos = state.selectableFields.length > 0 ? state.selectableFields[0].position : -1;
+        if (position !== firstPos) {
+            const clickedCard = document.querySelector(
+                `.spec-field-group[data-position="${position}"] .spec-option-card[data-code="${CSS.escape(code)}"]`
+            );
+            if (clickedCard && clickedCard.classList.contains('disabled')) return;
+        }
+
+        // 清除所有自动选中的字段（它们将基于新选择重新计算）
         state.autoSelectedPositions.forEach(autoPos => {
-            if (autoPos > position) {
-                delete state.userSelections[autoPos];
-                // 清除该字段的 UI 选中状态
-                const container = document.querySelector(`.spec-field-group[data-position="${autoPos}"]`);
-                if (container) {
-                    container.querySelectorAll('.spec-option-card').forEach(c => c.classList.remove('selected'));
-                }
+            delete state.userSelections[autoPos];
+            const container = document.querySelector(`.spec-field-group[data-position="${autoPos}"]`);
+            if (container) {
+                container.querySelectorAll('.spec-option-card').forEach(c => c.classList.remove('selected'));
             }
         });
-        // 保留上级的自动选中，移除当前及下级
-        const keptAuto = new Set();
-        state.autoSelectedPositions.forEach(pos => {
-            if (pos < position) keptAuto.add(pos);
-        });
-        state.autoSelectedPositions = keptAuto;
+        state.autoSelectedPositions = new Set();
 
         // 查找该 position 对应的 fieldName
         const fieldDef = state.selectableFields.find(f => f.position === position);
@@ -1080,7 +1102,7 @@ const ProductSpecModal = (function() {
         // 更新选中状态的 UI（不重新渲染整个区域）
         updateOptionSelection(position, code);
 
-        // 过滤 + 级联（内部只做 filterRemainingProducts，不触发重量级 UI）
+        // 过滤 + 级联
         filterRemainingProducts();
         updateOptionAvailability();
 
@@ -1123,14 +1145,18 @@ const ProductSpecModal = (function() {
 
             state.products.forEach(product => {
                 const snapshot = parseSnapshot(product.code_definition_snapshot);
-                // 只检查【上级字段】的已选值（严格自上而下级联，上级永不灰化）
+                // 检查【所有其他字段】的已选值（双向过滤，任意字段可先选）
                 let matches = true;
                 for (const [p, sel] of Object.entries(state.userSelections)) {
                     const pIdx = parseInt(p);
-                    if (pIdx >= pos) continue; // 只看上级字段（position < 当前）
+                    if (pIdx === pos) continue; // 跳过自身，检查所有其他字段
                     const selField = sel.fieldName ? findFieldInSnapshot(snapshot, sel.fieldName) : null;
-                    // 产品缺少该字段 或 字段值不匹配 → 不满足上级条件
-                    if (!selField || selField.code !== sel.code) {
+                    if (!selField) {
+                        // 产品没有此字段 → 只有选了"无"才匹配
+                        if (sel.code !== '_NONE_') { matches = false; break; }
+                        continue;
+                    }
+                    if (selField.code !== sel.code) {
                         matches = false;
                         break;
                     }
@@ -1139,6 +1165,9 @@ const ProductSpecModal = (function() {
                     const currentField = findFieldInSnapshot(snapshot, field.fieldName);
                     if (currentField) {
                         validCodes.add(currentField.code);
+                    } else {
+                        // 产品没有此字段 → 虚拟"无"选项有效
+                        validCodes.add('_NONE_');
                     }
                 }
             });
@@ -1151,9 +1180,16 @@ const ProductSpecModal = (function() {
     /**
      * 更新其他字段的可用性：灰化不兼容选项，自动选中唯一有效选项
      */
-    function updateOptionAvailability() {
+    function updateOptionAvailability(depth) {
+        depth = depth || 0;
+        if (depth >= 20) {
+            console.warn('updateOptionAvailability: max cascade depth reached');
+            return;
+        }
         const validCodes = getValidCodesPerField();
         let autoSelected = false;
+
+        const firstPos = state.selectableFields.length > 0 ? state.selectableFields[0].position : -1;
 
         state.selectableFields.forEach(field => {
             const pos = field.position;
@@ -1162,6 +1198,16 @@ const ProductSpecModal = (function() {
 
             const container = document.querySelector(`.spec-field-group[data-position="${pos}"]`);
             if (!container) return;
+
+            // 第一层永远不隐藏、不灰化（用户入口，可自由切换）
+            if (pos === firstPos) {
+                container.style.display = '';
+                container.querySelectorAll('.spec-option-card').forEach(card => {
+                    card.classList.remove('disabled');
+                });
+                // 第一层不自动选中，跳过后续处理
+                return;
+            }
 
             // 该字段在当前条件下无任何有效选项 → 隐藏整个字段组（不适用于剩余产品）
             if (valid.size === 0) {
@@ -1187,12 +1233,20 @@ const ProductSpecModal = (function() {
             const currentSel = state.userSelections[pos];
             if (currentSel && !valid.has(currentSel.code)) {
                 delete state.userSelections[pos];
+                state.autoSelectedPositions.delete(pos);
             }
 
             // 自动选中：该字段未选 或 已选值已失效，且只有1个有效选项
+            // 或：多个有效选项但显示值完全相同（如外形尺寸 code 不同但值一样）
             const activeSel = state.userSelections[pos];
             const needsAuto = !activeSel;
-            if (needsAuto && valid.size === 1) {
+            let effectiveSize = valid.size;
+            if (needsAuto && valid.size > 1) {
+                const validOpts = field.options.filter(o => valid.has(o.code));
+                const uniqueValues = new Set(validOpts.map(o => `${o.value}|${o.unit || ''}`));
+                if (uniqueValues.size === 1) effectiveSize = 1; // 显示值相同，视为唯一选项
+            }
+            if (needsAuto && effectiveSize === 1) {
                 const onlyCode = [...valid][0];
                 const opt = field.options.find(o => o.code === onlyCode);
                 if (opt) {
@@ -1209,7 +1263,7 @@ const ProductSpecModal = (function() {
         // 由 selectOption() 在级联完成后统一执行，避免中间状态导致面板闪烁
         if (autoSelected) {
             filterRemainingProducts();
-            updateOptionAvailability();
+            updateOptionAvailability(depth + 1);
         }
     }
 
@@ -1228,9 +1282,10 @@ const ProductSpecModal = (function() {
             // 检查每个用户选择是否匹配（按 fieldName 查找，不依赖数组索引）
             for (const [position, selection] of Object.entries(state.userSelections)) {
                 const matchField = selection.fieldName ? findFieldInSnapshot(snapshot, selection.fieldName) : null;
-                // 快照中没有该字段 → 数据不完整，排除
                 if (!matchField) {
-                    return false;
+                    // 产品没有此字段 → 只有用户选了"无"才匹配
+                    if (selection.code !== '_NONE_') return false;
+                    continue;
                 }
                 if (matchField.code !== selection.code) {
                     return false;
@@ -1347,13 +1402,14 @@ const ProductSpecModal = (function() {
         let html = '';
         snapshot.forEach(field => {
             const fieldName = field.field_name || field.name || '';
+            const displayName = (state.fieldNameEnMap && state.fieldNameEnMap[fieldName]) || field.field_name_en || fieldName;
             const value = field.value || '';
             const unit = field.unit || '';
             const unitText = unit ? ` ${unit}` : '';
 
             html += `
                 <div class="spec-fixed-item">
-                    <span class="spec-fixed-label">${escapeHtml(fieldName)}:</span>
+                    <span class="spec-fixed-label">${escapeHtml(displayName)}:</span>
                     <span class="spec-fixed-value">${escapeHtml(value)}${unitText}</span>
                 </div>
             `;
@@ -1855,7 +1911,7 @@ const ProductSpecModal = (function() {
                 const unitText = selection.unit ? ` ${selection.unit}` : '';
                 listHtml += `
                     <div class="confirm-config-item bg-white dark:bg-[#101922] border border-slate-200 dark:border-slate-600">
-                        <span class="confirm-config-name">${escapeHtml(field.fieldName)}</span>
+                        <span class="confirm-config-name">${escapeHtml(state.fieldNameEnMap[field.fieldName] || field.fieldName)}</span>
                         <span class="confirm-config-value">${escapeHtml(selection.value)}${unitText}</span>
                     </div>
                 `;

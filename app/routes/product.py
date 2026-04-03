@@ -1153,8 +1153,13 @@ def get_product_categories():
         from app.models.product_code import ProductCategory
         categories = ProductCategory.get_ordered_list()
 
-        # 提取类别名称
-        category_list = [cat.name for cat in categories]
+        # 提取类别名称（按环境返回显示名）
+        use_en = Config.IS_OVS
+        category_list = [{
+            'name': cat.name,
+            'display_name': (cat.name_en or cat.name) if use_en else cat.name,
+            'icon_svg': getattr(cat, 'icon_svg', None)
+        } for cat in categories]
 
         logger.debug(f'找到 {len(category_list)} 个类别')
         return jsonify(category_list)
@@ -3459,17 +3464,19 @@ def get_subcategories_api():
         # 单条 SQL：JOIN + GROUP BY 直接统计子分类产品数量
         rows = db.session.query(
             ProductSubcategory.name,
+            ProductSubcategory.name_en,
             ProductSubcategory.display_order,
             func.count(Product.id)
         ).join(Product, Product.subcategory_id == ProductSubcategory.id)\
          .filter(
             Product.category_id == category_obj.id,
             Product.status == 'active'
-        ).group_by(ProductSubcategory.id, ProductSubcategory.name, ProductSubcategory.display_order)\
+        ).group_by(ProductSubcategory.id, ProductSubcategory.name, ProductSubcategory.name_en, ProductSubcategory.display_order)\
          .order_by(func.coalesce(ProductSubcategory.display_order, 999))\
          .all()
 
-        result = [{'name': name, 'count': count} for name, _, count in rows]
+        use_en = Config.IS_OVS
+        result = [{'name': name, 'display_name': (name_en or name) if use_en else name, 'count': count} for name, name_en, _, count in rows]
 
         # 兼容旧数据：没有 subcategory_id 但有 product_name 的产品
         orphan_rows = db.session.query(
@@ -3637,6 +3644,34 @@ def get_products_by_subcategory_api():
                 'points_coefficient': float(product.points_coefficient) if product.points_coefficient else None
             })
 
+        # 为 snapshot 中的 field_name 补充英文名（从 product_specs 批量查）
+        all_product_ids = [p['id'] for plist in model_groups_dict.values() for p in plist]
+        if all_product_ids:
+            from app.models.product_spec import ProductSpec
+            spec_en_rows = db.session.query(ProductSpec.field_name, ProductSpec.field_name_en).filter(
+                ProductSpec.product_id.in_(all_product_ids),
+                ProductSpec.field_name_en.isnot(None),
+                ProductSpec.field_name_en != ''
+            ).distinct().all()
+            field_name_en_map = {row.field_name: row.field_name_en for row in spec_en_rows}
+
+            # IS_OVS 环境：给每个产品的 snapshot 补上 field_name_en
+            if Config.IS_OVS:
+                for plist in model_groups_dict.values():
+                    for p in plist:
+                        snapshot = p.get('code_definition_snapshot')
+                        if snapshot and 'code_parts' in snapshot:
+                            for part in snapshot['code_parts']:
+                                fn = part.get('field_name', '')
+                                if fn and fn in field_name_en_map:
+                                    part['field_name_en'] = field_name_en_map[fn]
+
+        # 补充子分类显示名（按环境）
+        if Config.IS_OVS and subcategory_obj and hasattr(subcategory_obj, 'name_en') and subcategory_obj.name_en:
+            subcategory_display_name = subcategory_obj.name_en
+        else:
+            subcategory_display_name = subcategory_obj.name if subcategory_obj else None
+
         result = sorted([
             {'product_name': plist[0]['product_name'] if plist else model, 'model': model, 'count': len(plist), 'products': plist}
             for model, plist in model_groups_dict.items()
@@ -3644,7 +3679,8 @@ def get_products_by_subcategory_api():
 
         return jsonify({
             'success': True,
-            'model_groups': result
+            'model_groups': result,
+            'subcategory_display_name': subcategory_display_name
         })
 
     except Exception as e:

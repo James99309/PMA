@@ -127,17 +127,14 @@ def generate_mn_code(config, template=None, save_snapshot=True):
         if not value:
             value = item.general_value
 
-        # 编码映射使用 item.options（在编辑模板时自动生成）
-        code_options = item.options or {}
+        # 从规格字典查找编码（唯一来源），fallback 到 item.options 向后兼容
+        code_char = get_code_from_dictionary(item.spec_dict_id, value) if item.spec_dict_id else None
+        if not code_char:
+            code_options = item.options or {}
+            code_char = generate_safe_code_char(value, code_options)
 
-        # 生成编码字符
-        code_char = generate_safe_code_char(value, code_options)
-
-        # 处理编码长度（1位或2位）
-        if item.code_length == 2:
-            final_code_char = code_char.ljust(2, 'X')[:2]
-        else:
-            final_code_char = code_char[:1]
+        # 编码固定1位（code_length=2 已废弃，字典编码统一为1位字符）
+        final_code_char = code_char[:1]
 
         code_parts.append(final_code_char)
 
@@ -184,53 +181,82 @@ def generate_mn_code(config, template=None, save_snapshot=True):
     return full_mn_code
 
 
-def allocate_code_for_value(value, existing_options):
-    """
-    根据值内容计算编码字符（基于哈希的分配策略）
+def _build_code_options_from_dict(spec_dict_id):
+    """从规格字典构建 {value: code} 映射（替代 item.options）"""
+    if not spec_dict_id:
+        return {}
+    from app.models.product_code import SpecificationOption
+    opts = SpecificationOption.query.filter_by(spec_id=spec_dict_id).all()
+    return {opt.value: opt.code for opt in opts}
 
-    相同的值内容会从相同的起始位置开始查找可用编码，
-    使得编码更具有语义关联性，而不是所有默认值都是 "3"。
+
+def get_code_from_dictionary(spec_dict_id, value):
+    """
+    从规格字典 specification_options 查找值对应的编码字符
+
+    这是编码的唯一来源，模版不自行生成编码。
 
     Args:
-        value: 需要编码的规格值
-        existing_options: 已有的编码映射 {"规格值": "编码字符"}
+        spec_dict_id: specification_dictionary 的 ID
+        value: 规格值
 
     Returns:
-        str: 分配的编码字符，如果全部用完则返回 'X'
+        str | None: 编码字符，未找到返回 None
+    """
+    if not spec_dict_id or not value:
+        return None
+    from app.models.product_code import SpecificationOption
+    opt = SpecificationOption.query.filter_by(
+        spec_id=spec_dict_id, value=value
+    ).first()
+    return opt.code if opt else None
+
+
+def allocate_code_for_value(value, existing_options):
+    """
+    [已废弃] 基于哈希的编码分配策略
+    保留仅为向后兼容，新代码应使用 get_code_from_dictionary()
     """
     used_codes = set(existing_options.values()) if existing_options else set()
-
-    # 计算值的哈希，确定起始位置
-    # 使用字符串哈希，确保相同值总是从相同位置开始
     if value:
         hash_val = sum(ord(c) for c in str(value)) % len(SAFE_CHARS)
     else:
         hash_val = 0
-
-    # 从哈希位置开始，顺序查找第一个未被使用的编码
     for i in range(len(SAFE_CHARS)):
         idx = (hash_val + i) % len(SAFE_CHARS)
         if SAFE_CHARS[idx] not in used_codes:
             return SAFE_CHARS[idx]
+    return 'X'
 
-    return 'X'  # 所有编码已用完
 
-
-def ensure_code_for_value(options, value):
+def ensure_code_for_value(options, value, spec_dict_id=None):
     """
-    确保值有对应的编码，如果没有则分配新编码
+    确保值有对应的编码
+
+    优先从规格字典 specification_options 查找编码（唯一来源）。
+    仅当未提供 spec_dict_id 时才 fallback 到旧的哈希分配（向后兼容）。
 
     Args:
         options: 已有的编码映射（可能为 None）
         value: 需要编码的值
+        spec_dict_id: specification_dictionary 的 ID（推荐传入）
 
     Returns:
         dict: 更新后的编码映射（新字典，不修改原字典）
     """
-    # 复制字典，避免修改原对象（SQLAlchemy 需要检测到变化才会保存）
     result = dict(options) if options else {}
     if value and value not in result:
-        result[value] = allocate_code_for_value(value, result)
+        if spec_dict_id:
+            code = get_code_from_dictionary(spec_dict_id, value)
+            if code:
+                result[value] = code
+            else:
+                current_app.logger.warning(
+                    f"规格字典中未找到编码: spec_dict_id={spec_dict_id}, value='{value}'"
+                )
+        else:
+            # 向后兼容：无 spec_dict_id 时仍用哈希分配
+            result[value] = allocate_code_for_value(value, result)
     return result
 
 
@@ -774,14 +800,13 @@ def api_create_template():
         if not item_data.get('definition_id'):
             continue
 
-        # 如果参与编码且有通用值，确保通用值有编码
+        # 如果参与编码且有通用值，从规格字典查找编码
         use_in_code = item_data.get('use_in_code', False)
         general_value = item_data.get('general_value')
+        dict_id = item_data['definition_id']
         options = item_data.get('options') or {}
         if use_in_code and general_value:
-            options = ensure_code_for_value(options, general_value)
-
-        dict_id = item_data['definition_id']
+            options = ensure_code_for_value(options, general_value, spec_dict_id=dict_id)
         item = SpecTemplateItem(
             template_id=template.id,
             spec_dict_id=dict_id,
@@ -994,12 +1019,12 @@ def api_update_template(template_id):
 
         dict_id = item_data['definition_id']
 
-        # 如果参与编码且有通用值，确保有编码映射
+        # 如果参与编码且有通用值，从规格字典查找编码
         use_in_code = item_data.get('use_in_code', False)
         general_value = item_data.get('general_value')
         options = item_data.get('options') or {}
         if use_in_code and general_value:
-            options = ensure_code_for_value(options, general_value)
+            options = ensure_code_for_value(options, general_value, spec_dict_id=dict_id)
 
         # 查找已存在的规格项
         existing_item = SpecTemplateItem.query.filter_by(
@@ -1327,8 +1352,8 @@ def spec_config_matrix_page(template_id):
     code_position_map = {}
     current_pos = 4  # 前3位是区域+分类+子分类，从第4位开始
     for idx, item in enumerate(code_items):
-        # 编码映射直接使用 item.options（编辑模板时已生成）
-        code_options = item.options or {}
+        # 从规格字典构建编码映射（唯一来源），fallback 到 item.options
+        code_options = _build_code_options_from_dict(item.spec_dict_id) if item.spec_dict_id else (item.options or {})
         code_length = item.code_length or 1
 
         code_items_data.append({
@@ -2258,16 +2283,15 @@ def api_update_config_values(config_id):
             items_to_update_options[template_item_id] = value
         # 如果连默认值都没有，就不保存
 
-    # 为新值分配编码并更新 SpecTemplateItem.options
+    # 验证编码映射（从规格字典查找，不再自行生成）并同步 options 缓存
     for template_item_id, value in items_to_update_options.items():
-        # 刷新获取最新数据，避免并发请求读取到旧的 options
         template_item = db.session.query(SpecTemplateItem).filter_by(id=template_item_id).with_for_update().first()
         if template_item and template_item.use_in_code and value:
-            # 确保值有编码映射
-            updated_options = ensure_code_for_value(template_item.options, value)
+            # 从规格字典查找编码（传入 spec_dict_id）
+            updated_options = ensure_code_for_value(template_item.options, value, spec_dict_id=template_item.spec_dict_id)
             if updated_options != template_item.options:
                 template_item.options = updated_options
-                db.session.flush()  # 立即写入，让后续请求能看到
+                db.session.flush()
 
     # 检查 MN 编码是否锁定（可生产/停产状态）
     mn_locked = config.mn_locked
