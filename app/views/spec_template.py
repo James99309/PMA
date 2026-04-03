@@ -2230,8 +2230,7 @@ def api_update_config_values(config_id):
                 value = item.general_value
             code_char = get_code_from_dictionary(item.spec_dict_id, value) if item.spec_dict_id else None
             if not code_char:
-                code_options = item.options or {}
-                code_char = generate_safe_code_char(value, code_options)
+                code_char = generate_safe_code_char(value, item.options or {})
             code_items_data.append({
                 "item_id": item.id,
                 "definition_name": item.spec_dict.name if item.spec_dict else None,
