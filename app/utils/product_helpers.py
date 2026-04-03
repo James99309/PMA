@@ -255,13 +255,14 @@ def generate_product_snapshot(product, source="manual", dev_product=None):
         ).all() if cat_ids else []
         cat_order_map = {c.id: c.display_order for c in categories}
 
-        # 按 SpecCategory.display_order → SpecificationDictionary.display_order 排序
+        # 按 编码规格优先 → SpecCategory.display_order → SpecificationDictionary.display_order 排序
         def sort_key(spec):
+            is_encoding = 0 if (spec.use_in_code if spec.use_in_code is not None else bool(spec.field_code and spec.field_code.strip())) else 1
             defn = name_to_def.get(spec.field_name)
             if defn:
                 cat_order = cat_order_map.get(defn.category_id, 9999)
-                return (0, cat_order, defn.display_order)
-            return (1, 9999, 9999)
+                return (is_encoding, cat_order, defn.display_order)
+            return (is_encoding, 9999, 9999)
 
         specs_sorted = sorted(specs, key=sort_key)
 
