@@ -2539,15 +2539,36 @@ def api_config_sync_status(config_id):
             cv_val = item.general_value or ''
         config_spec_map[sd.name] = cv_val
 
+    # 预加载编码映射（用于 code 比较）
+    spec_dict_ids = [item.spec_dict_id for item in config.template.items if item.spec_dict_id]
+    all_options = SpecificationOption.query.filter(
+        SpecificationOption.spec_id.in_(spec_dict_ids),
+        SpecificationOption.is_active == True
+    ).all() if spec_dict_ids else []
+    code_lookup = {(opt.spec_id, opt.value): opt.code for opt in all_options}
+
+    # 构建配置 code 映射: field_name → expected_code
+    config_code_map = {}
+    for item in config.template.items:
+        sd = item.spec_dict
+        if not sd:
+            continue
+        val = config_spec_map.get(sd.name, '')
+        config_code_map[sd.name] = code_lookup.get((sd.id, val), '') if val else ''
+
     # 比较 CN 产品
     from app.models.product_spec import ProductSpec
     cn_diffs = []
     for product in cn_products:
-        specs = {s.field_name: s.field_value for s in ProductSpec.query.filter_by(product_id=product.id).all()}
+        product_specs = ProductSpec.query.filter_by(product_id=product.id).all()
+        specs = {s.field_name: s.field_value for s in product_specs}
+        spec_codes = {s.field_name: (s.field_code or '') for s in product_specs}
         diff_fields = []
         for field_name, config_val in config_spec_map.items():
             product_val = specs.get(field_name, '')
-            if config_val != product_val:
+            product_code = spec_codes.get(field_name, '')
+            expected_code = config_code_map.get(field_name, '')
+            if config_val != product_val or expected_code != product_code:
                 diff_fields.append({
                     'field': field_name,
                     'config_val': config_val,
@@ -2564,13 +2585,16 @@ def api_config_sync_status(config_id):
     sg_diffs = []
     for sg_p in sg_products:
         sg_specs = db.session.execute(db.text(
-            "SELECT field_name, field_value FROM sg_product_specs WHERE product_id = :pid"
+            "SELECT field_name, field_value, field_code FROM sg_product_specs WHERE product_id = :pid"
         ), {'pid': sg_p['id']}).fetchall()
         specs = {s.field_name: s.field_value for s in sg_specs}
+        spec_codes = {s.field_name: (s.field_code or '') for s in sg_specs}
         diff_fields = []
         for field_name, config_val in config_spec_map.items():
             product_val = specs.get(field_name, '')
-            if config_val != product_val:
+            product_code = spec_codes.get(field_name, '')
+            expected_code = config_code_map.get(field_name, '')
+            if config_val != product_val or expected_code != product_code:
                 diff_fields.append({
                     'field': field_name,
                     'config_val': config_val,
