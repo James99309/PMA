@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""刷新所有项目的 quotation_customer 缓存字段
+"""刷新所有项目的 quotation_customer / quotation_currency 缓存字段
 
-背景：
-多货币聚合统计改造（2026-04-05）后，Project.quotation_customer 字段语义从
-"最新一张报价单的原 amount（可能是任意货币）"改为
-"最新一张报价单的金额，已换算到 Config.DEFAULT_CURRENCY"。
+字段语义（2026-04-05 最终确定）：
+- quotation_customer: **最新一张报价单的原金额**（不做汇率换算）
+- quotation_currency: **最新一张报价单的原货币**
 
-Quotation 的 after_insert/after_update/after_delete 事件监听器会自动维护这个字段，
-但对于 **历史数据**（旧报价单没有触发新事件监听器），需要手动一次性刷新。
+跨项目统计的汇率换算由 MultiCurrencyAggregationService.sum_converted 在读取端
+动态完成，不依赖此缓存字段做跨货币求和。
 
 用法：
     python3 scripts/temp/refresh_project_quotation_customer.py --dry-run  # 预览
     python3 scripts/temp/refresh_project_quotation_customer.py            # 执行
-
-部署到生产后执行：
-    cd /volume1/docker/pma && python3 scripts/temp/refresh_project_quotation_customer.py
 """
 import sys
 import os
@@ -37,16 +33,14 @@ sys.path.insert(0, get_project_root())
 from app import create_app, db
 from app.models.project import Project
 from app.models.quotation import Quotation
-from app.services.exchange_rate_service import exchange_rate_service
 from config import Config
 
 
 def refresh_all_projects(dry_run=False):
     app = create_app()
     with app.app_context():
-        target_currency = Config.DEFAULT_CURRENCY
-        print(f"系统默认货币: {target_currency}")
         print(f"模式: {'DRY RUN (不写入)' if dry_run else '执行'}")
+        print(f"字段语义: quotation_customer = 最新报价单原金额, quotation_currency = 原货币")
         print("=" * 60)
 
         projects = Project.query.all()
@@ -64,35 +58,23 @@ def refresh_all_projects(dry_run=False):
                 ).order_by(Quotation.created_at.desc()).first()
 
                 if latest is None:
-                    # 无报价单 → 金额为 0
+                    # 无报价单 → 金额为 0, 货币取系统默认
                     new_amount = 0.0
-                    new_currency = target_currency
-                    src_currency = None
-                    src_amount = None
+                    new_currency = Config.DEFAULT_CURRENCY
                 else:
-                    src_amount = float(latest.amount or 0)
-                    src_currency = (latest.currency or target_currency).upper()
-                    if src_amount == 0 or src_currency == target_currency:
-                        new_amount = src_amount
-                    else:
-                        new_amount = float(exchange_rate_service.convert_amount(
-                            src_amount, src_currency, target_currency
-                        ))
-                    new_currency = target_currency
+                    new_amount = float(latest.amount or 0)
+                    new_currency = (latest.currency or Config.DEFAULT_CURRENCY).upper()
 
                 old_amount = float(project.quotation_customer or 0)
-                old_currency = project.quotation_currency or 'CNY'
+                old_currency = project.quotation_currency or Config.DEFAULT_CURRENCY
 
                 if abs(new_amount - old_amount) < 0.01 and new_currency == old_currency:
                     unchanged += 1
                     continue
 
-                if src_currency and src_currency != target_currency:
-                    print(f"  [{project.id}] {project.project_name[:30]}")
-                    print(f"      源: {src_amount:,.2f} {src_currency} → 换算: {new_amount:,.2f} {target_currency}")
-                    print(f"      (缓存旧值: {old_amount:,.2f} {old_currency})")
-                else:
-                    print(f"  [{project.id}] {project.project_name[:30]}: {old_amount:,.2f} → {new_amount:,.2f} {target_currency}")
+                print(f"  [{project.id}] {project.project_name[:30]}")
+                print(f"      旧: {old_amount:,.2f} {old_currency}")
+                print(f"      新: {new_amount:,.2f} {new_currency}")
 
                 if not dry_run:
                     project.quotation_customer = new_amount
