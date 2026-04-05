@@ -563,20 +563,36 @@ window.QuotationModal = (function() {
                 rowMap[pid].forEach(function(rowId) {
                     const rowData = instance.rows.find(function(r) { return r.rowId === rowId; });
                     if (!rowData) return;
+                    const row = document.getElementById(rowId);
+
                     if (price === undefined) {
-                        // 未配置该货币面价 — 重置为 0 并标记
+                        // 未配置该货币面价 — 清零 market_price / unit_price / total_price
                         rowData.data.market_price = 0;
+                        rowData.data.unit_price = 0;
+                        rowData.data.total_price = 0;
                         rowData.data._regionPriceMissing = true;
                         const name = rowData.data.product_name || ('#' + pid);
                         if (missingProductNames.indexOf(name) === -1) missingProductNames.push(name);
+
+                        window.EditableTable.rebuildMarketPriceCell(tableId, rowId, rowData.data);
+                        // 显式清零 unit_price 和 total_price 的 DOM（calculateUnitPrice 在 market_price=0 时会提前返回）
+                        if (row) {
+                            const unitInput = row.querySelector('input[data-col-key="unit_price"]');
+                            if (unitInput) unitInput.value = '0.00';
+                            const totalEl = row.querySelector('input[data-col-key="total_price"], span[data-col-key="total_price"]');
+                            if (totalEl) {
+                                if (totalEl.tagName === 'INPUT') totalEl.value = '0.00';
+                                else totalEl.textContent = '0.00';
+                            }
+                        }
                     } else {
+                        // 有面价 — 更新 market_price 并重算 unit_price / total_price
                         rowData.data.market_price = price;
                         rowData.data._regionPriceMissing = false;
+                        window.EditableTable.rebuildMarketPriceCell(tableId, rowId, rowData.data);
+                        window.EditableTable.calculateUnitPrice(tableId, rowId);
+                        window.EditableTable.calculateTotalPrice(tableId, rowId);
                     }
-                    // 重建 market_price 单元格（根据状态切换 span/input）
-                    window.EditableTable.rebuildMarketPriceCell(tableId, rowId, rowData.data);
-                    window.EditableTable.calculateUnitPrice(tableId, rowId);
-                    window.EditableTable.calculateTotalPrice(tableId, rowId);
                 });
             });
             setTimeout(function() { window.EditableTable.calculateGrandTotal(tableId); }, 10);
