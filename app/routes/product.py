@@ -397,19 +397,32 @@ def product_list():
         order_attr = getattr(Product, sort_field)
         query = query.order_by(order_attr.desc() if sort_order == 'desc' else order_attr.asc())
     else:
-        # 默认排序：按分类体系排序（与导出功能一致）
-        # 确保已经 join 了分类表
-        if not search and not category:
-            query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
-            query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
-        elif search and not category:
-            query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
+        # 默认排序：使用 product_display_order 表（跨 CN/SG 可移植）
+        from app.models.product_display_order import ProductDisplayOrder
+
+        # 从 code_definition_snapshot JSON 提取 category/subcategory code_letter
+        # 使用 PostgreSQL json_extract_path_text 函数（兼容 JSON 和 JSONB 类型）
+        snapshot_cat_code = func.json_extract_path_text(
+            Product.code_definition_snapshot, 'category', 'code_letter'
+        )
+        snapshot_sub_code = func.json_extract_path_text(
+            Product.code_definition_snapshot, 'subcategory', 'code_letter'
+        )
+        effective_model = func.coalesce(Product.model, Product.product_name, '未指定型号')
+
+        query = query.outerjoin(
+            ProductDisplayOrder,
+            and_(
+                snapshot_cat_code == ProductDisplayOrder.category_code,
+                snapshot_sub_code == ProductDisplayOrder.subcategory_code,
+                effective_model == ProductDisplayOrder.model
+            )
+        )
         query = query.order_by(
-            ProductCategory.display_order.asc(),
-            ProductCategory.id.asc(),
-            ProductSubcategory.display_order.asc(),
-            ProductSubcategory.id.asc(),
-            Product.product_name.asc(),
+            func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
+            func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
+            func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
+            Product.product_name.asc(),  # 同型号组内 tiebreaker
             Product.id.asc()
         )
 
