@@ -548,6 +548,7 @@
         'columns': product_columns,
         'currency': default_currency,
         'currency_symbol': currency_symbol,
+        'currency_selector_id': 'currency_modal',
         'api_endpoints': {
             'categories': '/api/products/categories',
             'productsByCategory': '/api/products/by-category',
@@ -1282,11 +1283,89 @@
                 });
             }
 
-            // 货币变化事件（预留扩展）
+            // 货币变化 → 批量刷新已有产品面价
             const currencySelect = document.getElementById('currency_modal');
             if (currencySelect) {
                 currencySelect.addEventListener('change', function() {
-                    // 货币选择变化时的处理（如需要）
+                    const newCurrency = this.value;
+                    const tableId = 'quotationProductTable';
+                    const instance = window.EditableTable?.instances?.[tableId];
+                    if (!instance || !instance.rows.length) return;
+
+                    // 收集所有有 product_id 的行
+                    const productIds = [];
+                    const rowMap = {};
+                    instance.rows.forEach(r => {
+                        const pid = r.data.product_id || r.data.id;
+                        if (pid && !r.data.is_temp) {
+                            productIds.push(pid);
+                            if (!rowMap[pid]) rowMap[pid] = [];
+                            rowMap[pid].push(r.rowId);
+                        }
+                    });
+
+                    if (!productIds.length) return;
+
+                    fetch('/api/products/region-prices/batch', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        },
+                        body: JSON.stringify({product_ids: [...new Set(productIds)], currency: newCurrency})
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        const prices = data.prices || {};
+                        const missingProductNames = [];
+                        const missingTooltip = '{{ _("该产品未配置当前货币面价，请手动核对") }}';
+                        Object.keys(rowMap).forEach(pid => {
+                            const price = prices[pid];
+                            rowMap[pid].forEach(rowId => {
+                                const row = document.getElementById(rowId);
+                                if (!row) return;
+                                let el = row.querySelector('input[data-col-key="market_price"], span[data-col-key="market_price"]');
+                                if (!el) {
+                                    const td = row.querySelector('td[data-col-key="market_price"]');
+                                    if (td) el = td.querySelector('input, span.cell-readonly');
+                                }
+                                if (price === undefined) {
+                                    // 未配置该货币面价 — 高亮标记并收集名称
+                                    const rowData = instance.rows.find(r => r.rowId === rowId);
+                                    const name = rowData?.data?.product_name || `#${pid}`;
+                                    if (!missingProductNames.includes(name)) missingProductNames.push(name);
+                                    if (el) {
+                                        el.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
+                                        el.title = missingTooltip;
+                                    }
+                                    return;
+                                }
+                                // 有面价 — 更新数据和 DOM
+                                const rowData = instance.rows.find(r => r.rowId === rowId);
+                                if (rowData) rowData.data.market_price = price;
+                                if (el) {
+                                    el.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40');
+                                    el.title = '';
+                                    const formatted = window.EditableTable.formatNumber(price);
+                                    if (el.tagName === 'INPUT') el.value = formatted;
+                                    else el.textContent = formatted;
+                                }
+                                window.EditableTable.calculateUnitPrice(tableId, rowId);
+                                window.EditableTable.calculateTotalPrice(tableId, rowId);
+                            });
+                        });
+                        setTimeout(() => window.EditableTable.calculateGrandTotal(tableId), 10);
+
+                        // 未命中时弹出提示（用模板字符串避免 JS 语法错误）
+                        if (missingProductNames.length > 0) {
+                            const header = '{{ _("以下产品未配置该货币面价，请手动核对或在产品库中补充") }}';
+                            alert(`${header} (${newCurrency}):\n\n${missingProductNames.join('\n')}`);
+                        }
+                    })
+                    .catch(err => {
+                        console.warn('批量获取地区面价失败:', err);
+                        alert('{{ _("获取地区面价失败，请检查网络后重试") }}');
+                    });
                 });
             }
 

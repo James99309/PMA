@@ -461,6 +461,21 @@
                                 </div>
                             </div>
 
+                            <!-- 地区面价卡片（view 权限可见，edit 权限可增删改） -->
+                            <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                                <div class="px-6 py-5 flex justify-between items-center">
+                                    <h3 class="text-lg leading-6 font-semibold text-slate-900 dark:text-white">{{ _('地区面价') }}</h3>
+                                    {% if has_permission('product', 'edit') %}
+                                    <button onclick="showAddRegionPrice()" class="text-xs px-2.5 py-1 rounded-md bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-900/30 dark:text-primary-400 dark:hover:bg-primary-900/50 transition-colors">
+                                        + {{ _('添加') }}
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                <div class="px-6 pb-5" id="regionPriceList" data-can-edit="{{ 'true' if has_permission('product', 'edit') else 'false' }}">
+                                    <p class="text-sm text-slate-400">{{ _('加载中...') }}</p>
+                                </div>
+                            </div>
+
                             <!-- 产品二维码卡片 -->
                             <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
                                 <div class="px-6 py-5">
@@ -1528,6 +1543,164 @@ function saveCoeff() {
 }
 </script>
 {% endif %}
+
+<script>
+(function() {
+    const productId = {{ product.id }};
+    const csrfToken = '{{ csrf_token() }}';
+    const defaultCurrency = '{{ product.currency or currency_config.default_currency }}';
+    const currencyOptions = [
+        {code: 'CNY', label: '¥ {{ _("人民币") }}'},
+        {code: 'USD', label: '$ {{ _("美元") }}'},
+        {code: 'SGD', label: 'S$ {{ _("新加坡元") }}'},
+        {code: 'MYR', label: 'RM {{ _("马来西亚林吉特") }}'},
+        {code: 'HKD', label: 'HK$ {{ _("港币") }}'},
+        {code: 'IDR', label: 'Rp {{ _("印尼盾") }}'},
+        {code: 'THB', label: '฿ {{ _("泰铢") }}'}
+    ];
+    const symbolMap = {CNY:'¥', USD:'$', SGD:'S$', MYR:'RM', HKD:'HK$', IDR:'Rp', THB:'฿'};
+
+    function loadRegionPrices() {
+        const container = document.getElementById('regionPriceList');
+        if (!container) return;
+        const canEdit = container.dataset.canEdit === 'true';
+
+        fetch(`/api/products/${productId}/region-prices`)
+        .then(r => r.json())
+        .then(prices => {
+            if (!prices.length) {
+                container.innerHTML = canEdit
+                    ? '<p class="text-sm text-slate-400 dark:text-slate-500">{{ _("暂无地区面价，点击添加") }}</p>'
+                    : '<p class="text-sm text-slate-400 dark:text-slate-500">{{ _("暂无地区面价") }}</p>';
+                return;
+            }
+            let html = '<div class="space-y-2">';
+            prices.forEach(p => {
+                const sym = symbolMap[p.currency] || '';
+                const actions = canEdit ? `
+                    <div class="flex items-center gap-2">
+                        <button onclick="editRegionPrice(${p.id}, '${p.currency}', ${p.market_price})" class="text-slate-400 hover:text-primary-600 dark:hover:text-primary-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                        <button onclick="deleteRegionPrice(${p.id})" class="text-slate-400 hover:text-red-600 dark:hover:text-red-400">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>` : '';
+                html += `<div class="flex items-center justify-between py-2 px-3 bg-slate-50 dark:bg-slate-800 rounded-lg" id="rp-${p.id}">
+                    <div>
+                        <span class="text-xs font-medium text-slate-500 dark:text-slate-400">${p.currency}</span>
+                        <span class="ml-2 text-lg font-semibold text-slate-900 dark:text-white">${sym}${parseFloat(p.market_price).toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                    </div>
+                    ${actions}
+                </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        })
+        .catch(() => {
+            container.innerHTML = '<p class="text-sm text-red-400">{{ _("加载失败") }}</p>';
+        });
+    }
+    window.loadRegionPrices = loadRegionPrices;
+
+    // 保存地区面价（从 form 元素的 data-* 属性读取值，避免全局 DOM id 冲突）
+    function submitRegionPrice(formEl) {
+        const currency = formEl.querySelector('[data-rp-currency]').value;
+        const priceInput = formEl.querySelector('[data-rp-price]');
+        const price = priceInput.value;
+        if (!currency || !price) return;
+
+        fetch(`/api/products/${productId}/region-prices`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({currency, market_price: parseFloat(price)})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) loadRegionPrices();
+            else alert(data.message || '{{ _("保存失败") }}');
+        })
+        .catch(() => alert('{{ _("保存失败") }}'));
+    }
+    // 暴露给内联 onclick 使用
+    window._submitRegionPrice = submitRegionPrice;
+
+    window.showAddRegionPrice = function() {
+        // 过滤掉已经存在的货币（防止重复添加相同货币）
+        fetch(`/api/products/${productId}/region-prices`)
+            .then(r => r.json())
+            .then(existingPrices => {
+                const existingCurrencies = new Set(existingPrices.map(p => p.currency));
+                existingCurrencies.add(defaultCurrency);  // 默认货币也排除
+                const opts = currencyOptions
+                    .filter(c => !existingCurrencies.has(c.code))
+                    .map(c => `<option value="${c.code}">${c.label}</option>`)
+                    .join('');
+
+                const container = document.getElementById('regionPriceList');
+                const existingForm = container.querySelector('.region-price-form');
+                if (existingForm) { existingForm.remove(); return; }
+
+                if (!opts) {
+                    alert('{{ _("所有货币的面价都已配置") }}');
+                    return;
+                }
+
+                const formHtml = `<div class="region-price-form mt-3 p-3 border border-primary-200 dark:border-primary-800 rounded-lg bg-primary-50/50 dark:bg-primary-900/20">
+                    <div class="flex items-end gap-2">
+                        <div class="flex-1">
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('货币') }}</label>
+                            <select data-rp-currency class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+                                ${opts}
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('面价') }}</label>
+                            <input type="number" data-rp-price step="0.01" min="0" class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white" placeholder="0.00">
+                        </div>
+                        <button onclick="window._submitRegionPrice(this.closest('.region-price-form'))" class="px-3 py-1.5 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700">{{ _('保存') }}</button>
+                        <button onclick="this.closest('.region-price-form').remove()" class="px-3 py-1.5 text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">{{ _('取消') }}</button>
+                    </div>
+                </div>`;
+                container.insertAdjacentHTML('beforeend', formHtml);
+            });
+    };
+
+    // 编辑时 currency 字段只读 —— 防止改货币产生重复记录
+    window.editRegionPrice = function(id, currency, price) {
+        const el = document.getElementById('rp-' + id);
+        if (!el) return;
+        const sym = symbolMap[currency] || '';
+        el.innerHTML = `<div class="region-price-form flex items-center gap-2 w-full">
+            <span class="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">${currency} ${sym}</span>
+            <input type="hidden" data-rp-currency value="${currency}">
+            <input type="number" data-rp-price step="0.01" min="0" value="${price}" class="flex-1 px-2 py-1 text-sm border border-slate-300 dark:border-slate-600 rounded-md bg-white dark:bg-slate-700 text-slate-900 dark:text-white">
+            <button onclick="window._submitRegionPrice(this.closest('.region-price-form'))" class="text-green-600 hover:text-green-700 dark:text-green-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            </button>
+            <button onclick="loadRegionPrices()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>`;
+    };
+
+    window.deleteRegionPrice = function(id) {
+        if (!confirm('{{ _("确认删除此地区面价？") }}')) return;
+        fetch(`/api/products/${productId}/region-prices/${id}`, {
+            method: 'DELETE',
+            headers: {'X-CSRFToken': csrfToken}
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) loadRegionPrices();
+            else alert(data.message || '{{ _("删除失败") }}');
+        })
+        .catch(() => alert('{{ _("删除失败") }}'));
+    };
+
+    document.addEventListener('DOMContentLoaded', loadRegionPrices);
+})();
+</script>
 
 {# 产品编辑模态框 #}
 {{ render_product_modal(product_type='standard') }}

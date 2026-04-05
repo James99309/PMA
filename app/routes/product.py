@@ -2906,6 +2906,115 @@ def get_product(id):
             'message': str(e)
         }), 500
 
+@bp.route('/api/products/<int:product_id>/region-prices', methods=['GET'])
+@login_required
+@permission_required('product', 'view')
+def get_product_region_prices(product_id):
+    """获取产品的所有地区价格"""
+    from app.models.product import ProductRegionPrice
+    prices = ProductRegionPrice.query.filter_by(product_id=product_id).all()
+    return jsonify([{
+        'id': p.id,
+        'currency': p.currency,
+        'market_price': float(p.market_price)
+    } for p in prices])
+
+
+@bp.route('/api/products/<int:product_id>/region-prices', methods=['POST'])
+@login_required
+@permission_required('product', 'edit')
+def save_product_region_price(product_id):
+    """新增或更新产品地区价格"""
+    from app.models.product import ProductRegionPrice
+    data = request.get_json()
+    currency = data.get('currency', '').strip().upper()
+    market_price = data.get('market_price')
+
+    if not currency or market_price is None:
+        return jsonify({'success': False, 'message': '货币和面价不能为空'}), 400
+
+    try:
+        market_price = float(market_price)
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': '面价格式不正确'}), 400
+
+    existing = ProductRegionPrice.query.filter_by(
+        product_id=product_id, currency=currency
+    ).first()
+
+    if existing:
+        existing.market_price = market_price
+    else:
+        existing = ProductRegionPrice(
+            product_id=product_id,
+            currency=currency,
+            market_price=market_price
+        )
+        db.session.add(existing)
+
+    db.session.commit()
+    return jsonify({
+        'success': True,
+        'data': {'id': existing.id, 'currency': existing.currency, 'market_price': float(existing.market_price)}
+    })
+
+
+@bp.route('/api/products/<int:product_id>/region-prices/<int:price_id>', methods=['DELETE'])
+@login_required
+@permission_required('product', 'edit')
+def delete_product_region_price(product_id, price_id):
+    """删除产品地区价格"""
+    from app.models.product import ProductRegionPrice
+    price = ProductRegionPrice.query.filter_by(id=price_id, product_id=product_id).first()
+    if not price:
+        return jsonify({'success': False, 'message': '未找到该价格记录'}), 404
+    db.session.delete(price)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+@bp.route('/api/products/region-prices/batch', methods=['POST'])
+@login_required
+@permission_required('product', 'view')
+def get_region_prices_batch():
+    """批量获取产品地区价格 — 用于报价单切换货币时批量刷新面价
+
+    请求体: {"product_ids": [1,2,3], "currency": "MYR"}
+    返回: {"prices": {product_id: market_price, ...}, "missing": [product_id, ...]}
+    """
+    from app.models.product import ProductRegionPrice
+    data = request.get_json()
+    product_ids = data.get('product_ids', [])
+    currency = data.get('currency', '').strip().upper()
+
+    if not product_ids or not currency:
+        return jsonify({'prices': {}, 'missing': product_ids})
+
+    # 查询该货币下有面价的产品
+    prices = ProductRegionPrice.query.filter(
+        ProductRegionPrice.product_id.in_(product_ids),
+        ProductRegionPrice.currency == currency
+    ).all()
+
+    price_map = {p.product_id: float(p.market_price) for p in prices}
+
+    # 请求的货币是系统默认货币时，fallback 到 Product.retail_price
+    # 仅当产品自身的 currency 字段也等于该货币时才 fallback，避免把 CNY 的 retail_price 当 USD 返回
+    system_currency = Config.DEFAULT_CURRENCY
+    if currency == system_currency:
+        missing_ids = [pid for pid in product_ids if pid not in price_map]
+        if missing_ids:
+            products = Product.query.filter(Product.id.in_(missing_ids)).all()
+            for p in products:
+                product_currency = (p.currency or system_currency).upper()
+                if p.retail_price and product_currency == currency:
+                    price_map[p.id] = float(p.retail_price)
+
+    missing = [pid for pid in product_ids if pid not in price_map]
+
+    return jsonify({'prices': price_map, 'missing': missing})
+
+
 @bp.route('/api/products/<int:id>/coefficient', methods=['POST'])
 @login_required
 def update_product_coefficient(id):
