@@ -3483,16 +3483,21 @@ def get_full_project_stats(base_query, target_currency=None):
                 total_cny_amount += (amount or 0)
 
         # 4. 汇率转换（如果需要）
+        # 注意：Project.quotation_customer 字段存储的是已换算到 Config.DEFAULT_CURRENCY 的值
+        # （由 Quotation 的 after_insert/after_update 事件监听器保证）
+        # 所以这里只需要从 DEFAULT_CURRENCY 换算到 target_currency（如果不同）
         total_converted_amount = base_stats.total_amount or 0
-        if target_currency == 'USD' and total_cny_amount > 0:
-            total_converted_amount = exchange_rate_service.convert_amount(total_cny_amount, 'CNY', 'USD')
+        default_currency = Config.DEFAULT_CURRENCY
+        if target_currency != default_currency and total_cny_amount > 0:
+            total_converted_amount = exchange_rate_service.convert_amount(
+                total_cny_amount, default_currency, target_currency
+            )
 
             # 按比例转换各阶段金额
-            if total_cny_amount > 0:
-                conversion_ratio = total_converted_amount / total_cny_amount
-                for stage in stage_stats:
-                    if stage_stats[stage]['amount'] > 0:
-                        stage_stats[stage]['amount'] *= conversion_ratio
+            conversion_ratio = total_converted_amount / total_cny_amount
+            for stage in stage_stats:
+                if stage_stats[stage]['amount'] > 0:
+                    stage_stats[stage]['amount'] *= conversion_ratio
 
         result = {
             'total_count': base_stats.total_count or 0,

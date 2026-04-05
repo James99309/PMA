@@ -263,27 +263,39 @@ def list_quotations():
         default_currency = get_default_currency()
         currency_symbol = get_currency_symbol(default_currency)
 
-        # 计算统计数据（复用已筛选的 query，单次条件聚合替代 8 次 SQL）
+        # 计算统计数据 —— count 仍用 SQL 聚合，amount 用 MultiCurrencyAggregationService 做跨货币换算
         from sqlalchemy import case
-        stats_result = filtered_query.with_entities(
+        from app.services.multi_currency_aggregation import MultiCurrencyAggregationService
+
+        # 数量统计（不涉及货币，直接 SQL）
+        count_result = filtered_query.with_entities(
             func.count(Quotation.id).label('total'),
-            func.coalesce(func.sum(Quotation.amount), 0).label('total_amount'),
             func.count(case((Quotation.approval_status == 'approved', Quotation.id))).label('approved_count'),
-            func.coalesce(func.sum(case((Quotation.approval_status == 'approved', Quotation.amount))), 0).label('approved_amount'),
             func.count(case((Quotation.approval_status.in_(['pending', 'in_progress']), Quotation.id))).label('pending_count'),
-            func.coalesce(func.sum(case((Quotation.approval_status.in_(['pending', 'in_progress']), Quotation.amount))), 0).label('pending_amount'),
             func.count(case((Quotation.approval_status == 'draft', Quotation.id))).label('draft_count'),
-            func.coalesce(func.sum(case((Quotation.approval_status == 'draft', Quotation.amount))), 0).label('draft_amount'),
         ).first()
 
-        total_stats_count = stats_result.total or 0
-        total_stats_amount = round((stats_result.total_amount or 0) / amount_divisor, 2)
-        approved_count = stats_result.approved_count or 0
-        approved_amount = round((stats_result.approved_amount or 0) / amount_divisor, 2)
-        pending_count = stats_result.pending_count or 0
-        pending_amount = round((stats_result.pending_amount or 0) / amount_divisor, 2)
-        draft_count = stats_result.draft_count or 0
-        draft_amount = round((stats_result.draft_amount or 0) / amount_divisor, 2)
+        # 金额统计（跨货币换算到系统默认货币）
+        amount_stats = MultiCurrencyAggregationService.sum_converted_with_conditions(
+            filtered_query,
+            Quotation.amount,
+            Quotation.currency,
+            {
+                'total': None,
+                'approved': Quotation.approval_status == 'approved',
+                'pending': Quotation.approval_status.in_(['pending', 'in_progress']),
+                'draft': Quotation.approval_status == 'draft',
+            }
+        )
+
+        total_stats_count = count_result.total or 0
+        total_stats_amount = round(amount_stats['total'] / amount_divisor, 2)
+        approved_count = count_result.approved_count or 0
+        approved_amount = round(amount_stats['approved'] / amount_divisor, 2)
+        pending_count = count_result.pending_count or 0
+        pending_amount = round(amount_stats['pending'] / amount_divisor, 2)
+        draft_count = count_result.draft_count or 0
+        draft_amount = round(amount_stats['draft'] / amount_divisor, 2)
         
         # 构建标准化筛选配置
         filter_config = {
@@ -845,41 +857,37 @@ def quotations_list_ajax():
                     stats_joined = True
                 stats_query = stats_query.filter(Project.current_stage == project_stage_filter)
             
-            # 获取当前语言环境的目标货币
-            from app.utils.i18n import get_current_language
-            current_lang = get_current_language()
-            target_currency = Config.DEFAULT_CURRENCY
+            # 使用统一的跨货币聚合服务（性能接近 SUM，只做 N 次 Python 层换算）
+            from app.services.multi_currency_aggregation import MultiCurrencyAggregationService
 
-            # 货币转换函数
-            def calculate_converted_amount_ajax(quotations_query):
-                quotations = quotations_query.all()
-                total_converted = 0
-                for quotation in quotations:
-                    original_amount = quotation.amount or 0
-                    original_currency = quotation.currency or Config.DEFAULT_CURRENCY
-                    if original_amount > 0:
-                        converted_amount = exchange_rate_service.convert_amount(
-                            original_amount, original_currency, target_currency
-                        )
-                        total_converted += converted_amount
-                return total_converted
+            approved_statuses = [
+                'discover_approved', 'embed_approved', 'pre_tender_approved',
+                'tendering_approved', 'awarded_approved', 'quoted_approved', 'signed_approved'
+            ]
 
-            # 基于筛选后的数据计算统计
+            amount_stats = MultiCurrencyAggregationService.sum_converted_with_conditions(
+                stats_query,
+                Quotation.amount,
+                Quotation.currency,
+                {
+                    'total': None,
+                    'approved': Quotation.approval_status.in_(approved_statuses),
+                    'pending': Quotation.approval_status == 'pending',
+                    'rejected': Quotation.approval_status == 'rejected',
+                }
+            )
+
             total_stats_count = stats_query.count()
-            total_stats_amount = round(calculate_converted_amount_ajax(stats_query) / 10000, 2)
+            total_stats_amount = round(amount_stats['total'] / 10000, 2)
 
-            # 按审核状态统计 - 使用正确的字段名 approval_status
-            approved_filter = stats_query.filter(Quotation.approval_status.in_(['discover_approved', 'embed_approved', 'pre_tender_approved', 'tendering_approved', 'awarded_approved', 'quoted_approved', 'signed_approved']))
-            approved_count = approved_filter.count()
-            approved_amount = round(calculate_converted_amount_ajax(approved_filter) / 10000, 2)
+            approved_count = stats_query.filter(Quotation.approval_status.in_(approved_statuses)).count()
+            approved_amount = round(amount_stats['approved'] / 10000, 2)
 
-            pending_filter = stats_query.filter(Quotation.approval_status == 'pending')
-            pending_count = pending_filter.count()
-            pending_amount = round(calculate_converted_amount_ajax(pending_filter) / 10000, 2)
+            pending_count = stats_query.filter(Quotation.approval_status == 'pending').count()
+            pending_amount = round(amount_stats['pending'] / 10000, 2)
 
-            rejected_filter = stats_query.filter(Quotation.approval_status == 'rejected')
-            rejected_count = rejected_filter.count()
-            rejected_amount = round(calculate_converted_amount_ajax(rejected_filter) / 10000, 2)
+            rejected_count = stats_query.filter(Quotation.approval_status == 'rejected').count()
+            rejected_amount = round(amount_stats['rejected'] / 10000, 2)
             
             current_app.logger.info(f"筛选后统计数据: 总数={total_stats_count}, 总金额={total_stats_amount}万元")
             
@@ -2003,13 +2011,10 @@ def edit_quotation(id):
                 except Exception as track_err:
                     current_app.logger.warning(f"记录报价单变更历史失败: {str(track_err)}")
                 
-                # 强制刷新项目金额
+                # 项目金额缓存由 Quotation 的 after_update 事件监听器自动刷新（换算到系统默认货币）
+                # 此处只需更新活跃度
                 project = Project.query.get(quotation.project_id)
                 if project:
-                    total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
-                    project.quotation_customer = total
-                    
-                    # 更新关联项目的活跃度
                     try:
                         update_active_status(project)
                         current_app.logger.debug(f"报价单更新后更新项目 {project.id} 活跃度")
@@ -2154,13 +2159,7 @@ def copy_quotation(id):
         db.session.add(new_quotation)
         db.session.commit()
         
-        # 强制刷新项目金额
-        project = Project.query.get(new_quotation.project_id)
-        if project:
-            total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
-            project.quotation_customer = total
-        db.session.commit()
-        
+        # 项目金额缓存由 after_insert 事件监听器自动刷新，无需手动处理
         flash(_('报价单复制成功！'), 'success')
         return redirect(url_for('quotation.edit_quotation', id=new_quotation.id))
     except Exception as e:
@@ -3795,15 +3794,7 @@ def save_quotation(id):
         except Exception as track_err:
             current_app.logger.warning(f"记录报价单变更历史失败: {str(track_err)}")
         
-        # 强制刷新项目金额
-        try:
-            project = Project.query.get(quotation.project_id)
-            if project:
-                total = db.session.query(db.func.sum(Quotation.amount)).filter(Quotation.project_id==project.id).scalar() or 0.0
-                project.quotation_customer = total
-            db.session.commit()
-        except Exception as project_update_error:
-            current_app.logger.warning(f"更新项目金额失败: {str(project_update_error)}")
+        # 项目金额缓存由 after_update 事件监听器自动刷新，无需手动处理
 
         record_activity('edit', 'quotation', quotation.quotation_number, current_user,
             project_id=quotation.project_id, customer_id=quotation.customer_id,
