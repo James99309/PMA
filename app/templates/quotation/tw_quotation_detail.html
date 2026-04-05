@@ -1317,8 +1317,8 @@
                     .then(r => r.json())
                     .then(data => {
                         const prices = data.prices || {};
-                        const missing = data.missing || [];
                         const missingProductNames = [];
+                        const missingTooltip = '{{ _("该产品未配置当前货币面价，请手动核对") }}';
                         Object.keys(rowMap).forEach(pid => {
                             const price = prices[pid];
                             rowMap[pid].forEach(rowId => {
@@ -1336,7 +1336,7 @@
                                     if (!missingProductNames.includes(name)) missingProductNames.push(name);
                                     if (el) {
                                         el.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
-                                        el.title = '{{ _("该产品未配置 ") }}' + newCurrency + '{{ _(" 面价，请手动核对") }}';
+                                        el.title = missingTooltip;
                                     }
                                     return;
                                 }
@@ -1356,9 +1356,10 @@
                         });
                         setTimeout(() => window.EditableTable.calculateGrandTotal(tableId), 10);
 
-                        // 未命中时弹出提示
+                        // 未命中时弹出提示（用模板字符串避免 JS 语法错误）
                         if (missingProductNames.length > 0) {
-                            alert('{{ _("以下产品未配置 ") }}' + newCurrency + '{{ _(" 面价，请手动核对或在产品库中补充：\n\n") }}' + missingProductNames.join('\n'));
+                            const header = '{{ _("以下产品未配置该货币面价，请手动核对或在产品库中补充") }}';
+                            alert(`${header} (${newCurrency}):\n\n${missingProductNames.join('\n')}`);
                         }
                     })
                     .catch(err => {

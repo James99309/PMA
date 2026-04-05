@@ -1175,13 +1175,16 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             self.calculateTotalPrice(tableId, rowId);
         }, 0);
 
-        // 未配置地区面价时高亮标记
-        if (product._regionPriceMissing) {
-            const priceCell = row.querySelector('[data-col-key="market_price"]');
-            if (priceCell) {
-                const inner = priceCell.querySelector('input, span.cell-readonly') || priceCell;
+        // 未配置地区面价时高亮标记（换产品时重置高亮）
+        const priceCell = row.querySelector('[data-col-key="market_price"]');
+        if (priceCell) {
+            const inner = priceCell.querySelector('input, span.cell-readonly') || priceCell;
+            if (product._regionPriceMissing) {
                 inner.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
-                inner.title = '该产品未配置 ' + product._regionPriceMissingCurrency + ' 面价，请手动填写';
+                inner.title = '{{ _("该产品未配置当前货币面价，请手动填写") }}';
+            } else {
+                inner.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40');
+                inner.title = '';
             }
         }
 
