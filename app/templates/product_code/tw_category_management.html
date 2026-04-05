@@ -181,6 +181,7 @@
                         <table id="subcategoryTable" class="hidden w-full text-sm text-left">
                             <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
                                 <tr>
+                                    <th class="p-3" style="width: 40px"></th>
                                     <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 60px">{{ _('序号') }}</th>
                                     <th class="p-3 text-slate-500 dark:text-slate-400 font-medium">{{ _('子分类名称') }}</th>
                                     <th class="p-3 text-slate-500 dark:text-slate-400 font-medium">{{ _('英文名称') }}</th>
@@ -243,12 +244,43 @@
                     </div>
                 </div>
                 {% else %}
-                {# [LegacySpecSystem] 规格系统已禁用的提示信息 #}
+                {# 产品型号排序面板（规格系统禁用时显示） #}
                 <div class="flex-1 flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden" style="min-height: 240px;">
-                    <div class="flex flex-col items-center justify-center h-full text-slate-500 dark:text-slate-400 py-8">
-                        <span class="material-symbols-outlined text-5xl mb-3">info</span>
-                        <p class="text-sm font-medium">{{ _('规格管理已迁移至规格模板系统') }}</p>
-                        <p class="text-xs mt-2">{{ _('请使用新系统进行规格定义') }}</p>
+                    <div class="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center">
+                            <span id="productModelsTitle">{{ _('产品型号排序') }}</span>
+                            <span class="ml-2 text-xs font-normal text-slate-400" id="productModelsCount">0</span>
+                        </h3>
+                    </div>
+                    <div id="productModelsContainer" class="flex-1 overflow-y-auto table-scroll-container">
+                        <div id="productModelsPlaceholder" class="flex flex-col items-center justify-center h-full text-slate-400 py-8">
+                            <span class="material-symbols-outlined text-5xl mb-3">reorder</span>
+                            <p class="text-sm">{{ _('请先选择一个子分类') }}</p>
+                        </div>
+                        <div id="productModelsLoading" class="hidden flex items-center justify-center py-8">
+                            <div class="flex items-center gap-2 text-slate-400">
+                                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span class="text-sm">{{ _('加载中...') }}</span>
+                            </div>
+                        </div>
+                        <div id="productModelsEmpty" class="hidden flex flex-col items-center justify-center py-8 text-slate-400">
+                            <span class="material-symbols-outlined text-4xl mb-2">inventory_2</span>
+                            <span class="text-sm">{{ _('该子分类下暂无产品型号') }}</span>
+                        </div>
+                        <table id="productModelsTable" class="hidden w-full text-sm text-left">
+                            <thead class="border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-900">
+                                <tr>
+                                    <th class="p-3" style="width: 40px"></th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 60px">{{ _('序号') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium">{{ _('型号名称') }}</th>
+                                    <th class="p-3 text-slate-500 dark:text-slate-400 font-medium" style="width: 80px">{{ _('产品数') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productModelsTableBody"></tbody>
+                        </table>
                     </div>
                 </div>
                 {% endif %}

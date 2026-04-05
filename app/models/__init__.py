@@ -61,6 +61,7 @@ from app.models.access_request import AccessRequest
 from app.models.system_diagram import SystemDiagram, DiagramShareToken, DiagramExternalSession
 # 手工录入
 from app.models.performance_manual_entry import PerformanceManualEntry, PerformanceManualAttachment
+from app.models.product_display_order import ProductDisplayOrder
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
@@ -98,4 +99,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'KnowledgeTag', 'KnowledgeDocument', 'KnowledgeChunk',
            'AccessRequest',
            'SystemDiagram', 'DiagramShareToken', 'DiagramExternalSession',
-           'PerformanceManualEntry', 'PerformanceManualAttachment']
+           'PerformanceManualEntry', 'PerformanceManualAttachment',
+           'ProductDisplayOrder']

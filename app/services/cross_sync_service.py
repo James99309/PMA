@@ -241,3 +241,43 @@ def notify_peer_refresh_cache():
 
     thread = threading.Thread(target=_do_refresh, daemon=True)
     thread.start()
+
+
+def sync_display_order_to_peer(category_code, subcategory_code):
+    """将指定子分类的产品排序数据推送到对等端（异步不阻塞）"""
+    if not is_cross_sync_enabled():
+        return
+
+    peer_url = os.environ.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+    api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+
+    from app.models.product_display_order import ProductDisplayOrder
+    rows = ProductDisplayOrder.query.filter_by(
+        category_code=category_code,
+        subcategory_code=subcategory_code
+    ).order_by(ProductDisplayOrder.model_order).all()
+
+    payload = {
+        'category_code': category_code,
+        'subcategory_code': subcategory_code,
+        'items': [r.to_dict() for r in rows]
+    }
+
+    def _do_sync():
+        import requests
+        try:
+            resp = requests.post(
+                f'{peer_url}/api/v1/cross-sync/sync-display-order',
+                json=payload,
+                headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                logger.info(f'产品排序同步成功: {category_code}{subcategory_code}')
+            else:
+                logger.warning(f'产品排序同步失败: status={resp.status_code}, body={resp.text[:200]}')
+        except Exception as e:
+            logger.warning(f'产品排序同步异常: {e}')
+
+    thread = threading.Thread(target=_do_sync, daemon=True)
+    thread.start()

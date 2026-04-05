@@ -264,3 +264,58 @@ def cross_sync_unlock_config():
         db.session.rollback()
         logger.error(f'跨系统解锁配置失败: product_mn={product_mn}, {e}')
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_v1_bp.route('/cross-sync/sync-display-order', methods=['POST'])
+@require_api_key_or_jwt
+def cross_sync_display_order():
+    """接收产品排序数据同步（CN → SG）
+
+    Request body:
+    {
+        "category_code": "O",
+        "subcategory_code": "F",
+        "items": [
+            {"category_code": "O", "category_order": 3, "subcategory_code": "F",
+             "subcategory_order": 1, "model": "PNR2100", "model_order": 1},
+            ...
+        ]
+    }
+    """
+    data = request.get_json()
+    category_code = data.get('category_code')
+    subcategory_code = data.get('subcategory_code')
+    items = data.get('items', [])
+
+    if not category_code or not subcategory_code:
+        return jsonify({'success': False, 'message': '缺少 category_code 或 subcategory_code'}), 400
+
+    try:
+        from app.models.product_display_order import ProductDisplayOrder
+
+        # 删除该子分类的现有排序数据
+        ProductDisplayOrder.query.filter_by(
+            category_code=category_code,
+            subcategory_code=subcategory_code
+        ).delete()
+
+        # 批量插入新数据
+        for item in items:
+            row = ProductDisplayOrder(
+                category_code=item['category_code'],
+                category_order=item['category_order'],
+                subcategory_code=item['subcategory_code'],
+                subcategory_order=item['subcategory_order'],
+                model=item['model'],
+                model_order=item['model_order'],
+            )
+            db.session.add(row)
+
+        db.session.commit()
+        logger.info(f'产品排序同步接收成功: {category_code}{subcategory_code}, {len(items)} 条')
+        return jsonify({'success': True, 'message': f'已同步 {len(items)} 条排序数据'})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'产品排序同步接收失败: {category_code}{subcategory_code}, {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500

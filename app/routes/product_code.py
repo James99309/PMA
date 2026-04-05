@@ -2200,6 +2200,138 @@ def update_category_fields_order(id):
         return jsonify({"success": False, "message": f"保存失败: {str(e)}"}), 500
 
 
+# ============================================================================
+# 产品型号排序管理 API
+# ============================================================================
+
+@product_code_bp.route('/api/subcategory/<int:subcategory_id>/product-models', methods=['GET'])
+@login_required
+def get_subcategory_product_models(subcategory_id):
+    """获取子分类下的产品型号（按 model 分组），用于排序管理"""
+    try:
+        subcategory = ProductSubcategory.query.get_or_404(subcategory_id)
+        category = ProductCategory.query.get(subcategory.category_id)
+        if not category:
+            return jsonify({'success': False, 'message': '分类不存在'}), 404
+
+        cat_code = category.code_letter
+        sub_code = subcategory.code_letter
+
+        # 查询该子分类下所有未删除的产品
+        products = Product.query.filter_by(
+            subcategory_id=subcategory_id, is_deleted=False
+        ).all()
+
+        # 按 effective model 分组
+        model_groups = {}
+        for p in products:
+            effective_model = p.model or p.product_name or '未指定型号'
+            if effective_model not in model_groups:
+                model_groups[effective_model] = {'count': 0, 'mns': []}
+            model_groups[effective_model]['count'] += 1
+            if p.product_mn:
+                model_groups[effective_model]['mns'].append(p.product_mn)
+
+        # 从 ProductDisplayOrder 获取已有排序
+        from app.models.product_display_order import ProductDisplayOrder
+        existing_orders = {
+            row.model: row.model_order
+            for row in ProductDisplayOrder.query.filter_by(
+                category_code=cat_code, subcategory_code=sub_code
+            ).all()
+        }
+
+        # 构建结果列表并排序
+        models_list = []
+        for model_name, info in model_groups.items():
+            models_list.append({
+                'model': model_name,
+                'product_count': info['count'],
+                'product_mns': info['mns'][:5],  # 最多展示5个MN
+                'model_order': existing_orders.get(model_name, 9999)
+            })
+
+        models_list.sort(key=lambda x: (x['model_order'], x['model']))
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'category_code': cat_code,
+                'subcategory_code': sub_code,
+                'models': models_list
+            }
+        })
+
+    except Exception as e:
+        current_app.logger.error(f"获取产品型号列表失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@product_code_bp.route('/api/subcategory/<int:subcategory_id>/update-product-models-order', methods=['POST'])
+@login_required
+@product_manager_required
+@csrf.exempt
+def update_subcategory_product_models_order(subcategory_id):
+    """更新子分类下产品型号的排序"""
+    try:
+        data = request.get_json()
+        items = data.get('items', [])
+        if not items:
+            return jsonify({'success': False, 'message': '未提供排序数据'}), 400
+
+        subcategory = ProductSubcategory.query.get_or_404(subcategory_id)
+        category = ProductCategory.query.get(subcategory.category_id)
+        if not category:
+            return jsonify({'success': False, 'message': '分类不存在'}), 404
+
+        cat_code = category.code_letter
+        cat_order = category.display_order
+        sub_code = subcategory.code_letter
+        sub_order = subcategory.display_order
+
+        from app.models.product_display_order import ProductDisplayOrder
+
+        for item in items:
+            model_name = item.get('model', '')
+            new_order = item.get('order', 0)
+
+            if not model_name:
+                continue
+
+            # UPSERT: 查找已有行或创建新行
+            existing = ProductDisplayOrder.query.filter_by(
+                category_code=cat_code,
+                subcategory_code=sub_code,
+                model=model_name
+            ).first()
+
+            if existing:
+                existing.model_order = new_order
+            else:
+                row = ProductDisplayOrder(
+                    category_code=cat_code,
+                    category_order=cat_order,
+                    subcategory_code=sub_code,
+                    subcategory_order=sub_order,
+                    model=model_name,
+                    model_order=new_order,
+                )
+                db.session.add(row)
+
+        db.session.commit()
+
+        # 异步同步到 SG
+        from app.services.cross_sync_service import sync_display_order_to_peer
+        sync_display_order_to_peer(cat_code, sub_code)
+
+        return jsonify({'success': True, 'message': '排序已保存'})
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"更新产品型号排序失败: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @product_code_bp.route('/api/field/<int:field_id>/update-options-order', methods=['POST'])
 @login_required
 @product_manager_required
@@ -2442,12 +2574,79 @@ def update_category_display_order():
             category = ProductCategory.query.get(category_id)
             if category:
                 category.display_order = new_order
+                # 同步更新 product_display_order 表
+                from app.models.product_display_order import ProductDisplayOrder
+                ProductDisplayOrder.query.filter_by(
+                    category_code=category.code_letter
+                ).update({'category_order': new_order})
 
         db.session.commit()
+
+        # 异步同步到 SG（全量推送所有受影响的子分类）
+        from app.services.cross_sync_service import sync_display_order_to_peer
+        from app.models.product_display_order import ProductDisplayOrder
+        affected = db.session.query(
+            ProductDisplayOrder.category_code, ProductDisplayOrder.subcategory_code
+        ).filter(
+            ProductDisplayOrder.category_code.in_([
+                ProductCategory.query.get(i['id']).code_letter
+                for i in items if i.get('id') and ProductCategory.query.get(i['id'])
+            ])
+        ).distinct().all()
+        for cat_code, sub_code in affected:
+            sync_display_order_to_peer(cat_code, sub_code)
+
         return jsonify({'success': True, 'message': '分类排序更新成功'})
     except Exception as e:
         db.session.rollback()
         current_app.logger.error(f"更新分类排序失败: {str(e)}")
+        return jsonify({'success': False, 'message': f'更新失败: {str(e)}'}), 500
+
+
+@product_code_bp.route('/api/category/<int:category_id>/update-subcategory-display-order', methods=['POST'])
+@login_required
+@product_manager_required
+@csrf.exempt
+def update_subcategory_display_order(category_id):
+    """更新子分类显示顺序（简单 display_order 更新）"""
+    try:
+        data = request.get_json()
+        items = data.get('items', [])
+        if not items:
+            return jsonify({'success': False, 'message': '未提供排序数据'}), 400
+
+        category = ProductCategory.query.get_or_404(category_id)
+
+        from app.models.product_display_order import ProductDisplayOrder
+
+        for item in items:
+            subcategory_id = item.get('id')
+            new_order = item.get('order')
+            if subcategory_id is None or new_order is None:
+                continue
+
+            subcategory = ProductSubcategory.query.get(subcategory_id)
+            if subcategory and subcategory.category_id == category_id:
+                subcategory.display_order = new_order
+                # 同步更新 product_display_order 表
+                ProductDisplayOrder.query.filter_by(
+                    category_code=category.code_letter,
+                    subcategory_code=subcategory.code_letter
+                ).update({'subcategory_order': new_order})
+
+        db.session.commit()
+
+        # 异步同步到 SG
+        from app.services.cross_sync_service import sync_display_order_to_peer
+        for item in items:
+            sub = ProductSubcategory.query.get(item.get('id'))
+            if sub:
+                sync_display_order_to_peer(category.code_letter, sub.code_letter)
+
+        return jsonify({'success': True, 'message': '子分类排序更新成功'})
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"更新子分类排序失败: {str(e)}")
         return jsonify({'success': False, 'message': f'更新失败: {str(e)}'}), 500
 
 @product_code_bp.route('/cleanup-invalid-codes', methods=['POST'])

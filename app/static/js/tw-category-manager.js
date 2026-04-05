@@ -19,11 +19,14 @@ const CategoryManager = {
         productManagers: [],  // 产品经理列表
         deleteType: null,  // 'category', 'subcategory', 'field'
         deleteId: null,
-        fieldFormMode: 'subcategory'  // 'category' 或 'subcategory'
+        fieldFormMode: 'subcategory',  // 'category' 或 'subcategory'
+        productModels: []  // 产品型号分组数据
     },
 
     // 通用字段拖拽排序实例
     fieldsSortable: null,
+    // 产品型号拖拽排序实例
+    productModelsSortable: null,
 
     // API 端点
     API: {
@@ -40,7 +43,13 @@ const CategoryManager = {
         categoryAvailableSpecs: (id) => `/product-code/api/category-fields/available-specs/${id}`,
         // 排序 API（复用后端已有 API）
         updateCategoryFieldsOrder: (id) => `/product-code/api/category/${id}/update-fields-order`,
-        updateSubcategoryFieldsOrder: (id) => `/product-code/api/subcategory/${id}/update-fields-order`
+        updateSubcategoryFieldsOrder: (id) => `/product-code/api/subcategory/${id}/update-fields-order`,
+        // 产品型号排序 API
+        subcategoryProductModels: (id) => `/product-code/api/subcategory/${id}/product-models`,
+        updateProductModelsOrder: (id) => `/product-code/api/subcategory/${id}/update-product-models-order`,
+        // 分类/子分类排序 API
+        updateCategoryDisplayOrder: '/product-code/category/update_order',
+        updateSubcategoryDisplayOrder: (id) => `/product-code/api/category/${id}/update-subcategory-display-order`
     },
 
     /**
@@ -129,6 +138,7 @@ const CategoryManager = {
                     empty.classList.remove('hidden');
                 } else {
                     this.renderCategoryList();
+                    this.initCategorySortable();
                 }
             } else {
                 empty.classList.remove('hidden');
@@ -156,6 +166,9 @@ const CategoryManager = {
                 onclick="CategoryManager.selectCategory(${cat.id})">
                 <div class="px-4 py-2.5 flex items-center justify-between">
                     <div class="flex items-center gap-2 flex-1 min-w-0">
+                        <span class="cat-drag-handle cursor-move text-slate-300 hover:text-slate-500 dark:hover:text-slate-400 flex-shrink-0" onclick="event.stopPropagation()">
+                            <span class="material-symbols-outlined text-base">drag_indicator</span>
+                        </span>
                         <span class="font-mono text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300">${cat.codeLetter}</span>
                         <div class="flex flex-col min-w-0">
                             <span class="text-sm font-medium text-slate-900 dark:text-white truncate">${cat.name}</span>
@@ -254,6 +267,11 @@ const CategoryManager = {
 
         // 重置规格字段区域
         this.resetFieldArea();
+
+        // 重置产品型号排序面板
+        if (document.getElementById('productModelsContainer')) {
+            this.resetProductModelsArea();
+        }
     },
 
     /**
@@ -441,6 +459,7 @@ const CategoryManager = {
             } else {
                 this.renderSubcategoryTable();
                 table.classList.remove('hidden');
+                this.initSubcategorySortable();
             }
 
         } catch (error) {
@@ -457,7 +476,13 @@ const CategoryManager = {
         const tbody = document.getElementById('subcategoryTableBody');
         tbody.innerHTML = this.state.subcategories.map((sub, index) => `
             <tr class="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 ${this.state.selectedSubcategoryId === sub.id ? 'bg-primary/5' : ''}"
+                data-id="${sub.id}"
                 onclick="CategoryManager.selectSubcategory(${sub.id})">
+                <td class="p-3">
+                    <span class="sub-drag-handle cursor-move text-slate-400 hover:text-slate-600 dark:hover:text-slate-300" onclick="event.stopPropagation()">
+                        <span class="material-symbols-outlined text-lg">drag_indicator</span>
+                    </span>
+                </td>
                 <td class="p-3 text-slate-500 dark:text-slate-400">${index + 1}</td>
                 <td class="p-3">
                     <span class="font-medium text-slate-900 dark:text-white">${sub.name}</span>
@@ -509,15 +534,24 @@ const CategoryManager = {
         // 更新选中状态
         this.renderSubcategoryTable();
 
-        // 更新标题
-        const subcategory = this.state.subcategories.find(s => s.id === subcategoryId);
-        document.getElementById('fieldTitle').textContent = subcategory ? `${subcategory.name} - 规格字段` : '规格字段';
+        // 规格字段面板（旧规格系统启用时存在）
+        const fieldTitle = document.getElementById('fieldTitle');
+        const addFieldBtn = document.getElementById('addFieldBtn');
+        if (fieldTitle && addFieldBtn) {
+            const subcategory = this.state.subcategories.find(s => s.id === subcategoryId);
+            fieldTitle.textContent = subcategory ? `${subcategory.name} - 规格字段` : '规格字段';
+            addFieldBtn.disabled = false;
+        }
 
-        // 启用添加字段按钮
-        document.getElementById('addFieldBtn').disabled = false;
+        // 产品型号排序面板（旧规格系统禁用时存在）
+        if (document.getElementById('productModelsContainer')) {
+            this.loadProductModels(subcategoryId);
+        }
 
-        // 加载规格字段
-        this.loadFields(subcategoryId);
+        // 加载规格字段（仅当 DOM 存在时）
+        if (document.getElementById('fieldPlaceholder')) {
+            this.loadFields(subcategoryId);
+        }
     },
 
     /**
@@ -652,13 +686,14 @@ const CategoryManager = {
      * 重置规格字段区域
      */
     resetFieldArea() {
-        document.getElementById('fieldPlaceholder').classList.remove('hidden');
-        document.getElementById('fieldLoading').classList.add('hidden');
-        document.getElementById('fieldEmpty').classList.add('hidden');
-        document.getElementById('fieldTable').classList.add('hidden');
-        document.getElementById('fieldTitle').textContent = '规格字段';
-        document.getElementById('fieldCount').textContent = '0';
-        document.getElementById('addFieldBtn').disabled = true;
+        const el = (id) => document.getElementById(id);
+        if (el('fieldPlaceholder')) el('fieldPlaceholder').classList.remove('hidden');
+        if (el('fieldLoading')) el('fieldLoading').classList.add('hidden');
+        if (el('fieldEmpty')) el('fieldEmpty').classList.add('hidden');
+        if (el('fieldTable')) el('fieldTable').classList.add('hidden');
+        if (el('fieldTitle')) el('fieldTitle').textContent = '规格字段';
+        if (el('fieldCount')) el('fieldCount').textContent = '0';
+        if (el('addFieldBtn')) el('addFieldBtn').disabled = true;
     },
 
     /**
@@ -1497,7 +1532,283 @@ const CategoryManager = {
         return false;
     },
 
+    // ========== 分类/子分类拖拽排序 ==========
+
+    /**
+     * 初始化分类列表拖拽排序
+     */
+    initCategorySortable() {
+        const list = document.getElementById('categoryList');
+        if (!list || typeof Sortable === 'undefined') return;
+
+        if (this._categorySortable) {
+            this._categorySortable.destroy();
+        }
+
+        this._categorySortable = new Sortable(list, {
+            animation: 150,
+            handle: '.cat-drag-handle',
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: async (evt) => {
+                const items = Array.from(list.querySelectorAll('li[data-id]')).map((el, index) => ({
+                    id: parseInt(el.dataset.id),
+                    order: index + 1
+                }));
+
+                // 更新 state 中的顺序
+                const idOrder = {};
+                items.forEach(i => idOrder[i.id] = i.order);
+                this.state.categories.sort((a, b) => (idOrder[a.id] || 999) - (idOrder[b.id] || 999));
+
+                // 保存到后端
+                try {
+                    const response = await fetch(this.API.updateCategoryDisplayOrder, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        this.showToast('分类排序已保存', 'success');
+                    } else {
+                        this.showToast(result.message || '保存失败', 'error');
+                    }
+                } catch (error) {
+                    console.error('保存分类排序失败:', error);
+                    this.showToast('保存排序失败', 'error');
+                }
+            }
+        });
+    },
+
+    /**
+     * 初始化子分类拖拽排序
+     */
+    initSubcategorySortable() {
+        const tbody = document.getElementById('subcategoryTableBody');
+        if (!tbody || typeof Sortable === 'undefined') return;
+
+        if (this._subcategorySortable) {
+            this._subcategorySortable.destroy();
+        }
+
+        this._subcategorySortable = new Sortable(tbody, {
+            animation: 150,
+            handle: '.sub-drag-handle',
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: async (evt) => {
+                const items = Array.from(tbody.querySelectorAll('tr[data-id]')).map((row, index) => ({
+                    id: parseInt(row.dataset.id),
+                    order: index + 1
+                }));
+
+                // 更新 state 中的顺序
+                const idOrder = {};
+                items.forEach(i => idOrder[i.id] = i.order);
+                this.state.subcategories.sort((a, b) => (idOrder[a.id] || 999) - (idOrder[b.id] || 999));
+                this.renderSubcategoryTable();
+
+                // 保存到后端
+                const categoryId = this.state.selectedCategoryId;
+                if (!categoryId) return;
+
+                try {
+                    const response = await fetch(this.API.updateSubcategoryDisplayOrder(categoryId), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ items })
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        this.showToast('子分类排序已保存', 'success');
+                    } else {
+                        this.showToast(result.message || '保存失败', 'error');
+                    }
+                } catch (error) {
+                    console.error('保存子分类排序失败:', error);
+                    this.showToast('保存排序失败', 'error');
+                }
+
+                // 重新初始化拖拽（因为 renderSubcategoryTable 重建了 DOM）
+                this.initSubcategorySortable();
+            }
+        });
+    },
+
+    // ========== 产品型号排序管理 ==========
+
+    /**
+     * 重置产品型号排序面板
+     */
+    resetProductModelsArea() {
+        const el = (id) => document.getElementById(id);
+        if (el('productModelsPlaceholder')) el('productModelsPlaceholder').classList.remove('hidden');
+        if (el('productModelsLoading')) el('productModelsLoading').classList.add('hidden');
+        if (el('productModelsEmpty')) el('productModelsEmpty').classList.add('hidden');
+        if (el('productModelsTable')) el('productModelsTable').classList.add('hidden');
+        if (el('productModelsTitle')) el('productModelsTitle').textContent = '产品型号排序';
+        if (el('productModelsCount')) el('productModelsCount').textContent = '0';
+        this.state.productModels = [];
+        if (this.productModelsSortable) {
+            this.productModelsSortable.destroy();
+            this.productModelsSortable = null;
+        }
+    },
+
+    /**
+     * 加载子分类下的产品型号
+     */
+    async loadProductModels(subcategoryId) {
+        const placeholder = document.getElementById('productModelsPlaceholder');
+        const loading = document.getElementById('productModelsLoading');
+        const empty = document.getElementById('productModelsEmpty');
+        const table = document.getElementById('productModelsTable');
+        const count = document.getElementById('productModelsCount');
+        const title = document.getElementById('productModelsTitle');
+
+        if (!placeholder) return;
+
+        placeholder.classList.add('hidden');
+        loading.classList.remove('hidden');
+        empty.classList.add('hidden');
+        table.classList.add('hidden');
+
+        try {
+            const response = await fetch(this.API.subcategoryProductModels(subcategoryId));
+            const result = await response.json();
+
+            loading.classList.add('hidden');
+
+            if (result.success && result.data && result.data.models) {
+                this.state.productModels = result.data.models;
+                const subcategory = this.state.subcategories.find(s => s.id === subcategoryId);
+                if (title && subcategory) {
+                    title.textContent = `${subcategory.name} - 产品型号排序`;
+                }
+            } else {
+                this.state.productModels = [];
+            }
+            count.textContent = this.state.productModels.length;
+
+            if (this.state.productModels.length === 0) {
+                empty.classList.remove('hidden');
+            } else {
+                this.renderProductModelsTable();
+                table.classList.remove('hidden');
+                this.initProductModelsSortable();
+            }
+        } catch (error) {
+            console.error('加载产品型号失败:', error);
+            loading.classList.add('hidden');
+            empty.classList.remove('hidden');
+        }
+    },
+
+    /**
+     * 渲染产品型号表格
+     */
+    renderProductModelsTable() {
+        const tbody = document.getElementById('productModelsTableBody');
+        if (!tbody) return;
+
+        tbody.innerHTML = this.state.productModels.map((item, index) => {
+            const escapedModel = this.escapeHtml(item.model);
+            const mnsTooltip = (item.product_mns || []).join(', ');
+            return `
+            <tr class="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                data-model="${escapedModel}">
+                <td class="p-3">
+                    <span class="drag-handle cursor-move text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                        <span class="material-symbols-outlined text-lg">drag_indicator</span>
+                    </span>
+                </td>
+                <td class="p-3 font-mono text-slate-500 dark:text-slate-400">${index + 1}</td>
+                <td class="p-3">
+                    <span class="font-medium text-slate-900 dark:text-white">${escapedModel}</span>
+                </td>
+                <td class="p-3 text-slate-500 dark:text-slate-400">
+                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                          title="${mnsTooltip}">${item.product_count}</span>
+                </td>
+            </tr>`;
+        }).join('');
+    },
+
+    /**
+     * 初始化产品型号拖拽排序
+     */
+    initProductModelsSortable() {
+        const tbody = document.getElementById('productModelsTableBody');
+        if (!tbody || typeof Sortable === 'undefined') return;
+
+        if (this.productModelsSortable) {
+            this.productModelsSortable.destroy();
+        }
+
+        this.productModelsSortable = new Sortable(tbody, {
+            animation: 150,
+            handle: '.drag-handle',
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            onEnd: async (evt) => {
+                // 收集新顺序
+                const items = Array.from(tbody.querySelectorAll('tr[data-model]')).map((row, index) => ({
+                    model: row.dataset.model,
+                    order: index + 1
+                }));
+
+                // 保存排序
+                await this.updateProductModelsOrder(items);
+
+                // 更新 state 顺序并重新渲染序号
+                this.state.productModels.sort((a, b) => {
+                    const aOrder = items.find(i => i.model === a.model)?.order ?? 999;
+                    const bOrder = items.find(i => i.model === b.model)?.order ?? 999;
+                    return aOrder - bOrder;
+                });
+                this.renderProductModelsTable();
+            }
+        });
+    },
+
+    /**
+     * 保存产品型号排序
+     */
+    async updateProductModelsOrder(items) {
+        const subcategoryId = this.state.selectedSubcategoryId;
+        if (!subcategoryId) return;
+
+        try {
+            const response = await fetch(this.API.updateProductModelsOrder(subcategoryId), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items })
+            });
+            const result = await response.json();
+            if (result.success) {
+                this.showToast('排序已保存', 'success');
+            } else {
+                this.showToast(result.message || '保存排序失败', 'error');
+            }
+        } catch (error) {
+            console.error('保存排序失败:', error);
+            this.showToast('保存排序失败', 'error');
+        }
+    },
+
     // ========== 工具函数 ==========
+
+    /**
+     * HTML 转义
+     */
+    escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    },
 
     /**
      * 显示提示消息

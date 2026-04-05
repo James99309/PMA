@@ -880,6 +880,16 @@
         variant='danger'
     ) }}
 
+    <!-- 同步确认模态框 -->
+    {{ tw_confirm_modal(
+        modal_id='syncConfigModal',
+        title=_('同步配置规格'),
+        message=_('确认将配置规格同步到所有关联产品？'),
+        confirm_text=_('同步'),
+        cancel_text=_('取消'),
+        variant='primary'
+    ) }}
+
     <!-- 布局脚本 -->
     {{ render_tw_layout_script() }}
     {{ tw_confirm_modal_script() }}
@@ -2212,9 +2222,15 @@
     /**
      * 执行配置到产品的同步
      */
-    async function syncConfigToProducts(configId) {
-        if (!confirm('{{ _("确认将配置规格同步到所有关联产品？") }}')) return;
+    function syncConfigToProducts(configId) {
+        openConfirmModal('syncConfigModal', {
+            onConfirm: async () => {
+                await _doSyncConfigToProducts(configId);
+            }
+        });
+    }
 
+    async function _doSyncConfigToProducts(configId) {
         const el = document.getElementById(`sync-status-${configId}`);
         if (!el) return;
         const originalText = el.textContent;

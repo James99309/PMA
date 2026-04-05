@@ -168,6 +168,8 @@
                                         {{ ref.database|upper }} · {{ ref.product_name or ref.product_mn }}
                                     </span>
                                     {% endfor %}
+                                    {# 同步状态徽章（异步加载） #}
+                                    <span id="sync-badge-{{ config.id }}" class="hidden inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded"></span>
                                     {% endif %}
                                 </div>
                                 <div class="flex items-center text-sm text-slate-600 dark:text-slate-400">
@@ -927,6 +929,38 @@
             });
         }
     });
+
+    // ========== 配置同步状态徽章（异步加载） ==========
+    async function loadSyncBadges() {
+        const configIds = Array.from(document.querySelectorAll('[data-config-id]')).map(el => parseInt(el.dataset.configId));
+        for (const cid of configIds) {
+            const badge = document.getElementById(`sync-badge-${cid}`);
+            if (!badge) continue;
+            try {
+                const resp = await fetch(`${API_BASE}/configurations/${cid}/sync-status`);
+                const data = await resp.json();
+                if (data.sync_status === 'needs_sync') {
+                    const total = (data.cn_diffs || []).length + (data.sg_diffs || []).length;
+                    badge.className = 'inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+                    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 14px;">sync_problem</span>{{ _('未同步') }} (${total})`;
+                    badge.classList.remove('hidden');
+                } else if (data.sync_status === 'synced') {
+                    badge.className = 'inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+                    badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 14px;">check_circle</span>{{ _('已同步') }}`;
+                    badge.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.warn(`sync-status ${cid}:`, e);
+            }
+        }
+    }
+
+    // 页面加载后异步获取所有配置同步状态
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadSyncBadges);
+    } else {
+        loadSyncBadges();
+    }
 
     // ========== 配置-产品对比（只读） ==========
 
