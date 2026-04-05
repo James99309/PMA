@@ -2955,14 +2955,16 @@ def get_region_prices_batch():
 
     price_map = {p.product_id: float(p.market_price) for p in prices}
 
-    # 如果是系统默认货币，fallback 到 Product.retail_price
+    # 请求的货币是系统默认货币时，fallback 到 Product.retail_price
+    # 仅当产品自身的 currency 字段也等于该货币时才 fallback，避免把 CNY 的 retail_price 当 USD 返回
     system_currency = Config.DEFAULT_CURRENCY
     if currency == system_currency:
         missing_ids = [pid for pid in product_ids if pid not in price_map]
         if missing_ids:
             products = Product.query.filter(Product.id.in_(missing_ids)).all()
             for p in products:
-                if p.retail_price:
+                product_currency = (p.currency or system_currency).upper()
+                if p.retail_price and product_currency == currency:
                     price_map[p.id] = float(p.retail_price)
 
     missing = [pid for pid in product_ids if pid not in price_map]

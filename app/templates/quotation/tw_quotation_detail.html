@@ -548,6 +548,7 @@
         'columns': product_columns,
         'currency': default_currency,
         'currency_symbol': currency_symbol,
+        'currency_selector_id': 'currency_modal',
         'api_endpoints': {
             'categories': '/api/products/categories',
             'productsByCategory': '/api/products/by-category',
@@ -1305,7 +1306,7 @@
 
                     if (!productIds.length) return;
 
-                    fetch('/product/api/products/region-prices/batch', {
+                    fetch('/api/products/region-prices/batch', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -1316,14 +1317,11 @@
                     .then(r => r.json())
                     .then(data => {
                         const prices = data.prices || {};
+                        const missing = data.missing || [];
+                        const missingProductNames = [];
                         Object.keys(rowMap).forEach(pid => {
                             const price = prices[pid];
-                            if (price === undefined) return;
                             rowMap[pid].forEach(rowId => {
-                                // 更新行数据
-                                const rowData = instance.rows.find(r => r.rowId === rowId);
-                                if (rowData) rowData.data.market_price = price;
-                                // 更新 DOM
                                 const row = document.getElementById(rowId);
                                 if (!row) return;
                                 let el = row.querySelector('input[data-col-key="market_price"], span[data-col-key="market_price"]');
@@ -1331,19 +1329,42 @@
                                     const td = row.querySelector('td[data-col-key="market_price"]');
                                     if (td) el = td.querySelector('input, span.cell-readonly');
                                 }
+                                if (price === undefined) {
+                                    // 未配置该货币面价 — 高亮标记并收集名称
+                                    const rowData = instance.rows.find(r => r.rowId === rowId);
+                                    const name = rowData?.data?.product_name || `#${pid}`;
+                                    if (!missingProductNames.includes(name)) missingProductNames.push(name);
+                                    if (el) {
+                                        el.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
+                                        el.title = '{{ _("该产品未配置 ") }}' + newCurrency + '{{ _(" 面价，请手动核对") }}';
+                                    }
+                                    return;
+                                }
+                                // 有面价 — 更新数据和 DOM
+                                const rowData = instance.rows.find(r => r.rowId === rowId);
+                                if (rowData) rowData.data.market_price = price;
                                 if (el) {
+                                    el.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40');
+                                    el.title = '';
                                     const formatted = window.EditableTable.formatNumber(price);
                                     if (el.tagName === 'INPUT') el.value = formatted;
                                     else el.textContent = formatted;
                                 }
-                                // 重新计算价格
                                 window.EditableTable.calculateUnitPrice(tableId, rowId);
                                 window.EditableTable.calculateTotalPrice(tableId, rowId);
                             });
                         });
                         setTimeout(() => window.EditableTable.calculateGrandTotal(tableId), 10);
+
+                        // 未命中时弹出提示
+                        if (missingProductNames.length > 0) {
+                            alert('{{ _("以下产品未配置 ") }}' + newCurrency + '{{ _(" 面价，请手动核对或在产品库中补充：\n\n") }}' + missingProductNames.join('\n'));
+                        }
                     })
-                    .catch(err => console.warn('批量获取地区面价失败:', err));
+                    .catch(err => {
+                        console.warn('批量获取地区面价失败:', err);
+                        alert('{{ _("获取地区面价失败，请检查网络后重试") }}');
+                    });
                 });
             }
 
