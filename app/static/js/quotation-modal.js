@@ -37,7 +37,12 @@ window.QuotationModal = (function() {
             manualInput: '手动输入',
             tempIndicator: '临时',
             noProjectsFound: '未找到匹配的项目',
-            newQuotation: '新建报价单'
+            newQuotation: '新建报价单',
+            // 产品选择器 i18n（传给 ProductSelector 实例）
+            products: '个产品',
+            priceNegotiable: '价格面议',
+            clickToSelectCount: '点击选择 ({count} 个型号/规格)',
+            discontinued: '停产'
         },
         urls: {
             createQuotation: '/quotation/create',
@@ -131,6 +136,12 @@ window.QuotationModal = (function() {
                         position: 'after_price',
                         style: 'temp-product-indicator'
                     }
+                },
+                i18n: {
+                    products: config.i18n.products,
+                    priceNegotiable: config.i18n.priceNegotiable,
+                    clickToSelectCount: config.i18n.clickToSelectCount,
+                    discontinued: config.i18n.discontinued
                 },
                 onSelect: function(product, inputElement) {
                     console.log('[QuotationModal] Product selected:', product);

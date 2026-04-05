@@ -52,10 +52,12 @@ class ProductSelector {
             // 跳过配置模态框（采购订单等场景使用）
             skipConfigModal: config && config.skipConfigModal === true,
             // 国际化配置
-            i18n: (config && config.i18n) || {
+            i18n: Object.assign({
                 products: '个产品',
                 priceNegotiable: '价格面议',
-            }
+                clickToSelectCount: '点击选择 ({count} 个型号/规格)',
+                discontinued: '停产'
+            }, (config && config.i18n) || {})
         };
         
         this.cache = new Map();
@@ -1208,19 +1210,21 @@ class ProductSelector {
                         <div class="product-price-area">
                             <span class="${priceClass}">${priceText}</span>
                             ${this._renderPointsBadge(product)}
-                            ${isDiscontinued ? '<span class="product-status-badge discontinued">停产</span>' : ''}
+                            ${isDiscontinued ? `<span class="product-status-badge discontinued">${this.config.i18n.discontinued}</span>` : ''}
                         </div>
                     `;
                 } else {
                     // 多个产品：显示"点击选择"提示
                     const firstProduct = modelGroup.products[0];
+                    const clickTpl = this.config.i18n.clickToSelectCount || '点击选择 ({count} 个型号/规格)';
+                    const clickLabel = clickTpl.replace('{count}', modelGroup.count);
                     contentHtml = `
                         <div class="product-detail-info">
                             <div class="product-line-1">
                                 <h3 class="product-name-title">${modelGroup.product_name || firstProduct.product_name || ''}</h3>
                             </div>
                             ${modelGroup.model ? `<div class="product-model">${modelGroup.model}</div>` : ''}
-                            <div class="product-count">点击选择 (${modelGroup.count} 个型号/规格)</div>
+                            <div class="product-count">${clickLabel}</div>
                         </div>
                         <div class="product-price-area">
                             <span class="material-symbols-outlined expand-arrow">chevron_right</span>

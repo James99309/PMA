@@ -555,7 +555,18 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             confirmDelete: {{ _("确定要删除这一行吗？") | tojson | safe }},
             addConfig: {{ _("添加配件") | tojson | safe }},
             products: {{ _("个产品") | tojson | safe }},
-            priceNegotiable: {{ _("价格面议") | tojson | safe }}
+            priceNegotiable: {{ _("价格面议") | tojson | safe }},
+            // 自建产品行 placeholders
+            customNameSearch: {{ _("输入产品名称或型号搜索...") | tojson | safe }},
+            colModel: {{ _("型号") | tojson | safe }},
+            colDesc: {{ _("描述") | tojson | safe }},
+            colBrand: {{ _("品牌") | tojson | safe }},
+            colUnit: {{ _("单位") | tojson | safe }},
+            colMarketPrice: {{ _("市场价") | tojson | safe }},
+            mnAutoGenerate: {{ _("保存时自动生成") | tojson | safe }},
+            // 产品选择器分类视图（穿透到 ProductSelector i18n）
+            clickToSelectCount: {{ _("点击选择 ({count} 个型号/规格)") | tojson | safe }},
+            discontinued: {{ _("停产") | tojson | safe }}
         }
     };
 
@@ -776,13 +787,15 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
         row.dataset.source = 'custom';
 
         const self = this;
+        const instance = this.instances[tableId];
+        const i18n = (instance && instance.config && instance.config.i18n) || {};
 
         // 1. 转换产品名称单元格：按钮 → 输入框（带 autocomplete）
         const nameCell = row.querySelector('td[data-col-key="product_name"]');
         if (nameCell) {
             nameCell.innerHTML = '<input type="text" class="cell-input custom-product-name-input" '
                 + 'data-row-id="' + rowId + '" data-col-key="product_name" '
-                + 'placeholder="输入产品名称或型号搜索..." '
+                + 'placeholder="' + escapeAttr(i18n.customNameSearch || '输入产品名称或型号搜索...') + '" '
                 + 'autocomplete="off" '
                 + 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'product_name\', this.value)">';
 
@@ -803,16 +816,16 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             const listAttr = (key === 'brand') ? ' list="custom-brand-options"'
                           : (key === 'unit')  ? ' list="custom-unit-options"'
                           : '';
-            const placeholder = (key === 'product_model') ? '型号'
-                              : (key === 'product_desc')  ? '描述'
-                              : (key === 'brand')         ? '品牌'
-                              : (key === 'unit')          ? '单位'
+            const placeholder = (key === 'product_model') ? (i18n.colModel || '型号')
+                              : (key === 'product_desc')  ? (i18n.colDesc  || '描述')
+                              : (key === 'brand')         ? (i18n.colBrand || '品牌')
+                              : (key === 'unit')          ? (i18n.colUnit  || '单位')
                               : '';
 
             cell.innerHTML = '<input type="text" class="cell-input" '
                 + 'data-row-id="' + rowId + '" data-col-key="' + key + '" '
                 + 'value="' + escapeAttr(currentValue) + '" '
-                + 'placeholder="' + placeholder + '" '
+                + 'placeholder="' + escapeAttr(placeholder) + '" '
                 + 'autocomplete="off"' + listAttr + ' '
                 + 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'' + key + '\', this.value)">';
         });
@@ -827,7 +840,7 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             priceCell.innerHTML = '<input type="text" class="cell-input" '
                 + 'data-row-id="' + rowId + '" data-col-key="market_price" data-type="currency" '
                 + 'value="' + priceDisplay + '" '
-                + 'placeholder="市场价" '
+                + 'placeholder="' + escapeAttr(i18n.colMarketPrice || '市场价') + '" '
                 + 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'market_price\', this.value)" '
                 + 'onkeydown="window.EditableTable.onNumberKeyDown(event, \'' + tableId + '\', \'' + rowId + '\', \'market_price\')" '
                 + 'onblur="window.EditableTable.formatCell(\'' + tableId + '\', \'' + rowId + '\', \'market_price\', this)">';
@@ -838,7 +851,7 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
         if (mnCell) {
             const mnSpan = mnCell.querySelector('span[data-col-key="product_mn"]');
             if (mnSpan && !mnSpan.textContent.trim()) {
-                mnSpan.textContent = '保存时自动生成';
+                mnSpan.textContent = i18n.mnAutoGenerate || '保存时自动生成';
                 mnSpan.classList.add('cpa-placeholder');
             }
         }
@@ -1284,6 +1297,8 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
                 i18n: {
                     products: instance.config.i18n.products,
                     priceNegotiable: instance.config.i18n.priceNegotiable,
+                    clickToSelectCount: instance.config.i18n.clickToSelectCount,
+                    discontinued: instance.config.i18n.discontinued,
                 },
                 onSelect: null  // 稍后设置
             });

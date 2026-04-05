@@ -3388,7 +3388,7 @@ msgstr "Cannot be empty"
 msgid "两次输入的密码不一致"
 msgstr "Passwords do not match"
 msgid "个产品"
-msgstr " products"
+msgstr "products"
 msgid "个人级"
 msgstr "Personal level"
 msgid "个人绩效详细统计"
@@ -11061,3 +11061,36 @@ msgstr "Synced %(n)d products"
 
 msgid "，%(n)d 个失败"
 msgstr ", %(n)d failed"
+
+msgid "添加自建产品"
+msgstr "Add Custom Product"
+
+msgid "输入产品名称或型号搜索..."
+msgstr "Search by product name or model..."
+
+msgid "点击选择 ({count} 个型号/规格)"
+msgstr "Click to select ({count} models/specs)"
+
+msgid "保存时自动生成"
+msgstr "Auto-generated on save"
+
+msgid "地区面价"
+msgstr "Regional Pricing"
+
+msgid "暂无地区面价，点击添加"
+msgstr "No regional prices yet, click to add"
+
+msgid "暂无地区面价"
+msgstr "No regional prices"
+
+msgid "所有货币的面价都已配置"
+msgstr "Market prices for all currencies are configured"
+
+msgid "确认删除此地区面价？"
+msgstr "Confirm deletion of this regional price?"
+
+msgid "港币"
+msgstr "Hong Kong Dollar"
+
+msgid "面价"
+msgstr "Market Price"
