@@ -3425,6 +3425,18 @@ def view_quotation(id):
         quotation_details_json = '[]'
         if can_edit_this_quotation:
             import json
+            # 批量反查 product_mn → Product.id 映射（用于货币切换时拉地区面价）
+            non_temp_mns = list({
+                str(getattr(d, 'product_mn', '') or '')
+                for d in quotation.details
+                if getattr(d, 'product_mn', None) and not str(d.product_mn).startswith('TEMP_')
+            })
+            product_mn_to_id = {}
+            if non_temp_mns:
+                from app.models.product import Product as _Product
+                _products = _Product.query.filter(_Product.product_mn.in_(non_temp_mns)).all()
+                product_mn_to_id = {p.product_mn: p.id for p in _products}
+
             details_for_edit = []
             for detail in quotation.details:
                 try:
@@ -3432,6 +3444,7 @@ def view_quotation(id):
                     is_temp_product = product_mn.startswith('TEMP_')
                     detail_data = {
                         'item_id': detail.id,  # 数据库ID，用于父子关系映射
+                        'product_id': product_mn_to_id.get(product_mn),  # 反查 Product.id，用于货币切换拉地区面价
                         'product_name': str(detail.product_name or ''),
                         'product_model': str(detail.product_model or ''),
                         'product_desc': str(detail.product_desc or ''),
