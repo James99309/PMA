@@ -1011,6 +1011,7 @@
                     const productData = existingDetails.map(function(detail) {
                         return {
                             item_id: detail.item_id || detail.id,
+                            product_id: detail.product_id,  // 透传 Product.id，用于货币切换拉地区面价
                             product_name: detail.product_name,
                             product_model: detail.product_model,
                             product_desc: detail.product_desc,

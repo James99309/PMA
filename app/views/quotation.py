@@ -1622,6 +1622,19 @@ def edit_quotation(id):
                 else:
                     detail.product_mn = ''
         
+        # 批量反查 product_mn → product_id 映射（用于货币切换时拉地区面价）
+        # 性能优化：一次性查询所有非临时产品的 product_mn
+        non_temp_mns = list({
+            str(getattr(d, 'product_mn', '') or '')
+            for d in quotation.details
+            if getattr(d, 'product_mn', None) and not str(d.product_mn).startswith('TEMP_')
+        })
+        product_mn_to_id = {}
+        if non_temp_mns:
+            from app.models.product import Product as _Product
+            _products = _Product.query.filter(_Product.product_mn.in_(non_temp_mns)).all()
+            product_mn_to_id = {p.product_mn: p.id for p in _products}
+
         # 准备报价单详情的JSON数据，以便在模板中使用
         quotation_details = []
         for detail in quotation.details:
@@ -1629,9 +1642,10 @@ def edit_quotation(id):
                 # 检查是否为临时产品
                 product_mn = str(getattr(detail, 'product_mn', '') or '')
                 is_temp_product = product_mn.startswith('TEMP_')
-                
+
                 # 安全地获取所有字段，确保没有None或Undefined值，并强制类型转换
                 detail_data = {
+                    'product_id': product_mn_to_id.get(product_mn),  # 反查 Product.id，用于货币切换拉地区面价
                     'product_name': str(detail.product_name or ''),
                     'product_model': str(detail.product_model or ''),
                     'product_desc': str(detail.product_desc or ''),
