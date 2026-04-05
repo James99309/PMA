@@ -1232,22 +1232,33 @@ def _apply_pricing_order_sort(query, sort_field, sort_order):
 
 
 def _get_pricing_order_stats(base_query):
-    """计算批价单统计数据（单次条件聚合，含金额统计）"""
+    """计算批价单统计数据（count 用 SQL，amount 跨货币换算到系统默认货币）"""
     from flask_babel import gettext as _
     from sqlalchemy import case, func
     from config import Config
     from app.utils.i18n import get_current_language
+    from app.services.multi_currency_aggregation import MultiCurrencyAggregationService
 
-    result = base_query.with_entities(
+    # 数量统计（不涉及货币，直接 SQL）
+    count_result = base_query.with_entities(
         func.count(PricingOrder.id).label('total'),
-        func.coalesce(func.sum(PricingOrder.pricing_total_amount), 0).label('total_amount'),
         func.count(case((PricingOrder.status == 'approved', PricingOrder.id))).label('approved'),
-        func.coalesce(func.sum(case((PricingOrder.status == 'approved', PricingOrder.pricing_total_amount))), 0).label('approved_amount'),
         func.count(case((PricingOrder.status == 'pending', PricingOrder.id))).label('pending'),
-        func.coalesce(func.sum(case((PricingOrder.status == 'pending', PricingOrder.pricing_total_amount))), 0).label('pending_amount'),
         func.count(case((PricingOrder.status == 'draft', PricingOrder.id))).label('draft'),
-        func.coalesce(func.sum(case((PricingOrder.status == 'draft', PricingOrder.pricing_total_amount))), 0).label('draft_amount'),
     ).first()
+
+    # 金额统计（跨货币换算到 Config.DEFAULT_CURRENCY）
+    amount_stats = MultiCurrencyAggregationService.sum_converted_with_conditions(
+        base_query,
+        PricingOrder.pricing_total_amount,
+        PricingOrder.currency,
+        {
+            'total': None,
+            'approved': PricingOrder.status == 'approved',
+            'pending': PricingOrder.status == 'pending',
+            'draft': PricingOrder.status == 'draft',
+        }
+    )
 
     # 语言感知的金额单位
     current_lang = get_current_language()
@@ -1258,10 +1269,10 @@ def _get_pricing_order_stats(base_query):
         amount_unit = Config.AMOUNT_UNIT
         amount_divisor = Config.AMOUNT_DIVISOR
 
-    total_count = result.total or 0
-    approved_count = result.approved or 0
-    pending_count = result.pending or 0
-    draft_count = result.draft or 0
+    total_count = count_result.total or 0
+    approved_count = count_result.approved or 0
+    pending_count = count_result.pending or 0
+    draft_count = count_result.draft or 0
 
     stats_cards = [
         {
@@ -1269,7 +1280,7 @@ def _get_pricing_order_stats(base_query):
             'title': _('全部批价单'),
             'icon': 'fas fa-file-invoice-dollar',
             'value': total_count,
-            'amount': round((result.total_amount or 0) / amount_divisor, 2),
+            'amount': round(amount_stats['total'] / amount_divisor, 2),
             'unit': _('份'),
             'amount_unit': amount_unit,
             'color': 'primary',
@@ -1279,7 +1290,7 @@ def _get_pricing_order_stats(base_query):
             'title': _('已批准'),
             'icon': 'fas fa-check-circle',
             'value': approved_count,
-            'amount': round((result.approved_amount or 0) / amount_divisor, 2),
+            'amount': round(amount_stats['approved'] / amount_divisor, 2),
             'unit': _('份'),
             'amount_unit': amount_unit,
             'color': 'success',
@@ -1289,7 +1300,7 @@ def _get_pricing_order_stats(base_query):
             'title': _('审批中'),
             'icon': 'fas fa-clock',
             'value': pending_count,
-            'amount': round((result.pending_amount or 0) / amount_divisor, 2),
+            'amount': round(amount_stats['pending'] / amount_divisor, 2),
             'unit': _('份'),
             'amount_unit': amount_unit,
             'color': 'warning',
@@ -1299,7 +1310,7 @@ def _get_pricing_order_stats(base_query):
             'title': _('草稿'),
             'icon': 'fas fa-edit',
             'value': draft_count,
-            'amount': round((result.draft_amount or 0) / amount_divisor, 2),
+            'amount': round(amount_stats['draft'] / amount_divisor, 2),
             'unit': _('份'),
             'amount_unit': amount_unit,
             'color': 'secondary',
