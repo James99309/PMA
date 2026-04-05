@@ -1282,11 +1282,68 @@
                 });
             }
 
-            // 货币变化事件（预留扩展）
+            // 货币变化 → 批量刷新已有产品面价
             const currencySelect = document.getElementById('currency_modal');
             if (currencySelect) {
                 currencySelect.addEventListener('change', function() {
-                    // 货币选择变化时的处理（如需要）
+                    const newCurrency = this.value;
+                    const tableId = 'quotationProductTable';
+                    const instance = window.EditableTable?.instances?.[tableId];
+                    if (!instance || !instance.rows.length) return;
+
+                    // 收集所有有 product_id 的行
+                    const productIds = [];
+                    const rowMap = {};
+                    instance.rows.forEach(r => {
+                        const pid = r.data.product_id || r.data.id;
+                        if (pid && !r.data.is_temp) {
+                            productIds.push(pid);
+                            if (!rowMap[pid]) rowMap[pid] = [];
+                            rowMap[pid].push(r.rowId);
+                        }
+                    });
+
+                    if (!productIds.length) return;
+
+                    fetch('/product/api/products/region-prices/batch', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                        },
+                        body: JSON.stringify({product_ids: [...new Set(productIds)], currency: newCurrency})
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        const prices = data.prices || {};
+                        Object.keys(rowMap).forEach(pid => {
+                            const price = prices[pid];
+                            if (price === undefined) return;
+                            rowMap[pid].forEach(rowId => {
+                                // 更新行数据
+                                const rowData = instance.rows.find(r => r.rowId === rowId);
+                                if (rowData) rowData.data.market_price = price;
+                                // 更新 DOM
+                                const row = document.getElementById(rowId);
+                                if (!row) return;
+                                let el = row.querySelector('input[data-col-key="market_price"], span[data-col-key="market_price"]');
+                                if (!el) {
+                                    const td = row.querySelector('td[data-col-key="market_price"]');
+                                    if (td) el = td.querySelector('input, span.cell-readonly');
+                                }
+                                if (el) {
+                                    const formatted = window.EditableTable.formatNumber(price);
+                                    if (el.tagName === 'INPUT') el.value = formatted;
+                                    else el.textContent = formatted;
+                                }
+                                // 重新计算价格
+                                window.EditableTable.calculateUnitPrice(tableId, rowId);
+                                window.EditableTable.calculateTotalPrice(tableId, rowId);
+                            });
+                        });
+                        setTimeout(() => window.EditableTable.calculateGrandTotal(tableId), 10);
+                    })
+                    .catch(err => console.warn('批量获取地区面价失败:', err));
                 });
             }
 

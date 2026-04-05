@@ -1070,6 +1070,45 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
         const row = document.getElementById(rowId);
         if (!row) return;
 
+        // 根据当前报价单货币查询地区面价
+        const currencySelect = document.getElementById('currency_modal');
+        const currentCurrency = currencySelect ? currencySelect.value : '';
+        const productId = product.product_id || product.id;
+
+        if (currentCurrency && productId && !product.is_temp) {
+            this._fetchRegionPrice(productId, currentCurrency, product, function(resolvedProduct) {
+                window.EditableTable._applyProductToRow(tableId, rowId, resolvedProduct);
+            });
+        } else {
+            this._applyProductToRow(tableId, rowId, product);
+        }
+    };
+
+    // 查询产品地区面价
+    window.EditableTable._fetchRegionPrice = function(productId, currency, product, callback) {
+        fetch('/product/api/products/region-prices/batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+            body: JSON.stringify({product_ids: [productId], currency: currency})
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.prices && data.prices[productId] !== undefined) {
+                product.market_price = data.prices[productId];
+            }
+            callback(product);
+        })
+        .catch(() => callback(product));
+    };
+
+    // 将产品数据应用到行
+    window.EditableTable._applyProductToRow = function(tableId, rowId, product) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
         // 更新产品选择器按钮
         const trigger = row.querySelector('.product-selector-trigger');
         if (trigger) {
@@ -1131,43 +1170,58 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
         if (configurations.length > 0) {
             console.log(`📦 [EditableTable] 添加 ${configurations.length} 个配置产品`);
 
-            configurations.forEach(config => {
-                // 为配置产品构建数据
-                const configData = {
-                    product_name: config.product_name || '',
-                    product_model: config.product_model || config.model || '',
-                    product_desc: config.specification || config.product_desc || '',
-                    brand: config.brand || '',
-                    unit: config.unit || '',
-                    market_price: config.retail_price || config.market_price || 0,
-                    product_mn: config.product_mn || '',
-                    quantity: config.quantity || config.default_quantity || 1,
-                    discount: 100,
-                    is_configuration: true,
-                    config_type: config.relation_type || config.source || 'required_accessory',
-                    config_base_quantity: config.default_quantity || 1  // 基础数量，用于同步计算
-                };
+            // 收集配置产品ID，批量查询地区面价
+            const configProductIds = configurations.map(c => c.id).filter(Boolean);
+            const currencyEl = document.getElementById('currency_modal');
+            const quoteCurrency = currencyEl ? currencyEl.value : '';
 
-                // 添加配置产品行
-                const configRowId = self.addRow(tableId, rowId, configData);
-                console.log(`  ✓ 添加配置行: ${configData.product_name} (${configRowId})`);
+            const addConfigRows = function(priceMap) {
+                configurations.forEach(config => {
+                    const regionPrice = priceMap[config.id];
+                    const configData = {
+                        product_name: config.product_name || '',
+                        product_model: config.product_model || config.model || '',
+                        product_desc: config.specification || config.product_desc || '',
+                        brand: config.brand || '',
+                        unit: config.unit || '',
+                        market_price: regionPrice !== undefined ? regionPrice : (config.retail_price || config.market_price || 0),
+                        product_mn: config.product_mn || '',
+                        quantity: config.quantity || config.default_quantity || 1,
+                        discount: 100,
+                        is_configuration: true,
+                        config_type: config.relation_type || config.source || 'required_accessory',
+                        config_base_quantity: config.default_quantity || 1
+                    };
 
-                // 添加波折图标
-                if (configRowId) {
-                    self.addConfigLinkIcon(tableId, configRowId);
+                    const configRowId = self.addRow(tableId, rowId, configData);
+                    console.log(`  ✓ 添加配置行: ${configData.product_name} (${configRowId})`);
 
-                    // 计算配置行价格
-                    setTimeout(function() {
-                        self.calculateUnitPrice(tableId, configRowId);
-                        self.calculateTotalPrice(tableId, configRowId);
-                    }, 0);
-                }
-            });
+                    if (configRowId) {
+                        self.addConfigLinkIcon(tableId, configRowId);
+                        setTimeout(function() {
+                            self.calculateUnitPrice(tableId, configRowId);
+                            self.calculateTotalPrice(tableId, configRowId);
+                        }, 0);
+                    }
+                });
 
-            // 更新总计
-            setTimeout(function() {
-                self.calculateGrandTotal(tableId);
-            }, 10);
+                setTimeout(function() {
+                    self.calculateGrandTotal(tableId);
+                }, 10);
+            };
+
+            if (quoteCurrency && configProductIds.length > 0) {
+                fetch('/product/api/products/region-prices/batch', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json', 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''},
+                    body: JSON.stringify({product_ids: configProductIds, currency: quoteCurrency})
+                })
+                .then(r => r.json())
+                .then(data => addConfigRows(data.prices || {}))
+                .catch(() => addConfigRows({}));
+            } else {
+                addConfigRows({});
+            }
         }
     };
 

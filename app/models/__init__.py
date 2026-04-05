@@ -2,7 +2,7 @@ from app.models.user import User
 from app.models.project import Project
 from app.models.customer import Company, Contact
 from .quotation import Quotation
-from app.models.product import Product
+from app.models.product import Product, ProductRegionPrice
 from app.models.product_spec import ProductSpec
 from app.models.product_code import ProductCategory, ProductSubcategory, ProductCodeField, ProductCodeFieldOption, ProductCode, ProductCodeFieldValue, SpecificationDictionary
 from app.models.product_relation import ProductRelation

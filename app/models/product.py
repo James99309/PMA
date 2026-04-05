@@ -240,3 +240,21 @@ class Product(db.Model):
         """积分等级: 'gold' / 'silver' / 'bronze'"""
         from app.helpers.product_points import get_points_tier
         return get_points_tier(self.points)
+
+
+class ProductRegionPrice(db.Model):
+    """产品地区价格表 — 同一产品在不同货币/地区的独立面价"""
+    __tablename__ = 'product_region_prices'
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    currency = db.Column(db.String(10), nullable=False)  # 'MYR', 'SGD' 等
+    market_price = db.Column(db.Numeric(10, 2), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+    __table_args__ = (
+        db.UniqueConstraint('product_id', 'currency', name='uq_product_region_price'),
+    )
+
+    product = db.relationship('Product', backref=db.backref('region_prices', lazy='dynamic'))
