@@ -182,6 +182,65 @@ PricingOrderModal.onDetailDelete = async function(tableId, rowId, rowData, detai
     .dark .editable-table .cell-input:disabled {
         color: #6b7280;
     }
+    /* 地区面价缺失时的黄色高亮 — 必须覆盖 .cell-input 的 transparent 背景 */
+    .editable-table .cell-input.region-price-missing {
+        background: #fef3c7;  /* yellow-100 */
+        border-color: #fbbf24; /* amber-400 */
+    }
+    .editable-table .cell-input.region-price-missing:hover:not(:focus) {
+        background: #fde68a;  /* yellow-200 */
+    }
+    .editable-table .cell-input.region-price-missing:focus {
+        background: #fffbeb;  /* yellow-50 */
+        border-color: #f59e0b; /* amber-500 */
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+    }
+    .dark .editable-table .cell-input.region-price-missing {
+        background: rgba(120, 53, 15, 0.35);
+        border-color: rgba(251, 191, 36, 0.5);
+    }
+    .dark .editable-table .cell-input.region-price-missing:focus {
+        background: rgba(120, 53, 15, 0.5);
+    }
+
+    /* 隐藏 datalist 输入框的原生下拉箭头（节省单元格空间） */
+    .editable-table input[list]::-webkit-calendar-picker-indicator {
+        display: none !important;
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+    }
+    .editable-table input[list] {
+        -webkit-appearance: textfield !important;
+        appearance: textfield !important;
+    }
+    /* Firefox: list-style-type */
+    .editable-table input[list]::-moz-list-bullet {
+        display: none !important;
+    }
+
+    /* 自建产品行：空输入框黄色高亮（基于 :placeholder-shown） */
+    .editable-table tr[data-source="custom"] .cell-input:placeholder-shown {
+        background: #fef3c7 !important;  /* yellow-100 */
+        border-color: #fbbf24 !important; /* amber-400 */
+    }
+    .editable-table tr[data-source="custom"] .cell-input:placeholder-shown:hover:not(:focus) {
+        background: #fde68a !important; /* yellow-200 */
+    }
+    .editable-table tr[data-source="custom"] .cell-input:placeholder-shown:focus {
+        background: #fffbeb !important;  /* yellow-50 */
+        border-color: #f59e0b !important; /* amber-500 */
+        box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2) !important;
+    }
+    .dark .editable-table tr[data-source="custom"] .cell-input:placeholder-shown {
+        background: rgba(120, 53, 15, 0.35) !important;
+        border-color: rgba(251, 191, 36, 0.5) !important;
+    }
+    .dark .editable-table tr[data-source="custom"] .cell-input:placeholder-shown:focus {
+        background: rgba(120, 53, 15, 0.5) !important;
+    }
 
     /* 只读单元格 - 直接显示值 */
     .editable-table .cell-readonly {
@@ -536,6 +595,79 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
         return null;
     };
 
+    /**
+     * 构建单元格内部 HTML（decides span vs input based on col config and region price state）
+     * @param {object} col - 列配置
+     * @param {any} value - 单元格值
+     * @param {string} rowId
+     * @param {string} tableId
+     * @param {boolean} regionPriceMissing - 行是否处于"缺失地区面价"状态
+     * @returns {string} HTML 字符串
+     */
+    window.EditableTable.buildCellInner = function(col, value, rowId, tableId, regionPriceMissing) {
+        if (col.type === 'product-selector') {
+            const instance = this.instances[tableId];
+            const placeholder = instance?.config?.i18n?.selectProduct || '选择产品';
+            return '<div class="product-selector-cell">'
+                + '<button type="button" class="product-selector-trigger placeholder" '
+                + 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" '
+                + 'onclick="window.EditableTable.openProductSelector(\'' + tableId + '\', \'' + rowId + '\')">'
+                + (value || placeholder)
+                + '</button></div>';
+        }
+
+        // 判断是否因为 editable_when_missing 而要把只读列变为可编辑
+        const forceEditable = col.readonly && col.editable_when_missing && regionPriceMissing;
+
+        if (col.readonly && !forceEditable) {
+            // 真正只读 - 货币类型需要格式化
+            const displayValue = col.type === 'currency' ? this.formatNumber(value) : value;
+            return '<span class="cell-readonly" data-col-key="' + col.key + '">' + displayValue + '</span>';
+        } else if (col.type === 'number' || col.type === 'currency') {
+            // 数字输入 - 支持上下键调整
+            // 未命中地区面价时，input 初始显示空字符串（而非 0），并加黄色高亮
+            const isMissingEmpty = forceEditable && (!value || parseFloat(value) === 0);
+            const displayValue = isMissingEmpty ? '' : (col.type === 'currency' ? this.formatNumber(value) : value);
+            const missingClass = forceEditable ? ' region-price-missing' : '';
+            const missingTitle = forceEditable ? '该产品未配置当前货币面价，请手动填写' : '';
+            return '<input type="text" class="cell-input' + missingClass + '" '
+                + 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" data-type="' + col.type + '" '
+                + 'value="' + displayValue + '" '
+                + (missingTitle ? 'title="' + missingTitle + '" ' : '')
+                + 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\', this.value)" '
+                + 'onkeydown="window.EditableTable.onNumberKeyDown(event, \'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\')" '
+                + 'onblur="window.EditableTable.formatCell(\'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\', this)">';
+        } else {
+            // 文本输入
+            return '<input type="text" class="cell-input" '
+                + 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" '
+                + 'value="' + value + '" '
+                + 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\', this.value)">';
+        }
+    };
+
+    /**
+     * 重建某一行的 market_price 单元格，根据 product._regionPriceMissing 决定渲染 span 或 input
+     * @param {string} tableId
+     * @param {string} rowId
+     * @param {object} product - 至少包含 market_price 和 _regionPriceMissing
+     */
+    window.EditableTable.rebuildMarketPriceCell = function(tableId, rowId, product) {
+        const instance = this.instances[tableId];
+        if (!instance) return;
+        const row = document.getElementById(rowId);
+        if (!row) return;
+        const td = row.querySelector('td[data-col-key="market_price"]');
+        if (!td) return;
+
+        const col = instance.config.columns.find(c => c.key === 'market_price');
+        if (!col) return;
+
+        const regionPriceMissing = product && product._regionPriceMissing === true;
+        const value = product && product.market_price !== undefined ? product.market_price : 0;
+        td.innerHTML = this.buildCellInner(col, value, rowId, tableId, regionPriceMissing);
+    };
+
     // 添加行
     window.EditableTable.addRow = function(tableId, parentRowId = null, productData = null) {
         console.log(`[EditableTable.addRow] 添加行: tableId=${tableId}, productData=`, productData);
@@ -575,37 +707,11 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             const value = (rawValue !== null && rawValue !== undefined) ? rawValue : (col.default ?? '');
             const alignClass = col.align === 'right' ? 'text-right' : (col.align === 'center' ? 'text-center' : '');
 
+            // 判断是否处于"缺失地区面价"状态（让 editableWhenMissing 列变为可编辑）
+            const regionPriceMissing = productData && productData._regionPriceMissing === true;
+
             cellsHtml += '<td class="' + alignClass + '" data-col-key="' + col.key + '">';
-
-            if (col.type === 'product-selector') {
-                // 产品选择器
-                cellsHtml += '<div class="product-selector-cell">';
-                cellsHtml += '<button type="button" class="product-selector-trigger placeholder" ';
-                cellsHtml += 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" ';
-                cellsHtml += 'onclick="window.EditableTable.openProductSelector(\'' + tableId + '\', \'' + rowId + '\')">';
-                cellsHtml += value || instance.config.i18n.selectProduct;
-                cellsHtml += '</button></div>';
-            } else if (col.readonly) {
-                // 只读单元格 - 货币类型需要格式化
-                const displayValue = col.type === 'currency' ? this.formatNumber(value) : value;
-                cellsHtml += '<span class="cell-readonly" data-col-key="' + col.key + '">' + displayValue + '</span>';
-            } else if (col.type === 'number' || col.type === 'currency') {
-                // 数字输入 - 支持上下键调整
-                const displayValue = col.type === 'currency' ? this.formatNumber(value) : value;
-                cellsHtml += '<input type="text" class="cell-input" ';
-                cellsHtml += 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" data-type="' + col.type + '" ';
-                cellsHtml += 'value="' + displayValue + '" ';
-                cellsHtml += 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\', this.value)" ';
-                cellsHtml += 'onkeydown="window.EditableTable.onNumberKeyDown(event, \'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\')" ';
-                cellsHtml += 'onblur="window.EditableTable.formatCell(\'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\', this)">';
-            } else {
-                // 文本输入
-                cellsHtml += '<input type="text" class="cell-input" ';
-                cellsHtml += 'data-row-id="' + rowId + '" data-col-key="' + col.key + '" ';
-                cellsHtml += 'value="' + value + '" ';
-                cellsHtml += 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'' + col.key + '\', this.value)">';
-            }
-
+            cellsHtml += this.buildCellInner(col, value, rowId, tableId, regionPriceMissing);
             cellsHtml += '</td>';
         });
 
@@ -643,8 +749,148 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             data: productData || {}
         });
 
+        // 自建产品行：转换产品名称为输入框并附加 autocomplete
+        if (productData && productData.source === 'custom') {
+            this.convertRowToCustomProduct(tableId, rowId);
+        }
+
         this.updateHiddenData(tableId);
         return rowId;
+    };
+
+    /**
+     * 将一个普通行转换为"自建产品"行
+     * - 产品名称单元格：从选择器按钮转为文本输入框，附加 autocomplete
+     * - 产品型号 / 描述单元格：从只读 span 转为可编辑输入框
+     * - 品牌 / 单位单元格：从只读 span 转为带 datalist 建议的输入框
+     * - 产品料号 (product_mn) 单元格：显示"自动生成"占位提示
+     *
+     * @param {string} tableId
+     * @param {string} rowId
+     */
+    window.EditableTable.convertRowToCustomProduct = function(tableId, rowId) {
+        const row = document.getElementById(rowId);
+        if (!row) return;
+
+        // 标记行
+        row.dataset.source = 'custom';
+
+        const self = this;
+
+        // 1. 转换产品名称单元格：按钮 → 输入框（带 autocomplete）
+        const nameCell = row.querySelector('td[data-col-key="product_name"]');
+        if (nameCell) {
+            nameCell.innerHTML = '<input type="text" class="cell-input custom-product-name-input" '
+                + 'data-row-id="' + rowId + '" data-col-key="product_name" '
+                + 'placeholder="输入产品名称或型号搜索..." '
+                + 'autocomplete="off" '
+                + 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'product_name\', this.value)">';
+
+            const nameInput = nameCell.querySelector('input');
+            if (nameInput && window.CustomProductAutocomplete) {
+                window.CustomProductAutocomplete.attach(nameInput, tableId, rowId);
+            }
+        }
+
+        // 2. 把只读列（product_model, product_desc, brand, unit）转为可编辑输入框
+        const editableKeys = ['product_model', 'product_desc', 'brand', 'unit'];
+        editableKeys.forEach(function(key) {
+            const cell = row.querySelector('td[data-col-key="' + key + '"]');
+            if (!cell) return;
+            const span = cell.querySelector('span[data-col-key="' + key + '"]');
+            const currentValue = span ? span.textContent.trim() : '';
+
+            const listAttr = (key === 'brand') ? ' list="custom-brand-options"'
+                          : (key === 'unit')  ? ' list="custom-unit-options"'
+                          : '';
+            const placeholder = (key === 'product_model') ? '型号'
+                              : (key === 'product_desc')  ? '描述'
+                              : (key === 'brand')         ? '品牌'
+                              : (key === 'unit')          ? '单位'
+                              : '';
+
+            cell.innerHTML = '<input type="text" class="cell-input" '
+                + 'data-row-id="' + rowId + '" data-col-key="' + key + '" '
+                + 'value="' + escapeAttr(currentValue) + '" '
+                + 'placeholder="' + placeholder + '" '
+                + 'autocomplete="off"' + listAttr + ' '
+                + 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'' + key + '\', this.value)">';
+        });
+
+        // 3. 把 market_price 只读列转为可编辑 currency 输入框
+        const priceCell = row.querySelector('td[data-col-key="market_price"]');
+        if (priceCell) {
+            const priceSpan = priceCell.querySelector('span[data-col-key="market_price"]');
+            const priceText = priceSpan ? priceSpan.textContent.trim() : '';
+            const priceNum = parseFloat(String(priceText).replace(/,/g, '')) || 0;
+            const priceDisplay = priceNum > 0 ? this.formatNumber(priceNum) : '';
+            priceCell.innerHTML = '<input type="text" class="cell-input" '
+                + 'data-row-id="' + rowId + '" data-col-key="market_price" data-type="currency" '
+                + 'value="' + priceDisplay + '" '
+                + 'placeholder="市场价" '
+                + 'oninput="window.EditableTable.onCellChange(\'' + tableId + '\', \'' + rowId + '\', \'market_price\', this.value)" '
+                + 'onkeydown="window.EditableTable.onNumberKeyDown(event, \'' + tableId + '\', \'' + rowId + '\', \'market_price\')" '
+                + 'onblur="window.EditableTable.formatCell(\'' + tableId + '\', \'' + rowId + '\', \'market_price\', this)">';
+        }
+
+        // 4. 更新产品料号单元格：显示"自动生成"占位
+        const mnCell = row.querySelector('td[data-col-key="product_mn"]');
+        if (mnCell) {
+            const mnSpan = mnCell.querySelector('span[data-col-key="product_mn"]');
+            if (mnSpan && !mnSpan.textContent.trim()) {
+                mnSpan.textContent = '保存时自动生成';
+                mnSpan.classList.add('cpa-placeholder');
+            }
+        }
+
+        // 5. 确保品牌/单位的 datalist 已加载
+        this.ensureCustomMetaDatalists();
+    };
+
+    // HTML 属性值转义（避免引号破坏属性）
+    function escapeAttr(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    /**
+     * 加载并注入产品库的品牌/单位 datalist 选项（全局单次加载）
+     * 用于自建产品行的品牌/单位输入建议
+     */
+    window.EditableTable.ensureCustomMetaDatalists = function() {
+        if (window.__customMetaDatalistsLoaded) return;
+        window.__customMetaDatalistsLoaded = true;
+
+        fetch('/quotation/api/product-meta-options', { credentials: 'same-origin' })
+            .then(function(resp) { return resp.ok ? resp.json() : null; })
+            .then(function(data) {
+                if (!data) return;
+                const brandList = document.createElement('datalist');
+                brandList.id = 'custom-brand-options';
+                (data.brands || []).forEach(function(b) {
+                    const opt = document.createElement('option');
+                    opt.value = b;
+                    brandList.appendChild(opt);
+                });
+
+                const unitList = document.createElement('datalist');
+                unitList.id = 'custom-unit-options';
+                (data.units || []).forEach(function(u) {
+                    const opt = document.createElement('option');
+                    opt.value = u;
+                    unitList.appendChild(opt);
+                });
+
+                document.body.appendChild(brandList);
+                document.body.appendChild(unitList);
+            })
+            .catch(function(err) {
+                console.warn('[EditableTable] 加载品牌/单位选项失败:', err);
+                // 重置标记，下次可以重试
+                window.__customMetaDatalistsLoaded = false;
+            });
     };
 
     // 添加配置产品行
@@ -761,6 +1007,20 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             // 市场价或折扣改变 → 计算单价
             console.log('[EditableTable.onCellChange] 触发 calculateUnitPrice');
             this.calculateUnitPrice(tableId, rowId);
+        }
+
+        // 用户填入非零 market_price 时移除"缺失地区面价"的黄色高亮
+        if (colKey === 'market_price' && rowData) {
+            const numVal = parseFloat(value);
+            if (numVal > 0 && rowData.data._regionPriceMissing) {
+                rowData.data._regionPriceMissing = false;
+                const row = document.getElementById(rowId);
+                const input = row && row.querySelector('input[data-col-key="market_price"]');
+                if (input) {
+                    input.classList.remove('region-price-missing');
+                    input.title = '';
+                }
+            }
         }
         if (colKey === 'unit_price') {
             // 单价改变 → 反向计算折扣，并计算小计
@@ -1159,14 +1419,21 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             Object.assign(rowData.data, product);
         }
 
-        // 如果是第一个产品，根据产品货币类型设置默认货币
+        // 如果是第一个产品 且 用户还未手动改过货币，才根据产品自动设置默认货币
+        // 判断"还未改过"的依据：当前下拉值等于系统默认货币（从 config.currency 传入）
         const productCurrency = product.currency || 'CNY';
         const currencySelectorId2 = instance.config.currencySelectorId;
         const currencySelect = currencySelectorId2 ? document.getElementById(currencySelectorId2) : null;
         if (currencySelect && instance.rows.length === 1) {
-            // 只有第一个产品时才自动设置货币
-            currencySelect.value = productCurrency;
+            const systemDefault = instance.config.currency || '';
+            const userHasChanged = currencySelect.value && currencySelect.value !== systemDefault;
+            if (!userHasChanged) {
+                currencySelect.value = productCurrency;
+            }
         }
+
+        // 重建 market_price 单元格（根据 _regionPriceMissing 切换 span/input）
+        this.rebuildMarketPriceCell(tableId, rowId, product);
 
         // 重新计算价格 - 使用 setTimeout 确保 DOM 已更新
         const self = this;
@@ -1174,19 +1441,6 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             self.calculateUnitPrice(tableId, rowId);
             self.calculateTotalPrice(tableId, rowId);
         }, 0);
-
-        // 未配置地区面价时高亮标记（换产品时重置高亮）
-        const priceCell = row.querySelector('[data-col-key="market_price"]');
-        if (priceCell) {
-            const inner = priceCell.querySelector('input, span.cell-readonly') || priceCell;
-            if (product._regionPriceMissing) {
-                inner.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
-                inner.title = '{{ _("该产品未配置当前货币面价，请手动填写") }}';
-            } else {
-                inner.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40');
-                inner.title = '';
-            }
-        }
 
         // 处理配置产品
         const configurations = product.configurations || [];
@@ -1202,13 +1456,30 @@ console.log('[tw_editable_table_script] 开始初始化表格: {{ table_id }}');
             const addConfigRows = function(priceMap) {
                 configurations.forEach(config => {
                     const regionPrice = priceMap[config.id];
+                    // 如果有 quoteCurrency 但未命中，说明该货币下面价缺失 → 空白可编辑
+                    // 如果没有 quoteCurrency（其他上下文），fallback 到 retail_price
+                    let marketPrice;
+                    let regionPriceMissing = false;
+                    if (quoteCurrency) {
+                        if (regionPrice !== undefined) {
+                            marketPrice = regionPrice;
+                        } else {
+                            marketPrice = 0;
+                            regionPriceMissing = true;
+                        }
+                    } else {
+                        marketPrice = config.retail_price || config.market_price || 0;
+                    }
                     const configData = {
+                        id: config.id,
+                        product_id: config.id,
                         product_name: config.product_name || '',
                         product_model: config.product_model || config.model || '',
                         product_desc: config.specification || config.product_desc || '',
                         brand: config.brand || '',
                         unit: config.unit || '',
-                        market_price: regionPrice !== undefined ? regionPrice : (config.retail_price || config.market_price || 0),
+                        market_price: marketPrice,
+                        _regionPriceMissing: regionPriceMissing,
                         product_mn: config.product_mn || '',
                         quantity: config.quantity || config.default_quantity || 1,
                         discount: 100,

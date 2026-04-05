@@ -20,7 +20,7 @@ import logging
 from decimal import Decimal
 import json
 from flask import current_app
-from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, get_currency_type_options
+from app.utils.dictionary_helpers import project_type_label, project_stage_label, REPORT_SOURCE_OPTIONS, PROJECT_TYPE_OPTIONS, PRODUCT_SITUATION_OPTIONS, PROJECT_STAGE_LABELS, COMPANY_TYPE_LABELS, get_currency_type_options, get_available_quotation_currencies
 from app.services.exchange_rate_service import exchange_rate_service
 from app.utils.chinese_mapping_manager import mapping_manager
 from app.helpers.project_helpers import is_project_editable
@@ -559,7 +559,7 @@ def list_quotations():
                               project_stage_filter=project_stage_filter,
                               filter_config=filter_config,
                               list_config=list_config,
-                              currency_options=get_currency_type_options(),
+                              currency_options=get_available_quotation_currencies(),
                               default_currency=default_currency)
                               
     except Exception as e:
@@ -655,7 +655,7 @@ def list_quotations():
                               project_stage_filter='',
                               filter_config=error_filter_config,
                               list_config=error_list_config,
-                              currency_options=get_currency_type_options(),
+                              currency_options=get_available_quotation_currencies(),
                               default_currency=default_currency)
 
 @quotation.route('/api/quotations/filter', methods=['GET'])
@@ -985,6 +985,13 @@ def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CUR
             except (ValueError, TypeError):
                 market_price = 0
 
+            # 校验：market_price 必须 > 0（兜底前端校验，防止绕过）
+            # 临时产品允许 market_price = 0（例如价格面议场景）
+            is_temp_product = detail.get('is_temp') or detail.get('temp_product_id') or detail.get('status') == 'temp'
+            if not is_temp_product and market_price <= 0:
+                errors.append(f"第 {index+1} 行产品 \"{product_name}\" 未填写市场单价")
+                continue
+
             try:
                 discount = float(detail.get('discount_rate', detail.get('discount', 100))) / 100
                 if discount < 0:
@@ -1208,7 +1215,11 @@ def create_quotation():
                         'status': 'error',
                         'message': '明细项必须是数组格式'
                     }), 400
-                
+
+                # 为自建产品（source='custom'）批量分配 MN
+                from app.utils.product_helpers import assign_custom_product_mns
+                assign_custom_product_mns(details)
+
                 current_app.logger.debug(f'开始处理 {len(details)} 个明细项')
 
                 # 两阶段保存：先创建所有明细，再建立父子关系
@@ -2085,7 +2096,7 @@ def edit_quotation(id):
                                      projects=projects,
                                      today_date=datetime.now().strftime('%Y-%m-%d'),
                                      quotation_details_json=quotation_details_json,
-                                     currency_options=get_currency_type_options(),
+                                     currency_options=get_available_quotation_currencies(),
                                      return_to=return_to)
             except Exception as e:
                 db.session.rollback()
@@ -2095,7 +2106,7 @@ def edit_quotation(id):
                                      projects=projects,
                                      today_date=datetime.now().strftime('%Y-%m-%d'),
                                      quotation_details_json=quotation_details_json,
-                                     currency_options=get_currency_type_options(),
+                                     currency_options=get_available_quotation_currencies(),
                                      return_to=return_to)
         
         # GET请求 - 重定向到详情页（编辑功能现在通过详情页的模态框完成）
@@ -2851,6 +2862,132 @@ def get_product_specs():
         }), 500
 
 
+@quotation.route('/api/product-meta-options', methods=['GET'])
+@login_required
+@permission_required('quotation', 'create')
+def get_product_meta_options():
+    """
+    获取产品库中已有的品牌和单位列表（去重）
+    用途：自建产品行的品牌/单位输入框下拉建议
+    """
+    try:
+        brands = db.session.query(Product.brand).filter(
+            Product.brand.isnot(None),
+            Product.brand != '',
+            Product.is_deleted == False
+        ).distinct().order_by(Product.brand).all()
+
+        units = db.session.query(Product.unit).filter(
+            Product.unit.isnot(None),
+            Product.unit != '',
+            Product.is_deleted == False
+        ).distinct().order_by(Product.unit).all()
+
+        return jsonify({
+            'brands': [b[0] for b in brands],
+            'units': [u[0] for u in units]
+        })
+    except Exception as e:
+        logger.error(f'获取产品元数据失败: {str(e)}')
+        return jsonify({'brands': [], 'units': [], 'error': str(e)}), 500
+
+
+@quotation.route('/api/product-suggestions', methods=['GET'])
+@login_required
+@permission_required('quotation', 'create')
+def get_custom_product_suggestions():
+    """
+    Autocomplete: 从 quotation_details 聚合查询自建产品建议
+
+    规则：
+    - 只返回非产品库产品（LEFT JOIN products WHERE p.id IS NULL）
+    - 按 product_name 或 product_model 模糊匹配
+    - 按 (product_name, product_model) 聚合去重，取最近一条
+    - 按使用次数降序 + 最近时间降序排列
+
+    Query Params:
+        q (str): 搜索关键词（必需）
+        limit (int): 返回数量，默认 10
+
+    Returns:
+        JSON: {"results": [{product_name, product_model, product_desc, brand,
+                           unit, product_mn, market_price, currency,
+                           last_used_at, usage_count}, ...]}
+    """
+    from sqlalchemy import text
+
+    keyword = request.args.get('q', '').strip()
+    if not keyword:
+        return jsonify({'results': []})
+
+    limit = request.args.get('limit', 10, type=int)
+    if limit <= 0 or limit > 50:
+        limit = 10
+
+    sql = text("""
+        WITH latest AS (
+            SELECT DISTINCT ON (qd.product_name, qd.product_model)
+                qd.product_name, qd.product_model, qd.product_desc,
+                qd.brand, qd.unit, qd.product_mn,
+                qd.market_price, qd.currency,
+                qd.created_at AS last_used_at
+            FROM quotation_details qd
+            LEFT JOIN products p
+                ON p.product_mn = qd.product_mn AND p.is_deleted = FALSE
+            WHERE p.id IS NULL
+              AND qd.product_name IS NOT NULL
+              AND qd.product_name != ''
+              AND (qd.product_name ILIKE :pattern OR qd.product_model ILIKE :pattern)
+            ORDER BY qd.product_name, qd.product_model, qd.created_at DESC
+        ),
+        stats AS (
+            SELECT
+                qd.product_name, qd.product_model,
+                COUNT(DISTINCT qd.quotation_id) AS usage_count
+            FROM quotation_details qd
+            LEFT JOIN products p
+                ON p.product_mn = qd.product_mn AND p.is_deleted = FALSE
+            WHERE p.id IS NULL
+              AND qd.product_name IS NOT NULL
+              AND qd.product_name != ''
+              AND (qd.product_name ILIKE :pattern OR qd.product_model ILIKE :pattern)
+            GROUP BY qd.product_name, qd.product_model
+        )
+        SELECT
+            l.product_name, l.product_model, l.product_desc,
+            l.brand, l.unit, l.product_mn,
+            l.market_price, l.currency,
+            l.last_used_at, s.usage_count
+        FROM latest l
+        JOIN stats s
+            ON s.product_name = l.product_name
+           AND s.product_model = l.product_model
+        ORDER BY s.usage_count DESC, l.last_used_at DESC
+        LIMIT :limit
+    """)
+
+    try:
+        rows = db.session.execute(sql, {
+            'pattern': f'%{keyword}%',
+            'limit': limit
+        }).fetchall()
+
+        results = []
+        for row in rows:
+            data = dict(row._mapping)
+            # 序列化 datetime 和 Decimal
+            if data.get('last_used_at'):
+                data['last_used_at'] = data['last_used_at'].isoformat()
+            if data.get('market_price') is not None:
+                data['market_price'] = float(data['market_price'])
+            results.append(data)
+
+        return jsonify({'results': results})
+    except Exception as e:
+        logger.error(f'查询自建产品建议失败: {str(e)}')
+        return jsonify({'results': [], 'error': str(e)}), 500
+
+
 @quotation.route('/products/temp', methods=['GET'])
 @login_required
 @permission_required('quotation', 'create')
@@ -3336,7 +3473,7 @@ def view_quotation(id):
                              can_view_settlement=can_view_settlement,
                              related_quotations=related_quotations,
                              quotation_details_json=quotation_details_json,
-                             currency_options=get_currency_type_options(),
+                             currency_options=get_available_quotation_currencies(),
                              default_currency=quotation.currency or Config.DEFAULT_CURRENCY,
                              active_pricing_order=active_pricing_order,
                              confirmation_candidates=confirmation_candidates,
@@ -3640,6 +3777,10 @@ def save_quotation(id):
                     'status': 'error',
                     'message': '明细项必须是数组格式'
                 }), 400
+
+            # 为自建产品（source='custom'）批量分配 MN
+            from app.utils.product_helpers import assign_custom_product_mns
+            assign_custom_product_mns(details)
 
             current_app.logger.debug(f'开始处理 {len(details)} 个明细项')
 

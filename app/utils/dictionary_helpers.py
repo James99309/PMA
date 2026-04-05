@@ -378,6 +378,50 @@ def get_currency_type_options():
         logging.warning(f"get_currency_type_options 获取语言失败: {e}")
         return [(k, v['zh']) for k, v in CURRENCY_TYPE_LABELS.items()]
 
+
+def get_available_quotation_currencies():
+    """获取报价单可选的货币列表
+
+    只返回：
+    1. 系统默认货币（CNY for SP8D, USD for OVS）
+    2. ProductRegionPrice 表中已配置的 distinct 货币
+
+    不包括没有任何产品面价的货币 —— 因为系统不做汇率换算，
+    选了也会导致所有产品面价为空，没有实际意义。
+
+    Returns:
+        list of (code, name) tuples
+    """
+    try:
+        from app.utils.i18n import get_current_language
+        from app.models.product import ProductRegionPrice
+        from config import Config
+        from app import db
+
+        lang_code = get_current_language()
+        available_codes = {Config.DEFAULT_CURRENCY}
+
+        # 查询 region_prices 表中存在的 distinct 货币
+        try:
+            rows = db.session.query(ProductRegionPrice.currency).distinct().all()
+            for (cur,) in rows:
+                if cur:
+                    available_codes.add(cur.upper())
+        except Exception:
+            # 表不存在或查询失败时，降级为只返回默认货币
+            pass
+
+        # 按 CURRENCY_TYPE_LABELS 的顺序返回，过滤掉不可用的
+        return [
+            (k, v[lang_code]) for k, v in CURRENCY_TYPE_LABELS.items()
+            if k in available_codes
+        ]
+    except Exception as e:
+        import logging
+        logging.warning(f"get_available_quotation_currencies 失败: {e}")
+        # 异常时返回所有货币，不影响系统正常使用
+        return get_currency_type_options()
+
 # 向后兼容性选项 - 使用 property 类实现懒加载，避免启动时查询数据库
 class _LazyOptions:
     """延迟加载选项类，仅在访问时查询数据库"""

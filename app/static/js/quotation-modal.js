@@ -406,19 +406,20 @@ window.QuotationModal = (function() {
      */
     function validate() {
         const data = collectFormData();
+        const showAlert = window.showQuotationAlert || function(title, msg) { alert(title + (msg ? '\n' + msg : '')); };
 
         if (!data.project_id) {
-            alert(config.i18n.projectRequired);
+            showAlert(config.i18n.projectRequired);
             return false;
         }
 
         if (!data.customer_id) {
-            alert(config.i18n.customerRequired);
+            showAlert(config.i18n.customerRequired);
             return false;
         }
 
         if (!data.details || data.details.length === 0) {
-            alert(config.i18n.productRequired);
+            showAlert(config.i18n.productRequired);
             return false;
         }
 
@@ -428,7 +429,24 @@ window.QuotationModal = (function() {
         });
 
         if (validDetails.length === 0) {
-            alert(config.i18n.productRequired);
+            showAlert(config.i18n.productRequired);
+            return false;
+        }
+
+        // 校验：每行 market_price 必须有值（处理"某货币下无面价"的情况）
+        const missingPriceNames = [];
+        validDetails.forEach(function(d) {
+            const mp = parseFloat(d.market_price || 0);
+            if (!mp || isNaN(mp)) {
+                missingPriceNames.push(d.product_name);
+            }
+        });
+        if (missingPriceNames.length > 0) {
+            if (typeof window.showMarketPriceMissing === 'function') {
+                window.showMarketPriceMissing(missingPriceNames);
+            } else {
+                alert('以下产品未填写市场单价，无法保存：\n\n' + missingPriceNames.join('\n'));
+            }
             return false;
         }
 
@@ -483,11 +501,13 @@ window.QuotationModal = (function() {
                     }
                 }
             } else {
-                alert(result.message || config.i18n.saveError);
+                const showAlert = window.showQuotationAlert || function(title, msg) { alert(title + (msg ? '\n' + msg : '')); };
+                showAlert(result.message || config.i18n.saveError);
             }
         } catch (err) {
             console.error('提交失败:', err);
-            alert(config.i18n.saveError);
+            const showAlert = window.showQuotationAlert || function(title, msg) { alert(title + (msg ? '\n' + msg : '')); };
+            showAlert(config.i18n.saveError);
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = originalText;
@@ -497,6 +517,87 @@ window.QuotationModal = (function() {
     /**
      * 绑定事件
      */
+    /**
+     * 货币切换时批量刷新已有产品面价
+     * @param {string} newCurrency - 新货币代码
+     */
+    function refreshMarketPricesByCurrency(newCurrency) {
+        const tableId = 'quotationProductTable';
+        const instance = window.EditableTable?.instances?.[tableId];
+        if (!instance || !instance.rows.length) return;
+
+        // 收集所有有 product_id 的行
+        const productIds = [];
+        const rowMap = {};
+        instance.rows.forEach(function(r) {
+            const pid = r.data.product_id || r.data.id;
+            if (pid && !r.data.is_temp) {
+                productIds.push(pid);
+                if (!rowMap[pid]) rowMap[pid] = [];
+                rowMap[pid].push(r.rowId);
+            }
+        });
+
+        if (!productIds.length) return;
+
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+        fetch('/api/products/region-prices/batch', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                product_ids: [...new Set(productIds)],
+                currency: newCurrency
+            })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            const prices = data.prices || {};
+            const missingProductNames = [];
+
+            Object.keys(rowMap).forEach(function(pid) {
+                const price = prices[pid];
+                rowMap[pid].forEach(function(rowId) {
+                    const rowData = instance.rows.find(function(r) { return r.rowId === rowId; });
+                    if (!rowData) return;
+                    if (price === undefined) {
+                        // 未配置该货币面价 — 重置为 0 并标记
+                        rowData.data.market_price = 0;
+                        rowData.data._regionPriceMissing = true;
+                        const name = rowData.data.product_name || ('#' + pid);
+                        if (missingProductNames.indexOf(name) === -1) missingProductNames.push(name);
+                    } else {
+                        rowData.data.market_price = price;
+                        rowData.data._regionPriceMissing = false;
+                    }
+                    // 重建 market_price 单元格（根据状态切换 span/input）
+                    window.EditableTable.rebuildMarketPriceCell(tableId, rowId, rowData.data);
+                    window.EditableTable.calculateUnitPrice(tableId, rowId);
+                    window.EditableTable.calculateTotalPrice(tableId, rowId);
+                });
+            });
+            setTimeout(function() { window.EditableTable.calculateGrandTotal(tableId); }, 10);
+
+            // 未命中时弹模态框
+            if (missingProductNames.length > 0) {
+                if (typeof window.showMarketPriceMissing === 'function') {
+                    window.showMarketPriceMissing(missingProductNames);
+                } else {
+                    const header = '以下产品未配置该货币面价，请在明细行手动填写';
+                    alert(header + ' (' + newCurrency + '):\n\n' + missingProductNames.join('\n'));
+                }
+            }
+        })
+        .catch(function(err) {
+            console.warn('批量获取地区面价失败:', err);
+            const showAlert = window.showQuotationAlert || function(title, msg) { alert(title + (msg ? '\n' + msg : '')); };
+            showAlert('获取地区面价失败，请检查网络后重试');
+        });
+    }
+
     function bindEvents() {
         document.addEventListener('DOMContentLoaded', function() {
             // 项目搜索
@@ -522,6 +623,14 @@ window.QuotationModal = (function() {
                     if (this.value) {
                         loadCustomerContacts(this.value);
                     }
+                });
+            }
+
+            // 货币变化 → 批量刷新已有产品面价
+            const currencySelect = document.getElementById('currency_modal');
+            if (currencySelect) {
+                currencySelect.addEventListener('change', function() {
+                    refreshMarketPricesByCurrency(this.value);
                 });
             }
 
