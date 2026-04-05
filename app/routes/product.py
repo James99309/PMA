@@ -967,18 +967,29 @@ def product_list_ajax():
             field = getattr(Product, sort_field)
             query = query.order_by(field.desc() if sort_order == 'desc' else field.asc())
         else:
-            # 默认排序：按分类体系排序（与导出功能一致）
-            # 确保已经 join 了分类表
-            if not search and not category:
-                query = query.outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)
-                query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
-            elif search and not category:
-                query = query.outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)
+            # 默认排序：使用 product_display_order 表（跨 CN/SG 可移植）
+            from app.models.product_display_order import ProductDisplayOrder
+
+            snapshot_cat_code = func.json_extract_path_text(
+                Product.code_definition_snapshot, 'category', 'code_letter'
+            )
+            snapshot_sub_code = func.json_extract_path_text(
+                Product.code_definition_snapshot, 'subcategory', 'code_letter'
+            )
+            effective_model = func.coalesce(Product.model, Product.product_name, '未指定型号')
+
+            query = query.outerjoin(
+                ProductDisplayOrder,
+                and_(
+                    snapshot_cat_code == ProductDisplayOrder.category_code,
+                    snapshot_sub_code == ProductDisplayOrder.subcategory_code,
+                    effective_model == ProductDisplayOrder.model
+                )
+            )
             query = query.order_by(
-                ProductCategory.display_order.asc(),
-                ProductCategory.id.asc(),
-                ProductSubcategory.display_order.asc(),
-                ProductSubcategory.id.asc(),
+                func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
+                func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
+                func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
                 Product.product_name.asc(),
                 Product.id.asc()
             )
@@ -3959,15 +3970,28 @@ def export_products():
             # 最后回退到 specification 字段
             return product.specification or ''
 
-        # 查询所有产品（按分类体系排序，与产品列表页一致）
+        # 查询所有产品（使用 product_display_order 表排序，与产品列表页一致）
+        from app.models.product_display_order import ProductDisplayOrder
+        _snap_cat = func.json_extract_path_text(
+            Product.code_definition_snapshot, 'category', 'code_letter'
+        )
+        _snap_sub = func.json_extract_path_text(
+            Product.code_definition_snapshot, 'subcategory', 'code_letter'
+        )
+        _eff_model = func.coalesce(Product.model, Product.product_name, '未指定型号')
         products = Product.query\
-            .outerjoin(ProductSubcategory, Product.subcategory_id == ProductSubcategory.id)\
-            .outerjoin(ProductCategory, ProductSubcategory.category_id == ProductCategory.id)\
+            .outerjoin(
+                ProductDisplayOrder,
+                and_(
+                    _snap_cat == ProductDisplayOrder.category_code,
+                    _snap_sub == ProductDisplayOrder.subcategory_code,
+                    _eff_model == ProductDisplayOrder.model
+                )
+            )\
             .order_by(
-                ProductCategory.display_order.asc(),
-                ProductCategory.id.asc(),
-                ProductSubcategory.display_order.asc(),
-                ProductSubcategory.id.asc(),
+                func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
+                func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
+                func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
                 Product.product_name.asc(),
                 Product.id.asc()
             ).all()
