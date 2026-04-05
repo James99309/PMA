@@ -376,18 +376,19 @@ class Quotation(db.Model):
         return ''
 
 def _refresh_project_quotation_cache(connection, project_id):
-    """刷新项目的 quotation_customer 缓存
+    """刷新项目的 quotation_customer / quotation_currency 缓存
 
-    字段语义（本次改造统一）：
-    - quotation_customer: 最新一张报价单金额，**已换算到 Config.DEFAULT_CURRENCY**
-    - quotation_currency: 同为 Config.DEFAULT_CURRENCY（和金额货币对齐，避免数字/符号错乱）
+    字段语义（保持原样，与报价单明细显示一致）：
+    - quotation_customer: **最新一张报价单的原金额**（不做汇率换算）
+    - quotation_currency: **最新一张报价单的原货币**
 
     由 Quotation 的 after_insert / after_update / after_delete 事件调用。
-    """
-    from app.services.exchange_rate_service import exchange_rate_service
-    from config import Config
 
-    target_currency = Config.DEFAULT_CURRENCY
+    跨项目统计（`get_full_project_stats`）在读取端使用
+    `MultiCurrencyAggregationService.sum_converted` 动态换算聚合，
+    不依赖此缓存字段做跨货币求和。
+    """
+    from config import Config
 
     # 查询最新一张报价单的 amount 和 currency
     latest_sql = text("""
@@ -402,15 +403,10 @@ def _refresh_project_quotation_cache(connection, project_id):
     if row is None:
         # 项目下没有报价单了（比如最后一张被删除）
         amount = 0.0
+        currency = Config.DEFAULT_CURRENCY
     else:
-        original_amount = float(row[0] or 0)
-        original_currency = (row[1] or target_currency).upper()
-        if original_amount == 0 or original_currency == target_currency:
-            amount = original_amount
-        else:
-            amount = float(exchange_rate_service.convert_amount(
-                original_amount, original_currency, target_currency
-            ))
+        amount = float(row[0] or 0)
+        currency = (row[1] or Config.DEFAULT_CURRENCY).upper()
 
     now = datetime.now(ZoneInfo('Asia/Shanghai'))
     update_sql = text("""
@@ -422,7 +418,7 @@ def _refresh_project_quotation_cache(connection, project_id):
     """)
     connection.execute(update_sql, {
         "amount": amount,
-        "currency": target_currency,
+        "currency": currency,
         "now": now,
         "project_id": project_id,
     })
@@ -432,7 +428,7 @@ def _refresh_project_quotation_cache(connection, project_id):
 @event.listens_for(Quotation, 'after_insert')
 @event.listens_for(Quotation, 'after_update')
 def update_project_quotation(mapper, connection, target):
-    """在报价单保存或更新后自动更新项目为最新报价单金额（已换算到系统默认货币）"""
+    """报价单保存/更新后刷新项目的最新报价金额和货币缓存（原样，不换算）"""
     try:
         if target.project_id:
             _refresh_project_quotation_cache(connection, target.project_id)
@@ -442,14 +438,12 @@ def update_project_quotation(mapper, connection, target):
 
 @event.listens_for(Quotation, 'after_delete')
 def update_project_quotation_on_delete(mapper, connection, target):
-    """在报价单删除后自动更新项目为最新报价单金额（已换算到系统默认货币）"""
+    """报价单删除后刷新项目的最新报价金额和货币缓存"""
     try:
         if target.project_id:
             _refresh_project_quotation_cache(connection, target.project_id)
     except Exception as e:
         print(f"删除报价单后更新项目金额时发生错误: {str(e)}")
-    except Exception as e:
-        print(f"删除报价单后更新项目最新报价金额和货币时发生错误: {str(e)}")
 
 class QuotationDetail(db.Model):
     __tablename__ = 'quotation_details'

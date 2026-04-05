@@ -3446,7 +3446,7 @@ def get_full_project_stats(base_query, target_currency=None):
         target_currency = Config.DEFAULT_CURRENCY
 
     try:
-        # 1. 基础统计查询 - 使用数据库聚合函数
+        # 1. 基础统计（count 类）- 数据库聚合
         base_stats = base_query.with_entities(
             func.count(Project.id).label('total_count'),
             func.sum(case(
@@ -3455,49 +3455,38 @@ def get_full_project_stats(base_query, target_currency=None):
             func.sum(case(
                 (Project.activity_status.in_(['to_follow', 'dormant', 'churned']), 1), else_=0
             )).label('inactive_count'),
-            func.sum(func.coalesce(Project.quotation_customer, 0)).label('total_amount')
         ).first()
 
+        # 2. 跨货币聚合 - 使用 MultiCurrencyAggregationService 动态换算
+        # Project.quotation_customer 存的是**最新一张报价单的原金额**（不换算）
+        # Project.quotation_currency 存的是**原货币**
+        # 跨项目统计时需要按货币分组 + 动态换算到 target_currency
+        from app.services.multi_currency_aggregation import MultiCurrencyAggregationService
 
-        # 2. 阶段统计查询 - 按阶段分组聚合
-        stage_stats_raw = base_query.with_entities(
+        total_converted_amount = MultiCurrencyAggregationService.sum_converted(
+            base_query, Project.quotation_customer, Project.quotation_currency,
+            target_currency=target_currency
+        )
+
+        # 3. 按阶段分组的跨货币聚合
+        stage_amount_map = MultiCurrencyAggregationService.sum_converted_by_group(
+            base_query, Project.quotation_customer, Project.quotation_currency,
+            Project.current_stage, target_currency=target_currency
+        )
+
+        # 4. 阶段计数（count 不涉及货币）
+        stage_counts_raw = base_query.with_entities(
             Project.current_stage,
-            func.count(Project.id).label('count'),
-            func.sum(func.coalesce(Project.quotation_customer, 0)).label('amount')
+            func.count(Project.id).label('count')
         ).group_by(Project.current_stage).all()
 
-        # 3. 处理阶段统计数据
+        # 5. 合并阶段统计数据
         all_stages = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed', 'lost', 'paused']
-        stage_stats = {}
-
-        # 初始化所有阶段
-        for stage in all_stages:
-            stage_stats[stage] = {'count': 0, 'amount': 0}
-
-        # 填充查询结果
-        total_cny_amount = 0
-        for stage, count, amount in stage_stats_raw:
+        stage_stats = {stage: {'count': 0, 'amount': 0} for stage in all_stages}
+        for stage, count in stage_counts_raw:
             if stage in stage_stats:
                 stage_stats[stage]['count'] = count or 0
-                stage_stats[stage]['amount'] = amount or 0
-                total_cny_amount += (amount or 0)
-
-        # 4. 汇率转换（如果需要）
-        # 注意：Project.quotation_customer 字段存储的是已换算到 Config.DEFAULT_CURRENCY 的值
-        # （由 Quotation 的 after_insert/after_update 事件监听器保证）
-        # 所以这里只需要从 DEFAULT_CURRENCY 换算到 target_currency（如果不同）
-        total_converted_amount = base_stats.total_amount or 0
-        default_currency = Config.DEFAULT_CURRENCY
-        if target_currency != default_currency and total_cny_amount > 0:
-            total_converted_amount = exchange_rate_service.convert_amount(
-                total_cny_amount, default_currency, target_currency
-            )
-
-            # 按比例转换各阶段金额
-            conversion_ratio = total_converted_amount / total_cny_amount
-            for stage in stage_stats:
-                if stage_stats[stage]['amount'] > 0:
-                    stage_stats[stage]['amount'] *= conversion_ratio
+                stage_stats[stage]['amount'] = stage_amount_map.get(stage, 0.0)
 
         result = {
             'total_count': base_stats.total_count or 0,
