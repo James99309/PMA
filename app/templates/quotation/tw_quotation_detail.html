@@ -27,7 +27,7 @@
     {'key': 'product_desc', 'label': _('产品描述'), 'type': 'text', 'readonly': true, 'width': '400px'},
     {'key': 'brand', 'label': _('品牌'), 'type': 'text', 'readonly': true, 'width': '80px'},
     {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '60px'},
-    {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'},
+    {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'editable_when_missing': true, 'width': '100px', 'align': 'right'},
     {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '80px', 'align': 'right', 'default': '100'},
     {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '100px', 'align': 'right'},
     {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': '1'},
@@ -370,6 +370,49 @@
         variant='danger'
     ) }}
 
+    <!-- 通用提示框（用于校验失败、市场单价缺失等场景） -->
+    {{ tw_confirm_modal(
+        modal_id='quotationAlertModal',
+        title=_('提示'),
+        message='',
+        confirm_text=_('知道了'),
+        variant='warning'
+    ) }}
+    <script>
+        (function() {
+            const cancelBtn = document.getElementById('quotationAlertModal-cancel-btn');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        })();
+
+        window.showQuotationAlert = function(title, message) {
+            if (typeof window.openConfirmModal === 'function') {
+                window.openConfirmModal('quotationAlertModal', {
+                    title: title,
+                    message: (message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                });
+            } else {
+                alert(title + (message ? '\n\n' + message : ''));
+            }
+        };
+
+        window.showMarketPriceMissing = function(productNames) {
+            const title = productNames.length > 1
+                ? '{{ _("以下产品未填写市场单价") }}'
+                : '{{ _("市场单价未填写") }}';
+            const message = '<div class="max-h-48 overflow-y-auto"><ul class="list-disc list-inside space-y-1 text-left">'
+                + productNames.map(n => '<li>' + n.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</li>').join('')
+                + '</ul></div>';
+            if (typeof window.openConfirmModal === 'function') {
+                window.openConfirmModal('quotationAlertModal', {
+                    title: title,
+                    message: message
+                });
+            } else {
+                alert(title + '\n\n' + productNames.join('\n'));
+            }
+        };
+    </script>
+
     <!-- 导出选项模态框 (Tailwind) -->
     {% call tw_custom_modal(
         modal_id='quotationExportModal',
@@ -563,6 +606,9 @@
     <!-- 产品选择器 -->
     <script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
     <script src="{{ url_for('static', filename='js/product-config-modal.js') }}"></script>
+
+    <!-- 自建产品 Autocomplete 模块 -->
+    <script src="{{ url_for('static', filename='js/custom-product-autocomplete.js') }}"></script>
 
     <!-- 新版产品规格选择模态框脚本 -->
     {{ tw_product_spec_modal_script() }}
@@ -1158,19 +1204,20 @@
             // 验证表单
             validate: function() {
                 const data = this.collectFormData();
+                const showAlert = window.showQuotationAlert || function(title, msg) { alert(title + (msg ? '\n' + msg : '')); };
 
                 if (!data.project_id) {
-                    alert(i18n.projectRequired);
+                    showAlert(i18n.projectRequired);
                     return false;
                 }
 
                 if (!data.customer_id) {
-                    alert(i18n.customerRequired);
+                    showAlert(i18n.customerRequired);
                     return false;
                 }
 
                 if (!data.details || data.details.length === 0) {
-                    alert(i18n.productRequired);
+                    showAlert(i18n.productRequired);
                     return false;
                 }
 
@@ -1179,7 +1226,24 @@
                 });
 
                 if (validDetails.length === 0) {
-                    alert(i18n.productRequired);
+                    showAlert(i18n.productRequired);
+                    return false;
+                }
+
+                // 校验：每行 market_price 必须有值
+                const missingPriceNames = [];
+                validDetails.forEach(function(d) {
+                    const mp = parseFloat(d.market_price || 0);
+                    if (!mp || isNaN(mp)) {
+                        missingPriceNames.push(d.product_name);
+                    }
+                });
+                if (missingPriceNames.length > 0) {
+                    if (typeof window.showMarketPriceMissing === 'function') {
+                        window.showMarketPriceMissing(missingPriceNames);
+                    } else {
+                        alert('{{ _("以下产品未填写市场单价，无法保存") }}' + ':\n\n' + missingPriceNames.join('\n'));
+                    }
                     return false;
                 }
 
@@ -1318,48 +1382,38 @@
                     .then(data => {
                         const prices = data.prices || {};
                         const missingProductNames = [];
-                        const missingTooltip = '{{ _("该产品未配置当前货币面价，请手动核对") }}';
                         Object.keys(rowMap).forEach(pid => {
                             const price = prices[pid];
                             rowMap[pid].forEach(rowId => {
-                                const row = document.getElementById(rowId);
-                                if (!row) return;
-                                let el = row.querySelector('input[data-col-key="market_price"], span[data-col-key="market_price"]');
-                                if (!el) {
-                                    const td = row.querySelector('td[data-col-key="market_price"]');
-                                    if (td) el = td.querySelector('input, span.cell-readonly');
-                                }
-                                if (price === undefined) {
-                                    // 未配置该货币面价 — 高亮标记并收集名称
-                                    const rowData = instance.rows.find(r => r.rowId === rowId);
-                                    const name = rowData?.data?.product_name || `#${pid}`;
-                                    if (!missingProductNames.includes(name)) missingProductNames.push(name);
-                                    if (el) {
-                                        el.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40');
-                                        el.title = missingTooltip;
-                                    }
-                                    return;
-                                }
-                                // 有面价 — 更新数据和 DOM
                                 const rowData = instance.rows.find(r => r.rowId === rowId);
-                                if (rowData) rowData.data.market_price = price;
-                                if (el) {
-                                    el.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40');
-                                    el.title = '';
-                                    const formatted = window.EditableTable.formatNumber(price);
-                                    if (el.tagName === 'INPUT') el.value = formatted;
-                                    else el.textContent = formatted;
+                                if (!rowData) return;
+                                if (price === undefined) {
+                                    // 未配置该货币面价 — 重置为空值并标记
+                                    rowData.data.market_price = 0;
+                                    rowData.data._regionPriceMissing = true;
+                                    const name = rowData.data.product_name || `#${pid}`;
+                                    if (!missingProductNames.includes(name)) missingProductNames.push(name);
+                                } else {
+                                    // 有面价 — 更新
+                                    rowData.data.market_price = price;
+                                    rowData.data._regionPriceMissing = false;
                                 }
+                                // 重建 market_price 单元格（根据状态决定 span/input）
+                                window.EditableTable.rebuildMarketPriceCell(tableId, rowId, rowData.data);
                                 window.EditableTable.calculateUnitPrice(tableId, rowId);
                                 window.EditableTable.calculateTotalPrice(tableId, rowId);
                             });
                         });
                         setTimeout(() => window.EditableTable.calculateGrandTotal(tableId), 10);
 
-                        // 未命中时弹出提示（用模板字符串避免 JS 语法错误）
+                        // 未命中时弹模态框提示
                         if (missingProductNames.length > 0) {
-                            const header = '{{ _("以下产品未配置该货币面价，请手动核对或在产品库中补充") }}';
-                            alert(`${header} (${newCurrency}):\n\n${missingProductNames.join('\n')}`);
+                            if (typeof window.showMarketPriceMissing === 'function') {
+                                window.showMarketPriceMissing(missingProductNames);
+                            } else {
+                                const header = '{{ _("以下产品未配置该货币面价，请在明细行手动填写") }}';
+                                alert(`${header} (${newCurrency}):\n\n${missingProductNames.join('\n')}`);
+                            }
                         }
                     })
                     .catch(err => {

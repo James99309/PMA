@@ -10,6 +10,7 @@
 {% from 'macros/ui_helpers.html' import render_tw_owner_badge, render_tw_project_stage_badge_key, render_tw_project_type_badge with context %}
 {% from 'macros/product_config_modal.html' import render_product_config_modal with context %}
 {% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
 
 {# 产品明细表格列配置 #}
 {% set product_columns = [
@@ -18,7 +19,7 @@
     {'key': 'product_desc', 'label': _('产品描述'), 'type': 'text', 'readonly': true, 'width': '400px'},
     {'key': 'brand', 'label': _('品牌'), 'type': 'text', 'readonly': true, 'width': '80px'},
     {'key': 'unit', 'label': _('单位'), 'type': 'text', 'readonly': true, 'width': '60px'},
-    {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'width': '100px', 'align': 'right'},
+    {'key': 'market_price', 'label': _('市场单价'), 'type': 'currency', 'readonly': true, 'editable_when_missing': true, 'width': '100px', 'align': 'right'},
     {'key': 'discount', 'label': _('折扣%'), 'type': 'number', 'width': '80px', 'align': 'right', 'default': '100'},
     {'key': 'unit_price', 'label': _('单价'), 'type': 'currency', 'width': '100px', 'align': 'right'},
     {'key': 'quantity', 'label': _('数量'), 'type': 'number', 'required': true, 'width': '80px', 'align': 'right', 'default': '1'},
@@ -294,8 +295,57 @@
     <script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
     <script src="{{ url_for('static', filename='js/product-config-modal.js') }}"></script>
 
+    <!-- 自建产品 Autocomplete 模块 -->
+    <script src="{{ url_for('static', filename='js/custom-product-autocomplete.js') }}"></script>
+
     <!-- 新版产品规格选择模态框脚本 -->
     {{ tw_product_spec_modal_script() }}
+
+    <!-- 通用提示框（用于校验失败、市场单价缺失等场景） -->
+    {{ tw_confirm_modal(
+        modal_id='quotationAlertModal',
+        title=_('提示'),
+        message='',
+        confirm_text=_('知道了'),
+        variant='warning'
+    ) }}
+    {{ tw_confirm_modal_script() }}
+    <script>
+        (function() {
+            const cancelBtn = document.getElementById('quotationAlertModal-cancel-btn');
+            if (cancelBtn) cancelBtn.style.display = 'none';
+        })();
+
+        // 通用提示（标题 + 单行文本）
+        window.showQuotationAlert = function(title, message) {
+            if (typeof window.openConfirmModal === 'function') {
+                window.openConfirmModal('quotationAlertModal', {
+                    title: title,
+                    message: (message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                });
+            } else {
+                alert(title + (message ? '\n\n' + message : ''));
+            }
+        };
+
+        // 市场单价缺失提示（产品名列表）
+        window.showMarketPriceMissing = function(productNames) {
+            const title = productNames.length > 1
+                ? '{{ _("以下产品未填写市场单价") }}'
+                : '{{ _("市场单价未填写") }}';
+            const message = '<div class="max-h-48 overflow-y-auto"><ul class="list-disc list-inside space-y-1 text-left">'
+                + productNames.map(n => '<li>' + n.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</li>').join('')
+                + '</ul></div>';
+            if (typeof window.openConfirmModal === 'function') {
+                window.openConfirmModal('quotationAlertModal', {
+                    title: title,
+                    message: message
+                });
+            } else {
+                alert(title + '\n\n' + productNames.join('\n'));
+            }
+        };
+    </script>
 
     <script>
     (function() {

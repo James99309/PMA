@@ -153,6 +153,8 @@ class ProductSelector {
                     // 将选择结果传递给原有的 onSelect 回调
                     if (self.config.onSelect && self.currentInput && result.product) {
                         const selectedProduct = {
+                            id: result.product.id,
+                            product_id: result.product.id,
                             product_name: result.product.product_name || result.product.name,
                             product_model: result.product.model || result.product.product_model,
                             product_desc: result.product.specification || result.product.product_spec || '',
@@ -1279,6 +1281,8 @@ class ProductSelector {
                 if (this.config.onSelect && this.currentInput) {
                     // 构造完整的产品信息对象 - 统一字段映射
                     const selectedProduct = {
+                        id: product.id,
+                        product_id: product.id,
                         product_name: modelGroup.product_name || product.product_name || product.name,
                         product_model: product.model || product.product_model || modelGroup.model,
                         product_desc: product.specification || product.product_spec || product.product_desc || product.spec || '',
@@ -1358,6 +1362,7 @@ class ProductSelector {
      */
     selectProductDirectly(product) {
         const selectedProduct = {
+            id: product.id,
             product_id: product.id,
             product_name: product.product_name || product.name,
             product_model: product.model || '',
@@ -1472,6 +1477,8 @@ class ProductSelector {
                 item.addEventListener('click', () => {
                     // 构造完整的产品信息对象 - 修复字段映射
                     const selectedProduct = {
+                        id: product.id,
+                        product_id: product.id,
                         product_name: productName,
                         product_model: product.model || product.product_model,
                         product_desc: product.specification || product.product_spec || product.product_desc || product.spec,

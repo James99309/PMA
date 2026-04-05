@@ -107,11 +107,35 @@
 
 <!-- 底部操作区：添加按钮（左） + 货币和总计（右） -->
 <div class="flex items-center justify-between mt-4">
-    <!-- 左侧：添加产品按钮 -->
-    <button type="button" class="add-row-btn" data-field-code="__add_row__" onclick="window.EditableTable.addRow('quotationProductTable')">
-        <span class="material-symbols-outlined text-base">add</span>
-        {{ _('添加产品') }}
-    </button>
+    <!-- 左侧：添加产品分割按钮 -->
+    <div class="relative inline-block" data-field-code="__add_row__">
+        <div class="inline-flex">
+            <!-- 主按钮：默认从产品库添加 -->
+            <button type="button"
+                    class="add-row-btn add-row-btn-main"
+                    onclick="quotationAddFromLibrary(event)">
+                <span class="material-symbols-outlined text-base">add</span>
+                {{ _('添加产品') }}
+            </button>
+            <!-- 下拉触发按钮 -->
+            <button type="button"
+                    class="add-row-btn add-row-btn-caret"
+                    onclick="quotationToggleAddMenu(event)"
+                    aria-haspopup="true"
+                    aria-label="{{ _('更多选项') }}">
+                <span class="material-symbols-outlined text-base">expand_more</span>
+            </button>
+        </div>
+        <!-- 下拉菜单：只提供"添加自建产品"（主按钮已是"从产品库选择"，避免重复） -->
+        <div id="addProductDropdownMenu" class="hidden absolute left-0 top-full mt-1 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50 py-1">
+            <button type="button"
+                    class="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                    onclick="quotationAddCustomProduct(event)">
+                <span class="material-symbols-outlined text-base">edit_note</span>
+                <span>{{ _('添加自建产品') }}</span>
+            </button>
+        </div>
+    </div>
     <!-- 右侧：货币选择和总计 -->
     <div class="flex items-baseline gap-3">
         <select id="currency_modal" name="currency" data-field-code="currency" class="form-select rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 focus:border-primary focus:ring-2 focus:ring-primary text-sm w-auto">
@@ -134,3 +158,90 @@
               class="form-textarea block w-full rounded-md border-slate-300 dark:border-slate-600 bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-2 focus:ring-primary text-sm"
               placeholder="{{ _('输入报价单备注信息...') }}">{{ quotation.notes if quotation else '' }}</textarea>
 </div>
+
+<!-- 添加产品分割按钮 · 下拉菜单交互 -->
+<script>
+(function() {
+    if (window.__quotationAddMenuInit) return;
+    window.__quotationAddMenuInit = true;
+
+    function getMenu() {
+        return document.getElementById('addProductDropdownMenu');
+    }
+
+    function closeMenu() {
+        const menu = getMenu();
+        if (menu) menu.classList.add('hidden');
+    }
+
+    // 主按钮 / 下拉菜单 "从产品库" → 普通产品库选择流程
+    window.quotationAddFromLibrary = function(event) {
+        if (event) event.stopPropagation();
+        closeMenu();
+        if (window.EditableTable && window.EditableTable.addRow) {
+            window.EditableTable.addRow('quotationProductTable', null, { source: 'library' });
+        }
+    };
+
+    // 下拉菜单 "添加自建产品" → 新增空行带 autocomplete，焦点移到产品名
+    window.quotationAddCustomProduct = function(event) {
+        if (event) event.stopPropagation();
+        closeMenu();
+        if (!window.EditableTable || !window.EditableTable.addRow) return;
+        const rowId = window.EditableTable.addRow('quotationProductTable', null, {
+            source: 'custom',
+            unit: '个',
+            discount: 100,
+            quantity: 1
+        });
+        // 聚焦到产品名称输入框
+        setTimeout(function() {
+            const row = document.getElementById(rowId);
+            const input = row && row.querySelector('.custom-product-name-input');
+            if (input) input.focus();
+        }, 80);
+    };
+
+    // 切换下拉菜单显示
+    window.quotationToggleAddMenu = function(event) {
+        if (event) event.stopPropagation();
+        const menu = getMenu();
+        if (!menu) return;
+        const isHidden = menu.classList.contains('hidden');
+        menu.classList.toggle('hidden');
+        if (isHidden) {
+            // 点击外部关闭
+            setTimeout(function() {
+                document.addEventListener('click', function onDocClick(e) {
+                    if (!menu.contains(e.target)) {
+                        menu.classList.add('hidden');
+                        document.removeEventListener('click', onDocClick);
+                    }
+                });
+            }, 0);
+        }
+    };
+})();
+</script>
+
+<!-- 分割按钮样式（主按钮左圆角，下拉按钮右圆角，无缝连接） -->
+<style>
+    .add-row-btn-main {
+        border-top-right-radius: 0 !important;
+        border-bottom-right-radius: 0 !important;
+        border-right: none !important;
+    }
+    .add-row-btn-caret {
+        border-top-left-radius: 0 !important;
+        border-bottom-left-radius: 0 !important;
+        border-left: none !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+    .add-row-btn-caret:hover {
+        background: #f1f5f9;
+    }
+    .dark .add-row-btn-caret:hover {
+        background: #475569;
+    }
+</style>

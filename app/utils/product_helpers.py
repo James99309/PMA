@@ -544,3 +544,31 @@ def calculate_spec_mn_from_data(product, specs_data):
             f"计算规格MN失败: 产品ID={product.id}, 错误={str(e)}"
         )
         return None
+
+
+def assign_custom_product_mns(details):
+    """
+    为报价单中的自建产品批量分配 MN
+
+    规则：
+    - source='custom' 且 MN 为空的行 → 生成 TP{YYMMDDHHMM}{index:02d}
+    - source='custom' 且 MN 已有值（autocomplete 回填）→ 保留原值
+    - source='library' → 不处理
+
+    唯一性：仅保证同一报价单内唯一（跨报价单允许重复）
+
+    Args:
+        details: 报价单明细 list，每项含 source 和 product_mn 字段
+
+    Returns:
+        list: 原 list（原地修改）
+    """
+    base = datetime.utcnow().strftime('%y%m%d%H%M')
+    counter = 0
+    for detail in details:
+        source = detail.get('source', 'library')
+        existing = (detail.get('product_mn') or '').strip()
+        if source == 'custom' and not existing:
+            counter += 1
+            detail['product_mn'] = f"TP{base}{counter:02d}"
+    return details
