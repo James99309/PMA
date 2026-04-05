@@ -3524,18 +3524,41 @@ def get_subcategories_api():
         rows = db.session.query(
             ProductSubcategory.name,
             ProductSubcategory.name_en,
+            ProductSubcategory.code_letter,
             ProductSubcategory.display_order,
             func.count(Product.id)
         ).join(Product, Product.subcategory_id == ProductSubcategory.id)\
          .filter(
             Product.category_id == category_obj.id,
             Product.status == 'active'
-        ).group_by(ProductSubcategory.id, ProductSubcategory.name, ProductSubcategory.name_en, ProductSubcategory.display_order)\
-         .order_by(func.coalesce(ProductSubcategory.display_order, 999))\
+        ).group_by(ProductSubcategory.id, ProductSubcategory.name, ProductSubcategory.name_en, ProductSubcategory.code_letter, ProductSubcategory.display_order)\
          .all()
 
+        # 使用 product_display_order 表获取排序（与产品列表保持一致）
+        from app.models.product_display_order import ProductDisplayOrder
+        pdo_sub_orders = {}
+        if category_obj.code_letter:
+            pdo_sub_rows = db.session.query(
+                ProductDisplayOrder.subcategory_code,
+                func.min(ProductDisplayOrder.subcategory_order)
+            ).filter(
+                ProductDisplayOrder.category_code == category_obj.code_letter
+            ).group_by(ProductDisplayOrder.subcategory_code).all()
+            pdo_sub_orders = {sc: so for sc, so in pdo_sub_rows}
+
         use_en = Config.IS_OVS
-        result = [{'name': name, 'display_name': (name_en or name) if use_en else name, 'count': count} for name, name_en, _, count in rows]
+        result = [
+            {
+                'name': name,
+                'display_name': (name_en or name) if use_en else name,
+                'count': count,
+                '_order': pdo_sub_orders.get(code_letter, 9999) if code_letter else 9999
+            }
+            for name, name_en, code_letter, _, count in rows
+        ]
+        result.sort(key=lambda x: (x['_order'], x['name']))
+        for item in result:
+            del item['_order']
 
         # 兼容旧数据：没有 subcategory_id 但有 product_name 的产品
         orphan_rows = db.session.query(
@@ -3743,10 +3766,20 @@ def get_products_by_subcategory_api():
         else:
             subcategory_display_name = subcategory_obj.name if subcategory_obj else None
 
+        # 使用 product_display_order 表排序型号组（与产品列表保持一致）
+        model_orders = {}
+        if subcategory_obj and category_obj and category_obj.code_letter and subcategory_obj.code_letter:
+            from app.models.product_display_order import ProductDisplayOrder
+            pdo_rows = ProductDisplayOrder.query.filter_by(
+                category_code=category_obj.code_letter,
+                subcategory_code=subcategory_obj.code_letter
+            ).all()
+            model_orders = {r.model: r.model_order for r in pdo_rows}
+
         result = sorted([
             {'product_name': plist[0]['product_name'] if plist else model, 'model': model, 'count': len(plist), 'products': plist}
             for model, plist in model_groups_dict.items()
-        ], key=lambda x: x['model'])
+        ], key=lambda x: (model_orders.get(x['model'], 9999), x['model']))
 
         return jsonify({
             'success': True,

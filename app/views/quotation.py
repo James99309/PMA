@@ -2572,20 +2572,34 @@ def get_product_categories():
         logger.debug('正在获取产品类别列表...')
         # 从ProductCategory表查询，只返回有非停产产品的类别
         from app.models.product_code import ProductCategory
+        from app.models.product_display_order import ProductDisplayOrder
 
-        # 修复SQL错误：SELECT DISTINCT时，ORDER BY字段必须在SELECT列表中
-        # 按产品分类的 display_order 排序（与产品列表一致）
+        # 查询有非停产产品的类别（带 code_letter 用于关联 product_display_order）
         categories = db.session.query(
             ProductCategory.id,
             ProductCategory.name,
+            ProductCategory.code_letter,
             ProductCategory.display_order
         ).join(
             Product, Product.category_id == ProductCategory.id
         ).filter(
             Product.status != '停产'
-        ).distinct().order_by(ProductCategory.display_order, ProductCategory.id).all()
+        ).distinct().all()
 
-        category_list = [cat[1] for cat in categories]  # cat[1] 是 name
+        # 使用 product_display_order 表获取排序（与产品列表保持一致）
+        pdo_cat_rows = db.session.query(
+            ProductDisplayOrder.category_code,
+            func.min(ProductDisplayOrder.category_order)
+        ).group_by(ProductDisplayOrder.category_code).all()
+        pdo_cat_orders = {cc: co for cc, co in pdo_cat_rows}
+
+        # 按 product_display_order 的 category_order 排序，fallback 到 display_order
+        categories_sorted = sorted(
+            categories,
+            key=lambda c: (pdo_cat_orders.get(c[2], 9999) if c[2] else 9999, c[3] or 9999, c[0])
+        )
+
+        category_list = [cat[1] for cat in categories_sorted]
         logger.debug(f'找到 {len(category_list)} 个类别')
         return jsonify(category_list)
     except Exception as e:
