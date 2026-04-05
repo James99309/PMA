@@ -267,7 +267,7 @@ def sync_display_order_to_peer(category_code, subcategory_code):
         import requests
         try:
             resp = requests.post(
-                f'{peer_url}/api/v1/cross-sync/sync-display-order',
+                f'{peer_url}/cross-sync/sync-display-order',
                 json=payload,
                 headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
                 timeout=30,

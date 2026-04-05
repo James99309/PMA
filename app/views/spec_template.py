@@ -475,10 +475,21 @@ def list_templates():
     # if subcategory_filter:
     #     query = query.filter(ProductSubcategory.name == subcategory_filter)
 
-    # 按分类、子分类、创建时间排序
+    # 使用 product_display_order 表排序（与产品列表保持一致）
+    from app.models.product_display_order import ProductDisplayOrder
+    from sqlalchemy import func, and_
+    query = query.outerjoin(
+        ProductDisplayOrder,
+        and_(
+            ProductCategory.code_letter == ProductDisplayOrder.category_code,
+            ProductSubcategory.code_letter == ProductDisplayOrder.subcategory_code,
+            SpecTemplate.model == ProductDisplayOrder.model
+        )
+    )
     query = query.order_by(
-        ProductCategory.name.asc().nullslast(),
-        ProductSubcategory.name.asc().nullslast(),
+        func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
+        func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
+        func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
         SpecTemplate.created_at.desc()
     )
     templates = query.all()
@@ -503,6 +514,55 @@ def list_templates():
         for cat, info in sorted(category_tree.items(), key=lambda x: x[1]['order'])
     ]
 
+    # 批量查询每个模板的配置/产品关联统计
+    # configured_count = 有产品引用的配置数 (已配置)
+    # unconfigured_count = 没有产品引用的配置数 (未配置)
+    # product_count = 关联产品总数
+    template_stats = {}
+    if templates:
+        template_ids = [t.id for t in templates]
+        # 获取所有相关配置的 id 和 template_id
+        from app.models.product import Product
+        config_rows = db.session.query(
+            ProductConfiguration.id,
+            ProductConfiguration.template_id
+        ).filter(
+            ProductConfiguration.template_id.in_(template_ids),
+            ProductConfiguration.deleted_at.is_(None)
+        ).all()
+
+        # 所有配置 id
+        all_config_ids = [r[0] for r in config_rows]
+        config_to_template = {r[0]: r[1] for r in config_rows}
+
+        # 统计每个配置被引用的产品数
+        product_rows = []
+        if all_config_ids:
+            product_rows = db.session.query(
+                Product.source_configuration_id,
+                db.func.count(Product.id)
+            ).filter(
+                Product.source_configuration_id.in_(all_config_ids),
+                Product.is_deleted == False
+            ).group_by(Product.source_configuration_id).all()
+
+        config_product_count = {cid: cnt for cid, cnt in product_rows}
+
+        # 按 template_id 聚合统计
+        for tid in template_ids:
+            template_stats[tid] = {
+                'configured_count': 0,   # 有产品引用的配置数
+                'unconfigured_count': 0, # 无产品引用的配置数
+                'product_count': 0,      # 关联产品总数
+            }
+        for config_id, tid in config_to_template.items():
+            p_cnt = config_product_count.get(config_id, 0)
+            if p_cnt > 0:
+                template_stats[tid]['configured_count'] += 1
+                template_stats[tid]['product_count'] += p_cnt
+            else:
+                template_stats[tid]['unconfigured_count'] += 1
+
     filter_config = {
         'action_url': url_for('spec_template.list_templates'),
         'search_value': search,
@@ -514,6 +574,7 @@ def list_templates():
     return render_template(
         'spec_template/tw_list.html',
         templates=templates,
+        template_stats=template_stats,
         filter_config=filter_config
     )
 
@@ -754,7 +815,28 @@ def api_list_templates():
     query = SpecTemplate.query.filter(SpecTemplate.deleted_at.is_(None))
     if not _is_template_admin():
         query = query.filter_by(created_by=current_user.id)
-    templates = query.order_by(SpecTemplate.created_at.desc()).all()
+
+    # 使用 product_display_order 表排序（与产品列表保持一致）
+    from app.models.product_display_order import ProductDisplayOrder
+    from sqlalchemy import func, and_
+    query = query.outerjoin(
+        ProductSubcategory, SpecTemplate.subcategory_id == ProductSubcategory.id
+    ).outerjoin(
+        ProductCategory, ProductSubcategory.category_id == ProductCategory.id
+    ).outerjoin(
+        ProductDisplayOrder,
+        and_(
+            ProductCategory.code_letter == ProductDisplayOrder.category_code,
+            ProductSubcategory.code_letter == ProductDisplayOrder.subcategory_code,
+            SpecTemplate.model == ProductDisplayOrder.model
+        )
+    )
+    templates = query.order_by(
+        func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
+        func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
+        func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
+        SpecTemplate.created_at.desc()
+    ).all()
 
     return jsonify({
         'success': True,

@@ -104,6 +104,22 @@
                 categoryTree: window.__specFilterData.categoryTree,
                 selectedCategory: '',
                 selectedSubcategory: '',
+                init() {
+                    // 从 URL hash 恢复 tab 位置（进入配置页后返回列表时保持选中）
+                    const params = new URLSearchParams(window.location.hash.substring(1));
+                    this.selectedCategory = params.get('cat') || '';
+                    this.selectedSubcategory = params.get('sub') || '';
+                    // 等 DOM 渲染完成后应用筛选
+                    this.$nextTick(() => this.filterRows());
+                },
+                updateHash() {
+                    const params = new URLSearchParams();
+                    if (this.selectedCategory) params.set('cat', this.selectedCategory);
+                    if (this.selectedSubcategory) params.set('sub', this.selectedSubcategory);
+                    const hashStr = params.toString();
+                    const newUrl = hashStr ? '#' + hashStr : window.location.pathname + window.location.search;
+                    history.replaceState(null, '', newUrl);
+                },
                 get currentSubs() {
                     const cat = this.categoryTree.find(c => c.name === this.selectedCategory);
                     return cat ? cat.subcategories : [];
@@ -111,10 +127,12 @@
                 selectCat(cat) {
                     this.selectedCategory = cat;
                     this.selectedSubcategory = '';
+                    this.updateHash();
                     this.filterRows();
                 },
                 selectSub(sub) {
                     this.selectedSubcategory = sub;
+                    this.updateHash();
                     this.filterRows();
                 },
                 filterRows() {
@@ -177,7 +195,7 @@
                 {'field': 'model', 'label': _('型号'), 'min_width': '160px'},
                 {'field': 'version', 'label': _('版本'), 'width': '80px', 'align': 'center'},
                 {'field': 'items_count', 'label': _('规格项'), 'width': '70px', 'align': 'center'},
-                {'field': 'config_count', 'label': _('配置'), 'width': '60px', 'align': 'center'},
+                {'field': 'config_count', 'label': _('配置 / 产品'), 'width': '120px', 'align': 'center'},
                 {'field': 'created_at', 'label': _('创建'), 'min_width': '140px'},
                 {'field': 'actions', 'label': _('操作'), 'min_width': '120px', 'align': 'end'}
             ] %}
@@ -214,8 +232,13 @@
                 <td class="p-3 text-sm text-slate-600 dark:text-slate-400 text-center">
                     {{ template.items|length }}
                 </td>
-                <td class="p-3 text-sm text-slate-600 dark:text-slate-400 text-center">
-                    {{ template.configurations|rejectattr('deleted_at')|list|length }}
+                <td class="p-3 text-xs text-slate-600 dark:text-slate-400 text-center whitespace-nowrap">
+                    {% set stats = template_stats.get(template.id, {'configured_count': 0, 'unconfigured_count': 0, 'product_count': 0}) %}
+                    <span title="{{ _('已配置: %(c)s · 未配置: %(u)s · 产品: %(p)s · 未关联: %(un)s', c=stats.configured_count, u=stats.unconfigured_count, p=stats.product_count, un=stats.unconfigured_count) }}">
+                        <span class="text-emerald-600 dark:text-emerald-400 font-medium">{{ stats.configured_count }}</span>/<span class="text-slate-400">{{ stats.unconfigured_count }}</span>
+                        <span class="mx-1 text-slate-300">·</span>
+                        <span class="text-blue-600 dark:text-blue-400 font-medium">{{ stats.product_count }}</span>/<span class="text-slate-400">{{ stats.unconfigured_count }}</span>
+                    </span>
                 </td>
                 <td class="p-3 text-sm text-slate-400 dark:text-slate-500 whitespace-nowrap">
                     {{ template.created_at.strftime('%Y-%m-%d') if template.created_at else '-' }}{% if template.creator %} · {{ template.creator.real_name or template.creator.username }}{% endif %}
@@ -236,14 +259,14 @@
                         {% endif %}
                         {% if has_permission('product_code', 'create') %}
                         <button type="button" onclick="copyTemplate({{ template.id }}, '{{ template.model }}')"
-                           class="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                           class="inline-flex items-center justify-center w-7 h-7 p-0 border-0 bg-transparent rounded text-slate-400 hover:text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
                            title="{{ _('复制') }}">
                             <span class="material-symbols-outlined" style="font-size: 16px;">content_copy</span>
                         </button>
                         {% endif %}
                         {% if has_permission('product_code', 'delete') %}
                         <button type="button" onclick="confirmDeleteTemplate({{ template.id }}, '{{ template.model }}')"
-                           class="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                           class="inline-flex items-center justify-center w-7 h-7 p-0 border-0 bg-transparent rounded text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                            title="{{ _('删除') }}">
                             <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
                         </button>
