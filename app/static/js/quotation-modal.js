@@ -596,16 +596,8 @@ window.QuotationModal = (function() {
                 });
             });
             setTimeout(function() { window.EditableTable.calculateGrandTotal(tableId); }, 10);
-
-            // 未命中时弹模态框
-            if (missingProductNames.length > 0) {
-                if (typeof window.showMarketPriceMissing === 'function') {
-                    window.showMarketPriceMissing(missingProductNames);
-                } else {
-                    const header = '以下产品未配置该货币面价，请在明细行手动填写';
-                    alert(header + ' (' + newCurrency + '):\n\n' + missingProductNames.join('\n'));
-                }
-            }
+            // 缺面价的行已通过黄色高亮 + 可编辑 input 提示用户，不主动弹窗打断
+            // 保存时 validate() 会统一阻止并提示
         })
         .catch(function(err) {
             console.warn('批量获取地区面价失败:', err);
