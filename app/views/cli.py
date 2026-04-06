@@ -50,7 +50,7 @@ def _is_cli_enabled_for(user):
     if os.environ.get('ENABLE_CLI_AGENT', '').lower() in ('true', '1', 'yes'):
         return True
     role = getattr(user, 'role', None)
-    return role in ('admin', 'hr')
+    return role in ('admin', 'hrdp_manager', 'ceo')
 
 
 def _require_cli_access():
