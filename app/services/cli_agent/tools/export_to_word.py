@@ -38,8 +38,8 @@ class ExportToWordTool(BaseTool):
     description = (
         '将 Markdown 内容导出为精美 Word 文档。'
         '当用户说"导出Word"、"生成文档"、"下载报告"时使用。\n'
-        '传入 markdown 参数（完整的 Markdown 文本），自动转为 .docx 并返回下载链接。\n'
-        '可选 title 参数指定文档标题，filename 参数指定文件名。'
+        '传入 markdown 参数（完整的 Markdown 文本），自动转为 .docx。\n'
+        '返回结果包含 download_url 和 message（已含 Markdown 链接），直接输出 message 即可。'
     )
     input_schema = {
         'type': 'object',
@@ -86,11 +86,11 @@ class ExportToWordTool(BaseTool):
             front_matter = f'---\ntitle: "{title}"\n---\n\n'
             markdown = front_matter + markdown
 
-        # 生成文件名
+        # 生成文件名（用 UUID 避免中文编码问题，title 放在返回的 message 里）
         if not filename:
-            date_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-            safe_title = (title or 'report').replace(' ', '_')[:30]
-            filename = f'{safe_title}_{date_str}'
+            short_id = uuid.uuid4().hex[:8]
+            date_str = datetime.now().strftime('%Y%m%d_%H%M')
+            filename = f'report_{date_str}_{short_id}'
         filename = filename.replace('/', '_').replace('\\', '_')
         output_filename = f'{filename}.docx'
 
@@ -118,31 +118,22 @@ class ExportToWordTool(BaseTool):
             # 尝试存到 NAS WebDAV
             download_url = self._upload_to_storage(output_path, output_filename, user)
 
-            if download_url:
-                os.unlink(output_path)  # 清理临时文件
-                return {
-                    'success': True,
-                    'filename': output_filename,
-                    'url': download_url,
-                    'message': f'文档已生成: {output_filename}',
-                }
-            else:
-                # NAS 不可用，返回本地路径
-                # 复制到 storage 目录
-                storage_dir = os.path.join(
-                    os.path.dirname(os.path.abspath(__file__)),
-                    '..', '..', '..', '..', 'storage', 'exports'
-                )
-                os.makedirs(storage_dir, exist_ok=True)
-                final_path = os.path.join(storage_dir, output_filename)
-                os.rename(output_path, final_path)
+            # 存到本地 storage（始终可用）
+            storage_dir = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                '..', '..', '..', '..', 'storage', 'exports'
+            )
+            os.makedirs(storage_dir, exist_ok=True)
+            final_path = os.path.join(storage_dir, output_filename)
+            os.rename(output_path, final_path)
 
-                return {
-                    'success': True,
-                    'filename': output_filename,
-                    'path': final_path,
-                    'message': f'文档已生成: {output_filename}（本地存储）',
-                }
+            download_url = f'/cli/api/exports/{output_filename}'
+
+            return {
+                'success': True,
+                'filename': output_filename,
+                'download_url': download_url,
+            }
 
         except subprocess.TimeoutExpired:
             return {'error': '文档生成超时（30秒）'}

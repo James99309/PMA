@@ -299,6 +299,22 @@ html.dark .cli-cmd-suggest {
 }
 .cli-cmd-item.active .cli-cmd-desc { color: rgba(255,255,255,0.8); }
 
+/* ─── 下载按钮 ─── */
+.cli-download { padding-left: 20px; margin: 6px 0; }
+.cli-download-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 16px;
+    background: var(--cli-accent);
+    color: #fff !important;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: opacity 0.15s;
+}
+.cli-download-btn:hover { opacity: 0.85; }
+
 /* ─── 隐藏 PMA 全局聊天气泡 ─── */
 body:has(.cli-window) button.fixed.bottom-6.right-6.bg-primary.rounded-full { display: none !important; }
 

@@ -326,6 +326,16 @@ class CliTerminalApp {
     this._scrollToBottom();
   }
 
+  _appendDownloadButton(filename, url) {
+    const div = document.createElement('div');
+    div.className = 'cli-line cli-download';
+    div.innerHTML = `<a href="${this._escapeHtml(url)}" target="_blank" class="cli-download-btn">` +
+      `<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px">download</span>` +
+      `${this._escapeHtml(filename)}</a>`;
+    this.els.transcript.appendChild(div);
+    this._scrollToBottom();
+  }
+
   _appendUsageLine() {
     const info = this.sessions.get(this.activeId);
     if (!info) return;
@@ -466,6 +476,8 @@ class CliTerminalApp {
           statusMsg = `创建技能: ${evt.input?.title || evt.input?.name || ''}`;
         } else if (toolName === 'web_search') {
           statusMsg = `搜索: ${evt.input?.query || ''}`;
+        } else if (toolName === 'export_to_word') {
+          statusMsg = '生成文档...';
         }
         toolStatusEl = this._appendToolStatus(statusMsg, true);
         break;
@@ -476,11 +488,16 @@ class CliTerminalApp {
           if (toolStatusEl) toolStatusEl.remove();
           toolStatusEl = null;
           this._appendToolStatus('错误: ' + (out.error || JSON.stringify(out)), false);
-        } else if (toolStatusEl) {
-          // 成功：停止旋转，保留状态行（显示调用了什么）
-          const spinnerEl = toolStatusEl.querySelector('.cli-tool-spinner');
-          if (spinnerEl) spinnerEl.remove();
-          toolStatusEl = null;
+        } else {
+          if (toolStatusEl) {
+            const spinnerEl = toolStatusEl.querySelector('.cli-tool-spinner');
+            if (spinnerEl) spinnerEl.remove();
+            toolStatusEl = null;
+          }
+          // Word 导出：直接渲染下载按钮
+          if (out.download_url && out.filename) {
+            this._appendDownloadButton(out.filename, out.download_url);
+          }
         }
         break;
       }

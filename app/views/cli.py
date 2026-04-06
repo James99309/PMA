@@ -358,11 +358,13 @@ def download_export(filename: str):
     """下载 CLI Agent 导出的文件"""
     _require_cli_access()
     import os
-    from flask import send_file
-
+    import urllib.parse
+    from flask import send_file, current_app
     # 安全检查：防止路径穿越
-    safe_name = os.path.basename(filename)
-    storage_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'storage', 'exports')
+    safe_name = os.path.basename(urllib.parse.unquote(filename))
+    # 项目根目录/storage/exports
+    project_root = current_app.root_path.rsplit('/app', 1)[0]
+    storage_dir = os.path.join(project_root, 'storage', 'exports')
     file_path = os.path.join(storage_dir, safe_name)
 
     if not os.path.exists(file_path):
