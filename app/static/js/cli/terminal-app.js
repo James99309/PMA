@@ -326,6 +326,16 @@ class CliTerminalApp {
     this._scrollToBottom();
   }
 
+  _appendDownloadButton(filename, url) {
+    const div = document.createElement('div');
+    div.className = 'cli-line cli-download';
+    div.innerHTML = `<a href="${this._escapeHtml(url)}" target="_blank" class="cli-download-btn">` +
+      `<span class="material-symbols-outlined" style="font-size:16px;vertical-align:middle;margin-right:4px">download</span>` +
+      `${this._escapeHtml(filename)}</a>`;
+    this.els.transcript.appendChild(div);
+    this._scrollToBottom();
+  }
+
   _appendUsageLine() {
     const info = this.sessions.get(this.activeId);
     if (!info) return;
@@ -455,19 +465,40 @@ class CliTerminalApp {
 
       case 'tool_call':
         this._finishStreamingBlock();
-        // 单行旋转状态，自动替换不叠加
         if (toolStatusEl) toolStatusEl.remove();
-        toolStatusEl = this._appendToolStatus('查询中...', true);
+        // 根据工具类型显示不同状态
+        const toolName = evt.name || '';
+        let statusMsg = '查询中...';
+        if (toolName === 'invoke_skill') {
+          const skillName = evt.input?.skill_name || '';
+          statusMsg = `调用技能: ${skillName}`;
+        } else if (toolName === 'save_skill') {
+          statusMsg = `创建技能: ${evt.input?.title || evt.input?.name || ''}`;
+        } else if (toolName === 'web_search') {
+          statusMsg = `搜索: ${evt.input?.query || ''}`;
+        } else if (toolName === 'export_to_word') {
+          statusMsg = '生成文档...';
+        }
+        toolStatusEl = this._appendToolStatus(statusMsg, true);
         break;
 
       case 'tool_result': {
-        if (toolStatusEl) toolStatusEl.remove();
-        toolStatusEl = null;
         const out = evt.output || {};
         if (evt.is_error || out.error) {
+          if (toolStatusEl) toolStatusEl.remove();
+          toolStatusEl = null;
           this._appendToolStatus('错误: ' + (out.error || JSON.stringify(out)), false);
+        } else {
+          if (toolStatusEl) {
+            const spinnerEl = toolStatusEl.querySelector('.cli-tool-spinner');
+            if (spinnerEl) spinnerEl.remove();
+            toolStatusEl = null;
+          }
+          // Word 导出：直接渲染下载按钮
+          if (out.download_url && out.filename) {
+            this._appendDownloadButton(out.filename, out.download_url);
+          }
         }
-        // 成功时不显示，让 AI 回复说话
         break;
       }
 
@@ -525,6 +556,11 @@ class CliTerminalApp {
 
       case 'history':
         await this._showHistory();
+        break;
+
+      case 'skills':
+      case 'skill':
+        await this._showSkills();
         break;
 
       case 'help':
@@ -618,12 +654,45 @@ class CliTerminalApp {
     }
   }
 
+  async _showSkills() {
+    try {
+      const r = await this._fetch('/cli/api/skills');
+      const data = await r.json();
+      if (!data.success || !data.skills?.length) {
+        this._appendSystemLine('暂无可用技能');
+        return;
+      }
+      let lines = '<span class="cli-sys-heading">可用技能</span>\n\n';
+      const globalSkills = data.skills.filter(s => s.scope === 'global');
+      const personalSkills = data.skills.filter(s => s.scope !== 'global');
+
+      if (globalSkills.length) {
+        lines += '<span class="cli-sys-heading">全局技能</span>\n';
+        for (const s of globalSkills) {
+          const params = (s.parameters || []).map(p => p.name).join(', ');
+          lines += `  <span class="cli-sys-cmd">${s.name}</span>  ${s.title}${params ? '（' + params + '）' : ''}\n`;
+        }
+      }
+      if (personalSkills.length) {
+        lines += '\n<span class="cli-sys-heading">我的技能</span>\n';
+        for (const s of personalSkills) {
+          const params = (s.parameters || []).map(p => p.name).join(', ');
+          lines += `  <span class="cli-sys-cmd">${s.name}</span>  ${s.title}${params ? '（' + params + '）' : ''}\n`;
+        }
+      }
+      this._appendSystemLine(lines);
+    } catch (e) {
+      this._appendErrorLine('获取技能列表失败: ' + e.message);
+    }
+  }
+
   _showHelp() {
     this._appendSystemLine(
       `<span class="cli-sys-heading">可用命令</span>\n` +
       `  <span class="cli-sys-cmd">/new</span>      重置当前会话\n` +
       `  <span class="cli-sys-cmd">/clear</span>    清屏\n` +
       `  <span class="cli-sys-cmd">/tokens</span>   显示 token 用量\n` +
+      `  <span class="cli-sys-cmd">/skills</span>   查看可用技能\n` +
       `  <span class="cli-sys-cmd">/history</span>  查看所有会话\n` +
       `  <span class="cli-sys-cmd">/help</span>     显示本帮助\n\n` +
       `<span class="cli-sys-heading">快捷键</span>\n` +
@@ -719,6 +788,7 @@ class CliTerminalApp {
     { name: '/new',     desc: '重置当前会话' },
     { name: '/clear',   desc: '清屏' },
     { name: '/tokens',  desc: '显示 token 用量' },
+    { name: '/skills',  desc: '查看可用技能' },
     { name: '/history', desc: '查看所有会话' },
     { name: '/help',    desc: '显示帮助' },
   ];

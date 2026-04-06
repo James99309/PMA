@@ -177,13 +177,23 @@ html.dark {
 /* ─── 对话记录 ─── */
 .cli-transcript { display: flex; flex-direction: column; gap: 6px; }
 .cli-line { padding: 4px 2px; word-wrap: break-word; white-space: pre-wrap; }
-.cli-line-user { color: var(--cli-text); }
-.cli-user-prompt { color: var(--cli-prompt); font-weight: 600; margin-right: 6px; }
-.cli-user-text { color: var(--cli-text); }
+.cli-line-user {
+    color: #fff;
+    background: #2d2d2d;
+    padding: 8px 16px;
+    margin: 6px 0;
+}
+html.dark .cli-line-user {
+    background: #2a2d32;
+}
+.cli-user-prompt { color: #7ee787; font-weight: 600; margin-right: 6px; }
+.cli-user-text { color: #e6edf3; }
 .cli-line-assistant {
     color: var(--cli-text);
     padding-left: 20px;
+    line-height: 1.45;
 }
+.cli-line-assistant br { display: none; }  /* 消除多余换行 */
 .cli-line-tool { color: var(--cli-text-dim); font-style: italic; font-size: 12px; padding-left: 18px; }
 .cli-line-error { color: var(--cli-error); padding-left: 18px; }
 
@@ -252,11 +262,17 @@ html.dark {
     border-top: 1px solid var(--cli-border);
     background: var(--cli-bg-alt);
     font-size: 13px;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.08);
+}
+html.dark .cli-cmd-suggest {
+    background: #1c2129;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.3);
 }
 .cli-cmd-hint {
     padding: 6px 20px;
     font-size: 11px;
     color: var(--cli-text-dimmer);
+    border-bottom: 1px solid var(--cli-border);
 }
 .cli-cmd-item {
     display: flex;
@@ -267,7 +283,6 @@ html.dark {
     color: var(--cli-text);
     transition: background 0.1s;
 }
-.cli-cmd-item:hover,
 .cli-cmd-item.active {
     background: var(--cli-accent);
     color: #fff;
@@ -277,34 +292,51 @@ html.dark {
     min-width: 80px;
     color: var(--cli-prompt);
 }
-.cli-cmd-item:hover .cli-cmd-name,
 .cli-cmd-item.active .cli-cmd-name { color: #fff; }
 .cli-cmd-item .cli-cmd-desc {
     color: var(--cli-text-dim);
     font-size: 12px;
 }
-.cli-cmd-item:hover .cli-cmd-desc,
 .cli-cmd-item.active .cli-cmd-desc { color: rgba(255,255,255,0.8); }
+
+/* ─── 下载按钮 ─── */
+.cli-download { padding-left: 20px; margin: 6px 0; }
+.cli-download-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 16px;
+    background: var(--cli-accent);
+    color: #fff !important;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    transition: opacity 0.15s;
+}
+.cli-download-btn:hover { opacity: 0.85; }
 
 /* ─── 隐藏 PMA 全局聊天气泡 ─── */
 body:has(.cli-window) button.fixed.bottom-6.right-6.bg-primary.rounded-full { display: none !important; }
 
-/* ─── Markdown 渲染 ─── */
-.cli-line-assistant p { margin: 0.15em 0; }
-.cli-line-assistant p:first-child { margin-top: 0; }
-.cli-line-assistant p:last-child  { margin-bottom: 0; }
+/* ─── Markdown 渲染（Claude Code 紧凑风格）─── */
+.cli-line-assistant p { margin: 0; }
+.cli-line-assistant p:empty { display: none; }
+.cli-line-assistant p + p { margin-top: 0.25em; }    /* 连续段落只加微小间距 */
 .cli-line-assistant h1, .cli-line-assistant h2, .cli-line-assistant h3 {
-    color: var(--cli-heading); margin: 0.6em 0 0.3em; font-size: 1em; font-weight: 600;
+    color: var(--cli-heading); margin: 0.4em 0 0.15em; font-size: 1em; font-weight: 600;
 }
-.cli-line-assistant h1 { font-size: 1.15em; }
-.cli-line-assistant ul, .cli-line-assistant ol { margin: 0.3em 0; padding-left: 1.5em; }
-.cli-line-assistant li { margin: 0.15em 0; }
+.cli-line-assistant h1 { font-size: 1.1em; }
+.cli-line-assistant ul, .cli-line-assistant ol { margin: 0.15em 0; padding-left: 1.4em; }
+.cli-line-assistant li { margin: 0; }
+.cli-line-assistant li + li { margin-top: 0.05em; }
 .cli-line-assistant strong { color: var(--cli-text); font-weight: 700; }
 .cli-line-assistant em { color: var(--cli-text-dim); }
-.cli-line-assistant hr { border: none; border-top: 1px solid var(--cli-border); margin: 0.5em 0; }
+.cli-line-assistant hr { border: none; border-top: 1px solid var(--cli-border); margin: 0.3em 0; }
 .cli-line-assistant blockquote {
-    border-left: 3px solid var(--cli-text-dimmer); padding-left: 12px; color: var(--cli-text-dim); margin: 0.4em 0;
+    border-left: 3px solid var(--cli-text-dimmer); padding-left: 12px; color: var(--cli-text-dim); margin: 0.2em 0;
 }
+/* 表格紧贴上下文 */
+.cli-md-table-wrap { margin: 0.2em 0; }
 
 /* 表格 */
 .cli-md-table-wrap { overflow-x: auto; margin: 0.5em 0; }

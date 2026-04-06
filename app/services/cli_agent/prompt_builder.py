@@ -32,10 +32,10 @@ _STATIC_ROLE_AND_RULES = """\
 ## 原则
 
 1. **工具优先** — 一切事实性问题必须调工具，不凭记忆回答。用户提到的任何实体（公司、人、项目），无论多知名，都要查。上一轮出现过的实体，追问时仍要重新查详情，不要从摘要里回答。
-2. **果断行动 + 一次做完** — 有合理默认就直接执行，不反问。在同一条回复里完成所有工具调用并给出完整答案。**严禁**说"如果你要我可以继续查"、"回复'继续'我就补齐"——这会浪费用户时间。如果需要查多张表，就一次性查完再回复。
-3. **路由清晰** — PMA 内部数据（客户/项目/报价/订单/产品/费用/用户）→ `query_pma_database`；外部公开信息（天气/新闻/行业背景/公司官网）→ `web_search`；闲聊/写代码/创作 → 一句话婉拒。
+2. **果断行动 + 一次做完** — 有合理默认就直接执行，不反问。在同一条回复里完成所有工具调用并给出完整答案。**严禁**说"如果你要我可以继续查"、"回复'继续'我就补齐"、"收到，马上开始"——说了就必须同时调工具。用户说"确认"或"好的"时，立刻执行而不是再回一条空话。
+3. **路由清晰** — 先检查是否匹配已有 Skill → `invoke_skill`（从用户消息中提取所有参数值，如人名、时间词等，映射到 Skill 参数后一次性传入，不要遗漏）；PMA 内部数据 → `query_pma_database`；外部公开信息 → `web_search`；创建 Skill → `save_skill`；用户说"导出Word/生成文档/下载报告" → `export_to_word`（把上一条回复的完整 Markdown 传入）；闲聊 → 婉拒。工具调用失败时立刻用正确参数重试，不要反问用户确认。
 4. **隐藏管道** — 永远不向用户暴露表名、字段名、SQL、ID、权限规则。查不到就说"暂无记录"。工具报错时转述友好信息。
-5. **数据呈现** — 中文回复。多行用 Markdown 表格 + 中文列头。枚举值按 Schema 末尾的"枚举字段中文标签"展示，不显示英文原值。金额带千分位和货币符号（¥5,420,000）。首次提及的业务实体**加粗**。引用 web_search 结果时附来源 URL。
+5. **数据呈现** — 中文回复，紧凑排版（不要在段落间留空行，列举项用 bullet 不空行）。多行用 Markdown 表格 + 中文列头。枚举值按 Schema 末尾的"枚举字段中文标签"展示。金额带千分位和货币符号（¥5,420,000）。首次提及的业务实体**加粗**。引用 web_search 结果时附来源 URL。
 6. **保留上下文** — 工具结果可能在长会话中被压缩清除，关键数据值（名称、金额、日期）必须在回复文本中复述。
 
 ## 示例
@@ -59,6 +59,13 @@ Assistant: [再次调用 query_pma_database 查详情] → **华为技术**关�
 |---------|------|------|
 | **华为坂田基地改造** | 植入 | 进行中 |
 | **华为东莞松山湖** | 标前 | 进行中 |
+
+User: 华为的客户画像
+Assistant: [调用 invoke_skill(skill_name="customer_profile", params={"keyword":"华为"})] → **华为技术**客户画像：
+
+- **基本信息**: 终端用户 / 中国 / 科技行业
+- **项目概览**: 2 个进行中项目，总金额 ¥12,500,000
+- **最近动态**: 2026-03-15 提交报价单
 ```
 
 ## 安全
@@ -82,6 +89,32 @@ def _schema_section() -> str:
 def build_static_section() -> str:
     """整个 session 内不变的部分。享受 prompt cache。"""
     return _STATIC_ROLE_AND_RULES + _schema_section()
+
+
+# ─── Skill 清单(动态,每用户不同)────────────────────────────────────────
+
+def _skill_section(user) -> str:
+    """从数据库加载当前用户可用的 Skill，生成提示段。"""
+    try:
+        from app.models.cli_skill import CliSkill
+        from sqlalchemy import or_
+        skills = CliSkill.query.filter(
+            CliSkill.is_active == True,
+            or_(
+                CliSkill.scope == 'global',
+                CliSkill.created_by == user.id
+            )
+        ).all()
+    except Exception:
+        return ''
+
+    if not skills:
+        return ''
+
+    lines = ['\n[可用 Skill（优先使用 invoke_skill 调用）]']
+    for s in skills:
+        lines.append(f'- {s.to_prompt_description()}')
+    return '\n'.join(lines) + '\n'
 
 
 # ─── 动态段(session 级稳定,每用户不同)─────────────────────────────────
@@ -109,6 +142,11 @@ def build_dynamic_section(user) -> str:
         parts.append(f'[权限范围]\n{perm_ctx}\n')
     except Exception as e:
         current_app.logger.warning(f'[CLI Agent] 获取权限上下文失败: {e}')
+
+    # 可用 Skill
+    skill_text = _skill_section(user)
+    if skill_text:
+        parts.append(skill_text)
 
     # 环境
     is_ovs = current_app.config.get('IS_OVS', False)

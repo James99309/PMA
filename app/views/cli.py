@@ -49,7 +49,8 @@ cli_bp = Blueprint('cli', __name__, url_prefix='/cli')
 def _is_cli_enabled_for(user):
     if os.environ.get('ENABLE_CLI_AGENT', '').lower() in ('true', '1', 'yes'):
         return True
-    return getattr(user, 'role', None) == 'admin'
+    role = getattr(user, 'role', None)
+    return role in ('admin', 'hr')
 
 
 def _require_cli_access():
@@ -289,4 +290,89 @@ def stream_chat():
             'Cache-Control': 'no-cache',
             'X-Accel-Buffering': 'no',  # 禁用 nginx 缓冲
         },
+    )
+
+
+# ─── Skill API ──────────────────────────────────────────────────────────
+
+@cli_bp.route('/api/skills', methods=['GET'])
+@login_required
+def list_skills():
+    """列出当前用户可用的 Skill"""
+    _require_cli_access()
+    from app.models.cli_skill import CliSkill
+    from sqlalchemy import or_
+
+    skills = CliSkill.query.filter(
+        CliSkill.is_active == True,
+        or_(
+            CliSkill.scope == 'global',
+            CliSkill.created_by == current_user.id,
+        ),
+    ).order_by(CliSkill.title).all()
+
+    return jsonify({
+        'success': True,
+        'skills': [s.to_dict() for s in skills],
+    })
+
+
+@cli_bp.route('/api/skills/<int:skill_id>', methods=['GET'])
+@login_required
+def get_skill(skill_id: int):
+    """获取单个 Skill 详情"""
+    _require_cli_access()
+    from app.models.cli_skill import CliSkill
+
+    skill = CliSkill.query.get(skill_id)
+    if not skill:
+        return jsonify({'success': False, 'error': 'Skill 不存在'}), 404
+
+    return jsonify({'success': True, 'skill': skill.to_dict()})
+
+
+@cli_bp.route('/api/skills/<int:skill_id>', methods=['DELETE'])
+@login_required
+def delete_skill(skill_id: int):
+    """删除 Skill（仅创建者或 admin）"""
+    _require_cli_access()
+    from app.models.cli_skill import CliSkill
+
+    skill = CliSkill.query.get(skill_id)
+    if not skill:
+        return jsonify({'success': False, 'error': 'Skill 不存在'}), 404
+
+    is_admin = getattr(current_user, 'role', None) == 'admin'
+    if skill.created_by != current_user.id and not is_admin:
+        return jsonify({'success': False, 'error': '无权删除此 Skill'}), 403
+
+    db.session.delete(skill)
+    db.session.commit()
+    return jsonify({'success': True})
+
+
+# ─── 文件导出下载 ──────────────────────────────────────────────────────
+
+@cli_bp.route('/api/exports/<filename>', methods=['GET'])
+@login_required
+def download_export(filename: str):
+    """下载 CLI Agent 导出的文件"""
+    _require_cli_access()
+    import os
+    import urllib.parse
+    from flask import send_file, current_app
+    # 安全检查：防止路径穿越
+    safe_name = os.path.basename(urllib.parse.unquote(filename))
+    # 项目根目录/storage/exports
+    project_root = current_app.root_path.rsplit('/app', 1)[0]
+    storage_dir = os.path.join(project_root, 'storage', 'exports')
+    file_path = os.path.join(storage_dir, safe_name)
+
+    if not os.path.exists(file_path):
+        return jsonify({'success': False, 'error': '文件不存在或已过期'}), 404
+
+    return send_file(
+        file_path,
+        as_attachment=True,
+        download_name=safe_name,
     )
