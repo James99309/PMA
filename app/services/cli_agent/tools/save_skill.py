@@ -174,18 +174,8 @@ class SaveSkillTool(BaseTool):
                 }
 
         # --- 2. 确定 scope ---
-        is_admin = getattr(user, 'role', '') == 'admin'
-
-        if is_admin:
-            # admin 可以选择 scope,默认 global
-            scope = requested_scope if requested_scope in ('global', 'personal') else 'global'
-        else:
-            # 非 admin 强制 personal
-            scope = 'personal'
-            if requested_scope == 'global':
-                logger.info(
-                    f'[CLI Agent] 用户 {user.id} 请求 global scope 但非 admin,降级为 personal'
-                )
+        # 对话中创建的 Skill 一律 personal，只有代码内置的才是 global
+        scope = 'personal'
 
         # --- 3. 查找是否已有同名 Skill ---
         try:

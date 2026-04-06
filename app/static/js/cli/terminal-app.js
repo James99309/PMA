@@ -558,6 +558,11 @@ class CliTerminalApp {
         await this._showHistory();
         break;
 
+      case 'skills':
+      case 'skill':
+        await this._showSkills();
+        break;
+
       case 'help':
         this._showHelp();
         break;
@@ -649,12 +654,45 @@ class CliTerminalApp {
     }
   }
 
+  async _showSkills() {
+    try {
+      const r = await this._fetch('/cli/api/skills');
+      const data = await r.json();
+      if (!data.success || !data.skills?.length) {
+        this._appendSystemLine('暂无可用技能');
+        return;
+      }
+      let lines = '<span class="cli-sys-heading">可用技能</span>\n\n';
+      const globalSkills = data.skills.filter(s => s.scope === 'global');
+      const personalSkills = data.skills.filter(s => s.scope !== 'global');
+
+      if (globalSkills.length) {
+        lines += '<span class="cli-sys-heading">全局技能</span>\n';
+        for (const s of globalSkills) {
+          const params = (s.parameters || []).map(p => p.name).join(', ');
+          lines += `  <span class="cli-sys-cmd">${s.name}</span>  ${s.title}${params ? '（' + params + '）' : ''}\n`;
+        }
+      }
+      if (personalSkills.length) {
+        lines += '\n<span class="cli-sys-heading">我的技能</span>\n';
+        for (const s of personalSkills) {
+          const params = (s.parameters || []).map(p => p.name).join(', ');
+          lines += `  <span class="cli-sys-cmd">${s.name}</span>  ${s.title}${params ? '（' + params + '）' : ''}\n`;
+        }
+      }
+      this._appendSystemLine(lines);
+    } catch (e) {
+      this._appendErrorLine('获取技能列表失败: ' + e.message);
+    }
+  }
+
   _showHelp() {
     this._appendSystemLine(
       `<span class="cli-sys-heading">可用命令</span>\n` +
       `  <span class="cli-sys-cmd">/new</span>      重置当前会话\n` +
       `  <span class="cli-sys-cmd">/clear</span>    清屏\n` +
       `  <span class="cli-sys-cmd">/tokens</span>   显示 token 用量\n` +
+      `  <span class="cli-sys-cmd">/skills</span>   查看可用技能\n` +
       `  <span class="cli-sys-cmd">/history</span>  查看所有会话\n` +
       `  <span class="cli-sys-cmd">/help</span>     显示本帮助\n\n` +
       `<span class="cli-sys-heading">快捷键</span>\n` +
@@ -750,6 +788,7 @@ class CliTerminalApp {
     { name: '/new',     desc: '重置当前会话' },
     { name: '/clear',   desc: '清屏' },
     { name: '/tokens',  desc: '显示 token 用量' },
+    { name: '/skills',  desc: '查看可用技能' },
     { name: '/history', desc: '查看所有会话' },
     { name: '/help',    desc: '显示帮助' },
   ];
