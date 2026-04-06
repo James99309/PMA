@@ -47,7 +47,9 @@ class InvokeSkillTool(BaseTool):
     }
 
     def execute(self, tool_input: dict, context: dict) -> Any:
-        skill_name = (tool_input or {}).get('skill_name', '').strip()
+        raw_name = (tool_input or {}).get('skill_name', '').strip()
+        # 清洗：LLM 可能传 "sales_weekly_review(user_name, period)" 或带空格的名字
+        skill_name = raw_name.split('(')[0].strip()
         params = (tool_input or {}).get('parameters') or {}
         user = context.get('user')
 

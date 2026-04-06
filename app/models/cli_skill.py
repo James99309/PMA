@@ -67,9 +67,18 @@ class CliSkill(db.Model):
         }
 
     def to_prompt_description(self) -> str:
-        """返回一行摘要,用于拼入 Agent 的 system prompt。"""
+        """返回一行摘要,用于拼入 Agent 的 system prompt。
+
+        格式: skill_name — 标题（参数: a, b）
+        注意: skill_name 不带括号，invoke_skill 的 skill_name 参数只传这个名字。
+        """
         params = self.parameters or []
+        param_info = ''
         if params:
-            param_names = ', '.join(p.get('name', '?') for p in params)
-            return f"{self.name}({param_names}) — {self.title}: {self.description}"
-        return f"{self.name}() — {self.title}: {self.description}"
+            parts = []
+            for p in params:
+                name = p.get('name', '?')
+                req = '必填' if p.get('required') else '可选'
+                parts.append(f'{name}[{req}]')
+            param_info = f'（参数: {", ".join(parts)}）'
+        return f"{self.name} — {self.title}{param_info}"
