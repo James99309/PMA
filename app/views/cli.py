@@ -348,3 +348,28 @@ def delete_skill(skill_id: int):
     db.session.delete(skill)
     db.session.commit()
     return jsonify({'success': True})
+
+
+# ─── 文件导出下载 ──────────────────────────────────────────────────────
+
+@cli_bp.route('/api/exports/<filename>', methods=['GET'])
+@login_required
+def download_export(filename: str):
+    """下载 CLI Agent 导出的文件"""
+    _require_cli_access()
+    import os
+    from flask import send_file
+
+    # 安全检查：防止路径穿越
+    safe_name = os.path.basename(filename)
+    storage_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'storage', 'exports')
+    file_path = os.path.join(storage_dir, safe_name)
+
+    if not os.path.exists(file_path):
+        return jsonify({'success': False, 'error': '文件不存在或已过期'}), 404
+
+    return send_file(
+        file_path,
+        as_attachment=True,
+        download_name=safe_name,
+    )

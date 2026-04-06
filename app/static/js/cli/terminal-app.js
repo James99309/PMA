@@ -455,19 +455,33 @@ class CliTerminalApp {
 
       case 'tool_call':
         this._finishStreamingBlock();
-        // 单行旋转状态，自动替换不叠加
         if (toolStatusEl) toolStatusEl.remove();
-        toolStatusEl = this._appendToolStatus('查询中...', true);
+        // 根据工具类型显示不同状态
+        const toolName = evt.name || '';
+        let statusMsg = '查询中...';
+        if (toolName === 'invoke_skill') {
+          const skillName = evt.input?.skill_name || '';
+          statusMsg = `调用技能: ${skillName}`;
+        } else if (toolName === 'save_skill') {
+          statusMsg = `创建技能: ${evt.input?.title || evt.input?.name || ''}`;
+        } else if (toolName === 'web_search') {
+          statusMsg = `搜索: ${evt.input?.query || ''}`;
+        }
+        toolStatusEl = this._appendToolStatus(statusMsg, true);
         break;
 
       case 'tool_result': {
-        if (toolStatusEl) toolStatusEl.remove();
-        toolStatusEl = null;
         const out = evt.output || {};
         if (evt.is_error || out.error) {
+          if (toolStatusEl) toolStatusEl.remove();
+          toolStatusEl = null;
           this._appendToolStatus('错误: ' + (out.error || JSON.stringify(out)), false);
+        } else if (toolStatusEl) {
+          // 成功：停止旋转，保留状态行（显示调用了什么）
+          const spinnerEl = toolStatusEl.querySelector('.cli-tool-spinner');
+          if (spinnerEl) spinnerEl.remove();
+          toolStatusEl = null;
         }
-        // 成功时不显示，让 AI 回复说话
         break;
       }
 

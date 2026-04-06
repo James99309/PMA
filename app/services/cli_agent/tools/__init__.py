@@ -97,6 +97,12 @@ def get_default_registry() -> ToolRegistry:
         _default_registry.register(InvokeSkillTool())
         _default_registry.register(SaveSkillTool())
 
+        # 注册 export_to_word（pandoc 可用时）
+        import shutil
+        if shutil.which('pandoc'):
+            from app.services.cli_agent.tools.export_to_word import ExportToWordTool
+            _default_registry.register(ExportToWordTool())
+
         # 注册 web_search(只在配置了 TAVILY_API_KEY 时)
         import os
         if os.environ.get('TAVILY_API_KEY', '').strip():
