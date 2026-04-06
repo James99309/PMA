@@ -62,14 +62,19 @@ class ClaudeClient(BaseLLMClient):
     # Claude 3.5 Sonnet 的稳定模型 ID(支持 tool use + prompt caching)
     DEFAULT_MODEL = 'claude-3-5-sonnet-latest'
 
-    def __init__(self, api_key: str | None = None, model: str | None = None):
+    def __init__(self, api_key: str | None = None, model: str | None = None, base_url: str | None = None):
         from anthropic import Anthropic
         key = api_key or os.environ.get('ANTHROPIC_API_KEY', '')
         if not key:
             raise LLMClientError(
                 '未配置 ANTHROPIC_API_KEY 环境变量,无法调用 Claude API'
             )
-        self._client = Anthropic(api_key=key)
+        kwargs = {'api_key': key}
+        url = base_url or os.environ.get('ANTHROPIC_BASE_URL', '').strip()
+        if url:
+            kwargs['base_url'] = url
+            logger.info(f'[CLI Agent LLM] Claude base_url={url}')
+        self._client = Anthropic(**kwargs)
         self.model = model or os.environ.get('CLI_AGENT_MODEL', self.DEFAULT_MODEL)
 
     def stream(
@@ -556,7 +561,8 @@ def get_default_client() -> BaseLLMClient:
     provider = os.environ.get('CLI_AGENT_PROVIDER', 'openai').lower().strip()
 
     if provider == 'claude':
-        return ClaudeClient()
+        base_url = os.environ.get('ANTHROPIC_BASE_URL', '').strip() or None
+        return ClaudeClient(base_url=base_url)
 
     if provider == 'openai':
         # base_url:显式 env 优先,否则按 IS_OVS 自动推断
