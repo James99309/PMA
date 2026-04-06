@@ -302,7 +302,7 @@
                     <li class="nav-item">
                         <a class="nav-link text-sm py-2" href="{{ url_for('main.index') }}">{{ _('仪表盘') }}</a>
                     </li>
-                    
+
                     <!-- 业务管理主菜单 -->
                     {% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') or has_permission('expense', 'view') %}
                     <li class="nav-item d-lg-none">

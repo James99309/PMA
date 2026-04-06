@@ -62,6 +62,9 @@ from app.models.system_diagram import SystemDiagram, DiagramShareToken, DiagramE
 # 手工录入
 from app.models.performance_manual_entry import PerformanceManualEntry, PerformanceManualAttachment
 from app.models.product_display_order import ProductDisplayOrder
+# CLI Agent 智能终端模块
+from app.models.cli_session import CliSession
+from app.models.user_cli_state import UserCliState
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
@@ -100,4 +103,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'AccessRequest',
            'SystemDiagram', 'DiagramShareToken', 'DiagramExternalSession',
            'PerformanceManualEntry', 'PerformanceManualAttachment',
-           'ProductDisplayOrder']
+           'ProductDisplayOrder',
+           'CliSession', 'UserCliState']

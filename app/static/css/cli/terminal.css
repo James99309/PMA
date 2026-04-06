@@ -1,0 +1,333 @@
+/*
+ * PMA CLI Terminal 样式
+ *
+ * 跟随页面主题：深色模式深色终端，浅色模式浅色终端
+ * CSS 变量控制所有颜色，html.dark 类切换
+ */
+
+/* ─── 主题变量 ─── */
+:root {
+    --cli-bg:           #ffffff;
+    --cli-bg-alt:       #f6f8fa;
+    --cli-border:       #d1d9e0;
+    --cli-text:         #1f2328;
+    --cli-text-dim:     #656d76;
+    --cli-text-dimmer:  #8b949e;
+    --cli-prompt:       #1a7f37;
+    --cli-accent:       #0969da;
+    --cli-heading:      #0550ae;
+    --cli-error:        #d1242f;
+    --cli-code-bg:      #f6f8fa;
+    --cli-code-border:  #d1d9e0;
+    --cli-code-text:    #cf222e;
+    --cli-table-header: #f6f8fa;
+    --cli-table-border: #d1d9e0;
+    --cli-table-stripe: rgba(234,238,242,0.5);
+    --cli-table-hover:  rgba(208,215,222,0.3);
+    --cli-cny:          #cf222e;
+    --cli-usd:          #1a7f37;
+    --cli-pct:          #8250df;
+    --cli-link:         #0969da;
+    --cli-scrollbar:    #d1d9e0;
+    --cli-scrollbar-hover: #8b949e;
+    --cli-tool-border:  #0969da;
+    --cli-shadow:       0 1px 3px rgba(31,35,40,0.12), 0 0 0 1px rgba(31,35,40,0.04);
+}
+
+html.dark {
+    --cli-bg:           #0d1117;
+    --cli-bg-alt:       #161b22;
+    --cli-border:       #30363d;
+    --cli-text:         #e6edf3;
+    --cli-text-dim:     #8b949e;
+    --cli-text-dimmer:  #6e7681;
+    --cli-prompt:       #7ee787;
+    --cli-accent:       #58a6ff;
+    --cli-heading:      #79c0ff;
+    --cli-error:        #f85149;
+    --cli-code-bg:      #161b22;
+    --cli-code-border:  #30363d;
+    --cli-code-text:    #f0883e;
+    --cli-table-header: #161b22;
+    --cli-table-border: #30363d;
+    --cli-table-stripe: rgba(22,27,34,0.5);
+    --cli-table-hover:  rgba(88,166,255,0.06);
+    --cli-cny:          #f0883e;
+    --cli-usd:          #7ee787;
+    --cli-pct:          #d2a8ff;
+    --cli-link:         #79c0ff;
+    --cli-scrollbar:    #30363d;
+    --cli-scrollbar-hover: #484f58;
+    --cli-tool-border:  #58a6ff;
+    --cli-shadow:       0 4px 20px rgba(0,0,0,0.35), 0 0 0 1px rgba(88,166,255,0.06);
+}
+
+/* ─── 布局 ─── */
+.cli-page-wrapper {
+    padding: 16px;
+    height: calc(100vh - 80px);
+    background: transparent;
+    display: flex;
+    justify-content: center;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.cli-window {
+    width: 100%;
+    max-width: none;
+    background: var(--cli-bg);
+    border-radius: 12px;
+    border: 1px solid var(--cli-border);
+    box-shadow: var(--cli-shadow);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Menlo', 'PingFang SC', monospace;
+}
+
+/* ─── 标签栏（顶部第一行）─── */
+.cli-tabbar {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    background: var(--cli-bg);
+    border-bottom: 1px solid var(--cli-border);
+    min-height: 38px;
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+
+.cli-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    color: var(--cli-text-dim);
+    font-size: 12px;
+    border-right: 1px solid var(--cli-border);
+    cursor: pointer;
+    max-width: 140px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.15s;
+}
+.cli-tab:hover { color: var(--cli-text); }
+
+.cli-tab-active {
+    color: var(--cli-text);
+    background: var(--cli-bg-alt);
+    border-bottom: 2px solid var(--cli-accent);
+}
+
+.cli-tab-close {
+    background: transparent;
+    border: none;
+    color: var(--cli-text-dimmer);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    border-radius: 3px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+.cli-tab:hover .cli-tab-close { opacity: 1; }
+.cli-tab-close:hover {
+    background: var(--cli-border);
+    color: var(--cli-text);
+}
+
+.cli-tab-add {
+    background: transparent;
+    border: none;
+    color: var(--cli-text-dimmer);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 10px;
+    margin-left: 6px;
+    border-radius: 4px;
+}
+.cli-tab-add:hover {
+    background: var(--cli-bg-alt);
+    color: var(--cli-text);
+}
+
+/* ─── 终端内容区 ─── */
+.cli-body {
+    flex: 1;
+    min-height: 0;
+    padding: 20px;
+    color: var(--cli-text);
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-y: auto;
+}
+.cli-body::-webkit-scrollbar { width: 8px; }
+.cli-body::-webkit-scrollbar-track { background: var(--cli-bg); }
+.cli-body::-webkit-scrollbar-thumb { background: var(--cli-scrollbar); border-radius: 4px; }
+.cli-body::-webkit-scrollbar-thumb:hover { background: var(--cli-scrollbar-hover); }
+
+/* ─── 欢迎区域 ─── */
+.cli-welcome { text-align: center; padding: 40px 20px 20px; }
+.cli-logo { color: var(--cli-prompt); margin: 0; line-height: 1.15; font-size: 13px; }
+.cli-welcome-text { color: var(--cli-text-dim); margin-top: 12px; font-size: 13px; }
+
+/* ─── 对话记录 ─── */
+.cli-transcript { display: flex; flex-direction: column; gap: 6px; }
+.cli-line { padding: 4px 2px; word-wrap: break-word; white-space: pre-wrap; }
+.cli-line-user { color: var(--cli-text); }
+.cli-user-prompt { color: var(--cli-prompt); font-weight: 600; margin-right: 6px; }
+.cli-user-text { color: var(--cli-text); }
+.cli-line-assistant {
+    color: var(--cli-text);
+    padding-left: 20px;
+}
+.cli-line-tool { color: var(--cli-text-dim); font-style: italic; font-size: 12px; padding-left: 18px; }
+.cli-line-error { color: var(--cli-error); padding-left: 18px; }
+
+/* Token 用量（内联，每次回复后显示）*/
+.cli-line-usage {
+    color: var(--cli-text-dimmer);
+    font-size: 11px;
+    padding-left: 18px;
+    margin-top: 2px;
+}
+
+/* ─── 输入行 ─── */
+.cli-input-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 20px 18px;
+    background: var(--cli-bg);
+    border-top: 1px solid var(--cli-border);
+    flex-shrink: 0;
+}
+.cli-prompt {
+    color: var(--cli-prompt);
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.6;
+    padding-top: 1px;
+    user-select: none;
+    flex-shrink: 0;
+}
+.cli-input {
+    flex: 1;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    color: var(--cli-text) !important;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: none;
+    padding: 0 !important;
+    margin: 0;
+    max-height: 160px;
+    caret-color: var(--cli-accent);
+    width: 100%;
+    --tw-ring-shadow: 0 0 #0000 !important;
+    --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+.cli-input:focus, .cli-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    --tw-ring-shadow: 0 0 #0000 !important;
+    --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+.cli-input::placeholder { color: var(--cli-text-dimmer); font-style: normal; }
+.cli-submit { display: none !important; }
+
+/* ─── 隐藏 PMA 全局聊天气泡 ─── */
+body:has(.cli-window) button.fixed.bottom-6.right-6.bg-primary.rounded-full { display: none !important; }
+
+/* ─── Markdown 渲染 ─── */
+.cli-line-assistant p { margin: 0.15em 0; }
+.cli-line-assistant p:first-child { margin-top: 0; }
+.cli-line-assistant p:last-child  { margin-bottom: 0; }
+.cli-line-assistant h1, .cli-line-assistant h2, .cli-line-assistant h3 {
+    color: var(--cli-heading); margin: 0.6em 0 0.3em; font-size: 1em; font-weight: 600;
+}
+.cli-line-assistant h1 { font-size: 1.15em; }
+.cli-line-assistant ul, .cli-line-assistant ol { margin: 0.3em 0; padding-left: 1.5em; }
+.cli-line-assistant li { margin: 0.15em 0; }
+.cli-line-assistant strong { color: var(--cli-text); font-weight: 700; }
+.cli-line-assistant em { color: var(--cli-text-dim); }
+.cli-line-assistant hr { border: none; border-top: 1px solid var(--cli-border); margin: 0.5em 0; }
+.cli-line-assistant blockquote {
+    border-left: 3px solid var(--cli-text-dimmer); padding-left: 12px; color: var(--cli-text-dim); margin: 0.4em 0;
+}
+
+/* 表格 */
+.cli-md-table-wrap { overflow-x: auto; margin: 0.5em 0; }
+.cli-md-table { border-collapse: collapse; font-size: 13px; min-width: 200px; }
+.cli-md-table th, .cli-md-table td {
+    padding: 5px 12px; border: 1px solid var(--cli-table-border); text-align: left; white-space: nowrap;
+}
+.cli-md-table th { background: var(--cli-table-header); color: var(--cli-heading); font-weight: 600; }
+.cli-md-table tr:nth-child(even) { background: var(--cli-table-stripe); }
+.cli-md-table tr:hover { background: var(--cli-table-hover); }
+
+/* 代码块 */
+.cli-code-block {
+    position: relative; background: var(--cli-code-bg); border: 1px solid var(--cli-code-border);
+    border-radius: 6px; margin: 0.5em 0; overflow: hidden;
+}
+.cli-code-block pre { margin: 0; padding: 12px 14px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+.cli-code-block code { color: var(--cli-text); background: none; padding: 0; }
+.cli-code-lang { position: absolute; top: 6px; right: 70px; font-size: 11px; color: var(--cli-text-dimmer); text-transform: uppercase; }
+.cli-code-copy {
+    position: absolute; top: 6px; right: 8px; background: transparent; border: 1px solid var(--cli-code-border);
+    color: var(--cli-text-dim); cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 12px;
+}
+.cli-code-copy:hover { background: var(--cli-bg-alt); color: var(--cli-text); }
+.cli-code-copy-feedback { position: absolute; top: 8px; right: 50px; font-size: 11px; color: var(--cli-prompt); }
+
+/* 行内代码 */
+.cli-md-code { background: var(--cli-code-bg); color: var(--cli-code-text); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+
+/* 链接 */
+.cli-md-link { color: var(--cli-link); text-decoration: none; }
+.cli-md-link:hover { text-decoration: underline; }
+
+/* 业务实体高亮 */
+.cli-hl-cny { color: var(--cli-cny); font-weight: 500; }
+.cli-hl-usd { color: var(--cli-usd); font-weight: 500; }
+.cli-hl-pct { color: var(--cli-pct); }
+
+/* ─── Loading 动画 ─── */
+.cli-loading-dots { display: inline-flex; gap: 4px; padding-left: 18px; margin: 4px 0; }
+.cli-loading-dots span {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--cli-accent); animation: cli-dot-bounce 1.2s infinite;
+}
+.cli-loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+.cli-loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes cli-dot-bounce {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+    40% { opacity: 1; transform: scale(1); }
+}
+
+.cli-tool-spinner {
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid var(--cli-border); border-top-color: var(--cli-accent);
+    border-radius: 50%; animation: cli-spin 0.8s linear infinite; margin-right: 6px; vertical-align: middle;
+}
+@keyframes cli-spin { to { transform: rotate(360deg); } }
+
+/* 命令输出 */
+.cli-line-system { color: var(--cli-text-dim); font-size: 12px; padding-left: 18px; white-space: pre-wrap; }
+.cli-line-system .cli-sys-heading { color: var(--cli-heading); font-weight: 600; font-size: 13px; }
+.cli-line-system .cli-sys-cmd { color: var(--cli-prompt); }
+.cli-line-system .cli-sys-key { color: var(--cli-pct); }
+
+/* ─── 响应式 ─── */
+@media (max-width: 768px) {
+    .cli-page-wrapper { padding: 0; height: calc(100vh - 60px); }
+    .cli-window { border-radius: 0; border-left: none; border-right: none; }
+    .cli-body { font-size: 13px; padding: 12px; }
+}

@@ -1,0 +1,138 @@
+{#
+  PMA CLI Terminal 主页面(Tailwind 版)
+
+  遵循 PMA Tailwind 模板规范,使用 render_tw_layout 宏,
+  自动带上左侧 sidebar 和顶部 header。
+
+  设计文档: docs/plans/2026-04-05-pma-cli-agent-design.md
+#}
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('智能终端') }} - PMA</title>
+
+    <!-- DNS 预解析 -->
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <!-- 字体 -->
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cli/terminal.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "mono": ["JetBrains Mono", "SF Mono", "Menlo", "monospace"]
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark">
+{% call(slot) render_tw_layout(active_page='cli_terminal', show_search=false) %}
+    {% if slot == 'content' %}
+    <div class="cli-page-wrapper">
+      <div class="cli-window">
+
+        {# ─── 标签栏(由 terminal-app.js 动态渲染，直接在顶部)─── #}
+        <div class="cli-tabbar" id="cli-tabbar">
+          {# tabs 由 JS _renderTabs() 动态生成 #}
+          <button class="cli-tab-add" id="cli-tab-add" title="{{ _('新建标签') }}">
+            <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+          </button>
+        </div>
+
+        {# ─── 隐藏元素(JS 仍需引用)─── #}
+        <span id="cli-session-id" style="display:none"></span>
+        <span id="cli-token-count" style="display:none">0</span>
+        <span id="cli-token-wrap" style="display:none"></span>
+        <span id="cli-btn-new" style="display:none"></span>
+
+        {# ─── 终端内容区 ─── #}
+        <div class="cli-body" id="cli-body">
+          <div class="cli-welcome">
+            <pre class="cli-logo">
+   ____  __  __    _       ____ _     ___
+  |  _ \|  \/  |  / \     / ___| |   |_ _|
+  | |_) | |\/| | / _ \   | |   | |    | |
+  |  __/| |  | |/ ___ \  | |___| |___ | |
+  |_|   |_|  |_/_/   \_\  \____|_____|___|
+            </pre>
+            <div class="cli-welcome-text">
+              {{ _('PMA 智能终端') }}<br>
+              {{ _('输入自然语言问题，按 Enter 提交') }} · {{ _('输入 /help 查看命令') }}
+            </div>
+          </div>
+          <div class="cli-transcript" id="cli-transcript"></div>
+        </div>
+
+        {# ─── 输入行 ─── #}
+        <div class="cli-input-row">
+          <span class="cli-prompt">&gt;</span>
+          <textarea id="cli-input"
+                    class="cli-input"
+                    rows="1"
+                    placeholder="{{ _('查一下上个月的所有报价单...') }}"
+                    autofocus></textarea>
+          <button id="cli-submit" class="cli-submit" title="{{ _('发送') }} (Enter)">
+            <span class="material-symbols-outlined" style="font-size:18px;">send</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+    {% endif %}
+{% endcall %}
+
+{{ render_tw_layout_script() }}
+
+{# ─── CLI Terminal JS 模块 ─── #}
+<script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/cli/markdown-renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/cli/terminal-app.js') }}"></script>
+
+</body>
+</html>
