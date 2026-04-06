@@ -52,10 +52,6 @@ class ExportToWordTool(BaseTool):
                 'type': 'string',
                 'description': '文档标题（可选，会作为 YAML front matter 的 title）',
             },
-            'filename': {
-                'type': 'string',
-                'description': '输出文件名（可选，不含扩展名，默认自动生成）',
-            },
         },
         'required': ['markdown'],
     }
@@ -86,13 +82,10 @@ class ExportToWordTool(BaseTool):
             front_matter = f'---\ntitle: "{title}"\n---\n\n'
             markdown = front_matter + markdown
 
-        # 生成文件名（用 UUID 避免中文编码问题，title 放在返回的 message 里）
-        if not filename:
-            short_id = uuid.uuid4().hex[:8]
-            date_str = datetime.now().strftime('%Y%m%d_%H%M')
-            filename = f'report_{date_str}_{short_id}'
-        filename = filename.replace('/', '_').replace('\\', '_')
-        output_filename = f'{filename}.docx'
+        # 文件名始终用英文+UUID，避免 URL 编码问题
+        short_id = uuid.uuid4().hex[:8]
+        date_str = datetime.now().strftime('%Y%m%d_%H%M')
+        output_filename = f'report_{date_str}_{short_id}.docx'
 
         try:
             # 创建临时文件
@@ -133,6 +126,7 @@ class ExportToWordTool(BaseTool):
                 'success': True,
                 'filename': output_filename,
                 'download_url': download_url,
+                'note': '下载按钮已显示在终端中，无需在回复里再输出链接。只需简短确认"文档已生成"即可。',
             }
 
         except subprocess.TimeoutExpired:
