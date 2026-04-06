@@ -31,8 +31,13 @@ class SaveSkillTool(BaseTool):
     description = (
         '创建或更新业务 Skill。用户说"帮我做一个Skill"或"保存这个查询为模板"时使用。\n'
         '仅 admin 可创建 global Skill,其他用户创建的为 personal Skill。\n'
-        '如果同名 Skill 已存在,则更新;否则新建。\n'
-        '返回保存后的 Skill 摘要信息。'
+        '如果同名 Skill 已存在,则更新;否则新建。\n\n'
+        'SQL 模板语法(必须严格遵守):\n'
+        '- 参数占位: {param_name} (下划线连接,不要用点号)\n'
+        '- period 类型参数自动产生 {period_start} 和 {period_end},格式为 YYYY-MM-DD\n'
+        '- 字符串参数已自动带单引号,ILIKE 用法: ILIKE \'%\' || {keyword} || \'%\'\n'
+        '- 前步引用: {step_name.0.column} 取第一行某列值\n'
+        '- 输出模板: {step_name.table} 渲染表格, {step_name.count} 行数\n'
     )
     input_schema = {
         'type': 'object',
