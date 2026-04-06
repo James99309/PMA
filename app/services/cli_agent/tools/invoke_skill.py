@@ -53,6 +53,17 @@ class InvokeSkillTool(BaseTool):
         params = (tool_input or {}).get('parameters') or {}
         user = context.get('user')
 
+        # 兼容：LLM 可能把参数放在顶层而不是 parameters 里
+        # 例如 {skill_name: "x", user_name: "李华伟"} 而非 {skill_name: "x", parameters: {user_name: "李华伟"}}
+        if not params:
+            reserved = {'skill_name', 'parameters'}
+            extra = {k: v for k, v in (tool_input or {}).items() if k not in reserved and v}
+            if extra:
+                params = extra
+                logger.info(f'[CLI Agent] invoke_skill 从顶层提取参数: {list(extra.keys())}')
+
+        logger.info(f'[CLI Agent] invoke_skill 收到: skill_name={skill_name}, params={params}, raw_input={tool_input}')
+
         if not skill_name:
             return {'error': 'skill_name 参数不能为空'}
         if user is None:
