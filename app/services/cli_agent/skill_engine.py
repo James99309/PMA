@@ -135,7 +135,11 @@ def _validate_and_prepare_params(
             if default_value is not None:
                 value = default_value
             elif required:
-                raise ValueError(f'缺少必填参数: {name}')
+                desc = pdef.get('description', '')
+                raise ValueError(
+                    f'缺少必填参数: {name} ({desc})。'
+                    f'请从用户消息中提取该值并重新调用 invoke_skill。'
+                )
             else:
                 # 可选参数无默认值 → 空字符串
                 value = ''
