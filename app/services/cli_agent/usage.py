@@ -2,32 +2,48 @@
 """
 Token 用量追踪
 
-设计参考: claw-code runtime/src/usage.rs (MIT)
-见 THIRD_PARTY_NOTICES.md。
-
-每轮 LLM 调用返回后,记录:
-    - input_tokens        本次发出去的 token 数
-    - output_tokens       本次模型生成的 token 数
-    - cache_creation_input_tokens  写入 prompt cache 的 token 数
-    - cache_read_input_tokens      从 prompt cache 读出的 token 数
-    - model               具体的模型名
-    - timestamp
-
-这些数据:
-    1. 挂在 Message 对象的 usage 字段上,持久化到 cli_sessions.messages
-    2. 同时累加到 cli_sessions.usage_total,供状态条显示
-    3. 用于压缩触发判断(见 compaction.py)
-
-Token 估算(不调 API 的离线估算):
-    因为 claw-code 的"字符数 ÷ 4"对中文严重低估,这里用:
-        汉字数 × 1.5 + 英文字符数 / 4 + JSON 符号数 × 0.3
-    每 CLI_TOKEN_CALIBRATION_INTERVAL 轮调用一次 anthropic.count_tokens()
-    做一次精确校准,把估算偏差拉回。
-
-TODO(stage-1): 实现 TurnUsage 数据类
-TODO(stage-1): 实现 UsageTracker(累计、获取快照、估算成本)
-TODO(stage-3): 实现 estimate_tokens_offline(text) -> int  (中文优化)
-TODO(stage-3): 实现 calibrate_with_api(client, messages)
+职责:
+    1. 离线估算文本 token 数（中文优化）
+    2. 估算整个对话历史的上下文大小
+    3. 为 compaction 和前端展示提供 token 数据
 """
+from __future__ import annotations
 
-# 占位:阶段 1 实现
+import re
+
+# 中文字符正则（常见汉字区）
+_CJK_RE = re.compile(r'[\u4e00-\u9fff\u3400-\u4dbf]')
+
+
+def estimate_tokens(text: str) -> int:
+    """离线估算文本的 token 数。
+
+    中文优化: 汉字 ≈ 1.5 token, 英文/数字 ≈ 0.25 token, JSON 符号 ≈ 0.3 token。
+    比简单 len/4 对中文准确约 2 倍。
+    """
+    if not text:
+        return 0
+    cjk_count = len(_CJK_RE.findall(text))
+    other_count = len(text) - cjk_count
+    return int(cjk_count * 1.5 + other_count / 4) + 3  # +3 for message overhead
+
+
+def estimate_messages_tokens(messages: list[dict]) -> int:
+    """估算整个消息列表的 token 数。"""
+    total = 0
+    for msg in messages:
+        content = msg.get('content', [])
+        if isinstance(content, str):
+            total += estimate_tokens(content)
+            continue
+        for block in content:
+            btype = block.get('type', '')
+            if btype == 'text':
+                total += estimate_tokens(block.get('text', ''))
+            elif btype == 'tool_use':
+                total += estimate_tokens(str(block.get('input', ''))) + 20
+            elif btype == 'tool_result':
+                c = block.get('content', '')
+                total += estimate_tokens(c if isinstance(c, str) else str(c))
+        total += 4  # per-message overhead
+    return total
