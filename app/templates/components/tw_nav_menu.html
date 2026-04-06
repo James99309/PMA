@@ -46,7 +46,7 @@ Tailwind 共享导航菜单组件
 {% endif %}
 
 <!-- 智能终端（CLI Agent，admin + hr 可见） -->
-{% if current_user.role in ['admin', 'hr'] or config.get('ENABLE_CLI_AGENT') %}
+{% if current_user.role in ['admin', 'hrdp_manager', 'ceo'] or config.get('ENABLE_CLI_AGENT') %}
 <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'cli_terminal' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('cli.terminal') }}">
     <span class="material-symbols-outlined {% if active_page == 'cli_terminal' %}fill text-primary{% else %}text-slate-600 dark:text-slate-400{% endif %}">terminal</span>
     <span class="{% if active_page == 'cli_terminal' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm font-medium">{{ _('智能终端') }}</span>
