@@ -1,0 +1,68 @@
+# -*- coding: utf-8 -*-
+"""
+CLI Agent 配置常量
+
+所有上下文管理阈值、会话限制、UI 边界值统一在这里维护。
+
+这些值的选择基于以下事实:
+1. Claude 3.5 Sonnet 上下文窗口 200,000 tokens
+2. PMA 查询结果有 LIMIT 100 硬边界,单次 tool result 可控
+3. 中文 token 密度约为英文的 4 倍(1 汉字 ≈ 1~2 token)
+4. Anthropic Prompt Caching 使长稳定前缀成本趋近于零
+5. PMA 查询场景会话较短(5~20 轮),远短于通用编码 agent
+
+设计理由详见 docs/plans/2026-04-05-pma-cli-agent-design.md 第 4.4 节。
+"""
+
+# ─── 上下文阈值 ────────────────────────────────────────────────────────
+CLI_CONTEXT_MAX_TOKENS = 180_000
+"""硬上限,预留 20k 给 system prompt + 当前输入 + 模型输出"""
+
+CLI_CONTEXT_SOFT_COMPACT = 40_000
+"""软提示阈值。超过后状态条显示使用量,但不做任何压缩"""
+
+CLI_CONTEXT_WARN = 120_000
+"""警告阈值。Tab 数字变黄,AI 回答末尾附加"会话已较长"提示"""
+
+CLI_CONTEXT_HARD_COMPACT = 160_000
+"""强制规则压缩阈值。达到时自动触发 compaction"""
+
+CLI_CONTEXT_REJECT = 190_000
+"""拒绝阈值。达到时锁定输入框,强制用户 /new"""
+
+# ─── 消息保留策略 ──────────────────────────────────────────────────────
+CLI_KEEP_RECENT_MESSAGES = 8
+"""压缩时保留的最新消息条数。4 对用户-AI 回合,查询场景追问链的经验值"""
+
+CLI_COMPACTION_SUMMARY_MAX_TOKENS = 5_000
+"""压缩后的摘要块目标大小"""
+
+# ─── 工具层限制 ────────────────────────────────────────────────────────
+CLI_QUERY_DEFAULT_LIMIT = 100
+"""query_pma_database 工具的默认 LIMIT,AI 可覆盖但不建议 > 500"""
+
+CLI_TOOL_RESULT_MAX_TOKENS = 8_000
+"""单条 tool result 进入 context 的最大 token 数。超过会强制截断并提示 AI 缩小查询范围"""
+
+# ─── 会话生命周期 ──────────────────────────────────────────────────────
+CLI_SESSION_ARCHIVE_HOURS = 48
+"""非活跃 session 自动归档的小时数。归档不删除数据,通过 /history 可找回"""
+
+CLI_SESSION_MAX_TURNS = 100
+"""单个 session 的硬性轮次上限。防止失控"""
+
+# ─── UI 限制 ───────────────────────────────────────────────────────────
+CLI_MAX_ACTIVE_TABS = 8
+"""同一用户同时打开的 tab 数上限"""
+
+# ─── Token 估算 ────────────────────────────────────────────────────────
+CLI_TOKEN_CALIBRATION_INTERVAL = 3
+"""每 N 轮调用一次 anthropic.count_tokens() 做精确校准,其余轮次用离线估算"""
+
+# ─── Prompt Caching ────────────────────────────────────────────────────
+CLI_PROMPT_CACHE_ENABLED = True
+"""是否对系统提示启用 Anthropic ephemeral cache_control"""
+
+# ─── 功能开关(feature flag)────────────────────────────────────────────
+CLI_FEATURE_FLAG_ENV = 'ENABLE_CLI_AGENT'
+"""环境变量名。设为 'true' 后 CLI 菜单项对所有用户可见,否则仅 admin 可见"""

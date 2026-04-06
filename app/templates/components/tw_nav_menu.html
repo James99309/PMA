@@ -45,6 +45,14 @@ Tailwind 共享导航菜单组件
 </a>
 {% endif %}
 
+<!-- 智能终端（CLI Agent，feature/cli-agent 分支开发中，仅管理员可见） -->
+{% if current_user.role == 'admin' or config.get('ENABLE_CLI_AGENT') %}
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'cli_terminal' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('cli.terminal') }}">
+    <span class="material-symbols-outlined {% if active_page == 'cli_terminal' %}fill text-primary{% else %}text-slate-600 dark:text-slate-400{% endif %}">terminal</span>
+    <span class="{% if active_page == 'cli_terminal' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm font-medium">{{ _('智能终端') }}</span>
+</a>
+{% endif %}
+
 <!-- 业务管理组 -->
 {% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') or has_permission('expense', 'view') %}
 <div>

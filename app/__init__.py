@@ -384,6 +384,10 @@ def create_app(config_class=Config):
     app.register_blueprint(meeting)
     csrf.exempt(meeting)  # 豁免会议蓝图的CSRF保护（用于录音上传）
 
+    # 注册 CLI Agent 智能终端蓝图（见 docs/plans/2026-04-05-pma-cli-agent-design.md）
+    from app.views.cli import cli_bp
+    app.register_blueprint(cli_bp)
+
     # 注册规格字典/模板管理蓝图（仅 SP8D/CN NAS 启用，OVS/SG NAS 数据通过物化视图只读同步）
     if not app.config.get('IS_OVS'):
         from app.views.spec_definition import spec_definition_bp

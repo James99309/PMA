@@ -1,0 +1,363 @@
+/*
+ * PMA CLI Terminal 样式
+ *
+ * 设计参考 docs/plans/2026-04-05-pma-cli-agent-design.md 第 5.3 节
+ * 视觉目标:仿 macOS 终端,深色基调,与 PMA 其他页面形成对比
+ */
+
+.cli-page-wrapper {
+    padding: 16px;
+    min-height: calc(100vh - 80px);
+    background: transparent;          /* 继承 PMA 主题背景,自动深/浅模式 */
+    display: flex;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.cli-window {
+    width: 100%;
+    max-width: none;                  /* 铺满可用宽度 */
+    background: #0d1117;
+    border-radius: 12px;
+    border: 1px solid #30363d;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35),
+                0 0 0 1px rgba(88, 166, 255, 0.06);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: calc(100vh - 112px);
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Menlo', 'PingFang SC', monospace;
+}
+
+/* 浅色模式下的增强阴影,让终端在白底上更有"卡片感" */
+html:not(.dark) .cli-window {
+    box-shadow: 0 8px 32px rgba(13, 17, 23, 0.18),
+                0 0 0 1px rgba(13, 17, 23, 0.06);
+}
+
+/* ─── 终端标题栏 ─── */
+.cli-titlebar {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    user-select: none;
+}
+
+.cli-traffic-lights {
+    display: flex;
+    gap: 8px;
+    margin-right: 16px;
+}
+
+.cli-traffic-lights span {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: block;
+}
+
+.tl-close { background: #ff5f57; }
+.tl-min   { background: #febc2e; }
+.tl-max   { background: #28c840; }
+
+.cli-title {
+    flex: 1;
+    text-align: center;
+    color: #8b949e;
+    font-size: 13px;
+}
+
+.cli-titlebar-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.cli-titlebar-actions button {
+    background: transparent;
+    border: none;
+    color: #8b949e;
+    font-size: 13px;
+    width: 26px;
+    height: 22px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.cli-titlebar-actions button:hover {
+    background: #30363d;
+    color: #e6edf3;
+}
+
+.cli-btn-close:hover {
+    background: #f85149 !important;
+    color: #fff !important;
+}
+
+/* ─── 标签栏 ─── */
+.cli-tabbar {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    background: #0d1117;
+    border-bottom: 1px solid #21262d;
+    min-height: 34px;
+    overflow-x: auto;
+}
+
+.cli-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    color: #8b949e;
+    font-size: 12px;
+    border-right: 1px solid #21262d;
+    cursor: pointer;
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cli-tab-active {
+    color: #e6edf3;
+    background: #161b22;
+    border-bottom: 2px solid #58a6ff;
+}
+
+.cli-tab-close {
+    background: transparent;
+    border: none;
+    color: #6e7681;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    border-radius: 3px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.cli-tab:hover .cli-tab-close {
+    opacity: 1;
+}
+
+.cli-tab-close:hover {
+    background: #30363d;
+    color: #e6edf3;
+}
+
+.cli-tab-add {
+    background: transparent;
+    border: none;
+    color: #6e7681;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 10px;
+    margin-left: 6px;
+    border-radius: 4px;
+}
+
+.cli-tab-add:hover {
+    background: #21262d;
+    color: #e6edf3;
+}
+
+/* ─── 状态条 ─── */
+.cli-statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 14px;
+    background: #0d1117;
+    border-bottom: 1px solid #21262d;
+    font-size: 11px;
+    color: #6e7681;
+}
+
+.cli-status-tokens {
+    font-variant-numeric: tabular-nums;
+}
+
+.cli-status-new {
+    background: transparent;
+    border: 1px solid #30363d;
+    color: #8b949e;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.cli-status-new:hover {
+    background: #21262d;
+    color: #e6edf3;
+    border-color: #58a6ff;
+}
+
+/* ─── 终端内容区 ─── */
+.cli-body {
+    flex: 1;
+    padding: 20px;
+    color: #e6edf3;
+    font-size: 14px;
+    line-height: 1.6;
+    overflow-y: auto;
+}
+
+.cli-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.cli-body::-webkit-scrollbar-track {
+    background: #0d1117;
+}
+
+.cli-body::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+}
+
+.cli-body::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+}
+
+.cli-placeholder {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+/* ─── 欢迎区域 + 对话记录 ─── */
+.cli-welcome {
+    text-align: center;
+    padding: 40px 20px 20px;
+}
+.cli-logo {
+    color: #7ee787;
+    margin: 0;
+    line-height: 1.15;
+    font-size: 13px;
+}
+.cli-welcome-text {
+    color: #8b949e;
+    margin-top: 12px;
+    font-size: 13px;
+}
+
+.cli-transcript {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.cli-line {
+    padding: 4px 2px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+}
+.cli-line-user {
+    color: #e6edf3;
+}
+.cli-user-prompt {
+    color: #7ee787;
+    font-weight: 600;
+    margin-right: 6px;
+}
+.cli-user-text {
+    color: #e6edf3;
+}
+.cli-line-assistant {
+    color: #e6edf3;
+    padding-left: 16px;
+    border-left: 2px solid #30363d;
+    margin-left: 2px;
+}
+.cli-line-tool {
+    color: #8b949e;
+    font-style: italic;
+    font-size: 12px;
+    padding-left: 18px;
+}
+.cli-line-error {
+    color: #f85149;
+    padding-left: 18px;
+}
+
+/* ─── 输入行(Claude Code 风格:无框、开放式、融入终端)─── */
+.cli-input-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 20px 18px;
+    background: transparent;       /* 直接用终端背景,不显示独立区域 */
+    border-top: none;              /* 无分界线,与 transcript 无缝 */
+}
+.cli-prompt {
+    color: #7ee787;
+    font-weight: 500;
+    font-size: 14px;
+    line-height: 1.6;
+    padding-top: 1px;
+    user-select: none;
+    flex-shrink: 0;
+}
+.cli-input {
+    flex: 1;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;   /* 关键:盖掉 Tailwind forms plugin 的 focus ring */
+    color: #e6edf3 !important;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+    resize: none;
+    padding: 0 !important;
+    margin: 0;
+    max-height: 160px;
+    caret-color: #58a6ff;
+    width: 100%;
+    --tw-ring-shadow: 0 0 #0000 !important;  /* Tailwind ring 变量清零 */
+    --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+.cli-input:focus,
+.cli-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    --tw-ring-shadow: 0 0 #0000 !important;
+    --tw-ring-offset-shadow: 0 0 #0000 !important;
+}
+.cli-input::placeholder {
+    color: #484f58;
+    font-style: normal;
+}
+
+/* 发送按钮整体隐藏——Claude Code 风格,完全用 Enter 提交 */
+.cli-submit {
+    display: none !important;
+}
+
+/* ─── 隐藏 PMA 全局聊天气泡按钮(CLI 页面不需要,避免与终端输入区重叠)─── */
+body:has(.cli-window) button.fixed.bottom-6.right-6.bg-primary.rounded-full {
+    display: none !important;
+}
+
+/* ─── 响应式 ─── */
+@media (max-width: 768px) {
+    .cli-page-wrapper {
+        padding: 0;
+    }
+    .cli-window {
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        min-height: calc(100vh - 60px);
+    }
+    .cli-body {
+        font-size: 13px;
+        padding: 12px;
+    }
+}
