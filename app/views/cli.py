@@ -290,3 +290,61 @@ def stream_chat():
             'X-Accel-Buffering': 'no',  # 禁用 nginx 缓冲
         },
     )
+
+
+# ─── Skill API ──────────────────────────────────────────────────────────
+
+@cli_bp.route('/api/skills', methods=['GET'])
+@login_required
+def list_skills():
+    """列出当前用户可用的 Skill"""
+    _require_cli_access()
+    from app.models.cli_skill import CliSkill
+    from sqlalchemy import or_
+
+    skills = CliSkill.query.filter(
+        CliSkill.is_active == True,
+        or_(
+            CliSkill.scope == 'global',
+            CliSkill.created_by == current_user.id,
+        ),
+    ).order_by(CliSkill.title).all()
+
+    return jsonify({
+        'success': True,
+        'skills': [s.to_dict() for s in skills],
+    })
+
+
+@cli_bp.route('/api/skills/<int:skill_id>', methods=['GET'])
+@login_required
+def get_skill(skill_id: int):
+    """获取单个 Skill 详情"""
+    _require_cli_access()
+    from app.models.cli_skill import CliSkill
+
+    skill = CliSkill.query.get(skill_id)
+    if not skill:
+        return jsonify({'success': False, 'error': 'Skill 不存在'}), 404
+
+    return jsonify({'success': True, 'skill': skill.to_dict()})
+
+
+@cli_bp.route('/api/skills/<int:skill_id>', methods=['DELETE'])
+@login_required
+def delete_skill(skill_id: int):
+    """删除 Skill（仅创建者或 admin）"""
+    _require_cli_access()
+    from app.models.cli_skill import CliSkill
+
+    skill = CliSkill.query.get(skill_id)
+    if not skill:
+        return jsonify({'success': False, 'error': 'Skill 不存在'}), 404
+
+    is_admin = getattr(current_user, 'role', None) == 'admin'
+    if skill.created_by != current_user.id and not is_admin:
+        return jsonify({'success': False, 'error': '无权删除此 Skill'}), 403
+
+    db.session.delete(skill)
+    db.session.commit()
+    return jsonify({'success': True})

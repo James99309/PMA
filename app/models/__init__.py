@@ -65,6 +65,7 @@ from app.models.product_display_order import ProductDisplayOrder
 # CLI Agent 智能终端模块
 from app.models.cli_session import CliSession
 from app.models.user_cli_state import UserCliState
+from app.models.cli_skill import CliSkill
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
@@ -104,4 +105,4 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'SystemDiagram', 'DiagramShareToken', 'DiagramExternalSession',
            'PerformanceManualEntry', 'PerformanceManualAttachment',
            'ProductDisplayOrder',
-           'CliSession', 'UserCliState']
+           'CliSession', 'UserCliState', 'CliSkill']

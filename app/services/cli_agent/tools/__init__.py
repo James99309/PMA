@@ -5,9 +5,11 @@ CLI Agent 的工具注册表
 每个工具实现 BaseTool 接口。Agent Loop 从 ToolRegistry 取所有工具定义,
 传给 LLM;LLM 发起 tool_use 时,Registry 按 name 分发执行。
 
-v1 只有一个工具 query_pma_database。未来扩展点在这里加:
-    registry.register(InvokeSkillTool())   # 阶段 5
-    registry.register(ExportToExcelTool()) # 阶段 5+
+已注册的工具:
+    - query_pma_database: SQL 只读查询(v1)
+    - invoke_skill: 调用预定义的 CliSkill 技能
+    - save_skill: 创建/更新 CliSkill 定义
+    - web_search: 公网搜索(需 TAVILY_API_KEY)
 """
 from __future__ import annotations
 
@@ -88,6 +90,12 @@ def get_default_registry() -> ToolRegistry:
         # 注册 v1 工具
         from app.services.cli_agent.tools.query_pma_database import QueryPmaDatabaseTool
         _default_registry.register(QueryPmaDatabaseTool())
+
+        # 注册 Skill 工具(invoke + save)
+        from app.services.cli_agent.tools.invoke_skill import InvokeSkillTool
+        from app.services.cli_agent.tools.save_skill import SaveSkillTool
+        _default_registry.register(InvokeSkillTool())
+        _default_registry.register(SaveSkillTool())
 
         # 注册 web_search(只在配置了 TAVILY_API_KEY 时)
         import os
