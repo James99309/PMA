@@ -68,6 +68,14 @@ _TABLE_SCHEMA = {
     'pricing_orders': ('批价单', 'id, order_number, project_id, quotation_id, status, pricing_total_amount, currency, created_by'),
     'users': ('用户', 'id, username, real_name, company_name, department, role'),
     'tasks': ('任务', 'id, title, assignee_id, creator_id, status, priority, due_date, project_id, customer_id, is_deleted'),
+    # 阶段 3 扩充
+    'worklogs': ('工作日志', 'id, log_date, log_type, summary, total_hours, status, owner_id, quality_score'),
+    'work_items': ('工作项', 'id, title, planned_date, end_date, estimated_hours, project_id, customer_id, contact_id, work_type, status, actual_hours, owner_id, worklog_id'),
+    'actions': ('行动记录/跟进', 'id, date, communication, contact_id, company_id, project_id, owner_id'),
+    'project_stage_history': ('项目阶段变更历史', 'id, project_id, from_stage, to_stage, change_date, change_week, remarks'),
+    'sales_orders': ('客户订单', 'id, order_number, pricing_order_id, project_id, customer_id, delivery_date, status, total_amount, currency, created_by_id'),
+    'shipments': ('发货记录', 'id, shipment_number, sales_order_id, carrier, tracking_number, ship_date, status, created_by_id'),
+    'purchase_orders': ('采购订单', 'id, order_number, company_id, project_id, order_date, expected_date, status, total_amount, currency, production_status, is_overdue, created_by_id'),
 }
 
 _TABLE_RELATIONS = """
@@ -79,6 +87,13 @@ _TABLE_RELATIONS = """
 - 费用→项目: expenses.project_id
 - 批价单→项目: pricing_orders.project_id
 - 任务→项目: tasks.project_id，任务→客户: tasks.customer_id
+- 工作日志↔工作项: work_items.worklog_id → worklogs.id
+- 工作项→项目: work_items.project_id，工作项→客户: work_items.customer_id
+- 行动记录→公司: actions.company_id，行动记录→项目: actions.project_id
+- 项目阶段历史→项目: project_stage_history.project_id
+- 客户订单→批价单: sales_orders.pricing_order_id，客户订单→项目: sales_orders.project_id
+- 发货记录→客户订单: shipments.sales_order_id
+- 采购订单→供应商: purchase_orders.company_id，采购订单→项目: purchase_orders.project_id
 """.strip()
 
 _QUERY_EXAMPLES = """
@@ -219,6 +234,8 @@ _SENSITIVE_TABLE_MODULE = {
     'projects': 'project',
     'quotations': 'quotation',
     'expenses': 'expense',
+    'sales_orders': 'order',
+    'purchase_orders': 'order',
 }
 
 

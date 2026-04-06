@@ -109,17 +109,20 @@
           <div class="cli-transcript" id="cli-transcript"></div>
         </div>
 
-        {# ─── 输入行 ─── #}
-        <div class="cli-input-row">
-          <span class="cli-prompt">&gt;</span>
-          <textarea id="cli-input"
-                    class="cli-input"
-                    rows="1"
-                    placeholder="{{ _('查一下上个月的所有报价单...') }}"
-                    autofocus></textarea>
-          <button id="cli-submit" class="cli-submit" title="{{ _('发送') }} (Enter)">
-            <span class="material-symbols-outlined" style="font-size:18px;">send</span>
-          </button>
+        {# ─── 输入区（输入行 + 命令建议）─── #}
+        <div class="cli-input-area">
+          <div class="cli-input-row">
+            <span class="cli-prompt">&gt;</span>
+            <textarea id="cli-input"
+                      class="cli-input"
+                      rows="1"
+                      placeholder="{{ _('查一下上个月的所有报价单...') }}"
+                      autofocus></textarea>
+          </div>
+          <div class="cli-cmd-suggest" id="cli-cmd-suggest" style="display:none">
+            <div class="cli-cmd-hint">{{ _('继续输入过滤 · ↑↓ 选择 · Enter 执行 · Esc 关闭') }}</div>
+            <div class="cli-cmd-list" id="cli-cmd-list"></div>
+          </div>
         </div>
 
       </div>

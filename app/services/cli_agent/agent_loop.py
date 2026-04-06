@@ -22,7 +22,9 @@ from typing import Callable, Iterator
 from app import db
 from app.models.cli_session import CliSession
 from app.services.cli_agent import conversation as conv
-from app.services.cli_agent.config import CLI_SESSION_MAX_TURNS
+from app.services.cli_agent.compaction import compact, should_compact
+from app.services.cli_agent.config import CLI_CONTEXT_REJECT, CLI_SESSION_MAX_TURNS
+from app.services.cli_agent.usage import estimate_messages_tokens
 from app.services.cli_agent.llm_client import BaseLLMClient, get_default_client
 from app.services.cli_agent.prompt_builder import build_system_prompt_blocks
 from app.services.cli_agent.tools import ToolRegistry, get_default_registry
@@ -77,6 +79,26 @@ class AgentLoop:
 
         # 追加用户消息
         self.session.append_message('user', [conv.text_block(user_input)])
+
+        # 上下文管理：压缩或拒绝
+        messages = self.session.messages or []
+        est_tokens = estimate_messages_tokens(messages)
+
+        if est_tokens >= CLI_CONTEXT_REJECT:
+            yield {
+                'type': 'error',
+                'message': f'会话上下文已满 ({est_tokens:,} tokens)，请输入 /new 开新会话。',
+            }
+            return
+
+        if should_compact(messages):
+            logger.info(f'[CLI Agent] 触发压缩: {len(messages)} 条消息, ~{est_tokens} tokens')
+            prev_summary = (self.session.compaction_meta or {}).get('last_summary')
+            new_messages, summary = compact(messages, prev_summary)
+            self.session.messages = new_messages
+            count = (self.session.compaction_meta or {}).get('count', 0) + 1
+            self.session.compaction_meta = {'count': count, 'last_summary': summary}
+            yield {'type': 'status', 'message': f'上下文已压缩 (第 {count} 次)'}
 
         # 构建系统提示(每次重建,内容稳定,享受 prompt cache)
         try:

@@ -21,7 +21,7 @@ class CliMarkdownRenderer {
     if (!text) return '';
     if (typeof marked === 'undefined') return this._escapeHtml(text);
     try {
-      const html = marked.parse(text, { breaks: true, gfm: true });
+      const html = marked.parse(text, { breaks: false, gfm: true });
       return this._postProcess(html);
     } catch {
       return this._escapeHtml(text);
@@ -40,7 +40,7 @@ class CliMarkdownRenderer {
       if (codeBlockCount % 2 !== 0) {
         safeText += '\n```';
       }
-      const html = marked.parse(safeText, { breaks: true, gfm: true });
+      const html = marked.parse(safeText, { breaks: false, gfm: true });
       return this._postProcess(html);
     } catch {
       return this._escapeHtml(text);

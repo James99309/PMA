@@ -371,6 +371,7 @@ class CliTerminalApp {
     // 检查斜杠命令
     const cmd = this._parseSlashCommand(text);
     if (cmd) {
+      this._clearInput();
       this._executeCommand(cmd.command, cmd.args);
       return;
     }
@@ -409,7 +410,7 @@ class CliTerminalApp {
         return;
       }
 
-      this._removeLoadingDots();
+      // loading dots 在收到第一个 text_delta 时移除，不在这里移除
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
@@ -448,6 +449,7 @@ class CliTerminalApp {
         break;
 
       case 'text_delta':
+        this._removeLoadingDots();
         this._appendStreamingDelta(evt.text);
         break;
 
@@ -517,6 +519,7 @@ class CliTerminalApp {
         break;
 
       case 'tokens':
+      case 'token':
         this._showTokens();
         break;
 
@@ -710,17 +713,115 @@ class CliTerminalApp {
   //  输入处理
   // ═══════════════════════════════════════════════════════════════
 
+  // ─── 命令建议 ───
+
+  _COMMANDS = [
+    { name: '/new',     desc: '重置当前会话' },
+    { name: '/clear',   desc: '清屏' },
+    { name: '/tokens',  desc: '显示 token 用量' },
+    { name: '/history', desc: '查看所有会话' },
+    { name: '/help',    desc: '显示帮助' },
+  ];
+
   _bindInput() {
+    this._suggestEl = document.getElementById('cli-cmd-suggest');
+    this._suggestIdx = -1;
+
     this.els.input.addEventListener('keydown', (e) => {
+      // 建议浮层打开时拦截方向键和 Enter
+      if (this._suggestEl.style.display !== 'none') {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          this._moveSuggest(1);
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          this._moveSuggest(-1);
+          return;
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this._selectSuggest();
+          return;
+        }
+        if (e.key === 'Escape') {
+          this._hideSuggest();
+          return;
+        }
+      }
+
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         this.sendMessage(this.els.input.value.trim());
       }
     });
+
+    this.els.input.addEventListener('input', () => {
+      this._updateSuggest();
+    });
+
     this.els.submit?.addEventListener('click', () => {
       this.sendMessage(this.els.input.value.trim());
     });
     this.els.newBtn?.addEventListener('click', () => this._resetCurrentTab());
+  }
+
+  _updateSuggest() {
+    const text = this.els.input.value;
+    // 只在输入以 / 开头时显示建议
+    if (!text.startsWith('/') || text.includes(' ')) {
+      this._hideSuggest();
+      return;
+    }
+    const query = text.toLowerCase();
+    const matches = this._COMMANDS.filter(c => c.name.startsWith(query));
+    if (matches.length === 0 || (matches.length === 1 && matches[0].name === query)) {
+      this._hideSuggest();
+      return;
+    }
+    this._suggestIdx = 0;
+    const listEl = document.getElementById('cli-cmd-list');
+    listEl.innerHTML = matches.map((c, i) =>
+      `<div class="cli-cmd-item${i === 0 ? ' active' : ''}" data-cmd="${c.name}">` +
+      `<span class="cli-cmd-name">${c.name}</span>` +
+      `<span class="cli-cmd-desc">${c.desc}</span></div>`
+    ).join('');
+    this._suggestEl.style.display = '';
+
+    // 点击选择
+    listEl.querySelectorAll('.cli-cmd-item').forEach(el => {
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        this.els.input.value = el.dataset.cmd;
+        this._hideSuggest();
+        this.els.input.focus();
+      });
+    });
+  }
+
+  _moveSuggest(delta) {
+    const items = this._suggestEl.querySelectorAll('.cli-cmd-item');
+    if (!items.length) return;
+    items[this._suggestIdx]?.classList.remove('active');
+    this._suggestIdx = (this._suggestIdx + delta + items.length) % items.length;
+    items[this._suggestIdx]?.classList.add('active');
+  }
+
+  _selectSuggest() {
+    const items = this._suggestEl.querySelectorAll('.cli-cmd-item');
+    const active = items[this._suggestIdx];
+    if (active) {
+      this.els.input.value = active.dataset.cmd;
+    }
+    this._hideSuggest();
+    // 直接执行命令
+    this.sendMessage(this.els.input.value.trim());
+  }
+
+  _hideSuggest() {
+    this._suggestEl.style.display = 'none';
+    this._suggestIdx = -1;
   }
 
   _autoResize() {
@@ -738,11 +839,9 @@ class CliTerminalApp {
   _setInputDisabled(disabled) {
     this.els.input.disabled = disabled;
     if (this.els.submit) this.els.submit.disabled = disabled;
-    if (disabled) {
-      this.els.input.placeholder = '等待回复中...';
-    } else {
-      this.els.input.placeholder = '查一下上个月的所有报价单...';
-    }
+    this.els.input.placeholder = disabled
+      ? '正在思考...'
+      : '输入问题，按 Enter 发送...';
   }
 
   // ═══════════════════════════════════════════════════════════════
