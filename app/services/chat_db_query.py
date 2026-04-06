@@ -247,7 +247,7 @@ def _requires_owner_id_check(sql, user):
     """
     role = getattr(user, 'role', 'user')
     logger.debug(f'[AI DB Query] _requires_owner_id_check - role={role}, sql={sql[:80]}')
-    if role == 'admin':
+    if role in ('admin', 'hrdp_manager', 'hr_manager', 'ceo'):
         return None
 
     # 检查是否包含聚合函数
@@ -386,8 +386,8 @@ def _inject_permission_filters(sql, user):
     role = getattr(user, 'role', 'user')
     user_name = getattr(user, 'real_name', None) or getattr(user, 'username', '?')
     logger.info(f'[AI DB Debug] _inject_permission_filters - user={user_name}, role={role}')
-    if role == 'admin':
-        logger.info(f'[AI DB Debug] 用户是 admin，跳过权限注入')
+    if role in ('admin', 'hrdp_manager', 'hr_manager', 'ceo'):
+        logger.info(f'[AI DB Debug] 用户是 {role}，跳过权限注入')
         return sql, False
 
     sql_upper = sql.upper()
@@ -618,8 +618,9 @@ def get_permission_context(user, include_reply_rules=True):
 
     # 构建各模块权限级别摘要
     permission_lines = []
-    if role == 'admin':
-        permission_lines.append('角色: 管理员 — 拥有所有模块的 system 级权限，可查看全部数据')
+    if role in ('admin', 'hrdp_manager', 'hr_manager', 'ceo'):
+        label = {'admin': '管理员', 'hrdp_manager': '人事总监', 'hr_manager': '人事经理', 'ceo': 'CEO'}
+        permission_lines.append(f'角色: {label.get(role, role)} — 拥有全部数据的查看和分析权限')
     else:
         modules = ['customer', 'project', 'quotation', 'expense', 'product', 'order']
         module_names = {
