@@ -35,12 +35,19 @@ class InvokeSkillTool(BaseTool):
         'properties': {
             'skill_name': {
                 'type': 'string',
-                'description': 'Skill 标识名(见可用 Skill 列表)',
+                'description': 'Skill 标识名',
             },
-            'parameters': {
-                'type': 'object',
-                'description': 'Skill 参数键值对,参考各 Skill 的参数定义',
-                'default': {},
+            'user_name': {
+                'type': 'string',
+                'description': '人员姓名(如果 Skill 需要)',
+            },
+            'keyword': {
+                'type': 'string',
+                'description': '搜索关键词(如果 Skill 需要)',
+            },
+            'period': {
+                'type': 'string',
+                'description': '时间周期: this_week/last_week/this_month/last_month/this_quarter/last_quarter/this_year/last_year',
             },
         },
         'required': ['skill_name'],
@@ -48,19 +55,14 @@ class InvokeSkillTool(BaseTool):
 
     def execute(self, tool_input: dict, context: dict) -> Any:
         raw_name = (tool_input or {}).get('skill_name', '').strip()
-        # 清洗：LLM 可能传 "sales_weekly_review(user_name, period)" 或带空格的名字
         skill_name = raw_name.split('(')[0].strip()
-        params = (tool_input or {}).get('parameters') or {}
         user = context.get('user')
 
-        # 兼容：LLM 可能把参数放在顶层而不是 parameters 里
-        # 例如 {skill_name: "x", user_name: "李华伟"} 而非 {skill_name: "x", parameters: {user_name: "李华伟"}}
+        # 参数提取：优先从 parameters 嵌套对象，fallback 从顶层提取
+        params = (tool_input or {}).get('parameters') or {}
         if not params:
             reserved = {'skill_name', 'parameters'}
-            extra = {k: v for k, v in (tool_input or {}).items() if k not in reserved and v}
-            if extra:
-                params = extra
-                logger.info(f'[CLI Agent] invoke_skill 从顶层提取参数: {list(extra.keys())}')
+            params = {k: v for k, v in (tool_input or {}).items() if k not in reserved and v}
 
         logger.info(f'[CLI Agent] invoke_skill 收到: skill_name={skill_name}, params={params}, raw_input={tool_input}')
 
