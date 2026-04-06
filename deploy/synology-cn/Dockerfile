@@ -18,6 +18,7 @@ RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debia
 
 # 安装系统依赖（WeasyPrint PDF 生成需要）
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    pandoc \
     build-essential \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
