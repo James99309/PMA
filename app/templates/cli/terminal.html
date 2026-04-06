@@ -77,54 +77,21 @@
     <div class="cli-page-wrapper">
       <div class="cli-window">
 
-        {# ─── 终端标题栏(仿 macOS 终端)─── #}
-        <div class="cli-titlebar">
-          <div class="cli-traffic-lights">
-            <span class="tl-close" aria-label="close"></span>
-            <span class="tl-min" aria-label="minimize"></span>
-            <span class="tl-max" aria-label="maximize"></span>
-          </div>
-          <div class="cli-title">pma-cli — {{ current_user.real_name or current_user.username }}@{{ 'ovs' if config.get('IS_OVS') else 'sp8d' }}</div>
-          <div class="cli-titlebar-actions">
-            <button class="cli-btn-minimize" title="{{ _('最小化') }}" aria-label="minimize">
-              <span class="material-symbols-outlined" style="font-size:16px;">remove</span>
-            </button>
-            <button class="cli-btn-maximize" title="{{ _('最大化') }}" aria-label="maximize">
-              <span class="material-symbols-outlined" style="font-size:16px;">crop_square</span>
-            </button>
-            <button class="cli-btn-close" title="{{ _('关闭') }}" aria-label="close">
-              <span class="material-symbols-outlined" style="font-size:16px;">close</span>
-            </button>
-          </div>
-        </div>
-
-        {# ─── 标签栏(阶段 2 填充)─── #}
+        {# ─── 标签栏(由 terminal-app.js 动态渲染，直接在顶部)─── #}
         <div class="cli-tabbar" id="cli-tabbar">
-          <div class="cli-tab cli-tab-active">
-            <span class="cli-tab-title">{{ _('新会话') }}</span>
-            <button class="cli-tab-close" aria-label="close tab">
-              <span class="material-symbols-outlined" style="font-size:14px;">close</span>
-            </button>
-          </div>
+          {# tabs 由 JS _renderTabs() 动态生成 #}
           <button class="cli-tab-add" id="cli-tab-add" title="{{ _('新建标签') }}">
             <span class="material-symbols-outlined" style="font-size:16px;">add</span>
           </button>
         </div>
 
-        {# ─── 状态条 ─── #}
-        <div class="cli-statusbar">
-          <span class="cli-status-session">session: <span id="cli-session-id">—</span></span>
-          <span class="cli-status-tokens">
-            <span class="material-symbols-outlined" style="font-size:14px;vertical-align:middle;">insights</span>
-            <span id="cli-token-count">0</span> / 200k tokens
-          </span>
-          <button class="cli-status-new" id="cli-btn-new">
-            <span class="material-symbols-outlined" style="font-size:13px;vertical-align:middle;">refresh</span>
-            {{ _('新会话') }}
-          </button>
-        </div>
+        {# ─── 隐藏元素(JS 仍需引用)─── #}
+        <span id="cli-session-id" style="display:none"></span>
+        <span id="cli-token-count" style="display:none">0</span>
+        <span id="cli-token-wrap" style="display:none"></span>
+        <span id="cli-btn-new" style="display:none"></span>
 
-        {# ─── 终端内容区(阶段 1 临时 UI,阶段 2 会替换成 xterm.js)─── #}
+        {# ─── 终端内容区 ─── #}
         <div class="cli-body" id="cli-body">
           <div class="cli-welcome">
             <pre class="cli-logo">
@@ -135,8 +102,8 @@
   |_|   |_|  |_/_/   \_\  \____|_____|___|
             </pre>
             <div class="cli-welcome-text">
-              {{ _('PMA 智能终端') }} · {{ _('阶段 1 · 核心对话已接入') }}<br>
-              {{ _('输入自然语言问题,按 Enter 提交') }}
+              {{ _('PMA 智能终端') }}<br>
+              {{ _('输入自然语言问题，按 Enter 提交') }} · {{ _('输入 /help 查看命令') }}
             </div>
           </div>
           <div class="cli-transcript" id="cli-transcript"></div>
@@ -162,259 +129,10 @@
 
 {{ render_tw_layout_script() }}
 
-{# ─── 阶段 1 简易 SSE 客户端(阶段 2 会被 xterm.js 替换)─── #}
-<script>
-(function() {
-  const transcriptEl = document.getElementById('cli-transcript');
-  const inputEl      = document.getElementById('cli-input');
-  const submitBtn    = document.getElementById('cli-submit');
-  const sessionIdEl  = document.getElementById('cli-session-id');
-  const tokenCountEl = document.getElementById('cli-token-count');
-  const welcomeEl    = document.querySelector('.cli-welcome');
-  const newBtn       = document.getElementById('cli-btn-new');
-  const tabAddBtn    = document.getElementById('cli-tab-add');
-  const csrfToken    = document.querySelector('meta[name="csrf-token"]')?.content || '';
-
-  let currentSessionId = null;
-  let totalTokens = 0;
-  let isStreaming = false;
-
-  // 自适应高度
-  function autoresize() {
-    inputEl.style.height = 'auto';
-    inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px';
-  }
-  inputEl.addEventListener('input', autoresize);
-
-  // 加载当前 session
-  async function loadCurrentSession() {
-    try {
-      const r = await fetch('/cli/api/sessions');
-      if (!r.ok) return;
-      const data = await r.json();
-      currentSessionId = data.current_session_id;
-      if (currentSessionId) {
-        sessionIdEl.textContent = currentSessionId.slice(0, 8);
-        // 加载历史消息
-        const m = await fetch('/cli/api/sessions/' + currentSessionId + '/messages');
-        if (m.ok) {
-          const mdata = await m.json();
-          if (mdata.session && mdata.session.usage_total) {
-            const u = mdata.session.usage_total;
-            totalTokens = (u.input_tokens || 0) + (u.output_tokens || 0);
-            tokenCountEl.textContent = totalTokens.toLocaleString();
-          }
-          renderHistory(mdata.messages || []);
-        }
-      }
-    } catch (e) {
-      console.error('[CLI] loadCurrentSession failed', e);
-    }
-  }
-
-  // 渲染历史消息(简化版,阶段 2 改用真正的 markdown renderer)
-  function renderHistory(messages) {
-    transcriptEl.innerHTML = '';
-    if (messages.length > 0 && welcomeEl) welcomeEl.style.display = 'none';
-    for (const msg of messages) {
-      const content = msg.content || [];
-      if (msg.role === 'user') {
-        for (const b of content) {
-          if (b.type === 'text') appendUserLine(b.text);
-          // tool_result 不显示给用户(内部数据)
-        }
-      } else if (msg.role === 'assistant') {
-        for (const b of content) {
-          if (b.type === 'text') appendAssistantText(b.text, false);
-          else if (b.type === 'tool_use') appendToolStatus('调用工具: ' + b.name);
-        }
-      }
-    }
-    transcriptEl.scrollTop = transcriptEl.scrollHeight;
-  }
-
-  function appendUserLine(text) {
-    if (welcomeEl) welcomeEl.style.display = 'none';
-    const div = document.createElement('div');
-    div.className = 'cli-line cli-line-user';
-    div.innerHTML = '<span class="cli-user-prompt">&gt;</span> <span class="cli-user-text"></span>';
-    div.querySelector('.cli-user-text').textContent = text;
-    transcriptEl.appendChild(div);
-    transcriptEl.scrollTop = transcriptEl.scrollHeight;
-  }
-
-  let currentAssistantBlock = null;
-  function appendAssistantText(text, streaming) {
-    if (!currentAssistantBlock) {
-      currentAssistantBlock = document.createElement('div');
-      currentAssistantBlock.className = 'cli-line cli-line-assistant';
-      transcriptEl.appendChild(currentAssistantBlock);
-    }
-    currentAssistantBlock.textContent += text;
-    transcriptEl.scrollTop = transcriptEl.scrollHeight;
-  }
-  function finishAssistantBlock() { currentAssistantBlock = null; }
-
-  function appendToolStatus(text) {
-    const div = document.createElement('div');
-    div.className = 'cli-line cli-line-tool';
-    div.textContent = '⚙ ' + text;
-    transcriptEl.appendChild(div);
-    transcriptEl.scrollTop = transcriptEl.scrollHeight;
-  }
-
-  function appendErrorLine(text) {
-    const div = document.createElement('div');
-    div.className = 'cli-line cli-line-error';
-    div.textContent = '✗ ' + text;
-    transcriptEl.appendChild(div);
-    transcriptEl.scrollTop = transcriptEl.scrollHeight;
-  }
-
-  // 发送并流式接收
-  async function sendMessage() {
-    if (isStreaming) return;
-    const text = inputEl.value.trim();
-    if (!text) return;
-    if (!currentSessionId) {
-      appendErrorLine('尚未加载 session,请刷新');
-      return;
-    }
-
-    appendUserLine(text);
-    inputEl.value = '';
-    autoresize();
-    isStreaming = true;
-    submitBtn.disabled = true;
-    finishAssistantBlock();
-
-    try {
-      const resp = await fetch('/cli/api/stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrfToken,
-        },
-        body: JSON.stringify({ session_id: currentSessionId, input: text }),
-      });
-
-      if (!resp.ok) {
-        appendErrorLine('HTTP ' + resp.status + ' ' + resp.statusText);
-        return;
-      }
-
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-          if (!line.startsWith('data:')) continue;
-          const payload = line.slice(5).trim();
-          if (!payload) continue;
-          let evt;
-          try { evt = JSON.parse(payload); } catch { continue; }
-          handleEvent(evt);
-        }
-      }
-    } catch (e) {
-      appendErrorLine('网络错误: ' + e.message);
-    } finally {
-      isStreaming = false;
-      submitBtn.disabled = false;
-      finishAssistantBlock();
-      inputEl.focus();
-    }
-  }
-
-  function handleEvent(evt) {
-    switch (evt.type) {
-      case 'status':
-        // 状态提示先简化处理,控制台输出即可
-        console.log('[CLI status]', evt.message);
-        break;
-      case 'text_delta':
-        appendAssistantText(evt.text, true);
-        break;
-      case 'tool_call':
-        finishAssistantBlock();
-        appendToolStatus('查询中: ' + JSON.stringify(evt.input).slice(0, 80));
-        break;
-      case 'tool_result':
-        if (evt.is_error) {
-          appendErrorLine('工具错误: ' + JSON.stringify(evt.output));
-        } else {
-          // 按工具类型显示友好状态
-          const out = evt.output || {};
-          let statusText;
-          if (out.row_count !== undefined) {
-            statusText = '返回 ' + out.row_count + ' 行'
-              + (out.truncated ? ' (已截断)' : '');
-          } else if (out.result_count !== undefined) {
-            statusText = '搜索到 ' + out.result_count + ' 条结果';
-          } else if (out.error) {
-            statusText = '错误: ' + out.error;
-          } else {
-            statusText = '完成';
-          }
-          appendToolStatus(statusText);
-        }
-        break;
-      case 'usage':
-        const u = evt.usage || {};
-        totalTokens += (u.input_tokens || 0) + (u.output_tokens || 0);
-        tokenCountEl.textContent = totalTokens.toLocaleString();
-        break;
-      case 'done':
-        finishAssistantBlock();
-        break;
-      case 'error':
-        finishAssistantBlock();
-        appendErrorLine(evt.message || '未知错误');
-        break;
-    }
-  }
-
-  // Enter 发送,Shift+Enter 换行
-  inputEl.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-  submitBtn.addEventListener('click', sendMessage);
-
-  // 新会话按钮
-  async function createNewSession() {
-    try {
-      const r = await fetch('/cli/api/sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-      });
-      if (r.ok) {
-        const data = await r.json();
-        currentSessionId = data.session.id;
-        sessionIdEl.textContent = currentSessionId.slice(0, 8);
-        totalTokens = 0;
-        tokenCountEl.textContent = '0';
-        transcriptEl.innerHTML = '';
-        if (welcomeEl) welcomeEl.style.display = '';
-      }
-    } catch (e) {
-      appendErrorLine('创建新会话失败: ' + e.message);
-    }
-  }
-  if (newBtn) newBtn.addEventListener('click', createNewSession);
-  if (tabAddBtn) tabAddBtn.addEventListener('click', createNewSession);
-
-  loadCurrentSession();
-})();
-</script>
+{# ─── CLI Terminal JS 模块 ─── #}
+<script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/cli/markdown-renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/cli/terminal-app.js') }}"></script>
 
 </body>
 </html>

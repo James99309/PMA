@@ -150,6 +150,13 @@ class AgentLoop:
                 return
 
             # 把 assistant 消息写入对话
+            # 如果 LLM 返回空响应（无文本、无工具调用），插入兜底回复
+            if not collected_text_blocks and not pending_tool_uses:
+                fallback = conv.text_block('抱歉，我暂时无法处理这个请求。请换个说法再试，或输入 /new 开新会话。')
+                self.session.append_message('assistant', [fallback])
+                yield {'type': 'text_delta', 'text': fallback['text']}
+                break
+
             if collected_text_blocks:
                 self.session.append_message('assistant', collected_text_blocks)
 

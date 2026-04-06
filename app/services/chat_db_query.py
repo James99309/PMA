@@ -104,10 +104,56 @@ def get_db_schema():
     lines.append(f'\n{_TABLE_RELATIONS}')
     lines.append(f'\n{_BUSINESS_NOTES}')
     lines.append(f'\n{_QUERY_EXAMPLES}')
+    lines.append(f'\n{_build_enum_labels_section()}')
 
     _schema_cache = '\n'.join(lines)
     _schema_cache_time = time.time()
     return _schema_cache
+
+
+def _build_enum_labels_section() -> str:
+    """从 dictionary_helpers 动态生成枚举字段中文标签段，注入 Schema。"""
+    try:
+        from app.utils.dictionary_helpers import (
+            COMPANY_TYPE_LABELS,
+            INDUSTRY_LABELS,
+            COUNTRY_LABELS,
+            PROJECT_STAGE_LABELS,
+            ACTIVITY_STATUS_LABELS,
+            APPROVAL_STATUS_LABELS,
+            CURRENCY_TYPE_LABELS,
+        )
+    except ImportError:
+        return ''
+
+    def _compact(labels: dict, key: str = 'zh') -> str:
+        """从 {code: {zh: '中文', en: 'English'}} 提取不重复的 code=中文 对"""
+        seen = set()
+        parts = []
+        for code, val in labels.items():
+            if isinstance(val, dict):
+                zh = val.get(key, code)
+            else:
+                zh = val
+            # 跳过中文 key 别名（避免重复）
+            if any('\u4e00' <= c <= '\u9fff' for c in str(code)):
+                continue
+            if code not in seen:
+                seen.add(code)
+                parts.append(f'{code}={zh}')
+        return ', '.join(parts)
+
+    lines = [
+        '枚举字段中文标签（向用户展示时使用）:',
+        f'- company_type: {_compact(COMPANY_TYPE_LABELS)}',
+        f'- industry: {_compact(INDUSTRY_LABELS)}',
+        f'- country: {_compact(COUNTRY_LABELS)}',
+        f'- current_stage(项目阶段): {_compact(PROJECT_STAGE_LABELS)}',
+        f'- status(客户活跃度): {_compact(ACTIVITY_STATUS_LABELS)}',
+        f'- approval_status: {_compact(APPROVAL_STATUS_LABELS)}',
+        f'- currency: {_compact(CURRENCY_TYPE_LABELS)}',
+    ]
+    return '\n'.join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -535,13 +581,15 @@ def execute_safe_query(sql, user):
 # 权限上下文生成
 # ---------------------------------------------------------------------------
 
-def get_permission_context(user):
+def get_permission_context(user, include_reply_rules=True):
     """生成用户权限描述文本，嵌入 system prompt
 
     包含完整的用户身份和权限摘要，让 AI 能在查询前判断是否越权。
 
     Args:
         user: 当前用户对象
+        include_reply_rules: 是否包含"回复规范"段。CLI Agent 的 prompt_builder
+            已有自己的输出规则，传 False 避免重复。默认 True 保持旧调用方兼容。
 
     Returns:
         str: 权限描述文本
@@ -582,7 +630,7 @@ def get_permission_context(user):
 
     permissions_block = '\n'.join(permission_lines)
 
-    return (
+    result = (
         f'当前用户信息：\n'
         f'- 姓名: {real_name} (username: {username})\n'
         f'- 角色: {role}\n'
@@ -597,12 +645,18 @@ def get_permission_context(user):
         f'- products 表无访问限制\n'
         f'- users 表仅允许查询 id, username, real_name, department, role 字段\n'
         f'- 所有支持 is_deleted 的表必须添加 AND is_deleted = FALSE\n'
-        f'\n'
-        f'回复规范（严格遵守）：\n'
-        f'- 只输出最终答案，禁止展示思考过程、查询步骤、重试过程\n'
-        f'- 禁止出现：表名(companies/projects等)、字段名(owner_id/is_deleted等)、SQL语句、ID编号、权限规则\n'
-        f'- 禁止说"让我查询一下"、"先查看X表"、"尝试使用web_search"、"重新查询"、"暂未记录"、"数据库中"\n'
-        f'- 数据库查不到或返回字段为空时，静默使用 web_search 补充，不解释切换原因\n'
-        f'- 都查不到就简短告知"暂无该信息"，不解释内部原因\n'
-        f'- 用自然语言回复，像一个业务助理而非程序员'
     )
+
+    if include_reply_rules:
+        result += (
+            f'\n'
+            f'回复规范（严格遵守）：\n'
+            f'- 只输出最终答案，禁止展示思考过程、查询步骤、重试过程\n'
+            f'- 禁止出现：表名(companies/projects等)、字段名(owner_id/is_deleted等)、SQL语句、ID编号、权限规则\n'
+            f'- 禁止说"让我查询一下"、"先查看X表"、"尝试使用web_search"、"重新查询"、"暂未记录"、"数据库中"\n'
+            f'- 数据库查不到或返回字段为空时，静默使用 web_search 补充，不解释切换原因\n'
+            f'- 都查不到就简短告知"暂无该信息"，不解释内部原因\n'
+            f'- 用自然语言回复，像一个业务助理而非程序员'
+        )
+
+    return result

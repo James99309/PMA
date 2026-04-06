@@ -359,15 +359,24 @@ class OpenAIClient(BaseLLMClient):
             tool_calls_acc: dict[int, dict] = {}  # index → {id, name, arguments}
             usage_data: dict = {}
             finish_reason: str | None = None
+            output_text_len: int = 0           # 追踪输出文本长度(用于离线估算)
 
-            stream = self._client.chat.completions.create(
+            create_kwargs = dict(
                 model=self.model,
                 messages=openai_messages,
                 tools=openai_tools,
                 max_tokens=max_tokens,
                 stream=True,
-                stream_options={'include_usage': True},
             )
+            # stream_options 部分代理不支持,尝试启用
+            try:
+                stream = self._client.chat.completions.create(
+                    **create_kwargs,
+                    stream_options={'include_usage': True},
+                )
+            except Exception:
+                logger.info('[CLI Agent LLM] stream_options 不受支持,降级为无 usage 流式')
+                stream = self._client.chat.completions.create(**create_kwargs)
 
             for chunk in stream:
                 # Usage 在最后一个 chunk(stream_options=include_usage)
@@ -391,6 +400,7 @@ class OpenAIClient(BaseLLMClient):
 
                 # 文本增量
                 if getattr(delta, 'content', None):
+                    output_text_len += len(delta.content)
                     yield {'type': 'text_delta', 'text': delta.content}
 
                 # Tool call 增量(OpenAI 分片发送,按 index 累加)
@@ -429,6 +439,33 @@ class OpenAIClient(BaseLLMClient):
                     'id': tc['id'] or f'call_{idx}',
                     'name': tc['name'],
                     'input': tool_input,
+                }
+
+            # 如果代理不支持 stream_options 或返回全零，用离线估算兜底
+            has_real_usage = usage_data and (
+                usage_data.get('input_tokens', 0) > 0 or
+                usage_data.get('output_tokens', 0) > 0
+            )
+            if not has_real_usage:
+                import re as _re
+                est_input = 0
+                for m in openai_messages:
+                    txt = str(m.get('content', ''))
+                    cn = len(_re.findall(r'[\u4e00-\u9fff]', txt))
+                    est_input += int(cn * 1.5 + (len(txt) - cn) / 4) + 5
+
+                # 输出：文本 + 工具参数
+                cn_out = len(_re.findall(r'[\u4e00-\u9fff]', str(output_text_len)))
+                est_output = int(output_text_len / 4) + 5  # 粗估
+                for idx in tool_calls_acc:
+                    est_output += len(tool_calls_acc[idx].get('arguments', '')) // 4 + 20
+
+                usage_data = {
+                    'input_tokens': est_input,
+                    'output_tokens': est_output,
+                    'cache_read_input_tokens': 0,
+                    'cache_creation_input_tokens': 0,
+                    '_estimated': True,
                 }
 
             # 映射 finish_reason 到我们统一的 stop_reason

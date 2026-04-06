@@ -3,12 +3,15 @@
 CLI Agent Blueprint
 
 路由:
-    GET  /cli                              主终端页面
-    GET  /cli/api/sessions                 列出当前用户所有 session
-    POST /cli/api/sessions                 新建 session
-    POST /cli/api/sessions/<id>/close      关闭 session
-    POST /cli/api/sessions/<id>/focus      切换焦点到该 session
-    POST /cli/api/stream                   流式对话 SSE
+    GET   /cli                              主终端页面
+    GET   /cli/api/sessions                 列出当前用户所有 active session
+    POST  /cli/api/sessions                 新建 session
+    POST  /cli/api/sessions/<id>/close      关闭 session
+    POST  /cli/api/sessions/<id>/focus      切换焦点到该 session
+    PATCH /cli/api/sessions/<id>/title      更新 session 标题
+    GET   /cli/api/sessions/<id>/messages   获取 session 消息历史
+    GET   /cli/api/sessions/history         列出所有 session(含 CLOSED)
+    POST  /cli/api/stream                   流式对话 SSE
 
 权限:
     所有路由要求 @login_required
@@ -171,6 +174,47 @@ def focus_session(session_id: str):
     state.current_session_id = session_id
     db.session.commit()
     return jsonify({'success': True})
+
+
+@cli_bp.route('/api/sessions/<session_id>/title', methods=['PATCH'])
+@login_required
+def update_session_title(session_id: str):
+    """更新 session 标题(前端在首次发送消息时自动调用)"""
+    _require_cli_access()
+
+    try:
+        sid_uuid = uuid.UUID(session_id)
+    except ValueError:
+        return jsonify({'success': False, 'error': 'session_id 格式错误'}), 400
+
+    session = CliSession.query.filter_by(id=sid_uuid, user_id=current_user.id).first()
+    if not session:
+        return jsonify({'success': False, 'error': 'session 不存在'}), 404
+
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()[:120]
+    if title:
+        session.title = title
+        db.session.commit()
+
+    return jsonify({'success': True})
+
+
+@cli_bp.route('/api/sessions/history', methods=['GET'])
+@login_required
+def session_history():
+    """列出当前用户所有 session(含 CLOSED),供 /history 命令使用"""
+    _require_cli_access()
+
+    sessions = CliSession.query.filter(
+        CliSession.user_id == current_user.id,
+        CliSession.status != CliSession.STATUS_ARCHIVED,
+    ).order_by(CliSession.last_active_at.desc()).limit(50).all()
+
+    return jsonify({
+        'success': True,
+        'sessions': [s.to_dict() for s in sessions],
+    })
 
 
 @cli_bp.route('/api/sessions/<session_id>/messages', methods=['GET'])
