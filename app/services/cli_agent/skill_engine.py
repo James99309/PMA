@@ -30,12 +30,10 @@ def _compute_period(period_value: str) -> tuple[str, str]:
     """根据 period 关键词计算 (start, end) 日期字符串(YYYY-MM-DD)。
 
     支持:
-        this_week   — 本周一 ~ 今天
-        last_week   — 上周一 ~ 上周日
-        this_month  — 本月 1 日 ~ 今天
-        last_month  — 上月 1 日 ~ 上月最后一天
-        this_quarter — 本季度第一天 ~ 今天
-        last_quarter — 上季度第一天 ~ 上季度最后一天
+        this_week / last_week
+        this_month / last_month
+        this_quarter / last_quarter
+        this_year / last_year
     """
     today = date.today()
 
@@ -72,6 +70,15 @@ def _compute_period(period_value: str) -> tuple[str, str]:
         first_prev_q = last_day_prev_q.replace(month=prev_q_month, day=1)
         return first_prev_q.isoformat(), last_day_prev_q.isoformat()
 
+    if period_value == 'this_year':
+        first = today.replace(month=1, day=1)
+        return first.isoformat(), today.isoformat()
+
+    if period_value == 'last_year':
+        first = today.replace(year=today.year - 1, month=1, day=1)
+        last = today.replace(year=today.year - 1, month=12, day=31)
+        return first.isoformat(), last.isoformat()
+
     raise ValueError(f'不支持的 period 值: {period_value}')
 
 
@@ -81,7 +88,7 @@ def _compute_period(period_value: str) -> tuple[str, str]:
 
 _SAFE_PERIOD_VALUES = frozenset({
     'this_week', 'last_week', 'this_month', 'last_month',
-    'this_quarter', 'last_quarter',
+    'this_quarter', 'last_quarter', 'this_year', 'last_year',
 })
 
 

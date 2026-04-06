@@ -389,11 +389,12 @@ def create_app(config_class=Config):
     app.register_blueprint(cli_bp)
 
     # 注册内置 Skill（首次启动时写入数据库，已存在则跳过）
-    try:
-        from app.services.cli_agent.builtin_skills import register_builtin_skills
-        register_builtin_skills()
-    except Exception as e:
-        app.logger.warning(f'内置 Skill 注册跳过: {e}')
+    with app.app_context():
+        try:
+            from app.services.cli_agent.builtin_skills import register_builtin_skills
+            register_builtin_skills()
+        except Exception as e:
+            app.logger.warning(f'内置 Skill 注册跳过: {e}')
 
     # 注册规格字典/模板管理蓝图（仅 SP8D/CN NAS 启用，OVS/SG NAS 数据通过物化视图只读同步）
     if not app.config.get('IS_OVS'):
