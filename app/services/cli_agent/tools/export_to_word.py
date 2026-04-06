@@ -118,7 +118,8 @@ class ExportToWordTool(BaseTool):
             )
             os.makedirs(storage_dir, exist_ok=True)
             final_path = os.path.join(storage_dir, output_filename)
-            os.rename(output_path, final_path)
+            import shutil
+            shutil.move(output_path, final_path)
 
             download_url = f'/cli/api/exports/{output_filename}'
 
