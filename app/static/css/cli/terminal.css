@@ -191,8 +191,8 @@ html.dark {
 .cli-line-usage {
     color: var(--cli-text-dimmer);
     font-size: 11px;
-    padding-left: 18px;
-    margin-top: 2px;
+    padding-left: 20px;
+    margin-top: -2px;
 }
 
 /* ─── 输入行 ─── */
@@ -201,9 +201,6 @@ html.dark {
     align-items: flex-start;
     gap: 10px;
     padding: 14px 20px 18px;
-    background: var(--cli-bg);
-    border-top: 1px solid var(--cli-border);
-    flex-shrink: 0;
 }
 .cli-prompt {
     color: var(--cli-prompt);
@@ -242,6 +239,52 @@ html.dark {
 }
 .cli-input::placeholder { color: var(--cli-text-dimmer); font-style: normal; }
 .cli-submit { display: none !important; }
+
+/* ─── 输入区域（包裹输入行 + 命令建议）─── */
+.cli-input-area {
+    flex-shrink: 0;
+    border-top: 1px solid var(--cli-border);
+    background: var(--cli-bg);
+}
+
+/* ─── 命令建议面板（输入行下方展开）─── */
+.cli-cmd-suggest {
+    border-top: 1px solid var(--cli-border);
+    background: var(--cli-bg-alt);
+    font-size: 13px;
+}
+.cli-cmd-hint {
+    padding: 6px 20px;
+    font-size: 11px;
+    color: var(--cli-text-dimmer);
+}
+.cli-cmd-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 7px 20px;
+    cursor: pointer;
+    color: var(--cli-text);
+    transition: background 0.1s;
+}
+.cli-cmd-item:hover,
+.cli-cmd-item.active {
+    background: var(--cli-accent);
+    color: #fff;
+}
+.cli-cmd-item .cli-cmd-name {
+    font-weight: 600;
+    min-width: 80px;
+    color: var(--cli-prompt);
+}
+.cli-cmd-item:hover .cli-cmd-name,
+.cli-cmd-item.active .cli-cmd-name { color: #fff; }
+.cli-cmd-item .cli-cmd-desc {
+    color: var(--cli-text-dim);
+    font-size: 12px;
+}
+.cli-cmd-item:hover .cli-cmd-desc,
+.cli-cmd-item.active .cli-cmd-desc { color: rgba(255,255,255,0.8); }
 
 /* ─── 隐藏 PMA 全局聊天气泡 ─── */
 body:has(.cli-window) button.fixed.bottom-6.right-6.bg-primary.rounded-full { display: none !important; }
