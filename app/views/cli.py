@@ -49,7 +49,8 @@ cli_bp = Blueprint('cli', __name__, url_prefix='/cli')
 def _is_cli_enabled_for(user):
     if os.environ.get('ENABLE_CLI_AGENT', '').lower() in ('true', '1', 'yes'):
         return True
-    return getattr(user, 'role', None) == 'admin'
+    role = getattr(user, 'role', None)
+    return role in ('admin', 'hr')
 
 
 def _require_cli_access():
