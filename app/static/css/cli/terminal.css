@@ -123,7 +123,7 @@ html.dark {
 }
 
 .cli-tab-close {
-    background: transparent;
+    background: var(--cli-bg);
     border: none;
     color: var(--cli-text-dimmer);
     cursor: pointer;
@@ -132,6 +132,9 @@ html.dark {
     border-radius: 3px;
     opacity: 0;
     transition: opacity 0.15s;
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
 }
 .cli-tab:hover .cli-tab-close { opacity: 1; }
 .cli-tab-close:hover {
