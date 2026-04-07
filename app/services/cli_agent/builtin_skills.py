@@ -359,7 +359,7 @@ _BUILTIN_SKILLS: list[dict] = [
 
 
     # ------------------------------------------------------------------
-    # 5. 销售人员周报分析
+    # 5. 销售人员周报分析（对标 Roy 样本）
     # ------------------------------------------------------------------
     {
         'name': 'sales_weekly_review',
@@ -370,6 +370,30 @@ _BUILTIN_SKILLS: list[dict] = [
             {'name': 'period', 'type': 'period', 'required': True, 'default_value': 'last_week', 'description': '统计周期'},
         ],
         'queries': [
+            # Step 1: 概览统计（一行汇总）
+            {
+                'as_name': 'summary',
+                'description': '周度概览统计',
+                'sql': (
+                    "SELECT "
+                    "(SELECT COUNT(*) FROM actions a JOIN users u ON a.owner_id=u.id "
+                    "  WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    "  AND a.date >= {period_start}::date AND a.date <= {period_end}::date) AS 行动记录数, "
+                    "(SELECT COUNT(DISTINCT a.date) FROM actions a JOIN users u ON a.owner_id=u.id "
+                    "  WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    "  AND a.date >= {period_start}::date AND a.date <= {period_end}::date) AS 活跃天数, "
+                    "(SELECT COUNT(*) FROM quotations q JOIN users u ON q.owner_id=u.id "
+                    "  WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    "  AND q.created_at >= {period_start}::date AND q.created_at < ({period_end}::date + INTERVAL '1 day')) AS 报价数, "
+                    "(SELECT COALESCE(SUM(q.amount),0) FROM quotations q JOIN users u ON q.owner_id=u.id "
+                    "  WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    "  AND q.created_at >= {period_start}::date AND q.created_at < ({period_end}::date + INTERVAL '1 day')) AS 报价总额, "
+                    "(SELECT COUNT(*) FROM projects p JOIN users u ON p.owner_id=u.id "
+                    "  WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    "  AND p.is_deleted=FALSE AND p.current_stage NOT IN ('lost','paused','signed')) AS 活跃项目数"
+                ),
+            },
+            # Step 2: 行动记录明细（加类型列）
             {
                 'as_name': 'actions',
                 'description': '周期内行动记录明细',
@@ -377,7 +401,7 @@ _BUILTIN_SKILLS: list[dict] = [
                     "SELECT a.date AS 日期, "
                     "COALESCE(co.company_name, '-') AS 客户, "
                     "COALESCE(p.project_name, '-') AS 项目, "
-                    "LEFT(a.communication, 120) AS 内容摘要 "
+                    "LEFT(a.communication, 150) AS 内容摘要 "
                     "FROM actions a "
                     "JOIN users u ON a.owner_id = u.id "
                     "LEFT JOIN companies co ON a.company_id = co.id "
@@ -388,13 +412,17 @@ _BUILTIN_SKILLS: list[dict] = [
                     "ORDER BY a.date, a.id"
                 ),
             },
+            # Step 3: 每日活动分布（加日志状态）
             {
                 'as_name': 'daily',
-                'description': '每日行动记录数和工作项数',
+                'description': '每日行动分布+日志状态',
                 'sql': (
                     "SELECT d.day::date AS 日期, "
-                    "COALESCE(ac.action_count, 0) AS 行动记录数, "
-                    "COALESCE(wi.item_count, 0) AS 工作项数 "
+                    "COALESCE(ac.action_count, 0) AS 行动数, "
+                    "COALESCE(wi.item_count, 0) AS 工作项数, "
+                    "COALESCE(wl.log_status, '无') AS 日志状态, "
+                    "CASE WHEN COALESCE(ac.action_count,0)=0 AND COALESCE(wi.item_count,0)=0 THEN '空白' "
+                    "     WHEN COALESCE(ac.action_count,0)>0 THEN '活跃' ELSE '仅工作项' END AS 备注 "
                     "FROM generate_series({period_start}::date, {period_end}::date, '1 day'::interval) d(day) "
                     "LEFT JOIN ( "
                     "  SELECT a.date, COUNT(*) AS action_count "
@@ -408,33 +436,52 @@ _BUILTIN_SKILLS: list[dict] = [
                     "  WHERE u.real_name ILIKE '%' || {user_name} || '%' "
                     "  GROUP BY wi.planned_date "
                     ") wi ON wi.planned_date = d.day::date "
+                    "LEFT JOIN ( "
+                    "  SELECT wl.log_date, wl.status AS log_status "
+                    "  FROM worklogs wl JOIN users u ON wl.owner_id = u.id "
+                    "  WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    ") wl ON wl.log_date = d.day::date "
                     "WHERE EXTRACT(DOW FROM d.day) NOT IN (0, 6) "
                     "ORDER BY d.day"
                 ),
             },
+            # Step 4: 项目管线（只显示本周有行动的 + 招标/标前阶段零行动的风险项）
             {
                 'as_name': 'pipeline',
-                'description': '当前负责的活跃项目',
+                'description': '重点项目管线（有行动+风险项）',
                 'sql': (
-                    "SELECT p.project_name AS 项目名称, "
+                    "SELECT p.project_name AS 项目, "
                     "p.current_stage AS 阶段, "
                     "p.status AS 状态, "
-                    "(SELECT MAX(a2.date) FROM actions a2 WHERE a2.project_id = p.id "
-                    "  AND a2.date >= {period_start}::date AND a2.date <= {period_end}::date) AS 本周最近行动 "
+                    "COALESCE(ac.action_count, 0) AS 本周行动数, "
+                    "CASE WHEN COALESCE(ac.action_count,0)=0 AND p.current_stage IN ('tendering','pre_tender','awarded') "
+                    "     THEN '⚠ 零行动' "
+                    "     WHEN COALESCE(ac.action_count,0)>0 THEN '✓ 有跟进' "
+                    "     ELSE '-' END AS 本周进展 "
                     "FROM projects p "
                     "JOIN users u ON p.owner_id = u.id "
+                    "LEFT JOIN ( "
+                    "  SELECT a.project_id, COUNT(*) AS action_count "
+                    "  FROM actions a "
+                    "  WHERE a.date >= {period_start}::date AND a.date <= {period_end}::date "
+                    "  GROUP BY a.project_id "
+                    ") ac ON ac.project_id = p.id "
                     "WHERE u.real_name ILIKE '%' || {user_name} || '%' "
                     "AND p.is_deleted = FALSE "
                     "AND p.current_stage NOT IN ('lost', 'paused', 'signed') "
+                    "AND (COALESCE(ac.action_count,0) > 0 "
+                    "     OR p.current_stage IN ('tendering','pre_tender','awarded')) "
                     "ORDER BY CASE p.current_stage "
                     "  WHEN 'awarded' THEN 1 WHEN 'tendering' THEN 2 "
                     "  WHEN 'pre_tender' THEN 3 WHEN 'embed' THEN 4 "
-                    "  WHEN 'discover' THEN 5 ELSE 9 END"
+                    "  WHEN 'discover' THEN 5 ELSE 9 END, "
+                    "COALESCE(ac.action_count,0) DESC"
                 ),
             },
+            # Step 5: 报价明细
             {
                 'as_name': 'quotations',
-                'description': '周期内的报价活动',
+                'description': '周期内报价明细',
                 'sql': (
                     "SELECT q.quotation_number AS 报价单号, "
                     "COALESCE(p.project_name, '-') AS 项目, "
@@ -452,16 +499,16 @@ _BUILTIN_SKILLS: list[dict] = [
             },
         ],
         'output_format': (
-            "## {user_name} 周报分析 ({period_start} ~ {period_end})\n\n"
-            "### 行动记录 ({actions.count}条)\n"
+            "## {user_name} 销售周报 ({period_start} ~ {period_end})\n\n"
+            "### 概览\n{summary.table}\n\n"
+            "### 1. 行动记录明细 ({actions.count}条)\n"
             "{if actions}{actions.table}{endif}"
             "{if !actions}本周无行动记录。{endif}\n\n"
-            "### 每日活动分布\n"
-            "{daily.table}\n\n"
-            "### 项目管线 ({pipeline.count}个活跃项目)\n"
+            "### 2. 每日活动分布\n{daily.table}\n\n"
+            "### 3. 项目管线（重点项目）\n"
             "{if pipeline}{pipeline.table}{endif}"
-            "{if !pipeline}暂无活跃项目。{endif}\n\n"
-            "### 本周报价\n"
+            "{if !pipeline}暂无重点项目。{endif}\n\n"
+            "### 4. 本周报价 ({quotations.count}份)\n"
             "{if quotations}{quotations.table}{endif}"
             "{if !quotations}本周无新报价。{endif}"
         ),
