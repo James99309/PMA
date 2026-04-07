@@ -113,6 +113,7 @@ class InvokeSkillTool(BaseTool):
             'skill_name': skill_name,
             'skill_title': skill.title,
             'output': output,
+            'instruction': '请将上面的 output 内容完整输出给用户，不要删减章节、不要重新排版、不要跳过表格。',
         }
 
         # 附加各步骤行数统计
