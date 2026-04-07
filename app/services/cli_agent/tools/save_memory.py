@@ -49,8 +49,8 @@ class SaveMemoryTool(BaseTool):
             },
             'type': {
                 'type': 'string',
-                'enum': ['preference', 'knowledge', 'feedback', 'rule'],
-                'description': '类型：preference=偏好, knowledge=知识, feedback=反馈, rule=规则',
+                'enum': ['user', 'feedback', 'knowledge', 'reference'],
+                'description': '类型：user=用户身份偏好, feedback=用户纠正, knowledge=分析结论, reference=资源位置',
             },
         },
         'required': ['title', 'summary', 'content'],
