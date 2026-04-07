@@ -23,37 +23,45 @@ logger = logging.getLogger(__name__)
 class SaveMemoryTool(BaseTool):
     name = 'save_memory'
     description = (
-        '保存或更新一条记忆。当你发现值得记住的信息时调用：\n'
-        '- 用户的偏好（常查哪个人、喜欢什么格式）\n'
-        '- 重要的分析结论（某人的绩效问题、项目风险）\n'
-        '- 用户的反馈和纠正（"不要这样做"、"以后用这种格式"）\n\n'
-        '**记忆维护规则（必须遵守）：**\n'
-        '1. 用户纠正了你之前的理解时，立即更新相关记忆（传同样的 title 会自动覆盖）\n'
-        '2. 保存前检查记忆索引，避免重复或矛盾\n'
-        '3. 如果旧记忆已过时，用 delete_memory 删除后重新保存\n'
+        '保存或更新一条结构化记忆。\n\n'
+        '**何时调用：**\n'
+        '- 用户身份信息（姓名、角色、部门 → type=user）\n'
+        '- 用户纠正你的错误（"不对，应该用XX" → type=feedback）\n'
+        '- 用户偏好（常查谁、喜欢什么格式 → type=user）\n'
+        '- 重要分析结论（某人绩效差距、项目风险 → type=knowledge）\n'
+        '- 业务规则澄清（植入额=报价单 → type=feedback）\n\n'
+        '**何时不调用：**\n'
+        '- 一次性查询（今天天气、某个数字）\n'
+        '- 系统记忆已有的常识\n'
+        '- 临时性数据\n\n'
+        '**维护规则：**\n'
+        '- 同 title 自动覆盖旧记忆\n'
+        '- 发现矛盾时先 delete_memory 再保存新的\n'
+        '- 保存前检查索引避免重复\n'
     )
     input_schema = {
         'type': 'object',
         'properties': {
-            'title': {
-                'type': 'string',
-                'description': '记忆标题（简短，<50字）',
-            },
-            'summary': {
-                'type': 'string',
-                'description': '一行摘要（用于索引，<100字）',
-            },
-            'content': {
-                'type': 'string',
-                'description': '完整内容（详细信息）',
-            },
             'type': {
                 'type': 'string',
                 'enum': ['user', 'feedback', 'knowledge', 'reference'],
-                'description': '类型：user=用户身份偏好, feedback=用户纠正, knowledge=分析结论, reference=资源位置',
+                'description': 'user=用户画像(姓名/角色/偏好), feedback=用户纠正, knowledge=分析结论, reference=数据位置',
+            },
+            'title': {
+                'type': 'string',
+                'description': '记忆标题（简短，如"张奕是HR经理"、"植入额计算规则"）',
+            },
+            'facts': {
+                'type': 'array',
+                'items': {'type': 'string'},
+                'description': '关键事实列表，每条独立可理解（如["张奕是HR经理","常查李华伟周报"]）',
+            },
+            'content': {
+                'type': 'string',
+                'description': '完整上下文说明（可选，补充 facts 的背景）',
             },
         },
-        'required': ['title', 'summary', 'content'],
+        'required': ['type', 'title', 'facts'],
     }
 
     def execute(self, tool_input: dict, context: dict) -> Any:
@@ -62,13 +70,21 @@ class SaveMemoryTool(BaseTool):
             return {'error': '缺少用户上下文'}
 
         title = (tool_input or {}).get('title', '').strip()
-        summary = (tool_input or {}).get('summary', '').strip()
+        facts = (tool_input or {}).get('facts') or []
         content = (tool_input or {}).get('content', '').strip()
         mem_type = (tool_input or {}).get('type', 'knowledge').strip()
 
-        if not title or not content:
-            return {'error': 'title 和 content 不能为空'}
-        if not summary:
+        if not title:
+            return {'error': 'title 不能为空'}
+        if not facts and not content:
+            return {'error': 'facts 或 content 至少需要一个'}
+
+        # 从 facts 生成 summary 和 content
+        if facts:
+            summary = '; '.join(facts[:3])[:500]
+            if not content:
+                content = '\n'.join(f'- {f}' for f in facts)
+        else:
             summary = content[:100]
 
         try:
