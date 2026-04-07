@@ -58,10 +58,16 @@ class QueryPmaDatabaseTool(BaseTool):
             result = execute_safe_query(sql, user)
         except Exception as e:
             logger.exception('[CLI Agent] query_pma_database 执行异常')
-            return {'error': f'查询执行异常: {e}'}
+            # 脱敏：不暴露 SQL 和内部错误给 LLM/用户
+            return {'error': '查询执行失败，请检查查询条件后重试。'}
 
         if not result.get('success'):
-            return {'error': result.get('error', '查询失败')}
+            raw_err = result.get('error', '查询失败')
+            # 保留权限相关提示，脱敏其他技术细节
+            if '权限' in raw_err:
+                return {'error': raw_err}
+            logger.warning(f'[CLI Agent] query_pma_database 失败: {raw_err}')
+            return {'error': '查询失败，请换个方式提问或缩小查询范围。'}
 
         # 成功结果 → 检查大小,过大截断
         rows = result.get('rows', [])
