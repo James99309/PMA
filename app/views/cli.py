@@ -365,18 +365,13 @@ def list_memories():
 
     is_admin = getattr(current_user, 'role', None) == 'admin'
 
-    if is_admin:
-        # admin 看全部
-        memories = CliMemory.query.filter(
-            CliMemory.is_active == True,
-        ).order_by(CliMemory.scope, CliMemory.id).all()
-    else:
-        # 普通用户只看自己的 personal
-        memories = CliMemory.query.filter(
-            CliMemory.is_active == True,
-            CliMemory.scope == 'personal',
-            CliMemory.user_id == current_user.id,
-        ).order_by(CliMemory.id).all()
+    if not is_admin:
+        return jsonify({'success': True, 'memories': [], 'message': '记忆由系统自动管理，无需手动查看。'})
+
+    # admin 看全部
+    memories = CliMemory.query.filter(
+        CliMemory.is_active == True,
+    ).order_by(CliMemory.scope, CliMemory.id).all()
 
     return jsonify({
         'success': True,
