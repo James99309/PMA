@@ -36,6 +36,7 @@ class CliTerminalApp {
     // 流式累计
     this._streamingBlock = null;
     this._streamingText  = '';
+    this._abortController = null;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -389,6 +390,7 @@ class CliTerminalApp {
     this._appendUserLine(text);
     this._clearInput();
     this.isStreaming = true;
+    this._abortController = new AbortController();
     this._setInputDisabled(true);
     this._finishStreamingBlock();
 
@@ -408,6 +410,7 @@ class CliTerminalApp {
     try {
       const resp = await fetch('/cli/api/stream', {
         method: 'POST',
+        signal: this._abortController.signal,
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': this.csrfToken,
@@ -442,9 +445,14 @@ class CliTerminalApp {
         }
       }
     } catch (e) {
-      this._appendErrorLine('网络错误: ' + e.message);
+      if (e.name === 'AbortError') {
+        this._appendSystemLine('已中断');
+      } else {
+        this._appendErrorLine('网络错误: ' + e.message);
+      }
     } finally {
       this.isStreaming = false;
+      this._abortController = null;
       this._setInputDisabled(false);
       this._finishStreamingBlock();
       this._removeLoadingDots();
@@ -465,6 +473,7 @@ class CliTerminalApp {
 
       case 'tool_call':
         this._finishStreamingBlock();
+        this._removeLoadingDots();
         if (toolStatusEl) toolStatusEl.remove();
         // 根据工具类型显示不同状态
         const toolName = evt.name || '';
@@ -498,6 +507,8 @@ class CliTerminalApp {
           if (out.download_url && out.filename) {
             this._appendDownloadButton(out.filename, out.download_url);
           }
+          // 工具成功后可能还有后续轮次，补 loading dots
+          this._showLoadingDots();
         }
         break;
       }
@@ -561,6 +572,11 @@ class CliTerminalApp {
       case 'skills':
       case 'skill':
         await this._showSkills();
+        break;
+
+      case 'memory':
+      case 'memories':
+        await this._showMemories(args);
         break;
 
       case 'help':
@@ -654,6 +670,49 @@ class CliTerminalApp {
     }
   }
 
+  async _showMemories(args) {
+    // /memory system add ... 交给后端处理
+    if (args && args.startsWith('system ') || args && args.startsWith('role ')) {
+      // 系统/角色记忆通过 API 创建
+      this.sendMessage('/memory ' + args);
+      return;
+    }
+    try {
+      const r = await this._fetch('/cli/api/memories');
+      const data = await r.json();
+      if (!data.success || !data.memories?.length) {
+        this._appendSystemLine('暂无记忆');
+        return;
+      }
+      let lines = '<span class="cli-sys-heading">记忆索引</span>\n\n';
+      const system = data.memories.filter(m => m.scope === 'system');
+      const role = data.memories.filter(m => m.scope.startsWith('role:'));
+      const personal = data.memories.filter(m => m.scope === 'personal');
+
+      if (system.length) {
+        lines += '<span class="cli-sys-heading">系统记忆</span>\n';
+        for (const m of system) {
+          lines += `  <span class="cli-sys-cmd">#${m.id}</span> [${m.type}] ${m.title} — ${m.summary}\n`;
+        }
+      }
+      if (role.length) {
+        lines += '\n<span class="cli-sys-heading">角色记忆</span>\n';
+        for (const m of role) {
+          lines += `  <span class="cli-sys-cmd">#${m.id}</span> [${m.type}] ${m.title} — ${m.summary}\n`;
+        }
+      }
+      if (personal.length) {
+        lines += '\n<span class="cli-sys-heading">我的记忆</span>\n';
+        for (const m of personal) {
+          lines += `  <span class="cli-sys-cmd">#${m.id}</span> [${m.type}] ${m.title} — ${m.summary}\n`;
+        }
+      }
+      this._appendSystemLine(lines);
+    } catch (e) {
+      this._appendErrorLine('获取记忆失败: ' + e.message);
+    }
+  }
+
   async _showSkills() {
     try {
       const r = await this._fetch('/cli/api/skills');
@@ -714,6 +773,13 @@ class CliTerminalApp {
 
   _bindShortcuts() {
     document.addEventListener('keydown', (e) => {
+      // Esc 中断流式响应
+      if (e.key === 'Escape' && this.isStreaming) {
+        e.preventDefault();
+        this.stopStreaming();
+        return;
+      }
+
       // Ctrl/Cmd 修饰键
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
@@ -784,14 +850,21 @@ class CliTerminalApp {
 
   // ─── 命令建议 ───
 
-  _COMMANDS = [
-    { name: '/new',     desc: '重置当前会话' },
-    { name: '/clear',   desc: '清屏' },
-    { name: '/tokens',  desc: '显示 token 用量' },
-    { name: '/skills',  desc: '查看可用技能' },
-    { name: '/history', desc: '查看所有会话' },
-    { name: '/help',    desc: '显示帮助' },
-  ];
+  _COMMANDS = (() => {
+    const cmds = [
+      { name: '/new',     desc: '重置当前会话' },
+      { name: '/clear',   desc: '清屏' },
+      { name: '/tokens',  desc: '显示 token 用量' },
+      { name: '/skills',  desc: '查看可用技能' },
+      { name: '/history', desc: '查看所有会话' },
+      { name: '/help',    desc: '显示帮助' },
+    ];
+    const role = document.querySelector('.cli-window')?.dataset?.userRole;
+    if (role === 'admin') {
+      cmds.splice(4, 0, { name: '/memory', desc: '查看记忆系统' });
+    }
+    return cmds;
+  })();
 
   _bindInput() {
     this._suggestEl = document.getElementById('cli-cmd-suggest');
@@ -910,8 +983,14 @@ class CliTerminalApp {
     this.els.input.disabled = disabled;
     if (this.els.submit) this.els.submit.disabled = disabled;
     this.els.input.placeholder = disabled
-      ? '正在思考...'
+      ? '正在思考... (按 Esc 中断)'
       : '输入问题，按 Enter 发送...';
+  }
+
+  stopStreaming() {
+    if (this._abortController) {
+      this._abortController.abort();
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════

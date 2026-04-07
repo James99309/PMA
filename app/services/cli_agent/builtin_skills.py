@@ -497,6 +497,68 @@ _BUILTIN_SKILLS: list[dict] = [
                     "ORDER BY q.created_at DESC"
                 ),
             },
+            # Step 6: 绩效目标（从 user_performance_targets 动态读取）
+            {
+                'as_name': 'targets',
+                'description': '被评估人的绩效目标',
+                'sql': (
+                    "SELECT COALESCE(pmd.metric_name, upt.item_code) AS 指标, "
+                    "upt.annual_target_override AS 年度目标, "
+                    "CASE EXTRACT(QUARTER FROM {period_end}::date) "
+                    "  WHEN 1 THEN upt.q1_target_override "
+                    "  WHEN 2 THEN upt.q2_target_override "
+                    "  WHEN 3 THEN upt.q3_target_override "
+                    "  WHEN 4 THEN upt.q4_target_override "
+                    "END AS 本季度目标 "
+                    "FROM user_performance_targets upt "
+                    "JOIN users u ON upt.user_id = u.id "
+                    "LEFT JOIN performance_metrics_definition pmd ON pmd.metric_code = upt.item_code "
+                    "WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    "AND upt.year = EXTRACT(YEAR FROM {period_end}::date)::int "
+                    "ORDER BY upt.item_code"
+                ),
+            },
+            # Step 7: 本季度累计实际（对比目标用）
+            {
+                'as_name': 'quarter_actual',
+                'description': '本季度累计实际数据',
+                'sql': (
+                    "WITH quarter_range AS ( "
+                    "  SELECT DATE_TRUNC('quarter', {period_end}::date)::date AS q_start, "
+                    "         (DATE_TRUNC('quarter', {period_end}::date) + INTERVAL '3 months' - INTERVAL '1 day')::date AS q_end "
+                    ") "
+                    "SELECT COALESCE(pmd.metric_name, 'sales_target') AS 指标, "
+                    "ROUND((COALESCE(SUM(q.amount),0)/10000)::numeric, 2) AS 本季度累计, "
+                    "COALESCE(pmd.default_unit, '万元') AS 单位 "
+                    "FROM quotations q "
+                    "JOIN users u ON q.owner_id = u.id "
+                    "CROSS JOIN quarter_range qr "
+                    "LEFT JOIN performance_metrics_definition pmd ON pmd.metric_code = 'sales_target' "
+                    "WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    "AND q.created_at >= qr.q_start AND q.created_at < qr.q_end + INTERVAL '1 day' "
+                    "GROUP BY pmd.metric_name, pmd.default_unit "
+                    "UNION ALL "
+                    "SELECT COALESCE(pmd2.metric_name, 'new_projects'), COUNT(*)::numeric, COALESCE(pmd2.default_unit, '个') "
+                    "FROM projects p "
+                    "JOIN users u ON p.created_by = u.id "
+                    "CROSS JOIN quarter_range qr "
+                    "LEFT JOIN performance_metrics_definition pmd2 ON pmd2.metric_code = 'new_projects' "
+                    "WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    "AND p.is_deleted = FALSE "
+                    "AND p.created_at >= qr.q_start AND p.created_at < qr.q_end + INTERVAL '1 day' "
+                    "GROUP BY pmd2.metric_name, pmd2.default_unit "
+                    "UNION ALL "
+                    "SELECT COALESCE(pmd3.metric_name, 'new_customers'), COUNT(DISTINCT co.id)::numeric, COALESCE(pmd3.default_unit, '个') "
+                    "FROM companies co "
+                    "JOIN users u ON co.owner_id = u.id "
+                    "CROSS JOIN quarter_range qr "
+                    "LEFT JOIN performance_metrics_definition pmd3 ON pmd3.metric_code = 'new_customers' "
+                    "WHERE u.real_name ILIKE '%' || {user_name} || '%' "
+                    "AND co.is_deleted = FALSE "
+                    "AND co.created_at >= qr.q_start AND co.created_at < qr.q_end + INTERVAL '1 day' "
+                    "GROUP BY pmd3.metric_name, pmd3.default_unit"
+                ),
+            },
         ],
         'output_format': (
             "## {user_name} 销售周报 ({period_start} ~ {period_end})\n\n"
@@ -510,7 +572,19 @@ _BUILTIN_SKILLS: list[dict] = [
             "{if !pipeline}暂无重点项目。{endif}\n\n"
             "### 4. 本周报价 ({quotations.count}份)\n"
             "{if quotations}{quotations.table}{endif}"
-            "{if !quotations}本周无新报价。{endif}"
+            "{if !quotations}本周无新报价。{endif}\n\n"
+            "### 5. 绩效目标达成进度\n"
+            "{if targets}**个人目标设定:**\n{targets.table}\n\n"
+            "**本季度累计实际:**\n{quarter_actual.table}{endif}"
+            "{if !targets}暂无绩效目标数据。{endif}\n\n"
+            "---\n"
+            "### 6. 分析与风险提示\n"
+            "请基于以上数据，从以下维度给出简要分析（每条1-2句话）：\n"
+            "- **活跃度评估**：本周行动天数/总工作日，是否有连续空白日\n"
+            "- **项目风险**：招标中/标前/已中标阶段零行动的项目数量及风险\n"
+            "- **报价进展**：报价数量和金额是否匹配季度目标节奏\n"
+            "- **绩效差距**：本季度累计 vs 季度目标的达成率，哪些指标落后\n"
+            "- **重点关注**：需要立即跟进的项目或客户\n"
         ),
     },
 ]

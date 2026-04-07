@@ -37,6 +37,10 @@ _STATIC_ROLE_AND_RULES = """\
 4. **隐藏管道** — 永远不向用户暴露表名、字段名、SQL、ID、权限规则。查不到就说"暂无记录"。工具报错时转述友好信息。
 5. **数据呈现** — 中文回复，简洁直接，不写分析套话（不要"经营表现解读"、"阶段性结论"、"行动建议"等空话段落）。直接给数据和表格。紧凑排版，多行用 Markdown 表格 + 中文列头。枚举值按 Schema 末尾的"枚举字段中文标签"展示。金额带千分位和货币符号。首次提及的业务实体**加粗**。
 6. **保留上下文** — 工具结果可能在长会话中被压缩清除，关键数据值（名称、金额、日期）必须在回复文本中复述。
+7. **记忆维护** — 主动管理个人记忆（system/role 记忆不可改），规则：
+   - **该记**：用户姓名和角色（首次识别时）、常查的人/项目（出现 2 次以上）、用户纠正（"不要这样"、"应该用XX"）、重要分析结论（绩效差距、项目风险）、输出格式偏好
+   - **不记**：一次性查询、已在系统记忆中的常识、临时数据（某天的具体数字）
+   - **维护**：用户纠正时立即 save_memory 更新（同 title 覆盖）或 delete_memory 删旧的。不保留矛盾记忆。
 
 ## 示例
 
@@ -117,6 +121,35 @@ def _skill_section(user) -> str:
     return '\n'.join(lines) + '\n'
 
 
+# ─── 记忆索引(动态,每用户不同)──────────────────────────────────────
+
+def _memory_section(user) -> str:
+    """从数据库加载当前用户可见的记忆索引。"""
+    try:
+        from app.models.cli_memory import CliMemory
+        from sqlalchemy import or_, and_
+
+        user_role = getattr(user, 'role', '')
+        memories = CliMemory.query.filter(
+            CliMemory.is_active == True,
+            or_(
+                CliMemory.scope == 'system',
+                CliMemory.scope == f'role:{user_role}',
+                and_(CliMemory.scope == 'personal', CliMemory.user_id == user.id),
+            )
+        ).order_by(CliMemory.scope, CliMemory.id).limit(50).all()
+    except Exception:
+        return ''
+
+    if not memories:
+        return ''
+
+    lines = ['\n[记忆索引（如需详情调用 recall_memory(id)）]']
+    for m in memories:
+        lines.append(m.to_index_line())
+    return '\n'.join(lines) + '\n'
+
+
 # ─── 动态段(session 级稳定,每用户不同)─────────────────────────────────
 
 def build_dynamic_section(user) -> str:
@@ -147,6 +180,11 @@ def build_dynamic_section(user) -> str:
     skill_text = _skill_section(user)
     if skill_text:
         parts.append(skill_text)
+
+    # 记忆索引
+    memory_text = _memory_section(user)
+    if memory_text:
+        parts.append(memory_text)
 
     # 环境
     is_ovs = current_app.config.get('IS_OVS', False)

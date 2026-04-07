@@ -97,6 +97,14 @@ def get_default_registry() -> ToolRegistry:
         _default_registry.register(InvokeSkillTool())
         _default_registry.register(SaveSkillTool())
 
+        # 注册记忆工具
+        from app.services.cli_agent.tools.recall_memory import RecallMemoryTool
+        from app.services.cli_agent.tools.save_memory import SaveMemoryTool
+        from app.services.cli_agent.tools.delete_memory import DeleteMemoryTool
+        _default_registry.register(RecallMemoryTool())
+        _default_registry.register(SaveMemoryTool())
+        _default_registry.register(DeleteMemoryTool())
+
         # 注册 export_to_word（pandoc 可用时）
         import shutil
         if shutil.which('pandoc'):
