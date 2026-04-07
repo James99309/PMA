@@ -36,6 +36,7 @@ class CliTerminalApp {
     // 流式累计
     this._streamingBlock = null;
     this._streamingText  = '';
+    this._abortController = null;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -389,6 +390,7 @@ class CliTerminalApp {
     this._appendUserLine(text);
     this._clearInput();
     this.isStreaming = true;
+    this._abortController = new AbortController();
     this._setInputDisabled(true);
     this._finishStreamingBlock();
 
@@ -408,6 +410,7 @@ class CliTerminalApp {
     try {
       const resp = await fetch('/cli/api/stream', {
         method: 'POST',
+        signal: this._abortController.signal,
         headers: {
           'Content-Type': 'application/json',
           'X-CSRFToken': this.csrfToken,
@@ -442,9 +445,14 @@ class CliTerminalApp {
         }
       }
     } catch (e) {
-      this._appendErrorLine('网络错误: ' + e.message);
+      if (e.name === 'AbortError') {
+        this._appendSystemLine('已中断');
+      } else {
+        this._appendErrorLine('网络错误: ' + e.message);
+      }
     } finally {
       this.isStreaming = false;
+      this._abortController = null;
       this._setInputDisabled(false);
       this._finishStreamingBlock();
       this._removeLoadingDots();
@@ -762,6 +770,13 @@ class CliTerminalApp {
 
   _bindShortcuts() {
     document.addEventListener('keydown', (e) => {
+      // Esc 中断流式响应
+      if (e.key === 'Escape' && this.isStreaming) {
+        e.preventDefault();
+        this.stopStreaming();
+        return;
+      }
+
       // Ctrl/Cmd 修饰键
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
@@ -959,8 +974,14 @@ class CliTerminalApp {
     this.els.input.disabled = disabled;
     if (this.els.submit) this.els.submit.disabled = disabled;
     this.els.input.placeholder = disabled
-      ? '正在思考...'
+      ? '正在思考... (按 Esc 中断)'
       : '输入问题，按 Enter 发送...';
+  }
+
+  stopStreaming() {
+    if (this._abortController) {
+      this._abortController.abort();
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
