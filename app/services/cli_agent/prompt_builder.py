@@ -117,6 +117,35 @@ def _skill_section(user) -> str:
     return '\n'.join(lines) + '\n'
 
 
+# ─── 记忆索引(动态,每用户不同)──────────────────────────────────────
+
+def _memory_section(user) -> str:
+    """从数据库加载当前用户可见的记忆索引。"""
+    try:
+        from app.models.cli_memory import CliMemory
+        from sqlalchemy import or_, and_
+
+        user_role = getattr(user, 'role', '')
+        memories = CliMemory.query.filter(
+            CliMemory.is_active == True,
+            or_(
+                CliMemory.scope == 'system',
+                CliMemory.scope == f'role:{user_role}',
+                and_(CliMemory.scope == 'personal', CliMemory.user_id == user.id),
+            )
+        ).order_by(CliMemory.scope, CliMemory.id).limit(50).all()
+    except Exception:
+        return ''
+
+    if not memories:
+        return ''
+
+    lines = ['\n[记忆索引（如需详情调用 recall_memory(id)）]']
+    for m in memories:
+        lines.append(m.to_index_line())
+    return '\n'.join(lines) + '\n'
+
+
 # ─── 动态段(session 级稳定,每用户不同)─────────────────────────────────
 
 def build_dynamic_section(user) -> str:
@@ -147,6 +176,11 @@ def build_dynamic_section(user) -> str:
     skill_text = _skill_section(user)
     if skill_text:
         parts.append(skill_text)
+
+    # 记忆索引
+    memory_text = _memory_section(user)
+    if memory_text:
+        parts.append(memory_text)
 
     # 环境
     is_ovs = current_app.config.get('IS_OVS', False)

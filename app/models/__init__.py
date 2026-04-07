@@ -66,6 +66,7 @@ from app.models.product_display_order import ProductDisplayOrder
 from app.models.cli_session import CliSession
 from app.models.user_cli_state import UserCliState
 from app.models.cli_skill import CliSkill
+from app.models.cli_memory import CliMemory
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',

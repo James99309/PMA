@@ -353,6 +353,34 @@ def delete_skill(skill_id: int):
 
 # ─── 文件导出下载 ──────────────────────────────────────────────────────
 
+# ─── Memory API ─────────────────────────────────────────────────────
+
+@cli_bp.route('/api/memories', methods=['GET'])
+@login_required
+def list_memories():
+    """列出当前用户可见的记忆"""
+    _require_cli_access()
+    from app.models.cli_memory import CliMemory
+    from sqlalchemy import or_, and_
+
+    user_role = getattr(current_user, 'role', '')
+    memories = CliMemory.query.filter(
+        CliMemory.is_active == True,
+        or_(
+            CliMemory.scope == 'system',
+            CliMemory.scope == f'role:{user_role}',
+            and_(CliMemory.scope == 'personal', CliMemory.user_id == current_user.id),
+        )
+    ).order_by(CliMemory.scope, CliMemory.id).all()
+
+    return jsonify({
+        'success': True,
+        'memories': [m.to_dict() for m in memories],
+    })
+
+
+# ─── 文件导出下载 ──────────────────────────────────────────────────────
+
 @cli_bp.route('/api/exports/<filename>', methods=['GET'])
 @login_required
 def download_export(filename: str):

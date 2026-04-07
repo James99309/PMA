@@ -563,6 +563,11 @@ class CliTerminalApp {
         await this._showSkills();
         break;
 
+      case 'memory':
+      case 'memories':
+        await this._showMemories(args);
+        break;
+
       case 'help':
         this._showHelp();
         break;
@@ -651,6 +656,49 @@ class CliTerminalApp {
       this._appendSystemLine(lines);
     } catch (e) {
       this._appendErrorLine('获取历史失败: ' + e.message);
+    }
+  }
+
+  async _showMemories(args) {
+    // /memory system add ... 交给后端处理
+    if (args && args.startsWith('system ') || args && args.startsWith('role ')) {
+      // 系统/角色记忆通过 API 创建
+      this.sendMessage('/memory ' + args);
+      return;
+    }
+    try {
+      const r = await this._fetch('/cli/api/memories');
+      const data = await r.json();
+      if (!data.success || !data.memories?.length) {
+        this._appendSystemLine('暂无记忆');
+        return;
+      }
+      let lines = '<span class="cli-sys-heading">记忆索引</span>\n\n';
+      const system = data.memories.filter(m => m.scope === 'system');
+      const role = data.memories.filter(m => m.scope.startsWith('role:'));
+      const personal = data.memories.filter(m => m.scope === 'personal');
+
+      if (system.length) {
+        lines += '<span class="cli-sys-heading">系统记忆</span>\n';
+        for (const m of system) {
+          lines += `  <span class="cli-sys-cmd">#${m.id}</span> [${m.type}] ${m.title} — ${m.summary}\n`;
+        }
+      }
+      if (role.length) {
+        lines += '\n<span class="cli-sys-heading">角色记忆</span>\n';
+        for (const m of role) {
+          lines += `  <span class="cli-sys-cmd">#${m.id}</span> [${m.type}] ${m.title} — ${m.summary}\n`;
+        }
+      }
+      if (personal.length) {
+        lines += '\n<span class="cli-sys-heading">我的记忆</span>\n';
+        for (const m of personal) {
+          lines += `  <span class="cli-sys-cmd">#${m.id}</span> [${m.type}] ${m.title} — ${m.summary}\n`;
+        }
+      }
+      this._appendSystemLine(lines);
+    } catch (e) {
+      this._appendErrorLine('获取记忆失败: ' + e.message);
     }
   }
 
@@ -789,6 +837,7 @@ class CliTerminalApp {
     { name: '/clear',   desc: '清屏' },
     { name: '/tokens',  desc: '显示 token 用量' },
     { name: '/skills',  desc: '查看可用技能' },
+    { name: '/memory',  desc: '查看记忆索引' },
     { name: '/history', desc: '查看所有会话' },
     { name: '/help',    desc: '显示帮助' },
   ];
