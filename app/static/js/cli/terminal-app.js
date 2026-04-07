@@ -847,14 +847,21 @@ class CliTerminalApp {
 
   // ─── 命令建议 ───
 
-  _COMMANDS = [
-    { name: '/new',     desc: '重置当前会话' },
-    { name: '/clear',   desc: '清屏' },
-    { name: '/tokens',  desc: '显示 token 用量' },
-    { name: '/skills',  desc: '查看可用技能' },
-    { name: '/history', desc: '查看所有会话' },
-    { name: '/help',    desc: '显示帮助' },
-  ];
+  _COMMANDS = (() => {
+    const cmds = [
+      { name: '/new',     desc: '重置当前会话' },
+      { name: '/clear',   desc: '清屏' },
+      { name: '/tokens',  desc: '显示 token 用量' },
+      { name: '/skills',  desc: '查看可用技能' },
+      { name: '/history', desc: '查看所有会话' },
+      { name: '/help',    desc: '显示帮助' },
+    ];
+    const role = document.querySelector('.cli-window')?.dataset?.userRole;
+    if (role === 'admin') {
+      cmds.splice(4, 0, { name: '/memory', desc: '查看记忆系统' });
+    }
+    return cmds;
+  })();
 
   _bindInput() {
     this._suggestEl = document.getElementById('cli-cmd-suggest');

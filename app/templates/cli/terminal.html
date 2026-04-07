@@ -75,7 +75,7 @@
 {% call(slot) render_tw_layout(active_page='cli_terminal', show_search=false) %}
     {% if slot == 'content' %}
     <div class="cli-page-wrapper">
-      <div class="cli-window">
+      <div class="cli-window" data-user-role="{{ current_user.role }}" data-user-name="{{ current_user.real_name or current_user.username }}">
 
         {# ─── 标签栏(由 terminal-app.js 动态渲染，直接在顶部)─── #}
         <div class="cli-tabbar" id="cli-tabbar">
