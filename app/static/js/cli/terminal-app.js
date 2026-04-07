@@ -473,6 +473,7 @@ class CliTerminalApp {
 
       case 'tool_call':
         this._finishStreamingBlock();
+        this._removeLoadingDots();
         if (toolStatusEl) toolStatusEl.remove();
         // 根据工具类型显示不同状态
         const toolName = evt.name || '';
@@ -506,6 +507,8 @@ class CliTerminalApp {
           if (out.download_url && out.filename) {
             this._appendDownloadButton(out.filename, out.download_url);
           }
+          // 工具成功后可能还有后续轮次，补 loading dots
+          this._showLoadingDots();
         }
         break;
       }
