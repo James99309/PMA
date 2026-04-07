@@ -852,7 +852,6 @@ class CliTerminalApp {
     { name: '/clear',   desc: '清屏' },
     { name: '/tokens',  desc: '显示 token 用量' },
     { name: '/skills',  desc: '查看可用技能' },
-    { name: '/memory',  desc: '查看记忆(管理员)' },
     { name: '/history', desc: '查看所有会话' },
     { name: '/help',    desc: '显示帮助' },
   ];
