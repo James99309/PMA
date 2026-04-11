@@ -99,6 +99,11 @@ services:
       # DeepSeek AI 聊天服务
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
 
+      # CLI Agent (智能终端) - 走 SG NAS 长期 OAuth 代理
+      CLI_AGENT_PROVIDER: ${CLI_AGENT_PROVIDER:-claude}
+      CLI_AGENT_MODEL: ${CLI_AGENT_MODEL:-claude-sonnet-4-6}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+
       # OpenClaw 集成
       OPENCLAW_GATEWAY_URL: ${OPENCLAW_GATEWAY_URL:-}
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN:-}
