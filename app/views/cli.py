@@ -15,7 +15,7 @@ CLI Agent Blueprint
 
 权限:
     所有路由要求 @login_required
-    Feature flag: 环境变量 ENABLE_CLI_AGENT=true 或 current_user.role=='admin'
+    Feature flag: 环境变量 ENABLE_CLI_AGENT=true 或 user.has_permission('cli_agent', 'view')
 
 详见 docs/plans/2026-04-05-pma-cli-agent-design.md
 """
@@ -47,10 +47,17 @@ cli_bp = Blueprint('cli', __name__, url_prefix='/cli')
 # ─── Feature flag ───────────────────────────────────────────────────────
 
 def _is_cli_enabled_for(user):
+    # 应急开关(调试用,保留)
     if os.environ.get('ENABLE_CLI_AGENT', '').lower() in ('true', '1', 'yes'):
         return True
-    role = getattr(user, 'role', None)
-    return role in ('admin', 'hrdp_manager', 'hr_manager', 'ceo')
+    # admin 无条件放行
+    if getattr(user, 'role', None) == 'admin':
+        return True
+    # 正式权限判断: 通过 cli_agent 模块的 can_view
+    try:
+        return bool(user.has_permission('cli_agent', 'view'))
+    except Exception:
+        return False
 
 
 def _require_cli_access():

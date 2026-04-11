@@ -226,44 +226,61 @@ def _validate_sql(sql):
 
 
 # ---------------------------------------------------------------------------
-# 敏感表 → 权限模块映射
+# 表 → 权限模块映射(通过 cli_table_modules 数据库驱动)
 # ---------------------------------------------------------------------------
+#
+# 2026-04-11 改造: 表归属从硬编码 _SENSITIVE_TABLE_MODULE 迁移到 cli_table_modules
+# 表。所有 18+ 张业务表必须在注册表中登记,否则 CLI 禁止查询(默认拒绝)。
+# 解析逻辑见 app/services/cli_agent/table_registry.py。
 
-_SENSITIVE_TABLE_MODULE = {
-    'companies': 'customer',
-    'projects': 'project',
-    'quotations': 'quotation',
-    'expenses': 'expense',
-    'sales_orders': 'order',
-    'purchase_orders': 'order',
-}
+# 被 owner_id 过滤保护的业务模块白名单(适用于 cli_permission_level < system 时)
+_OWNER_FILTER_MODULES = {'customer', 'project', 'quotation', 'expense', 'order', 'pricing_order', 'worklog'}
 
 
 def _requires_owner_id_check(sql, user):
-    """检查非管理员用户对敏感表的聚合查询是否缺少 owner_id 条件
+    """检查非系统级用户对敏感表的聚合查询是否缺少 owner_id 条件
+
+    系统级(cli_permission_level='system')用户不受此限制。
+    其余用户对任何敏感表做 COUNT/SUM 等聚合,必须在 SQL 中显式写 owner_id 条件,
+    避免 AI 误算出超越权限范围的统计值。
 
     Returns:
         str | None: 需要拒绝时返回错误信息，否则返回 None
     """
+    from app.services.cli_agent.table_registry import resolve_table_module, _load_registry
+
     role = getattr(user, 'role', 'user')
     logger.debug(f'[AI DB Query] _requires_owner_id_check - role={role}, sql={sql[:80]}')
-    if role in ('admin', 'hrdp_manager', 'hr_manager', 'ceo'):
+
+    if role == 'admin':
         return None
 
     # 检查是否包含聚合函数
     if not re.search(r'\b(COUNT|SUM|AVG|MIN|MAX)\s*\(', sql, re.IGNORECASE):
         return None
 
-    # 检查是否查询了敏感表
-    queries_sensitive = any(
-        re.search(rf'\b{t}\b', sql, re.IGNORECASE)
-        for t in _SENSITIVE_TABLE_MODULE
-    )
-    if not queries_sensitive:
-        return None
-
     # 检查 SQL 是否已包含 owner_id 引用
     if re.search(r'\bowner_id\b', sql, re.IGNORECASE):
+        return None
+
+    # 从 SQL 提取表引用,判断是否命中"需要 owner_id 过滤"的模块
+    try:
+        table_refs = _extract_table_refs(_strip_subqueries(sql))
+    except Exception:
+        return None
+
+    registry = _load_registry()
+    hit_sensitive = False
+    for table, _alias in table_refs:
+        module = resolve_table_module(table, registry)
+        if module and module in _OWNER_FILTER_MODULES:
+            # 判断该用户对这个模块的 CLI 范围是否是系统级
+            level = user.get_cli_permission_level(module)
+            if level != 'system':
+                hit_sensitive = True
+                break
+
+    if not hit_sensitive:
         return None
 
     # 缺少 owner_id → 构造引导性错误信息
@@ -320,26 +337,13 @@ def _extract_table_refs(sql):
 # ---------------------------------------------------------------------------
 
 def _get_allowed_ids_for_module(user, module):
-    """根据用户在指定模块的权限级别，返回允许的 owner_id 集合
+    """根据用户在指定模块的 CLI 查询范围，返回允许的 owner_id 集合
 
     Returns:
         set[int] | None: 允许的 user IDs，None 表示无限制(system级)
     """
-    from app.utils.access_control import (
-        get_company_user_ids,
-        get_department_user_ids,
-        get_personal_viewable_user_ids,
-    )
-
-    level = user.get_permission_level(module)
-    if level == 'system':
-        return None  # 无限制
-    elif level == 'company':
-        return set(get_company_user_ids(user))
-    elif level == 'department':
-        return set(get_department_user_ids(user))
-    else:  # personal
-        return set(get_personal_viewable_user_ids(user))
+    from app.services.cli_agent.table_registry import get_cli_allowed_owner_ids
+    return get_cli_allowed_owner_ids(user, module)
 
 
 # ---------------------------------------------------------------------------
@@ -383,21 +387,31 @@ def _inject_permission_filters(sql, user):
     Raises:
         PermissionError: 权限无法确定或为空
     """
+    from app.services.cli_agent.table_registry import resolve_table_module, _load_registry
+
     role = getattr(user, 'role', 'user')
     user_name = getattr(user, 'real_name', None) or getattr(user, 'username', '?')
     logger.info(f'[AI DB Debug] _inject_permission_filters - user={user_name}, role={role}')
-    if role in ('admin', 'hrdp_manager', 'hr_manager', 'ceo'):
-        logger.info(f'[AI DB Debug] 用户是 {role}，跳过权限注入')
+
+    # admin 无条件跳过(超级管理员)
+    if role == 'admin':
+        logger.info(f'[AI DB Debug] 用户是 admin，跳过权限注入')
         return sql, False
+
+    registry = _load_registry()
+    # 仅对需要行级过滤的模块做注入;其余模块(如 product/user)完全交给表级检查
+    owner_filtered_modules = _OWNER_FILTER_MODULES
 
     sql_upper = sql.upper()
 
-    # CTE/WITH 查询 + 包含敏感表 → 暂不支持
+    # CTE/WITH 查询 + 包含需要 owner_id 过滤的表 → 暂不支持
     if sql_upper.lstrip().startswith('WITH'):
-        has_sensitive = any(
-            re.search(rf'\b{t}\b', sql, re.IGNORECASE)
-            for t in _SENSITIVE_TABLE_MODULE
-        )
+        has_sensitive = False
+        for table_name in registry:
+            m = resolve_table_module(table_name, registry)
+            if m in owner_filtered_modules and re.search(rf'\b{re.escape(table_name)}\b', sql, re.IGNORECASE):
+                has_sensitive = True
+                break
         if has_sensitive:
             raise PermissionError(
                 '暂不支持对包含敏感表的 WITH/CTE 查询进行权限过滤，'
@@ -413,9 +427,9 @@ def _inject_permission_filters(sql, user):
     # 构建权限条件
     conditions = []
     for table, alias in table_refs:
-        module = _SENSITIVE_TABLE_MODULE.get(table)
-        if not module:
-            logger.info(f'[AI DB Debug] 表 {table} 不在敏感表列表中，跳过')
+        module = resolve_table_module(table, registry)
+        if not module or module not in owner_filtered_modules:
+            logger.info(f'[AI DB Debug] 表 {table} (module={module}) 不需要行级过滤，跳过')
             continue
 
         # expenses 特殊处理：只允许查自己的
@@ -502,6 +516,22 @@ def execute_safe_query(sql, user):
         validated_sql = _validate_sql(sql)
     except ValueError as e:
         return {'success': False, 'error': str(e)}
+
+    # 表级访问检查(2026-04-11 新增): SQL 涉及的每张表都要在 cli_table_modules 登记,
+    # 且当前用户在对应模块有 cli_can_query 权限,否则拦截
+    from app.services.cli_agent.table_registry import check_table_access
+    try:
+        table_refs_for_check = _extract_table_refs(_strip_subqueries(validated_sql))
+        unique_tables = sorted({t for t, _ in table_refs_for_check})
+        access_error = check_table_access(user, unique_tables)
+        if access_error:
+            user_name = getattr(user, 'real_name', None) or getattr(user, 'username', '?')
+            logger.warning(
+                f'[AI DB Query] 表级权限拒绝 - 用户 {user_name}: {access_error}'
+            )
+            return {'success': False, 'error': access_error}
+    except Exception as e:
+        logger.error(f'[AI DB Query] 表级访问检查失败: {e}')
 
     # 聚合查询 owner_id 强制检查（2026-02-15 新增）
     owner_check_error = _requires_owner_id_check(validated_sql, user)
@@ -616,23 +646,23 @@ def get_permission_context(user, include_reply_rules=True):
     role = getattr(user, 'role', 'user')
     department = getattr(user, 'department', '') or '未分配'
 
-    # 构建各模块权限级别摘要
+    # 构建各模块 CLI 查询权限摘要(改读 cli_can_query / cli_permission_level)
     permission_lines = []
-    if role in ('admin', 'hrdp_manager', 'hr_manager', 'ceo'):
-        label = {'admin': '管理员', 'hrdp_manager': '人事总监', 'hr_manager': '人事经理', 'ceo': 'CEO'}
-        permission_lines.append(f'角色: {label.get(role, role)} — 拥有全部数据的查看和分析权限')
+    if role == 'admin':
+        permission_lines.append('角色: 管理员 — 拥有全部数据的查询和分析权限')
     else:
-        modules = ['customer', 'project', 'quotation', 'expense', 'product', 'order']
+        modules = ['customer', 'project', 'quotation', 'expense', 'product', 'order', 'pricing_order', 'worklog', 'user']
         module_names = {
             'customer': '客户', 'project': '项目', 'quotation': '报价',
             'expense': '报销单', 'product': '产品', 'order': '订单',
+            'pricing_order': '批价单', 'worklog': '工作日志', 'user': '员工名册',
         }
         for mod in modules:
-            level = user.get_permission_level(mod)
-            can_view = user.has_permission(mod, 'view')
-            if not can_view:
-                permission_lines.append(f'  {module_names.get(mod, mod)}: 无权访问')
+            can_query = user.has_cli_permission(mod)
+            if not can_query:
+                permission_lines.append(f'  {module_names.get(mod, mod)}: 无 CLI 查询权限')
             else:
+                level = user.get_cli_permission_level(mod)
                 scope_desc = {
                     'system': '全部数据',
                     'company': '同公司数据',
@@ -642,7 +672,7 @@ def get_permission_context(user, include_reply_rules=True):
                 permission_lines.append(f'  {module_names.get(mod, mod)}: {scope_desc}')
 
         # 报销单特殊说明
-        expense_level = user.get_permission_level('expense')
+        expense_level = user.get_cli_permission_level('expense')
         if expense_level == 'personal':
             permission_lines.append('  ⚠️ 报销单为个人隐私数据，仅可查看自己和直属下属的')
 

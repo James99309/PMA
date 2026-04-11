@@ -300,7 +300,9 @@ def get_role_permissions(role):
                 'permission_level_description': perm.permission_level_description,
                 'pricing_discount_limit': perm.pricing_discount_limit,
                 'settlement_discount_limit': perm.settlement_discount_limit,
-                'content_filters': perm.content_filters
+                'content_filters': perm.content_filters,
+                'cli_can_query': bool(getattr(perm, 'cli_can_query', False)),
+                'cli_permission_level': getattr(perm, 'cli_permission_level', None),
             })
         return api_response(
             success=True,
@@ -418,9 +420,17 @@ def update_role_permissions():
         
         # 更新角色权限模板（role_permissions表）
         try:
+            # 先快照现有 CLI 字段，非管理员保存时保留原值
+            existing_cli = {}
+            for p in RolePermission.query.filter_by(role=role).all():
+                existing_cli[p.module] = (
+                    bool(getattr(p, 'cli_can_query', False)),
+                    getattr(p, 'cli_permission_level', None),
+                )
+
             # 删除该角色的所有现有权限模板
             RolePermission.query.filter_by(role=role).delete()
-            
+
             # 添加新的权限模板
             for perm in permissions:
                 # 确保perm是字典且包含module字段
@@ -438,6 +448,13 @@ def update_role_permissions():
                 can_delete = bool(perm.get('can_delete', False))
                 permission_level = perm.get('permission_level', 'personal')
 
+                # cli_agent 是纯总开关,只保留 can_view,跳过所有"个人级保底补 CRUD"修正
+                if module == 'cli_agent':
+                    can_create = False
+                    can_edit = False
+                    can_delete = False
+                    permission_level = 'system'
+
                 # 🆕 数据一致性验证：如果permission_level为'none'，强制所有权限为False
                 if permission_level == 'none':
                     can_view = False
@@ -446,13 +463,13 @@ def update_role_permissions():
                     can_delete = False
                     logger.info(f"✅ 数据一致性保护：模块 {module} level='none'，已强制清空所有权限")
                     # level='none'时跳过其他智能修正逻辑
-                elif permission_level == 'personal' and can_create is False:
+                elif module != 'cli_agent' and permission_level == 'personal' and can_create is False:
                     # 🆕 智能修正逻辑1：仅个人级别需要创建权限保底
                     can_create = True
                     logger.info(f"✅ 智能修正：模块 {module} 个人级别创建权限已自动设置为True（保底规则）")
 
                 # 🆕 智能修正逻辑2：个人级别自动开启所有权限（保底规则）
-                if permission_level == 'personal':
+                if module != 'cli_agent' and permission_level == 'personal':
                     # 个人级别的含义：只能查看自己的数据，但对自己的数据拥有完整管理权
                     # 因此确保所有权限都开启
                     corrected = []
@@ -480,6 +497,18 @@ def update_role_permissions():
                     permission_level = 'personal'
                     logger.info(f"⚠️ 模块 {module} 没有任何权限，权限级别重置为 personal")
 
+                # CLI 查询权限(2026-04-11 新增)
+                # payload 未提供这两个 key 时，保留原值（非管理员没有权限修改 CLI 字段）
+                if 'cli_can_query' in perm:
+                    cli_can_query = bool(perm.get('cli_can_query', False))
+                    cli_permission_level = perm.get('cli_permission_level') or None
+                else:
+                    cli_can_query, cli_permission_level = existing_cli.get(module, (False, None))
+                # cli_agent 模块是总开关,不关心 cli_can_query / cli_permission_level
+                if module == 'cli_agent':
+                    cli_can_query = False
+                    cli_permission_level = None
+
                 # 创建新的角色权限记录
                 role_permission = RolePermission(
                     role=role,
@@ -494,7 +523,9 @@ def update_role_permissions():
                     permission_level_description=perm.get('permission_level_description'),
                     pricing_discount_limit=perm.get('pricing_discount_limit'),
                     settlement_discount_limit=perm.get('settlement_discount_limit'),
-                    content_filters=perm.get('content_filters')
+                    content_filters=perm.get('content_filters'),
+                    cli_can_query=cli_can_query,
+                    cli_permission_level=cli_permission_level,
                 )
                 db.session.add(role_permission)
             

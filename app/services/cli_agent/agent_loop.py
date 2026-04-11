@@ -160,7 +160,11 @@ class AgentLoop:
                         current_text = ''
                     # 累计 usage
                     self.session.accumulate_usage(event.get('usage', {}))
-                    yield {'type': 'usage', 'usage': event.get('usage', {})}
+                    yield {
+                        'type': 'usage',
+                        'usage': event.get('usage', {}),
+                        'model': event.get('model'),
+                    }
 
                 elif etype == 'error':
                     yield {'type': 'error', 'message': event.get('message', '未知错误')}

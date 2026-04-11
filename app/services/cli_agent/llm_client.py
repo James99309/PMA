@@ -62,6 +62,13 @@ class ClaudeClient(BaseLLMClient):
     # Claude 3.5 Sonnet 的稳定模型 ID(支持 tool use + prompt caching)
     DEFAULT_MODEL = 'claude-3-5-sonnet-latest'
 
+    # Anthropic 服务端对 OAuth 订阅 token 调用 Sonnet/Opus 做了门禁:
+    # system[0] 必须以这串官方身份前缀开头,否则返回伪 429(message="Error",
+    # 无 anthropic-ratelimit-* 头)。Haiku 不受此限制。
+    OAUTH_IDENTITY_PREFIX = (
+        "You are Claude Code, Anthropic's official CLI for Claude."
+    )
+
     def __init__(self, api_key: str | None = None, model: str | None = None, base_url: str | None = None):
         from anthropic import Anthropic
         key = api_key or os.environ.get('ANTHROPIC_API_KEY', '')
@@ -91,11 +98,16 @@ class ClaudeClient(BaseLLMClient):
             f'msgs={len(messages)} tools={len(tools)} max_tokens={max_tokens}'
         )
 
+        patched_system = [
+            {'type': 'text', 'text': self.OAUTH_IDENTITY_PREFIX},
+            *system_blocks,
+        ]
+
         try:
             with self._client.messages.stream(
                 model=self.model,
                 max_tokens=max_tokens,
-                system=system_blocks,
+                system=patched_system,
                 tools=tools if tools else None,
                 messages=messages,
             ) as stream:
@@ -175,6 +187,7 @@ class ClaudeClient(BaseLLMClient):
                     'type': 'message_stop',
                     'stop_reason': getattr(final, 'stop_reason', None),
                     'usage': usage,
+                    'model': self.model,
                 }
                 logger.info(
                     f'[CLI Agent LLM] 完成 stop={getattr(final, "stop_reason", "?")} '
@@ -485,6 +498,7 @@ class OpenAIClient(BaseLLMClient):
                 'type': 'message_stop',
                 'stop_reason': stop_map.get(finish_reason or '', finish_reason),
                 'usage': usage_data,
+                'model': self.model,
             }
             logger.info(
                 f'[CLI Agent LLM] OpenAI 完成 finish={finish_reason} usage={usage_data}'

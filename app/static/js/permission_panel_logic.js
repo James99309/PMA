@@ -206,6 +206,18 @@ const PermissionPanel = (function() {
     }
 
     /**
+     * 检查模块是否有 CLI 查询权限可配置
+     * 业务数据模块(与表归属挂钩的)才显示; cli_agent 是总开关不需要
+     */
+    function hasCliQueryPermission(moduleId) {
+        const CLI_QUERY_MODULES = new Set([
+            'customer', 'project', 'quotation', 'expense',
+            'order', 'pricing_order', 'product', 'worklog', 'user'
+        ]);
+        return CLI_QUERY_MODULES.has(moduleId);
+    }
+
+    /**
      * 检查模块是否启用
      * 只有权限级别为 'none' 时才算未启用
      * 其他级别（personal/department/company/system）都视为启用，因为用户至少可以查看自己的数据
@@ -352,7 +364,9 @@ const PermissionPanel = (function() {
                 can_edit: false,
                 can_delete: false,
                 can_change_owner: false,
-                permission_level: 'personal'
+                permission_level: 'personal',
+                cli_can_query: false,
+                cli_permission_level: null
             };
         }
 
@@ -374,6 +388,12 @@ const PermissionPanel = (function() {
         `;
         permissionConfigPanel.insertAdjacentHTML('beforeend', titleHtml);
 
+        // cli_agent 是纯总开关,只渲染一个启用开关
+        if (moduleId === 'cli_agent') {
+            renderCliAgentToggle(moduleId, modulePermission);
+            return;
+        }
+
         // 检查是否为开关式权限模块
         if (module.type === 'switch') {
             renderSwitchPermission(moduleId, modulePermission);
@@ -388,6 +408,43 @@ const PermissionPanel = (function() {
 
         // 内容筛选配置
         renderContentFilter(moduleId, modulePermission);
+
+        // CLI 查询权限(数据查询模块才显示,cli_agent 总开关除外)
+        if (hasCliQueryPermission(moduleId)) {
+            renderCliPermission(moduleId, modulePermission);
+        }
+    }
+
+    /**
+     * cli_agent 专属渲染: 单个"启用"开关,控制 can_view
+     * cli_agent 只是进入 /cli 终端的入口开关,不涉及数据范围和 CRUD
+     */
+    function renderCliAgentToggle(moduleId, permission) {
+        const permissionConfigPanel = document.getElementById('permissionConfigPanel');
+        const isEnabled = permission.can_view === true;
+
+        const html = `
+            <div class="tw-config-section">
+                <div class="tw-section-header">
+                    <span class="material-symbols-outlined tw-section-icon">terminal</span>
+                    <h6 class="tw-section-title">智能终端总开关</h6>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                    控制该角色是否可以进入 /cli 智能终端页面。具体能查询哪些模块数据、数据范围是什么,请分别在下方各业务模块中配置。
+                </p>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox"
+                           id="view_${moduleId}"
+                           data-module="${moduleId}"
+                           data-action="view"
+                           ${isEnabled ? 'checked' : ''}>
+                    <label class="form-check-label" for="view_${moduleId}">
+                        启用智能终端
+                    </label>
+                </div>
+            </div>
+        `;
+        permissionConfigPanel.insertAdjacentHTML('beforeend', html);
     }
 
     /**
@@ -866,6 +923,61 @@ const PermissionPanel = (function() {
     }
 
     /**
+     * 渲染 CLI 查询权限配置(2026-04-11 新增)
+     * 独立于前端 can_view,控制该模块在 CLI 智能终端中的查询能力和数据范围
+     */
+    function renderCliPermission(moduleId, permission) {
+        const permissionConfigPanel = document.getElementById('permissionConfigPanel');
+        const cliCanQuery = permission.cli_can_query === true;
+        const cliLevel = permission.cli_permission_level || 'personal';
+
+        const html = `
+            <div class="tw-config-section cli-permission-section">
+                <div class="tw-section-header">
+                    <span class="material-symbols-outlined tw-section-icon">terminal</span>
+                    <h6 class="tw-section-title">CLI 智能终端查询权限</h6>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                    独立于前端界面权限: 允许用户通过 CLI 自然语言查询该模块数据,并控制可见数据范围
+                </p>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox"
+                           id="cli_can_query_${moduleId}"
+                           data-module="${moduleId}"
+                           ${cliCanQuery ? 'checked' : ''}>
+                    <label class="form-check-label" for="cli_can_query_${moduleId}">
+                        允许 CLI 查询此模块
+                    </label>
+                </div>
+                <div id="cli_level_wrap_${moduleId}" class="${cliCanQuery ? '' : 'opacity-50 pointer-events-none'}">
+                    <label class="tw-input-label text-xs">CLI 数据范围</label>
+                    <select class="tw-input text-sm" id="cli_permission_level_${moduleId}">
+                        <option value="personal" ${cliLevel === 'personal' ? 'selected' : ''}>仅自己+共享</option>
+                        <option value="department" ${cliLevel === 'department' ? 'selected' : ''}>本部门</option>
+                        <option value="company" ${cliLevel === 'company' ? 'selected' : ''}>全公司</option>
+                        <option value="system" ${cliLevel === 'system' ? 'selected' : ''}>全部数据(系统级)</option>
+                    </select>
+                </div>
+            </div>
+        `;
+
+        permissionConfigPanel.insertAdjacentHTML('beforeend', html);
+
+        // 切换开关联动数据范围的可用状态
+        const switchInput = document.getElementById(`cli_can_query_${moduleId}`);
+        const wrap = document.getElementById(`cli_level_wrap_${moduleId}`);
+        if (switchInput && wrap) {
+            switchInput.addEventListener('change', function() {
+                if (this.checked) {
+                    wrap.classList.remove('opacity-50', 'pointer-events-none');
+                } else {
+                    wrap.classList.add('opacity-50', 'pointer-events-none');
+                }
+            });
+        }
+    }
+
+    /**
      * 渲染筛选复选框组 - 新设计
      */
     function renderFilterCheckboxGroup(options, idPrefix, moduleId, filterKey) {
@@ -978,8 +1090,38 @@ const PermissionPanel = (function() {
     function collectModulePermissionFromDOM(moduleId, module) {
         if (!module) return null;
 
+        // cli_agent: 只收集 can_view 作为总开关,其他字段固定为 false/null
+        if (moduleId === 'cli_agent') {
+            const viewCheckbox = document.getElementById(`view_${moduleId}`);
+            return {
+                module: moduleId,
+                can_view: viewCheckbox ? viewCheckbox.checked : false,
+                can_create: false,
+                can_edit: false,
+                can_delete: false,
+                can_change_owner: false,
+                permission_level: 'system',
+                pricing_discount_limit: null,
+                settlement_discount_limit: null,
+                content_filters: null,
+                cli_can_query: false,
+                cli_permission_level: null
+            };
+        }
+
         const levelRadio = document.querySelector(`input[name="permission_level_${moduleId}"]:checked`);
         const permissionLevel = levelRadio ? levelRadio.value : 'personal';
+
+        // CLI 查询权限(从 DOM 收集,仅对支持的模块)
+        let cliCanQuery = false;
+        let cliPermissionLevel = null;
+        if (hasCliQueryPermission(moduleId)) {
+            const cliSwitch = document.getElementById(`cli_can_query_${moduleId}`);
+            const cliLevelSel = document.getElementById(`cli_permission_level_${moduleId}`);
+            cliCanQuery = cliSwitch ? cliSwitch.checked : false;
+            cliPermissionLevel = cliLevelSel ? cliLevelSel.value : 'personal';
+            if (!cliCanQuery) cliPermissionLevel = null;
+        }
 
         // 关键：如果level='none'，强制清空所有扩展字段，确保数据一致性
         if (permissionLevel === 'none') {
@@ -993,7 +1135,9 @@ const PermissionPanel = (function() {
                 permission_level: 'none',
                 pricing_discount_limit: null,
                 settlement_discount_limit: null,
-                content_filters: null
+                content_filters: null,
+                cli_can_query: cliCanQuery,
+                cli_permission_level: cliPermissionLevel
             };
         }
 
@@ -1015,7 +1159,9 @@ const PermissionPanel = (function() {
                 permission_level: permissionLevel,
                 pricing_discount_limit: pricingLimit,
                 settlement_discount_limit: settlementLimit,
-                content_filters: contentFilters
+                content_filters: contentFilters,
+                cli_can_query: cliCanQuery,
+                cli_permission_level: cliPermissionLevel
             };
         } else {
             const viewCheckbox = document.getElementById(`view_${moduleId}`);
@@ -1034,7 +1180,9 @@ const PermissionPanel = (function() {
                 permission_level: permissionLevel,
                 pricing_discount_limit: pricingLimit,
                 settlement_discount_limit: settlementLimit,
-                content_filters: contentFilters
+                content_filters: contentFilters,
+                cli_can_query: cliCanQuery,
+                cli_permission_level: cliPermissionLevel
             };
         }
     }
@@ -1144,7 +1292,9 @@ const PermissionPanel = (function() {
                     permission_level: 'personal',
                     pricing_discount_limit: null,
                     settlement_discount_limit: null,
-                    content_filters: null
+                    content_filters: null,
+                    cli_can_query: false,
+                    cli_permission_level: null
                 };
                 console.log(`模块 ${moduleId} 使用服务器数据`);
             }
