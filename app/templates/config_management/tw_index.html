@@ -100,15 +100,28 @@
     {% elif page_slot == 'content' %}
         <!-- 标签页导航（固定在顶部） -->
         <div class="sticky top-0 z-10 bg-background-light dark:bg-black -mx-6 px-6 pb-6">
-            {% set tabs = [
-                {'key': 'basic', 'label': _('基本配置')},
-                {'key': 'affiliation', 'label': _('归属配置')},
-                {'key': 'perm', 'label': _('权限配置')},
-                {'key': 'perf', 'label': _('绩效配置')},
-                {'key': 'expense', 'label': _('费用配置')},
-                {'key': 'salary-assign', 'label': _('薪资配置')},
-                {'key': 'salary-config', 'label': _('全局配置')}
-            ] %}
+            {% if current_user.role == 'admin' %}
+                {% set tabs = [
+                    {'key': 'basic', 'label': _('基本配置')},
+                    {'key': 'affiliation', 'label': _('归属配置')},
+                    {'key': 'perm', 'label': _('权限配置')},
+                    {'key': 'cli-registry', 'label': _('CLI 表归属')},
+                    {'key': 'perf', 'label': _('绩效配置')},
+                    {'key': 'expense', 'label': _('费用配置')},
+                    {'key': 'salary-assign', 'label': _('薪资配置')},
+                    {'key': 'salary-config', 'label': _('全局配置')}
+                ] %}
+            {% else %}
+                {% set tabs = [
+                    {'key': 'basic', 'label': _('基本配置')},
+                    {'key': 'affiliation', 'label': _('归属配置')},
+                    {'key': 'perm', 'label': _('权限配置')},
+                    {'key': 'perf', 'label': _('绩效配置')},
+                    {'key': 'expense', 'label': _('费用配置')},
+                    {'key': 'salary-assign', 'label': _('薪资配置')},
+                    {'key': 'salary-config', 'label': _('全局配置')}
+                ] %}
+            {% endif %}
             {{ render_tw_tabs(tabs, 'basic') }}
         </div>
 
@@ -760,27 +773,57 @@
                                                                 </div>
                                                                 <div class="flex items-center gap-4">
                                                                     <template x-if="!isModuleMixed(module.id)">
-                                                                        <div class="flex items-center gap-4">
-                                                                            <!-- 权限级别下拉框 -->
-                                                                            <select class="perm-level text-sm px-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700"
-                                                                                    :class="{ 'opacity-50': !isModuleEnabled(module.id), 'opacity-60 pointer-events-none': !isEditing }"
-                                                                                    :data-module="module.id"
-                                                                                    :disabled="!isEditing || !isModuleEnabled(module.id)"
-                                                                                    @change="onPermissionLevelChange(module.id, $event.target.value)">
-                                                                                <option value="personal" :selected="getPermission(module.id).permission_level === 'personal'">{{ _('个人级') }}</option>
-                                                                                <option value="department" :selected="getPermission(module.id).permission_level === 'department'">{{ _('部门级') }}</option>
-                                                                                <option value="company" :selected="getPermission(module.id).permission_level === 'company'">{{ _('企业级') }}</option>
-                                                                                <option value="system" :selected="getPermission(module.id).permission_level === 'system'">{{ _('系统级') }}</option>
-                                                                            </select>
-                                                                            <!-- 启用开关 -->
-                                                                            <label class="flex items-center gap-2" :class="isEditing ? 'cursor-pointer' : 'cursor-default'">
-                                                                                <input type="checkbox" class="module-toggle w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                        <div class="grid grid-cols-[auto_auto_auto] items-center gap-x-3 gap-y-2 justify-items-end">
+                                                                            <!-- 第一行：模块权限（数据范围 | 模块标签 | 启用开关） -->
+                                                                            <template x-if="module.id !== 'cli_agent'">
+                                                                                <select class="perm-level w-24 text-sm px-2 py-1 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700"
+                                                                                        :class="{ 'opacity-50': !isModuleEnabled(module.id), 'opacity-60 pointer-events-none': !isEditing }"
+                                                                                        :data-module="module.id"
+                                                                                        :disabled="!isEditing || !isModuleEnabled(module.id)"
+                                                                                        @change="onPermissionLevelChange(module.id, $event.target.value)">
+                                                                                    <option value="personal" :selected="getPermission(module.id).permission_level === 'personal'">{{ _('个人级') }}</option>
+                                                                                    <option value="department" :selected="getPermission(module.id).permission_level === 'department'">{{ _('部门级') }}</option>
+                                                                                    <option value="company" :selected="getPermission(module.id).permission_level === 'company'">{{ _('企业级') }}</option>
+                                                                                    <option value="system" :selected="getPermission(module.id).permission_level === 'system'">{{ _('系统级') }}</option>
+                                                                                </select>
+                                                                            </template>
+                                                                            <template x-if="module.id === 'cli_agent'">
+                                                                                <div></div>
+                                                                            </template>
+                                                                            <span class="text-sm text-slate-600 dark:text-slate-400 w-10 text-right">{{ _('模块') }}</span>
+                                                                            <input type="checkbox" class="module-toggle w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                   :class="isEditing ? 'cursor-pointer' : 'cursor-default'"
+                                                                                   :data-module="module.id"
+                                                                                   :checked="isModuleEnabled(module.id)"
+                                                                                   :disabled="!isEditing"
+                                                                                   @change="toggleModule(module.id, $event.target.checked)">
+
+                                                                            {% if current_user.role == 'admin' %}
+                                                                            <!-- 第二行：CLI 查询（仅管理员，仅业务模块） -->
+                                                                            <template x-if="supportsCliQuery(module.id)">
+                                                                                <select class="cli-permission-level w-24 text-sm px-2 py-1 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700"
+                                                                                        :class="{ 'opacity-50': !getPermission(module.id).cli_can_query, 'opacity-60 pointer-events-none': !isEditing }"
+                                                                                        :data-module="module.id"
+                                                                                        :disabled="!isEditing || !getPermission(module.id).cli_can_query"
+                                                                                        @change="onCliPermissionLevelChange(module.id, $event.target.value)">
+                                                                                    <option value="personal" :selected="(getPermission(module.id).cli_permission_level || 'personal') === 'personal'">{{ _('个人级') }}</option>
+                                                                                    <option value="department" :selected="getPermission(module.id).cli_permission_level === 'department'">{{ _('部门级') }}</option>
+                                                                                    <option value="company" :selected="getPermission(module.id).cli_permission_level === 'company'">{{ _('企业级') }}</option>
+                                                                                    <option value="system" :selected="getPermission(module.id).cli_permission_level === 'system'">{{ _('系统级') }}</option>
+                                                                                </select>
+                                                                            </template>
+                                                                            <template x-if="supportsCliQuery(module.id)">
+                                                                                <span class="text-sm text-slate-600 dark:text-slate-400 w-10 text-right">CLI</span>
+                                                                            </template>
+                                                                            <template x-if="supportsCliQuery(module.id)">
+                                                                                <input type="checkbox" class="cli-can-query w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                       :class="isEditing ? 'cursor-pointer' : 'cursor-default'"
                                                                                        :data-module="module.id"
-                                                                                       :checked="isModuleEnabled(module.id)"
+                                                                                       :checked="getPermission(module.id).cli_can_query"
                                                                                        :disabled="!isEditing"
-                                                                                       @change="toggleModule(module.id, $event.target.checked)">
-                                                                                <span class="text-sm text-slate-600 dark:text-slate-400">{{ _('启用') }}</span>
-                                                                            </label>
+                                                                                       @change="toggleCliQuery(module.id, $event.target.checked)">
+                                                                            </template>
+                                                                            {% endif %}
                                                                         </div>
                                                                     </template>
                                                                     <template x-if="isModuleMixed(module.id)">
@@ -792,8 +835,8 @@
                                                             <!-- 模块详情 -->
                                                             <template x-if="!isModuleMixed(module.id)">
                                                                 <div x-show="isModuleEnabled(module.id)" class="module-details" :id="'module-details-' + module.id">
-                                                                    <!-- 基本权限 -->
-                                                                    <div class="flex flex-wrap items-center gap-4 mt-3">
+                                                                    <!-- 基本权限（cli_agent 不需要 CRUD 细分） -->
+                                                                    <div class="flex flex-wrap items-center gap-4 mt-3" x-show="module.id !== 'cli_agent'">
                                                                         <label class="flex items-center gap-2" :class="isEditing ? 'cursor-pointer' : 'cursor-default'">
                                                                             <input type="checkbox" class="perm-view w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                                                                    :data-module="module.id"
@@ -990,6 +1033,72 @@
                     variant='warning'
                 ) }}
             </div>
+
+            <!-- CLI 表归属（只读，仅管理员可见） -->
+            {% if current_user.role == 'admin' %}
+            <div id="tab-cli-registry" class="tab-panel" x-data="cliRegistryConfig()" x-init="load()">
+                <div class="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">table_view</span>
+                                {{ _('CLI 表归属清单') }}
+                            </h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                {{ _('记录每张数据库表对应的权限模块归属 —— 决定 CLI 智能终端可以查询哪些表。此清单为只读，如需调整请联系开发通过 migration 修改。') }}
+                            </p>
+                        </div>
+                        <button type="button" @click="load()" :disabled="loading"
+                                class="px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 rounded-lg flex items-center gap-1">
+                            <span class="material-symbols-outlined text-base" :class="{'animate-spin': loading}">refresh</span>
+                            {{ _('刷新') }}
+                        </button>
+                    </div>
+
+                    <template x-if="loading">
+                        <div class="text-center py-8 text-slate-500">
+                            <span class="material-symbols-outlined animate-spin text-2xl">progress_activity</span>
+                        </div>
+                    </template>
+                    <template x-if="!loading && rows.length === 0">
+                        <div class="text-center py-8 text-slate-500">{{ _('无数据') }}</div>
+                    </template>
+                    <template x-if="!loading && rows.length > 0">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full text-sm divide-y divide-slate-200 dark:divide-slate-700">
+                                <thead class="bg-slate-50 dark:bg-slate-700/50">
+                                    <tr>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('数据表') }}</th>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('显示名') }}</th>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('模式') }}</th>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('归属模块 / 父表') }}</th>
+                                        <th class="px-4 py-2 text-left font-medium text-slate-700 dark:text-slate-300">{{ _('说明') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                                    <template x-for="row in rows" :key="row.table_name">
+                                        <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                            <td class="px-4 py-2 font-mono text-xs text-slate-800 dark:text-slate-200" x-text="row.table_name"></td>
+                                            <td class="px-4 py-2 text-slate-700 dark:text-slate-300" x-text="row.display_name || '-'"></td>
+                                            <td class="px-4 py-2">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                                      :class="row.mode === 'module' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'"
+                                                      x-text="row.mode === 'module' ? '{{ _('主表') }}' : '{{ _('跟随') }}'"></span>
+                                            </td>
+                                            <td class="px-4 py-2 text-slate-700 dark:text-slate-300">
+                                                <span x-show="row.mode === 'module'" x-text="row.module || '-'" class="font-semibold"></span>
+                                                <span x-show="row.mode === 'follow'" class="text-slate-500">→ <span x-text="row.parent_table"></span></span>
+                                            </td>
+                                            <td class="px-4 py-2 text-slate-500 dark:text-slate-400" x-text="row.description || ''"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- 绩效配置标签页 -->
             <div id="tab-perf" class="tab-panel" x-data="{ perfSubTab: 'targets' }">
@@ -3458,15 +3567,36 @@
                     const isEnabled = moduleToggle && moduleToggle.checked;
 
                     if (isEnabled) {
-                        permissionsData[module.id] = {
-                            can_view: container.querySelector('.perm-view')?.checked || false,
-                            can_create: container.querySelector('.perm-create')?.checked || false,
-                            can_edit: container.querySelector('.perm-edit')?.checked || false,
-                            can_delete: container.querySelector('.perm-delete')?.checked || false,
-                            can_change_owner: container.querySelector('.perm-change-owner')?.checked || false,
-                            can_export_email: container.querySelector('.perm-export-email')?.checked || false,
-                            permission_level: container.querySelector('.perm-level')?.value || 'personal'
-                        };
+                        // cli_agent 特殊处理：DOM 中无 perm-view/crud 控件，直接用开关状态
+                        if (module.id === 'cli_agent') {
+                            permissionsData[module.id] = {
+                                can_view: true,
+                                can_create: false,
+                                can_edit: false,
+                                can_delete: false,
+                                permission_level: 'system'
+                            };
+                        } else {
+                            permissionsData[module.id] = {
+                                can_view: container.querySelector('.perm-view')?.checked || false,
+                                can_create: container.querySelector('.perm-create')?.checked || false,
+                                can_edit: container.querySelector('.perm-edit')?.checked || false,
+                                can_delete: container.querySelector('.perm-delete')?.checked || false,
+                                can_change_owner: container.querySelector('.perm-change-owner')?.checked || false,
+                                can_export_email: container.querySelector('.perm-export-email')?.checked || false,
+                                permission_level: container.querySelector('.perm-level')?.value || 'personal'
+                            };
+                        }
+
+                        // CLI 智能终端查询权限（仅管理员可修改，非管理员 DOM 中无此控件则不上报）
+                        if (this.supportsCliQuery(module.id)) {
+                            const cliToggle = container.querySelector('.cli-can-query');
+                            const cliLevelSel = container.querySelector('.cli-permission-level');
+                            if (cliToggle) {
+                                permissionsData[module.id].cli_can_query = cliToggle.checked;
+                                permissionsData[module.id].cli_permission_level = cliLevelSel ? cliLevelSel.value : null;
+                            }
+                        }
 
                         // 收集折扣
                         const discountInput = container.querySelector('.discount-limit');
@@ -3562,15 +3692,35 @@
                     const isEnabled = moduleToggle && moduleToggle.checked;
 
                     if (isEnabled) {
-                        permissionsData[module.id] = {
-                            can_view: container.querySelector('.perm-view')?.checked || false,
-                            can_create: container.querySelector('.perm-create')?.checked || false,
-                            can_edit: container.querySelector('.perm-edit')?.checked || false,
-                            can_delete: container.querySelector('.perm-delete')?.checked || false,
-                            can_change_owner: container.querySelector('.perm-change-owner')?.checked || false,
-                            can_export_email: container.querySelector('.perm-export-email')?.checked || false,
-                            permission_level: container.querySelector('.perm-level')?.value || 'personal'
-                        };
+                        if (module.id === 'cli_agent') {
+                            permissionsData[module.id] = {
+                                can_view: true,
+                                can_create: false,
+                                can_edit: false,
+                                can_delete: false,
+                                permission_level: 'system'
+                            };
+                        } else {
+                            permissionsData[module.id] = {
+                                can_view: container.querySelector('.perm-view')?.checked || false,
+                                can_create: container.querySelector('.perm-create')?.checked || false,
+                                can_edit: container.querySelector('.perm-edit')?.checked || false,
+                                can_delete: container.querySelector('.perm-delete')?.checked || false,
+                                can_change_owner: container.querySelector('.perm-change-owner')?.checked || false,
+                                can_export_email: container.querySelector('.perm-export-email')?.checked || false,
+                                permission_level: container.querySelector('.perm-level')?.value || 'personal'
+                            };
+                        }
+
+                        // CLI 智能终端查询权限（仅管理员可修改）
+                        if (this.supportsCliQuery(module.id)) {
+                            const cliToggle = container.querySelector('.cli-can-query');
+                            const cliLevelSel = container.querySelector('.cli-permission-level');
+                            if (cliToggle) {
+                                permissionsData[module.id].cli_can_query = cliToggle.checked;
+                                permissionsData[module.id].cli_permission_level = cliLevelSel ? cliLevelSel.value : null;
+                            }
+                        }
 
                         // 收集内容筛选 - 如果模块有内容筛选配置，始终发送（即使为空）
                         const filterConfig = this.getFilterConfig(module.id);
@@ -3683,6 +3833,16 @@
                 if (!this.permissions[moduleId]) {
                     this.permissions[moduleId] = {};
                 }
+                // cli_agent 特殊处理：只切换 can_view，不涉及 CRUD 和 permission_level
+                if (moduleId === 'cli_agent') {
+                    this.permissions[moduleId].can_view = enabled;
+                    this.permissions[moduleId].can_create = false;
+                    this.permissions[moduleId].can_edit = false;
+                    this.permissions[moduleId].can_delete = false;
+                    this.permissions[moduleId].permission_level = enabled ? 'system' : null;
+                    this.markChanged();
+                    return;
+                }
                 if (enabled) {
                     // 启用时设置默认权限级别为"个人"，并触发联动逻辑
                     this.permissions[moduleId].permission_level = 'personal';
@@ -3695,6 +3855,34 @@
                     this.permissions[moduleId].can_delete = false;
                     this.permissions[moduleId].permission_level = null;
                 }
+                this.markChanged();
+            },
+
+            // ===== CLI 智能终端查询权限 =====
+            // 支持 CLI 查询的业务模块白名单
+            cliQueryModules: ['customer', 'project', 'quotation', 'expense', 'order', 'pricing_order', 'product', 'worklog', 'user'],
+
+            supportsCliQuery(moduleId) {
+                return this.cliQueryModules.includes(moduleId);
+            },
+
+            toggleCliQuery(moduleId, enabled) {
+                if (!this.permissions[moduleId]) {
+                    this.permissions[moduleId] = {};
+                }
+                this.permissions[moduleId].cli_can_query = enabled;
+                // 启用时，若未设置数据范围则默认个人级
+                if (enabled && !this.permissions[moduleId].cli_permission_level) {
+                    this.permissions[moduleId].cli_permission_level = 'personal';
+                }
+                this.markChanged();
+            },
+
+            onCliPermissionLevelChange(moduleId, level) {
+                if (!this.permissions[moduleId]) {
+                    this.permissions[moduleId] = {};
+                }
+                this.permissions[moduleId].cli_permission_level = level;
                 this.markChanged();
             },
 
@@ -4473,6 +4661,28 @@
     // =============================================
     // 权限配置 (Alpine.js组件) - 使用公共Mixin
     // =============================================
+    function cliRegistryConfig() {
+        return {
+            loading: false,
+            rows: [],
+            load() {
+                this.loading = true;
+                fetch('/config-management/api/cli-table-modules', {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json' }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data && data.success) {
+                        this.rows = data.data || [];
+                    }
+                })
+                .catch(err => console.error('[CLI Registry] 加载失败', err))
+                .finally(() => { this.loading = false; });
+            }
+        };
+    }
+
     function permissionConfig() {
         const initialRole = '{{ available_roles[0].role_code if available_roles else "" }}';
 

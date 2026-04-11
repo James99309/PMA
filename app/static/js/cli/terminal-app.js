@@ -345,12 +345,26 @@ class CliTerminalApp {
     const output = u.output_tokens || 0;
     const total = input + output;
     if (total <= 0) return;
+    const turn = info.lastTurnTokens || total;
     const div = document.createElement('div');
     div.className = 'cli-line cli-line-usage';
-    const est = u._estimated ? ' (estimated)' : '';
-    div.textContent = `tokens: ${total.toLocaleString()}${est}`;
+    const est = u._estimated ? ' (est)' : '';
+    const model = info.lastModel ? ` · ${this._shortModelName(info.lastModel)}` : '';
+    div.textContent = `tokens: +${turn.toLocaleString()} (累计 ${total.toLocaleString()})${est}${model}`;
     this.els.transcript.appendChild(div);
     this._scrollToBottom();
+  }
+
+  _shortModelName(model) {
+    if (!model) return '';
+    const map = {
+      'claude-opus-4-6': 'Opus 4.6',
+      'claude-sonnet-4-6': 'Sonnet 4.6',
+      'claude-sonnet-4-5': 'Sonnet 4.5',
+      'claude-haiku-4-5-20251001': 'Haiku 4.5',
+    };
+    if (map[model]) return map[model];
+    return model.replace(/^claude-/, '').replace(/-\d{8}$/, '');
   }
 
   _showLoadingDots() {
@@ -520,6 +534,8 @@ class CliTerminalApp {
           info.usage.input_tokens  = (info.usage.input_tokens || 0) + (u.input_tokens || 0);
           info.usage.output_tokens = (info.usage.output_tokens || 0) + (u.output_tokens || 0);
           if (u._estimated) info.usage._estimated = true;
+          info.lastTurnTokens = (u.input_tokens || 0) + (u.output_tokens || 0);
+          if (evt.model) info.lastModel = evt.model;
           this._updateTokenDisplay(info.usage);
         }
         break;

@@ -251,6 +251,49 @@ class User(db.Model, UserMixin):
 
             return False
     
+    def has_cli_permission(self, module):
+        """
+        检查用户是否具有 CLI 查询该模块数据的权限
+
+        与 has_permission() 完全独立: CLI 查询权限由 role_permissions.cli_can_query 决定,
+        不受 can_view 的影响。这样可以实现"用户不能打开客户列表页,但能在 CLI 查客户"的场景。
+
+        参数:
+            module: 权限模块名称 (customer/project/quotation/...)
+
+        返回:
+            bool: 是否允许在 CLI 里查询该模块对应的数据表
+        """
+        try:
+            if self.role == 'admin':
+                return True
+            role_permission, personal_permission = self._get_cached_permissions(module)
+            # 个人权限目前不影响 CLI 查询,只看角色配置
+            if role_permission is None:
+                return False
+            return bool(role_permission.cli_can_query)
+        except Exception as e:
+            print(f'[ERROR][has_cli_permission] {e}')
+            return False
+
+    def get_cli_permission_level(self, module):
+        """
+        获取用户在 CLI 查询该模块时的数据范围
+
+        返回 'system' / 'company' / 'department' / 'personal',默认 'personal'。
+        若 cli_permission_level 为 NULL(未配置),视为 'personal'(最严)。
+        """
+        try:
+            if self.role == 'admin':
+                return 'system'
+            role_permission, _ = self._get_cached_permissions(module)
+            if role_permission is None or not role_permission.cli_can_query:
+                return 'personal'
+            return role_permission.cli_permission_level or 'personal'
+        except Exception as e:
+            print(f'[ERROR][get_cli_permission_level] {e}')
+            return 'personal'
+
     def get_permission_level(self, module):
         """
         获取用户在指定模块的权限级别

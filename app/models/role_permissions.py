@@ -23,8 +23,12 @@ class RolePermission(db.Model):
     # 内容筛选字段
     content_filters = db.Column(db.JSON, nullable=True)  # 内容筛选配置，存储格式：{"project_type": ["type1", "type2"], "industry": ["ind1"]}
 
+    # CLI 智能终端查询权限（独立于界面权限）
+    cli_can_query = db.Column(db.Boolean, default=False, nullable=False)  # 是否允许在 CLI 查询该模块的数据
+    cli_permission_level = db.Column(db.String(20), nullable=True)  # CLI 查询数据范围: system/company/department/personal；NULL=未配置(默认禁止)
+
     __table_args__ = (db.UniqueConstraint('role', 'module', name='uix_role_module'),)
-    
+
     def to_dict(self):
         """转换为字典格式"""
         return {
@@ -41,5 +45,7 @@ class RolePermission(db.Model):
             'settlement_discount_limit': self.settlement_discount_limit,
             'permission_level': self.permission_level,
             'permission_level_description': self.permission_level_description,
-            'content_filters': self.content_filters
-        } 
+            'content_filters': self.content_filters,
+            'cli_can_query': self.cli_can_query,
+            'cli_permission_level': self.cli_permission_level,
+        }

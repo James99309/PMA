@@ -265,6 +265,33 @@ def api_get_roles():
         }), 500
 
 
+@config_management_bp.route('/api/cli-table-modules')
+@login_required
+@permission_required('config_management', 'view')
+def api_get_cli_table_modules():
+    """只读返回 CLI 表归属清单（仅管理员）"""
+    if current_user.role != 'admin':
+        return jsonify({'success': False, 'message': '仅管理员可访问'}), 403
+    try:
+        from app.models.cli_table_module import CliTableModule
+        rows = (
+            CliTableModule.query
+            .filter_by(is_active=True)
+            .order_by(CliTableModule.sort_order, CliTableModule.table_name)
+            .all()
+        )
+        return jsonify({
+            'success': True,
+            'data': [r.to_dict() for r in rows],
+        })
+    except Exception as e:
+        logger.error(f"获取 CLI 表归属清单失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'获取失败: {str(e)}'
+        }), 500
+
+
 @config_management_bp.route('/api/role-permissions/<role>')
 @login_required
 @permission_required('config_management', 'view')
@@ -332,7 +359,9 @@ def api_get_role_permissions(role):
                 'permission_level': perm.permission_level or 'personal',
                 'pricing_discount_limit': perm.pricing_discount_limit,
                 'settlement_discount_limit': perm.settlement_discount_limit,
-                'content_filter': perm.content_filters
+                'content_filter': perm.content_filters,
+                'cli_can_query': bool(getattr(perm, 'cli_can_query', False)),
+                'cli_permission_level': getattr(perm, 'cli_permission_level', None),
             }
 
         # 获取角色子功能权限
@@ -381,12 +410,27 @@ def api_save_role_permissions(role):
         permissions = data.get('permissions', {})
         feature_permissions = data.get('feature_permissions', {})
 
+        # 非管理员保存时不得覆盖 CLI 字段 —— 先快照现有值
+        existing_cli = {}
+        for p in RolePermission.query.filter_by(role=role).all():
+            existing_cli[p.module] = (
+                bool(getattr(p, 'cli_can_query', False)),
+                getattr(p, 'cli_permission_level', None),
+            )
+
         # === 性能优化：批量删除 ===
         RolePermission.query.filter_by(role=role).delete(synchronize_session=False)
 
         # === 性能优化：构建批量插入数据 ===
         role_perm_records = []
         for module, perm_data in permissions.items():
+            # CLI 字段：payload 未提供则保留原值（非管理员没有这两个字段）
+            if 'cli_can_query' in perm_data:
+                cli_can_query = bool(perm_data.get('cli_can_query', False))
+                cli_permission_level = perm_data.get('cli_permission_level') or None
+            else:
+                cli_can_query, cli_permission_level = existing_cli.get(module, (False, None))
+
             role_perm_records.append({
                 'role': role,
                 'module': module,
@@ -399,7 +443,9 @@ def api_save_role_permissions(role):
                 'permission_level': perm_data.get('permission_level', 'personal'),
                 'pricing_discount_limit': perm_data.get('pricing_discount_limit'),
                 'settlement_discount_limit': perm_data.get('settlement_discount_limit'),
-                'content_filters': perm_data.get('content_filter')
+                'content_filters': perm_data.get('content_filter'),
+                'cli_can_query': cli_can_query,
+                'cli_permission_level': cli_permission_level,
             })
 
         # === 性能优化：批量插入角色权限 ===
