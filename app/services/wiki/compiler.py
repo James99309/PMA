@@ -216,7 +216,9 @@ def ingest_raw_file(
                 raise IngestError(f'Claude 返回的 operations[{i}] 非法: {e}') from e
 
         # 8. 应用 operations（追踪 rollback 状态，但不 commit）
-        _apply_operations(operations, raw_id=raw.id, rollback_state=rollback_state)
+        _apply_operations(operations, raw_id=raw.id, rollback_state=rollback_state,
+                         scope=raw.scope, owner_id=raw.owner_id,
+                         owner_department=raw.owner_department)
 
         # 9. 写 index.md（记入 rollback_state 以便失败恢复）
         index_updated = False
@@ -419,15 +421,22 @@ def _parse_ingest_response(text: str) -> dict[str, Any]:
     Claude 有时会：
     1. 把 JSON 包在 ```json ... ``` 代码块里
     2. 在 content 字段的 Markdown 里写未转义的双引号（JSON 语法错误）
+    3. 输出被 max_tokens 截断（JSON 不完整）
 
-    所以这里做多层宽容处理：先剥代码块 → json.loads → 失败则 json 修复重试。
+    多层宽容处理：剥代码块 → json.loads → json_repair → 截断修复。
     """
+    import re
+
     s = (text or '').strip()
     if not s:
         raise IngestError('Claude 返回空响应')
 
-    # 剥 markdown 代码块围栏
-    if s.startswith('```'):
+    # 剥 markdown 代码块围栏（用正则更可靠）
+    fence_match = re.match(r'^```(?:json)?\s*\n(.*?)```\s*$', s, re.DOTALL)
+    if fence_match:
+        s = fence_match.group(1).strip()
+    elif s.startswith('```'):
+        # 兜底：可能是截断导致没有闭合围栏
         first_nl = s.find('\n')
         if first_nl != -1:
             s = s[first_nl + 1:]
@@ -435,94 +444,134 @@ def _parse_ingest_response(text: str) -> dict[str, Any]:
             s = s.rstrip()[:-3]
         s = s.strip()
 
+    if not s:
+        raise IngestError('Claude 返回的响应剥离代码块后为空')
+
     # 第一次尝试：直接解析
     try:
         data = json.loads(s)
+        return _validate_ingest_data(data)
     except json.JSONDecodeError:
-        # 第二次尝试：修复常见 JSON 问题
-        try:
-            data = _repair_and_parse_json(s)
-            logger.warning('[Ingest] Claude 返回的 JSON 需要修复后才能解析（已自动修复）')
-        except Exception as e2:
-            raise IngestError(
-                f'Claude 返回非法 JSON: {e2}；响应前 500 字符:\n{s[:500]}'
-            ) from e2
+        pass
 
+    # 第二次尝试：json_repair 库（处理未转义引号、控制字符等）
+    try:
+        data = _repair_and_parse_json(s)
+        logger.warning('[Ingest] Claude 返回的 JSON 需要修复后才能解析（已自动修复）')
+        return _validate_ingest_data(data)
+    except Exception:
+        pass
+
+    # 第三次尝试：截断修复 —— 找到最后一个完整的 operation 对象
+    try:
+        data = _salvage_truncated_json(s)
+        logger.warning('[Ingest] Claude 返回的 JSON 被截断，已抢救部分 operations')
+        return _validate_ingest_data(data)
+    except Exception:
+        pass
+
+    raise IngestError(
+        f'Claude 返回非法 JSON，所有修复策略均失败；响应前 500 字符:\n{s[:500]}'
+    )
+
+
+def _validate_ingest_data(data: Any) -> dict:
+    """校验解析后的数据结构。"""
     if not isinstance(data, dict):
         raise IngestError(f'Claude 返回顶层不是 JSON 对象: {type(data).__name__}')
-
     if 'operations' not in data:
         raise IngestError('Claude 返回缺少 operations 字段')
-
     return data
 
 
 def _repair_and_parse_json(s: str) -> dict:
-    """尝试修复 Claude 输出的半合法 JSON。
+    """用 json_repair 库修复 Claude 输出的半合法 JSON。
 
-    常见问题：Markdown content 字段里有未转义的双引号或换行。
-    策略：用正则逐个提取 JSON 字符串值，对其中的控制字符做转义。
-
-    如果 json_repair 库可用优先使用（更健壮），否则用自建修复。
+    常见问题：content 字段里有未转义双引号、反斜杠、控制字符。
+    json_repair 能处理绝大多数情况。
     """
-    # 策略 1：尝试 json_repair 库
-    try:
-        from json_repair import repair_json
-        repaired = repair_json(s, return_objects=False)
-        return json.loads(repaired)
-    except ImportError:
-        pass
-    except Exception:
-        pass
+    from json_repair import repair_json
+    repaired = repair_json(s, return_objects=False)
+    return json.loads(repaired)
 
-    # 策略 2：逐字符状态机提取，找到 JSON 字符串边界后手动转义内部问题
-    # 先处理最常见的问题：content 字段内部有原始换行（应该是 \n）
-    # 和未转义的双引号
-    fixed = []
-    i = 0
-    in_string = False
-    escape_next = False
 
-    for i, ch in enumerate(s):
-        if escape_next:
-            fixed.append(ch)
-            escape_next = False
+def _salvage_truncated_json(s: str) -> dict:
+    """从截断的 JSON 中抢救已完整的 operations。
+
+    当 stop_reason == max_tokens 时，JSON 被截断在某个 operation 中间。
+    策略：找到 operations 数组中最后一个完整的 `}` 对象边界，截断后补全 JSON 结构。
+    """
+    import re
+    from json_repair import repair_json
+
+    # 找 "operations" 数组的起始位置
+    ops_match = re.search(r'"operations"\s*:\s*\[', s)
+    if not ops_match:
+        raise ValueError('找不到 operations 数组')
+
+    ops_start = ops_match.end()
+
+    # 从 operations 数组开始，逐个找完整的 {...} 对象
+    # 用括号深度追踪法
+    last_complete_end = -1
+    depth = 0
+    in_str = False
+    esc = False
+    i = ops_start
+
+    while i < len(s):
+        ch = s[i]
+        if esc:
+            esc = False
+            i += 1
             continue
-        if ch == '\\':
-            fixed.append(ch)
-            escape_next = True
+        if ch == '\\' and in_str:
+            esc = True
+            i += 1
             continue
         if ch == '"':
-            in_string = not in_string
-            fixed.append(ch)
+            in_str = not in_str
+            i += 1
             continue
-        if in_string:
-            # 在字符串内部的原始换行 → \n
-            if ch == '\n':
-                fixed.append('\\n')
-                continue
-            if ch == '\r':
-                fixed.append('\\r')
-                continue
-            if ch == '\t':
-                fixed.append('\\t')
-                continue
-        fixed.append(ch)
+        if in_str:
+            i += 1
+            continue
+        # 不在字符串内
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                last_complete_end = i + 1
+        elif ch == ']' and depth == 0:
+            # 数组正常结束
+            last_complete_end = i + 1
+            break
+        i += 1
+
+    if last_complete_end <= ops_start:
+        raise ValueError('没有找到任何完整的 operation 对象')
+
+    # 用找到的最后完整对象位置截断，补全 JSON
+    truncated_ops = s[ops_start:last_complete_end].rstrip().rstrip(',')
+    # 构造最小可解析 JSON
+    salvaged = '{"operations":[' + truncated_ops + ']}'
 
     try:
-        return json.loads(''.join(fixed))
+        return json.loads(salvaged)
     except json.JSONDecodeError:
-        pass
-
-    # 策略 3：暴力提取 —— 找到 operations 数组的每个元素，用宽松方式解析
-    raise json.JSONDecodeError('所有修复策略失败', s, 0)
+        # 最后一搏：用 json_repair 修复截断后的结果
+        repaired = repair_json(salvaged, return_objects=False)
+        return json.loads(repaired)
 
 
 # ══════════════════════════════════════════════════════════════════
 # 内部：应用 operations
 # ══════════════════════════════════════════════════════════════════
 
-def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: dict):
+def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: dict,
+                      scope: str = 'company', owner_id: int = 1,
+                      owner_department: str | None = None):
     """把 Claude 返回的 operations 应用到 Wiki（磁盘 + 数据库）。
 
     支持三种 action：
@@ -602,6 +651,9 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                     outbound_refs=list(outbound_refs),
                     last_compiled_at=now,
                     compile_model=compile_model,
+                    scope=scope,
+                    owner_id=owner_id,
+                    owner_department=owner_department,
                 )
                 db.session.add(art)
                 logger.info(f'[Ingest] create {topic}/{slug}')
@@ -627,6 +679,9 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                     outbound_refs=list(outbound_refs),
                     last_compiled_at=now,
                     compile_model=compile_model,
+                    scope=scope,
+                    owner_id=owner_id,
+                    owner_department=owner_department,
                 )
                 db.session.add(art)
             else:

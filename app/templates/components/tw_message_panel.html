@@ -166,7 +166,7 @@
                             <span class="material-symbols-outlined"
                                   :class="item.status === 'confirmed' ? 'text-green-600 dark:text-green-400'
                                          : 'text-orange-600 dark:text-orange-400'"
-                                  x-text="item.status === 'confirmed' ? 'check_circle' : (item.type === 'access_request' ? 'person_add' : (item.type === 'general_task' ? 'task_alt' : 'assignment'))"></span>
+                                  x-text="item.status === 'confirmed' ? 'check_circle' : (item.type === 'access_request' ? 'person_add' : (item.type === 'wiki_promotion' ? 'arrow_upward' : (item.type === 'general_task' ? 'task_alt' : 'assignment')))"></span>
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center justify-between gap-2">
@@ -211,7 +211,7 @@
                          class="flex items-start gap-3 px-4 py-3 border-b border-slate-100 dark:border-slate-800 transition-colors"
                          :class="[
                              !item.is_read ? 'bg-blue-50/50 dark:bg-blue-900/10' : '',
-                             (item.can_view_calendar || item.detail_url || (item.message_type && item.message_type.startsWith('announcement_'))) ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer' : 'cursor-default'
+                             (item.can_view_calendar || item.detail_url || (item.message_type && (item.message_type.startsWith('announcement_') || item.message_type.startsWith('wiki_')))) ? 'hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer' : 'cursor-default'
                          ]">
                         <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
                              :class="getMessageBgColor(item)">
@@ -226,7 +226,7 @@
                             </div>
                             <div class="text-xs text-slate-500 dark:text-slate-400 mt-1 whitespace-pre-wrap" x-text="item.content"></div>
                         </div>
-                        <span x-show="item.can_view_calendar || item.detail_url || (item.message_type && item.message_type.startsWith('announcement_'))" class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
+                        <span x-show="item.can_view_calendar || item.detail_url || (item.message_type && (item.message_type.startsWith('announcement_') || item.message_type.startsWith('wiki_')))" class="material-symbols-outlined text-slate-300 flex-shrink-0">chevron_right</span>
                     </div>
                 </template>
             </div>
@@ -558,7 +558,13 @@ function messagePanel() {
                 'quotation_updated': 'edit_note',
                 // 产品确认消息类型
                 'confirmation_request': 'assignment',
-                'confirmation_completed': 'task_alt'
+                'confirmation_completed': 'task_alt',
+                // Wiki 知识库消息
+                'wiki_compile': 'auto_stories',
+                'wiki_compile_error': 'error',
+                'wiki_promotion_request': 'arrow_upward',
+                'wiki_promotion_submitted': 'send',
+                'wiki_promotion_result': 'verified'
             };
             return icons[item.message_type] || 'notifications';
         },
@@ -584,7 +590,13 @@ function messagePanel() {
                 'approval_cc': 'bg-sky-100 dark:bg-sky-900/30',
                 // 产品确认消息类型
                 'confirmation_request': 'bg-orange-100 dark:bg-orange-900/30',
-                'confirmation_completed': 'bg-green-100 dark:bg-green-900/30'
+                'confirmation_completed': 'bg-green-100 dark:bg-green-900/30',
+                // Wiki 知识库消息
+                'wiki_compile': 'bg-violet-100 dark:bg-violet-900/30',
+                'wiki_compile_error': 'bg-red-100 dark:bg-red-900/30',
+                'wiki_promotion_request': 'bg-amber-100 dark:bg-amber-900/30',
+                'wiki_promotion_submitted': 'bg-violet-100 dark:bg-violet-900/30',
+                'wiki_promotion_result': 'bg-green-100 dark:bg-green-900/30'
             };
             return colors[item.message_type] || 'bg-blue-100 dark:bg-blue-900/30';
         },
@@ -610,7 +622,13 @@ function messagePanel() {
                 'approval_cc': 'text-sky-600 dark:text-sky-400',
                 // 产品确认消息类型
                 'confirmation_request': 'text-orange-600 dark:text-orange-400',
-                'confirmation_completed': 'text-green-600 dark:text-green-400'
+                'confirmation_completed': 'text-green-600 dark:text-green-400',
+                // Wiki 知识库消息
+                'wiki_compile': 'text-violet-600 dark:text-violet-400',
+                'wiki_compile_error': 'text-red-600 dark:text-red-400',
+                'wiki_promotion_request': 'text-amber-600 dark:text-amber-400',
+                'wiki_promotion_submitted': 'text-violet-600 dark:text-violet-400',
+                'wiki_promotion_result': 'text-green-600 dark:text-green-400'
             };
             return colors[item.message_type] || 'text-blue-600 dark:text-blue-400';
         },
@@ -674,6 +692,10 @@ function messagePanel() {
                 window.dispatchEvent(new CustomEvent('open-access-approval-modal', {
                     detail: { requestId: item.request_id, entityType: item.entity_type, entityId: item.entity_id }
                 }));
+            } else if (item.type === 'wiki_promotion') {
+                // 知识库晋升申请 → 跳转到知识库并打开审核
+                this.close();
+                window.location.href = `/wiki?promote=${item.promotion_request_id}`;
             } else if (item.type === 'general_task' && item.task_id) {
                 // 通用任务 → 打开任务详情模态框
                 this.close();
@@ -710,6 +732,24 @@ function messagePanel() {
                         ownerId = (item.message_type === 'worklog_comment') ? item.recipient_id : item.sender_id;
                     }
                     openWorklogPreview_messagePanelWorklogModal(item.metadata.log_date, ownerId, item.id);
+                }
+                return;
+            }
+
+            // Wiki 编译完成通知 → 打开文章
+            if (item.message_type === 'wiki_compile' && item.related_object_id) {
+                window.location.href = `/wiki?article=${item.related_object_id}`;
+                return;
+            }
+
+            // Wiki 知识库晋升消息
+            if (item.related_object_type === 'wiki_promotion') {
+                if (item.message_type === 'wiki_promotion_request' && item.metadata && item.metadata.promotion_request_id) {
+                    window.location.href = `/wiki?promote=${item.metadata.promotion_request_id}`;
+                } else if (item.metadata && item.metadata.article_id) {
+                    window.location.href = `/wiki?article=${item.metadata.article_id}`;
+                } else {
+                    window.location.href = '/wiki';
                 }
                 return;
             }

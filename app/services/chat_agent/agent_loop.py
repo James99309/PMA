@@ -88,9 +88,26 @@ class ChatAgentLoop:
             yield {'type': 'error', 'message': f'加载对话历史失败: {e}'}
             return
 
-        # 追加本轮用户输入(不写库,chat.py 已写过)
+        # 检测对话中未被 AI 处理过的文件附件，构造 content block
+        file_blocks: list[dict] = []
+        pending_file_msgs: list = []
+        try:
+            from app.services.chat_agent.file_processor import (
+                get_pending_file_messages, build_file_content_blocks, mark_files_processed,
+            )
+            pending_file_msgs = get_pending_file_messages(self.conversation_id)
+            if pending_file_msgs:
+                file_blocks = build_file_content_blocks(pending_file_msgs)
+                names = [m.file_name for m in pending_file_msgs if m.file_name]
+                if file_blocks:
+                    logger.info(f'[Chat Agent] 附带 {len(file_blocks)} 个文件: {names}')
+        except Exception:
+            logger.warning('[Chat Agent] 文件处理失败，继续纯文本对话', exc_info=True)
+
+        # 追加本轮用户输入 + 文件 block(不写库,chat.py 已写过)
+        user_content = file_blocks + [conv.text_block(user_input)]
         history_messages.append(
-            {'role': 'user', 'content': [conv.text_block(user_input)]}
+            {'role': 'user', 'content': user_content}
         )
 
         # 2. 构建 system prompt(享受 prompt cache)
@@ -179,6 +196,26 @@ class ChatAgentLoop:
                     break
 
             if had_error:
+                # 带文件时 LLM 报错 → 标记文件已处理 + 降级为纯文本重试
+                if pending_file_msgs and file_blocks and rounds == 1:
+                    try:
+                        mark_files_processed(pending_file_msgs)
+                        db.session.commit()
+                    except Exception:
+                        logger.warning('[Chat Agent] 标记失败文件已处理异常', exc_info=True)
+                    logger.info('[Chat Agent] 文件导致 LLM 错误，降级为纯文本重试')
+                    history_messages[-1] = {
+                        'role': 'user',
+                        'content': [conv.text_block(
+                            f'{user_input}\n\n（注：用户附带了文件但处理失败，请告知用户文件无法识别）'
+                        )],
+                    }
+                    file_blocks = []
+                    pending_file_msgs = []
+                    had_error = False
+                    full_text = ''
+                    rounds = 0
+                    continue
                 return
 
             # LLM 返回空响应兜底
@@ -226,7 +263,15 @@ class ChatAgentLoop:
 
             history_messages.append({'role': 'user', 'content': tool_results})
 
-        # 4. 收尾: emit done 事件
+        # 4. 标记文件消息为已处理（只在 LLM 成功响应后）
+        if pending_file_msgs and file_blocks:
+            try:
+                mark_files_processed(pending_file_msgs)
+                db.session.commit()
+            except Exception:
+                logger.warning('[Chat Agent] 标记文件已处理失败', exc_info=True)
+
+        # 5. 收尾: emit done 事件
         yield {
             'type': 'done',
             'model': model_name or 'claude',

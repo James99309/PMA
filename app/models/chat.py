@@ -151,6 +151,7 @@ class ChatMessage(db.Model):
     ai_prompt_tokens = Column(Integer, nullable=True)  # AI prompt token 数量
     ai_completion_tokens = Column(Integer, nullable=True)  # AI completion token 数量
     reply_to_id = Column(Integer, ForeignKey('chat_messages.id'), nullable=True)  # 回复的消息ID
+    ai_processed = Column(Boolean, default=False)  # 文件消息是否已被 AI 处理
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     is_deleted = Column(Boolean, default=False)
     deleted_at = Column(DateTime, nullable=True)

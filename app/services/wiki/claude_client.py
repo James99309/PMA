@@ -57,8 +57,8 @@ META_MODEL = os.environ.get('WIKI_META_MODEL', 'claude-haiku-4-5-20251001')
 ENABLE_1M_CONTEXT = os.environ.get('WIKI_ENABLE_1M_CONTEXT', 'true').lower() in ('true', '1', 'yes')
 BETA_1M_HEADER = 'context-1m-2025-08-07'
 
-# 默认 HTTP 超时（秒）—— Wiki 编译可能跑几十秒
-DEFAULT_TIMEOUT = float(os.environ.get('WIKI_HTTP_TIMEOUT', '180'))
+# 默认 HTTP 超时（秒）—— Wiki 编译大文本通过代理可能需要 5 分钟以上
+DEFAULT_TIMEOUT = float(os.environ.get('WIKI_HTTP_TIMEOUT', '600'))
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -211,6 +211,7 @@ class WikiClaudeClient:
             block.get('text', '') for block in content_blocks if block.get('type') == 'text'
         )
 
+        stop_reason = data.get('stop_reason', '')
         usage_raw = data.get('usage') or {}
         usage = {
             'input_tokens': usage_raw.get('input_tokens', 0) or 0,
@@ -220,7 +221,11 @@ class WikiClaudeClient:
 
         logger.info(
             f'[Wiki Claude] done model={model} '
-            f'in={usage["input_tokens"]} out={usage["output_tokens"]} text={len(text)}B'
+            f'in={usage["input_tokens"]} out={usage["output_tokens"]} text={len(text)}B '
+            f'stop={stop_reason}'
         )
+
+        if stop_reason == 'max_tokens':
+            logger.warning(f'[Wiki Claude] 输出被 max_tokens={max_tokens} 截断，JSON 可能不完整')
 
         return WikiLLMResponse(text=text, usage=usage)

@@ -2,16 +2,21 @@
 """
 Chat Agent 工具注册表
 
-相比 cli_agent 的工具集(query + skill + memory + web_search + export_to_word),
-chat_agent 只注册与聊天场景相关的核心工具:
+相比 cli_agent 的工具集（query + skill + memory + web_search + export_to_word），
+chat_agent 注册:
 
     - query_pma_database: 通过 execute_chat_safe_query 做前端权限过滤的 SQL 查询
-    - export_to_word:     pandoc 可用时注册,用户可在聊天里说"导出Word"
+    - save_memory / recall_memory / delete_memory:
+          与 CLI agent 共享同一张 cli_memories 表,实现跨入口统一的用户画像
+          （chat 里学到的"张奕是 HR 经理"在 CLI 终端也记得）
+    - web_search: 有 TAVILY_API_KEY 环境变量时启用,用于查询公网信息
+    - export_to_word: pandoc 可用时启用,用户可在聊天里说"导出Word"
 
-不注册 skill/memory 类工具,因为聊天场景用户期望即时问答,
-不需要 CLI 那种技能沉淀和长期记忆。
+不注册 skill 工具,聊天场景用户期望即时问答,不需要 CLI 那种技能沉淀。
 """
 from __future__ import annotations
+
+import os
 
 from app.services.cli_agent.tools import BaseTool, ToolRegistry
 
@@ -20,7 +25,7 @@ _chat_default_registry: ToolRegistry | None = None
 
 
 def get_chat_default_registry() -> ToolRegistry:
-    """返回聊天场景专用的 ToolRegistry 单例(懒加载)"""
+    """返回聊天场景专用的 ToolRegistry 单例（懒加载）"""
     global _chat_default_registry
     if _chat_default_registry is None:
         _chat_default_registry = ToolRegistry()
@@ -30,7 +35,33 @@ def get_chat_default_registry() -> ToolRegistry:
         )
         _chat_default_registry.register(ChatQueryPmaDatabaseTool())
 
-        # pandoc 可用时注册 export_to_word(复用 cli_agent 的实现)
+        # memory 工具（与 CLI agent 共享 cli_memories 表）
+        try:
+            from app.services.cli_agent.tools.save_memory import SaveMemoryTool
+            from app.services.cli_agent.tools.recall_memory import RecallMemoryTool
+            from app.services.cli_agent.tools.delete_memory import DeleteMemoryTool
+            _chat_default_registry.register(SaveMemoryTool())
+            _chat_default_registry.register(RecallMemoryTool())
+            _chat_default_registry.register(DeleteMemoryTool())
+        except Exception:
+            pass
+
+        # wiki 知识库问答（复用 wiki querier）
+        try:
+            from app.services.chat_agent.tools.query_wiki import QueryWikiTool
+            _chat_default_registry.register(QueryWikiTool())
+        except Exception:
+            pass
+
+        # web_search（有 TAVILY_API_KEY 才注册）
+        if os.environ.get('TAVILY_API_KEY'):
+            try:
+                from app.services.cli_agent.tools.web_search import WebSearchTool
+                _chat_default_registry.register(WebSearchTool())
+            except Exception:
+                pass
+
+        # pandoc 可用时注册 export_to_word（复用 cli_agent 的实现）
         import shutil
         if shutil.which('pandoc'):
             try:

@@ -141,6 +141,20 @@ def delete_article(topic: str, slug: str) -> bool:
     return False
 
 
+def delete_article_file(file_path: str) -> bool:
+    """按 file_path 删除文章文件（防路径穿越）。"""
+    if not file_path:
+        return False
+    abs_path = (get_wiki_root() / file_path).resolve()
+    wiki_root = get_wiki_root().resolve()
+    if not str(abs_path).startswith(str(wiki_root)):
+        raise WikiPathError(f'路径穿越: {file_path}')
+    if abs_path.exists():
+        abs_path.unlink()
+        return True
+    return False
+
+
 def list_topics() -> List[str]:
     """列出 wiki/ 目录下所有 topic（一级子目录）。"""
     wiki_dir = get_wiki_dir()
@@ -412,28 +426,36 @@ def _extract_text_non_pdf(abs_path: Path, ext: str) -> str:
     if ext == '.docx':
         try:
             from docx import Document
+            from docx.oxml.ns import qn
         except ImportError:
             raise ImportError('需要 python-docx 才能读取 DOCX')
         doc = Document(str(abs_path))
         parts = []
-        # 段落文本
-        for p in doc.paragraphs:
-            if p.text.strip():
-                parts.append(p.text)
-        # 表格数据（python-docx 的 paragraphs 不含表格，必须单独遍历）
-        for table in doc.tables:
-            rows = []
-            for row in table.rows:
-                cells = [cell.text.strip() for cell in row.cells]
-                rows.append(' | '.join(cells))
-            if rows:
-                # 用 Markdown 表格格式输出
-                parts.append('')
-                parts.append(rows[0])
-                parts.append(' | '.join(['---'] * len(table.rows[0].cells)))
-                for r in rows[1:]:
-                    parts.append(r)
-                parts.append('')
+        # 按文档原始顺序遍历 body 元素（段落和表格交替出现）
+        para_idx = 0
+        table_idx = 0
+        for child in doc.element.body:
+            if child.tag == qn('w:p'):
+                if para_idx < len(doc.paragraphs):
+                    text = doc.paragraphs[para_idx].text.strip()
+                    if text:
+                        parts.append(text)
+                    para_idx += 1
+            elif child.tag == qn('w:tbl'):
+                if table_idx < len(doc.tables):
+                    table = doc.tables[table_idx]
+                    rows = []
+                    for row in table.rows:
+                        cells = [cell.text.strip() for cell in row.cells]
+                        rows.append(' | '.join(cells))
+                    if rows:
+                        parts.append('')
+                        parts.append(rows[0])
+                        parts.append(' | '.join(['---'] * len(table.rows[0].cells)))
+                        for r in rows[1:]:
+                            parts.append(r)
+                        parts.append('')
+                    table_idx += 1
         return '\n'.join(parts)
     raise ValueError(f'不支持的原始文件类型: {ext}（支持 .md/.txt/.pdf/.docx）')
 

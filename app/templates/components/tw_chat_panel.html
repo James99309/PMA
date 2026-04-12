@@ -2630,7 +2630,10 @@ function chatPanel() {
                 const hasAIMention = text.includes('@AI');
 
                 if (isAIMode || (hasAIMention && this.activeConv)) {
-                    // AI 对话：走 SSE 流（附件在 AI 模式不支持）
+                    // AI 对话：先上传附件，再走 SSE 流
+                    if (hasFiles) {
+                        await this._uploadPendingFiles();
+                    }
                     await this._sendAIMessage(text);
                 } else if (this.isNewChat) {
                     // 新建对话
@@ -2813,7 +2816,10 @@ function chatPanel() {
                 this.isNewChat = false;
 
                 if (convType === 'ai') {
-                    // AI 模式走 SSE
+                    // AI 模式：先上传附件，再走 SSE
+                    if (this.pendingFiles.length > 0) {
+                        await this._uploadPendingFiles();
+                    }
                     await this._sendAIMessage(text);
                 } else {
                     // 先上传附件

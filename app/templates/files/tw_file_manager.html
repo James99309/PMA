@@ -127,16 +127,6 @@
                     {{ _('回收站') }}
                 </button>
 
-                {# 知识库 #}
-                <button @click="openKbView()"
-                        :class="activeView==='knowledge' ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
-                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left transition-colors">
-                    <span class="material-symbols-outlined text-lg">auto_stories</span>
-                    {{ _('知识库') }}
-                    <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-semibold"
-                          x-show="kbStats.total > 0" x-text="kbStats.total"></span>
-                </button>
-
                 {# 归档管理（管理员） #}
                 {% if is_admin %}
                 <button @click="activeView='archived'; loadArchived()"
@@ -358,7 +348,7 @@
                         <div class="text-sm text-slate-500 mb-3">{{ _('搜索结果') }} (<span x-text="searchResults.length"></span>)</div>
                         <template x-for="file in searchResults" :key="file.id">
                             <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                                 @click="previewFile(file)">
+                                 @click="toggleSelect(file.id)">
                                 <span class="material-symbols-outlined text-lg" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex items-center gap-1.5">
@@ -425,7 +415,7 @@
                                      draggable="true"
                                      @dragstart="onFileDragStart($event, file)"
                                      @dragend="onFileDragEnd()"
-                                     @click="previewFile(file)"
+                                     @click="toggleSelect(file.id)"
                                      @contextmenu.prevent="showFileMenu($event, file)">
                                     <input type="checkbox" :checked="selectedFiles.includes(file.id)" @click.stop="toggleSelect(file.id)"
                                            class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50 w-4 h-4">
@@ -489,7 +479,7 @@
                                      draggable="true"
                                      @dragstart="onFileDragStart($event, file)"
                                      @dragend="onFileDragEnd()"
-                                     @click="previewFile(file)"
+                                     @click="toggleSelect(file.id)"
                                      @contextmenu.prevent="showFileMenu($event, file)">
                                     <span x-show="file.is_archived"
                                           class="absolute top-1 right-1 text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
@@ -1182,6 +1172,7 @@
                                     <span x-text="t"></span>
                                 </button>
                             </template>
+                            {% if is_admin %}
                             <button type="button"
                                     @click="wikiModal.customTopic = true; wikiModal.topic = ''; $nextTick(() => $refs.wikiTopicInput && $refs.wikiTopicInput.focus())"
                                     class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
@@ -1190,14 +1181,17 @@
                                         : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-violet-100 dark:hover:bg-violet-900/30'">
                                 + {{ _('新建') }}
                             </button>
+                            {% endif %}
                         </div>
+                        {% if is_admin %}
                         <input type="text" x-model="wikiModal.topic"
                                x-ref="wikiTopicInput"
                                x-show="!wikiModal.existingTopics || wikiModal.existingTopics.length === 0 || wikiModal.customTopic"
                                @keydown.enter="submitWikiAdd()"
                                placeholder="输入新 topic，如 product / competitor / guide ..."
                                class="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 border-0 text-sm focus:ring-2 focus:ring-violet-500/50 placeholder:text-slate-400">
-                        <p class="text-[11px] text-slate-400 mt-1.5">{{ _('英文小写，用于文件夹分类。同 topic 的文章会自动建立交叉引用。') }}</p>
+                        {% endif %}
+                        <p class="text-[11px] text-slate-400 mt-1.5">{{ _('选择分类目录。同分类的文章会自动建立交叉引用。') }}</p>
                     </div>
                     <div class="flex gap-2">
                         <button @click="wikiModal.show = false"

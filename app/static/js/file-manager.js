@@ -120,6 +120,8 @@ function fileManager() {
                 await this._loadKbStatusForFiles();
                 // 加载 Wiki 状态（已编译标记 + 编译中标记）
                 await this._loadWikiStatusForFiles();
+                // 有 processing 状态的文件时，启动轮询
+                this._startWikiPollIfNeeded();
             }
             this.loading = false;
         },
@@ -858,6 +860,24 @@ function fileManager() {
             } catch (e) { /* 静默 */ }
         },
 
+        _startWikiPollIfNeeded() {
+            if (this._wikiPollTimer) return;
+            const hasProcessing = Object.values(this.wikiFileStatus).some(s => s.status === 'processing')
+                || this.wikiCompilingIds.length > 0;
+            if (!hasProcessing) return;
+            this._wikiPollTimer = setInterval(async () => {
+                await this._loadWikiStatusForFiles();
+                const still = Object.values(this.wikiFileStatus).some(s => s.status === 'processing')
+                    || this.wikiCompilingIds.length > 0;
+                if (!still) {
+                    clearInterval(this._wikiPollTimer);
+                    this._wikiPollTimer = null;
+                    // 清除前端编译 id 列表（后端已完成）
+                    this.wikiCompilingIds = [];
+                }
+            }, 10000);
+        },
+
         getWikiStatus(file) {
             return this.wikiFileStatus[String(file.file_library_id)] || { in_wiki: false };
         },
@@ -867,7 +887,9 @@ function fileManager() {
         },
 
         isFileCompiling(file) {
-            return this.wikiCompilingIds.includes(file.id);
+            if (this.wikiCompilingIds.includes(file.id)) return true;
+            const ws = this.getWikiStatus(file);
+            return ws.status === 'processing';
         },
 
         // 右键菜单: 打开 Wiki 添加弹窗
@@ -915,6 +937,7 @@ function fileManager() {
                 }
                 // 成功时：后端异步编译，等系统通知。先刷新状态
                 await this._loadWikiStatusForFiles();
+                this._startWikiPollIfNeeded();
             } catch (e) {
                 this.showToast('error', e.message);
                 this.wikiCompilingIds = this.wikiCompilingIds.filter(id => id !== file.id);

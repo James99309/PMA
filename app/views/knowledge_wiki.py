@@ -28,8 +28,9 @@ from flask_login import current_user, login_required
 
 from app import db
 from app.models.file_manager import FileLibrary, UserFileRef
-from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle, KnowledgePromotionRequest
 from app.models.message import Message
+from app.models.user import User
 from app.services.file_manager_service import FileManagerService
 from app.services.wiki import compiler, linter, querier, storage
 from app.services.wiki.paths import ensure_wiki_structure
@@ -62,7 +63,11 @@ def _require_admin():
 def wiki_page():
     """Wiki 主页面 —— 侧栏目录 + 正文 + 问答区"""
     ensure_wiki_structure()
-    return render_template('knowledge/tw_wiki.html', is_admin=_is_admin())
+    return render_template(
+        'knowledge/tw_wiki.html',
+        is_admin=_is_admin(),
+        is_dept_manager=getattr(current_user, 'is_department_manager', False),
+    )
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -72,8 +77,9 @@ def wiki_page():
 @knowledge_wiki_bp.route('/api/wiki/raw-files', methods=['GET'])
 @login_required
 def list_raw_files():
+    from app.services.wiki.scope import visible_raw_files_query
     topic = (request.args.get('topic') or '').strip()
-    q = KnowledgeRawFile.query
+    q = visible_raw_files_query(current_user)
     if topic:
         q = q.filter_by(topic=topic)
     items = q.order_by(KnowledgeRawFile.created_at.desc()).all()
@@ -89,11 +95,9 @@ def add_raw_file():
         file_library_id: int (必填)
         topic: str (必填)
         title: str (可选，默认用 file_library.original_filename)
+        scope: str (可选，默认 'personal')
     """
-    guard = _require_admin()
-    if guard:
-        return guard
-
+    # 不再要求 admin — scope 权限由 can_write_scope 控制
     data = request.get_json(silent=True) or {}
     fl_id = data.get('file_library_id')
     topic = (data.get('topic') or '').strip()
@@ -107,6 +111,13 @@ def add_raw_file():
         storage.validate_topic(topic)
     except storage.WikiPathError as e:
         return jsonify({'success': False, 'message': str(e)}), 400
+
+    # 非管理员只能选已有 topic
+    if current_user.role not in ('admin', 'ceo'):
+        existing_topics = {t[0] for t in db.session.query(KnowledgeRawFile.topic).distinct().all()}
+        existing_topics |= {t[0] for t in db.session.query(KnowledgeWikiArticle.topic).distinct().all()}
+        if topic not in existing_topics:
+            return jsonify({'success': False, 'message': '只能选择已有的分类目录'}), 403
 
     fl = FileLibrary.query.get(fl_id)
     if not fl:
@@ -123,16 +134,106 @@ def add_raw_file():
     safe_name = storage.dated_filename(fl.original_filename)
     raw_path = storage.save_raw_file(topic, safe_name, content)
 
+    # scope 参数（默认 personal）
+    scope = (data.get('scope') or 'personal').strip()
+    if scope not in ('personal', 'department', 'company', 'system'):
+        scope = 'personal'
+    from app.services.wiki.scope import can_write_scope
+    if not can_write_scope(current_user, scope):
+        return jsonify({'success': False, 'message': f'无权限写入 {scope} 级别'}), 403
+
     raw = KnowledgeRawFile(
         file_library_id=fl.id,
         topic=topic,
         raw_path=raw_path,
         title=title or fl.original_filename,
         added_by=current_user.id,
+        scope=scope,
+        owner_id=current_user.id,
+        owner_department=current_user.department,
     )
     db.session.add(raw)
     db.session.commit()
-    logger.info(f'[Wiki] user={current_user.id} 新增 raw_file id={raw.id} topic={topic}')
+    logger.info(f'[Wiki] user={current_user.id} 新增 raw_file id={raw.id} topic={topic} scope={scope}')
+    return jsonify({'success': True, 'data': raw.to_dict()})
+
+
+@knowledge_wiki_bp.route('/api/wiki/upload-and-add', methods=['POST'])
+@login_required
+def upload_and_add():
+    """直接上传文件 → file_library + raw_file 一步完成
+
+    Form fields:
+        file: 上传的文件 (必填)
+        topic: str (必填)
+        title: str (可选，默认用文件名)
+        scope: str (可选，默认 'personal')
+    """
+    # 不再要求 admin — scope 权限由 can_write_scope 控制
+    file_obj = request.files.get('file')
+    topic = (request.form.get('topic') or '').strip()
+    title = (request.form.get('title') or '').strip()
+
+    if not file_obj or not file_obj.filename:
+        return jsonify({'success': False, 'message': '请选择文件'}), 400
+    if not topic:
+        return jsonify({'success': False, 'message': 'topic 必填'}), 400
+
+    try:
+        storage.validate_topic(topic)
+    except storage.WikiPathError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+    # 非管理员只能选已有 topic
+    if current_user.role not in ('admin', 'ceo'):
+        existing_topics = {t[0] for t in db.session.query(KnowledgeRawFile.topic).distinct().all()}
+        existing_topics |= {t[0] for t in db.session.query(KnowledgeWikiArticle.topic).distinct().all()}
+        if topic not in existing_topics:
+            return jsonify({'success': False, 'message': '只能选择已有的分类目录'}), 403
+
+    # 1. 上传到 file_library（SHA256 去重）
+    success, result = FileManagerService.upload_file(current_user, file_obj)
+    if not success:
+        return jsonify({'success': False, 'message': result}), 400
+
+    # result 是 UserFileRef.to_dict()，取 file_library_id
+    fl_id = result.get('file_library_id')
+    fl = FileLibrary.query.get(fl_id)
+    if not fl:
+        return jsonify({'success': False, 'message': '文件存储异常'}), 500
+
+    # 2. 读取文件内容并保存到 raw 目录
+    content = FileManagerService.read_file_content_auto_decompress(fl)
+    if content is None:
+        return jsonify({'success': False, 'message': '无法读取上传的文件内容'}), 500
+
+    ensure_wiki_structure()
+
+    safe_name = storage.dated_filename(fl.original_filename)
+    raw_path = storage.save_raw_file(topic, safe_name, content)
+
+    # scope 参数
+    scope = (request.form.get('scope') or 'personal').strip()
+    if scope not in ('personal', 'department', 'company', 'system'):
+        scope = 'personal'
+    from app.services.wiki.scope import can_write_scope
+    if not can_write_scope(current_user, scope):
+        return jsonify({'success': False, 'message': f'无权限写入 {scope} 级别'}), 403
+
+    raw = KnowledgeRawFile(
+        file_library_id=fl.id,
+        topic=topic,
+        raw_path=raw_path,
+        title=title or fl.original_filename,
+        added_by=current_user.id,
+        scope=scope,
+        owner_id=current_user.id,
+        owner_department=current_user.department,
+    )
+    db.session.add(raw)
+    db.session.commit()
+
+    logger.info(f'[Wiki] upload-and-add user={current_user.id} raw_id={raw.id} topic={topic} scope={scope}')
     return jsonify({'success': True, 'data': raw.to_dict()})
 
 
@@ -147,11 +248,8 @@ def add_raw_from_file_ref():
         title: str (可选)
 
     内部解析 file_ref → file_library_id，复用 add_raw_file 逻辑。
+    权限由 scope + can_write_scope 控制，不再限制仅 admin。
     """
-    guard = _require_admin()
-    if guard:
-        return guard
-
     data = request.get_json(silent=True) or {}
     ref_id = data.get('user_file_ref_id')
     topic = (data.get('topic') or '').strip()
@@ -164,6 +262,13 @@ def add_raw_from_file_ref():
         storage.validate_topic(topic)
     except storage.WikiPathError as e:
         return jsonify({'success': False, 'message': str(e)}), 400
+
+    # 非管理员只能选已有 topic
+    if current_user.role not in ('admin', 'ceo'):
+        existing_topics = {t[0] for t in db.session.query(KnowledgeRawFile.topic).distinct().all()}
+        existing_topics |= {t[0] for t in db.session.query(KnowledgeWikiArticle.topic).distinct().all()}
+        if topic not in existing_topics:
+            return jsonify({'success': False, 'message': '只能选择已有的分类目录'}), 403
 
     from app.models.file_manager import UserFileRef
     ref = UserFileRef.query.get(ref_id)
@@ -183,17 +288,28 @@ def add_raw_from_file_ref():
     safe_name = storage.dated_filename(fl.original_filename)
     raw_path = storage.save_raw_file(topic, safe_name, content)
 
+    # scope 参数
+    scope = (data.get('scope') or 'personal').strip()
+    if scope not in ('personal', 'department', 'company', 'system'):
+        scope = 'personal'
+    from app.services.wiki.scope import can_write_scope
+    if not can_write_scope(current_user, scope):
+        return jsonify({'success': False, 'message': f'无权限写入 {scope} 级别'}), 403
+
     raw = KnowledgeRawFile(
         file_library_id=fl.id,
         topic=topic,
         raw_path=raw_path,
         title=title or ref.display_name or fl.original_filename,
         added_by=current_user.id,
+        scope=scope,
+        owner_id=current_user.id,
+        owner_department=current_user.department,
     )
     db.session.add(raw)
     db.session.commit()
 
-    logger.info(f'[Wiki] from-file-ref user={current_user.id} ref={ref_id} → raw_id={raw.id} topic={topic}')
+    logger.info(f'[Wiki] from-file-ref user={current_user.id} ref={ref_id} → raw_id={raw.id} topic={topic} scope={scope}')
 
     # 异步触发 Ingest —— 不阻塞前端，编译完成后通过 Message 通知用户
     user_id = current_user.id
@@ -214,10 +330,14 @@ def add_raw_from_file_ref():
 @knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>/ingest', methods=['POST'])
 @login_required
 def trigger_ingest(raw_id):
-    """触发 Claude Opus 编译一个原始文件。**同步**阻塞约 30-60 秒。"""
-    guard = _require_admin()
-    if guard:
-        return guard
+    """触发 Claude Opus 编译一个原始文件。**同步**阻塞约 30-60 秒。
+    权限：admin/ceo 或文件所有者可触发。
+    """
+    raw = KnowledgeRawFile.query.get(raw_id)
+    if not raw:
+        return jsonify({'success': False, 'message': '记录不存在'}), 404
+    if not _is_admin() and raw.owner_id != current_user.id:
+        return jsonify({'success': False, 'message': '只有文件所有者或管理员可以触发编译'}), 403
 
     try:
         result = compiler.ingest_raw_file(raw_id)
@@ -233,14 +353,14 @@ def trigger_ingest(raw_id):
 @knowledge_wiki_bp.route('/api/wiki/raw-files/<int:raw_id>', methods=['DELETE'])
 @login_required
 def delete_raw_file(raw_id):
-    """删除原始文件登记 + 磁盘文件。**不会删除已生成的文章**。"""
-    guard = _require_admin()
-    if guard:
-        return guard
-
+    """删除原始文件登记 + 磁盘文件。**不会删除已生成的文章**。
+    权限：admin/ceo 或文件所有者可删除。
+    """
     raw = KnowledgeRawFile.query.get(raw_id)
     if not raw:
         return jsonify({'success': False, 'message': '记录不存在'}), 404
+    if not _is_admin() and raw.owner_id != current_user.id:
+        return jsonify({'success': False, 'message': '只有文件所有者或管理员可以删除'}), 403
 
     try:
         storage.delete_raw_file(raw.raw_path)
@@ -259,8 +379,9 @@ def delete_raw_file(raw_id):
 @knowledge_wiki_bp.route('/api/wiki/articles', methods=['GET'])
 @login_required
 def list_articles():
+    from app.services.wiki.scope import visible_articles_query
     topic = (request.args.get('topic') or '').strip()
-    q = KnowledgeWikiArticle.query
+    q = visible_articles_query(current_user)
     if topic:
         q = q.filter_by(topic=topic)
     items = q.order_by(KnowledgeWikiArticle.topic, KnowledgeWikiArticle.slug).all()
@@ -270,18 +391,360 @@ def list_articles():
 @knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>', methods=['GET'])
 @login_required
 def get_article(article_id):
-    art = KnowledgeWikiArticle.query.get(article_id)
+    from app.services.wiki.scope import visible_articles_query
+    art = visible_articles_query(current_user).filter_by(id=article_id).first()
     if not art:
         return jsonify({'success': False, 'message': '文章不存在'}), 404
     return jsonify({'success': True, 'data': art.to_dict(include_content=True)})
 
 
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>', methods=['DELETE'])
+@login_required
+def delete_article(article_id):
+    """删除文章（磁盘 + DB）。仅 admin/ceo 可操作。"""
+    guard = _require_admin()
+    if guard:
+        return guard
+
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if not art:
+        return jsonify({'success': False, 'message': '文章不存在'}), 404
+
+    # 删除磁盘文件
+    try:
+        storage.delete_article_file(art.file_path)
+    except Exception as e:
+        logger.warning(f'[Wiki] 删除文章磁盘文件失败（继续删 DB）: {e}')
+
+    db.session.delete(art)
+    db.session.commit()
+    logger.info(f'[Wiki] user={current_user.id} 删除文章 id={article_id} title={art.title}')
+    return jsonify({'success': True, 'message': '文章已删除'})
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/scope', methods=['PATCH'])
+@login_required
+def change_article_scope(article_id):
+    """调整文章 scope 等级。
+
+    权限规则：
+    - admin/ceo: 可任意调整
+    - 部门经理: 可在 personal ↔ department 之间调整本部门文章
+    - 普通用户: 只能调整自己的 personal 文章到 department（如有部门）
+    """
+    from app.services.wiki.scope import can_manage_article
+
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if not art:
+        return jsonify({'success': False, 'message': '文章不存在'}), 404
+
+    data = request.get_json(silent=True) or {}
+    new_scope = data.get('scope', '').strip()
+    valid_scopes = ('personal', 'department', 'company', 'system')
+    if new_scope not in valid_scopes:
+        return jsonify({'success': False, 'message': f'无效 scope: {new_scope}'}), 400
+
+    if new_scope == art.scope:
+        return jsonify({'success': True, 'message': '等级未变化', 'data': art.to_dict()})
+
+    # 权限检查
+    if not can_manage_article(current_user, art):
+        return jsonify({'success': False, 'message': '没有权限管理此文章'}), 403
+
+    # 非 admin：检查是否超出权限范围 → 需要提交申请
+    if current_user.role not in ('admin', 'ceo'):
+        needs_approval = False
+        if new_scope in ('company', 'system'):
+            needs_approval = True
+        elif new_scope == 'department' and not current_user.is_department_manager:
+            # 普通员工提升到部门级也需要部门经理审批
+            needs_approval = True
+
+        if needs_approval:
+            return jsonify({
+                'success': False,
+                'needs_approval': True,
+                'message': '超出权限范围，请提交晋升申请',
+            }), 403
+
+    old_scope = art.scope
+    art.scope = new_scope
+    # 确保 owner 字段完整（"哪里来回哪里去"）
+    if not art.owner_id:
+        art.owner_id = current_user.id
+    if not art.owner_department and art.owner:
+        art.owner_department = art.owner.department
+    db.session.commit()
+
+    logger.info(f'[Wiki] user={current_user.id} 调整文章 id={article_id} scope: {old_scope} → {new_scope}')
+    return jsonify({'success': True, 'message': f'已调整为{new_scope}级别', 'data': art.to_dict()})
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/promote', methods=['POST'])
+@login_required
+def submit_promotion_request(article_id):
+    """提交文章晋升申请。
+
+    自动确定审核人：
+    - → department: 本部门经理
+    - → company: admin/ceo
+    - → system: admin/ceo
+    如果目标级别找不到审核人，向上级查找。
+    """
+    try:
+        from app.services.wiki.scope import visible_articles_query
+        art = visible_articles_query(current_user).filter_by(id=article_id).first()
+        if not art:
+            return jsonify({'success': False, 'message': '文章不存在'}), 404
+
+        data = request.get_json(silent=True) or {}
+        to_scope = data.get('to_scope', '').strip()
+        request_note = data.get('reason', '').strip()
+
+        valid_scopes = ('department', 'company', 'system')
+        if to_scope not in valid_scopes:
+            return jsonify({'success': False, 'message': '无效的目标等级'}), 400
+
+        if not request_note:
+            return jsonify({'success': False, 'message': '请填写申请理由'}), 400
+
+        # 检查是否已有 pending 申请
+        existing = KnowledgePromotionRequest.query.filter_by(
+            article_id=article_id, status='pending'
+        ).first()
+        if existing:
+            return jsonify({'success': False, 'message': '该文章已有待审核的晋升申请'}), 400
+
+        # 确定审核人
+        reviewer_id = _find_promotion_reviewer(to_scope, current_user)
+        if not reviewer_id:
+            return jsonify({'success': False, 'message': '找不到合适的审核人，请联系管理员'}), 400
+
+        # 确保文章 owner_department 已填充
+        if not art.owner_department:
+            art.owner_department = current_user.department
+
+        # 创建申请（先 flush 拿到 ID）
+        req = KnowledgePromotionRequest(
+            article_id=article_id,
+            from_scope=art.scope,
+            to_scope=to_scope,
+            requested_by=current_user.id,
+            request_note=request_note,
+            assigned_to=reviewer_id,
+        )
+        db.session.add(req)
+        db.session.flush()  # 分配 req.id
+
+        # 通知审核人
+        scope_labels = {'department': '部门', 'company': '公司', 'system': '系统'}
+        requester_name = current_user.real_name or current_user.username
+        reviewer = db.session.get(User, reviewer_id)
+        reviewer_name = (reviewer.real_name or reviewer.username) if reviewer else '审核人'
+
+        msg = Message(
+            message_type='wiki_promotion_request',
+            sender_id=current_user.id,
+            recipient_id=reviewer_id,
+            title=f'知识库晋升申请: {art.title}',
+            content=f'{requester_name} 申请将「{art.title}」提升为{scope_labels.get(to_scope, to_scope)}级',
+            related_object_type='wiki_promotion',
+            related_object_id=article_id,
+            extra_data={
+                'promotion_request_id': req.id,
+                'article_id': article_id,
+                'article_title': art.title,
+                'from_scope': art.scope,
+                'to_scope': to_scope,
+            },
+        )
+        db.session.add(msg)
+
+        # 通知申请人（确认已提交）
+        msg_self = Message(
+            message_type='wiki_promotion_submitted',
+            sender_id=current_user.id,
+            recipient_id=current_user.id,
+            title=f'晋升申请已提交',
+            content=f'您的「{art.title}」晋升申请已提交给 {reviewer_name} 审核',
+            related_object_type='wiki_promotion',
+            related_object_id=article_id,
+            extra_data={'article_id': article_id},
+        )
+        db.session.add(msg_self)
+
+        db.session.commit()
+
+        logger.info(f'[Wiki] user={current_user.id} 提交晋升申请 article={article_id} '
+                    f'{art.scope}→{to_scope} reviewer={reviewer_id}')
+        return jsonify({'success': True, 'message': f'申请已提交给 {reviewer_name}', 'data': req.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'[Wiki] 提交晋升申请失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': f'服务器错误: {str(e)}'}), 500
+
+
+@knowledge_wiki_bp.route('/api/wiki/promotion-requests/<int:request_id>', methods=['PATCH'])
+@login_required
+def review_promotion_request(request_id):
+    """审核晋升申请（通过/拒绝）。"""
+    try:
+        req = KnowledgePromotionRequest.query.get(request_id)
+        if not req:
+            return jsonify({'success': False, 'message': '申请不存在'}), 404
+
+        if req.status != 'pending':
+            return jsonify({'success': False, 'message': '该申请已处理'}), 400
+
+        # 只有指定审核人或 admin/ceo 可以审核
+        if req.assigned_to != current_user.id and current_user.role not in ('admin', 'ceo'):
+            return jsonify({'success': False, 'message': '没有审核权限'}), 403
+
+        data = request.get_json(silent=True) or {}
+        action = data.get('action', '').strip()
+        review_note = data.get('review_note', '').strip()
+
+        if action not in ('approve', 'reject'):
+            return jsonify({'success': False, 'message': '无效的审核动作'}), 400
+
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        req.status = 'approved' if action == 'approve' else 'rejected'
+        req.reviewed_by = current_user.id
+        req.review_note = review_note
+        req.reviewed_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
+
+        # 如果通过，实际变更 scope
+        art = req.article
+        if action == 'approve' and art:
+            old_scope = art.scope
+            art.scope = req.to_scope
+            # 确保 owner_department 填充（降级时自动回到原部门）
+            if not art.owner_department and art.owner:
+                art.owner_department = art.owner.department
+            logger.info(f'[Wiki] 晋升审核通过 article={art.id} {old_scope}→{req.to_scope} by user={current_user.id}')
+
+        # 通知申请人
+        scope_labels = {'personal': '个人', 'department': '部门', 'company': '公司', 'system': '系统'}
+        reviewer_name = current_user.real_name or current_user.username
+        action_text = '通过' if action == 'approve' else '拒绝'
+        msg = Message(
+            message_type='wiki_promotion_result',
+            sender_id=current_user.id,
+            recipient_id=req.requested_by,
+            title=f'晋升申请已{action_text}',
+            content=f'{reviewer_name} 已{action_text}「{art.title}」提升为{scope_labels.get(req.to_scope, req.to_scope)}级'
+                    + (f'，备注：{review_note}' if review_note else ''),
+            related_object_type='wiki_promotion',
+            related_object_id=art.id if art else None,
+            extra_data={'article_id': art.id if art else None, 'action': action},
+        )
+        db.session.add(msg)
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': f'已{action_text}', 'data': req.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'[Wiki] 审核晋升申请失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': f'服务器错误: {str(e)}'}), 500
+
+
+@knowledge_wiki_bp.route('/api/wiki/promotion-requests', methods=['GET'])
+@login_required
+def list_promotion_requests():
+    """获取与当前用户相关的晋升申请列表。"""
+    try:
+        q = KnowledgePromotionRequest.query
+        # 普通用户只看自己提交的和自己需要审核的
+        if current_user.role not in ('admin', 'ceo'):
+            q = q.filter(
+                db.or_(
+                    KnowledgePromotionRequest.requested_by == current_user.id,
+                    KnowledgePromotionRequest.assigned_to == current_user.id,
+                )
+            )
+        requests = q.order_by(KnowledgePromotionRequest.created_at.desc()).limit(50).all()
+        return jsonify({'success': True, 'data': [r.to_dict() for r in requests]})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'[Wiki] 查询晋升申请失败: {e}', exc_info=True)
+        return jsonify({'success': True, 'data': []})
+
+
+def _find_promotion_reviewer(to_scope: str, requester) -> int | None:
+    """根据目标 scope 确定审核人。
+
+    规则：
+    - department: 本部门经理（如果没有，找 admin/ceo）
+    - company: admin/ceo
+    - system: admin/ceo
+    """
+    if to_scope == 'department' and requester.department:
+        # 找本部门经理
+        manager = User.query.filter_by(
+            department=requester.department,
+            is_department_manager=True,
+            is_active=True,
+        ).filter(User.id != requester.id).first()
+        if manager:
+            return manager.id
+
+    # company/system 或找不到部门经理 → 找 admin/ceo
+    admin = User.query.filter(
+        User.role.in_(['admin', 'ceo']),
+        User.is_active == True,
+        User.id != requester.id,
+    ).first()
+    if admin:
+        return admin.id
+
+    return None
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/recompile', methods=['POST'])
+@login_required
+def recompile_article(article_id):
+    """重新编译文章关联的 raw file。"""
+    guard = _require_admin()
+    if guard:
+        return guard
+
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if not art:
+        return jsonify({'success': False, 'message': '文章不存在'}), 404
+
+    raw_ids = art.source_raw_ids or []
+    if not raw_ids:
+        return jsonify({'success': False, 'message': '该文章没有关联的原始文件'}), 400
+
+    # 编译第一个关联 raw file
+    raw_id = raw_ids[0]
+    raw = KnowledgeRawFile.query.get(raw_id)
+    if not raw:
+        return jsonify({'success': False, 'message': f'原始文件 raw_id={raw_id} 不存在'}), 404
+
+    try:
+        result = compiler.ingest_raw_file(raw_id)
+    except compiler.IngestError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+    except Exception:
+        logger.exception(f'[Wiki] recompile 失败 article_id={article_id} raw_id={raw_id}')
+        return jsonify({'success': False, 'message': '重新编译失败'}), 500
+
+    return jsonify({'success': True, 'data': result})
+
+
 @knowledge_wiki_bp.route('/api/wiki/tree', methods=['GET'])
 @login_required
 def get_tree():
-    """返回 topic → [articles] 的树结构，供前端侧栏渲染。"""
+    """返回 topic → [articles] 的树结构，供前端侧栏渲染。
+
+    每篇文章带 scope/owner_name 字段，前端用于显示标签和过滤。
+    """
+    from app.services.wiki.scope import visible_articles_query, can_manage_article
     items = (
-        KnowledgeWikiArticle.query
+        visible_articles_query(current_user)
         .order_by(KnowledgeWikiArticle.topic, KnowledgeWikiArticle.slug)
         .all()
     )
@@ -292,9 +755,25 @@ def get_tree():
             'slug': art.slug,
             'title': art.title,
             'summary': art.summary,
+            'source_raw_ids': art.source_raw_ids or [],
             'updated_at': art.updated_at.isoformat() if art.updated_at else None,
+            'scope': art.scope,
+            'owner_id': art.owner_id,
+            'owner_name': (art.owner.real_name or art.owner.username) if art.owner else None,
+            'is_mine': art.owner_id == current_user.id,
+            'can_manage': can_manage_article(current_user, art),
         })
     return jsonify({'success': True, 'data': tree})
+
+
+@knowledge_wiki_bp.route('/api/wiki/topics', methods=['GET'])
+@login_required
+def list_topics():
+    """返回已有的 topic 列表（去重）。"""
+    raw_topics = db.session.query(KnowledgeRawFile.topic).distinct().all()
+    art_topics = db.session.query(KnowledgeWikiArticle.topic).distinct().all()
+    topics = sorted(set(t[0] for t in raw_topics + art_topics if t[0]))
+    return jsonify({'success': True, 'data': topics})
 
 
 @knowledge_wiki_bp.route('/api/wiki/index', methods=['GET'])
@@ -378,7 +857,7 @@ def file_wiki_status():
         fid = str(raw.file_library_id)
         if fid not in status_map or (raw.created_at and status_map.get(fid, {}).get('_t') and raw.created_at > status_map[fid]['_t']):
             status_map[fid] = {
-                'in_wiki': True,
+                'in_wiki': raw.ingest_status == 'ingested',
                 'raw_id': raw.id,
                 'status': raw.ingest_status,
                 'topic': raw.topic,

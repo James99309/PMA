@@ -101,3 +101,7 @@ duckduckgo-search>=7.0.0
 
 # PDF 平面图导入（系统图编辑器）
 PyMuPDF>=1.25.0
+
+# Wiki 知识库编译 — HTTP 客户端 + JSON 修复
+httpx>=0.27.0
+json-repair>=0.30.0

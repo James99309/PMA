@@ -124,30 +124,10 @@ def _skill_section(user) -> str:
 # ─── 记忆索引(动态,每用户不同)──────────────────────────────────────
 
 def _memory_section(user) -> str:
-    """从数据库加载当前用户可见的记忆索引。"""
-    try:
-        from app.models.cli_memory import CliMemory
-        from sqlalchemy import or_, and_
-
-        user_role = getattr(user, 'role', '')
-        memories = CliMemory.query.filter(
-            CliMemory.is_active == True,
-            or_(
-                CliMemory.scope == 'system',
-                CliMemory.scope == f'role:{user_role}',
-                and_(CliMemory.scope == 'personal', CliMemory.user_id == user.id),
-            )
-        ).order_by(CliMemory.scope, CliMemory.id).limit(50).all()
-    except Exception:
-        return ''
-
-    if not memories:
-        return ''
-
-    lines = ['\n[记忆索引（如需详情调用 recall_memory(id)）]']
-    for m in memories:
-        lines.append(m.to_index_line())
-    return '\n'.join(lines) + '\n'
+    """从数据库加载当前用户可见的记忆索引（实际实现在共享 helper 里，
+    CLI 与 Chat 两端共用同一张 cli_memories 表）。"""
+    from app.services.cli_memory_helper import build_memory_index_section
+    return build_memory_index_section(user)
 
 
 # ─── 动态段(session 级稳定,每用户不同)─────────────────────────────────

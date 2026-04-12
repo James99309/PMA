@@ -78,11 +78,22 @@ class KnowledgeRawFile(db.Model):
     added_by = Column(Integer, ForeignKey('users.id'), nullable=False)
     created_at = Column(DateTime, default=get_local_time)
 
+    # ── scope 分级权限 ──
+    scope = Column(String(20), nullable=False, default='personal', index=True)
+    # 'personal' / 'department' / 'company' / 'system'
+    owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    # 内容所有者（= added_by，晋升后不变）
+    owner_department = Column(String(100), nullable=True, index=True)
+    # 所属部门（冗余存储，scope=department 时用于过滤）
+
     file_library = relationship('FileLibrary')
     adder = relationship('User', foreign_keys=[added_by])
+    owner = relationship('User', foreign_keys=[owner_id])
 
     __table_args__ = (
         Index('ix_knowledge_raw_topic_status', 'topic', 'ingest_status'),
+        Index('ix_knowledge_raw_scope_dept', 'scope', 'owner_department'),
+        Index('ix_knowledge_raw_scope_owner', 'scope', 'owner_id'),
     )
 
     def to_dict(self):
@@ -99,6 +110,10 @@ class KnowledgeRawFile(db.Model):
             'adder_name': (self.adder.real_name or self.adder.username) if self.adder else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'file_name': self.file_library.original_filename if self.file_library else None,
+            'scope': self.scope,
+            'owner_id': self.owner_id,
+            'owner_department': self.owner_department,
+            'owner_name': (self.owner.real_name or self.owner.username) if self.owner else None,
         }
 
 
@@ -129,8 +144,17 @@ class KnowledgeWikiArticle(db.Model):
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
 
+    # ── scope 分级权限 ──
+    scope = Column(String(20), nullable=False, default='personal', index=True)
+    owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    owner_department = Column(String(100), nullable=True, index=True)
+
+    owner = relationship('User', foreign_keys=[owner_id])
+
     __table_args__ = (
         Index('ix_wiki_article_topic_slug', 'topic', 'slug', unique=True),
+        Index('ix_wiki_article_scope_dept', 'scope', 'owner_department'),
+        Index('ix_wiki_article_scope_owner', 'scope', 'owner_id'),
         # PG 全文检索 GIN 索引由 migration 里手写 SQL 创建
     )
 
@@ -149,8 +173,93 @@ class KnowledgeWikiArticle(db.Model):
             'compile_model': self.compile_model,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'scope': self.scope,
+            'owner_id': self.owner_id,
+            'owner_department': self.owner_department,
+            'owner_name': (self.owner.real_name or self.owner.username) if self.owner else None,
         }
         if include_content:
             from app.services.wiki.storage import read_article_content
             d['content'] = read_article_content(self.file_path)
         return d
+
+
+class KnowledgePromotionRequest(db.Model):
+    """知识库内容晋升/降级申请"""
+    __tablename__ = 'knowledge_promotion_requests'
+
+    id = Column(Integer, primary_key=True)
+
+    article_id = Column(Integer, ForeignKey('knowledge_wiki_articles.id'), nullable=False, index=True)
+    from_scope = Column(String(20), nullable=False)
+    to_scope = Column(String(20), nullable=False)
+
+    requested_by = Column(Integer, ForeignKey('users.id'), nullable=False)
+    request_note = Column(Text, nullable=True)
+
+    # 指定审核人（提交时自动确定）
+    assigned_to = Column(Integer, ForeignKey('users.id'), nullable=True, index=True)
+
+    status = Column(String(20), default='pending', nullable=False, index=True)
+    # 'pending' / 'approved' / 'rejected'
+    reviewed_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    review_note = Column(Text, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=get_local_time)
+
+    article = relationship('KnowledgeWikiArticle', foreign_keys=[article_id])
+    requester = relationship('User', foreign_keys=[requested_by])
+    assignee = relationship('User', foreign_keys=[assigned_to])
+    reviewer = relationship('User', foreign_keys=[reviewed_by])
+
+    __table_args__ = (
+        Index('ix_promotion_assigned_status', 'assigned_to', 'status'),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'article_id': self.article_id,
+            'article_title': self.article.title if self.article else None,
+            'article_topic': self.article.topic if self.article else None,
+            'from_scope': self.from_scope,
+            'to_scope': self.to_scope,
+            'requested_by': self.requested_by,
+            'requester_name': (self.requester.real_name or self.requester.username) if self.requester else None,
+            'request_note': self.request_note,
+            'assigned_to': self.assigned_to,
+            'assignee_name': (self.assignee.real_name or self.assignee.username) if self.assignee else None,
+            'status': self.status,
+            'reviewed_by': self.reviewed_by,
+            'reviewer_name': (self.reviewer.real_name or self.reviewer.username) if self.reviewer else None,
+            'review_note': self.review_note,
+            'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class KnowledgeShareGrant(db.Model):
+    """跨部门/跨人分享授权（不改变文章 scope，只扩展可见范围）"""
+    __tablename__ = 'knowledge_share_grants'
+
+    id = Column(Integer, primary_key=True)
+
+    article_id = Column(Integer, ForeignKey('knowledge_wiki_articles.id'), nullable=False, index=True)
+    grant_type = Column(String(20), nullable=False)
+    # 'department' — 授权给一个部门
+    # 'user' — 授权给一个人
+    grant_target = Column(String(100), nullable=False)
+    # grant_type='department' → 部门名
+    # grant_type='user' → user_id (as string)
+
+    granted_by = Column(Integer, ForeignKey('users.id'), nullable=False)
+    created_at = Column(DateTime, default=get_local_time)
+
+    article = relationship('KnowledgeWikiArticle', foreign_keys=[article_id])
+    granter = relationship('User', foreign_keys=[granted_by])
+
+    __table_args__ = (
+        Index('ix_share_grant_article', 'article_id'),
+        Index('ix_share_grant_target', 'grant_type', 'grant_target'),
+    )

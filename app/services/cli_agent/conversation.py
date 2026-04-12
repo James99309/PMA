@@ -21,6 +21,22 @@ def text_block(text: str) -> dict:
     return {'type': 'text', 'text': text}
 
 
+def image_block(base64_data: str, media_type: str = 'image/png') -> dict:
+    """图片块 — Claude Vision"""
+    return {
+        'type': 'image',
+        'source': {'type': 'base64', 'media_type': media_type, 'data': base64_data},
+    }
+
+
+def document_block(base64_data: str, media_type: str = 'application/pdf') -> dict:
+    """文档块 — Claude 原生 PDF 解析"""
+    return {
+        'type': 'document',
+        'source': {'type': 'base64', 'media_type': media_type, 'data': base64_data},
+    }
+
+
 def tool_use_block(name: str, tool_input: dict, tool_use_id: str | None = None) -> dict:
     """LLM 发起工具调用"""
     return {

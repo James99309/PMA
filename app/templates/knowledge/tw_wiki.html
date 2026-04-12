@@ -1,4 +1,5 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_delete_confirm_modal, tw_confirm_modal_script %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -100,36 +101,129 @@
             </div>
         </div>
 
+        <!-- Scope 过滤栏 -->
+        <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-800 flex flex-wrap gap-1.5">
+            <button @click="toggleScope('system')"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-medium transition-all"
+                    :class="scopeFilter.system ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400 ring-1 ring-blue-300 dark:ring-blue-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through'">
+                {{ _('系统') }}
+            </button>
+            <button @click="toggleScope('company')"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-medium transition-all"
+                    :class="scopeFilter.company ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 ring-1 ring-purple-300 dark:ring-purple-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through'">
+                {{ _('公司') }}
+            </button>
+            <button @click="toggleScope('department')"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-medium transition-all"
+                    :class="scopeFilter.department ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 ring-1 ring-green-300 dark:ring-green-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through'">
+                {{ _('部门') }}
+            </button>
+            <button @click="toggleScope('personal')"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-medium transition-all"
+                    :class="scopeFilter.personal ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400 ring-1 ring-orange-300 dark:ring-orange-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 line-through'">
+                {{ _('个人') }}
+            </button>
+        </div>
+
         <!-- Topic 树 -->
         <div class="flex-1 overflow-y-auto py-2">
-            <template x-if="Object.keys(tree).length === 0 && !loadingTree">
+            <template x-if="Object.keys(filteredTree).length === 0 && !loadingTree">
                 <div class="px-4 py-10 text-center text-xs text-slate-400">
                     <span class="material-symbols-outlined text-3xl mb-2">inbox</span>
-                    <p>{{ _('Wiki 为空') }}</p>
+                    <p x-show="articleCount === 0">{{ _('Wiki 为空') }}</p>
+                    <p x-show="articleCount > 0">{{ _('当前过滤条件下无文章') }}</p>
                     {% if is_admin %}
-                    <p class="mt-1">{{ _('点击右上角 ⚙ 开始管理原始资料') }}</p>
+                    <p class="mt-1" x-show="articleCount === 0">{{ _('点击右上角 ⚙ 开始管理原始资料') }}</p>
                     {% endif %}
                 </div>
             </template>
 
-            <template x-for="(articles, topic) in tree" :key="topic">
+            <template x-for="(articles, topic) in filteredTree" :key="topic">
                 <div class="mb-3">
                     <div class="px-4 py-1 text-[10px] uppercase tracking-wider text-slate-400 font-semibold"
                          x-text="topic"></div>
                     <template x-for="art in articles" :key="art.id">
-                        <button @click="openArticle(art.id)"
-                                class="w-full text-left px-4 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 flex items-start gap-2 transition-colors"
-                                :class="currentArticle && currentArticle.id === art.id ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 border-l-2 border-violet-500' : ''">
-                            <span class="material-symbols-outlined text-sm mt-0.5 flex-shrink-0 text-slate-400">article</span>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-1.5">
-                                    <span class="font-medium truncate" x-text="art.title"></span>
-                                    <span x-show="isNewArticle(art)"
-                                          class="inline-flex px-1 py-0 rounded text-[8px] font-bold bg-green-500 text-white leading-tight">NEW</span>
+                        <div class="group relative">
+                            <button @click="openArticle(art.id)"
+                                    class="w-full text-left px-4 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 flex items-start gap-2 transition-colors pr-8"
+                                    :class="currentArticle && currentArticle.id === art.id ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 border-l-2 border-violet-500' : ''">
+                                <span class="material-symbols-outlined text-sm mt-0.5 flex-shrink-0 text-slate-400">article</span>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="inline-flex px-1.5 py-0 rounded text-[9px] font-medium leading-relaxed flex-shrink-0"
+                                              :class="scopeColor(art.scope)"
+                                              x-text="scopeBadge(art)"></span>
+                                        <span class="font-medium truncate" x-text="art.title"></span>
+                                        <span x-show="isNewArticle(art)"
+                                              class="inline-flex px-1 py-0 rounded text-[8px] font-bold bg-green-500 text-white leading-tight">NEW</span>
+                                    </div>
+                                    <div class="text-[10px] text-slate-400 truncate mt-0.5" x-text="art.summary"></div>
                                 </div>
-                                <div class="text-[10px] text-slate-400 truncate mt-0.5" x-text="art.summary"></div>
+                            </button>
+                            <!-- 晋升审核按钮（待审核时常驻显示） -->
+                            <button x-show="hasPromotion(art.id)"
+                                    @click.stop="openReviewModal(getPromotion(art.id))"
+                                    class="absolute right-7 top-1/2 -translate-y-1/2 p-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-amber-600 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors z-10"
+                                    :title="'{{ _('待审核晋升申请') }}'">
+                                <span class="material-symbols-outlined text-sm">arrow_upward</span>
+                            </button>
+                            <!-- 文章操作菜单（所有用户可见） -->
+                            <div class="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                 x-data="{ menuOpen: false, menuStyle: {} }"
+                                 @click.outside="menuOpen = false">
+                                <button @click.stop="
+                                    const rect = $el.getBoundingClientRect();
+                                    const menuH = 200;
+                                    const goUp = rect.bottom + menuH > window.innerHeight;
+                                    menuStyle = {
+                                        position: 'fixed',
+                                        right: (window.innerWidth - rect.right) + 'px',
+                                        ...(goUp ? { bottom: (window.innerHeight - rect.top + 4) + 'px' } : { top: (rect.bottom + 4) + 'px' })
+                                    };
+                                    menuOpen = !menuOpen;
+                                " class="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-600">
+                                    <span class="material-symbols-outlined text-base">more_vert</span>
+                                </button>
+                                <template x-teleport="body">
+                                    <div x-show="menuOpen" x-transition @click.outside="menuOpen = false"
+                                         :style="menuStyle"
+                                         class="fixed w-44 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-[200] py-1 text-xs">
+                                        <!-- 等级调整（有管理权限时可见） -->
+                                        <template x-if="art.can_manage">
+                                            <div>
+                                                <div class="px-3 py-1.5 text-[10px] text-slate-400 font-medium">{{ _('调整等级') }}</div>
+                                                <div class="px-3 py-1 flex flex-wrap gap-1">
+                                                    <template x-for="s in ['system','company','department','personal']" :key="s">
+                                                        <button @click.stop="if(art.scope !== s){ changeScope(art.id, s); menuOpen = false; }"
+                                                                class="px-1.5 py-0.5 rounded text-[9px] font-medium transition-all"
+                                                                :class="art.scope === s
+                                                                    ? scopeColor(s) + ' ring-1 ring-offset-1 cursor-default'
+                                                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:opacity-80 cursor-pointer'"
+                                                                x-text="({system:'系统',company:'公司',department:'部门',personal:'个人'})[s]">
+                                                        </button>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </template>
+                                        {% if is_admin %}
+                                        <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
+                                        <button @click.stop="menuOpen = false; confirmDeleteArticle(art.id, art.title)"
+                                                class="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-sm">delete</span> {{ _('删除文章') }}
+                                        </button>
+                                        <button @click.stop="menuOpen = false; recompileArticle(art.id, art.source_raw_ids)"
+                                                class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-sm">refresh</span> {{ _('重新编译') }}
+                                        </button>
+                                        <button @click.stop="menuOpen = false; viewSource(art.source_raw_ids)"
+                                                class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-sm">description</span> {{ _('查看来源') }}
+                                        </button>
+                                        {% endif %}
+                                    </div>
+                                </template>
                             </div>
-                        </button>
+                        </div>
                     </template>
                 </div>
             </template>
@@ -137,7 +231,7 @@
 
         <!-- 底部统计 -->
         <div class="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
-            <span x-text="articleCount + ' {{ _('篇文章') }} · ' + Object.keys(tree).length + ' topics'"></span>
+            <span x-text="filteredArticleCount + '/' + articleCount + ' {{ _('篇文章') }} · ' + Object.keys(filteredTree).length + ' topics'"></span>
             <button @click="showIndex()"
                     class="text-primary hover:underline"
                     :title="'{{ _('查看索引') }}'">{{ _('索引') }}</button>
@@ -166,8 +260,13 @@
             <template x-if="currentArticle && !loadingArticle">
                 <div>
                     <div class="mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
-                        <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1"
-                             x-text="currentArticle.topic + ' / ' + currentArticle.slug"></div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold"
+                                 x-text="currentArticle.topic + ' / ' + currentArticle.slug"></div>
+                            <span class="inline-flex px-1.5 py-0 rounded text-[9px] font-medium leading-relaxed"
+                                  :class="scopeColor(currentArticle.scope)"
+                                  x-text="scopeBadge(currentArticle)"></span>
+                        </div>
                         <h1 class="text-2xl font-bold" x-text="currentArticle.title"></h1>
                         <p class="text-sm text-slate-500 dark:text-slate-400 mt-1" x-text="currentArticle.summary"></p>
                         <div class="mt-2 flex items-center gap-3 text-[11px] text-slate-400">
@@ -261,75 +360,65 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-4 space-y-4">
-            <!-- 上传原始文件 -->
-            <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-3">
-                <div class="text-xs font-semibold mb-2 text-slate-600 dark:text-slate-300">{{ _('添加原始资料') }}</div>
-                <form @submit.prevent="addRawFile()" class="space-y-2 text-xs">
-                    <div>
-                        <label class="block text-slate-500 mb-1">{{ _('file_library_id') }}</label>
-                        <input type="number" x-model="newRaw.file_library_id" required
-                               class="w-full px-2 py-1.5 rounded bg-slate-100 dark:bg-slate-800 border-0 focus:ring-1 focus:ring-primary/50">
-                        <p class="text-[10px] text-slate-400 mt-1">{{ _('在"文件管理"右键文件可查看 ID') }}</p>
-                    </div>
-                    <div>
-                        <label class="block text-slate-500 mb-1">{{ _('Topic') }}</label>
-                        <input type="text" x-model="newRaw.topic" required placeholder="product / competitor / ..."
-                               class="w-full px-2 py-1.5 rounded bg-slate-100 dark:bg-slate-800 border-0 focus:ring-1 focus:ring-primary/50">
-                    </div>
-                    <div>
-                        <label class="block text-slate-500 mb-1">{{ _('标题（可选）') }}</label>
-                        <input type="text" x-model="newRaw.title" placeholder="留空用文件原名"
-                               class="w-full px-2 py-1.5 rounded bg-slate-100 dark:bg-slate-800 border-0 focus:ring-1 focus:ring-primary/50">
-                    </div>
-                    <button type="submit" :disabled="addingRaw"
-                            class="w-full py-2 bg-primary text-white rounded text-xs font-medium disabled:opacity-50">
-                        <span x-text="addingRaw ? '{{ _('添加中...') }}' : '{{ _('+ 添加到 Wiki') }}'"></span>
-                    </button>
-                </form>
+            <!-- 拖拽上传区 -->
+            <div class="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4 text-center transition-colors"
+                 :class="{ 'border-primary bg-primary/5': dragOver }"
+                 @dragover.prevent="dragOver = true"
+                 @dragleave.prevent="dragOver = false"
+                 @drop.prevent="handleFileDrop($event)">
+                <span class="material-symbols-outlined text-3xl text-slate-400" :class="{ 'text-primary': dragOver }">upload_file</span>
+                <p class="text-xs text-slate-500 mt-1">{{ _('拖拽文件到这里上传') }}</p>
+                <p class="text-[10px] text-slate-400">{{ _('支持 PDF / DOCX / MD') }}</p>
+                <label class="mt-2 inline-block px-3 py-1.5 bg-primary/10 text-primary rounded text-xs cursor-pointer hover:bg-primary/20">
+                    {{ _('或点击选择文件') }}
+                    <input type="file" class="hidden" accept=".pdf,.docx,.doc,.md,.txt"
+                           @change="handleFileSelect($event)" multiple>
+                </label>
+                <div x-show="uploading" class="mt-2 text-xs text-primary">
+                    <span class="inline-block animate-spin mr-1">&#9696;</span> {{ _('上传中...') }}
+                </div>
             </div>
 
-            <!-- 原始文件列表 -->
+            <!-- 待编译队列 -->
             <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-3">
                 <div class="flex items-center justify-between mb-2">
-                    <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">{{ _('原始资料') }} (<span x-text="rawFiles.length"></span>)</div>
+                    <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">{{ _('待编译队列') }}</div>
                     <button @click="loadRawFiles()" class="text-[10px] text-primary hover:underline">{{ _('刷新') }}</button>
                 </div>
-                <div class="space-y-2 max-h-80 overflow-y-auto">
-                    <template x-for="raw in rawFiles" :key="raw.id">
-                        <div class="border border-slate-200 dark:border-slate-800 rounded p-2 text-xs">
-                            <div class="flex items-start justify-between gap-2">
-                                <div class="flex-1 min-w-0">
-                                    <div class="font-medium truncate" x-text="raw.title"></div>
-                                    <div class="text-[10px] text-slate-400 mt-0.5">
-                                        <span x-text="raw.topic"></span> · raw_id=<span x-text="raw.id"></span>
-                                    </div>
-                                    <div class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
-                                         :class="{
-                                            'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400': raw.ingest_status === 'pending',
-                                            'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': raw.ingest_status === 'processing',
-                                            'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': raw.ingest_status === 'ingested',
-                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': raw.ingest_status === 'error',
-                                         }">
-                                        <span x-text="raw.ingest_status"></span>
-                                    </div>
-                                    <div x-show="raw.ingest_error" class="text-[10px] text-red-500 mt-1 truncate" x-text="raw.ingest_error"></div>
+                <div class="space-y-2 max-h-48 overflow-y-auto">
+                    <template x-for="raw in pendingFiles" :key="raw.id">
+                        <div class="flex items-center justify-between gap-2 p-2 rounded bg-slate-50 dark:bg-slate-800/50 text-xs">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-slate-400">&#128196;</span>
+                                    <span class="font-medium truncate" x-text="raw.title"></span>
                                 </div>
-                                <div class="flex flex-col gap-1 flex-shrink-0">
-                                    <button @click="triggerIngest(raw.id)"
-                                            :disabled="raw.ingest_status === 'processing' || ingestingId === raw.id"
-                                            class="px-2 py-1 bg-primary text-white rounded text-[10px] disabled:opacity-40">
-                                        <span x-text="ingestingId === raw.id ? '{{ _('编译中') }}' : '{{ _('编译') }}'"></span>
-                                    </button>
-                                    <button @click="deleteRawFile(raw.id)"
-                                            class="px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded text-[10px]">
-                                        {{ _('删除') }}
-                                    </button>
+                                <div class="text-[10px] text-slate-400 mt-0.5 pl-5">
+                                    <span x-text="raw.topic"></span>
+                                    <template x-if="raw.ingest_status === 'error' && !isRawCompiling(raw)">
+                                        <span class="text-red-500 ml-1" x-text="'&#10060; ' + (raw.ingest_error || '编译失败')"></span>
+                                    </template>
                                 </div>
+                            </div>
+                            <!-- 编译中：转圈（前端触发或后端状态为 processing） -->
+                            <div x-show="isRawCompiling(raw)" class="flex-shrink-0 flex items-center gap-1.5 text-primary text-[11px]">
+                                <span class="inline-block animate-spin">&#9696;</span> {{ _('编译中') }}
+                            </div>
+                            <!-- 非编译中：按钮 -->
+                            <div x-show="!isRawCompiling(raw)" class="flex flex-col gap-1 flex-shrink-0">
+                                <button @click="triggerIngest(raw.id)"
+                                        class="px-2.5 py-1 bg-primary text-white rounded text-[10px] font-medium whitespace-nowrap">
+                                    {{ _('编译') }}
+                                </button>
+                                <button @click="confirmDeleteRaw(raw.id, raw.title)"
+                                        class="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-medium whitespace-nowrap">
+                                    {{ _('删除') }}
+                                </button>
                             </div>
                         </div>
                     </template>
-                    <div x-show="rawFiles.length === 0" class="text-center text-[11px] text-slate-400 py-4">
-                        {{ _('暂无原始资料') }}
+                    <div x-show="pendingFiles.length === 0" class="text-center text-[11px] text-slate-400 py-3">
+                        {{ _('上传文件后显示在这里') }}
                     </div>
                 </div>
             </div>
@@ -342,11 +431,16 @@
                     <input type="checkbox" x-model="lintApplyFixes" class="rounded">
                     {{ _('自动修复可安全修复的问题') }}
                 </label>
-                <button @click="runLint()" :disabled="lintRunning"
-                        class="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium disabled:opacity-50">
-                    <span x-text="lintRunning ? '{{ _('质检中...') }}' : '{{ _('开始质检') }}'"></span>
+                <!-- 质检中：转圈 -->
+                <div x-show="lintRunning" class="w-full py-2 flex items-center justify-center gap-2 text-amber-600 text-xs font-medium">
+                    <span class="inline-block animate-spin">&#9696;</span> {{ _('质检中...') }}
+                </div>
+                <!-- 非质检中：按钮 -->
+                <button x-show="!lintRunning" @click="runLint()"
+                        class="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium">
+                    {{ _('开始质检') }}
                 </button>
-                <div x-show="lintResult" class="mt-3 space-y-1">
+                <div x-show="lintResult && !lintRunning" class="mt-3 space-y-1">
                     <div class="text-[11px] text-slate-600 dark:text-slate-400" x-text="lintResult && lintResult.summary"></div>
                     <template x-for="issue in (lintResult && lintResult.issues) || []" :key="issue.message">
                         <div class="text-[10px] px-2 py-1 rounded"
@@ -362,6 +456,80 @@
             </div>
         </div>
     </aside>
+    {% endif %}
+
+    <!-- ═══════════ 上传确认弹窗 ═══════════ -->
+    {% if is_admin %}
+    <div x-show="showUploadModal" @click="showUploadModal = false"
+         class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+         x-cloak>
+        <div @click.stop class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-sm w-full p-5">
+            <!-- 标题 -->
+            <div class="flex items-start gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <span class="material-symbols-outlined text-xl text-primary">menu_book</span>
+                </div>
+                <div class="min-w-0">
+                    <div class="font-semibold text-sm text-slate-800 dark:text-slate-200">{{ _('加入 Wiki 知识库') }}</div>
+                    <template x-if="pendingUploadFiles.length === 1">
+                        <div class="text-xs text-slate-500 truncate" x-text="pendingUploadFiles[0].name"></div>
+                    </template>
+                    <template x-if="pendingUploadFiles.length > 1">
+                        <div class="text-xs text-slate-500" x-text="pendingUploadFiles.length + ' 个文件'"></div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Topic 选择 -->
+            <div class="mb-3">
+                <div class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('Topic（分类目录）') }}</div>
+                <div class="flex flex-wrap gap-2">
+                    <template x-for="t in topics" :key="t">
+                        <button @click="uploadModalTopic = t"
+                                class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+                                :class="uploadModalTopic === t
+                                    ? 'bg-primary text-white'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'"
+                                x-text="t">
+                        </button>
+                    </template>
+                    <!-- 新建 Topic（仅管理员） -->
+                    {% if is_admin %}
+                    <template x-if="!showNewTopic">
+                        <button @click="showNewTopic = true"
+                                class="px-3 py-1.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700">
+                            {{ _('+ 新建') }}
+                        </button>
+                    </template>
+                    <template x-if="showNewTopic">
+                        <div class="flex items-center gap-1">
+                            <input type="text" x-model="newTopicName" placeholder="{{ _('新 topic 名') }}" x-ref="newTopicInput"
+                                   @keydown.enter="confirmNewTopicInModal()"
+                                   class="w-24 px-2 py-1 rounded-full bg-slate-100 dark:bg-slate-800 border-0 focus:ring-1 focus:ring-primary/50 text-xs">
+                            <button @click="confirmNewTopicInModal()" class="px-2 py-1 bg-primary text-white rounded-full text-[10px]">{{ _('确定') }}</button>
+                            <button @click="showNewTopic = false; newTopicName = ''" class="text-slate-400 text-[10px]">{{ _('取消') }}</button>
+                        </div>
+                    </template>
+                    {% endif %}
+                </div>
+                <div class="text-[10px] text-slate-400 mt-1.5">{{ _('英文小写，用于文件夹分类。同 topic 的文章会自动建立交叉引用。') }}</div>
+            </div>
+
+            <!-- 按钮 -->
+            <div class="flex items-center justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button @click="showUploadModal = false; pendingUploadFiles = []"
+                        class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">{{ _('取消') }}</button>
+                <button @click="doUploadFiles()"
+                        :disabled="!uploadModalTopic || uploading"
+                        class="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-medium disabled:opacity-40 transition-colors">
+                    <span x-show="!uploading">{{ _('添加到待编译') }}</span>
+                    <span x-show="uploading" class="flex items-center gap-1">
+                        <span class="inline-block animate-spin">&#9696;</span> {{ _('上传中...') }}
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
     {% endif %}
 
     <!-- ═══════════ Index 预览弹窗 ═══════════ -->
@@ -380,6 +548,118 @@
         </div>
     </div>
 
+    <!-- ═══════════ 晋升申请弹窗 ═══════════ -->
+    <div x-show="showPromoteModal" @click="showPromoteModal = false"
+         class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" x-cloak>
+        <div @click.stop class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-sm w-full p-5">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-xl text-amber-600">arrow_upward</span>
+                </div>
+                <div>
+                    <div class="font-semibold text-sm">{{ _('申请晋升等级') }}</div>
+                    <div class="text-xs text-slate-500" x-text="promoteModalArticleTitle"></div>
+                </div>
+            </div>
+            <!-- 目标等级 -->
+            <div class="mb-3">
+                <div class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('目标等级') }}</div>
+                <div class="flex gap-2">
+                    <template x-for="s in promoteAvailableScopes" :key="s">
+                        <button @click="promoteTargetScope = s"
+                                class="px-3 py-1.5 rounded-full text-xs font-medium transition-colors"
+                                :class="promoteTargetScope === s
+                                    ? scopeColor(s) + ' ring-2 ring-offset-1'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'"
+                                x-text="({system:'系统',company:'公司',department:'部门'})[s]">
+                        </button>
+                    </template>
+                </div>
+            </div>
+            <!-- 申请理由 -->
+            <div class="mb-4">
+                <div class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('申请理由') }}</div>
+                <textarea x-model="promoteReason" rows="3" maxlength="500"
+                          placeholder="{{ _('请说明为什么需要提升该文章的等级...') }}"
+                          class="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border-0 text-sm focus:ring-2 focus:ring-primary/50 resize-none"></textarea>
+            </div>
+            <div class="flex items-center justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button @click="showPromoteModal = false"
+                        class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">{{ _('取消') }}</button>
+                <button @click="doSubmitPromotion()"
+                        :disabled="!promoteTargetScope || !promoteReason.trim() || promoteSubmitting"
+                        class="px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium disabled:opacity-40">
+                    <span x-show="!promoteSubmitting">{{ _('提交申请') }}</span>
+                    <span x-show="promoteSubmitting">{{ _('提交中...') }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════ 晋升审核弹窗 ═══════════ -->
+    <div x-show="showReviewModal" @click="showReviewModal = false"
+         class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" x-cloak>
+        <div @click.stop class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-md w-full p-5">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-xl text-violet-600">verified</span>
+                </div>
+                <div>
+                    <div class="font-semibold text-sm">{{ _('审核晋升申请') }}</div>
+                    <div class="text-xs text-slate-500" x-text="reviewData.article_title"></div>
+                </div>
+            </div>
+            <!-- 申请信息 -->
+            <div class="space-y-2 mb-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 text-xs">
+                <div class="flex justify-between">
+                    <span class="text-slate-500">{{ _('申请人') }}</span>
+                    <span class="font-medium" x-text="reviewData.requester_name"></span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-500">{{ _('等级变更') }}</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="px-1.5 py-0.5 rounded text-[9px] font-medium"
+                              :class="scopeColor(reviewData.from_scope)"
+                              x-text="({system:'系统',company:'公司',department:'部门',personal:'个人'})[reviewData.from_scope]"></span>
+                        <span class="material-symbols-outlined text-sm text-slate-400">arrow_forward</span>
+                        <span class="px-1.5 py-0.5 rounded text-[9px] font-medium"
+                              :class="scopeColor(reviewData.to_scope)"
+                              x-text="({system:'系统',company:'公司',department:'部门',personal:'个人'})[reviewData.to_scope]"></span>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-slate-500">{{ _('申请理由') }}</span>
+                    <div class="mt-1 text-slate-700 dark:text-slate-300" x-text="reviewData.request_note"></div>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-slate-500">{{ _('申请时间') }}</span>
+                    <span x-text="formatDate(reviewData.created_at)"></span>
+                </div>
+            </div>
+            <!-- 审核备注（可选） -->
+            <div class="mb-4">
+                <div class="text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">{{ _('审核备注（可选）') }}</div>
+                <input type="text" x-model="reviewNote" maxlength="200"
+                       placeholder="{{ _('可选：填写审核意见...') }}"
+                       class="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border-0 text-sm focus:ring-2 focus:ring-primary/50">
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button @click="showReviewModal = false"
+                        class="px-4 py-2 text-sm text-slate-500 hover:text-slate-700">{{ _('关闭') }}</button>
+                <button @click="doReview('reject')"
+                        :disabled="reviewSubmitting"
+                        class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium disabled:opacity-40">
+                    {{ _('拒绝') }}
+                </button>
+                <button @click="doReview('approve')"
+                        :disabled="reviewSubmitting"
+                        class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium disabled:opacity-40">
+                    {{ _('通过') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -389,6 +669,45 @@ function wikiApp() {
         tree: {},
         articleCount: 0,
         loadingTree: false,
+
+        // ── Scope 过滤 ─────────────────
+        scopeFilter: JSON.parse(localStorage.getItem('wiki_scope_filter') || '{"system":true,"company":true,"department":true,"personal":true}'),
+
+        get filteredTree() {
+            const result = {};
+            for (const [topic, articles] of Object.entries(this.tree)) {
+                const filtered = articles.filter(art => this.scopeFilter[art.scope] !== false);
+                if (filtered.length > 0) result[topic] = filtered;
+            }
+            return result;
+        },
+
+        get filteredArticleCount() {
+            return Object.values(this.filteredTree).reduce((a, b) => a + b.length, 0);
+        },
+
+        toggleScope(scope) {
+            this.scopeFilter[scope] = !this.scopeFilter[scope];
+            localStorage.setItem('wiki_scope_filter', JSON.stringify(this.scopeFilter));
+        },
+
+        scopeBadge(art) {
+            const map = { system: '系统', company: '公司', department: '部门', personal: '个人' };
+            if (art.scope === 'personal' && !art.is_mine && art.owner_name) {
+                return art.owner_name;
+            }
+            return map[art.scope] || art.scope;
+        },
+
+        scopeColor(scope) {
+            const colors = {
+                system: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                company: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+                department: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                personal: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+            };
+            return colors[scope] || 'bg-slate-100 text-slate-600';
+        },
 
         // ── 当前文章 ─────────────────
         currentArticle: null,
@@ -408,12 +727,37 @@ function wikiApp() {
         // ── 管理面板 ─────────────────
         showAdminPanel: false,
         rawFiles: [],
-        newRaw: { file_library_id: '', topic: '', title: '' },
-        addingRaw: false,
         ingestingId: null,
         lintRunning: false,
         lintApplyFixes: false,
         lintResult: null,
+        // 拖拽上传
+        dragOver: false,
+        uploading: false,
+        // 上传弹窗
+        showUploadModal: false,
+        pendingUploadFiles: [],
+        uploadModalTopic: '',
+        topics: [],
+        showNewTopic: false,
+        newTopicName: '',
+
+        // ── 晋升申请 ─────────────────
+        showPromoteModal: false,
+        promoteArticleId: null,
+        promoteModalArticleTitle: '',
+        promoteCurrentScope: '',
+        promoteTargetScope: '',
+        promoteReason: '',
+        promoteSubmitting: false,
+        promoteAvailableScopes: [],
+
+        // ── 晋升审核 ─────────────────
+        showReviewModal: false,
+        reviewData: {},
+        reviewNote: '',
+        reviewSubmitting: false,
+        pendingPromotions: [],  // 当前用户需要审核的晋升申请
 
         // ── NEW 标记追踪（localStorage，per-browser） ──
         readArticleIds: JSON.parse(localStorage.getItem('wiki_read_articles') || '[]'),
@@ -436,28 +780,78 @@ function wikiApp() {
         async init() {
             marked.setOptions({ breaks: true, gfm: true });
             await this.refreshTree();
+            await this.loadPendingPromotions();
             {% if is_admin %}
             await this.loadRawFiles();
+            await this.loadTopics();
+            // 轮询：有 processing 状态的文件时，每 10 秒刷新一次
+            this._pollTimer = setInterval(async () => {
+                const hasProcessing = this.rawFiles.some(r => r.ingest_status === 'processing');
+                if (hasProcessing) {
+                    await this.loadRawFiles();
+                    if (!this.rawFiles.some(r => r.ingest_status === 'processing')) {
+                        await this.refreshTree();
+                    }
+                }
+            }, 10000);
             {% endif %}
 
             // 拦截 Wiki 内容区和问答区的文章链接点击
+            // AI 生成的链接格式多样：topic/slug.md, ../topic/slug.md, wiki/topic/slug.md 等
             document.addEventListener('click', (e) => {
                 const a = e.target.closest('a[href]');
                 if (!a) return;
                 const href = a.getAttribute('href');
-                if (!href) return;
-                // 匹配 wiki 文章链接：topic/slug.md 或 ../topic/slug.md
-                const m = href.match(/(?:\.\.\/)?([^\/]+)\/([^\/]+)\.md$/);
-                if (!m) return;
-                const [, topic, slug] = m;
-                // 在 tree 里找到对应文章
-                const articles = this.tree[topic];
-                if (!articles) return;
-                const art = articles.find(a => a.slug === slug);
-                if (!art) return;
+                if (!href || !href.endsWith('.md')) return;
+
+                // 阻止所有 .md 链接的默认导航行为
                 e.preventDefault();
-                this.openArticle(art.id);
+
+                // 尝试从路径中提取 topic/slug
+                // 匹配：topic/slug.md, ../topic/slug.md, wiki/topic/slug.md, /wiki/topic/slug.md
+                const m = href.match(/(?:.*\/)?([^\/]+)\/([^\/]+)\.md$/);
+                if (m) {
+                    const [, topic, slug] = m;
+                    const articles = this.tree[topic];
+                    if (articles) {
+                        const art = articles.find(a => a.slug === slug);
+                        if (art) { this.openArticle(art.id); return; }
+                    }
+                }
+
+                // 正则未匹配或 tree 中找不到 → 用链接文本在所有文章中模糊搜索
+                const linkText = (a.textContent || '').trim();
+                if (linkText) {
+                    for (const articles of Object.values(this.tree)) {
+                        const art = articles.find(a => a.title === linkText || a.title.includes(linkText) || linkText.includes(a.title));
+                        if (art) { this.openArticle(art.id); return; }
+                    }
+                }
             });
+
+            // 处理 URL 参数
+            const params = new URLSearchParams(window.location.search);
+
+            // ?promote=<id> — 从待办/通知跳转过来，打开审核弹窗
+            const promoteId = params.get('promote');
+            if (promoteId) {
+                const pr = this.pendingPromotions.find(p => p.id === parseInt(promoteId));
+                if (pr) {
+                    this.openReviewModal(pr);
+                    this.openArticle(pr.article_id);
+                }
+            }
+
+            // ?article=<id> — 从通知跳转过来，直接打开文章
+            const articleId = params.get('article');
+            if (articleId) {
+                this.openArticle(parseInt(articleId));
+            }
+
+            // 清除 URL 参数
+            if (promoteId || articleId) {
+                window.history.replaceState({}, '', '/wiki');
+            }
         },
 
         // ── 目录 ─────────────────
@@ -543,6 +937,27 @@ function wikiApp() {
         },
 
         // ── 管理：原始文件 ─────────────────
+        isRawCompiling(raw) {
+            return this.ingestingId === raw.id || raw.ingest_status === 'processing';
+        },
+
+        get pendingFiles() {
+            return this.rawFiles.filter(r => r.ingest_status !== 'ingested');
+        },
+        get compiledFiles() {
+            return this.rawFiles.filter(r => r.ingest_status === 'ingested');
+        },
+
+        getArticleCountForRaw(rawId) {
+            let count = 0;
+            for (const articles of Object.values(this.tree)) {
+                for (const art of articles) {
+                    if (art.source_raw_ids && art.source_raw_ids.includes(rawId)) count++;
+                }
+            }
+            return count;
+        },
+
         async loadRawFiles() {
             try {
                 const r = await fetch('/api/wiki/raw-files');
@@ -551,71 +966,335 @@ function wikiApp() {
             } catch (e) { console.error(e); }
         },
 
-        async addRawFile() {
-            if (!this.newRaw.file_library_id || !this.newRaw.topic) return;
-            this.addingRaw = true;
+        async loadTopics() {
             try {
-                const r = await fetch('/api/wiki/raw-files', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        file_library_id: parseInt(this.newRaw.file_library_id),
-                        topic: this.newRaw.topic.trim(),
-                        title: this.newRaw.title.trim(),
-                    }),
-                });
+                const r = await fetch('/api/wiki/topics');
                 const j = await r.json();
                 if (j.success) {
-                    this.newRaw = { file_library_id: '', topic: '', title: '' };
-                    await this.loadRawFiles();
-                } else {
-                    alert(j.message || '添加失败');
+                    this.topics = j.data || [];
                 }
+            } catch (e) { console.error(e); }
+        },
+
+        confirmNewTopicInModal() {
+            const name = this.newTopicName.trim();
+            if (!name) return;
+            if (!this.topics.includes(name)) this.topics.push(name);
+            this.uploadModalTopic = name;
+            this.showNewTopic = false;
+            this.newTopicName = '';
+        },
+
+        handleFileDrop(event) {
+            this.dragOver = false;
+            const files = Array.from(event.dataTransfer.files);
+            if (files.length > 0) this.showUploadDialog(files);
+        },
+
+        handleFileSelect(event) {
+            const files = Array.from(event.target.files);
+            if (files.length > 0) this.showUploadDialog(files);
+            event.target.value = '';
+        },
+
+        showUploadDialog(files) {
+            this.pendingUploadFiles = files;
+            this.uploadModalTopic = this.topics.length > 0 ? this.topics[0] : '';
+            this.showNewTopic = false;
+            this.newTopicName = '';
+            this.showUploadModal = true;
+        },
+
+        async doUploadFiles() {
+            if (!this.uploadModalTopic || this.pendingUploadFiles.length === 0) return;
+            this.uploading = true;
+            try {
+                for (const file of this.pendingUploadFiles) {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('topic', this.uploadModalTopic);
+                    const r = await fetch('/api/wiki/upload-and-add', { method: 'POST', body: formData });
+                    const j = await r.json();
+                    if (!j.success) {
+                        openConfirmModal('wikiConfirmModal', { title: '上传失败', message: `${file.name}: ${j.message}` });
+                    }
+                }
+                await this.loadRawFiles();
+                await this.loadTopics();
+                this.showUploadModal = false;
+                this.pendingUploadFiles = [];
             } catch (e) {
-                alert(e.message);
+                openConfirmModal('wikiConfirmModal', { title: '上传失败', message: e.message });
             } finally {
-                this.addingRaw = false;
+                this.uploading = false;
             }
         },
 
-        async triggerIngest(rawId) {
-            if (!confirm('编译可能需要 30-60 秒，确认开始吗？')) return;
+        triggerIngest(rawId) {
+            const self = this;
+            openConfirmModal('wikiConfirmModal', {
+                title: '开始编译',
+                message: '编译可能需要 30-60 秒，确认开始吗？',
+                onConfirm: () => {
+                    closeConfirmModal('wikiConfirmModal');
+                    self._doIngest(rawId);
+                },
+            });
+        },
+        async _doIngest(rawId) {
             this.ingestingId = rawId;
+            // 清除之前的错误信息
+            const raw = this.rawFiles.find(r => r.id === rawId);
+            if (raw) { raw.ingest_status = 'processing'; raw.ingest_error = null; }
             try {
                 const r = await fetch(`/api/wiki/raw-files/${rawId}/ingest`, { method: 'POST' });
                 const j = await r.json();
                 if (j.success) {
-                    alert(`编译完成！产生 ${j.data.operations.length} 个操作`);
                     await this.loadRawFiles();
                     await this.refreshTree();
                 } else {
-                    alert('编译失败: ' + (j.message || ''));
                     await this.loadRawFiles();
+                    openConfirmModal('wikiConfirmModal', { title: '编译失败', message: j.message || '未知错误' });
                 }
             } catch (e) {
-                alert('编译失败: ' + e.message);
+                await this.loadRawFiles();
+                openConfirmModal('wikiConfirmModal', { title: '编译失败', message: e.message });
             } finally {
                 this.ingestingId = null;
             }
         },
 
-        async deleteRawFile(rawId) {
-            if (!confirm('确认删除这份原始资料？（已编译的文章不会被删除）')) return;
+        confirmDeleteRaw(rawId, title) {
+            const self = this;
+            openConfirmModal('wikiDeleteModal', {
+                title: '确认删除',
+                message: `确定删除「${title}」吗？已编译的文章不会被删除。`,
+                onConfirm: async () => {
+                    try {
+                        const r = await fetch(`/api/wiki/raw-files/${rawId}`, { method: 'DELETE' });
+                        const j = await r.json();
+                        if (j.success) {
+                            await self.loadRawFiles();
+                        } else {
+                            throw new Error(j.message || '删除失败');
+                        }
+                    } catch (e) {
+                        throw new Error(e.message);
+                    }
+                },
+            });
+        },
+
+        // ── 文章操作（左侧 ... 菜单） ─────────────────
+        confirmDeleteArticle(articleId, title) {
+            const self = this;
+            openConfirmModal('wikiDeleteModal', {
+                title: '确认删除文章',
+                message: `确定删除「${title}」吗？此操作无法撤销。`,
+                onConfirm: async () => {
+                    const r = await fetch(`/api/wiki/articles/${articleId}`, { method: 'DELETE' });
+                    const j = await r.json();
+                    if (!j.success) throw new Error(j.message || '删除失败');
+                    if (self.currentArticle && self.currentArticle.id === articleId) {
+                        self.currentArticle = null;
+                        self.renderedContent = '';
+                    }
+                    await self.refreshTree();
+                },
+            });
+        },
+
+        recompileArticle(articleId, sourceRawIds) {
+            if (!sourceRawIds || sourceRawIds.length === 0) {
+                openConfirmModal('wikiConfirmModal', { title: '提示', message: '该文章没有关联的原始文件。' });
+                return;
+            }
+            const self = this;
+            openConfirmModal('wikiConfirmModal', {
+                title: '重新编译',
+                message: '将重新编译关联的原始文件，可能需要 30-60 秒。确认开始吗？',
+                onConfirm: () => {
+                    closeConfirmModal('wikiConfirmModal');
+                    self._doRecompile(articleId);
+                },
+            });
+        },
+        async _doRecompile(articleId) {
+            this.ingestingId = articleId;
             try {
-                const r = await fetch(`/api/wiki/raw-files/${rawId}`, { method: 'DELETE' });
+                const r = await fetch(`/api/wiki/articles/${articleId}/recompile`, { method: 'POST' });
                 const j = await r.json();
                 if (j.success) {
+                    await this.refreshTree();
                     await this.loadRawFiles();
                 } else {
-                    alert(j.message || '删除失败');
+                    openConfirmModal('wikiConfirmModal', { title: '编译失败', message: j.message || '未知错误' });
                 }
             } catch (e) {
-                alert(e.message);
+                openConfirmModal('wikiConfirmModal', { title: '编译失败', message: e.message });
+            } finally {
+                this.ingestingId = null;
             }
         },
 
-        async runLint() {
-            if (!confirm('将对整个 Wiki 执行质检，可能需要 30-60 秒，确认开始吗？')) return;
+        async changeScope(articleId, newScope) {
+            try {
+                const r = await fetch(`/api/wiki/articles/${articleId}/scope`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scope: newScope }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    // 更新 tree 中对应文章的 scope
+                    for (const articles of Object.values(this.tree)) {
+                        const art = articles.find(a => a.id === articleId);
+                        if (art) { art.scope = newScope; break; }
+                    }
+                    if (this.currentArticle && this.currentArticle.id === articleId) {
+                        this.currentArticle.scope = newScope;
+                    }
+                } else if (j.needs_approval) {
+                    // 超出权限 → 打开晋升申请弹窗
+                    this.openPromoteModal(articleId, newScope);
+                } else {
+                    openConfirmModal('wikiConfirmModal', { title: '调整失败', message: j.message || '未知错误' });
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '调整失败', message: e.message });
+            }
+        },
+
+        // ── 晋升申请流程 ─────────────────
+        openPromoteModal(articleId, targetScope) {
+            // 找到文章信息
+            let artInfo = null;
+            for (const articles of Object.values(this.tree)) {
+                artInfo = articles.find(a => a.id === articleId);
+                if (artInfo) break;
+            }
+            if (!artInfo) return;
+
+            this.promoteArticleId = articleId;
+            this.promoteModalArticleTitle = artInfo.title;
+            this.promoteCurrentScope = artInfo.scope;
+            this.promoteReason = '';
+            this.promoteSubmitting = false;
+
+            // 计算可选目标等级（比当前高的 + 需要审批的）
+            const hierarchy = ['personal', 'department', 'company', 'system'];
+            const currentIdx = hierarchy.indexOf(artInfo.scope);
+            this.promoteAvailableScopes = hierarchy.filter((_, i) => i > currentIdx);
+            this.promoteTargetScope = targetScope && this.promoteAvailableScopes.includes(targetScope) ? targetScope : (this.promoteAvailableScopes[0] || '');
+            this.showPromoteModal = true;
+        },
+
+        async doSubmitPromotion() {
+            if (!this.promoteTargetScope || !this.promoteReason.trim()) return;
+            this.promoteSubmitting = true;
+            try {
+                const r = await fetch(`/api/wiki/articles/${this.promoteArticleId}/promote`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to_scope: this.promoteTargetScope,
+                        reason: this.promoteReason.trim(),
+                    }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    this.showPromoteModal = false;
+                    openConfirmModal('wikiConfirmModal', { title: '申请已提交', message: j.message });
+                } else {
+                    openConfirmModal('wikiConfirmModal', { title: '提交失败', message: j.message || '未知错误' });
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '提交失败', message: e.message });
+            } finally {
+                this.promoteSubmitting = false;
+            }
+        },
+
+        // ── 晋升审核流程 ─────────────────
+        async loadPendingPromotions() {
+            try {
+                const r = await fetch('/api/wiki/promotion-requests');
+                const j = await r.json();
+                if (j.success) {
+                    this.pendingPromotions = (j.data || []).filter(p => p.status === 'pending' && p.assigned_to === {{ current_user.id }});
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        hasPromotion(articleId) {
+            return this.pendingPromotions.some(p => p.article_id === articleId);
+        },
+
+        getPromotion(articleId) {
+            return this.pendingPromotions.find(p => p.article_id === articleId);
+        },
+
+        openReviewModal(promotionData) {
+            this.reviewData = promotionData;
+            this.reviewNote = '';
+            this.reviewSubmitting = false;
+            this.showReviewModal = true;
+        },
+
+        async doReview(action) {
+            if (!this.reviewData.id) return;
+            this.reviewSubmitting = true;
+            try {
+                const r = await fetch(`/api/wiki/promotion-requests/${this.reviewData.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, review_note: this.reviewNote }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    this.showReviewModal = false;
+                    const text = action === 'approve' ? '已通过' : '已拒绝';
+                    openConfirmModal('wikiConfirmModal', { title: text, message: `晋升申请${text}` });
+                    // 刷新数据
+                    await this.refreshTree();
+                    await this.loadPendingPromotions();
+                } else {
+                    openConfirmModal('wikiConfirmModal', { title: '操作失败', message: j.message || '未知错误' });
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '操作失败', message: e.message });
+            } finally {
+                this.reviewSubmitting = false;
+            }
+        },
+
+        viewSource(sourceRawIds) {
+            if (!sourceRawIds || sourceRawIds.length === 0) {
+                openConfirmModal('wikiConfirmModal', { title: '提示', message: '该文章没有关联的原始文件。' });
+                return;
+            }
+            const names = sourceRawIds.map(id => {
+                const raw = this.rawFiles.find(r => r.id === id);
+                return raw ? raw.title : `raw_id=${id}`;
+            });
+            openConfirmModal('wikiConfirmModal', {
+                title: '来源文件',
+                message: names.map(n => `• ${n}`).join('<br>'),
+            });
+        },
+
+        runLint() {
+            const self = this;
+            openConfirmModal('wikiConfirmModal', {
+                title: '开始质检',
+                message: '将对整个 Wiki 执行质检，可能需要 30-60 秒。确认开始吗？',
+                onConfirm: () => {
+                    closeConfirmModal('wikiConfirmModal');
+                    self._doLint();
+                },
+            });
+        },
+        async _doLint() {
             this.lintRunning = true;
             this.lintResult = null;
             try {
@@ -631,10 +1310,10 @@ function wikiApp() {
                         await this.refreshTree();
                     }
                 } else {
-                    alert(j.message || '质检失败');
+                    openConfirmModal('wikiConfirmModal', { title: '质检失败', message: j.message || '未知错误' });
                 }
             } catch (e) {
-                alert(e.message);
+                openConfirmModal('wikiConfirmModal', { title: '质检失败', message: e.message });
             } finally {
                 this.lintRunning = false;
             }
@@ -683,6 +1362,12 @@ function wikiApp() {
 {% endcall %}
 
 {{ render_tw_layout_script() }}
+
+{{ tw_confirm_modal(modal_id='wikiConfirmModal', title=_('确认操作'), confirm_text=_('确认'), cancel_text=_('取消'), variant='info', show_error=true) }}
+{{ tw_confirm_modal_script() }}
+{% if is_admin %}
+{{ tw_delete_confirm_modal(modal_id='wikiDeleteModal') }}
+{% endif %}
 
 </body>
 </html>

@@ -142,22 +142,44 @@ def _parse_lint_response(text: str) -> dict[str, Any]:
     if not s:
         raise LintError('Claude Lint 返回空响应')
 
-    if s.startswith('```'):
-        first_nl = s.find('\n')
-        if first_nl != -1:
-            s = s[first_nl + 1:]
-        if s.rstrip().endswith('```'):
-            s = s.rstrip()[:-3]
-        s = s.strip()
-
+    # 尝试直接解析
     try:
         data = json.loads(s)
-    except json.JSONDecodeError as e:
-        raise LintError(f'Claude Lint 返回非法 JSON: {e}；前 500 字符:\n{s[:500]}') from e
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        pass
 
-    if not isinstance(data, dict):
-        raise LintError(f'Claude Lint 返回顶层不是 JSON 对象: {type(data).__name__}')
-    return data
+    # 尝试提取 ```json ... ``` 代码块
+    import re
+    m = re.search(r'```(?:json)?\s*\n(.*?)```', s, re.DOTALL)
+    if m:
+        try:
+            data = json.loads(m.group(1).strip())
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+
+    # 尝试提取第一个 { ... } 块
+    brace_start = s.find('{')
+    if brace_start != -1:
+        depth = 0
+        for i in range(brace_start, len(s)):
+            if s[i] == '{':
+                depth += 1
+            elif s[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    try:
+                        data = json.loads(s[brace_start:i + 1])
+                        if isinstance(data, dict):
+                            return data
+                    except json.JSONDecodeError:
+                        pass
+                    break
+
+    raise LintError(f'Claude Lint 返回非法 JSON；前 500 字符:\n{s[:500]}')
 
 
 def _apply_auto_fixes(auto_fixes: list[dict]) -> int:

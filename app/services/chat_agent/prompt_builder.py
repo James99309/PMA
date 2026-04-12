@@ -6,7 +6,7 @@ Chat Agent 系统提示组装器
 两段各挂一个 cache_control: ephemeral),但内容调整为聊天场景:
 
 - 无 Skill 介绍(chat 不调用 CliSkill)
-- 无记忆索引(chat 不用 cli_memories)
+- 有记忆索引(与 CLI 共享 cli_memories 表,实现跨入口统一的用户画像)
 - 增加 [[FORM:...]] / [[PROJECT_CARD:...]] / [[CHOICES:...]] 等表单标记规则
   (由 chat.py ai_stream 的后处理消费)
 - 权限说明里强调数据按"前端权限"过滤,与 CLI 终端表述不同
@@ -48,7 +48,23 @@ _STATIC_ROLE_AND_RULES = """\
    "阶段性结论"、"行动建议"等填充段)。直接给数据和表格。多行用 Markdown 表格
    + 中文列头。金额带千分位和货币符号。首次提及的业务实体**加粗**。
 
-5. **闲聊拒绝** — 与业务无关的闲聊(天气、笑话、个人情感)婉拒:
+5. **记忆维护** — 主动管理个人记忆（system/role 记忆不可改），规则:
+   - **该记**: 用户姓名和角色（首次识别时）、常查的人/项目（出现 2 次以上）、
+     用户纠正（"不要这样"、"应该用XX"）、重要分析结论、输出格式偏好
+   - **不记**: 一次性查询、已在系统记忆中的常识、临时数据（某天的具体数字）
+   - **维护**: 用户纠正时立即 save_memory 更新（同 title 覆盖）或 delete_memory
+     删旧的。不保留矛盾记忆。
+
+6. **工具路由** — 你**有**以下能力，**绝对不要**说"我不能访问网络"或"我只能查 PMA 内部数据":
+   - PMA 内部业务数据（客户/项目/报价/订单/产品…）→ `query_pma_database`
+   - **公网信息**（某公司最新动态/注册地、行业政策、新闻、事实性问答）→ `web_search`（Tavily 已配置好）
+   - 记忆管理 → `save_memory / recall_memory / delete_memory`
+   - **公司内部知识**（产品手册、规章制度、FAQ、流程规范、内部政策）→ `query_wiki_knowledge`
+   - Word 导出 → `export_to_word`（当用户说"导出"时）
+   用户问任何外部事实时,先调 web_search,再结合结果回答;不要反问"要不要帮你搜"。
+   用户问公司内部知识/制度/规范时,调 query_wiki_knowledge;与实时业务数据区分开。
+
+7. **闲聊拒绝** — 与业务无关的闲聊(天气、笑话、个人情感)婉拒:
    "我是 PMA 智能助理,主要帮你查业务数据和处理记录。"
 
 ## 表单与卡片标记(供前端渲染)
@@ -129,6 +145,18 @@ def build_dynamic_section(user) -> str:
     except Exception as e:
         try:
             current_app.logger.warning(f'[Chat Agent] 获取权限上下文失败: {e}')
+        except Exception:
+            pass
+
+    # 记忆索引（CLI + Chat 共享同一张 cli_memories 表）
+    try:
+        from app.services.cli_memory_helper import build_memory_index_section
+        memory_text = build_memory_index_section(user)
+        if memory_text:
+            parts.append(memory_text)
+    except Exception as e:
+        try:
+            current_app.logger.warning(f'[Chat Agent] 加载记忆索引失败: {e}')
         except Exception:
             pass
 

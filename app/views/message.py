@@ -237,6 +237,32 @@ def get_panel_data():
             })
             pending_todo_count += 1
 
+        # 4.7 获取待审核的知识库晋升申请（只看分配给自己的）
+        from app.models.knowledge import KnowledgePromotionRequest
+        promotion_requests = KnowledgePromotionRequest.query.filter_by(
+            assigned_to=current_user.id, status='pending'
+        ).order_by(KnowledgePromotionRequest.created_at.desc()).all()
+
+        for pr in promotion_requests:
+            scope_labels = {'personal': '个人', 'department': '部门', 'company': '公司', 'system': '系统'}
+            todo_list.append({
+                'id': f'wiki_promo_{pr.id}',
+                'type': 'wiki_promotion',
+                'status': 'pending',
+                'title': f'知识晋升: {pr.article.title if pr.article else ""}',
+                'message': pr.request_note or '',
+                'requester_name': (pr.requester.real_name or pr.requester.username) if pr.requester else '',
+                'due_date': None,
+                'created_at': pr.created_at.isoformat() if pr.created_at else None,
+                'detail_url': f'/wiki?promote={pr.id}',
+                'promotion_request_id': pr.id,
+                'article_id': pr.article_id,
+                'from_scope': pr.from_scope,
+                'to_scope': pr.to_scope,
+                'to_scope_label': scope_labels.get(pr.to_scope, pr.to_scope),
+            })
+            pending_todo_count += 1
+
         # 4.9 混合排序：pending/in_progress 在前，confirmed/completed 在后，各组内按创建时间倒序
         def todo_sort_key(item):
             s = item.get('status', '')
@@ -326,6 +352,15 @@ def get_unread_count():
             approver_id=current_user.id, status='pending'
         ).count()
 
+        # Wiki 晋升待审核
+        try:
+            from app.models.knowledge import KnowledgePromotionRequest
+            pending_todo_count += KnowledgePromotionRequest.query.filter_by(
+                assigned_to=current_user.id, status='pending'
+            ).count()
+        except Exception:
+            pass
+
         return jsonify({
             'success': True,
             'data': {
@@ -369,6 +404,15 @@ def has_unread():
         pending_todo_count += AccessRequest.query.filter_by(
             approver_id=current_user.id, status='pending'
         ).count()
+
+        # Wiki 晋升待审核
+        try:
+            from app.models.knowledge import KnowledgePromotionRequest
+            pending_todo_count += KnowledgePromotionRequest.query.filter_by(
+                assigned_to=current_user.id, status='pending'
+            ).count()
+        except Exception:
+            pass
 
         total = unread_mention_count + unread_announcement_count + pending_approval_count + pending_todo_count
         has_unread_flag = total > 0
