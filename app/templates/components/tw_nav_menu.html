@@ -53,6 +53,12 @@ Tailwind 共享导航菜单组件
 </a>
 {% endif %}
 
+<!-- Wiki 知识库（所有登录用户可见） -->
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'wiki' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('knowledge_wiki.wiki_page') }}">
+    <span class="material-symbols-outlined {% if active_page == 'wiki' %}fill text-primary{% else %}text-slate-600 dark:text-slate-400{% endif %}">auto_stories</span>
+    <span class="{% if active_page == 'wiki' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm font-medium">{{ _('Wiki 知识库') }}</span>
+</a>
+
 <!-- 业务管理组 -->
 {% if has_permission('customer', 'view') or has_permission('project', 'view') or has_permission('quotation', 'view') or has_permission('expense', 'view') %}
 <div>

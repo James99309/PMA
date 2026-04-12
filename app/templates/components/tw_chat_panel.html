@@ -1329,8 +1329,8 @@
                         <!-- AI 对话 token 用量指示器 -->
                         <template x-if="contextTokens > 0 && (activeConv?.type === 'ai' || isNewChat)">
                             <span class="text-[10px] font-mono select-none"
-                                  :class="contextTokens > 4800 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'"
-                                  x-text="`${contextTokens} / 6000`"></span>
+                                  :class="contextTokens > 120000 ? 'text-red-500' : (contextTokens > 40000 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400')"
+                                  x-text="`${(contextTokens/1000).toFixed(1)}k / 120k`"></span>
                         </template>
                         <!-- 发送按钮（向上箭头圆圈） -->
                         <button @click="sendMessage()"
@@ -2630,7 +2630,10 @@ function chatPanel() {
                 const hasAIMention = text.includes('@AI');
 
                 if (isAIMode || (hasAIMention && this.activeConv)) {
-                    // AI 对话：走 SSE 流（附件在 AI 模式不支持）
+                    // AI 对话：先上传附件，再走 SSE 流
+                    if (hasFiles) {
+                        await this._uploadPendingFiles();
+                    }
                     await this._sendAIMessage(text);
                 } else if (this.isNewChat) {
                     // 新建对话
@@ -2813,7 +2816,10 @@ function chatPanel() {
                 this.isNewChat = false;
 
                 if (convType === 'ai') {
-                    // AI 模式走 SSE
+                    // AI 模式：先上传附件，再走 SSE
+                    if (this.pendingFiles.length > 0) {
+                        await this._uploadPendingFiles();
+                    }
                     await this._sendAIMessage(text);
                 } else {
                     // 先上传附件

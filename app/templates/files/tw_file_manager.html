@@ -127,16 +127,6 @@
                     {{ _('回收站') }}
                 </button>
 
-                {# 知识库 #}
-                <button @click="openKbView()"
-                        :class="activeView==='knowledge' ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'"
-                        class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium w-full text-left transition-colors">
-                    <span class="material-symbols-outlined text-lg">auto_stories</span>
-                    {{ _('知识库') }}
-                    <span class="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-semibold"
-                          x-show="kbStats.total > 0" x-text="kbStats.total"></span>
-                </button>
-
                 {# 归档管理（管理员） #}
                 {% if is_admin %}
                 <button @click="activeView='archived'; loadArchived()"
@@ -358,10 +348,14 @@
                         <div class="text-sm text-slate-500 mb-3">{{ _('搜索结果') }} (<span x-text="searchResults.length"></span>)</div>
                         <template x-for="file in searchResults" :key="file.id">
                             <div class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                                 @click="previewFile(file)">
+                                 @click="toggleSelect(file.id)">
                                 <span class="material-symbols-outlined text-lg" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
                                 <div class="flex-1 min-w-0">
-                                    <div class="text-sm text-slate-900 dark:text-white truncate" x-text="file.display_name"></div>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="text-sm text-slate-900 dark:text-white truncate" x-text="file.display_name"></span>
+                                        <span x-show="isFileInWiki(file)" class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400" title="已在 Wiki 知识库">Wiki</span>
+                                        <span x-show="isFileCompiling(file)" class="material-symbols-outlined text-xs text-violet-500 animate-spin">progress_activity</span>
+                                    </div>
                                     <div class="text-xs text-slate-400" x-text="file.folder_path"></div>
                                 </div>
                                 <span class="text-xs text-slate-400" x-text="formatSize(file.file_size)"></span>
@@ -421,13 +415,15 @@
                                      draggable="true"
                                      @dragstart="onFileDragStart($event, file)"
                                      @dragend="onFileDragEnd()"
-                                     @click="previewFile(file)"
+                                     @click="toggleSelect(file.id)"
                                      @contextmenu.prevent="showFileMenu($event, file)">
                                     <input type="checkbox" :checked="selectedFiles.includes(file.id)" @click.stop="toggleSelect(file.id)"
                                            class="rounded border-slate-300 dark:border-slate-600 text-primary focus:ring-primary/50 w-4 h-4">
                                     <span class="material-symbols-outlined text-lg" :class="getFileIconClass(file)" x-text="getFileIcon(file)"></span>
                                     <div class="flex-1 min-w-0 flex items-center gap-2">
                                         <span class="text-sm text-slate-900 dark:text-white truncate" x-text="file.display_name"></span>
+                                        <span x-show="isFileInWiki(file)" class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400">Wiki</span>
+                                        <span x-show="isFileCompiling(file)" class="material-symbols-outlined text-xs text-violet-500 animate-spin">progress_activity</span>
                                         <span x-show="file.is_archived"
                                               class="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">
                                             {{ _('已归档') }}
@@ -483,7 +479,7 @@
                                      draggable="true"
                                      @dragstart="onFileDragStart($event, file)"
                                      @dragend="onFileDragEnd()"
-                                     @click="previewFile(file)"
+                                     @click="toggleSelect(file.id)"
                                      @contextmenu.prevent="showFileMenu($event, file)">
                                     <span x-show="file.is_archived"
                                           class="absolute top-1 right-1 text-[9px] px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">
@@ -717,48 +713,23 @@
                         <span class="material-symbols-outlined text-base">chat</span> {{ _('分享到聊天') }}
                     </button>
                     <hr class="my-1 border-slate-200 dark:border-slate-700">
-                    {# 加入知识库 #}
-                    <div class="relative" x-show="!contextMenu.inKb">
-                        <button @click="contextMenu.showKbSub = !contextMenu.showKbSub"
+                    {# 加入 Wiki 知识库 / 已在 Wiki 标记 #}
+                    <template x-if="contextMenu.item && !isFileInWiki(contextMenu.item) && !isFileCompiling(contextMenu.item)">
+                        <button @click="addContextFileToWiki(); contextMenu.show = false"
                                 class="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20">
-                            <span class="material-symbols-outlined text-base">auto_stories</span> {{ _('加入知识库') }}
-                            <span class="material-symbols-outlined text-sm ml-auto">chevron_right</span>
+                            <span class="material-symbols-outlined text-base">auto_stories</span> {{ _('加入 Wiki 知识库') }}
                         </button>
-                        {# 标签选择子面板 #}
-                        <div x-show="contextMenu.showKbSub" x-transition
-                             class="absolute left-full top-0 ml-1 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-2 w-56 submenu-enter" x-cloak>
-                            <div class="px-3 pb-2 border-b border-slate-100 dark:border-slate-800">
-                                <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">{{ _('选择标签') }}</p>
-                            </div>
-                            <div class="py-1 max-h-48 overflow-y-auto">
-                                <template x-for="tag in kbTags" :key="'ctx-' + tag.id">
-                                    <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer">
-                                        <input type="checkbox" :checked="contextMenu.selectedTags.includes(tag.id)"
-                                               @change="toggleContextTag(tag.id)"
-                                               class="w-3.5 h-3.5 rounded border-slate-300 text-violet-500 focus:ring-violet-500">
-                                        <span class="text-sm text-slate-700 dark:text-slate-300" x-text="tag.name"></span>
-                                    </label>
-                                </template>
-                            </div>
-                            <div class="px-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
-                                <button @click="contextMenu.showKbSub = false; contextMenu.show = false"
-                                        class="px-2.5 py-1 text-xs rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700">
-                                    {{ _('取消') }}
-                                </button>
-                                <button @click="addContextFileToKb(); contextMenu.show = false; contextMenu.showKbSub = false"
-                                        :disabled="contextMenu.selectedTags.length === 0"
-                                        :class="contextMenu.selectedTags.length > 0 ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
-                                        class="px-2.5 py-1 text-xs rounded-lg font-medium transition-colors">
-                                    {{ _('确定加入') }}
-                                </button>
-                            </div>
+                    </template>
+                    <template x-if="contextMenu.item && isFileCompiling(contextMenu.item)">
+                        <div class="flex items-center gap-2 px-3 py-2 text-sm text-violet-400">
+                            <span class="material-symbols-outlined text-base animate-spin">progress_activity</span> {{ _('Wiki 编译中...') }}
                         </div>
-                    </div>
-                    {# 从知识库移除（已在知识库中时显示） #}
-                    <button x-show="contextMenu.inKb" @click="removeFromKb(contextMenu.kbDocId); contextMenu.show = false"
-                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20">
-                        <span class="material-symbols-outlined text-base">bookmark_remove</span> {{ _('从知识库移除') }}
-                    </button>
+                    </template>
+                    <template x-if="contextMenu.item && isFileInWiki(contextMenu.item) && !isFileCompiling(contextMenu.item)">
+                        <div class="flex items-center gap-2 px-3 py-2 text-sm text-green-600 dark:text-green-400">
+                            <span class="material-symbols-outlined text-base">check_circle</span> {{ _('已在 Wiki 知识库') }}
+                        </div>
+                    </template>
                     <hr class="my-1 border-slate-200 dark:border-slate-700">
                     <button @click="deleteFile(contextMenu.item.id); contextMenu.show = false"
                             class="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20">
@@ -1171,6 +1142,123 @@
                 {% endif %}
             </aside>
         </div>
+
+    {# ============ Wiki 添加弹窗（必须在 x-data scope 内） ============ #}
+    <div x-show="wikiModal && wikiModal.show" x-transition
+         class="fixed inset-0 bg-black/40 z-[200] flex items-center justify-center p-4" x-cloak>
+        <div @click.stop class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            {# Step: input #}
+            <template x-if="wikiModal.step === 'input'">
+                <div class="p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-violet-600 dark:text-violet-400">auto_stories</span>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-slate-900 dark:text-white">{{ _('加入 Wiki 知识库') }}</h3>
+                            <p class="text-xs text-slate-500" x-text="wikiModal.file && _getFileName(wikiModal.file)"></p>
+                        </div>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('Topic（分类目录）') }}</label>
+                        <div class="flex flex-wrap gap-1.5 mb-2" x-show="wikiModal.existingTopics && wikiModal.existingTopics.length > 0">
+                            <template x-for="t in wikiModal.existingTopics" :key="t">
+                                <button type="button"
+                                        @click="wikiModal.topic = t; wikiModal.customTopic = false"
+                                        class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                                        :class="wikiModal.topic === t
+                                            ? 'bg-violet-600 text-white shadow-sm'
+                                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-violet-100 dark:hover:bg-violet-900/30'">
+                                    <span x-text="t"></span>
+                                </button>
+                            </template>
+                            {% if is_admin %}
+                            <button type="button"
+                                    @click="wikiModal.customTopic = true; wikiModal.topic = ''; $nextTick(() => $refs.wikiTopicInput && $refs.wikiTopicInput.focus())"
+                                    class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                                    :class="wikiModal.customTopic
+                                        ? 'bg-violet-600 text-white shadow-sm'
+                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-violet-100 dark:hover:bg-violet-900/30'">
+                                + {{ _('新建') }}
+                            </button>
+                            {% endif %}
+                        </div>
+                        {% if is_admin %}
+                        <input type="text" x-model="wikiModal.topic"
+                               x-ref="wikiTopicInput"
+                               x-show="!wikiModal.existingTopics || wikiModal.existingTopics.length === 0 || wikiModal.customTopic"
+                               @keydown.enter="submitWikiAdd()"
+                               placeholder="输入新 topic，如 product / competitor / guide ..."
+                               class="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 border-0 text-sm focus:ring-2 focus:ring-violet-500/50 placeholder:text-slate-400">
+                        {% endif %}
+                        <p class="text-[11px] text-slate-400 mt-1.5">{{ _('选择分类目录。同分类的文章会自动建立交叉引用。') }}</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button @click="wikiModal.show = false"
+                                class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                            {{ _('取消') }}
+                        </button>
+                        <button @click="submitWikiAdd()"
+                                :disabled="!wikiModal.topic || !wikiModal.topic.trim()"
+                                class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                            {{ _('添加并编译') }}
+                        </button>
+                    </div>
+                </div>
+            </template>
+            {# Step: loading #}
+            <template x-if="wikiModal.step === 'loading'">
+                <div class="p-8 text-center">
+                    <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-violet-600 animate-spin">progress_activity</span>
+                    </div>
+                    <h3 class="font-semibold text-slate-900 dark:text-white mb-1">{{ _('Claude Opus 编译中...') }}</h3>
+                    <p class="text-sm text-slate-500">{{ _('正在阅读文件并生成 Wiki 文章，通常需要 30-60 秒') }}</p>
+                    <p class="text-xs text-slate-400 mt-3">{{ _('扫描件 PDF 会通过 Vision 识别图片内容') }}</p>
+                </div>
+            </template>
+            {# Step: success #}
+            <template x-if="wikiModal.step === 'success'">
+                <div class="p-6 text-center">
+                    <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-2xl">check_circle</span>
+                    </div>
+                    <h3 class="font-semibold text-slate-900 dark:text-white mb-1" x-text="wikiModal.resultMsg"></h3>
+                    <p class="text-sm text-slate-500 mb-5">{{ _('文章已生成，可在 Wiki 页面浏览和提问') }}</p>
+                    <div class="flex gap-2">
+                        <button @click="wikiModal.show = false"
+                                class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700">
+                            {{ _('关闭') }}
+                        </button>
+                        <a href="/wiki"
+                           class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 text-center transition-colors">
+                            {{ _('打开 Wiki') }}
+                        </a>
+                    </div>
+                </div>
+            </template>
+            {# Step: error #}
+            <template x-if="wikiModal.step === 'error'">
+                <div class="p-6 text-center">
+                    <div class="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                        <span class="material-symbols-outlined text-red-600 dark:text-red-400 text-2xl">error</span>
+                    </div>
+                    <h3 class="font-semibold text-slate-900 dark:text-white mb-1">{{ _('编译失败') }}</h3>
+                    <p class="text-sm text-red-600 dark:text-red-400 mb-5 max-h-24 overflow-y-auto" x-text="wikiModal.errorMsg"></p>
+                    <div class="flex gap-2">
+                        <button @click="wikiModal.show = false"
+                                class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700">
+                            {{ _('关闭') }}
+                        </button>
+                        <a href="/wiki"
+                           class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 text-center transition-colors">
+                            {{ _('去 Wiki 管理重试') }}
+                        </a>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
 
     </div>
     {{ render_share_to_chat_modal() }}

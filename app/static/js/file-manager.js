@@ -118,6 +118,10 @@ function fileManager() {
                 this.quota = data.quota;
                 // 加载文件的知识库状态
                 await this._loadKbStatusForFiles();
+                // 加载 Wiki 状态（已编译标记 + 编译中标记）
+                await this._loadWikiStatusForFiles();
+                // 有 processing 状态的文件时，启动轮询
+                this._startWikiPollIfNeeded();
             }
             this.loading = false;
         },
@@ -829,12 +833,120 @@ function fileManager() {
             }
         },
 
-        // 右键菜单: 加入知识库
-        addContextFileToKb() {
+        // ── Wiki 知识库状态 ──
+        wikiModal: {
+            show: false,
+            step: 'input',
+            file: null,
+            topic: '',
+            existingTopics: [],
+            customTopic: false,
+            resultMsg: '',
+            errorMsg: '',
+        },
+        wikiFileStatus: {},       // { file_library_id: { in_wiki, status, raw_id, topic } }
+        wikiCompilingIds: [],     // file_ref_ids 当前正在编译的
+
+        // 加载文件的 Wiki 状态（调时机：loadFiles 完成后）
+        async _loadWikiStatusForFiles() {
+            const flIds = this.files.map(f => f.file_library_id).filter(Boolean);
+            if (!flIds.length) return;
+            try {
+                const data = await this.api('/api/wiki/file-wiki-status', {
+                    method: 'POST',
+                    body: JSON.stringify({ file_library_ids: [...new Set(flIds)] }),
+                });
+                if (data.success) this.wikiFileStatus = data.data || {};
+            } catch (e) { /* 静默 */ }
+        },
+
+        _startWikiPollIfNeeded() {
+            if (this._wikiPollTimer) return;
+            const hasProcessing = Object.values(this.wikiFileStatus).some(s => s.status === 'processing')
+                || this.wikiCompilingIds.length > 0;
+            if (!hasProcessing) return;
+            this._wikiPollTimer = setInterval(async () => {
+                await this._loadWikiStatusForFiles();
+                const still = Object.values(this.wikiFileStatus).some(s => s.status === 'processing')
+                    || this.wikiCompilingIds.length > 0;
+                if (!still) {
+                    clearInterval(this._wikiPollTimer);
+                    this._wikiPollTimer = null;
+                    // 清除前端编译 id 列表（后端已完成）
+                    this.wikiCompilingIds = [];
+                }
+            }, 10000);
+        },
+
+        getWikiStatus(file) {
+            return this.wikiFileStatus[String(file.file_library_id)] || { in_wiki: false };
+        },
+
+        isFileInWiki(file) {
+            return this.getWikiStatus(file).in_wiki;
+        },
+
+        isFileCompiling(file) {
+            if (this.wikiCompilingIds.includes(file.id)) return true;
+            const ws = this.getWikiStatus(file);
+            return ws.status === 'processing';
+        },
+
+        // 右键菜单: 打开 Wiki 添加弹窗
+        async addContextFileToWiki() {
             const file = this.contextMenu.item;
-            const tagIds = this.contextMenu.selectedTags;
-            if (!file || !tagIds.length) return;
-            this.addFilesToKb([file.id], tagIds);
+            if (!file) return;
+            let existingTopics = [];
+            try {
+                const tree = await this.api('/api/wiki/tree');
+                if (tree.success && tree.data) existingTopics = Object.keys(tree.data).sort();
+            } catch (e) {}
+            this.wikiModal.file = file;
+            this.wikiModal.topic = existingTopics.length > 0 ? existingTopics[0] : '';
+            this.wikiModal.existingTopics = existingTopics;
+            this.wikiModal.customTopic = false;
+            this.wikiModal.step = 'input';
+            this.wikiModal.resultMsg = '';
+            this.wikiModal.errorMsg = '';
+            this.wikiModal.show = true;
+        },
+
+        // Wiki 弹窗: 确认提交（异步编译，不等待结果）
+        async submitWikiAdd() {
+            const m = this.wikiModal;
+            if (!m.topic || !m.topic.trim()) return;
+            const file = m.file;
+            m.show = false;
+
+            // 标记文件为"编译中"
+            this.wikiCompilingIds.push(file.id);
+            this.showToast('success', `📚 已提交 Wiki 编译，完成后会收到通知`);
+
+            try {
+                const data = await this.api('/api/wiki/raw-files/from-file-ref', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        user_file_ref_id: file.id,
+                        topic: m.topic.trim(),
+                        title: file.name || file.display_name || '',
+                    }),
+                });
+                if (!data.success) {
+                    this.showToast('error', data.message || '添加失败');
+                    this.wikiCompilingIds = this.wikiCompilingIds.filter(id => id !== file.id);
+                }
+                // 成功时：后端异步编译，等系统通知。先刷新状态
+                await this._loadWikiStatusForFiles();
+                this._startWikiPollIfNeeded();
+            } catch (e) {
+                this.showToast('error', e.message);
+                this.wikiCompilingIds = this.wikiCompilingIds.filter(id => id !== file.id);
+            }
+        },
+
+        // 右键菜单: 加入知识库（旧接口兼容）
+        addContextFileToKb() {
+            this.addContextFileToWiki();
         },
 
         toggleContextTag(tagId) {
@@ -1027,6 +1139,7 @@ function fileManager() {
         },
 
         _getFileName(file) {
+            if (!file) return 'file';
             return file.display_name || file.original_filename || 'file';
         },
 

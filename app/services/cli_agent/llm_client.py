@@ -71,6 +71,7 @@ class ClaudeClient(BaseLLMClient):
 
     def __init__(self, api_key: str | None = None, model: str | None = None, base_url: str | None = None):
         from anthropic import Anthropic
+        import httpx
         key = api_key or os.environ.get('ANTHROPIC_API_KEY', '')
         if not key:
             raise LLMClientError(
@@ -81,6 +82,11 @@ class ClaudeClient(BaseLLMClient):
         if url:
             kwargs['base_url'] = url
             logger.info(f'[CLI Agent LLM] Claude base_url={url}')
+        # trust_env=False 绕开 macOS 系统代理(scutil --proxy)和 HTTP_PROXY 环境变量。
+        # 我们的 Tailscale 100.64.0.0/10 网段不在 macOS 代理例外列表里,本地 dev 时
+        # httpx 默认会把 Tailscale 流量也扔进 127.0.0.1:1082 的 ClashX/V2Ray 代理,
+        # 导致 api.anthropic.com / SG NAS 反代 全部 503。
+        kwargs['http_client'] = httpx.Client(trust_env=False, timeout=600)
         self._client = Anthropic(**kwargs)
         self.model = model or os.environ.get('CLI_AGENT_MODEL', self.DEFAULT_MODEL)
 
@@ -335,15 +341,19 @@ class OpenAIClient(BaseLLMClient):
         base_url: str | None = None,
     ):
         from openai import OpenAI
+        import httpx
         key = api_key or os.environ.get('OPENAI_API_KEY', '')
         if not key:
             raise LLMClientError(
                 '未配置 OPENAI_API_KEY 环境变量,无法调用 OpenAI API。'
                 '注意:ChatGPT Plus 订阅不含 API 访问权,需在 platform.openai.com 单独开通。'
             )
+        # trust_env=False 同 ClaudeClient,绕开 macOS 系统代理,避免 Tailscale 流量被
+        # ClashX/V2Ray 之类的本机代理截走。见 ClaudeClient.__init__ 的注释。
         self._client = OpenAI(
             api_key=key,
             base_url=base_url or os.environ.get('OPENAI_BASE_URL') or None,
+            http_client=httpx.Client(trust_env=False, timeout=600),
         )
         self.model = model or os.environ.get('CLI_AGENT_MODEL', self.DEFAULT_MODEL)
 

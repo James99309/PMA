@@ -132,6 +132,10 @@ tests/compare_*.py
 tests/verify_*.py
 tests/analyze_*.py
 
+# 正式 pytest 测试目录（不被 test_*.py 全局规则屏蔽）
+!tests/wiki/
+!tests/wiki/**
+
 # 迁移/导出中间产物
 db_export*.json
 complete_db_export.json
