@@ -27,15 +27,61 @@ logger = logging.getLogger(__name__)
 
 
 # ══════════════════════════════════════════════════════════════════
-# slug 与 filename 规范化
+# 安全性：topic / slug / 文件名验证
 # ══════════════════════════════════════════════════════════════════
+#
+# topic 和 slug 最终会被拼到磁盘路径里，必须严格校验防止路径穿越。
+# 输入来源包括用户表单（add_raw_file 视图）和 Claude 返回的 JSON
+# （对抗性 PDF 的 prompt injection 可能操纵 Claude 输出恶意 slug）。
+#
+# 规则（通过才放行）：
+# - topic: [A-Za-z0-9_-]+，长度 1-100
+# - slug:  [A-Za-z0-9._-]+，长度 1-200，不能以 . 开头（禁止 ../ 或隐藏文件）
+#
+# 不允许 CJK 的原因：主流场景下 topic/slug 都是英文短标识符（product、
+# gp328p-overview 这种），保留 ASCII 限制可以完全杜绝各种 Unicode 同形
+# 字符绕过。raw 文件的原始标题允许 CJK（走 safe_filename 另一条路径）。
 
+_TOPIC_RE = re.compile(r'^[A-Za-z0-9_-]{1,100}$')
+_SLUG_RE = re.compile(r'^[A-Za-z0-9._-]{1,200}$')
 _SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9\u4e00-\u9fff._-]+')
 
 
+class WikiPathError(ValueError):
+    """topic/slug/文件名非法时抛出"""
+
+
+def validate_topic(topic: str) -> None:
+    """校验 topic。不合规则抛 WikiPathError。"""
+    if not isinstance(topic, str) or not _TOPIC_RE.match(topic):
+        raise WikiPathError(
+            f'非法 topic: {topic!r}（仅允许 1-100 个 ASCII 字母/数字/_/-）'
+        )
+
+
+def validate_slug(slug: str) -> None:
+    """校验 slug。不合规则抛 WikiPathError。"""
+    if not isinstance(slug, str) or not _SLUG_RE.match(slug) or slug.startswith('.'):
+        raise WikiPathError(
+            f'非法 slug: {slug!r}（仅允许 1-200 个 ASCII 字母/数字/./_/-，不能以 . 开头）'
+        )
+
+
+def validate_topic_slug(topic: str, slug: str) -> None:
+    """同时校验 topic 和 slug。"""
+    validate_topic(topic)
+    validate_slug(slug)
+
+
 def safe_filename(raw_name: str) -> str:
-    """把任意字符串转成磁盘安全的文件名（保留汉字/数字/字母/. _ -）。"""
+    """把任意字符串转成磁盘安全的文件名（保留汉字/数字/字母/. _ -）。
+
+    用于 raw 文件的原始文件名保留显示。注意这不是 slug —— slug 必须走
+    validate_slug，CJK 是不允许的。
+    """
     name = _SAFE_FILENAME_RE.sub('_', raw_name.strip())
+    # 防止跨目录：去掉路径分隔符和前导 .
+    name = name.replace('/', '_').replace('\\', '_').lstrip('.')
     return name or 'unnamed'
 
 
@@ -67,7 +113,11 @@ def write_article(topic: str, slug: str, content: str) -> str:
     """写一篇文章到 wiki/<topic>/<slug>.md。
 
     返回相对 wiki_root 的路径字符串，用于存入 KnowledgeWikiArticle.file_path。
+
+    Raises:
+        WikiPathError: topic/slug 非法
     """
+    validate_topic_slug(topic, slug)
     path = wiki_article_path(topic, slug)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding='utf-8')
@@ -75,7 +125,12 @@ def write_article(topic: str, slug: str, content: str) -> str:
 
 
 def delete_article(topic: str, slug: str) -> bool:
-    """删除一篇文章文件。返回是否成功删除（文件不存在也算 False）。"""
+    """删除一篇文章文件。返回是否成功删除（文件不存在也算 False）。
+
+    Raises:
+        WikiPathError: topic/slug 非法
+    """
+    validate_topic_slug(topic, slug)
     path = wiki_article_path(topic, slug)
     if path.exists():
         path.unlink()
@@ -145,8 +200,19 @@ def save_raw_file(topic: str, filename: str, data: bytes) -> str:
 
     Returns:
         相对 wiki_root 的路径字符串，例如 'raw/product/2026-04-09-datasheet.pdf'
+
+    Raises:
+        WikiPathError: topic 非法
     """
+    validate_topic(topic)
+    # filename 走 safe_filename 做二次清洗（调用方通常已经调过了，这里兜底）
+    filename = safe_filename(filename)
     path = raw_file_path(topic, filename)
+    # 确认最终路径仍然在 raw_dir 下（双保险）
+    try:
+        path.resolve().relative_to(get_raw_dir().resolve())
+    except ValueError:
+        raise WikiPathError(f'解析后路径越出 raw 根目录: {path}')
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
     return str(path.relative_to(get_wiki_root()))
@@ -161,7 +227,13 @@ def read_raw_file_text(raw_path: str) -> str:
     if not raw_path:
         raise ValueError('raw_path 不能为空')
 
-    abs_path = get_wiki_root() / raw_path
+    # 防止有人绕过 save_raw_file 直接调这个函数读 wiki_root 以外的文件
+    abs_path = (get_wiki_root() / raw_path).resolve()
+    try:
+        abs_path.relative_to(get_wiki_root().resolve())
+    except ValueError:
+        raise WikiPathError(f'raw_path 越出 wiki 根目录: {raw_path!r}')
+
     if not abs_path.exists():
         raise FileNotFoundError(f'原始文件不存在: {abs_path}')
 
@@ -198,8 +270,18 @@ def read_raw_file_text(raw_path: str) -> str:
 
 
 def delete_raw_file(raw_path: str) -> bool:
-    """删除原始文件。返回是否真的删除。"""
-    abs_path = get_wiki_root() / raw_path
+    """删除原始文件。返回是否真的删除。
+
+    防止路径穿越：解析后必须仍在 raw_dir 下。
+    """
+    if not raw_path:
+        return False
+    abs_path = (get_wiki_root() / raw_path).resolve()
+    try:
+        abs_path.relative_to(get_raw_dir().resolve())
+    except ValueError:
+        logger.warning(f'[Wiki] delete_raw_file 拒绝越界路径: {raw_path!r}')
+        return False
     if abs_path.exists():
         abs_path.unlink()
         return True

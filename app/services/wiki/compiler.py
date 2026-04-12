@@ -51,6 +51,16 @@ def ingest_raw_file(
 ) -> dict:
     """把一个原始文件编译入 Wiki。
 
+    事务语义（修复 C3）：
+    - 所有 DB 变更在**单次 commit** 里完成，_apply_operations 本身不 commit
+    - 如果中途失败：
+      * DB 自动 rollback（SQLAlchemy session）
+      * 新创建的磁盘文件会被 unlink 撤销
+      * 被更新的磁盘文件会从内存备份恢复
+      * raw.ingest_status 单独开一个事务标记为 'error'
+
+    并发安全（修复 I1）：用 SELECT FOR UPDATE 行锁，拒绝重复 ingest。
+
     Args:
         raw_file_id: KnowledgeRawFile.id
         claude: 可选的 Claude 客户端实例；**测试时传 mock**。
@@ -65,23 +75,44 @@ def ingest_raw_file(
         }
 
     Raises:
-        IngestError: 记录不存在、文件读取失败、Claude 返回非法 JSON 等
+        IngestError: 记录不存在、已在编译中、文件读取失败、Claude 返回非法 JSON 等
     """
-    raw = KnowledgeRawFile.query.get(raw_file_id)
+    # 并发锁 + 存在性检查
+    raw = (
+        KnowledgeRawFile.query
+        .filter_by(id=raw_file_id)
+        .with_for_update()
+        .first()
+    )
     if not raw:
         raise IngestError(f'KnowledgeRawFile id={raw_file_id} 不存在')
+    if raw.ingest_status == 'processing':
+        raise IngestError('该资料已经在编译中，请稍候再试')
 
     raw.ingest_status = 'processing'
     raw.ingest_error = None
     db.session.commit()
 
     own_client = False
-    if claude is None:
-        claude = claude_client.WikiClaudeClient()
-        own_client = True
+    claude_instance = claude
+
+    # 所有可能产生副作用的磁盘写入都记录下来，以便异常时撤销
+    rollback_state: dict = {
+        'created_files': [],        # List[str] — 需要 unlink 的相对路径
+        'updated_backups': {},      # Dict[str, str] — 相对路径 → 旧正文
+        'old_index': None,          # 旧 index.md 内容（str），便于恢复
+    }
 
     try:
         ensure_wiki_structure()
+
+        # 先备份当前 index.md，便于失败回滚
+        rollback_state['old_index'] = storage.read_index()
+
+        # Claude 客户端构造放在 try: 内（修复 C2）
+        if claude_instance is None:
+            claude_instance = claude_client.WikiClaudeClient()
+            own_client = True
 
         # 1. 读原始文本
         try:
@@ -100,7 +131,7 @@ def ingest_raw_file(
             )
 
         # 2. 当前 index.md
-        index_md = storage.read_index()
+        index_md = rollback_state['old_index']
 
         # 3. 同 topic 下的相关文章（v1 粗筛）
         related_articles = (
@@ -120,11 +151,13 @@ def ingest_raw_file(
             })
 
         # 4. 组装 user prompt
+        raw_filename = raw.raw_path.rsplit('/', 1)[-1] if raw.raw_path else raw.title
         user_msg = _build_ingest_user_prompt(
             raw_meta={
                 'raw_id': raw.id,
                 'topic': raw.topic,
-                'filename': raw.title,
+                'filename': raw_filename,
+                'title': raw.title,
                 'truncated': truncated,
             },
             raw_text=raw_text_truncated,
@@ -137,7 +170,7 @@ def ingest_raw_file(
             f'[Ingest] raw_id={raw.id} topic={raw.topic} 相关文章数={len(related_context)} '
             f'raw_text={len(raw_text_truncated)}B prompt={len(user_msg)}B'
         )
-        resp = claude.complete(
+        resp = claude_instance.complete(
             system=prompts.INGEST_SYSTEM,
             user=user_msg,
             model=claude_client.INGEST_MODEL,
@@ -147,18 +180,28 @@ def ingest_raw_file(
         # 6. 解析 JSON
         result = _parse_ingest_response(resp.text)
 
-        # 7. 应用 operations
+        # 7. 预校验所有 op 的 topic/slug，避免写一半发现非法
         operations = result.get('operations') or []
-        _apply_operations(operations, raw_id=raw.id)
+        for i, op in enumerate(operations):
+            action = (op.get('action') or '').lower()
+            if action == 'noop':
+                continue
+            try:
+                storage.validate_topic_slug(op.get('topic', ''), op.get('slug', ''))
+            except storage.WikiPathError as e:
+                raise IngestError(f'Claude 返回的 operations[{i}] 非法: {e}') from e
 
-        # 8. 写 index.md
+        # 8. 应用 operations（追踪 rollback 状态，但不 commit）
+        _apply_operations(operations, raw_id=raw.id, rollback_state=rollback_state)
+
+        # 9. 写 index.md（记入 rollback_state 以便失败恢复）
         index_updated = False
         new_index = result.get('index_update')
         if new_index:
             storage.write_index(new_index)
             index_updated = True
 
-        # 9. 追加 log.md
+        # 10. 追加 log.md（失败也保留，这个不回滚）
         log_entry = result.get('log_entry') or ''
         storage.append_log(
             'ingest',
@@ -167,7 +210,7 @@ def ingest_raw_file(
             f'- {log_entry}',
         )
 
-        # 10. 标记完成
+        # 11. 单次 commit：合并 _apply_operations 的 stage 和 raw 状态（修复 I4）
         raw.ingest_status = 'ingested'
         raw.ingested_at = datetime.utcnow()
         raw.ingest_error = None
@@ -186,16 +229,56 @@ def ingest_raw_file(
         }
 
     except Exception as e:
-        # 任何异常都标记失败，并把原因存到 DB 方便前端显示
+        # ── 1. DB 回滚（撤销 _apply_operations 里的 session 变更）
         db.session.rollback()
-        raw.ingest_status = 'error'
-        raw.ingest_error = str(e)[:2000]
-        db.session.commit()
+
+        # ── 2. 磁盘回滚（撤销已创建和已修改的文件）
+        _rollback_file_changes(rollback_state)
+
+        # ── 3. 单独事务标记 raw 为 error，让前端能看到失败原因
+        try:
+            raw_err = db.session.get(KnowledgeRawFile, raw_file_id)
+            if raw_err is not None:
+                raw_err.ingest_status = 'error'
+                raw_err.ingest_error = str(e)[:2000]
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+            logger.exception(f'[Ingest] raw_id={raw_file_id} 标记 error 状态失败')
+
         logger.exception(f'[Ingest] raw_id={raw_file_id} 失败')
         raise
     finally:
-        if own_client:
-            claude.close()
+        if own_client and claude_instance is not None:
+            claude_instance.close()
+
+
+def _rollback_file_changes(rollback_state: dict):
+    """失败回滚：删除新建的文件，恢复被修改的文件和 index.md。"""
+    from app.services.wiki.paths import get_wiki_root
+
+    root = get_wiki_root()
+
+    for rel_path in rollback_state.get('created_files') or []:
+        try:
+            (root / rel_path).unlink(missing_ok=True)
+            logger.info(f'[Ingest rollback] 删除新建文件: {rel_path}')
+        except Exception:
+            logger.exception(f'[Ingest rollback] 删除文件失败: {rel_path}')
+
+    for rel_path, old_content in (rollback_state.get('updated_backups') or {}).items():
+        try:
+            (root / rel_path).write_text(old_content, encoding='utf-8')
+            logger.info(f'[Ingest rollback] 恢复更新前文件: {rel_path}')
+        except Exception:
+            logger.exception(f'[Ingest rollback] 恢复文件失败: {rel_path}')
+
+    old_index = rollback_state.get('old_index')
+    if old_index is not None:
+        try:
+            storage.write_index(old_index)
+        except Exception:
+            logger.exception('[Ingest rollback] 恢复 index.md 失败')
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -284,16 +367,27 @@ def _parse_ingest_response(text: str) -> dict[str, Any]:
 # 内部：应用 operations
 # ══════════════════════════════════════════════════════════════════
 
-def _apply_operations(operations: list[dict], *, raw_id: int):
+def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: dict):
     """把 Claude 返回的 operations 应用到 Wiki（磁盘 + 数据库）。
 
     支持三种 action：
     - create: 新建文章文件 + 新增 KnowledgeWikiArticle 记录
     - update: 覆盖文件 + 更新记录（source_raw_ids 合并）
     - noop:   不做任何写入
+
+    事务规则（**不 commit**）：
+    - DB 变更都 stage 到 session 里，由调用方在整个 ingest 成功后统一 commit
+    - 每次写磁盘前把 rollback 信息追加到 rollback_state：
+      * create 的文件 → rollback_state['created_files']
+      * update 的旧正文 → rollback_state['updated_backups']
+    - 调用方失败时会根据这些状态恢复磁盘
+
+    前置条件：调用方已经对所有 operations 的 topic/slug 做过 validate_topic_slug。
     """
     now = datetime.utcnow()
     compile_model = claude_client.INGEST_MODEL
+    created_files = rollback_state['created_files']
+    updated_backups = rollback_state['updated_backups']
 
     for i, op in enumerate(operations):
         action = (op.get('action') or '').lower()
@@ -318,21 +412,44 @@ def _apply_operations(operations: list[dict], *, raw_id: int):
             if not content or not title:
                 logger.warning(f'[Ingest] create 缺少 content 或 title，跳过: {topic}/{slug}')
                 continue
-            file_path = storage.write_article(topic, slug, content)
-            art = KnowledgeWikiArticle(
-                topic=topic,
-                slug=slug,
-                title=title,
-                file_path=file_path,
-                summary=summary,
-                content_length=len(content),
-                source_raw_ids=list(source_ids),
-                outbound_refs=list(outbound_refs),
-                last_compiled_at=now,
-                compile_model=compile_model,
-            )
-            db.session.add(art)
-            logger.info(f'[Ingest] create {topic}/{slug}')
+            # 先检查目标文件是否已存在 —— 若存在，这是 update 伪装成 create
+            # 的情况，需要备份旧内容以便回滚
+            existing_art = KnowledgeWikiArticle.query.filter_by(
+                topic=topic, slug=slug
+            ).first()
+            if existing_art is not None:
+                old_content = storage.read_article_content(existing_art.file_path)
+                updated_backups[existing_art.file_path] = old_content
+                # 更新已有记录，不创建新 row（避免 unique constraint 冲突）
+                storage.write_article(topic, slug, content)
+                existing_art.title = title
+                if summary is not None:
+                    existing_art.summary = summary
+                existing_art.content_length = len(content)
+                merged = set(existing_art.source_raw_ids or [])
+                merged.update(source_ids)
+                existing_art.source_raw_ids = sorted(merged)
+                existing_art.outbound_refs = list(outbound_refs)
+                existing_art.last_compiled_at = now
+                existing_art.compile_model = compile_model
+                logger.info(f'[Ingest] create(→update) {topic}/{slug}')
+            else:
+                file_path = storage.write_article(topic, slug, content)
+                created_files.append(file_path)
+                art = KnowledgeWikiArticle(
+                    topic=topic,
+                    slug=slug,
+                    title=title,
+                    file_path=file_path,
+                    summary=summary,
+                    content_length=len(content),
+                    source_raw_ids=list(source_ids),
+                    outbound_refs=list(outbound_refs),
+                    last_compiled_at=now,
+                    compile_model=compile_model,
+                )
+                db.session.add(art)
+                logger.info(f'[Ingest] create {topic}/{slug}')
 
         elif action == 'update':
             if not content:
@@ -343,6 +460,7 @@ def _apply_operations(operations: list[dict], *, raw_id: int):
                 # 回退为 create（Claude 误判或 slug 改名）
                 logger.info(f'[Ingest] update 目标不存在，回退为 create: {topic}/{slug}')
                 file_path = storage.write_article(topic, slug, content)
+                created_files.append(file_path)
                 art = KnowledgeWikiArticle(
                     topic=topic,
                     slug=slug,
@@ -357,6 +475,10 @@ def _apply_operations(operations: list[dict], *, raw_id: int):
                 )
                 db.session.add(art)
             else:
+                # 备份旧正文用于回滚
+                old_content = storage.read_article_content(art.file_path)
+                updated_backups[art.file_path] = old_content
+
                 storage.write_article(topic, slug, content)
                 if title:
                     art.title = title
@@ -376,4 +498,4 @@ def _apply_operations(operations: list[dict], *, raw_id: int):
         else:
             logger.warning(f'[Ingest] operation[{i}] 未知 action={action!r}，跳过')
 
-    db.session.commit()
+    # 重要：不在这里 commit，由调用方在 ingest_raw_file 末尾合并 commit

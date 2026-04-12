@@ -177,3 +177,102 @@ def test_delete_article(app_ctx):
     assert read_article_content('wiki/product/temp.md') == ''
     # 再删一次返回 False
     assert delete_article('product', 'temp') is False
+
+
+# ══════════════════════════════════════════════════════════════════
+# C1: 路径穿越防护（安全测试）
+# ══════════════════════════════════════════════════════════════════
+
+def test_validate_topic_rejects_traversal(app_ctx):
+    from app.services.wiki.storage import validate_topic, WikiPathError
+
+    # 合法
+    validate_topic('product')
+    validate_topic('competitor_v2')
+    validate_topic('test-123')
+
+    # 非法
+    for bad in [
+        '../etc',
+        '../../etc',
+        'foo/bar',
+        'foo\\bar',
+        '',
+        ' product ',
+        'foo bar',
+        '产品',  # CJK 不允许在 topic
+        'a' * 101,  # 超长
+        None,
+    ]:
+        with pytest.raises(WikiPathError):
+            validate_topic(bad)
+
+
+def test_validate_slug_rejects_traversal(app_ctx):
+    from app.services.wiki.storage import validate_slug, WikiPathError
+
+    validate_slug('gp328p-overview')
+    validate_slug('v2.1')
+    validate_slug('abc_def')
+
+    for bad in [
+        '../secrets',
+        '.hidden',
+        '',
+        ' slug ',
+        'has/slash',
+        '产品',
+        'a' * 201,
+    ]:
+        with pytest.raises(WikiPathError):
+            validate_slug(bad)
+
+
+def test_write_article_blocks_traversal(app_ctx, wiki_root):
+    from app.services.wiki.storage import write_article, WikiPathError
+
+    # 恶意 topic
+    with pytest.raises(WikiPathError):
+        write_article('../../../etc', 'passwd', 'hacked')
+
+    # 恶意 slug
+    with pytest.raises(WikiPathError):
+        write_article('product', '../evil', 'hacked')
+
+    # 隐藏文件 slug
+    with pytest.raises(WikiPathError):
+        write_article('product', '.secret', 'hacked')
+
+    # 确认恶意路径都没被创建
+    assert not (wiki_root / 'etc').exists()
+    assert not (wiki_root / 'wiki' / 'evil').exists()
+
+
+def test_save_raw_file_blocks_traversal(app_ctx, wiki_root):
+    from app.services.wiki.storage import save_raw_file, WikiPathError
+
+    with pytest.raises(WikiPathError):
+        save_raw_file('../../../tmp', 'pwn.md', b'hacked')
+
+    assert not (wiki_root.parent / 'tmp' / 'pwn.md').exists()
+
+
+def test_read_raw_file_blocks_traversal(app_ctx):
+    from app.services.wiki.storage import read_raw_file_text, WikiPathError
+
+    with pytest.raises(WikiPathError):
+        read_raw_file_text('../../../../etc/passwd')
+
+
+def test_delete_raw_file_refuses_out_of_root(app_ctx, wiki_root):
+    """若 raw_path 指向 wiki_root 以外，delete 返回 False 不执行。"""
+    from app.services.wiki.storage import delete_raw_file
+    assert delete_raw_file('../../../etc/passwd') is False
+
+
+def test_safe_filename_cleans_path_separators(app_ctx):
+    from app.services.wiki.storage import safe_filename
+    assert '/' not in safe_filename('path/to/evil.pdf')
+    assert '\\' not in safe_filename('path\\to\\evil.pdf')
+    # 前导 . 被去掉
+    assert not safe_filename('.hidden').startswith('.')

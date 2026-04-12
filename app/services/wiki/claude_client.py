@@ -38,11 +38,24 @@ logger = logging.getLogger(__name__)
 # ══════════════════════════════════════════════════════════════════
 # 默认模型配置（可用环境变量覆盖）
 # ══════════════════════════════════════════════════════════════════
+#
+# 模型 ID 说明：
+# - claude-opus-4-6 是 API 接受的实际 ID，不带任何后缀
+# - [1m] 是 Claude Code CLI 本地标注，表示启用了 1M context；**API 端通过
+#   anthropic-beta: context-1m-2025-08-07 header 启用，不是靠模型名后缀**
+# - WIKI_ENABLE_1M_CONTEXT 控制是否带上这个 header（默认 true），
+#   Wiki 的 Ingest/Lint 都可能需要上 1M 窗口吞下数十篇文章
+# 实测：通过 SG NAS 代理调 claude-opus-4-6[1m] 会 404，只能用 claude-opus-4-6
 
 INGEST_MODEL = os.environ.get('WIKI_INGEST_MODEL', 'claude-opus-4-6')
 QUERY_MODEL = os.environ.get('WIKI_QUERY_MODEL', 'claude-opus-4-6')
 LINT_MODEL = os.environ.get('WIKI_LINT_MODEL', 'claude-opus-4-6')
 META_MODEL = os.environ.get('WIKI_META_MODEL', 'claude-haiku-4-5-20251001')
+
+# 1M 上下文 beta feature flag —— Anthropic 对 Opus 1M 还在 beta
+# 参考: https://docs.anthropic.com/en/docs/build-with-claude/context-windows
+ENABLE_1M_CONTEXT = os.environ.get('WIKI_ENABLE_1M_CONTEXT', 'true').lower() in ('true', '1', 'yes')
+BETA_1M_HEADER = 'context-1m-2025-08-07'
 
 # 默认 HTTP 超时（秒）—— Wiki 编译可能跑几十秒
 DEFAULT_TIMEOUT = float(os.environ.get('WIKI_HTTP_TIMEOUT', '180'))
@@ -165,6 +178,10 @@ class WikiClaudeClient:
             'x-api-key': self._api_key,
             'anthropic-version': self.ANTHROPIC_VERSION,
         }
+        # 1M 上下文 beta flag（C6）—— Opus 默认 200K，带上这个 header 才拿到 1M。
+        # Haiku 不支持 1M，但带上这个 header 也不会报错，所以统一带上即可。
+        if ENABLE_1M_CONTEXT:
+            headers['anthropic-beta'] = BETA_1M_HEADER
 
         url = f'{self._base_url}/v1/messages'
 

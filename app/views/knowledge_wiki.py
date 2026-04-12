@@ -100,6 +100,12 @@ def add_raw_file():
     if not fl_id or not topic:
         return jsonify({'success': False, 'message': 'file_library_id 和 topic 必填'}), 400
 
+    # 前置校验 topic 合法性，避免把非法输入交给 storage 层
+    try:
+        storage.validate_topic(topic)
+    except storage.WikiPathError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
     fl = FileLibrary.query.get(fl_id)
     if not fl:
         return jsonify({'success': False, 'message': '文件不存在于 file_library'}), 404

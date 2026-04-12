@@ -15,6 +15,7 @@
     <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
     <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/dompurify/purify.min.js') }}"></script>
     <script>
         tailwind.config = {
             darkMode: "class",
@@ -133,7 +134,7 @@
         <!-- 底部统计 -->
         <div class="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
             <span x-text="articleCount + ' {{ _('篇文章') }} · ' + Object.keys(tree).length + ' topics'"></span>
-            <button @click="showIndexPanel = true"
+            <button @click="showIndex()"
                     class="text-primary hover:underline"
                     :title="'{{ _('查看索引') }}'">{{ _('索引') }}</button>
         </div>
@@ -599,9 +600,22 @@ function wikiApp() {
 
         // ── 工具 ─────────────────
         renderMarkdown(text) {
+            // C4: Wiki 内容来源是 Claude Opus 输出（对抗性 PDF 可能触发
+            // prompt injection），内容会被多用户共享查看 —— 必须 sanitize。
+            // 用 DOMPurify 扫掉 script / on* / iframe / javascript: 等危险项。
             if (!text) return '';
             try {
-                return marked.parse(text);
+                const rawHtml = marked.parse(text);
+                if (typeof DOMPurify !== 'undefined') {
+                    return DOMPurify.sanitize(rawHtml, {
+                        USE_PROFILES: { html: true },
+                        FORBID_TAGS: ['style', 'iframe', 'object', 'embed', 'form'],
+                        FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+                    });
+                }
+                // DOMPurify 未加载时的降级：抛弃 HTML，只返回转义后的纯文本
+                console.warn('DOMPurify 未加载，Wiki 内容降级为纯文本渲染');
+                return this.escapeHtml(text);
             } catch (e) {
                 return this.escapeHtml(text);
             }

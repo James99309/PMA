@@ -346,3 +346,138 @@ def test_ingest_noop_operation(app_ctx, wiki_root, test_raw_file):
         topic='product', slug='test-skipped'
     ).first() is None
     assert KnowledgeRawFile.query.get(raw_id).ingest_status == 'ingested'
+
+
+# ══════════════════════════════════════════════════════════════════
+# C1: Claude 返回恶意 slug 时 ingest 应拒绝
+# ══════════════════════════════════════════════════════════════════
+
+def test_ingest_rejects_malicious_slug_from_claude(app_ctx, wiki_root, test_raw_file):
+    """对抗性 PDF 诱导 Claude 输出 `../evil` 这种 slug，应该被拦下。"""
+    from app.services.wiki.compiler import ingest_raw_file, IngestError
+    from app.models.knowledge import KnowledgeRawFile
+
+    raw_id = test_raw_file
+    payload = {
+        'operations': [{
+            'action': 'create',
+            'topic': '../../../../etc',
+            'slug': 'passwd',
+            'title': 'pwn',
+            'content': '# pwn\n',
+            'summary': 'x',
+            'source_raw_ids': [raw_id],
+            'outbound_refs': [],
+        }],
+        'index_update': '# idx\n',
+        'log_entry': 'malicious',
+    }
+    mock_resp = MagicMock()
+    mock_resp.text = json.dumps(payload, ensure_ascii=False)
+    mock_resp.usage = {'input_tokens': 1, 'output_tokens': 1, 'model': 'fake'}
+    fake_client = MagicMock()
+    fake_client.complete.return_value = mock_resp
+
+    with pytest.raises(IngestError, match='非法'):
+        ingest_raw_file(raw_id, claude=fake_client)
+
+    # 恶意路径不能被创建
+    assert not (wiki_root / 'etc').exists()
+    # raw 状态应为 error
+    raw = KnowledgeRawFile.query.get(raw_id)
+    assert raw.ingest_status == 'error'
+
+
+# ══════════════════════════════════════════════════════════════════
+# C2: Claude 客户端构造失败时，raw 应落入 error 而非卡在 processing
+# ══════════════════════════════════════════════════════════════════
+
+def test_ingest_claude_client_construction_failure(app_ctx, wiki_root, test_raw_file, monkeypatch):
+    from app.services.wiki import claude_client, compiler
+    from app.models.knowledge import KnowledgeRawFile
+
+    raw_id = test_raw_file
+
+    # 把 WikiClaudeClient 替换成一个构造时爆炸的类
+    class BoomClient:
+        def __init__(self, *a, **kw):
+            raise RuntimeError('ANTHROPIC_API_KEY 缺失（模拟）')
+
+    monkeypatch.setattr(claude_client, 'WikiClaudeClient', BoomClient)
+
+    # 不传 claude 参数，让 compiler 自己去构造
+    with pytest.raises(Exception, match='ANTHROPIC_API_KEY'):
+        compiler.ingest_raw_file(raw_id)
+
+    raw = KnowledgeRawFile.query.get(raw_id)
+    assert raw.ingest_status == 'error'
+    assert 'ANTHROPIC_API_KEY' in (raw.ingest_error or '')
+
+
+# ══════════════════════════════════════════════════════════════════
+# C3: 中途失败时磁盘回滚（update 的旧文件应被恢复）
+# ══════════════════════════════════════════════════════════════════
+
+def test_ingest_rollback_restores_file_on_failure(app_ctx, wiki_root, test_raw_file):
+    """模拟第二个 operation 失败，验证第一个 operation 对现有文件的改动被恢复。"""
+    from app import db
+    from app.services.wiki.compiler import ingest_raw_file, IngestError
+    from app.services.wiki.storage import write_article
+    from app.models.knowledge import KnowledgeWikiArticle
+
+    raw_id = test_raw_file
+
+    # 先建一篇已有文章
+    original_content = '# GP328P 原版\n\n这是原来的内容。\n'
+    fp = write_article('product', 'test-gp328p-orig', original_content)
+    art = KnowledgeWikiArticle(
+        topic='product', slug='test-gp328p-orig', title='GP328P 原版',
+        file_path=fp, summary='原始', content_length=len(original_content),
+        source_raw_ids=[], outbound_refs=[],
+    )
+    db.session.add(art)
+    db.session.commit()
+
+    # Claude 返回两个 operation：第一个是合法 update，第二个是非法 slug
+    payload = {
+        'operations': [
+            {
+                'action': 'update',
+                'topic': 'product',
+                'slug': 'test-gp328p-orig',
+                'title': 'GP328P 更新版',
+                'content': '# GP328P 更新版\n\n恶意修改的内容。\n',
+                'summary': '被改掉了',
+                'source_raw_ids': [raw_id],
+                'outbound_refs': [],
+            },
+            {
+                'action': 'create',
+                'topic': '../../../evil',  # 非法，会触发预校验失败
+                'slug': 'pwn',
+                'title': 'pwn',
+                'content': 'x',
+            },
+        ],
+        'index_update': '# new idx\n',
+        'log_entry': 'partial failure test',
+    }
+    mock_resp = MagicMock()
+    mock_resp.text = json.dumps(payload, ensure_ascii=False)
+    mock_resp.usage = {'input_tokens': 1, 'output_tokens': 1, 'model': 'fake'}
+    fake_client = MagicMock()
+    fake_client.complete.return_value = mock_resp
+
+    with pytest.raises(IngestError):
+        ingest_raw_file(raw_id, claude=fake_client)
+
+    # 预校验在任何磁盘写入之前就挂了，因此文件完全没动
+    restored = (wiki_root / 'wiki' / 'product' / 'test-gp328p-orig.md').read_text(encoding='utf-8')
+    assert restored == original_content
+    assert '恶意修改' not in restored
+
+    # DB 也应该没变
+    art_db = KnowledgeWikiArticle.query.filter_by(
+        topic='product', slug='test-gp328p-orig'
+    ).first()
+    assert art_db.title == 'GP328P 原版'
