@@ -624,6 +624,332 @@ def execute_safe_query(sql, user):
         return {'success': False, 'error': f'查询执行失败: {str(e)}'}
 
 
+# ===========================================================================
+# 聊天 AI 专用: 基于前端权限的表级 + 行级过滤
+# ===========================================================================
+# 与上方 CLI Agent 版本并行, 区别:
+# 1) 表级检查使用 user.has_permission(module, 'view') 而非 cli_can_query
+# 2) 行级过滤使用 get_viewable_data(Model, user).id 集合(含共享/归属/联系人授权)
+#    而非 owner_id IN (...) 集合
+# 3) 不强制聚合 owner_id 条件(id IN 注入天然约束聚合)
+
+_CHAT_TABLE_MODEL_MAP = None
+
+
+def _get_chat_table_model_map():
+    """延迟加载: 敏感业务表 -> SQLAlchemy Model (用于 get_viewable_data 行级过滤)"""
+    global _CHAT_TABLE_MODEL_MAP
+    if _CHAT_TABLE_MODEL_MAP is not None:
+        return _CHAT_TABLE_MODEL_MAP
+
+    from app.models.customer import Company
+    from app.models.project import Project
+    from app.models.quotation import Quotation
+    from app.models.expense import Expense
+    from app.models.sales_order import SalesOrder
+    from app.models.inventory import PurchaseOrder
+    from app.models.pricing_order import PricingOrder
+    from app.models.worklog import WorkLog
+
+    _CHAT_TABLE_MODEL_MAP = {
+        'companies': Company,
+        'projects': Project,
+        'quotations': Quotation,
+        'expenses': Expense,
+        'sales_orders': SalesOrder,
+        'purchase_orders': PurchaseOrder,
+        'pricing_orders': PricingOrder,
+        'worklogs': WorkLog,
+    }
+    return _CHAT_TABLE_MODEL_MAP
+
+
+# mode='follow' 表的父表外键列
+# 用于把父表的可见 id 集合, 注入为 follow 表的 fk IN (...) 条件
+_CHAT_FOLLOW_FK_COLUMN = {
+    'contacts':                      'company_id',      # → companies
+    'actions':                       'company_id',      # → companies
+    'project_customer_associations': 'project_id',      # → projects
+    'project_stage_history':         'project_id',      # → projects
+    'tasks':                         'project_id',      # → projects(保守过滤)
+    'quotation_details':             'quotation_id',    # → quotations
+    'shipments':                     'sales_order_id',  # → sales_orders
+    'work_items':                    'worklog_id',      # → worklogs
+}
+
+
+def check_chat_table_access(user, table_names):
+    """聊天 AI 表级白名单: 按前端模块权限 has_permission(module, 'view') 放行
+
+    Args:
+        user: 当前用户
+        table_names: SQL 中涉及的表名(小写)
+
+    Returns:
+        None 表示通过, 否则返回面向用户的错误消息
+    """
+    from app.services.cli_agent.table_registry import resolve_table_module, _load_registry
+
+    role = getattr(user, 'role', None)
+    if role == 'admin':
+        return None
+
+    registry = _load_registry()
+
+    for table in table_names:
+        entry = registry.get(table)
+        if not entry:
+            return f'安全限制: 表 {table} 未登记到可查询清单, 请联系管理员添加归属'
+
+        module = resolve_table_module(table, registry)
+        if not module:
+            return f'安全限制: 表 {table} 归属解析失败'
+        if module == 'cli_agent':
+            return f'安全限制: 表 {table} 归属异常(cli_agent 不是数据模块)'
+
+        if not user.has_permission(module, 'view'):
+            return f'安全限制: 你没有 {module} 模块的查看权限(表 {table})'
+
+    return None
+
+
+def _get_chat_allowed_record_ids(user, table_name, cache):
+    """获取聊天 AI 在指定表上可见的主键 id 集合(前端权限版)
+
+    仅对 mode='module' 且在 _CHAT_TABLE_MODEL_MAP 里的敏感表有效。
+    结果在单轮调用的 cache dict 里复用, 避免重复捞取。
+
+    Returns:
+        set[int] | None: 可见 id 集合; None 表示不限制(admin / 无模型映射)
+
+    Raises:
+        PermissionError: 无法获取权限或查询失败
+    """
+    if table_name in cache:
+        return cache[table_name]
+
+    table_model_map = _get_chat_table_model_map()
+    model = table_model_map.get(table_name)
+    if not model:
+        cache[table_name] = None
+        return None
+
+    if getattr(user, 'role', None) == 'admin':
+        cache[table_name] = None
+        return None
+
+    from app.utils.access_control import get_viewable_data
+    try:
+        q = get_viewable_data(model, user)
+    except Exception as e:
+        logger.error(f'[Chat DB Query] get_viewable_data({table_name}) 异常: {e}')
+        raise PermissionError(f'无法获取 {table_name} 表的访问权限')
+
+    ids = {row[0] for row in q.with_entities(model.id).all()}
+    cache[table_name] = ids
+    return ids
+
+
+def _inject_chat_permission_filters(sql, user):
+    """向 SQL 注入聊天 AI 的记录级权限条件
+
+    - mode='module' 敏感表: inject `{alias}.id IN (visible_ids)`
+    - mode='follow' 敏感表: inject `{alias}.{fk_column} IN (parent_visible_ids)`
+    - admin 跳过
+    - 包含敏感表的 WITH/CTE 查询暂不支持, 直接拒绝
+
+    Returns:
+        tuple[str, bool]: (注入后 SQL, 是否注入)
+    """
+    from app.services.cli_agent.table_registry import _load_registry
+
+    role = getattr(user, 'role', 'user')
+    user_name = getattr(user, 'real_name', None) or getattr(user, 'username', '?')
+    logger.info(f'[Chat DB Query] _inject_chat_permission_filters - user={user_name}, role={role}')
+
+    if role == 'admin':
+        return sql, False
+
+    registry = _load_registry()
+    table_model_map = _get_chat_table_model_map()
+
+    sql_upper = sql.upper()
+    if sql_upper.lstrip().startswith('WITH'):
+        has_sensitive = any(
+            ((t in table_model_map) or (t in _CHAT_FOLLOW_FK_COLUMN))
+            and re.search(rf'\b{re.escape(t)}\b', sql, re.IGNORECASE)
+            for t in registry
+        )
+        if has_sensitive:
+            raise PermissionError(
+                '暂不支持对包含敏感表的 WITH/CTE 查询进行权限过滤, 请改用简单 SELECT'
+            )
+        return sql, False
+
+    main_query_sql = _strip_subqueries(sql)
+    table_refs = _extract_table_refs(main_query_sql)
+    logger.info(f'[Chat DB Query] 主查询表引用: {table_refs}')
+
+    id_cache = {}
+    conditions = []
+
+    for table, alias in table_refs:
+        if table in table_model_map:
+            try:
+                allowed_ids = _get_chat_allowed_record_ids(user, table, id_cache)
+            except PermissionError:
+                raise
+            if allowed_ids is None:
+                continue
+            if not allowed_ids:
+                raise PermissionError(f'您没有 {table} 表的数据访问权限')
+            ids_str = ', '.join(str(i) for i in sorted(allowed_ids))
+            conditions.append(f'{alias}.id IN ({ids_str})')
+            continue
+
+        fk_col = _CHAT_FOLLOW_FK_COLUMN.get(table)
+        if not fk_col:
+            continue
+
+        parent_table = (registry.get(table) or {}).get('parent_table')
+        if not parent_table or parent_table not in table_model_map:
+            continue
+
+        try:
+            parent_ids = _get_chat_allowed_record_ids(user, parent_table, id_cache)
+        except PermissionError:
+            raise
+        if parent_ids is None:
+            continue
+        if not parent_ids:
+            raise PermissionError(f'您没有 {table} 表的数据访问权限(依赖父表 {parent_table})')
+
+        ids_str = ', '.join(str(i) for i in sorted(parent_ids))
+        conditions.append(f'{alias}.{fk_col} IN ({ids_str})')
+
+    if not conditions:
+        return sql, False
+
+    inject_clause = ' AND '.join(conditions)
+
+    inject_pattern = re.compile(
+        r'\b(GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT)\b',
+        re.IGNORECASE,
+    )
+    match = inject_pattern.search(sql)
+    if match:
+        pos = match.start()
+        before = sql[:pos].rstrip()
+        after = sql[pos:]
+    else:
+        before = sql
+        after = ''
+
+    if re.search(r'\bWHERE\b', before, re.IGNORECASE):
+        injected = f'{before} AND {inject_clause} {after}'
+    else:
+        injected = f'{before} WHERE {inject_clause} {after}'
+
+    clause_preview = inject_clause if len(inject_clause) < 300 else inject_clause[:300] + '...'
+    logger.info(f'[Chat DB Query] 权限注入: {clause_preview}')
+    return injected.strip(), True
+
+
+def execute_chat_safe_query(sql, user):
+    """聊天 AI 专用安全查询
+
+    与 execute_safe_query 并行, 独立于 CLI 权限体系:
+    - 表级: check_chat_table_access 按前端模块 view 权限放行
+    - 行级: _inject_chat_permission_filters 注入 id/fk IN (...), 数据范围严格等于
+      用户在前端列表页能看到的数据(含共享、归属、联系人授权、vendor_sales_manager 等)
+    - 无聚合 owner_id 硬性要求: id IN 注入天然约束 COUNT/SUM 等结果
+
+    Returns:
+        dict 同 execute_safe_query
+    """
+    try:
+        validated_sql = _validate_sql(sql)
+    except ValueError as e:
+        return {'success': False, 'error': str(e)}
+
+    user_name = getattr(user, 'real_name', None) or getattr(user, 'username', '?')
+
+    try:
+        table_refs_for_check = _extract_table_refs(_strip_subqueries(validated_sql))
+        unique_tables = sorted({t for t, _ in table_refs_for_check})
+        access_error = check_chat_table_access(user, unique_tables)
+        if access_error:
+            logger.warning(f'[Chat DB Query] 表级权限拒绝 - {user_name}: {access_error}')
+            return {'success': False, 'error': access_error}
+    except Exception as e:
+        logger.error(f'[Chat DB Query] 表级检查异常: {e}')
+
+    logger.info(f'[Chat DB Query] 原始 SQL (验证后): {validated_sql}')
+    try:
+        validated_sql, was_filtered = _inject_chat_permission_filters(validated_sql, user)
+    except PermissionError as e:
+        logger.warning(f'[Chat DB Query] 权限拒绝 - {user_name}(id={user.id}): {e}')
+        return {'success': False, 'error': f'权限不足: {str(e)}'}
+
+    logger.info(f'[Chat DB Query] 最终 SQL (权限注入后): {validated_sql[:500]}')
+
+    engine = _get_readonly_engine()
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SET TRANSACTION READ ONLY"))
+            conn.execute(text("SET LOCAL statement_timeout = '10s'"))
+
+            result = conn.execute(text(validated_sql))
+            columns = list(result.keys())
+            rows = [list(row) for row in result.fetchall()]
+            conn.rollback()
+
+            for i, row in enumerate(rows):
+                for j, val in enumerate(row):
+                    if val is not None and not isinstance(val, (str, int, float, bool)):
+                        rows[i][j] = str(val)
+
+            logger.info(f'[Chat DB Query] 结果: columns={columns}, row_count={len(rows)}')
+
+            if was_filtered and len(rows) == 0:
+                logger.info(f'[Chat DB Query] 权限拒绝 - {user_name}: 结果已被权限过滤为空')
+                return {
+                    'success': False,
+                    'error': '权限不足: 您无权查看目标数据, 查询结果已被权限过滤',
+                }
+
+            if was_filtered and len(rows) == 1:
+                has_agg = bool(re.search(
+                    r'\b(COUNT|SUM|AVG|MIN|MAX)\s*\(', validated_sql, re.IGNORECASE
+                ))
+                all_zero = all(v is None or v == 0 or v == '0' for v in rows[0])
+                if has_agg and all_zero:
+                    logger.info(f'[Chat DB Query] 权限拒绝 - {user_name}: 聚合为零(权限过滤)')
+                    return {
+                        'success': False,
+                        'error': '权限不足: 您无权查看目标数据, 查询结果已被权限过滤',
+                    }
+
+            has_empty = any(
+                val is None or val == '' or val == '暂无'
+                for row in rows for val in row
+            )
+            result = {
+                'success': True,
+                'columns': columns,
+                'rows': rows,
+                'row_count': len(rows),
+            }
+            if has_empty:
+                result['hint'] = '部分字段为空, 如用户需要该信息可用 web_search 补充'
+            return result
+
+    except Exception as e:
+        logger.error(f'[Chat DB Query] 执行失败: {e}')
+        return {'success': False, 'error': f'查询执行失败: {str(e)}'}
+
+
 # ---------------------------------------------------------------------------
 # 权限上下文生成
 # ---------------------------------------------------------------------------

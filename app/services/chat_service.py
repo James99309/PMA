@@ -19,6 +19,7 @@ from app.models.chat import (
     ChatConversation, ChatParticipant, ChatMessage, ChatTranslation
 )
 from app.models.user import User
+from app.services.chat_agent.config import CHAT_CONTEXT_REJECT
 
 logger = logging.getLogger(__name__)
 
@@ -241,7 +242,7 @@ def get_user_conversations(user_id, viewer_language=None):
                 )
                 if _last_ai:
                     context_tokens = _last_ai.ai_prompt_tokens or 0
-                    if context_tokens > 6000:
+                    if context_tokens > CHAT_CONTEXT_REJECT:
                         context_exhausted = True
 
             conversations.append({

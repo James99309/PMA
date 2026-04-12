@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-AI 对话服务
+AI 对话辅助工具
 
-统一通过 OpenClaw Gateway 提供 AI 对话的流式响应功能。
+聊天的主对话流现在由 app.services.chat_agent.ChatAgentLoop 直接驱动
+(见 app/views/chat.py:ai_stream)。本模块保留两个辅助函数:
+
+- _clean_dsml: 残留 DSML 标签的兜底清理
+- generate_conversation_topic: 用 DeepSeek 给新对话生成 3-8 字话题标题
 """
 import json
 import logging
@@ -41,39 +45,7 @@ def _clean_dsml(text):
 
 
 # ---------------------------------------------------------------------------
-# 主入口：流式 AI 响应（统一走 OpenClaw）
-# ---------------------------------------------------------------------------
-
-def get_ai_response_stream(message, user, session_id=None, conversation_id=None):
-    """通过 OpenClaw 获取 AI 流式响应
-
-    Args:
-        message: 用户发送的消息文本
-        user: 当前用户对象
-        session_id: OpenClaw session ID
-        conversation_id: 当前对话 ID（供 OpenClaw 文件上传工具使用）
-
-    Yields:
-        dict: 包含以下类型之一：
-            - {'type': 'content', 'text': '...'} 内容片段
-            - {'type': 'thinking', 'text': '...'} 思考过程
-            - {'type': 'status', 'message': '...'} 状态更新
-            - {'type': 'agent_status', 'message': '...'} Agent 工具状态
-            - {'type': 'done', 'model': '...', 'prompt_tokens': N, 'completion_tokens': N}
-    """
-    try:
-        from app.services.openclaw_provider import get_openclaw_response_stream
-        yield from get_openclaw_response_stream(
-            message, session_id=session_id,
-            user=user, conversation_id=conversation_id)
-    except Exception as e:
-        logger.error(f'AI 流式响应异常: {e}', exc_info=True)
-        yield {'type': 'content', 'text': '抱歉，AI 服务暂时不可用，请稍后重试。'}
-        yield {'type': 'done', 'model': 'error', 'prompt_tokens': 0, 'completion_tokens': 0}
-
-
-# ---------------------------------------------------------------------------
-# 话题标题生成（通过 OpenClaw 实现）
+# 话题标题生成（走 DeepSeek)
 # ---------------------------------------------------------------------------
 
 def generate_conversation_topic(user_message, ai_response=None):

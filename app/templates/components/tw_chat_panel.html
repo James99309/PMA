@@ -1329,8 +1329,8 @@
                         <!-- AI 对话 token 用量指示器 -->
                         <template x-if="contextTokens > 0 && (activeConv?.type === 'ai' || isNewChat)">
                             <span class="text-[10px] font-mono select-none"
-                                  :class="contextTokens > 4800 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'"
-                                  x-text="`${contextTokens} / 6000`"></span>
+                                  :class="contextTokens > 120000 ? 'text-red-500' : (contextTokens > 40000 ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400')"
+                                  x-text="`${(contextTokens/1000).toFixed(1)}k / 120k`"></span>
                         </template>
                         <!-- 发送按钮（向上箭头圆圈） -->
                         <button @click="sendMessage()"

@@ -23,6 +23,7 @@ from app import db
 from app.models.user import User
 from app.models.chat import ChatConversation, ChatMessage, ChatParticipant
 from app.services import chat_service
+from app.services.chat_agent.config import CHAT_CONTEXT_WARN, CHAT_CONTEXT_REJECT
 
 logger = logging.getLogger(__name__)
 
@@ -645,13 +646,12 @@ def ai_stream():
             conversation_id = ai_conv['data']['id']
 
         # 0. 上下文耗尽预检查：最近一条 AI 消息的 prompt_tokens > 阈值则阻断
-        CONTEXT_TOKEN_LIMIT = 6000
         last_ai_msg = ChatMessage.query.filter_by(
             conversation_id=conversation_id,
             is_ai_response=True
         ).order_by(ChatMessage.id.desc()).first()
 
-        if last_ai_msg and (last_ai_msg.ai_prompt_tokens or 0) > CONTEXT_TOKEN_LIMIT:
+        if last_ai_msg and (last_ai_msg.ai_prompt_tokens or 0) > CHAT_CONTEXT_REJECT:
             # 保存用户消息（仍然保存，让用户看到自己发了什么）
             chat_service.send_message(
                 conversation_id=conversation_id,
@@ -693,7 +693,9 @@ def ai_stream():
 
         user_msg_id = user_msg_result.get('data', {}).get('id')
 
-        # 2. 构建 SSE 流（OpenClaw 通过 sessionKey 自行管理对话上下文，无需传历史）
+        # 2. 构建 SSE 流:直连 Anthropic 的 ChatAgentLoop,按前端权限
+        #    (access_control.get_viewable_data) 过滤数据,共享/归属/联系人
+        #    授权全部生效
         def generate():
             full_response = ''
             ai_model = None
@@ -701,13 +703,29 @@ def ai_stream():
             ai_completion_tokens = 0
             _form_marker_detected = False  # 检测到 [[FORM: 后停止向前端输出内容
             try:
-                from app.services.chat_ai_service import get_ai_response_stream
+                from app.services.chat_agent.agent_loop import ChatAgentLoop
+                _loop = ChatAgentLoop(
+                    conversation_id=conversation_id,
+                    user=current_user,
+                )
 
-                oc_session_id = f'pma-u{current_user.id}-conv-{conversation_id}'
+                def _chunk_source():
+                    # ChatAgentLoop 原生 emit: content / thinking / tool_status / done / error
+                    # 这里只保留 content/done/error,其它 (thinking, tool_status) 映射为
+                    # 轻量 status 事件透传给前端(前端忽略未知类型即可)
+                    for _ev in _loop.run(content):
+                        _t = _ev.get('type')
+                        if _t in ('content', 'done', 'error'):
+                            yield _ev
+                        elif _t in ('thinking', 'tool_status'):
+                            yield {
+                                'type': 'status',
+                                'phase': _ev.get('phase', ''),
+                                'name': _ev.get('name', ''),
+                                'message': _ev.get('message', ''),
+                            }
 
-                for chunk in get_ai_response_stream(content, current_user,
-                                                    session_id=oc_session_id,
-                                                    conversation_id=conversation_id):
+                for chunk in _chunk_source():
                     chunk_type = chunk.get('type')
                     if chunk_type == 'content':
                         text = chunk.get('text', '')
@@ -956,7 +974,7 @@ def ai_stream():
                         'ai_model': ai_model,
                         'prompt_tokens': ai_prompt_tokens or 0,
                     }
-                    if ai_prompt_tokens and ai_prompt_tokens > CONTEXT_TOKEN_LIMIT:
+                    if ai_prompt_tokens and ai_prompt_tokens > CHAT_CONTEXT_WARN:
                         done_payload['context_warning'] = True
                     done_data = json.dumps(done_payload, ensure_ascii=False)
                     yield f'data: {done_data}\n\n'
