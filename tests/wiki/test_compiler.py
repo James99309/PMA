@@ -44,8 +44,14 @@ def test_raw_file(app_ctx):
     from app import db
     from app.models import User
     from app.models.file_manager import FileLibrary
-    from app.models.knowledge import KnowledgeRawFile
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
     from app.services.wiki.storage import save_raw_file
+
+    # 前置清理防止上次失败残留
+    KnowledgeWikiArticle.query.filter(
+        KnowledgeWikiArticle.slug.like('test-%')
+    ).delete(synchronize_session=False)
+    db.session.commit()
 
     admin = User.query.filter_by(role='admin').first()
     assert admin, '测试需要至少一个 admin 用户'
