@@ -1,0 +1,632 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('Wiki 知识库') }} - PMA</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" }, fontFamily: { "display": ["Inter","sans-serif"] } } }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }
+        [x-cloak] { display: none !important; }
+
+        /* Wiki Markdown 渲染样式 */
+        .wiki-md { line-height: 1.7; }
+        .wiki-md h1 { font-size: 1.75rem; font-weight: 700; margin: 1.5rem 0 0.75rem; border-bottom: 1px solid rgb(226 232 240); padding-bottom: 0.5rem; }
+        .dark .wiki-md h1 { border-color: rgb(51 65 85); }
+        .wiki-md h2 { font-size: 1.375rem; font-weight: 600; margin: 1.25rem 0 0.5rem; }
+        .wiki-md h3 { font-size: 1.125rem; font-weight: 600; margin: 1rem 0 0.375rem; }
+        .wiki-md p { margin: 0.6rem 0; }
+        .wiki-md ul, .wiki-md ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+        .wiki-md ul { list-style: disc; }
+        .wiki-md ol { list-style: decimal; }
+        .wiki-md li { margin: 0.2rem 0; }
+        .wiki-md code { background: rgba(148,163,184,0.15); padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.875em; font-family: 'SF Mono','Consolas',monospace; }
+        .wiki-md pre { background: rgba(148,163,184,0.1); padding: 0.75rem; border-radius: 8px; overflow-x: auto; margin: 0.75rem 0; }
+        .wiki-md pre code { background: transparent; padding: 0; }
+        .wiki-md table { border-collapse: collapse; margin: 0.75rem 0; width: 100%; font-size: 0.9em; }
+        .wiki-md th, .wiki-md td { border: 1px solid rgb(226 232 240); padding: 0.5rem 0.75rem; text-align: left; }
+        .dark .wiki-md th, .dark .wiki-md td { border-color: rgb(51 65 85); }
+        .wiki-md th { background: rgba(148,163,184,0.1); font-weight: 600; }
+        .wiki-md blockquote { border-left: 3px solid rgb(19,127,236); padding-left: 1rem; color: rgb(100 116 139); margin: 0.75rem 0; }
+        .dark .wiki-md blockquote { color: rgb(148 163 184); }
+        .wiki-md a { color: rgb(19,127,236); text-decoration: underline; }
+        .wiki-md a:hover { color: rgb(14,99,184); }
+        .wiki-md hr { border: 0; border-top: 1px solid rgb(226 232 240); margin: 1rem 0; }
+        .dark .wiki-md hr { border-color: rgb(51 65 85); }
+
+        /* 聊天区域 */
+        .chat-bubble-user { background: rgb(19,127,236); color: white; border-radius: 14px 14px 4px 14px; }
+        .chat-bubble-ai { background: rgba(148,163,184,0.12); border-radius: 14px 14px 14px 4px; }
+        .dark .chat-bubble-ai { background: rgba(148,163,184,0.18); }
+
+        /* 加载动画 */
+        .dot-typing { display: inline-flex; gap: 3px; }
+        .dot-typing span { width: 6px; height: 6px; background: currentColor; border-radius: 50%; opacity: 0.3; animation: dotPulse 1.2s infinite; }
+        .dot-typing span:nth-child(2) { animation-delay: 0.2s; }
+        .dot-typing span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dotPulse { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200">
+
+{% call(slot) render_tw_layout(active_page='wiki', show_search=false) %}
+{% if slot == 'content' %}
+
+<div class="h-[calc(100vh-56px)] flex overflow-hidden"
+     x-data="wikiApp()"
+     x-init="init()"
+     x-cloak>
+
+    <!-- ═══════════ 左侧栏：目录 ═══════════ -->
+    <aside class="w-72 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">
+        <!-- 头部 -->
+        <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-xl">auto_stories</span>
+                <span class="font-semibold text-sm">{{ _('Wiki 知识库') }}</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <button @click="refreshTree()"
+                        class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                        :title="'{{ _('刷新') }}'">
+                    <span class="material-symbols-outlined text-base text-slate-500">refresh</span>
+                </button>
+                {% if is_admin %}
+                <button @click="showAdminPanel = !showAdminPanel"
+                        class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                        :class="showAdminPanel ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700' : 'text-slate-500'"
+                        :title="'{{ _('管理') }}'">
+                    <span class="material-symbols-outlined text-base">settings</span>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Topic 树 -->
+        <div class="flex-1 overflow-y-auto py-2">
+            <template x-if="Object.keys(tree).length === 0 && !loadingTree">
+                <div class="px-4 py-10 text-center text-xs text-slate-400">
+                    <span class="material-symbols-outlined text-3xl mb-2">inbox</span>
+                    <p>{{ _('Wiki 为空') }}</p>
+                    {% if is_admin %}
+                    <p class="mt-1">{{ _('点击右上角 ⚙ 开始管理原始资料') }}</p>
+                    {% endif %}
+                </div>
+            </template>
+
+            <template x-for="(articles, topic) in tree" :key="topic">
+                <div class="mb-3">
+                    <div class="px-4 py-1 text-[10px] uppercase tracking-wider text-slate-400 font-semibold"
+                         x-text="topic"></div>
+                    <template x-for="art in articles" :key="art.id">
+                        <button @click="openArticle(art.id)"
+                                class="w-full text-left px-4 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-800 flex items-start gap-2 transition-colors"
+                                :class="currentArticle && currentArticle.id === art.id ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 border-l-2 border-violet-500' : ''">
+                            <span class="material-symbols-outlined text-sm mt-0.5 flex-shrink-0 text-slate-400">article</span>
+                            <div class="flex-1 min-w-0">
+                                <div class="font-medium truncate" x-text="art.title"></div>
+                                <div class="text-[10px] text-slate-400 truncate mt-0.5" x-text="art.summary"></div>
+                            </div>
+                        </button>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- 底部统计 -->
+        <div class="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+            <span x-text="articleCount + ' {{ _('篇文章') }} · ' + Object.keys(tree).length + ' topics'"></span>
+            <button @click="showIndexPanel = true"
+                    class="text-primary hover:underline"
+                    :title="'{{ _('查看索引') }}'">{{ _('索引') }}</button>
+        </div>
+    </aside>
+
+    <!-- ═══════════ 主区：正文 + 问答 ═══════════ -->
+    <main class="flex-1 flex flex-col overflow-hidden">
+
+        <!-- 正文区 -->
+        <section class="flex-1 overflow-y-auto px-8 py-6">
+            <template x-if="!currentArticle && !loadingArticle">
+                <div class="h-full flex flex-col items-center justify-center text-center text-slate-400">
+                    <span class="material-symbols-outlined text-6xl mb-4 text-slate-300 dark:text-slate-600">menu_book</span>
+                    <h2 class="text-lg font-semibold mb-2 text-slate-500">{{ _('选择一篇文章开始阅读') }}</h2>
+                    <p class="text-sm">{{ _('或在下方问答区直接向 Wiki 提问') }}</p>
+                </div>
+            </template>
+
+            <template x-if="loadingArticle">
+                <div class="h-full flex items-center justify-center">
+                    <div class="dot-typing text-primary"><span></span><span></span><span></span></div>
+                </div>
+            </template>
+
+            <template x-if="currentArticle && !loadingArticle">
+                <div>
+                    <div class="mb-4 pb-3 border-b border-slate-200 dark:border-slate-800">
+                        <div class="text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1"
+                             x-text="currentArticle.topic + ' / ' + currentArticle.slug"></div>
+                        <h1 class="text-2xl font-bold" x-text="currentArticle.title"></h1>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1" x-text="currentArticle.summary"></p>
+                        <div class="mt-2 flex items-center gap-3 text-[11px] text-slate-400">
+                            <span x-show="currentArticle.last_compiled_at"
+                                  x-text="'{{ _('编译于') }} ' + formatDate(currentArticle.last_compiled_at)"></span>
+                            <span x-show="currentArticle.compile_model"
+                                  x-text="'· ' + currentArticle.compile_model"></span>
+                            <span x-show="currentArticle.content_length"
+                                  x-text="'· ' + currentArticle.content_length + ' {{ _('字符') }}'"></span>
+                        </div>
+                    </div>
+                    <div class="wiki-md prose prose-slate dark:prose-invert max-w-none" x-html="renderedContent"></div>
+                </div>
+            </template>
+        </section>
+
+        <!-- 问答区（固定底部） -->
+        <section class="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col"
+                 :class="chatExpanded ? 'h-96' : 'h-14'">
+
+            <div class="px-4 py-2 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 cursor-pointer"
+                 @click="chatExpanded = !chatExpanded">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-base">forum</span>
+                    <span class="text-sm font-medium">{{ _('Wiki 问答') }}</span>
+                    <span class="text-[10px] text-slate-400" x-show="chatMessages.length > 0"
+                          x-text="'(' + chatMessages.length + ')'"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @click.stop="chatMessages = []" x-show="chatMessages.length > 0"
+                            class="text-[11px] text-slate-400 hover:text-slate-600">{{ _('清空') }}</button>
+                    <span class="material-symbols-outlined text-base text-slate-400"
+                          x-text="chatExpanded ? 'expand_more' : 'expand_less'"></span>
+                </div>
+            </div>
+
+            <div x-show="chatExpanded" class="flex-1 overflow-y-auto px-4 py-3 space-y-3" x-ref="chatScroll">
+                <template x-if="chatMessages.length === 0">
+                    <div class="text-center text-xs text-slate-400 py-6">
+                        {{ _('向 Wiki 提问，AI 会基于现有文章回答，并带引用链接') }}
+                    </div>
+                </template>
+                <template x-for="(msg, idx) in chatMessages" :key="idx">
+                    <div class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
+                        <div class="max-w-[85%] px-3 py-2 text-sm"
+                             :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai wiki-md'"
+                             x-html="msg.role === 'user' ? escapeHtml(msg.text) : renderMarkdown(msg.text)"></div>
+                    </div>
+                </template>
+                <div x-show="chatLoading" class="flex">
+                    <div class="chat-bubble-ai px-4 py-3">
+                        <div class="dot-typing text-primary"><span></span><span></span><span></span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="chatExpanded" class="px-4 py-3 border-t border-slate-100 dark:border-slate-800">
+                <form @submit.prevent="sendQuestion()" class="flex items-center gap-2">
+                    <input type="text" x-model="chatInput" :disabled="chatLoading"
+                           placeholder="{{ _('向 Wiki 提问...（Shift+Enter 换行）') }}"
+                           class="flex-1 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border-0 text-sm focus:ring-2 focus:ring-primary/50">
+                    <button type="submit" :disabled="chatLoading || !chatInput.trim()"
+                            class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium disabled:opacity-50 hover:bg-primary/90">
+                        <span x-show="!chatLoading">{{ _('发送') }}</span>
+                        <span x-show="chatLoading">{{ _('思考中...') }}</span>
+                    </button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    {% if is_admin %}
+    <!-- ═══════════ 管理面板（悬浮右侧，可切换） ═══════════ -->
+    <aside x-show="showAdminPanel"
+           x-transition:enter="transition ease-out duration-200"
+           x-transition:enter-start="opacity-0 translate-x-full"
+           x-transition:enter-end="opacity-100 translate-x-0"
+           x-transition:leave="transition ease-in duration-150"
+           x-transition:leave-start="opacity-100 translate-x-0"
+           x-transition:leave-end="opacity-0 translate-x-full"
+           class="fixed right-0 top-14 bottom-0 w-96 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-xl z-50 flex flex-col">
+
+        <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-violet-600 text-xl">admin_panel_settings</span>
+                <span class="font-semibold text-sm">{{ _('Wiki 管理') }}</span>
+            </div>
+            <button @click="showAdminPanel = false" class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+                <span class="material-symbols-outlined text-base text-slate-500">close</span>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- 上传原始文件 -->
+            <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+                <div class="text-xs font-semibold mb-2 text-slate-600 dark:text-slate-300">{{ _('添加原始资料') }}</div>
+                <form @submit.prevent="addRawFile()" class="space-y-2 text-xs">
+                    <div>
+                        <label class="block text-slate-500 mb-1">{{ _('file_library_id') }}</label>
+                        <input type="number" x-model="newRaw.file_library_id" required
+                               class="w-full px-2 py-1.5 rounded bg-slate-100 dark:bg-slate-800 border-0 focus:ring-1 focus:ring-primary/50">
+                        <p class="text-[10px] text-slate-400 mt-1">{{ _('在"文件管理"右键文件可查看 ID') }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-slate-500 mb-1">{{ _('Topic') }}</label>
+                        <input type="text" x-model="newRaw.topic" required placeholder="product / competitor / ..."
+                               class="w-full px-2 py-1.5 rounded bg-slate-100 dark:bg-slate-800 border-0 focus:ring-1 focus:ring-primary/50">
+                    </div>
+                    <div>
+                        <label class="block text-slate-500 mb-1">{{ _('标题（可选）') }}</label>
+                        <input type="text" x-model="newRaw.title" placeholder="留空用文件原名"
+                               class="w-full px-2 py-1.5 rounded bg-slate-100 dark:bg-slate-800 border-0 focus:ring-1 focus:ring-primary/50">
+                    </div>
+                    <button type="submit" :disabled="addingRaw"
+                            class="w-full py-2 bg-primary text-white rounded text-xs font-medium disabled:opacity-50">
+                        <span x-text="addingRaw ? '{{ _('添加中...') }}' : '{{ _('+ 添加到 Wiki') }}'"></span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- 原始文件列表 -->
+            <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="text-xs font-semibold text-slate-600 dark:text-slate-300">{{ _('原始资料') }} (<span x-text="rawFiles.length"></span>)</div>
+                    <button @click="loadRawFiles()" class="text-[10px] text-primary hover:underline">{{ _('刷新') }}</button>
+                </div>
+                <div class="space-y-2 max-h-80 overflow-y-auto">
+                    <template x-for="raw in rawFiles" :key="raw.id">
+                        <div class="border border-slate-200 dark:border-slate-800 rounded p-2 text-xs">
+                            <div class="flex items-start justify-between gap-2">
+                                <div class="flex-1 min-w-0">
+                                    <div class="font-medium truncate" x-text="raw.title"></div>
+                                    <div class="text-[10px] text-slate-400 mt-0.5">
+                                        <span x-text="raw.topic"></span> · raw_id=<span x-text="raw.id"></span>
+                                    </div>
+                                    <div class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
+                                         :class="{
+                                            'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400': raw.ingest_status === 'pending',
+                                            'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400': raw.ingest_status === 'processing',
+                                            'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400': raw.ingest_status === 'ingested',
+                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400': raw.ingest_status === 'error',
+                                         }">
+                                        <span x-text="raw.ingest_status"></span>
+                                    </div>
+                                    <div x-show="raw.ingest_error" class="text-[10px] text-red-500 mt-1 truncate" x-text="raw.ingest_error"></div>
+                                </div>
+                                <div class="flex flex-col gap-1 flex-shrink-0">
+                                    <button @click="triggerIngest(raw.id)"
+                                            :disabled="raw.ingest_status === 'processing' || ingestingId === raw.id"
+                                            class="px-2 py-1 bg-primary text-white rounded text-[10px] disabled:opacity-40">
+                                        <span x-text="ingestingId === raw.id ? '{{ _('编译中') }}' : '{{ _('编译') }}'"></span>
+                                    </button>
+                                    <button @click="deleteRawFile(raw.id)"
+                                            class="px-2 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded text-[10px]">
+                                        {{ _('删除') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="rawFiles.length === 0" class="text-center text-[11px] text-slate-400 py-4">
+                        {{ _('暂无原始资料') }}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lint -->
+            <div class="border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+                <div class="text-xs font-semibold mb-2 text-slate-600 dark:text-slate-300">{{ _('质检 (Lint)') }}</div>
+                <p class="text-[11px] text-slate-400 mb-2">{{ _('让 AI 检查整库的坏链接、冲突、过时内容和缺摘要') }}</p>
+                <label class="flex items-center gap-2 text-[11px] text-slate-500 mb-2">
+                    <input type="checkbox" x-model="lintApplyFixes" class="rounded">
+                    {{ _('自动修复可安全修复的问题') }}
+                </label>
+                <button @click="runLint()" :disabled="lintRunning"
+                        class="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-xs font-medium disabled:opacity-50">
+                    <span x-text="lintRunning ? '{{ _('质检中...') }}' : '{{ _('开始质检') }}'"></span>
+                </button>
+                <div x-show="lintResult" class="mt-3 space-y-1">
+                    <div class="text-[11px] text-slate-600 dark:text-slate-400" x-text="lintResult && lintResult.summary"></div>
+                    <template x-for="issue in (lintResult && lintResult.issues) || []" :key="issue.message">
+                        <div class="text-[10px] px-2 py-1 rounded"
+                             :class="{
+                                'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400': issue.severity === 'error',
+                                'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400': issue.severity === 'warning',
+                                'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400': issue.severity === 'info',
+                             }">
+                            [<span x-text="issue.type"></span>] <span x-text="issue.article"></span> — <span x-text="issue.message"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </aside>
+    {% endif %}
+
+    <!-- ═══════════ Index 预览弹窗 ═══════════ -->
+    <div x-show="showIndexPanel" @click="showIndexPanel = false"
+         class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div @click.stop class="bg-white dark:bg-slate-900 rounded-xl max-w-3xl w-full max-h-[80vh] flex flex-col">
+            <div class="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div class="font-semibold text-sm">{{ _('wiki/index.md') }}</div>
+                <button @click="showIndexPanel = false" class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined text-base">close</span>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6">
+                <div class="wiki-md" x-html="renderMarkdown(indexContent)"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function wikiApp() {
+    return {
+        // ── 目录树 ─────────────────
+        tree: {},
+        articleCount: 0,
+        loadingTree: false,
+
+        // ── 当前文章 ─────────────────
+        currentArticle: null,
+        renderedContent: '',
+        loadingArticle: false,
+
+        // ── 问答 ─────────────────
+        chatExpanded: false,
+        chatMessages: [],
+        chatInput: '',
+        chatLoading: false,
+
+        // ── 索引预览 ─────────────────
+        showIndexPanel: false,
+        indexContent: '',
+
+        // ── 管理面板 ─────────────────
+        showAdminPanel: false,
+        rawFiles: [],
+        newRaw: { file_library_id: '', topic: '', title: '' },
+        addingRaw: false,
+        ingestingId: null,
+        lintRunning: false,
+        lintApplyFixes: false,
+        lintResult: null,
+
+        async init() {
+            marked.setOptions({ breaks: true, gfm: true });
+            await this.refreshTree();
+            {% if is_admin %}
+            await this.loadRawFiles();
+            {% endif %}
+        },
+
+        // ── 目录 ─────────────────
+        async refreshTree() {
+            this.loadingTree = true;
+            try {
+                const r = await fetch('/api/wiki/tree');
+                const j = await r.json();
+                if (j.success) {
+                    this.tree = j.data || {};
+                    this.articleCount = Object.values(this.tree).reduce((a, b) => a + b.length, 0);
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                this.loadingTree = false;
+            }
+        },
+
+        // ── 打开文章 ─────────────────
+        async openArticle(id) {
+            this.loadingArticle = true;
+            this.currentArticle = null;
+            try {
+                const r = await fetch(`/api/wiki/articles/${id}`);
+                const j = await r.json();
+                if (j.success) {
+                    this.currentArticle = j.data;
+                    this.renderedContent = this.renderMarkdown(j.data.content || '');
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                this.loadingArticle = false;
+            }
+        },
+
+        // ── 索引 ─────────────────
+        async showIndex() {
+            try {
+                const r = await fetch('/api/wiki/index');
+                const j = await r.json();
+                if (j.success) {
+                    this.indexContent = j.content;
+                    this.showIndexPanel = true;
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        // ── 问答 ─────────────────
+        async sendQuestion() {
+            const q = this.chatInput.trim();
+            if (!q || this.chatLoading) return;
+            this.chatMessages.push({ role: 'user', text: q });
+            this.chatInput = '';
+            this.chatLoading = true;
+            this.$nextTick(() => this.scrollChatBottom());
+            try {
+                const r = await fetch('/api/wiki/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: q }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    this.chatMessages.push({ role: 'ai', text: j.data.answer });
+                } else {
+                    this.chatMessages.push({ role: 'ai', text: '❌ ' + (j.message || '请求失败') });
+                }
+            } catch (e) {
+                this.chatMessages.push({ role: 'ai', text: '❌ ' + e.message });
+            } finally {
+                this.chatLoading = false;
+                this.$nextTick(() => this.scrollChatBottom());
+            }
+        },
+
+        scrollChatBottom() {
+            if (this.$refs.chatScroll) {
+                this.$refs.chatScroll.scrollTop = this.$refs.chatScroll.scrollHeight;
+            }
+        },
+
+        // ── 管理：原始文件 ─────────────────
+        async loadRawFiles() {
+            try {
+                const r = await fetch('/api/wiki/raw-files');
+                const j = await r.json();
+                if (j.success) this.rawFiles = j.data || [];
+            } catch (e) { console.error(e); }
+        },
+
+        async addRawFile() {
+            if (!this.newRaw.file_library_id || !this.newRaw.topic) return;
+            this.addingRaw = true;
+            try {
+                const r = await fetch('/api/wiki/raw-files', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_library_id: parseInt(this.newRaw.file_library_id),
+                        topic: this.newRaw.topic.trim(),
+                        title: this.newRaw.title.trim(),
+                    }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    this.newRaw = { file_library_id: '', topic: '', title: '' };
+                    await this.loadRawFiles();
+                } else {
+                    alert(j.message || '添加失败');
+                }
+            } catch (e) {
+                alert(e.message);
+            } finally {
+                this.addingRaw = false;
+            }
+        },
+
+        async triggerIngest(rawId) {
+            if (!confirm('编译可能需要 30-60 秒，确认开始吗？')) return;
+            this.ingestingId = rawId;
+            try {
+                const r = await fetch(`/api/wiki/raw-files/${rawId}/ingest`, { method: 'POST' });
+                const j = await r.json();
+                if (j.success) {
+                    alert(`编译完成！产生 ${j.data.operations.length} 个操作`);
+                    await this.loadRawFiles();
+                    await this.refreshTree();
+                } else {
+                    alert('编译失败: ' + (j.message || ''));
+                    await this.loadRawFiles();
+                }
+            } catch (e) {
+                alert('编译失败: ' + e.message);
+            } finally {
+                this.ingestingId = null;
+            }
+        },
+
+        async deleteRawFile(rawId) {
+            if (!confirm('确认删除这份原始资料？（已编译的文章不会被删除）')) return;
+            try {
+                const r = await fetch(`/api/wiki/raw-files/${rawId}`, { method: 'DELETE' });
+                const j = await r.json();
+                if (j.success) {
+                    await this.loadRawFiles();
+                } else {
+                    alert(j.message || '删除失败');
+                }
+            } catch (e) {
+                alert(e.message);
+            }
+        },
+
+        async runLint() {
+            if (!confirm('将对整个 Wiki 执行质检，可能需要 30-60 秒，确认开始吗？')) return;
+            this.lintRunning = true;
+            this.lintResult = null;
+            try {
+                const r = await fetch('/api/wiki/lint', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apply_auto_fixes: this.lintApplyFixes }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    this.lintResult = j.data;
+                    if (this.lintApplyFixes && j.data.auto_fixes_applied > 0) {
+                        await this.refreshTree();
+                    }
+                } else {
+                    alert(j.message || '质检失败');
+                }
+            } catch (e) {
+                alert(e.message);
+            } finally {
+                this.lintRunning = false;
+            }
+        },
+
+        // ── 工具 ─────────────────
+        renderMarkdown(text) {
+            if (!text) return '';
+            try {
+                return marked.parse(text);
+            } catch (e) {
+                return this.escapeHtml(text);
+            }
+        },
+
+        escapeHtml(s) {
+            const div = document.createElement('div');
+            div.textContent = s || '';
+            return div.innerHTML;
+        },
+
+        formatDate(iso) {
+            if (!iso) return '';
+            try {
+                return new Date(iso).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            } catch (e) { return iso; }
+        },
+    };
+}
+</script>
+
+{% endif %}
+{% endcall %}
+
+{{ render_tw_layout_script() }}
+
+</body>
+</html>

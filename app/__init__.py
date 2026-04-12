@@ -461,6 +461,11 @@ def create_app(config_class=Config):
     app.register_blueprint(knowledge_bp)
     csrf.exempt(knowledge_bp)
 
+    # Wiki 知识库（Karpathy LLM Wiki 方案）
+    from app.views.knowledge_wiki import knowledge_wiki_bp
+    app.register_blueprint(knowledge_wiki_bp)
+    csrf.exempt(knowledge_wiki_bp)
+
     # 注册资源池蓝图
     from app.routes.resource_pool import resource_pool_bp
     app.register_blueprint(resource_pool_bp)
