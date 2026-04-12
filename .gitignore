@@ -181,3 +181,9 @@ supplement_*.py
 # 但保留必要的备份服务文件
 !app/services/supabase_backup_service.py
 \!app/models/product_test.py
+
+# 运行时存储数据（用户文件、知识库等）
+storage/
+
+# Playwright MCP 临时截图
+.playwright-mcp/
