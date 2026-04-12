@@ -122,7 +122,11 @@
                                 :class="currentArticle && currentArticle.id === art.id ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 border-l-2 border-violet-500' : ''">
                             <span class="material-symbols-outlined text-sm mt-0.5 flex-shrink-0 text-slate-400">article</span>
                             <div class="flex-1 min-w-0">
-                                <div class="font-medium truncate" x-text="art.title"></div>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-medium truncate" x-text="art.title"></span>
+                                    <span x-show="isNewArticle(art)"
+                                          class="inline-flex px-1 py-0 rounded text-[8px] font-bold bg-green-500 text-white leading-tight">NEW</span>
+                                </div>
                                 <div class="text-[10px] text-slate-400 truncate mt-0.5" x-text="art.summary"></div>
                             </div>
                         </button>
@@ -411,12 +415,49 @@ function wikiApp() {
         lintApplyFixes: false,
         lintResult: null,
 
+        // ── NEW 标记追踪（localStorage，per-browser） ──
+        readArticleIds: JSON.parse(localStorage.getItem('wiki_read_articles') || '[]'),
+
+        markAsRead(articleId) {
+            if (!this.readArticleIds.includes(articleId)) {
+                this.readArticleIds.push(articleId);
+                localStorage.setItem('wiki_read_articles', JSON.stringify(this.readArticleIds));
+            }
+        },
+
+        isNewArticle(art) {
+            // 未读 + 7 天内更新的算 NEW
+            if (this.readArticleIds.includes(art.id)) return false;
+            if (!art.updated_at) return true;
+            const diff = Date.now() - new Date(art.updated_at).getTime();
+            return diff < 7 * 24 * 3600 * 1000;
+        },
+
         async init() {
             marked.setOptions({ breaks: true, gfm: true });
             await this.refreshTree();
             {% if is_admin %}
             await this.loadRawFiles();
             {% endif %}
+
+            // 拦截 Wiki 内容区和问答区的文章链接点击
+            document.addEventListener('click', (e) => {
+                const a = e.target.closest('a[href]');
+                if (!a) return;
+                const href = a.getAttribute('href');
+                if (!href) return;
+                // 匹配 wiki 文章链接：topic/slug.md 或 ../topic/slug.md
+                const m = href.match(/(?:\.\.\/)?([^\/]+)\/([^\/]+)\.md$/);
+                if (!m) return;
+                const [, topic, slug] = m;
+                // 在 tree 里找到对应文章
+                const articles = this.tree[topic];
+                if (!articles) return;
+                const art = articles.find(a => a.slug === slug);
+                if (!art) return;
+                e.preventDefault();
+                this.openArticle(art.id);
+            });
         },
 
         // ── 目录 ─────────────────
@@ -446,6 +487,7 @@ function wikiApp() {
                 if (j.success) {
                     this.currentArticle = j.data;
                     this.renderedContent = this.renderMarkdown(j.data.content || '');
+                    this.markAsRead(id);
                 }
             } catch (e) {
                 console.error(e);

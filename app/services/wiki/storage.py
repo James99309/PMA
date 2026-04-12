@@ -6,8 +6,11 @@
     wiki/product/gp328p-overview.md
     raw/product/2026-04-09-datasheet.pdf
 """
+import base64
 import logging
+import os
 import re
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -42,8 +45,8 @@ logger = logging.getLogger(__name__)
 # gp328p-overview 这种），保留 ASCII 限制可以完全杜绝各种 Unicode 同形
 # 字符绕过。raw 文件的原始标题允许 CJK（走 safe_filename 另一条路径）。
 
-_TOPIC_RE = re.compile(r'^[A-Za-z0-9_-]{1,100}$')
-_SLUG_RE = re.compile(r'^[A-Za-z0-9._-]{1,200}$')
+_TOPIC_RE = re.compile(r'^[A-Za-z0-9\u4e00-\u9fff_-]{1,100}$')
+_SLUG_RE = re.compile(r'^[A-Za-z0-9\u4e00-\u9fff._-]{1,200}$')
 _SAFE_FILENAME_RE = re.compile(r'[^A-Za-z0-9\u4e00-\u9fff._-]+')
 
 
@@ -55,7 +58,7 @@ def validate_topic(topic: str) -> None:
     """校验 topic。不合规则抛 WikiPathError。"""
     if not isinstance(topic, str) or not _TOPIC_RE.match(topic):
         raise WikiPathError(
-            f'非法 topic: {topic!r}（仅允许 1-100 个 ASCII 字母/数字/_/-）'
+            f'非法 topic: {topic!r}（允许中英文/数字/_/-，1-100 字符，禁止 / \\ .. 和空格）'
         )
 
 
@@ -63,7 +66,7 @@ def validate_slug(slug: str) -> None:
     """校验 slug。不合规则抛 WikiPathError。"""
     if not isinstance(slug, str) or not _SLUG_RE.match(slug) or slug.startswith('.'):
         raise WikiPathError(
-            f'非法 slug: {slug!r}（仅允许 1-200 个 ASCII 字母/数字/./_/-，不能以 . 开头）'
+            f'非法 slug: {slug!r}（允许中英文/数字/./_/-，1-200 字符，不能以 . 开头）'
         )
 
 
@@ -218,8 +221,228 @@ def save_raw_file(topic: str, filename: str, data: bytes) -> str:
     return str(path.relative_to(get_wiki_root()))
 
 
+# ══════════════════════════════════════════════════════════════════
+# PDF 扫描件 → 图片提取（Claude Vision）
+# ══════════════════════════════════════════════════════════════════
+
+# PDF 文字层字符数低于此阈值时，认定为扫描件，走 Vision 路径
+PDF_TEXT_THRESHOLD = int(os.environ.get('WIKI_PDF_TEXT_THRESHOLD', '50'))
+# Vision 模式下 PDF 最多转几页图片（限制 token 成本）
+PDF_MAX_VISION_PAGES = int(os.environ.get('WIKI_PDF_MAX_VISION_PAGES', '30'))
+# 图片渲染 DPI（150 清晰度好，nginx 已放宽到 25m 不用省）
+PDF_VISION_DPI = int(os.environ.get('WIKI_PDF_VISION_DPI', '150'))
+# JPEG 质量
+PDF_VISION_JPEG_QUALITY = int(os.environ.get('WIKI_PDF_VISION_JPEG_QUALITY', '75'))
+# base64 后总体积上限（字节）—— SG NAS nginx 已改为 client_max_body_size 25m
+# 保留自动降质逻辑作为安全网（防止极大的 PDF 或代理配置回退）
+PDF_VISION_MAX_B64_BYTES = int(os.environ.get('WIKI_PDF_VISION_MAX_B64_BYTES', str(20 * 1024 * 1024)))  # 20MB
+
+
+@dataclass
+class RawFileContent:
+    """原始文件内容的统一结构。
+
+    text 模式：content_type='text', text 有值, images 为空
+    vision 模式：content_type='images', text 为空, images 有值
+    """
+    content_type: str  # 'text' | 'images'
+    text: str = ''
+    images: list = field(default_factory=list)
+    # images: [{'page': int, 'base64': str, 'media_type': 'image/png'}, ...]
+    total_pages: int = 0
+    extracted_pages: int = 0
+
+
+def extract_raw_file_content(raw_path: str) -> RawFileContent:
+    """智能提取原始文件内容。
+
+    对 PDF：先尝试文字提取；字符数 < PDF_TEXT_THRESHOLD 时自动切换到
+    Vision 模式（每页转 PNG base64 → 交给 Claude Opus 读图）。
+
+    对其他格式（md/txt/docx）：直接返回纯文本。
+
+    这是 compiler.py 应该调用的入口，代替旧的 read_raw_file_text。
+    """
+    if not raw_path:
+        raise ValueError('raw_path 不能为空')
+
+    abs_path = (get_wiki_root() / raw_path).resolve()
+    try:
+        abs_path.relative_to(get_wiki_root().resolve())
+    except ValueError:
+        raise WikiPathError(f'raw_path 越出 wiki 根目录: {raw_path!r}')
+
+    if not abs_path.exists():
+        raise FileNotFoundError(f'原始文件不存在: {abs_path}')
+
+    ext = abs_path.suffix.lower()
+
+    # 非 PDF 走纯文本
+    if ext != '.pdf':
+        text = _extract_text_non_pdf(abs_path, ext)
+        return RawFileContent(content_type='text', text=text)
+
+    # PDF：先尝试文字提取
+    try:
+        import fitz
+    except ImportError:
+        raise ImportError('需要 pymupdf 才能处理 PDF')
+
+    doc = fitz.open(str(abs_path))
+    total_pages = len(doc)
+
+    text_parts = []
+    for page in doc:
+        text_parts.append(page.get_text() or '')
+    full_text = '\n\n'.join(text_parts)
+    doc.close()
+
+    # 文字层足够 → 走文本模式
+    if len(full_text.strip()) >= PDF_TEXT_THRESHOLD:
+        logger.info(f'[Storage] PDF text extraction: {len(full_text)} chars from {total_pages} pages')
+        return RawFileContent(content_type='text', text=full_text, total_pages=total_pages, extracted_pages=total_pages)
+
+    # 文字层不足 → Vision 模式：每页转 PNG
+    logger.info(f'[Storage] PDF text too short ({len(full_text.strip())} chars < {PDF_TEXT_THRESHOLD}), switching to Vision mode')
+    return _pdf_to_vision_images(abs_path, total_pages)
+
+
+def _pdf_to_vision_images(abs_path: Path, total_pages: int) -> RawFileContent:
+    """把 PDF 每页渲染为 JPEG base64，交给 Claude Vision 识别。
+
+    自动降质策略：
+    - 从当前 DPI + quality 开始渲染
+    - 如果总 base64 体积超 PDF_VISION_MAX_B64_BYTES，自动降档重试
+    - 降档序列：DPI 120→96→72，quality 70→55→40
+    - Claude Vision 在 72 DPI + quality 40 下仍能准确读文字
+    """
+    import fitz
+    from io import BytesIO
+
+    pages_to_extract = min(total_pages, PDF_MAX_VISION_PAGES)
+    if total_pages > PDF_MAX_VISION_PAGES:
+        logger.warning(
+            f'[Storage] PDF has {total_pages} pages, only extracting first {PDF_MAX_VISION_PAGES} for Vision'
+        )
+
+    # 降档序列：(dpi, jpeg_quality)
+    # 最低档 DPI=60 q=25 大约每页 30-50KB，9 页 ≈ 400KB base64
+    # Claude Vision 在此质量下仍能准确 OCR 中英文
+    quality_levels = [
+        (PDF_VISION_DPI, PDF_VISION_JPEG_QUALITY),
+        (96, 55),
+        (72, 40),
+        (60, 25),
+    ]
+
+    doc = fitz.open(str(abs_path))
+    final_images = []
+    used_dpi = PDF_VISION_DPI
+    used_quality = PDF_VISION_JPEG_QUALITY
+    downgraded = False
+
+    for dpi, quality in quality_levels:
+        images = []
+        for i in range(pages_to_extract):
+            page = doc[i]
+            pix = page.get_pixmap(dpi=dpi)
+            try:
+                from PIL import Image as PILImage
+                pil_img = PILImage.frombytes('RGB', [pix.width, pix.height], pix.samples)
+                buf = BytesIO()
+                pil_img.save(buf, format='JPEG', quality=quality)
+                img_bytes = buf.getvalue()
+                media_type = 'image/jpeg'
+            except ImportError:
+                img_bytes = pix.tobytes('png')
+                media_type = 'image/png'
+
+            images.append({
+                'page': i,
+                'base64': base64.b64encode(img_bytes).decode('ascii'),
+                'media_type': media_type,
+                'size_bytes': len(img_bytes),
+            })
+
+        total_raw = sum(img['size_bytes'] for img in images)
+        total_b64 = int(total_raw * 4 / 3)
+
+        logger.info(
+            f'[Storage] PDF Vision attempt: dpi={dpi} q={quality} '
+            f'raw={total_raw / 1024:.0f}KB b64≈{total_b64 / 1024:.0f}KB '
+            f'limit={PDF_VISION_MAX_B64_BYTES / 1024:.0f}KB'
+        )
+
+        if total_b64 <= PDF_VISION_MAX_B64_BYTES:
+            final_images = images
+            used_dpi = dpi
+            used_quality = quality
+            break
+        else:
+            downgraded = True
+            logger.warning(f'[Storage] PDF Vision 超限，降档到 dpi={dpi} quality={quality}')
+    else:
+        # 全部档位都试完还是超，用最低档的结果
+        final_images = images
+        used_dpi = quality_levels[-1][0]
+        used_quality = quality_levels[-1][1]
+        logger.warning('[Storage] PDF Vision 所有档位都超限，使用最低质量')
+
+    doc.close()
+
+    total_size = sum(img['size_bytes'] for img in final_images)
+    logger.info(
+        f'[Storage] PDF Vision final: {pages_to_extract}/{total_pages} pages, '
+        f'dpi={used_dpi} q={used_quality} size={total_size / 1024:.0f}KB '
+        f'{"(downgraded)" if downgraded else ""}'
+    )
+
+    return RawFileContent(
+        content_type='images',
+        images=final_images,
+        total_pages=total_pages,
+        extracted_pages=pages_to_extract,
+    )
+
+
+def _extract_text_non_pdf(abs_path: Path, ext: str) -> str:
+    """非 PDF 文件的纯文本提取。"""
+    if ext in ('.md', '.txt'):
+        return abs_path.read_text(encoding='utf-8', errors='replace')
+    if ext == '.docx':
+        try:
+            from docx import Document
+        except ImportError:
+            raise ImportError('需要 python-docx 才能读取 DOCX')
+        doc = Document(str(abs_path))
+        parts = []
+        # 段落文本
+        for p in doc.paragraphs:
+            if p.text.strip():
+                parts.append(p.text)
+        # 表格数据（python-docx 的 paragraphs 不含表格，必须单独遍历）
+        for table in doc.tables:
+            rows = []
+            for row in table.rows:
+                cells = [cell.text.strip() for cell in row.cells]
+                rows.append(' | '.join(cells))
+            if rows:
+                # 用 Markdown 表格格式输出
+                parts.append('')
+                parts.append(rows[0])
+                parts.append(' | '.join(['---'] * len(table.rows[0].cells)))
+                for r in rows[1:]:
+                    parts.append(r)
+                parts.append('')
+        return '\n'.join(parts)
+    raise ValueError(f'不支持的原始文件类型: {ext}（支持 .md/.txt/.pdf/.docx）')
+
+
 def read_raw_file_text(raw_path: str) -> str:
     """读原始文件并尽力提取成纯文本，给 LLM 编译用。
+
+    ⚠️ 旧接口，仅返回文本。对扫描件 PDF 会返回空字符串。
+    新代码应改用 extract_raw_file_content() 来获取 text 或 images。
 
     支持：.md / .txt / .pdf / .docx。
     其他类型抛 ValueError。

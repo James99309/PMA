@@ -127,7 +127,7 @@ class WikiClaudeClient:
     def complete(
         self,
         system: str,
-        user: str,
+        user: str | list[dict],
         model: str,
         max_tokens: int = 16000,
         temperature: float | None = None,
@@ -136,14 +136,15 @@ class WikiClaudeClient:
 
         Args:
             system: 纯文本 system prompt
-            user: 纯文本 user 消息
+            user: 纯文本 user 消息，或 Anthropic content blocks 列表
+                  （支持 text + image 混合，用于 PDF Vision 模式）
+                  例：[
+                      {'type': 'text', 'text': '...'},
+                      {'type': 'image', 'source': {'type': 'base64', 'media_type': 'image/png', 'data': '...'}},
+                  ]
             model: 模型 ID，例如 'claude-opus-4-6'
             max_tokens: 最大输出 token 数
             temperature: 采样温度；**默认 None（不发送该字段）**
-                        - Opus/Sonnet 走 SG NAS OAuth 代理时必须使用默认值
-                          （=1.0），传任何自定义值都会 400
-                        - 只有 Haiku 允许自定义 temperature
-                        调用方若要控温，请确认走的不是 OAuth 代理
 
         Returns:
             WikiLLMResponse(text=..., usage={...})
@@ -151,8 +152,9 @@ class WikiClaudeClient:
         Raises:
             WikiClaudeError: API 调用失败、超时或解析异常
         """
+        user_size = len(user) if isinstance(user, str) else f'{len(user)} blocks'
         logger.info(
-            f'[Wiki Claude] model={model} sys={len(system)}B user={len(user)}B '
+            f'[Wiki Claude] model={model} sys={len(system)}B user={user_size} '
             f'max_tokens={max_tokens} temp={temperature}'
         )
 
@@ -162,14 +164,15 @@ class WikiClaudeClient:
             {'type': 'text', 'text': system},
         ]
 
+        # user 可以是纯字符串（text-only）或 content blocks 列表（text + images）
+        user_content = user if isinstance(user, list) else user
+
         payload = {
             'model': model,
             'max_tokens': max_tokens,
             'system': system_blocks,
-            'messages': [{'role': 'user', 'content': user}],
+            'messages': [{'role': 'user', 'content': user_content}],
         }
-        # 只在明确传入 temperature 时发送该字段，避开 OAuth 代理对 Opus/Sonnet
-        # 的限制。调用方默认不传就使用 Claude 的默认值（Wiki 场景够用）。
         if temperature is not None:
             payload['temperature'] = temperature
 

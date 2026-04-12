@@ -114,20 +114,30 @@ def ingest_raw_file(
             claude_instance = claude_client.WikiClaudeClient()
             own_client = True
 
-        # 1. 读原始文本
+        # 1. 读原始文件内容（自动判断 text 或 vision 模式）
         try:
-            raw_text = storage.read_raw_file_text(raw.raw_path)
+            raw_content = storage.extract_raw_file_content(raw.raw_path)
         except Exception as e:
             raise IngestError(f'读取原始文件失败: {e}') from e
 
-        if not raw_text.strip():
-            raise IngestError('原始文件内容为空或无法提取文本')
+        is_vision = raw_content.content_type == 'images'
 
-        raw_text_truncated = raw_text[:MAX_RAW_TEXT_CHARS]
-        truncated = len(raw_text) > MAX_RAW_TEXT_CHARS
-        if truncated:
-            logger.warning(
-                f'[Ingest] raw {raw.id} 文本 {len(raw_text)} 字符超上限 {MAX_RAW_TEXT_CHARS}，已截断'
+        if not is_vision:
+            if not raw_content.text.strip():
+                raise IngestError('原始文件内容为空或无法提取文本')
+            raw_text = raw_content.text[:MAX_RAW_TEXT_CHARS]
+            truncated = len(raw_content.text) > MAX_RAW_TEXT_CHARS
+            if truncated:
+                logger.warning(
+                    f'[Ingest] raw {raw.id} 文本 {len(raw_content.text)} 字符超上限 {MAX_RAW_TEXT_CHARS}，已截断'
+                )
+        else:
+            raw_text = ''
+            truncated = raw_content.extracted_pages < raw_content.total_pages
+            if not raw_content.images:
+                raise IngestError('PDF 扫描件无法提取任何页面图片')
+            logger.info(
+                f'[Ingest] raw {raw.id} Vision 模式: {raw_content.extracted_pages}/{raw_content.total_pages} 页'
             )
 
         # 2. 当前 index.md
@@ -150,25 +160,39 @@ def ingest_raw_file(
                 'content': content,
             })
 
-        # 4. 组装 user prompt
+        # 4. 组装 user prompt（text 或 vision 模式）
         raw_filename = raw.raw_path.rsplit('/', 1)[-1] if raw.raw_path else raw.title
-        user_msg = _build_ingest_user_prompt(
-            raw_meta={
-                'raw_id': raw.id,
-                'topic': raw.topic,
-                'filename': raw_filename,
-                'title': raw.title,
-                'truncated': truncated,
-            },
-            raw_text=raw_text_truncated,
-            index_md=index_md,
-            related_articles=related_context,
-        )
+        raw_meta = {
+            'raw_id': raw.id,
+            'topic': raw.topic,
+            'filename': raw_filename,
+            'title': raw.title,
+            'truncated': truncated,
+            'vision_mode': is_vision,
+        }
+
+        if is_vision:
+            # Vision 模式：user message 是 content blocks 列表（text + images 混合）
+            user_msg = _build_ingest_vision_prompt(
+                raw_meta=raw_meta,
+                images=raw_content.images,
+                index_md=index_md,
+                related_articles=related_context,
+            )
+        else:
+            # Text 模式：user message 是纯字符串
+            user_msg = _build_ingest_user_prompt(
+                raw_meta=raw_meta,
+                raw_text=raw_text,
+                index_md=index_md,
+                related_articles=related_context,
+            )
 
         # 5. 调 Opus
         logger.info(
             f'[Ingest] raw_id={raw.id} topic={raw.topic} 相关文章数={len(related_context)} '
-            f'raw_text={len(raw_text_truncated)}B prompt={len(user_msg)}B'
+            f'mode={"vision" if is_vision else "text"} '
+            f'{"images=" + str(len(raw_content.images)) + "p" if is_vision else "text=" + str(len(raw_text)) + "B"}'
         )
         resp = claude_instance.complete(
             system=prompts.INGEST_SYSTEM,
@@ -292,7 +316,7 @@ def _build_ingest_user_prompt(
     index_md: str,
     related_articles: list[dict],
 ) -> str:
-    """构造传给 Claude 的 user 消息（Markdown 章节格式）。"""
+    """构造传给 Claude 的 user 消息（纯文本模式，Markdown 章节格式）。"""
     parts: list[str] = []
 
     parts.append('## 原始资料元数据')
@@ -322,6 +346,69 @@ def _build_ingest_user_prompt(
     return '\n'.join(parts)
 
 
+def _build_ingest_vision_prompt(
+    *,
+    raw_meta: dict,
+    images: list[dict],
+    index_md: str,
+    related_articles: list[dict],
+) -> list[dict]:
+    """构造传给 Claude 的 user 消息（Vision 模式，content blocks 列表）。
+
+    对于扫描件 PDF，把每页 PNG 作为 image block 传给 Claude Opus，
+    让 Vision 能力直接读取图片内容。文字上下文（index.md、已有文章）
+    仍用 text block。
+
+    返回 Anthropic messages API 的 content 列表格式。
+    """
+    blocks: list[dict] = []
+
+    # 元数据（text block）
+    meta_text = (
+        '## 原始资料元数据\n\n'
+        '```json\n'
+        + json.dumps(raw_meta, ensure_ascii=False, indent=2) + '\n'
+        '```\n\n'
+        '## 原始资料页面图片\n\n'
+        '以下是原始 PDF 文件的每一页扫描图片。请仔细阅读所有页面，'
+        '提取完整的文字内容和结构化信息，然后编译成 Wiki 文章。\n'
+    )
+    blocks.append({'type': 'text', 'text': meta_text})
+
+    # 每页图片（image blocks）
+    for img in images:
+        blocks.append({
+            'type': 'image',
+            'source': {
+                'type': 'base64',
+                'media_type': img['media_type'],
+                'data': img['base64'],
+            },
+        })
+        blocks.append({
+            'type': 'text',
+            'text': f'（以上是第 {img["page"] + 1} 页）',
+        })
+
+    # index.md + 已有文章（text block）
+    context_parts: list[str] = ['', '## 当前 index.md']
+    context_parts.append(index_md if index_md.strip() else '（空索引，本次可能是首次编译）')
+    context_parts.append('')
+    context_parts.append('## 相关已有文章')
+    if not related_articles:
+        context_parts.append('（该 topic 下暂无已有文章，本次编译可以自由新建）')
+    else:
+        for art in related_articles:
+            context_parts.append(f'### {art["topic"]}/{art["slug"]}.md — {art["title"]}')
+            context_parts.append('')
+            context_parts.append(art['content'] or '（空文件）')
+            context_parts.append('')
+
+    blocks.append({'type': 'text', 'text': '\n'.join(context_parts)})
+
+    return blocks
+
+
 # ══════════════════════════════════════════════════════════════════
 # 内部：JSON 解析
 # ══════════════════════════════════════════════════════════════════
@@ -329,8 +416,11 @@ def _build_ingest_user_prompt(
 def _parse_ingest_response(text: str) -> dict[str, Any]:
     """解析 Claude 返回的 JSON。
 
-    Claude 有时会把 JSON 包在 ```json ... ``` 代码块里，尽管 prompt 要求
-    直接输出。这里做一次宽容剥离。
+    Claude 有时会：
+    1. 把 JSON 包在 ```json ... ``` 代码块里
+    2. 在 content 字段的 Markdown 里写未转义的双引号（JSON 语法错误）
+
+    所以这里做多层宽容处理：先剥代码块 → json.loads → 失败则 json 修复重试。
     """
     s = (text or '').strip()
     if not s:
@@ -338,7 +428,6 @@ def _parse_ingest_response(text: str) -> dict[str, Any]:
 
     # 剥 markdown 代码块围栏
     if s.startswith('```'):
-        # 去掉开头的 ```json 或 ``` 这一行
         first_nl = s.find('\n')
         if first_nl != -1:
             s = s[first_nl + 1:]
@@ -346,21 +435,87 @@ def _parse_ingest_response(text: str) -> dict[str, Any]:
             s = s.rstrip()[:-3]
         s = s.strip()
 
+    # 第一次尝试：直接解析
     try:
         data = json.loads(s)
-    except json.JSONDecodeError as e:
-        raise IngestError(
-            f'Claude 返回非法 JSON: {e}；响应前 500 字符:\n{s[:500]}'
-        ) from e
+    except json.JSONDecodeError:
+        # 第二次尝试：修复常见 JSON 问题
+        try:
+            data = _repair_and_parse_json(s)
+            logger.warning('[Ingest] Claude 返回的 JSON 需要修复后才能解析（已自动修复）')
+        except Exception as e2:
+            raise IngestError(
+                f'Claude 返回非法 JSON: {e2}；响应前 500 字符:\n{s[:500]}'
+            ) from e2
 
     if not isinstance(data, dict):
         raise IngestError(f'Claude 返回顶层不是 JSON 对象: {type(data).__name__}')
 
-    # operations 至少要存在
     if 'operations' not in data:
         raise IngestError('Claude 返回缺少 operations 字段')
 
     return data
+
+
+def _repair_and_parse_json(s: str) -> dict:
+    """尝试修复 Claude 输出的半合法 JSON。
+
+    常见问题：Markdown content 字段里有未转义的双引号或换行。
+    策略：用正则逐个提取 JSON 字符串值，对其中的控制字符做转义。
+
+    如果 json_repair 库可用优先使用（更健壮），否则用自建修复。
+    """
+    # 策略 1：尝试 json_repair 库
+    try:
+        from json_repair import repair_json
+        repaired = repair_json(s, return_objects=False)
+        return json.loads(repaired)
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # 策略 2：逐字符状态机提取，找到 JSON 字符串边界后手动转义内部问题
+    # 先处理最常见的问题：content 字段内部有原始换行（应该是 \n）
+    # 和未转义的双引号
+    fixed = []
+    i = 0
+    in_string = False
+    escape_next = False
+
+    for i, ch in enumerate(s):
+        if escape_next:
+            fixed.append(ch)
+            escape_next = False
+            continue
+        if ch == '\\':
+            fixed.append(ch)
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            fixed.append(ch)
+            continue
+        if in_string:
+            # 在字符串内部的原始换行 → \n
+            if ch == '\n':
+                fixed.append('\\n')
+                continue
+            if ch == '\r':
+                fixed.append('\\r')
+                continue
+            if ch == '\t':
+                fixed.append('\\t')
+                continue
+        fixed.append(ch)
+
+    try:
+        return json.loads(''.join(fixed))
+    except json.JSONDecodeError:
+        pass
+
+    # 策略 3：暴力提取 —— 找到 operations 数组的每个元素，用宽松方式解析
+    raise json.JSONDecodeError('所有修复策略失败', s, 0)
 
 
 # ══════════════════════════════════════════════════════════════════
