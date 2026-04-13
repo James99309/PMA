@@ -239,6 +239,42 @@ class KnowledgePromotionRequest(db.Model):
         }
 
 
+class KnowledgeTopic(db.Model):
+    """Wiki 知识库分类目录主数据（admin 管理）
+
+    Topic 作为独立主数据存在，不依赖是否有文章。
+    文章 / 原始文件的 topic 字段（字符串）按 name 引用本表，
+    但不建立外键以允许 topic 重命名时数据同步由业务层处理。
+
+    设计：
+    - 只有 admin/ceo 可增删改
+    - 非 admin 上传时从本表取可选 topic 列表
+    - 侧栏 tree 仍按"当前用户可见文章"过滤，空 topic 不显示
+    """
+    __tablename__ = 'knowledge_topics'
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False, unique=True, index=True)
+    description = Column(String(500), nullable=True)
+    sort_order = Column(Integer, default=0, nullable=False)
+    created_by = Column(Integer, ForeignKey('users.id'), nullable=True)
+    created_at = Column(DateTime, default=get_local_time)
+    updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
+
+    creator = relationship('User', foreign_keys=[created_by])
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'sort_order': self.sort_order,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class KnowledgeShareGrant(db.Model):
     """跨部门/跨人分享授权（不改变文章 scope，只扩展可见范围）"""
     __tablename__ = 'knowledge_share_grants'

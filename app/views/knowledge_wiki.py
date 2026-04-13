@@ -28,7 +28,7 @@ from flask_login import current_user, login_required
 
 from app import db
 from app.models.file_manager import FileLibrary, UserFileRef
-from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle, KnowledgePromotionRequest
+from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle, KnowledgePromotionRequest, KnowledgeTopic
 from app.models.message import Message
 from app.models.user import User
 from app.services.file_manager_service import FileManagerService
@@ -52,6 +52,14 @@ def _require_admin():
     if not _is_admin():
         return jsonify({'success': False, 'message': '仅管理员可执行此操作'}), 403
     return None
+
+
+def _get_allowed_topic_names() -> set[str]:
+    """返回主数据表中定义的所有 topic 名称集合。
+
+    非 admin 上传 / 加入知识库时，用来校验 topic 是否在 admin 预定义列表中。
+    """
+    return {t[0] for t in db.session.query(KnowledgeTopic.name).all()}
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -112,11 +120,9 @@ def add_raw_file():
     except storage.WikiPathError as e:
         return jsonify({'success': False, 'message': str(e)}), 400
 
-    # 非管理员只能选已有 topic
+    # 非管理员只能选 admin 预定义的 topic
     if current_user.role not in ('admin', 'ceo'):
-        existing_topics = {t[0] for t in db.session.query(KnowledgeRawFile.topic).distinct().all()}
-        existing_topics |= {t[0] for t in db.session.query(KnowledgeWikiArticle.topic).distinct().all()}
-        if topic not in existing_topics:
+        if topic not in _get_allowed_topic_names():
             return jsonify({'success': False, 'message': '只能选择已有的分类目录'}), 403
 
     fl = FileLibrary.query.get(fl_id)
@@ -184,11 +190,9 @@ def upload_and_add():
     except storage.WikiPathError as e:
         return jsonify({'success': False, 'message': str(e)}), 400
 
-    # 非管理员只能选已有 topic
+    # 非管理员只能选 admin 预定义的 topic
     if current_user.role not in ('admin', 'ceo'):
-        existing_topics = {t[0] for t in db.session.query(KnowledgeRawFile.topic).distinct().all()}
-        existing_topics |= {t[0] for t in db.session.query(KnowledgeWikiArticle.topic).distinct().all()}
-        if topic not in existing_topics:
+        if topic not in _get_allowed_topic_names():
             return jsonify({'success': False, 'message': '只能选择已有的分类目录'}), 403
 
     # 1. 上传到 file_library（SHA256 去重）
@@ -263,11 +267,9 @@ def add_raw_from_file_ref():
     except storage.WikiPathError as e:
         return jsonify({'success': False, 'message': str(e)}), 400
 
-    # 非管理员只能选已有 topic
+    # 非管理员只能选 admin 预定义的 topic
     if current_user.role not in ('admin', 'ceo'):
-        existing_topics = {t[0] for t in db.session.query(KnowledgeRawFile.topic).distinct().all()}
-        existing_topics |= {t[0] for t in db.session.query(KnowledgeWikiArticle.topic).distinct().all()}
-        if topic not in existing_topics:
+        if topic not in _get_allowed_topic_names():
             return jsonify({'success': False, 'message': '只能选择已有的分类目录'}), 403
 
     from app.models.file_manager import UserFileRef
@@ -769,11 +771,140 @@ def get_tree():
 @knowledge_wiki_bp.route('/api/wiki/topics', methods=['GET'])
 @login_required
 def list_topics():
-    """返回已有的 topic 列表（去重）。"""
-    raw_topics = db.session.query(KnowledgeRawFile.topic).distinct().all()
-    art_topics = db.session.query(KnowledgeWikiArticle.topic).distinct().all()
-    topics = sorted(set(t[0] for t in raw_topics + art_topics if t[0]))
-    return jsonify({'success': True, 'data': topics})
+    """返回 admin 预定义的 topic 列表（按 sort_order, name 排序）。
+
+    前端上传 / 加入 Wiki 弹窗从此接口拉取可用分类。
+    """
+    topics = KnowledgeTopic.query.order_by(
+        KnowledgeTopic.sort_order.asc(),
+        KnowledgeTopic.name.asc(),
+    ).all()
+    # 兼容旧前端：返回纯字符串数组
+    return jsonify({'success': True, 'data': [t.name for t in topics]})
+
+
+@knowledge_wiki_bp.route('/api/wiki/topics/detail', methods=['GET'])
+@login_required
+def list_topics_detail():
+    """返回 topic 详细列表（含 id / description / sort_order），供管理面板使用。"""
+    topics = KnowledgeTopic.query.order_by(
+        KnowledgeTopic.sort_order.asc(),
+        KnowledgeTopic.name.asc(),
+    ).all()
+    return jsonify({'success': True, 'data': [t.to_dict() for t in topics]})
+
+
+@knowledge_wiki_bp.route('/api/wiki/admin/topics', methods=['POST'])
+@login_required
+def create_topic():
+    """管理员新建分类目录。
+
+    Body: { name: str, description?: str, sort_order?: int }
+    """
+    err = _require_admin()
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    description = (data.get('description') or '').strip() or None
+    sort_order = int(data.get('sort_order') or 0)
+
+    if not name:
+        return jsonify({'success': False, 'message': 'name 必填'}), 400
+
+    try:
+        storage.validate_topic(name)
+    except storage.WikiPathError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+    if KnowledgeTopic.query.filter_by(name=name).first():
+        return jsonify({'success': False, 'message': f'分类「{name}」已存在'}), 409
+
+    try:
+        topic = KnowledgeTopic(
+            name=name,
+            description=description,
+            sort_order=sort_order,
+            created_by=current_user.id,
+        )
+        db.session.add(topic)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.exception('[Wiki] create_topic failed')
+        return jsonify({'success': False, 'message': f'创建失败: {e}'}), 500
+
+    logger.info(f'[Wiki] user={current_user.id} 新建 topic={name}')
+    return jsonify({'success': True, 'data': topic.to_dict()})
+
+
+@knowledge_wiki_bp.route('/api/wiki/admin/topics/<int:topic_id>', methods=['PATCH'])
+@login_required
+def update_topic(topic_id):
+    """管理员编辑分类目录（不允许改 name，只能改 description / sort_order）。
+
+    Body: { description?: str, sort_order?: int }
+    改 name 涉及物理目录和所有引用的迁移，暂不支持。
+    """
+    err = _require_admin()
+    if err:
+        return err
+
+    topic = KnowledgeTopic.query.get(topic_id)
+    if not topic:
+        return jsonify({'success': False, 'message': '分类不存在'}), 404
+
+    data = request.get_json(silent=True) or {}
+    if 'description' in data:
+        v = (data.get('description') or '').strip()
+        topic.description = v or None
+    if 'sort_order' in data:
+        try:
+            topic.sort_order = int(data.get('sort_order') or 0)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'message': 'sort_order 必须是整数'}), 400
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.exception('[Wiki] update_topic failed')
+        return jsonify({'success': False, 'message': f'更新失败: {e}'}), 500
+
+    return jsonify({'success': True, 'data': topic.to_dict()})
+
+
+@knowledge_wiki_bp.route('/api/wiki/admin/topics/<int:topic_id>', methods=['DELETE'])
+@login_required
+def delete_topic(topic_id):
+    """管理员删除分类目录。仅在该分类下没有任何原始文件和文章时允许。"""
+    err = _require_admin()
+    if err:
+        return err
+
+    topic = KnowledgeTopic.query.get(topic_id)
+    if not topic:
+        return jsonify({'success': False, 'message': '分类不存在'}), 404
+
+    raw_count = db.session.query(KnowledgeRawFile).filter_by(topic=topic.name).count()
+    art_count = db.session.query(KnowledgeWikiArticle).filter_by(topic=topic.name).count()
+    if raw_count or art_count:
+        return jsonify({
+            'success': False,
+            'message': f'分类「{topic.name}」下仍有 {raw_count} 个原始文件、{art_count} 篇文章，请先清空',
+        }), 409
+
+    try:
+        db.session.delete(topic)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.exception('[Wiki] delete_topic failed')
+        return jsonify({'success': False, 'message': f'删除失败: {e}'}), 500
+
+    logger.info(f'[Wiki] user={current_user.id} 删除 topic={topic.name}')
+    return jsonify({'success': True})
 
 
 @knowledge_wiki_bp.route('/api/wiki/index', methods=['GET'])
