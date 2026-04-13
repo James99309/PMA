@@ -898,8 +898,8 @@ function fileManager() {
             if (!file) return;
             let existingTopics = [];
             try {
-                const tree = await this.api('/api/wiki/tree');
-                if (tree.success && tree.data) existingTopics = Object.keys(tree.data).sort();
+                const res = await this.api('/api/wiki/topics');
+                if (res.success && Array.isArray(res.data)) existingTopics = res.data;
             } catch (e) {}
             this.wikiModal.file = file;
             this.wikiModal.topic = '';
