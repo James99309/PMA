@@ -435,8 +435,8 @@ def change_article_scope(article_id):
 
     权限规则：
     - admin/ceo: 可任意调整
-    - 部门经理: 可在 personal ↔ department 之间调整本部门文章
-    - 普通用户: 只能调整自己的 personal 文章到 department（如有部门）
+    - 普通用户 / 部门经理: 可在 personal ↔ department 之间直接调整自己可管理的文章
+    - → company / system: 需提交晋升申请，由 admin/ceo 审批
     """
     from app.services.wiki.scope import can_manage_article
 
@@ -457,21 +457,13 @@ def change_article_scope(article_id):
     if not can_manage_article(current_user, art):
         return jsonify({'success': False, 'message': '没有权限管理此文章'}), 403
 
-    # 非 admin：检查是否超出权限范围 → 需要提交申请
-    if current_user.role not in ('admin', 'ceo'):
-        needs_approval = False
-        if new_scope in ('company', 'system'):
-            needs_approval = True
-        elif new_scope == 'department' and not current_user.is_department_manager:
-            # 普通员工提升到部门级也需要部门经理审批
-            needs_approval = True
-
-        if needs_approval:
-            return jsonify({
-                'success': False,
-                'needs_approval': True,
-                'message': '超出权限范围，请提交晋升申请',
-            }), 403
+    # 非 admin/ceo：只有 company / system 需要审批，personal ↔ department 自由切换
+    if current_user.role not in ('admin', 'ceo') and new_scope in ('company', 'system'):
+        return jsonify({
+            'success': False,
+            'needs_approval': True,
+            'message': '升级到公司 / 系统级别需要提交晋升申请',
+        }), 403
 
     old_scope = art.scope
     art.scope = new_scope
@@ -492,10 +484,9 @@ def submit_promotion_request(article_id):
     """提交文章晋升申请。
 
     自动确定审核人：
-    - → department: 本部门经理
     - → company: admin/ceo
     - → system: admin/ceo
-    如果目标级别找不到审核人，向上级查找。
+    （→ department 不再需要审批，直接 PATCH scope 即可。）
     """
     try:
         from app.services.wiki.scope import visible_articles_query
@@ -507,9 +498,9 @@ def submit_promotion_request(article_id):
         to_scope = data.get('to_scope', '').strip()
         request_note = data.get('reason', '').strip()
 
-        valid_scopes = ('department', 'company', 'system')
+        valid_scopes = ('company', 'system')
         if to_scope not in valid_scopes:
-            return jsonify({'success': False, 'message': '无效的目标等级'}), 400
+            return jsonify({'success': False, 'message': '无效的目标等级（仅 company / system 需要审批）'}), 400
 
         if not request_note:
             return jsonify({'success': False, 'message': '请填写申请理由'}), 400
