@@ -403,14 +403,18 @@ def get_article(article_id):
 @knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>', methods=['DELETE'])
 @login_required
 def delete_article(article_id):
-    """删除文章（磁盘 + DB）。仅 admin/ceo 可操作。"""
-    guard = _require_admin()
-    if guard:
-        return guard
+    """删除文章（磁盘 + DB）。
+
+    权限：admin/ceo、文章所有者、或管理同部门的部门经理。
+    """
+    from app.services.wiki.scope import can_manage_article
 
     art = KnowledgeWikiArticle.query.get(article_id)
     if not art:
         return jsonify({'success': False, 'message': '文章不存在'}), 404
+
+    if not can_manage_article(current_user, art):
+        return jsonify({'success': False, 'message': '没有权限删除此文章'}), 403
 
     # 删除磁盘文件
     try:
@@ -707,14 +711,18 @@ def _find_promotion_reviewer(to_scope: str, requester) -> int | None:
 @knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/recompile', methods=['POST'])
 @login_required
 def recompile_article(article_id):
-    """重新编译文章关联的 raw file。"""
-    guard = _require_admin()
-    if guard:
-        return guard
+    """重新编译文章关联的 raw file。
+
+    权限：admin/ceo、文章所有者、或管理同部门的部门经理。
+    """
+    from app.services.wiki.scope import can_manage_article
 
     art = KnowledgeWikiArticle.query.get(article_id)
     if not art:
         return jsonify({'success': False, 'message': '文章不存在'}), 404
+
+    if not can_manage_article(current_user, art):
+        return jsonify({'success': False, 'message': '没有权限重新编译此文章'}), 403
 
     raw_ids = art.source_raw_ids or []
     if not raw_ids:

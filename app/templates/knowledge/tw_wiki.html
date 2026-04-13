@@ -205,21 +205,23 @@
                                                 </div>
                                             </div>
                                         </template>
-                                        {% if is_admin %}
-                                        <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
-                                        <button @click.stop="menuOpen = false; confirmDeleteArticle(art.id, art.title)"
-                                                class="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2">
-                                            <span class="material-symbols-outlined text-sm">delete</span> {{ _('删除文章') }}
-                                        </button>
-                                        <button @click.stop="menuOpen = false; recompileArticle(art.id, art.source_raw_ids)"
-                                                class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                                            <span class="material-symbols-outlined text-sm">refresh</span> {{ _('重新编译') }}
-                                        </button>
-                                        <button @click.stop="menuOpen = false; viewSource(art.source_raw_ids)"
-                                                class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                                            <span class="material-symbols-outlined text-sm">description</span> {{ _('查看来源') }}
-                                        </button>
-                                        {% endif %}
+                                        <template x-if="art.can_manage">
+                                            <div>
+                                                <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
+                                                <button @click.stop="menuOpen = false; confirmDeleteArticle(art.id, art.title)"
+                                                        class="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2">
+                                                    <span class="material-symbols-outlined text-sm">delete</span> {{ _('删除文章') }}
+                                                </button>
+                                                <button @click.stop="menuOpen = false; recompileArticle(art.id, art.source_raw_ids)"
+                                                        class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                    <span class="material-symbols-outlined text-sm">refresh</span> {{ _('重新编译') }}
+                                                </button>
+                                                <button @click.stop="menuOpen = false; viewSource(art.source_raw_ids)"
+                                                        class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                    <span class="material-symbols-outlined text-sm">description</span> {{ _('查看来源') }}
+                                                </button>
+                                            </div>
+                                        </template>
                                     </div>
                                 </template>
                             </div>
