@@ -799,8 +799,8 @@
                                                                                    @change="toggleModule(module.id, $event.target.checked)">
 
                                                                             {% if current_user.role == 'admin' %}
-                                                                            <!-- 第二行：CLI 查询（仅管理员，仅业务模块） -->
-                                                                            <template x-if="supportsCliQuery(module.id)">
+                                                                            <!-- 第二行：CLI 查询（仅管理员、仅业务模块、仅角色模式；CLI 权限是角色级，用户级不可覆盖） -->
+                                                                            <template x-if="supportsCliQuery(module.id) && mode === 'role'">
                                                                                 <select class="cli-permission-level w-24 text-sm px-2 py-1 border border-slate-200 dark:border-slate-600 rounded bg-white dark:bg-slate-700"
                                                                                         :class="{ 'opacity-50': !getPermission(module.id).cli_can_query, 'opacity-60 pointer-events-none': !isEditing }"
                                                                                         :data-module="module.id"
@@ -812,10 +812,10 @@
                                                                                     <option value="system" :selected="getPermission(module.id).cli_permission_level === 'system'">{{ _('系统级') }}</option>
                                                                                 </select>
                                                                             </template>
-                                                                            <template x-if="supportsCliQuery(module.id)">
+                                                                            <template x-if="supportsCliQuery(module.id) && mode === 'role'">
                                                                                 <span class="text-sm text-slate-600 dark:text-slate-400 w-10 text-right">CLI</span>
                                                                             </template>
-                                                                            <template x-if="supportsCliQuery(module.id)">
+                                                                            <template x-if="supportsCliQuery(module.id) && mode === 'role'">
                                                                                 <input type="checkbox" class="cli-can-query w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                                                                        :class="isEditing ? 'cursor-pointer' : 'cursor-default'"
                                                                                        :data-module="module.id"
@@ -3712,15 +3712,7 @@
                             };
                         }
 
-                        // CLI 智能终端查询权限（仅管理员可修改）
-                        if (this.supportsCliQuery(module.id)) {
-                            const cliToggle = container.querySelector('.cli-can-query');
-                            const cliLevelSel = container.querySelector('.cli-permission-level');
-                            if (cliToggle) {
-                                permissionsData[module.id].cli_can_query = cliToggle.checked;
-                                permissionsData[module.id].cli_permission_level = cliLevelSel ? cliLevelSel.value : null;
-                            }
-                        }
+                        // 注：CLI 查询权限是角色级配置，用户级不可覆盖，此处不收集
 
                         // 收集内容筛选 - 如果模块有内容筛选配置，始终发送（即使为空）
                         const filterConfig = this.getFilterConfig(module.id);

@@ -81,10 +81,19 @@ Assistant: [调用 invoke_skill(skill_name="customer_profile", params={"keyword"
 
 
 def _schema_section() -> str:
-    """从 chat_db_query 拿 schema 描述"""
+    """生成分级 DB schema 段。
+
+    Tier 1 完整字段 + Tier 2 表名清单 + describe_table 使用提示,
+    LLM 不认识的字段需要通过 describe_table 工具拉取。
+    """
     try:
-        from app.services.chat_db_query import get_db_schema
-        return f'\n[PMA 数据库 Schema]\n{get_db_schema()}\n'
+        from app.services.cli_agent.table_catalog import build_tiered_schema_section
+        schema = build_tiered_schema_section()
+        return (
+            '\n[PMA 数据库 Schema]\n'
+            + schema
+            + '\n\n重要:对 Tier 2 表写 SQL 前先用 describe_table 工具获取字段,不要凭猜。\n'
+        )
     except Exception as e:
         current_app.logger.warning(f'[CLI Agent] 获取 schema 失败: {e}')
         return ''

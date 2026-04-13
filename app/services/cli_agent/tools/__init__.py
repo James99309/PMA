@@ -89,7 +89,9 @@ def get_default_registry() -> ToolRegistry:
         _default_registry = ToolRegistry()
         # 注册 v1 工具
         from app.services.cli_agent.tools.query_pma_database import QueryPmaDatabaseTool
+        from app.services.cli_agent.tools.describe_table import DescribeTableTool
         _default_registry.register(QueryPmaDatabaseTool())
+        _default_registry.register(DescribeTableTool())
 
         # 注册 Skill 工具(invoke + save)
         from app.services.cli_agent.tools.invoke_skill import InvokeSkillTool
