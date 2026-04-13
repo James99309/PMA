@@ -902,7 +902,7 @@ function fileManager() {
                 if (tree.success && tree.data) existingTopics = Object.keys(tree.data).sort();
             } catch (e) {}
             this.wikiModal.file = file;
-            this.wikiModal.topic = existingTopics.length > 0 ? existingTopics[0] : '';
+            this.wikiModal.topic = '';
             this.wikiModal.existingTopics = existingTopics;
             this.wikiModal.customTopic = false;
             this.wikiModal.step = 'input';
