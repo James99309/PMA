@@ -14446,14 +14446,12 @@ msgid "待审核晋升申请"
 msgstr "Pending review"
 
 #: app/templates/knowledge/tw_wiki.html:194
-#, fuzzy
 msgid "调整等级"
-msgstr "Grade"
+msgstr "Adjust scope"
 
 #: app/templates/knowledge/tw_wiki.html:213
-#, fuzzy
 msgid "删除文章"
-msgstr "Delete"
+msgstr "Delete article"
 
 #: app/templates/knowledge/tw_wiki.html:217
 #: app/templates/knowledge/tw_wiki.html:1116
