@@ -164,6 +164,15 @@ def _get_shared_article_ids(user) -> list[int]:
             )
         )
 
+    # 分享给用户所在企业
+    if getattr(user, 'company_name', None):
+        conditions.append(
+            and_(
+                KnowledgeShareGrant.grant_type == 'company',
+                KnowledgeShareGrant.grant_target == user.company_name,
+            )
+        )
+
     grants = KnowledgeShareGrant.query.filter(or_(*conditions)).with_entities(
         KnowledgeShareGrant.article_id
     ).all()

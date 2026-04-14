@@ -28,7 +28,7 @@ from flask_login import current_user, login_required
 
 from app import db
 from app.models.file_manager import FileLibrary, UserFileRef
-from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle, KnowledgePromotionRequest, KnowledgeTopic
+from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle, KnowledgePromotionRequest, KnowledgeTopic, KnowledgeShareGrant
 from app.models.message import Message
 from app.models.user import User
 from app.services.file_manager_service import FileManagerService
@@ -1058,3 +1058,202 @@ def _async_ingest_and_notify(raw_id: int, user_id: int, app):
                 db.session.commit()
             except Exception:
                 logger.exception(f'[Wiki async] 发送失败通知也失败了')
+
+
+# ══════════════════════════════════════════════════════════════════
+# 文章分享（跨部门/跨人/跨企业）
+# ══════════════════════════════════════════════════════════════════
+
+def _can_manage_shares(user, article) -> bool:
+    """谁能管理分享授权：admin/ceo 或文章所有者。"""
+    if user.role in ('admin', 'ceo'):
+        return True
+    return article.owner_id == user.id
+
+
+def _serialize_grant(grant) -> dict:
+    """给前端返回的授权信息，目标侧附上显示名。"""
+    display_target = grant.grant_target
+    if grant.grant_type == 'user':
+        try:
+            u = User.query.get(int(grant.grant_target))
+            if u:
+                display_target = u.real_name or u.username
+        except (ValueError, TypeError):
+            pass
+    return {
+        'id': grant.id,
+        'grant_type': grant.grant_type,
+        'grant_target': grant.grant_target,
+        'display_target': display_target,
+        'granted_by': grant.granted_by,
+        'granter_name': (grant.granter.real_name or grant.granter.username) if grant.granter else None,
+        'created_at': grant.created_at.isoformat() if grant.created_at else None,
+    }
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/shares', methods=['GET'])
+@login_required
+def list_article_shares(article_id):
+    """列出文章当前的所有分享授权。"""
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if not art:
+        return jsonify({'success': False, 'message': '文章不存在'}), 404
+    if not _can_manage_shares(current_user, art):
+        return jsonify({'success': False, 'message': '没有权限管理此文章的分享'}), 403
+
+    grants = KnowledgeShareGrant.query.filter_by(article_id=article_id).order_by(
+        KnowledgeShareGrant.created_at.desc()
+    ).all()
+    return jsonify({'success': True, 'data': [_serialize_grant(g) for g in grants]})
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/shares', methods=['POST'])
+@login_required
+def add_article_share(article_id):
+    """新增一条分享授权。
+
+    请求体：{ grant_type: 'user'|'department'|'company', grant_target: str }
+    - grant_type=user: grant_target 为 user_id 字符串
+    - grant_type=department: grant_target 为部门名
+    - grant_type=company: grant_target 为企业名 (users.company_name)
+    """
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if not art:
+        return jsonify({'success': False, 'message': '文章不存在'}), 404
+    if not _can_manage_shares(current_user, art):
+        return jsonify({'success': False, 'message': '没有权限管理此文章的分享'}), 403
+
+    data = request.get_json(silent=True) or {}
+    grant_type = (data.get('grant_type') or '').strip()
+    grant_target = (data.get('grant_target') or '').strip()
+
+    if grant_type not in ('user', 'department', 'company'):
+        return jsonify({'success': False, 'message': '无效的授权类型'}), 400
+    if not grant_target:
+        return jsonify({'success': False, 'message': '请指定授权目标'}), 400
+
+    # 校验目标存在
+    if grant_type == 'user':
+        try:
+            uid = int(grant_target)
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'message': '用户 ID 无效'}), 400
+        target_user = User.query.get(uid)
+        if not target_user:
+            return jsonify({'success': False, 'message': '用户不存在'}), 400
+        # 不允许分享给自己
+        if target_user.id == art.owner_id:
+            return jsonify({'success': False, 'message': '文章所有者已拥有访问权限'}), 400
+    elif grant_type == 'department':
+        exists = db.session.query(User.id).filter_by(department=grant_target).first()
+        if not exists:
+            return jsonify({'success': False, 'message': '部门不存在'}), 400
+    elif grant_type == 'company':
+        exists = db.session.query(User.id).filter_by(company_name=grant_target).first()
+        if not exists:
+            return jsonify({'success': False, 'message': '企业不存在'}), 400
+
+    # 去重
+    dup = KnowledgeShareGrant.query.filter_by(
+        article_id=article_id,
+        grant_type=grant_type,
+        grant_target=grant_target,
+    ).first()
+    if dup:
+        return jsonify({'success': False, 'message': '该目标已有授权'}), 400
+
+    grant = KnowledgeShareGrant(
+        article_id=article_id,
+        grant_type=grant_type,
+        grant_target=grant_target,
+        granted_by=current_user.id,
+    )
+    db.session.add(grant)
+    db.session.commit()
+
+    logger.info(
+        f'[Wiki] user={current_user.id} 给文章 id={article_id} 新增分享 '
+        f'type={grant_type} target={grant_target}'
+    )
+    return jsonify({'success': True, 'message': '授权已添加', 'data': _serialize_grant(grant)})
+
+
+@knowledge_wiki_bp.route(
+    '/api/wiki/articles/<int:article_id>/shares/<int:grant_id>',
+    methods=['DELETE'],
+)
+@login_required
+def delete_article_share(article_id, grant_id):
+    """撤销一条分享授权。"""
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if not art:
+        return jsonify({'success': False, 'message': '文章不存在'}), 404
+    if not _can_manage_shares(current_user, art):
+        return jsonify({'success': False, 'message': '没有权限管理此文章的分享'}), 403
+
+    grant = KnowledgeShareGrant.query.filter_by(id=grant_id, article_id=article_id).first()
+    if not grant:
+        return jsonify({'success': False, 'message': '授权记录不存在'}), 404
+
+    db.session.delete(grant)
+    db.session.commit()
+
+    logger.info(f'[Wiki] user={current_user.id} 撤销文章 id={article_id} 的分享 grant_id={grant_id}')
+    return jsonify({'success': True, 'message': '授权已撤销'})
+
+
+@knowledge_wiki_bp.route('/api/wiki/share-targets', methods=['GET'])
+@login_required
+def search_share_targets():
+    """搜索可选的分享目标（给前端下拉补全用）。
+
+    参数：
+      - type: 'user' | 'department' | 'company'
+      - q: 搜索关键字（模糊匹配）
+      - limit: 返回条数上限（默认 20）
+    """
+    target_type = (request.args.get('type') or '').strip()
+    q = (request.args.get('q') or '').strip()
+    try:
+        limit = min(int(request.args.get('limit', 20)), 50)
+    except (ValueError, TypeError):
+        limit = 20
+
+    if target_type not in ('user', 'department', 'company'):
+        return jsonify({'success': False, 'message': '无效的 type'}), 400
+
+    results = []
+    if target_type == 'user':
+        query = User.query.filter(User.is_active == True)  # noqa: E712
+        if q:
+            like = f'%{q}%'
+            query = query.filter(
+                db.or_(
+                    User.username.ilike(like),
+                    User.real_name.ilike(like),
+                )
+            )
+        users = query.order_by(User.real_name.nullslast(), User.username).limit(limit).all()
+        results = [
+            {
+                'value': str(u.id),
+                'label': u.real_name or u.username,
+                'sub': f"{u.department or ''} {u.company_name or ''}".strip(),
+            }
+            for u in users
+        ]
+    elif target_type == 'department':
+        query = db.session.query(User.department).filter(User.department.isnot(None))
+        if q:
+            query = query.filter(User.department.ilike(f'%{q}%'))
+        rows = query.distinct().order_by(User.department).limit(limit).all()
+        results = [{'value': r[0], 'label': r[0], 'sub': ''} for r in rows if r[0]]
+    elif target_type == 'company':
+        query = db.session.query(User.company_name).filter(User.company_name.isnot(None))
+        if q:
+            query = query.filter(User.company_name.ilike(f'%{q}%'))
+        rows = query.distinct().order_by(User.company_name).limit(limit).all()
+        results = [{'value': r[0], 'label': r[0], 'sub': ''} for r in rows if r[0]]
+
+    return jsonify({'success': True, 'data': results})

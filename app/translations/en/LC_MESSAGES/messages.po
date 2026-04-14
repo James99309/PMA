@@ -22903,6 +22903,59 @@ msgstr ""
 msgid "无效的反馈类型"
 msgstr ""
 
+# ── Wiki 分享功能 ──
+#: app/templates/knowledge/tw_wiki.html:213
+msgid "分享给..."
+msgstr "Share with..."
+
+#: app/templates/knowledge/tw_wiki.html:679
+msgid "分享文章"
+msgstr "Share article"
+
+#: app/templates/knowledge/tw_wiki.html:712
+msgid "按姓名/用户名搜索..."
+msgstr "Search by name/username..."
+
+#: app/templates/knowledge/tw_wiki.html:712
+msgid "按部门名搜索..."
+msgstr "Search by department..."
+
+#: app/templates/knowledge/tw_wiki.html:712
+msgid "按企业名搜索..."
+msgstr "Search by company..."
+
+#: app/templates/knowledge/tw_wiki.html:722
+msgid "输入关键字搜索或展开列表"
+msgstr "Type to search or browse list"
+
+#: app/templates/knowledge/tw_wiki.html:737
+msgid "当前已授权"
+msgstr "Granted access"
+
+#: app/templates/knowledge/tw_wiki.html:741
+msgid "暂无授权记录"
+msgstr "No grants yet"
+
+#: app/templates/knowledge/tw_wiki.html:764
+msgid "被授权者将获得本文章的只读访问权限"
+msgstr "Grantees get read-only access to this article"
+
+#: app/templates/knowledge/tw_wiki.html:987
+msgid "授权已添加"
+msgstr "Access granted"
+
+#: app/templates/knowledge/tw_wiki.html:1004
+msgid "授权已撤销"
+msgstr "Access revoked"
+
+#: app/templates/knowledge/tw_wiki.html:1004
+msgid "撤销失败"
+msgstr "Failed to revoke"
+
+#: app/templates/knowledge/tw_wiki.html:756
+msgid "撤销"
+msgstr "Revoke"
+
 #~ msgid "English"
 #~ msgstr "English"
 

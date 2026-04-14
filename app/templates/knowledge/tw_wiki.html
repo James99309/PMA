@@ -208,6 +208,10 @@
                                         <template x-if="art.can_manage">
                                             <div>
                                                 <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
+                                                <button @click.stop="menuOpen = false; openShareModal(art.id, art.title)"
+                                                        class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                                    <span class="material-symbols-outlined text-sm">share</span> {{ _('分享给...') }}
+                                                </button>
                                                 <button @click.stop="menuOpen = false; confirmDeleteArticle(art.id, art.title)"
                                                         class="w-full text-left px-3 py-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 flex items-center gap-2">
                                                     <span class="material-symbols-outlined text-sm">delete</span> {{ _('删除文章') }}
@@ -662,6 +666,98 @@
         </div>
     </div>
 
+    <!-- ═══════════ 分享文章 Modal ═══════════ -->
+    <div x-show="showShareModal" @click="showShareModal = false"
+         class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" x-cloak>
+        <div @click.stop class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-lg w-full p-5 max-h-[90vh] flex flex-col">
+            <!-- 头部 -->
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-xl text-blue-600">share</span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-sm">{{ _('分享文章') }}</div>
+                    <div class="text-xs text-slate-500 truncate" x-text="shareArticleTitle"></div>
+                </div>
+                <button @click="showShareModal = false" class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400">
+                    <span class="material-symbols-outlined text-lg">close</span>
+                </button>
+            </div>
+
+            <!-- Tab 切换 -->
+            <div class="flex gap-1 p-0.5 bg-slate-100 dark:bg-slate-800 rounded-lg mb-3 text-xs">
+                <template x-for="t in ['user','department','company']" :key="t">
+                    <button @click="switchShareTab(t)"
+                            class="flex-1 py-1.5 rounded-md font-medium transition-colors"
+                            :class="shareTab === t ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                            x-text="grantTypeLabel(t)">
+                    </button>
+                </template>
+            </div>
+
+            <!-- 搜索框 -->
+            <div class="relative mb-2">
+                <input type="text" x-model="shareSearchQ" @input="searchShareTargets()"
+                       :placeholder="shareTab === 'user' ? '{{ _('按姓名/用户名搜索...') }}' : (shareTab === 'department' ? '{{ _('按部门名搜索...') }}' : '{{ _('按企业名搜索...') }}')"
+                       class="w-full pl-8 pr-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border-0 text-sm focus:ring-2 focus:ring-primary/50">
+                <span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-base text-slate-400">search</span>
+            </div>
+
+            <!-- 候选列表 -->
+            <div class="max-h-40 overflow-auto mb-3 border border-slate-100 dark:border-slate-800 rounded-lg">
+                <template x-if="shareTargetResults.length === 0">
+                    <div class="px-3 py-4 text-xs text-slate-400 text-center">
+                        {{ _('输入关键字搜索或展开列表') }}
+                    </div>
+                </template>
+                <template x-for="t in shareTargetResults" :key="t.value">
+                    <button @click="addShareGrant(t)" :disabled="shareAdding"
+                            class="w-full px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center justify-between text-left border-b border-slate-100 dark:border-slate-800 last:border-0 disabled:opacity-50">
+                        <div class="min-w-0">
+                            <div class="text-xs font-medium truncate" x-text="t.label"></div>
+                            <div class="text-[10px] text-slate-400 truncate" x-text="t.sub" x-show="t.sub"></div>
+                        </div>
+                        <span class="material-symbols-outlined text-sm text-primary">add</span>
+                    </button>
+                </template>
+            </div>
+
+            <!-- 当前授权列表 -->
+            <div class="mb-2 text-xs font-medium text-slate-500">{{ _('当前已授权') }} <span x-text="'(' + shareGrants.length + ')'"></span></div>
+            <div class="flex-1 overflow-auto border border-slate-100 dark:border-slate-800 rounded-lg">
+                <template x-if="shareGrants.length === 0 && !shareLoading">
+                    <div class="px-3 py-6 text-xs text-slate-400 text-center">
+                        {{ _('暂无授权记录') }}
+                    </div>
+                </template>
+                <template x-for="g in shareGrants" :key="g.id">
+                    <div class="px-3 py-2 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 last:border-0">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                                  x-text="grantTypeLabel(g.grant_type)"></span>
+                            <div class="text-xs truncate" x-text="g.display_target"></div>
+                        </div>
+                        <button @click="revokeShareGrant(g.id)"
+                                class="text-[10px] text-red-500 hover:text-red-600 hover:underline">
+                            {{ _('撤销') }}
+                        </button>
+                    </div>
+                </template>
+            </div>
+
+            <!-- 底部 -->
+            <div class="flex items-center justify-between pt-3 mt-3 border-t border-slate-100 dark:border-slate-800">
+                <div class="text-[10px] text-slate-400">
+                    {{ _('被授权者将获得本文章的只读访问权限') }}
+                </div>
+                <button @click="showShareModal = false"
+                        class="px-4 py-1.5 text-sm bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg">
+                    {{ _('完成') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -760,6 +856,18 @@ function wikiApp() {
         reviewNote: '',
         reviewSubmitting: false,
         pendingPromotions: [],  // 当前用户需要审核的晋升申请
+
+        // ── 分享 Modal ─────────────────
+        showShareModal: false,
+        shareArticleId: null,
+        shareArticleTitle: '',
+        shareGrants: [],
+        shareTab: 'user',  // 'user' | 'department' | 'company'
+        shareSearchQ: '',
+        shareTargetResults: [],
+        shareLoading: false,
+        shareAdding: false,
+        shareSearchTimer: null,
 
         // ── NEW 标记追踪（localStorage，per-browser） ──
         readArticleIds: JSON.parse(localStorage.getItem('wiki_read_articles') || '[]'),
@@ -890,6 +998,102 @@ function wikiApp() {
             } finally {
                 this.loadingArticle = false;
             }
+        },
+
+        // ── 分享 ─────────────────
+        async openShareModal(articleId, title) {
+            this.shareArticleId = articleId;
+            this.shareArticleTitle = title;
+            this.shareTab = 'user';
+            this.shareSearchQ = '';
+            this.shareTargetResults = [];
+            this.shareGrants = [];
+            this.showShareModal = true;
+            await this.loadShareGrants();
+        },
+
+        async loadShareGrants() {
+            if (!this.shareArticleId) return;
+            this.shareLoading = true;
+            try {
+                const r = await fetch(`/api/wiki/articles/${this.shareArticleId}/shares`);
+                const j = await r.json();
+                if (j.success) this.shareGrants = j.data || [];
+            } catch (e) { console.error(e); }
+            finally { this.shareLoading = false; }
+        },
+
+        switchShareTab(tab) {
+            this.shareTab = tab;
+            this.shareSearchQ = '';
+            this.shareTargetResults = [];
+            this.searchShareTargets();
+        },
+
+        searchShareTargets() {
+            clearTimeout(this.shareSearchTimer);
+            this.shareSearchTimer = setTimeout(async () => {
+                try {
+                    const q = encodeURIComponent(this.shareSearchQ || '');
+                    const r = await fetch(`/api/wiki/share-targets?type=${this.shareTab}&q=${q}`);
+                    const j = await r.json();
+                    if (j.success) this.shareTargetResults = j.data || [];
+                } catch (e) { console.error(e); }
+            }, 250);
+        },
+
+        async addShareGrant(target) {
+            if (this.shareAdding) return;
+            this.shareAdding = true;
+            try {
+                const r = await fetch(`/api/wiki/articles/${this.shareArticleId}/shares`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token() }}',
+                    },
+                    body: JSON.stringify({
+                        grant_type: this.shareTab,
+                        grant_target: target.value,
+                    }),
+                });
+                const j = await r.json();
+                if (j.success) {
+                    await this.loadShareGrants();
+                    this._shareToast(j.message || '{{ _('授权已添加') }}');
+                } else {
+                    this._shareToast(j.message || '{{ _('添加失败') }}', 'error');
+                }
+            } catch (e) {
+                console.error(e);
+                this._shareToast('{{ _('网络错误') }}', 'error');
+            } finally { this.shareAdding = false; }
+        },
+
+        async revokeShareGrant(grantId) {
+            try {
+                const r = await fetch(`/api/wiki/articles/${this.shareArticleId}/shares/${grantId}`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+                });
+                const j = await r.json();
+                if (j.success) {
+                    await this.loadShareGrants();
+                    this._shareToast(j.message || '{{ _('授权已撤销') }}');
+                } else {
+                    this._shareToast(j.message || '{{ _('撤销失败') }}', 'error');
+                }
+            } catch (e) { console.error(e); }
+        },
+
+        _shareToast(msg, type) {
+            if (typeof showToast === 'function') { showToast(msg); return; }
+            if (type === 'error') { alert(msg); } else { console.log('[wiki share]', msg); }
+        },
+
+        grantTypeLabel(t) {
+            const map = { user: '{{ _('用户') }}', department: '{{ _('部门') }}', company: '{{ _('企业') }}' };
+            return map[t] || t;
         },
 
         // ── 索引 ─────────────────
