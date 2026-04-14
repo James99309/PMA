@@ -118,7 +118,7 @@ def query_wiki(
             f'prompt={len(user_msg)}B fts_hits={fts_count}'
         )
         resp = claude.complete(
-            system=prompts.QUERY_SYSTEM,
+            system=prompts.get_query_system(),
             user=user_msg,
             model=claude_client.QUERY_MODEL,
             max_tokens=4000,

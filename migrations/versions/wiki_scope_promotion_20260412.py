@@ -82,7 +82,7 @@ def upgrade():
         UPDATE knowledge_wiki_articles a
         SET owner_id = COALESCE(
             (SELECT r.owner_id FROM knowledge_raw_files r
-             WHERE r.id = (a.source_raw_ids->0)::int LIMIT 1),
+             WHERE r.id = (a.source_raw_ids->>0)::int LIMIT 1),
             1
         )
         WHERE a.owner_id IS NULL

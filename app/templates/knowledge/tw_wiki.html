@@ -199,7 +199,7 @@
                                                                 :class="art.scope === s
                                                                     ? scopeColor(s) + ' ring-1 ring-offset-1 cursor-default'
                                                                     : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:opacity-80 cursor-pointer'"
-                                                                x-text="({system:'系统',company:'公司',department:'部门',personal:'个人'})[s]">
+                                                                x-text="({system:'{{ _('系统') }}',company:'{{ _('公司') }}',department:'{{ _('部门') }}',personal:'{{ _('个人') }}'})[s]">
                                                         </button>
                                                     </template>
                                                 </div>
@@ -398,7 +398,7 @@
                                 <div class="text-[10px] text-slate-400 mt-0.5 pl-5">
                                     <span x-text="raw.topic"></span>
                                     <template x-if="raw.ingest_status === 'error' && !isRawCompiling(raw)">
-                                        <span class="text-red-500 ml-1" x-text="'&#10060; ' + (raw.ingest_error || '编译失败')"></span>
+                                        <span class="text-red-500 ml-1" x-text="'&#10060; ' + (raw.ingest_error || '{{ _('编译失败') }}')"></span>
                                     </template>
                                 </div>
                             </div>
@@ -573,7 +573,7 @@
                                 :class="promoteTargetScope === s
                                     ? scopeColor(s) + ' ring-2 ring-offset-1'
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200'"
-                                x-text="({system:'系统',company:'公司',department:'部门'})[s]">
+                                x-text="({system:'{{ _('系统') }}',company:'{{ _('公司') }}',department:'{{ _('部门') }}'})[s]">
                         </button>
                     </template>
                 </div>
@@ -622,11 +622,11 @@
                     <div class="flex items-center gap-1.5">
                         <span class="px-1.5 py-0.5 rounded text-[9px] font-medium"
                               :class="scopeColor(reviewData.from_scope)"
-                              x-text="({system:'系统',company:'公司',department:'部门',personal:'个人'})[reviewData.from_scope]"></span>
+                              x-text="({system:'{{ _('系统') }}',company:'{{ _('公司') }}',department:'{{ _('部门') }}',personal:'{{ _('个人') }}'})[reviewData.from_scope]"></span>
                         <span class="material-symbols-outlined text-sm text-slate-400">arrow_forward</span>
                         <span class="px-1.5 py-0.5 rounded text-[9px] font-medium"
                               :class="scopeColor(reviewData.to_scope)"
-                              x-text="({system:'系统',company:'公司',department:'部门',personal:'个人'})[reviewData.to_scope]"></span>
+                              x-text="({system:'{{ _('系统') }}',company:'{{ _('公司') }}',department:'{{ _('部门') }}',personal:'{{ _('个人') }}'})[reviewData.to_scope]"></span>
                     </div>
                 </div>
                 <div>
@@ -694,7 +694,7 @@ function wikiApp() {
         },
 
         scopeBadge(art) {
-            const map = { system: '系统', company: '公司', department: '部门', personal: '个人' };
+            const map = { system: '{{ _('系统') }}', company: '{{ _('公司') }}', department: '{{ _('部门') }}', personal: '{{ _('个人') }}' };
             if (art.scope === 'personal' && !art.is_mine && art.owner_name) {
                 return art.owner_name;
             }
@@ -922,7 +922,7 @@ function wikiApp() {
                 if (j.success) {
                     this.chatMessages.push({ role: 'ai', text: j.data.answer });
                 } else {
-                    this.chatMessages.push({ role: 'ai', text: '❌ ' + (j.message || '请求失败') });
+                    this.chatMessages.push({ role: 'ai', text: '❌ ' + (j.message || '{{ _('请求失败') }}') });
                 }
             } catch (e) {
                 this.chatMessages.push({ role: 'ai', text: '❌ ' + e.message });
@@ -1018,7 +1018,7 @@ function wikiApp() {
                     const r = await fetch('/api/wiki/upload-and-add', { method: 'POST', body: formData });
                     const j = await r.json();
                     if (!j.success) {
-                        openConfirmModal('wikiConfirmModal', { title: '上传失败', message: `${file.name}: ${j.message}` });
+                        openConfirmModal('wikiConfirmModal', { title: '{{ _('上传失败') }}', message: `${file.name}: ${j.message}` });
                     }
                 }
                 await this.loadRawFiles();
@@ -1026,7 +1026,7 @@ function wikiApp() {
                 this.showUploadModal = false;
                 this.pendingUploadFiles = [];
             } catch (e) {
-                openConfirmModal('wikiConfirmModal', { title: '上传失败', message: e.message });
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('上传失败') }}', message: e.message });
             } finally {
                 this.uploading = false;
             }
@@ -1035,8 +1035,8 @@ function wikiApp() {
         triggerIngest(rawId) {
             const self = this;
             openConfirmModal('wikiConfirmModal', {
-                title: '开始编译',
-                message: '编译可能需要 30-60 秒，确认开始吗？',
+                title: '{{ _('开始编译') }}',
+                message: '{{ _('编译可能需要 30-60 秒，确认开始吗？') }}',
                 onConfirm: () => {
                     closeConfirmModal('wikiConfirmModal');
                     self._doIngest(rawId);
@@ -1056,11 +1056,11 @@ function wikiApp() {
                     await this.refreshTree();
                 } else {
                     await this.loadRawFiles();
-                    openConfirmModal('wikiConfirmModal', { title: '编译失败', message: j.message || '未知错误' });
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('编译失败') }}', message: j.message || '{{ _('未知错误') }}' });
                 }
             } catch (e) {
                 await this.loadRawFiles();
-                openConfirmModal('wikiConfirmModal', { title: '编译失败', message: e.message });
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('编译失败') }}', message: e.message });
             } finally {
                 this.ingestingId = null;
             }
@@ -1069,8 +1069,8 @@ function wikiApp() {
         confirmDeleteRaw(rawId, title) {
             const self = this;
             openConfirmModal('wikiDeleteModal', {
-                title: '确认删除',
-                message: `确定删除「${title}」吗？已编译的文章不会被删除。`,
+                title: '{{ _('确认删除') }}',
+                message: '{{ _('确定删除「%(title)s」吗？已编译的文章不会被删除。') }}'.replace('%(title)s', title),
                 onConfirm: async () => {
                     try {
                         const r = await fetch(`/api/wiki/raw-files/${rawId}`, { method: 'DELETE' });
@@ -1078,7 +1078,7 @@ function wikiApp() {
                         if (j.success) {
                             await self.loadRawFiles();
                         } else {
-                            throw new Error(j.message || '删除失败');
+                            throw new Error(j.message || '{{ _('删除失败') }}');
                         }
                     } catch (e) {
                         throw new Error(e.message);
@@ -1091,12 +1091,12 @@ function wikiApp() {
         confirmDeleteArticle(articleId, title) {
             const self = this;
             openConfirmModal('wikiDeleteModal', {
-                title: '确认删除文章',
-                message: `确定删除「${title}」吗？此操作无法撤销。`,
+                title: '{{ _('确认删除文章') }}',
+                message: '{{ _('确定删除「%(title)s」吗？此操作无法撤销。') }}'.replace('%(title)s', title),
                 onConfirm: async () => {
                     const r = await fetch(`/api/wiki/articles/${articleId}`, { method: 'DELETE' });
                     const j = await r.json();
-                    if (!j.success) throw new Error(j.message || '删除失败');
+                    if (!j.success) throw new Error(j.message || '{{ _('删除失败') }}');
                     if (self.currentArticle && self.currentArticle.id === articleId) {
                         self.currentArticle = null;
                         self.renderedContent = '';
@@ -1108,13 +1108,13 @@ function wikiApp() {
 
         recompileArticle(articleId, sourceRawIds) {
             if (!sourceRawIds || sourceRawIds.length === 0) {
-                openConfirmModal('wikiConfirmModal', { title: '提示', message: '该文章没有关联的原始文件。' });
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('提示') }}', message: '{{ _('该文章没有关联的原始文件。') }}' });
                 return;
             }
             const self = this;
             openConfirmModal('wikiConfirmModal', {
-                title: '重新编译',
-                message: '将重新编译关联的原始文件，可能需要 30-60 秒。确认开始吗？',
+                title: '{{ _('重新编译') }}',
+                message: '{{ _('将重新编译关联的原始文件，可能需要 30-60 秒。确认开始吗？') }}',
                 onConfirm: () => {
                     closeConfirmModal('wikiConfirmModal');
                     self._doRecompile(articleId);
@@ -1130,10 +1130,10 @@ function wikiApp() {
                     await this.refreshTree();
                     await this.loadRawFiles();
                 } else {
-                    openConfirmModal('wikiConfirmModal', { title: '编译失败', message: j.message || '未知错误' });
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('编译失败') }}', message: j.message || '{{ _('未知错误') }}' });
                 }
             } catch (e) {
-                openConfirmModal('wikiConfirmModal', { title: '编译失败', message: e.message });
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('编译失败') }}', message: e.message });
             } finally {
                 this.ingestingId = null;
             }
@@ -1160,10 +1160,10 @@ function wikiApp() {
                     // 超出权限 → 打开晋升申请弹窗
                     this.openPromoteModal(articleId, newScope);
                 } else {
-                    openConfirmModal('wikiConfirmModal', { title: '调整失败', message: j.message || '未知错误' });
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('调整失败') }}', message: j.message || '{{ _('未知错误') }}' });
                 }
             } catch (e) {
-                openConfirmModal('wikiConfirmModal', { title: '调整失败', message: e.message });
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('调整失败') }}', message: e.message });
             }
         },
 
@@ -1206,12 +1206,12 @@ function wikiApp() {
                 const j = await r.json();
                 if (j.success) {
                     this.showPromoteModal = false;
-                    openConfirmModal('wikiConfirmModal', { title: '申请已提交', message: j.message });
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('申请已提交') }}', message: j.message });
                 } else {
-                    openConfirmModal('wikiConfirmModal', { title: '提交失败', message: j.message || '未知错误' });
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('提交失败') }}', message: j.message || '{{ _('未知错误') }}' });
                 }
             } catch (e) {
-                openConfirmModal('wikiConfirmModal', { title: '提交失败', message: e.message });
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('提交失败') }}', message: e.message });
             } finally {
                 this.promoteSubmitting = false;
             }
@@ -1255,16 +1255,16 @@ function wikiApp() {
                 const j = await r.json();
                 if (j.success) {
                     this.showReviewModal = false;
-                    const text = action === 'approve' ? '已通过' : '已拒绝';
-                    openConfirmModal('wikiConfirmModal', { title: text, message: `晋升申请${text}` });
+                    const text = action === 'approve' ? '{{ _('已通过') }}' : '{{ _('已拒绝') }}';
+                    openConfirmModal('wikiConfirmModal', { title: text, message: '{{ _('晋升申请') }}' + text });
                     // 刷新数据
                     await this.refreshTree();
                     await this.loadPendingPromotions();
                 } else {
-                    openConfirmModal('wikiConfirmModal', { title: '操作失败', message: j.message || '未知错误' });
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('操作失败') }}', message: j.message || '{{ _('未知错误') }}' });
                 }
             } catch (e) {
-                openConfirmModal('wikiConfirmModal', { title: '操作失败', message: e.message });
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('操作失败') }}', message: e.message });
             } finally {
                 this.reviewSubmitting = false;
             }
@@ -1272,7 +1272,7 @@ function wikiApp() {
 
         viewSource(sourceRawIds) {
             if (!sourceRawIds || sourceRawIds.length === 0) {
-                openConfirmModal('wikiConfirmModal', { title: '提示', message: '该文章没有关联的原始文件。' });
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('提示') }}', message: '{{ _('该文章没有关联的原始文件。') }}' });
                 return;
             }
             const names = sourceRawIds.map(id => {
@@ -1280,7 +1280,7 @@ function wikiApp() {
                 return raw ? raw.title : `raw_id=${id}`;
             });
             openConfirmModal('wikiConfirmModal', {
-                title: '来源文件',
+                title: '{{ _('来源文件') }}',
                 message: names.map(n => `• ${n}`).join('<br>'),
             });
         },
@@ -1288,8 +1288,8 @@ function wikiApp() {
         runLint() {
             const self = this;
             openConfirmModal('wikiConfirmModal', {
-                title: '开始质检',
-                message: '将对整个 Wiki 执行质检，可能需要 30-60 秒。确认开始吗？',
+                title: '{{ _('开始质检') }}',
+                message: '{{ _('将对整个 Wiki 执行质检，可能需要 30-60 秒。确认开始吗？') }}',
                 onConfirm: () => {
                     closeConfirmModal('wikiConfirmModal');
                     self._doLint();
@@ -1312,10 +1312,10 @@ function wikiApp() {
                         await this.refreshTree();
                     }
                 } else {
-                    openConfirmModal('wikiConfirmModal', { title: '质检失败', message: j.message || '未知错误' });
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('质检失败') }}', message: j.message || '{{ _('未知错误') }}' });
                 }
             } catch (e) {
-                openConfirmModal('wikiConfirmModal', { title: '质检失败', message: e.message });
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('质检失败') }}', message: e.message });
             } finally {
                 this.lintRunning = false;
             }

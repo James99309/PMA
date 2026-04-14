@@ -5,6 +5,9 @@
  * 设计文档: docs/plans/2026-04-05-pma-cli-agent-design.md
  */
 
+const I18N = (window.CLI_I18N || {});
+function tr(key, fallback) { return I18N[key] || fallback; }
+
 class CliTerminalApp {
   constructor() {
     // DOM
@@ -61,11 +64,11 @@ class CliTerminalApp {
       this.tabs = [];
       for (const s of (data.active || [])) {
         this.sessions.set(s.id, {
-          title: s.title || '新会话',
+          title: s.title || tr('newSession', '新会话'),
           usage: s.usage_total || {},
           messageCount: s.message_count || 0,
         });
-        this.tabs.push({ id: s.id, title: s.title || '新会话' });
+        this.tabs.push({ id: s.id, title: s.title || tr('newSession', '新会话') });
       }
       this._renderTabs();
 
@@ -125,7 +128,7 @@ class CliTerminalApp {
 
   async createTab() {
     if (this.tabs.length >= 8) {
-      this._appendSystemLine('已达到最大标签数 (8)，请关闭不需要的标签。');
+      this._appendSystemLine(tr('maxTabs', '已达到最大标签数 (8)，请关闭不需要的标签。'));
       return;
     }
     try {
@@ -137,15 +140,15 @@ class CliTerminalApp {
       if (!data.success) return;
 
       const s = data.session;
-      this.sessions.set(s.id, { title: '新会话', usage: {}, messageCount: 0 });
-      this.tabs.push({ id: s.id, title: '新会话' });
+      this.sessions.set(s.id, { title: tr('newSession', '新会话'), usage: {}, messageCount: 0 });
+      this.tabs.push({ id: s.id, title: tr('newSession', '新会话') });
       this.activeId = s.id;
       this._renderTabs();
       this._showTranscript(s.id);
       this._updateTokenDisplay({});
       this.els.input.focus();
     } catch (e) {
-      this._appendErrorLine('创建标签失败: ' + e.message);
+      this._appendErrorLine(tr('createTabFailed', '创建标签失败') + ': ' + e.message);
     }
   }
 
@@ -174,7 +177,7 @@ class CliTerminalApp {
       }
       this._renderTabs();
     } catch (e) {
-      this._appendErrorLine('关闭标签失败: ' + e.message);
+      this._appendErrorLine(tr('closeTabFailed', '关闭标签失败') + ': ' + e.message);
     }
   }
 
@@ -389,7 +392,7 @@ class CliTerminalApp {
     if (this.isStreaming) return;
     if (!text?.trim()) return;
     if (!this.activeId) {
-      this._appendErrorLine('尚未加载会话，请刷新页面');
+      this._appendErrorLine(tr('sessionNotLoaded', '尚未加载会话，请刷新页面'));
       return;
     }
 
@@ -460,9 +463,9 @@ class CliTerminalApp {
       }
     } catch (e) {
       if (e.name === 'AbortError') {
-        this._appendSystemLine('已中断');
+        this._appendSystemLine(tr('aborted', '已中断'));
       } else {
-        this._appendErrorLine('网络错误: ' + e.message);
+        this._appendErrorLine(tr('networkError', '网络错误') + ': ' + e.message);
       }
     } finally {
       this.isStreaming = false;
@@ -491,16 +494,16 @@ class CliTerminalApp {
         if (toolStatusEl) toolStatusEl.remove();
         // 根据工具类型显示不同状态
         const toolName = evt.name || '';
-        let statusMsg = '查询中...';
+        let statusMsg = tr('querying', '查询中...');
         if (toolName === 'invoke_skill') {
           const skillName = evt.input?.skill_name || '';
-          statusMsg = `调用技能: ${skillName}`;
+          statusMsg = `${tr('invokingSkill', '调用技能')}: ${skillName}`;
         } else if (toolName === 'save_skill') {
-          statusMsg = `创建技能: ${evt.input?.title || evt.input?.name || ''}`;
+          statusMsg = `${tr('creatingSkill', '创建技能')}: ${evt.input?.title || evt.input?.name || ''}`;
         } else if (toolName === 'web_search') {
-          statusMsg = `搜索: ${evt.input?.query || ''}`;
+          statusMsg = `${tr('searching', '搜索')}: ${evt.input?.query || ''}`;
         } else if (toolName === 'export_to_word') {
-          statusMsg = '生成文档...';
+          statusMsg = tr('generatingDoc', '生成文档...');
         }
         toolStatusEl = this._appendToolStatus(statusMsg, true);
         break;
@@ -510,7 +513,7 @@ class CliTerminalApp {
         if (evt.is_error || out.error) {
           if (toolStatusEl) toolStatusEl.remove();
           toolStatusEl = null;
-          this._appendToolStatus('错误: ' + (out.error || JSON.stringify(out)), false);
+          this._appendToolStatus(tr('errorPrefix', '错误') + ': ' + (out.error || JSON.stringify(out)), false);
         } else {
           if (toolStatusEl) {
             const spinnerEl = toolStatusEl.querySelector('.cli-tool-spinner');
@@ -548,7 +551,7 @@ class CliTerminalApp {
 
       case 'error':
         this._finishStreamingBlock();
-        this._appendErrorLine(evt.message || '未知错误');
+        this._appendErrorLine(evt.message || tr('unknownError', '未知错误'));
         break;
     }
     return toolStatusEl;
@@ -600,7 +603,7 @@ class CliTerminalApp {
         break;
 
       default:
-        this._appendSystemLine(`未知命令: <span class="cli-sys-cmd">/${this._escapeHtml(command)}</span>，输入 <span class="cli-sys-cmd">/help</span> 查看可用命令`);
+        this._appendSystemLine(`${tr('unknownCommand', '未知命令')}: <span class="cli-sys-cmd">/${this._escapeHtml(command)}</span>，<span class="cli-sys-cmd">/help</span> ${tr('viewAvailableCommands', '查看可用命令')}`);
     }
   }
 
@@ -627,12 +630,12 @@ class CliTerminalApp {
       }
 
       // 替换当前 tab
-      this.sessions.set(newSession.id, { title: '新会话', usage: {}, messageCount: 0 });
+      this.sessions.set(newSession.id, { title: tr('newSession', '新会话'), usage: {}, messageCount: 0 });
       const tabIdx = this.tabs.findIndex(t => t.id === oldId);
       if (tabIdx >= 0) {
-        this.tabs[tabIdx] = { id: newSession.id, title: '新会话' };
+        this.tabs[tabIdx] = { id: newSession.id, title: tr('newSession', '新会话') };
       } else {
-        this.tabs.push({ id: newSession.id, title: '新会话' });
+        this.tabs.push({ id: newSession.id, title: tr('newSession', '新会话') });
       }
       this.activeId = newSession.id;
 
@@ -640,9 +643,9 @@ class CliTerminalApp {
       this.els.transcript.innerHTML = '';
       this._toggleWelcome(true);
       this._updateTokenDisplay({});
-      this._appendSystemLine('会话已重置');
+      this._appendSystemLine(tr('sessionReset', '会话已重置'));
     } catch (e) {
-      this._appendErrorLine('重置失败: ' + e.message);
+      this._appendErrorLine(tr('resetFailed', '重置失败') + ': ' + e.message);
     }
   }
 
@@ -670,7 +673,7 @@ class CliTerminalApp {
       const r = await this._fetch('/cli/api/sessions/history');
       const data = await r.json();
       if (!data.success || !data.sessions?.length) {
-        this._appendSystemLine('暂无历史会话');
+        this._appendSystemLine(tr('noHistory', '暂无历史会话'));
         return;
       }
       let lines = '<span class="cli-sys-heading">会话历史</span>\n';
@@ -682,7 +685,7 @@ class CliTerminalApp {
       }
       this._appendSystemLine(lines);
     } catch (e) {
-      this._appendErrorLine('获取历史失败: ' + e.message);
+      this._appendErrorLine(tr('getHistoryFailed', '获取历史失败') + ': ' + e.message);
     }
   }
 
@@ -697,7 +700,7 @@ class CliTerminalApp {
       const r = await this._fetch('/cli/api/memories');
       const data = await r.json();
       if (!data.success || !data.memories?.length) {
-        this._appendSystemLine('暂无记忆');
+        this._appendSystemLine(tr('noMemory', '暂无记忆'));
         return;
       }
       let lines = '<span class="cli-sys-heading">记忆索引</span>\n\n';
@@ -725,7 +728,7 @@ class CliTerminalApp {
       }
       this._appendSystemLine(lines);
     } catch (e) {
-      this._appendErrorLine('获取记忆失败: ' + e.message);
+      this._appendErrorLine(tr('getMemoryFailed', '获取记忆失败') + ': ' + e.message);
     }
   }
 
@@ -734,7 +737,7 @@ class CliTerminalApp {
       const r = await this._fetch('/cli/api/skills');
       const data = await r.json();
       if (!data.success || !data.skills?.length) {
-        this._appendSystemLine('暂无可用技能');
+        this._appendSystemLine(tr('noSkills', '暂无可用技能'));
         return;
       }
       let lines = '<span class="cli-sys-heading">可用技能</span>\n\n';
@@ -757,7 +760,7 @@ class CliTerminalApp {
       }
       this._appendSystemLine(lines);
     } catch (e) {
-      this._appendErrorLine('获取技能列表失败: ' + e.message);
+      this._appendErrorLine(tr('getSkillsFailed', '获取技能列表失败') + ': ' + e.message);
     }
   }
 
@@ -868,16 +871,16 @@ class CliTerminalApp {
 
   _COMMANDS = (() => {
     const cmds = [
-      { name: '/new',     desc: '重置当前会话' },
-      { name: '/clear',   desc: '清屏' },
-      { name: '/tokens',  desc: '显示 token 用量' },
-      { name: '/skills',  desc: '查看可用技能' },
-      { name: '/history', desc: '查看所有会话' },
-      { name: '/help',    desc: '显示帮助' },
+      { name: '/new',     desc: tr('cmdNew', '重置当前会话') },
+      { name: '/clear',   desc: tr('cmdClear', '清屏') },
+      { name: '/tokens',  desc: tr('cmdTokens', '显示 token 用量') },
+      { name: '/skills',  desc: tr('cmdSkills', '查看可用技能') },
+      { name: '/history', desc: tr('cmdHistory', '查看所有会话') },
+      { name: '/help',    desc: tr('cmdHelp', '显示帮助') },
     ];
     const role = document.querySelector('.cli-window')?.dataset?.userRole;
     if (role === 'admin') {
-      cmds.splice(4, 0, { name: '/memory', desc: '查看记忆系统' });
+      cmds.splice(4, 0, { name: '/memory', desc: tr('cmdMemory', '查看记忆系统') });
     }
     return cmds;
   })();
@@ -999,8 +1002,8 @@ class CliTerminalApp {
     this.els.input.disabled = disabled;
     if (this.els.submit) this.els.submit.disabled = disabled;
     this.els.input.placeholder = disabled
-      ? '正在思考... (按 Esc 中断)'
-      : '输入问题，按 Enter 发送...';
+      ? tr('thinking', '正在思考... (按 Esc 中断)')
+      : tr('inputPlaceholder', '输入问题，按 Enter 发送...');
   }
 
   stopStreaming() {

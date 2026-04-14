@@ -133,6 +133,43 @@
 {{ render_tw_layout_script() }}
 
 {# ─── CLI Terminal JS 模块 ─── #}
+<script>
+  window.CLI_I18N = {
+    newSession: "{{ _('新会话') }}",
+    maxTabs: "{{ _('已达到最大标签数 (8)，请关闭不需要的标签。') }}",
+    createTabFailed: "{{ _('创建标签失败') }}",
+    closeTabFailed: "{{ _('关闭标签失败') }}",
+    sessionNotLoaded: "{{ _('尚未加载会话，请刷新页面') }}",
+    aborted: "{{ _('已中断') }}",
+    networkError: "{{ _('网络错误') }}",
+    querying: "{{ _('查询中...') }}",
+    invokingSkill: "{{ _('调用技能') }}",
+    creatingSkill: "{{ _('创建技能') }}",
+    searching: "{{ _('搜索') }}",
+    generatingDoc: "{{ _('生成文档...') }}",
+    errorPrefix: "{{ _('错误') }}",
+    unknownError: "{{ _('未知错误') }}",
+    unknownCommand: "{{ _('未知命令') }}",
+    viewAvailableCommands: "{{ _('查看可用命令') }}",
+    sessionReset: "{{ _('会话已重置') }}",
+    resetFailed: "{{ _('重置失败') }}",
+    noHistory: "{{ _('暂无历史会话') }}",
+    getHistoryFailed: "{{ _('获取历史失败') }}",
+    noMemory: "{{ _('暂无记忆') }}",
+    getMemoryFailed: "{{ _('获取记忆失败') }}",
+    noSkills: "{{ _('暂无可用技能') }}",
+    getSkillsFailed: "{{ _('获取技能列表失败') }}",
+    cmdNew: "{{ _('重置当前会话') }}",
+    cmdClear: "{{ _('清屏') }}",
+    cmdTokens: "{{ _('显示 token 用量') }}",
+    cmdSkills: "{{ _('查看可用技能') }}",
+    cmdHistory: "{{ _('查看所有会话') }}",
+    cmdHelp: "{{ _('显示帮助') }}",
+    cmdMemory: "{{ _('查看记忆系统') }}",
+    thinking: "{{ _('正在思考... (按 Esc 中断)') }}",
+    inputPlaceholder: "{{ _('输入问题，按 Enter 发送...') }}"
+  };
+</script>
 <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/cli/markdown-renderer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/cli/terminal-app.js') }}"></script>

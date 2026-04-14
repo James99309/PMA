@@ -24,6 +24,8 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from flask import current_app
+
 from app import db
 from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
 from app.services.wiki import claude_client, prompts, storage
@@ -194,8 +196,9 @@ def ingest_raw_file(
             f'mode={"vision" if is_vision else "text"} '
             f'{"images=" + str(len(raw_content.images)) + "p" if is_vision else "text=" + str(len(raw_text)) + "B"}'
         )
+        is_ovs = bool(current_app.config.get('IS_OVS', False))
         resp = claude_instance.complete(
-            system=prompts.INGEST_SYSTEM,
+            system=prompts.get_ingest_system(is_ovs=is_ovs),
             user=user_msg,
             model=claude_client.INGEST_MODEL,
             max_tokens=32000,
