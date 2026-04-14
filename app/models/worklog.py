@@ -75,6 +75,11 @@ class WorkItem(db.Model):
     # 附件
     attachments = Column(Text, nullable=True)  # JSON: [{filename, url, size, type, uploaded_at}]
 
+    # 钉钉同步
+    dingtalk_event_id = Column(String(128), index=True)  # 钉钉日程ID（成功推送后回填）
+    dingtalk_synced_at = Column(DateTime)                # 最后一次同步成功时间
+    sync_source = Column(String(20))                     # pma / dingtalk（来源标识，防循环同步）
+
     # 工作类型颜色映射（9个大类颜色）
     TYPE_COLORS = {
         # 通用-其他 - 灰色 #64748b
@@ -185,14 +190,18 @@ class WorkItem(db.Model):
         """
         is_owner = self.owner_id == current_user_id if current_user_id else True
         owner_name = self.owner.real_name or self.owner.username if self.owner else None
+        is_from_dingtalk = self.sync_source == 'dingtalk'
+
+        # 钉钉来源：统一橙色 + 禁止拖拽编辑
+        color = '#F37B1D' if is_from_dingtalk else self.get_type_color()
 
         event = {
             'id': self.id,
             'title': self.title,
             'start': self.planned_date.isoformat(),
             'allDay': self.is_all_day,
-            'color': self.get_type_color(),
-            'editable': is_owner,  # 只有所有者可以拖拽编辑
+            'color': color,
+            'editable': is_owner and not is_from_dingtalk,
             'extendedProps': {
                 'status': self.status,
                 'work_type': self.work_type,
@@ -213,7 +222,10 @@ class WorkItem(db.Model):
                 'contact_id': self.contact_id,
                 'contact_name': self.contact.name if self.contact else None,
                 'is_invalidated': self.is_invalidated,
-                'is_business_trip': self.is_business_trip
+                'is_business_trip': self.is_business_trip,
+                'sync_source': self.sync_source,
+                'is_from_dingtalk': is_from_dingtalk,
+                'dingtalk_event_id': self.dingtalk_event_id,
             }
         }
 

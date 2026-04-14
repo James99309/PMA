@@ -1048,6 +1048,9 @@
                             <span x-show="viewIsShared" class="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
                                 {{ _('共享') }}
                             </span>
+                            <span x-show="viewIsFromDingtalk" class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+                                📌 {{ _('钉钉日程（只读）') }}
+                            </span>
                             <span x-show="viewData.status === 'completed' || viewData.status === 'cancelled'"
                                   class="px-2 py-0.5 rounded text-xs font-medium"
                                   :class="viewData.status === 'completed' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'"
@@ -1776,6 +1779,7 @@ function workCalendar() {
         selectedItem: null,
         viewData: {},
         viewIsShared: false,   // 查看的是否是共享行程
+        viewIsFromDingtalk: false,  // 查看的是否是钉钉来源（只读）
         viewOwnerName: '',     // 共享行程的发起者姓名
         // 会议录音相关
         showRecordingModeModal: false,
@@ -2138,6 +2142,11 @@ function workCalendar() {
                         }));
                         return;
                     }
+                    // 钉钉来源 → 强制只读
+                    if (props.is_from_dingtalk) {
+                        self.openViewModal(info.event.id, props);
+                        return;
+                    }
                     if (props.status === 'completed' || props.status === 'cancelled' || !props.is_owner) {
                         // 已完成/已取消/共享行程 → 只读查看
                         self.openViewModal(info.event.id, props);
@@ -2147,8 +2156,9 @@ function workCalendar() {
                     }
                 },
                 eventDrop: function(info) {
-                    // 任务事件不支持拖动修改日期
+                    // 任务事件/钉钉来源不支持拖动修改日期
                     if (info.event.extendedProps.event_type === 'task') { info.revert(); return; }
+                    if (info.event.extendedProps.is_from_dingtalk) { info.revert(); return; }
                     console.log('[拖动事件] 原始:', info.oldEvent?.startStr, '→ 新:', info.event.startStr);
                     self.updateItemDate(info.event.id, info.event.startStr, info.event.endStr);
                 },
@@ -2159,6 +2169,17 @@ function workCalendar() {
                         info.el.classList.add('fc-event-task');
                         if (props.status === 'completed') info.el.classList.add('fc-event-completed');
                         else if (props.status === 'cancelled') info.el.classList.add('fc-event-cancelled');
+                        return;
+                    }
+                    // 钉钉来源 → 加📌标识前缀，标题加前缀图标
+                    if (props.is_from_dingtalk) {
+                        info.el.classList.add('fc-event-dingtalk');
+                        const titleEl = info.el.querySelector('.fc-event-title');
+                        if (titleEl && !titleEl.dataset.dtTagged) {
+                            titleEl.textContent = '📌 ' + titleEl.textContent;
+                            titleEl.dataset.dtTagged = '1';
+                        }
+                        info.el.title = '{{ _("钉钉日程，只读") }}';
                         return;
                     }
                     // 添加工作类型样式类
@@ -2780,6 +2801,7 @@ function workCalendar() {
             // 保存是否是共享行程和发起者信息
             this.viewIsShared = !props.is_owner;
             this.viewOwnerName = props.owner_name || '';
+            this.viewIsFromDingtalk = !!props.is_from_dingtalk;
 
             fetch(`/worklog/api/items/${itemId}`)
                 .then(r => r.json())
@@ -2821,6 +2843,7 @@ function workCalendar() {
             document.body.style.overflow = '';
             this.viewData = {};
             this.viewIsShared = false;
+            this.viewIsFromDingtalk = false;
             this.viewOwnerName = '';
             this.viewMeetingRecording = false;
             this.viewMeetingRecordings = [];

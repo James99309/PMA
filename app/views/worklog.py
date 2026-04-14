@@ -807,6 +807,10 @@ def update_item(item_id):
     if work_item.owner_id != current_user.id:
         return jsonify({'success': False, 'message': _('只有创建人可以修改此行程')}), 403
 
+    # 钉钉来源不允许在 PMA 侧编辑
+    if work_item.sync_source == 'dingtalk':
+        return jsonify({'success': False, 'message': _('钉钉日程请到钉钉 App 编辑')}), 403
+
     data = request.get_json()
     if not data:
         return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
@@ -974,6 +978,10 @@ def delete_item(item_id):
     if work_item.owner_id != current_user.id:
         return jsonify({'success': False, 'message': _('只有创建人可以删除此行程')}), 403
 
+    # 钉钉来源不允许在 PMA 侧删除
+    if work_item.sync_source == 'dingtalk':
+        return jsonify({'success': False, 'message': _('钉钉日程请到钉钉 App 删除')}), 403
+
     from datetime import date as date_type
     today = date_type.today()
 
@@ -1022,6 +1030,10 @@ def complete_item(item_id):
     # 只有所有者可以标记完成
     if work_item.owner_id != current_user.id:
         return jsonify({'success': False, 'message': _('只有创建人可以标记此行程完成')}), 403
+
+    # 钉钉来源不允许在 PMA 侧修改状态
+    if work_item.sync_source == 'dingtalk':
+        return jsonify({'success': False, 'message': _('钉钉日程请到钉钉 App 操作')}), 403
 
     data = request.get_json() or {}
 
@@ -1095,6 +1107,10 @@ def cancel_item(item_id):
     # 只有所有者可以取消
     if work_item.owner_id != current_user.id:
         return jsonify({'success': False, 'message': _('只有创建人可以取消此行程')}), 403
+
+    # 钉钉来源不允许在 PMA 侧取消
+    if work_item.sync_source == 'dingtalk':
+        return jsonify({'success': False, 'message': _('钉钉日程请到钉钉 App 取消')}), 403
 
     data = request.get_json() or {}
 

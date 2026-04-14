@@ -1,0 +1,165 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('钉钉同步队列') }}</title>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" } } }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark" x-cloak>
+{% call(slot) render_tw_layout(active_page='admin') %}
+{% if slot == 'content' %}
+{% call(page_slot) render_tw_fixed_page() %}
+
+{% if page_slot == 'header' %}
+    <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('钉钉同步队列') }}</h1>
+    <div class="flex items-center gap-2">
+        <button onclick="runNow()" class="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium">
+            <span class="material-symbols-outlined text-base">bolt</span>{{ _('立即执行一批') }}
+        </button>
+        <button onclick="location.reload()" class="inline-flex items-center gap-2 h-10 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-sm">
+            <span class="material-symbols-outlined text-base">refresh</span>{{ _('刷新') }}
+        </button>
+    </div>
+
+{% elif page_slot == 'content' %}
+
+    <!-- 状态横幅 -->
+    {% if not enabled %}
+    <div class="mb-4 p-4 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 text-sm">
+        <div class="flex items-center gap-2 font-medium">
+            <span class="material-symbols-outlined text-base">warning</span>
+            {{ _('钉钉集成未启用。仅在 CN 环境 (PMA_DB_TYPE=sp8d) + DINGTALK_ENABLED=true 时生效。') }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 统计 -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+        {% for key, label, color in [
+            ('pending', _('待处理'), 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'),
+            ('running', _('执行中'), 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'),
+            ('success', _('成功'), 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'),
+            ('failed', _('失败'), 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300'),
+        ] %}
+        <a href="?status={{ key }}" class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-primary transition-colors">
+            <div class="text-xs {{ color }} inline-block px-2 py-0.5 rounded mb-2">{{ label }}</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white">{{ stats.get(key, 0) }}</div>
+        </a>
+        {% endfor %}
+        <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+            <div class="text-xs text-slate-500 mb-2">{{ _('已映射用户') }}</div>
+            <div class="text-2xl font-bold text-slate-900 dark:text-white">{{ mapping_count }}</div>
+        </div>
+    </div>
+
+    <!-- 筛选 -->
+    <div class="mb-3 flex items-center gap-2 text-sm">
+        <span class="text-slate-500">{{ _('筛选') }}:</span>
+        {% for key, label in [('all', _('全部')), ('pending', _('待处理')), ('running', _('执行中')), ('success', _('成功')), ('failed', _('失败'))] %}
+        <a href="?status={{ key }}" class="px-3 py-1 rounded-full {% if current_status == key %}bg-primary text-white{% else %}bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200{% endif %}">{{ label }}</a>
+        {% endfor %}
+    </div>
+
+    <!-- 队列表格 -->
+    <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-left">
+                <tr>
+                    <th class="px-4 py-2">ID</th>
+                    <th class="px-4 py-2">{{ _('工作项') }}</th>
+                    <th class="px-4 py-2">{{ _('操作') }}</th>
+                    <th class="px-4 py-2">{{ _('状态') }}</th>
+                    <th class="px-4 py-2">{{ _('尝试') }}</th>
+                    <th class="px-4 py-2">{{ _('创建') }}</th>
+                    <th class="px-4 py-2">{{ _('下次重试') }}</th>
+                    <th class="px-4 py-2">{{ _('错误') }}</th>
+                    <th class="px-4 py-2"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
+                {% for t in items %}
+                <tr>
+                    <td class="px-4 py-2 text-slate-500">#{{ t.id }}</td>
+                    <td class="px-4 py-2">{% if t.work_item_id %}<a class="text-primary hover:underline" href="/worklog/calendar">#{{ t.work_item_id }}</a>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
+                    <td class="px-4 py-2"><span class="font-mono text-xs">{{ t.action }}</span></td>
+                    <td class="px-4 py-2">
+                        {% if t.status == 'pending' %}<span class="px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-xs">pending</span>
+                        {% elif t.status == 'running' %}<span class="px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs">running</span>
+                        {% elif t.status == 'success' %}<span class="px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs">✓ success</span>
+                        {% elif t.status == 'failed' %}<span class="px-2 py-0.5 rounded bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-xs">✗ failed</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-2">{{ t.attempts }}</td>
+                    <td class="px-4 py-2 text-xs text-slate-500">{{ t.created_at.strftime('%m-%d %H:%M') if t.created_at else '' }}</td>
+                    <td class="px-4 py-2 text-xs text-slate-500">{{ t.next_retry_at.strftime('%m-%d %H:%M') if t.next_retry_at else '' }}</td>
+                    <td class="px-4 py-2 text-xs text-rose-600 dark:text-rose-400 max-w-xs truncate" title="{{ t.last_error or '' }}">{{ t.last_error or '' }}</td>
+                    <td class="px-4 py-2">
+                        {% if t.status == 'failed' %}
+                        <button onclick="retryTask({{ t.id }})" class="text-primary hover:underline text-xs">{{ _('重试') }}</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not items %}
+                <tr><td colspan="9" class="px-4 py-8 text-center text-slate-400 text-sm">{{ _('暂无队列任务') }}</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+{% endif %}
+{% endcall %}
+{% endif %}
+{% endcall %}
+
+{{ render_tw_layout_script() }}
+<script>
+    const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+
+    async function retryTask(id) {
+        const resp = await fetch(`/admin/dingtalk/api/retry/${id}`, {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF}
+        });
+        const data = await resp.json();
+        if (data.ok) { location.reload(); } else { alert(data.error || 'failed'); }
+    }
+
+    async function runNow() {
+        const resp = await fetch('/admin/dingtalk/api/run-now', {
+            method: 'POST',
+            headers: {'X-CSRFToken': CSRF}
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            alert(`{{ _('已处理') }}: ${JSON.stringify(data.stats)}`);
+            location.reload();
+        } else {
+            alert(data.error || 'failed');
+        }
+    }
+</script>
+</body>
+</html>

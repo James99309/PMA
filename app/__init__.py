@@ -444,6 +444,12 @@ def create_app(config_class=Config):
     # 注册管理员蓝图
     from app.views.admin import admin_bp
     app.register_blueprint(admin_bp)
+
+    # 钉钉集成管理蓝图（CN only） + 事件回调蓝图（CSRF 豁免）
+    from app.views.dingtalk import dingtalk_bp, dingtalk_callback_bp
+    app.register_blueprint(dingtalk_bp)
+    app.register_blueprint(dingtalk_callback_bp)
+    csrf.exempt(dingtalk_callback_bp)
     
     # 注册评分系统蓝图
     app.register_blueprint(scoring_config)
@@ -652,6 +658,7 @@ def create_app(config_class=Config):
             '/chat/api/ai/',  # OpenClaw AI API（db-query, db-schema, upload-file，均使用 token 认证）
             '/health',  # 健康检查（Docker + OpenClaw 回调验证）
             '/system-diagram/s/',  # 系统设计图外部分享页面（邮箱验证访问）
+            '/api/dingtalk/',  # 钉钉服务器回调（企业事件推送，自有签名验证）
         ]
         
         # 检查当前路径是否需要登录
@@ -1180,6 +1187,16 @@ def create_app(config_class=Config):
                 app.logger.info("客户活跃度定时修正任务已启动")
             except Exception as e:
                 app.logger.error(f"启动客户活跃度定时任务时出错: {str(e)}")
+
+        # 钉钉集成：仅单向拉取（钉钉 → PMA），无反向推送
+        try:
+            from app.services.dingtalk.config import is_dingtalk_enabled
+            if is_dingtalk_enabled() and not app.config.get('TESTING'):
+                app.logger.info("钉钉拉取模式已启用（每小时由 scheduled_tasks 触发）")
+            else:
+                app.logger.info("钉钉集成未启用（非 CN 环境或未配置凭证），跳过")
+        except Exception as e:
+            app.logger.error(f"初始化钉钉集成时出错: {str(e)}")
 
     # 注册上下文处理器
     from app.utils.access_control import register_context_processors

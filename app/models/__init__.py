@@ -36,6 +36,7 @@ from app.models.ai_analysis_cache import AIAnalysisCache, UserDailyLoginRecord
 from app.models.monthly_activity_snapshot import MonthlyActivitySnapshot
 from app.models.worklog import WorkItem, WorkLog
 from app.models.worklog_read import WorklogRead
+from app.models.dingtalk import DingtalkUserMapping, DingtalkSyncQueue
 from app.models.message import Message
 from app.models.quotation_confirmation_task import QuotationConfirmationTask
 from app.models.task import Task, TaskAttachment, TaskReply

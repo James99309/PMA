@@ -305,6 +305,67 @@ def cleanup_old_worklog_notifications():
         logger.error(f"[{datetime.now()}] 工作日志通知清理失败: {str(e)}")
 
 
+def run_dingtalk_calendar_pull():
+    """每小时拉取钉钉日程到 PMA。
+
+    - 仅 CN 环境（PMA_DB_TYPE=sp8d + DINGTALK_ENABLED=true）生效
+    - 拉取窗口：过去 30 天 + 未来 90 天
+    - WorkItem.sync_source='dingtalk' 标识，前端据此只读展示
+    """
+    try:
+        from app import create_app
+        from app.services.dingtalk.config import is_dingtalk_enabled
+        from app.services.dingtalk.calendar_pull import pull_all_users
+
+        try:
+            app = current_app._get_current_object()
+        except RuntimeError:
+            app = create_app()
+
+        with app.app_context():
+            if not is_dingtalk_enabled():
+                return
+            logger.info(f"[{datetime.now()}] 开始钉钉日程拉取...")
+            stats = pull_all_users(app=app)
+            logger.info(f"[{datetime.now()}] 钉钉日程拉取完成: {stats}")
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] 钉钉日程拉取失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+
+def verify_dingtalk_mappings():
+    """每日校验现有钉钉用户映射是否还有效。
+
+    钉钉里离职/删号的用户对应 mapping 标记 is_active=False。
+    仅作为事件回调的兜底，正常情况下 user_leave_org 推送会先到。
+    """
+    try:
+        from app import create_app
+        from app.models.dingtalk import DingtalkUserMapping
+        from app.services.dingtalk.config import is_dingtalk_enabled
+        from app.services.dingtalk.user_matcher import deactivate_mapping, fetch_dingtalk_user
+
+        app = create_app()
+        with app.app_context():
+            if not is_dingtalk_enabled():
+                return
+            mappings = DingtalkUserMapping.query.filter_by(is_active=True).all()
+            checked = deactivated = 0
+            for m in mappings:
+                try:
+                    info = fetch_dingtalk_user(m.dingtalk_userid)
+                    checked += 1
+                    if not info:
+                        deactivate_mapping(m.dingtalk_userid)
+                        deactivated += 1
+                except Exception as e:
+                    logger.warning(f"[{datetime.now()}] 校验 mapping {m.id} 失败: {e}")
+            logger.info(f"[{datetime.now()}] 钉钉 mapping 校验完成: 检查 {checked}, 停用 {deactivated}")
+    except Exception as e:
+        logger.error(f"[{datetime.now()}] 钉钉 mapping 校验任务失败: {e}")
+
+
 def start_scheduler(run_time="01:00"):
     """
     启动定时任务调度器
@@ -343,6 +404,14 @@ def start_scheduler(run_time="01:00"):
     # 工作日志通知清理（每天凌晨 00:30 清理超过1天的 worklog_submitted）
     schedule.every().day.at("00:30").do(cleanup_old_worklog_notifications)
     logger.info("工作日志通知清理任务已注册: 每日 00:30")
+
+    # 钉钉 mapping 兜底校验（02:30，回调失败/漏推时兜底）
+    schedule.every().day.at("02:30").do(verify_dingtalk_mappings)
+    logger.info("钉钉 mapping 兜底校验任务已注册: 每日 02:30")
+
+    # 钉钉日程拉取（每小时）
+    schedule.every().hour.at(":05").do(run_dingtalk_calendar_pull)
+    logger.info("钉钉日程拉取任务已注册: 每小时 :05")
 
     # 备份相关任务
     backup_time = os.getenv('BACKUP_AUTO_TIME', '03:00')
