@@ -13075,9 +13075,8 @@ msgstr "Trash"
 #: app/templates/files/tw_file_manager.html:136
 #: app/templates/files/tw_file_manager.html:180
 #: app/templates/files/tw_file_manager.html:1140
-#, fuzzy
 msgid "归档管理"
-msgstr "Manage"
+msgstr "Archive"
 
 #: app/templates/files/tw_file_manager.html:190
 msgid "搜索文件..."
@@ -14473,11 +14472,11 @@ msgstr ""
 #: app/templates/knowledge/tw_wiki.html:239
 #, fuzzy
 msgid "查看索引"
-msgstr "View"
+msgstr "View index"
 
 #: app/templates/knowledge/tw_wiki.html:239
 msgid "索引"
-msgstr ""
+msgstr "Index"
 
 #: app/templates/knowledge/tw_wiki.html:251
 msgid "选择一篇文章开始阅读"
@@ -14502,12 +14501,11 @@ msgstr "Wiki Q&A"
 
 #: app/templates/knowledge/tw_wiki.html:311
 msgid "向 Wiki 提问，AI 会基于现有文章回答，并带引用链接"
-msgstr ""
+msgstr "Ask Wiki — AI will answer based on existing articles with citation links"
 
 #: app/templates/knowledge/tw_wiki.html:331
-#, fuzzy
 msgid "向 Wiki 提问...（Shift+Enter 换行）"
-msgstr "Press Enter to send, Shift+Enter for new line"
+msgstr "Ask Wiki... (Shift+Enter for newline)"
 
 #: app/templates/knowledge/tw_wiki.html:335
 msgid "发送"
