@@ -119,14 +119,21 @@ def can_write_scope(user, scope: str) -> bool:
 
 
 def can_manage_article(user, article) -> bool:
-    """检查��户是否能管理（编辑/删除/晋升��该文章。"""
+    """检查用户是否能管理（编辑/删除/调整 scope）该文章。
+
+    放行规则：
+    - admin / ceo：任何文章
+    - 文章所有者：任何 scope（含自己的 department 级文章）
+    - 部门经理：同部门的 department 级文章
+    注：升级到 company / system 另有审批门槛，由接口层控制。
+    """
     if user.role in ('admin', 'ceo'):
         return True
-    if article.scope == 'personal' and article.owner_id == user.id:
+    if article.owner_id == user.id:
         return True
-    if article.scope == 'department' and user.is_department_manager:
-        if user.department and article.owner_department == user.department:
-            return True
+    if article.scope == 'department' and user.is_department_manager \
+            and user.department and article.owner_department == user.department:
+        return True
     return False
 
 
