@@ -1225,7 +1225,7 @@ def search_share_targets():
 
     results = []
     if target_type == 'user':
-        query = User.query.filter(User.is_active == True)  # noqa: E712
+        query = User.query.filter(User._is_active == True)  # noqa: E712
         if q:
             like = f'%{q}%'
             query = query.filter(
