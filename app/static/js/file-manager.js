@@ -862,20 +862,23 @@ function fileManager() {
 
         _startWikiPollIfNeeded() {
             if (this._wikiPollTimer) return;
-            const hasProcessing = Object.values(this.wikiFileStatus).some(s => s.status === 'processing')
-                || this.wikiCompilingIds.length > 0;
-            if (!hasProcessing) return;
+            const isProcessing = (st) => st && (st.status === 'processing' || st.status === 'pending');
+            const anyProcessing = () => Object.values(this.wikiFileStatus).some(isProcessing);
+            if (!anyProcessing() && this.wikiCompilingIds.length === 0) return;
             this._wikiPollTimer = setInterval(async () => {
                 await this._loadWikiStatusForFiles();
-                const still = Object.values(this.wikiFileStatus).some(s => s.status === 'processing')
-                    || this.wikiCompilingIds.length > 0;
-                if (!still) {
+                // 后端已落终态(ingested/error)的文件从乐观编译列表中移除，避免自锁循环
+                this.wikiCompilingIds = this.wikiCompilingIds.filter(fid => {
+                    const f = this.files.find(x => x.id === fid);
+                    if (!f) return false;
+                    const st = this.wikiFileStatus[String(f.file_library_id)];
+                    return !st || isProcessing(st);
+                });
+                if (!anyProcessing() && this.wikiCompilingIds.length === 0) {
                     clearInterval(this._wikiPollTimer);
                     this._wikiPollTimer = null;
-                    // 清除前端编译 id 列表（后端已完成）
-                    this.wikiCompilingIds = [];
                 }
-            }, 10000);
+            }, 5000);
         },
 
         getWikiStatus(file) {
