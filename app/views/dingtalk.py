@@ -97,10 +97,12 @@ def dingtalk_callback():
         if not encrypted:
             return jsonify(error='缺少 encrypt 字段'), 400
 
+        # 新版事件订阅(自建应用)加密标识用 AppKey；旧版 Corp 回调用 corp_id
+        # 解密时放宽不校验，写入日志即可；加密返回 success 时用 AppKey（新版规范）
         plaintext = callback_crypto.verify_and_decrypt(
             cfg.callback_token, cfg.callback_aes_key,
             signature, timestamp, nonce, encrypted,
-            expected_app_key=cfg.corp_id,
+            expected_app_key=None,
         )
         event = json.loads(plaintext)
         event_type = event.get('EventType') or event.get('eventType') or 'unknown'
@@ -117,7 +119,7 @@ def dingtalk_callback():
             ).start()
 
         resp = callback_crypto.build_success_response(
-            cfg.callback_token, cfg.callback_aes_key, cfg.corp_id, timestamp, nonce,
+            cfg.callback_token, cfg.callback_aes_key, cfg.app_key, timestamp, nonce,
         )
         return jsonify(resp)
     except callback_crypto.DingTalkCryptoError as e:

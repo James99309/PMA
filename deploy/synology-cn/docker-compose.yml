@@ -150,9 +150,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 640M
+          memory: 2G
         reservations:
-          memory: 256M
+          memory: 512M
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
       interval: 10s

@@ -256,8 +256,8 @@ PDF_VISION_MAX_B64_BYTES = int(os.environ.get('WIKI_PDF_VISION_MAX_B64_BYTES', s
 class RawFileContent:
     """原始文件内容的统一结构。
 
-    text 模式：content_type='text', text 有值, images 为空
-    vision 模式：content_type='images', text 为空, images 有值
+    text 模式:   content_type='text', text 有值, images 为空
+    vision 模式: content_type='images', text 为空, images 有值
     """
     content_type: str  # 'text' | 'images'
     text: str = ''
@@ -296,7 +296,7 @@ def extract_raw_file_content(raw_path: str) -> RawFileContent:
         text = _extract_text_non_pdf(abs_path, ext)
         return RawFileContent(content_type='text', text=text)
 
-    # PDF：先尝试文字提取
+    # PDF:先尝试文字提取
     try:
         import fitz
     except ImportError:

@@ -48,8 +48,8 @@ class ChatConversation(db.Model):
             'topic': self.topic,
             'created_by': self.created_by,
             'creator_name': self.creator.real_name or self.creator.username if self.creator else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'created_at': (self.created_at.isoformat() + 'Z') if self.created_at else None,
+            'updated_at': (self.updated_at.isoformat() + 'Z') if self.updated_at else None,
         }
 
         # 计算未读消息数
@@ -97,7 +97,7 @@ class ChatConversation(db.Model):
                 'id': last_message.id,
                 'content': lm_content,
                 'sender_id': last_message.sender_id,
-                'created_at': last_message.created_at.isoformat() if last_message.created_at else None,
+                'created_at': (last_message.created_at.isoformat() + 'Z') if last_message.created_at else None,
             }
 
         # 参与者列表
@@ -184,7 +184,7 @@ class ChatMessage(db.Model):
             'is_ai_response': self.is_ai_response,
             'ai_model': self.ai_model,
             'reply_to_id': self.reply_to_id,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'created_at': (self.created_at.isoformat() + 'Z') if self.created_at else None,
             'is_deleted': self.is_deleted,
         }
 

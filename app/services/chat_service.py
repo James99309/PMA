@@ -24,6 +24,15 @@ from app.services.chat_agent.config import CHAT_CONTEXT_REJECT
 logger = logging.getLogger(__name__)
 
 
+def _utc_iso(dt):
+    """把 naive / aware datetime 统一序列化为带 Z 的 UTC ISO 字符串，让前端 Date 正确解析时区。"""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.isoformat() + 'Z'
+    return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
 # ---------------------------------------------------------------------------
 # 0. AI 回复后处理 — 清洗技术性措辞
 # ---------------------------------------------------------------------------
@@ -203,7 +212,7 @@ def get_user_conversations(user_id, viewer_language=None):
                     'message_type': msg_type,
                     'sender_id': last_msg.sender_id,
                     'sender_name': lm_sender_name,
-                    'created_at': last_msg.created_at.isoformat() if last_msg.created_at else None,
+                    'created_at': _utc_iso(last_msg.created_at),
                 }
 
             # --- 参与者列表 ---
@@ -253,8 +262,8 @@ def get_user_conversations(user_id, viewer_language=None):
                 'unread_count': unread_count,
                 'last_message': last_message,
                 'participants': participants,
-                'created_at': conv.created_at.isoformat() if conv.created_at else None,
-                'updated_at': conv.updated_at.isoformat() if conv.updated_at else None,
+                'created_at': _utc_iso(conv.created_at),
+                'updated_at': _utc_iso(conv.updated_at),
                 'context_exhausted': context_exhausted,
                 'context_tokens': context_tokens,
             })
@@ -319,7 +328,7 @@ def create_conversation(creator_id, participant_ids, conv_type=None, name=None):
                         'id': existing.id,
                         'type': existing.type,
                         'name': existing.name,
-                        'created_at': existing.created_at.isoformat() if existing.created_at else None,
+                        'created_at': _utc_iso(existing.created_at),
                     },
                     'message': '已存在的私聊对话',
                 }
@@ -387,7 +396,7 @@ def create_conversation(creator_id, participant_ids, conv_type=None, name=None):
                 'type': conv.type,
                 'name': display_name,
                 'participants': participants,
-                'created_at': conv.created_at.isoformat() if conv.created_at else None,
+                'created_at': _utc_iso(conv.created_at),
             },
             'message': '对话创建成功',
         }
@@ -623,7 +632,7 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None):
             'sender_name': (sender.real_name or sender.username) if sender else None,
             'content': message.content,
             'source_language': source_lang,
-            'created_at': message.created_at.isoformat() if message.created_at else None,
+            'created_at': _utc_iso(message.created_at),
         }
         # 如果是回复消息，附带被引用消息的预览
         if reply_to_id and message.reply_to:
@@ -1301,7 +1310,7 @@ def send_card_message(conversation_id, sender_id, message_type, card_data):
                 'sender_name': (sender.real_name or sender.username) if sender else None,
                 'content': message.content,
                 'message_type': message_type,
-                'created_at': message.created_at.isoformat() if message.created_at else None,
+                'created_at': _utc_iso(message.created_at),
             },
         }
 

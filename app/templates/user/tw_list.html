@@ -151,13 +151,22 @@ render_tw_data_table_script, render_empty_row with context %}
             <td class="p-3 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">
                 {{ user.id }}
             </td>
-            <!-- 真实姓名（带链接） -->
+            <!-- 真实姓名（带链接） + 钉钉徽章 -->
             <td class="p-3 whitespace-nowrap">
-                <a href="{{ url_for('user.user_detail', user_id=user.id) }}"
-                    class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-                    title="{{ user.real_name or user.username }}">
-                    {{ user.real_name or '-' }}
-                </a>
+                <div class="flex items-center gap-1.5">
+                    <a href="{{ url_for('user.user_detail', user_id=user.id) }}"
+                        class="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
+                        title="{{ user.real_name or user.username }}">
+                        {{ user.real_name or '-' }}
+                    </a>
+                    {% if dingtalk_bound_ids and user.id in dingtalk_bound_ids %}
+                    <span title="{{ _('已绑定钉钉') }}" class="inline-flex items-center flex-shrink-0">
+                        <svg class="w-4 h-4" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" fill="#1677FF">
+                            <path d="M573.7 252.5C422.5 197.4 201.3 96.7 201.3 96.7c-15.7-4.1-17.9 11.1-17.9 11.1-2 11.7 7.4 15.5 7.4 15.5l346.8 123.8c105.6 41.4 6.5 119.6 6.5 119.6L191.6 432c-15.6 4.6-9.5 17.6-9.5 17.6l84.4 154.5c6 13.2 26.5 7.7 26.5 7.7L757 528.3c8.5-1.5 13.6 7 13.6 7l8 13.5c4.7 8.5-4.4 13.5-4.4 13.5l-459 109.7c-21.1 6.7-12.7 24.7-12.7 24.7l68 124.2c8.7 19 26.5 12.7 26.5 12.7l396.8-160.4c8.4-2.5 14 7.7 14 7.7l8.6 14.6c4 8.6-6.6 14-6.6 14l-374.5 174.7c-14.5 8.7-7.7 21.6-7.7 21.6L487.7 1006c8.5 11.7 21.6 5.5 21.6 5.5l527.2-526.4c21.5-26.5-3.5-89.7-3.5-89.7-117.6-204.7-302.5-217-302.5-217-21.7-1.5-13.6-15.5-13.6-15.5z"/>
+                        </svg>
+                    </span>
+                    {% endif %}
+                </div>
             </td>
             <!-- 用户名 -->
             <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">

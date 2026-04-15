@@ -420,7 +420,7 @@ def delete_article(article_id):
     try:
         storage.delete_article_file(art.file_path)
     except Exception as e:
-        logger.warning(f'[Wiki] 删除文章磁盘文件失败（继续删 DB）: {e}')
+        logger.warning(f'[Wiki] 删除文章磁盘文件失败(继续删 DB): {e}')
 
     db.session.delete(art)
     db.session.commit()

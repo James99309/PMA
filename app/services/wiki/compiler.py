@@ -102,7 +102,7 @@ def ingest_raw_file(
     rollback_state: dict = {
         'created_files': [],        # List[str] — 需要 unlink 的相对路径
         'updated_backups': {},      # Dict[str, str] — 相对路径 → 旧正文
-        'old_index': None,          # 旧 index.md 内容（str），便于恢复
+        'old_index': None,          # 旧 index.md 内容(str),便于恢复
     }
 
     try:
@@ -218,7 +218,7 @@ def ingest_raw_file(
             except storage.WikiPathError as e:
                 raise IngestError(f'Claude 返回的 operations[{i}] 非法: {e}') from e
 
-        # 8. 应用 operations（追踪 rollback 状态，但不 commit）
+        # 8. 应用 operations(追踪 rollback 状态,但不 commit)
         _apply_operations(operations, raw_id=raw.id, rollback_state=rollback_state,
                          scope=raw.scope, owner_id=raw.owner_id,
                          owner_department=raw.owner_department)
@@ -283,7 +283,7 @@ def ingest_raw_file(
 
 
 def _rollback_file_changes(rollback_state: dict):
-    """失败回滚：删除新建的文件，恢复被修改的文件和 index.md。"""
+    """失败回滚:删除新建的文件,恢复被修改的文件和 index.md。"""
     from app.services.wiki.paths import get_wiki_root
 
     root = get_wiki_root()
@@ -627,7 +627,7 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
             if existing_art is not None:
                 old_content = storage.read_article_content(existing_art.file_path)
                 updated_backups[existing_art.file_path] = old_content
-                # 更新已有记录，不创建新 row（避免 unique constraint 冲突）
+                # 更新已有记录,不创建新 row(避免 unique constraint 冲突)
                 storage.write_article(topic, slug, content)
                 existing_art.title = title
                 if summary is not None:
@@ -667,8 +667,8 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                 continue
             art = KnowledgeWikiArticle.query.filter_by(topic=topic, slug=slug).first()
             if art is None:
-                # 回退为 create（Claude 误判或 slug 改名）
-                logger.info(f'[Ingest] update 目标不存在，回退为 create: {topic}/{slug}')
+                # 回退为 create(Claude 误判或 slug 改名)
+                logger.info(f'[Ingest] update 目标不存在,回退为 create: {topic}/{slug}')
                 file_path = storage.write_article(topic, slug, content)
                 created_files.append(file_path)
                 art = KnowledgeWikiArticle(

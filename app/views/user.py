@@ -226,6 +226,22 @@ def list_users():
     # 直接使用用户对象，让模板自动访问属性
     user_items = users
 
+    # 钉钉绑定标记 - 仅 CN 启用时查询
+    dingtalk_bound_ids = set()
+    try:
+        from app.services.dingtalk import is_dingtalk_enabled
+        if is_dingtalk_enabled() and users:
+            from app.models.dingtalk import DingtalkUserMapping
+            uid_list = [u.id for u in users]
+            dingtalk_bound_ids = {
+                m.pma_user_id for m in DingtalkUserMapping.query.filter(
+                    DingtalkUserMapping.pma_user_id.in_(uid_list),
+                    DingtalkUserMapping.is_active == True  # noqa: E712
+                ).all()
+            }
+    except Exception as e:
+        logger.warning(f"查询钉钉绑定状态失败: {e}")
+
     # 构建列表配置
     list_config = {
         'module_name': 'user',
@@ -387,7 +403,8 @@ def list_users():
         list_config=list_config,
         items=user_items,
         total_count=total_count,
-        role_dict=role_dict
+        role_dict=role_dict,
+        dingtalk_bound_ids=dingtalk_bound_ids
     )
 
 @user_bp.route('/api/users/active', methods=['GET'])
