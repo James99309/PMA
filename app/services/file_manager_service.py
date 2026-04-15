@@ -128,7 +128,11 @@ class FileManagerService:
 
         if existing_lib:
             # 文件已存在，增加引用计数
+            # 若旧记录处于归档状态，先用新上传内容把它还原为非归档
+            if existing_lib.is_archived:
+                FileManagerService._restore_archived_in_place(existing_lib, file_data)
             existing_lib.ref_count += 1
+            existing_lib.last_accessed_at = get_local_time()
             lib_entry = existing_lib
         else:
             # 新文件，上传到 NAS
@@ -727,6 +731,36 @@ class FileManagerService:
                 logger.error(f"归档文件 {lib.id} 失败: {e}")
 
         return archived_count
+
+    @staticmethod
+    def _restore_archived_in_place(lib, fresh_content):
+        """SHA256 去重命中已归档 FileLibrary 时，用刚上传的原始内容把记录还原为非归档。
+
+        - 把 fresh_content 写回原始（非 .gz）路径
+        - 删除旧的 .gz 文件
+        - 清除 is_archived/archived_at/archive_reason/original_size
+        - file_size 还原为原始字节数
+        """
+        if not lib.is_archived:
+            return
+        original_path = lib.storage_path[:-3] if lib.storage_path.endswith('.gz') else lib.storage_path
+        ok = FileManagerService._upload_raw_to_storage(fresh_content, original_path, lib.storage_type)
+        if not ok:
+            logger.warning(f'[FileManager] 恢复归档文件上传失败 lib_id={lib.id}')
+            return
+        # 删除旧 .gz
+        if lib.storage_path.endswith('.gz') and lib.storage_path != original_path:
+            try:
+                FileManagerService._delete_from_storage(lib.storage_path)
+            except Exception as e:
+                logger.warning(f'[FileManager] 删除旧 .gz 失败 lib_id={lib.id}: {e}')
+        lib.storage_path = original_path
+        lib.file_size = lib.original_size or len(fresh_content)
+        lib.is_archived = False
+        lib.archived_at = None
+        lib.archive_reason = None
+        lib.original_size = None
+        logger.info(f'[FileManager] 重复上传触发解档 lib_id={lib.id}')
 
     @staticmethod
     def admin_restore_archived_file(admin_user, lib_id, target_user_id):

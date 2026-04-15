@@ -318,7 +318,7 @@
                  x-show="activeView === 'files' && selectedFiles.length > 0">
                 <div class="flex items-center gap-2 ml-0 pl-0">
                     <span class="text-xs text-slate-500" x-text="'{{ _('已选') }} ' + selectedFiles.length + ' {{ _('项') }}'"></span>
-                    <button @click="showBatchKbModal = true"
+                    <button @click="openBatchWikiModal()"
                             class="flex items-center gap-1 px-2 py-1 text-xs rounded-md text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 font-medium">
                         <span class="material-symbols-outlined" style="font-size:14px">auto_stories</span>
                         {{ _('加入知识库') }}
@@ -1064,18 +1064,38 @@
                     </p>
                 </div>
                 <div class="px-6 py-4">
-                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">{{ _('选择标签') }} <span class="text-red-500">*</span></label>
-                    <div class="space-y-1.5">
-                        <template x-for="tag in kbTags" :key="'btag-' + tag.id">
-                            <label class="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
-                                   :class="batchSelectedTags.includes(tag.id) ? 'border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-900/20' : ''">
-                                <input type="checkbox" :checked="batchSelectedTags.includes(tag.id)"
-                                       @change="toggleBatchTag(tag.id)"
-                                       class="w-4 h-4 rounded border-slate-300 text-violet-500 focus:ring-violet-500">
-                                <span class="text-sm" x-text="tag.name"></span>
-                            </label>
+                    <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-2">{{ _('Topic（分类目录）') }} <span class="text-red-500">*</span></label>
+                    <div class="flex flex-wrap gap-1.5 mb-2" x-show="batchWikiModal.existingTopics && batchWikiModal.existingTopics.length > 0">
+                        <template x-for="t in batchWikiModal.existingTopics" :key="'btopic-' + t">
+                            <button type="button"
+                                    @click="batchWikiModal.topic = t; batchWikiModal.customTopic = false"
+                                    class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                                    :class="batchWikiModal.topic === t
+                                        ? 'bg-violet-600 text-white shadow-sm'
+                                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-violet-100 dark:hover:bg-violet-900/30'">
+                                <span x-text="t"></span>
+                            </button>
                         </template>
+                        {% if is_admin %}
+                        <button type="button"
+                                @click="batchWikiModal.customTopic = true; batchWikiModal.topic = ''; $nextTick(() => $refs.batchWikiTopicInput && $refs.batchWikiTopicInput.focus())"
+                                class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                                :class="batchWikiModal.customTopic
+                                    ? 'bg-violet-600 text-white shadow-sm'
+                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-violet-100 dark:hover:bg-violet-900/30'">
+                            + {{ _('新建') }}
+                        </button>
+                        {% endif %}
                     </div>
+                    {% if is_admin %}
+                    <input type="text" x-model="batchWikiModal.topic"
+                           x-ref="batchWikiTopicInput"
+                           x-show="!batchWikiModal.existingTopics || batchWikiModal.existingTopics.length === 0 || batchWikiModal.customTopic"
+                           @keydown.enter="confirmBatchKb()"
+                           placeholder="{{ _('输入新 topic，如 product / competitor / guide ...') }}"
+                           class="w-full px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 border-0 text-sm focus:ring-2 focus:ring-violet-500/50 placeholder:text-slate-400">
+                    {% endif %}
+                    <p class="text-[11px] text-slate-400 mt-1.5">{{ _('选择分类目录。同分类的文章会自动建立交叉引用。') }}</p>
                 </div>
                 <div class="px-6 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-end gap-2">
                     <button @click="showBatchKbModal = false"
@@ -1083,8 +1103,8 @@
                         {{ _('取消') }}
                     </button>
                     <button @click="confirmBatchKb()"
-                            :disabled="batchSelectedTags.length === 0"
-                            :class="batchSelectedTags.length > 0 ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                            :disabled="!batchWikiModal.topic || !batchWikiModal.topic.trim()"
+                            :class="(batchWikiModal.topic && batchWikiModal.topic.trim()) ? 'bg-violet-600 text-white hover:bg-violet-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
                             class="px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                         {{ _('加入知识库') }}
                     </button>

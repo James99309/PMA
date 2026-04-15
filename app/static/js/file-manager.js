@@ -63,6 +63,12 @@ function fileManager() {
         showTagManageModal: false,
         showBatchKbModal: false,
         batchSelectedTags: [],
+        // 批量加入 Wiki 弹窗（与单文件 wikiModal 保持一致，使用 topic 而非 kbTags）
+        batchWikiModal: {
+            topic: '',
+            existingTopics: [],
+            customTopic: false,
+        },
         newTagName: '',
         kbFileStatus: {},  // maps user_file_ref_id -> {in_knowledge_base, document_id, status, tags}
         toast: { show: false, message: '', type: 'success' },
@@ -961,22 +967,62 @@ function fileManager() {
             }
         },
 
-        // 批量加入知识库
-        toggleBatchTag(tagId) {
-            const idx = this.batchSelectedTags.indexOf(tagId);
-            if (idx >= 0) {
-                this.batchSelectedTags.splice(idx, 1);
-            } else {
-                this.batchSelectedTags.push(tagId);
-            }
+        // 批量加入知识库（走 Wiki topic 体系，与单文件 wikiModal 保持一致）
+        async openBatchWikiModal() {
+            if (!this.selectedFiles.length) return;
+            let existingTopics = [];
+            try {
+                const res = await this.api('/api/wiki/topics');
+                if (res.success && Array.isArray(res.data)) existingTopics = res.data;
+            } catch (e) {}
+            this.batchWikiModal.topic = '';
+            this.batchWikiModal.existingTopics = existingTopics;
+            this.batchWikiModal.customTopic = false;
+            this.showBatchKbModal = true;
         },
 
         async confirmBatchKb() {
-            if (!this.selectedFiles.length || !this.batchSelectedTags.length) return;
-            await this.addFilesToKb(this.selectedFiles, this.batchSelectedTags);
+            const topic = (this.batchWikiModal.topic || '').trim();
+            if (!this.selectedFiles.length || !topic) return;
+            const fileIds = [...this.selectedFiles];
             this.showBatchKbModal = false;
+
+            // 标记所有文件为"编译中"
+            for (const id of fileIds) {
+                if (!this.wikiCompilingIds.includes(id)) this.wikiCompilingIds.push(id);
+            }
+            this.showToast('success', `📚 已提交 ${fileIds.length} 个文件到 Wiki 编译，完成后会收到通知`);
+
+            const results = await Promise.allSettled(fileIds.map(refId => {
+                const file = this.files.find(f => f.id === refId);
+                const title = file ? (file.name || file.display_name || '') : '';
+                return this.api('/api/wiki/raw-files/from-file-ref', {
+                    method: 'POST',
+                    body: JSON.stringify({ user_file_ref_id: refId, topic, title }),
+                });
+            }));
+
+            let okCount = 0;
+            const failed = [];
+            results.forEach((r, i) => {
+                const refId = fileIds[i];
+                if (r.status === 'fulfilled' && r.value && r.value.success) {
+                    okCount += 1;
+                } else {
+                    failed.push(refId);
+                    this.wikiCompilingIds = this.wikiCompilingIds.filter(id => id !== refId);
+                }
+            });
+
+            if (failed.length) {
+                const firstErr = results.find(r => r.status === 'fulfilled' && r.value && !r.value.success);
+                const msg = firstErr ? firstErr.value.message : '部分文件提交失败';
+                this.showToast('error', `${failed.length} 个文件失败：${msg}`);
+            }
+
+            await this._loadWikiStatusForFiles();
+            this._startWikiPollIfNeeded();
             this.selectedFiles = [];
-            this.batchSelectedTags = [];
         },
 
         // KB 选择
