@@ -478,6 +478,69 @@ def change_article_scope(article_id):
     return jsonify({'success': True, 'message': f'已调整为{new_scope}级别', 'data': art.to_dict()})
 
 
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/topic', methods=['PATCH'])
+@login_required
+def change_article_topic(article_id):
+    """调整文章所属 topic（把文章从一个 topic 移到另一个 topic）。
+
+    权限：文章所有者、admin/ceo、或管理同部门的部门经理。
+    """
+    from app.services.wiki.scope import can_manage_article
+
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if not art:
+        return jsonify({'success': False, 'message': '文章不存在'}), 404
+
+    data = request.get_json(silent=True) or {}
+    new_topic = (data.get('topic') or '').strip()
+    if not new_topic:
+        return jsonify({'success': False, 'message': 'topic 不能为空'}), 400
+
+    try:
+        storage.validate_topic_slug(new_topic, art.slug)
+    except storage.WikiPathError as e:
+        return jsonify({'success': False, 'message': f'topic 格式非法: {e}'}), 400
+
+    if new_topic == art.topic:
+        return jsonify({'success': True, 'message': 'topic 未变化', 'data': art.to_dict()})
+
+    if not can_manage_article(current_user, art):
+        return jsonify({'success': False, 'message': '没有权限管理此文章'}), 403
+
+    conflict = KnowledgeWikiArticle.query.filter_by(topic=new_topic, slug=art.slug).first()
+    if conflict:
+        return jsonify({
+            'success': False,
+            'message': f'目标 topic "{new_topic}" 下已存在同名文章，请先修改标题再切换',
+        }), 400
+
+    old_topic = art.topic
+    try:
+        content = storage.read_article_content(art.file_path)
+        new_file_path = storage.write_article(new_topic, art.slug, content)
+        storage.delete_article_file(art.file_path)
+    except Exception as e:
+        logger.exception(f'[Wiki] 移动文章文件失败: {e}')
+        return jsonify({'success': False, 'message': f'移动文件失败: {e}'}), 500
+
+    art.topic = new_topic
+    art.file_path = new_file_path
+    db.session.commit()
+
+    try:
+        storage.append_log(
+            'move-topic',
+            f'- article_id={art.id} title={art.title!r}\n'
+            f'- {old_topic}/{art.slug} → {new_topic}/{art.slug}\n'
+            f'- by user={current_user.id}'
+        )
+    except Exception as e:
+        logger.warning(f'[Wiki] 写 log.md 失败(忽略): {e}')
+
+    logger.info(f'[Wiki] user={current_user.id} 调整文章 id={article_id} topic: {old_topic} → {new_topic}')
+    return jsonify({'success': True, 'message': f'已移到 {new_topic}', 'data': art.to_dict()})
+
+
 @knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/promote', methods=['POST'])
 @login_required
 def submit_promotion_request(article_id):

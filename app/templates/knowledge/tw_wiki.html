@@ -77,7 +77,21 @@
      x-cloak>
 
     <!-- ═══════════ 左侧栏：目录 ═══════════ -->
-    <aside class="w-72 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col">
+    <aside class="flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col transition-all duration-150"
+           :class="sidebarCollapsed ? 'w-12' : 'w-72'">
+        <!-- 收起态：只显示展开按钮 -->
+        <div x-show="sidebarCollapsed" class="flex-1 flex flex-col items-center pt-3 gap-2">
+            <button @click="toggleSidebar()"
+                    class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                    :title="'{{ _('展开侧栏') }}'">
+                <span class="material-symbols-outlined text-base text-slate-500">chevron_right</span>
+            </button>
+            <span class="material-symbols-outlined text-primary text-xl">auto_stories</span>
+        </div>
+
+        <!-- 展开态 -->
+        <template x-if="!sidebarCollapsed">
+        <div class="flex-1 flex flex-col overflow-hidden">
         <!-- 头部 -->
         <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -98,6 +112,11 @@
                     <span class="material-symbols-outlined text-base">settings</span>
                 </button>
                 {% endif %}
+                <button @click="toggleSidebar()"
+                        class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+                        :title="'{{ _('收起侧栏') }}'">
+                    <span class="material-symbols-outlined text-base text-slate-500">chevron_left</span>
+                </button>
             </div>
         </div>
 
@@ -139,9 +158,15 @@
             </template>
 
             <template x-for="(articles, topic) in filteredTree" :key="topic">
-                <div class="mb-3">
-                    <div class="px-4 py-1 text-[10px] uppercase tracking-wider text-slate-400 font-semibold"
-                         x-text="topic"></div>
+                <div class="mb-1">
+                    <button @click="toggleTopicExpand(topic)"
+                            class="w-full px-2 py-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-400 font-semibold hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <span class="material-symbols-outlined text-sm"
+                              x-text="isTopicExpanded(topic) ? 'expand_more' : 'chevron_right'"></span>
+                        <span class="flex-1 text-left truncate" x-text="topic"></span>
+                        <span class="text-[9px] normal-case tracking-normal" x-text="articles.length"></span>
+                    </button>
+                    <div x-show="isTopicExpanded(topic)">
                     <template x-for="art in articles" :key="art.id">
                         <div class="group relative">
                             <button @click="openArticle(art.id)"
@@ -206,8 +231,26 @@
                                             </div>
                                         </template>
                                         <template x-if="art.can_manage">
-                                            <div>
+                                            <div x-data="{ subOpen: false }">
                                                 <div class="my-1 border-t border-slate-100 dark:border-slate-700"></div>
+                                                <button @click.stop="subOpen = !subOpen"
+                                                        class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-between gap-2">
+                                                    <span class="flex items-center gap-2"><span class="material-symbols-outlined text-sm">drive_file_move</span>{{ _('调整 topic') }}</span>
+                                                    <span class="material-symbols-outlined text-sm" x-text="subOpen ? 'expand_less' : 'chevron_right'"></span>
+                                                </button>
+                                                <div x-show="subOpen" class="max-h-40 overflow-y-auto bg-slate-50 dark:bg-slate-900/40 border-t border-b border-slate-100 dark:border-slate-700">
+                                                    <template x-for="t in topics" :key="t">
+                                                        <button @click.stop="if(art.topic !== t){ changeTopic(art.id, t); menuOpen = false; }"
+                                                                class="w-full text-left px-5 py-1 text-[11px] flex items-center justify-between gap-2"
+                                                                :class="art.topic === t ? 'text-slate-400 cursor-default' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'">
+                                                            <span class="truncate" x-text="t"></span>
+                                                            <span x-show="art.topic === t" class="text-[9px] flex-shrink-0">{{ _('当前') }}</span>
+                                                        </button>
+                                                    </template>
+                                                    <template x-if="topics.length === 0">
+                                                        <div class="px-5 py-1.5 text-[10px] text-slate-400">{{ _('无可选 topic') }}</div>
+                                                    </template>
+                                                </div>
                                                 <button @click.stop="menuOpen = false; openShareModal(art.id, art.title)"
                                                         class="w-full text-left px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-2">
                                                     <span class="material-symbols-outlined text-sm">share</span> {{ _('分享给...') }}
@@ -231,6 +274,7 @@
                             </div>
                         </div>
                     </template>
+                    </div>
                 </div>
             </template>
         </div>
@@ -242,6 +286,8 @@
                     class="text-primary hover:underline"
                     :title="'{{ _('查看索引') }}'">{{ _('索引') }}</button>
         </div>
+        </div>
+        </template>
     </aside>
 
     <!-- ═══════════ 主区：正文 + 问答 ═══════════ -->
@@ -319,7 +365,8 @@
                     <div class="flex" :class="msg.role === 'user' ? 'justify-end' : 'justify-start'">
                         <div class="max-w-[85%] px-3 py-2 text-sm"
                              :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai wiki-md'"
-                             x-html="msg.role === 'user' ? escapeHtml(msg.text) : renderMarkdown(msg.text)"></div>
+                             @click="msg.role === 'ai' && handleChatLinkClick($event)"
+                             x-html="msg.role === 'user' ? escapeHtml(msg.text) : renderChatMarkdown(msg.text)"></div>
                     </div>
                 </template>
                 <div x-show="chatLoading" class="flex">
@@ -771,6 +818,11 @@ function wikiApp() {
         // ── Scope 过滤 ─────────────────
         scopeFilter: JSON.parse(localStorage.getItem('wiki_scope_filter') || '{"system":true,"company":true,"department":true,"personal":true}'),
 
+        // ── 侧栏 / Topic 折叠 ─────────────────
+        sidebarCollapsed: JSON.parse(localStorage.getItem('wiki_sidebar_collapsed') || 'false'),
+        expandedTopics: JSON.parse(localStorage.getItem('wiki_expanded_topics') || '[]'),
+        topicSubmenuOpen: {},  // articleId → bool，控制 more_vert 里「调整 topic」子菜单
+
         get filteredTree() {
             const result = {};
             for (const [topic, articles] of Object.entries(this.tree)) {
@@ -787,6 +839,22 @@ function wikiApp() {
         toggleScope(scope) {
             this.scopeFilter[scope] = !this.scopeFilter[scope];
             localStorage.setItem('wiki_scope_filter', JSON.stringify(this.scopeFilter));
+        },
+
+        toggleSidebar() {
+            this.sidebarCollapsed = !this.sidebarCollapsed;
+            localStorage.setItem('wiki_sidebar_collapsed', JSON.stringify(this.sidebarCollapsed));
+        },
+
+        isTopicExpanded(topic) {
+            return this.expandedTopics.includes(topic);
+        },
+
+        toggleTopicExpand(topic) {
+            const i = this.expandedTopics.indexOf(topic);
+            if (i >= 0) this.expandedTopics.splice(i, 1);
+            else this.expandedTopics.push(topic);
+            localStorage.setItem('wiki_expanded_topics', JSON.stringify(this.expandedTopics));
         },
 
         scopeBadge(art) {
@@ -992,6 +1060,10 @@ function wikiApp() {
                     this.currentArticle = j.data;
                     this.renderedContent = this.renderMarkdown(j.data.content || '');
                     this.markAsRead(id);
+                    if (j.data.topic && !this.expandedTopics.includes(j.data.topic)) {
+                        this.expandedTopics.push(j.data.topic);
+                        localStorage.setItem('wiki_expanded_topics', JSON.stringify(this.expandedTopics));
+                    }
                 }
             } catch (e) {
                 console.error(e);
@@ -1371,6 +1443,31 @@ function wikiApp() {
             }
         },
 
+        async changeTopic(articleId, newTopic) {
+            try {
+                const r = await fetch(`/api/wiki/articles/${articleId}/topic`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ topic: newTopic }),
+                });
+                const j = await r.json();
+                if (!j.success) {
+                    openConfirmModal('wikiConfirmModal', { title: '{{ _('切换 topic 失败') }}', message: j.message || '{{ _('未知错误') }}' });
+                    return;
+                }
+                await this.refreshTree();
+                if (this.currentArticle && this.currentArticle.id === articleId) {
+                    this.currentArticle.topic = newTopic;
+                }
+                if (!this.expandedTopics.includes(newTopic)) {
+                    this.expandedTopics.push(newTopic);
+                    localStorage.setItem('wiki_expanded_topics', JSON.stringify(this.expandedTopics));
+                }
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('切换 topic 失败') }}', message: e.message });
+            }
+        },
+
         // ── 晋升申请流程 ─────────────────
         openPromoteModal(articleId, targetScope) {
             // 找到文章信息
@@ -1552,6 +1649,57 @@ function wikiApp() {
             const div = document.createElement('div');
             div.textContent = s || '';
             return div.innerHTML;
+        },
+
+        // 在 tree 中按 topic+slug 定位文章；topic 为空时跨 topic 兜底
+        findArticleByTopicSlug(topic, slug) {
+            if (topic && this.tree[topic]) {
+                const hit = this.tree[topic].find(a => a.slug === slug);
+                if (hit) return hit;
+            }
+            for (const arts of Object.values(this.tree)) {
+                const hit = arts.find(a => a.slug === slug);
+                if (hit) return hit;
+            }
+            return null;
+        },
+
+        // 渲染 AI 答案：用 marked + DOMPurify 得到 HTML，再把形如
+        // `<a href="topic/slug.md">xxx.md</a>` 的引用改造成：
+        //   - 文本替换为文章 title（LLM 若把 slug.md 当文本时修正）
+        //   - href 置 '#' + data-article-id，由 handleChatLinkClick 拦截
+        renderChatMarkdown(text) {
+            const html = this.renderMarkdown(text);
+            if (!html) return '';
+            const wrap = document.createElement('div');
+            wrap.innerHTML = html;
+            wrap.querySelectorAll('a').forEach(a => {
+                const href = (a.getAttribute('href') || '').trim();
+                // 允许 ./topic/slug.md 或 topic/slug.md 或 slug.md
+                const m = href.match(/^\.?\/?(?:([^\/#?]+)\/)?([^\/#?]+)\.md(?:[#?].*)?$/);
+                if (!m) return;
+                const topic = m[1] || '';
+                const slug = m[2];
+                const art = this.findArticleByTopicSlug(topic, slug);
+                if (!art) return;
+                const t = (a.textContent || '').trim();
+                // 若链接文本形如 xxx.md 或等于 slug 或含路径分隔符，替换成真实标题
+                if (!t || t.endsWith('.md') || t === slug || t === `${topic}/${slug}` || t.includes('/')) {
+                    a.textContent = art.title || slug;
+                }
+                a.setAttribute('href', '#');
+                a.setAttribute('data-article-id', art.id);
+                a.classList.add('wiki-cite');
+            });
+            return wrap.innerHTML;
+        },
+
+        handleChatLinkClick(e) {
+            const a = e.target.closest('a[data-article-id]');
+            if (!a) return;
+            e.preventDefault();
+            const id = parseInt(a.getAttribute('data-article-id'), 10);
+            if (id) this.openArticle(id);
         },
 
         formatDate(iso) {
