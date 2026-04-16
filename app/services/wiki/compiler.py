@@ -196,6 +196,10 @@ def ingest_raw_file(
             f'mode={"vision" if is_vision else "text"} '
             f'{"images=" + str(len(raw_content.images)) + "p" if is_vision else "text=" + str(len(raw_text)) + "B"}'
         )
+        # 释放上面查 related_articles 打开的只读事务，防止 LLM 长调用期间
+        # 被 PG 的 idle_in_transaction_session_timeout 杀连接（实测 Opus
+        # 对大文档可能跑 400s+，远超默认 300s）
+        db.session.commit()
         is_ovs = bool(current_app.config.get('IS_OVS', False))
         resp = claude_instance.complete(
             system=prompts.get_ingest_system(is_ovs=is_ovs),
