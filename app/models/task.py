@@ -8,7 +8,7 @@ TaskReply: 任务回复
 """
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, Text, Date, DateTime, Boolean, ForeignKey, Index, JSON
 from sqlalchemy.orm import relationship
 
 from app import db
@@ -43,6 +43,7 @@ class Task(db.Model):
     # normal / high / urgent （UI 仅提供三级，low 保留兼容）
 
     # 时间
+    start_date = Column(Date, nullable=True, comment='任务开始日期')
     due_date = Column(DateTime, nullable=True)
     calendar_date = Column(Date, nullable=True, index=True)
     completed_at = Column(DateTime, nullable=True)
@@ -61,6 +62,10 @@ class Task(db.Model):
     customer_id = Column(Integer, ForeignKey('companies.id'), nullable=True)
     customer = relationship('Company', backref='tasks')
 
+    # 协助人 & 类型
+    shared_with_users = Column(JSON, default=list, comment='协助人员ID列表')
+    task_type = Column(String(30), default='general', comment='任务类型: general/product_dev/custom')
+
     # 系统
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
@@ -73,6 +78,9 @@ class Task(db.Model):
     replies = relationship('TaskReply', backref='task', lazy='dynamic',
                            cascade='all, delete-orphan',
                            order_by='TaskReply.created_at.asc()')
+    subtasks = relationship('SubTask', backref='task', lazy='dynamic',
+                            cascade='all, delete-orphan',
+                            order_by='SubTask.sort_order, SubTask.created_at')
 
     __table_args__ = (
         Index('ix_tasks_assignee_status', 'assignee_id', 'status'),
@@ -91,6 +99,7 @@ class Task(db.Model):
             'assignee_name': (self.assignee.real_name or self.assignee.username) if self.assignee else None,
             'status': self.status,
             'priority': self.priority,
+            'start_date': self.start_date.isoformat() if self.start_date else None,
             'due_date': self.due_date.isoformat() if self.due_date else None,
             'calendar_date': self.calendar_date.isoformat() if self.calendar_date else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
@@ -104,8 +113,14 @@ class Task(db.Model):
             'customer_name': self.customer.name if self.customer else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'shared_with_users': self.shared_with_users or [],
+            'task_type': self.task_type or 'general',
             'attachment_count': self.attachments.filter_by(is_deleted=False).count() if self.attachments else 0,
             'reply_count': self.replies.filter_by(is_deleted=False).count() if self.replies else 0,
+            'subtask_count': self.subtasks.filter_by(is_deleted=False).count(),
+            'subtask_completed': self.subtasks.filter_by(is_deleted=False, status='completed').count(),
+            'milestone_count': self.subtasks.filter_by(is_deleted=False, is_milestone=True).count(),
+            'milestone_confirmed': self.subtasks.filter_by(is_deleted=False, is_milestone=True, milestone_status='confirmed').count(),
         }
 
     def to_calendar_event(self):
