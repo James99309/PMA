@@ -620,7 +620,7 @@ document.addEventListener('submit', function(e) {
 
         const lang = document.documentElement.lang || 'zh';
 
-        fetch('/api/v1/user/product-points-summary')
+        fetch('/points/api/nav-summary')
             .then(r => r.json())
             .then(data => {
                 if (!data.success || !data.total_points) return;
