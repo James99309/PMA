@@ -157,17 +157,6 @@
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
                 <!-- 基本信息 2/4 -->
                 <div id="basicInfoColumn" class="lg:col-span-2">
-                    {% set points_badge %}
-                    {% if quotation_total_points|default(0) > 0 %}
-                    {% set q_tier = get_points_tier(quotation_total_points) %}
-                    <div class="flex items-center gap-1.5">
-                        {{ coin_icon(q_tier, 'sm') }}
-                        <span class="font-bold {{ points_tier_class(quotation_total_points) }}">
-                            {{ format_points_display(quotation_total_points) }}
-                        </span>
-                    </div>
-                    {% endif %}
-                    {% endset %}
                     {{ tw_info_card(
                         title=_('基本信息'),
                         columns=2,
@@ -181,8 +170,7 @@
                             {'label': _('项目类型'), 'badge': render_tw_project_type_badge(quotation.project_type) if quotation.project_type else none},
                             {'label': _('报价总额'), 'value': quotation.currency_symbol ~ "{:,.2f}".format(quotation.amount) if quotation.amount else quotation.currency_symbol ~ '0.00'},
                             {'label': _('植入总额'), 'value': quotation.currency_symbol ~ "{:,.2f}".format(quotation.implant_total_amount) if quotation.implant_total_amount else quotation.currency_symbol ~ '0.00'},
-                            {'label': _('负责人'), 'badge': render_tw_owner_badge(quotation.owner) if quotation.owner else none},
-                            {'label': _('产品积分'), 'badge': points_badge if quotation_total_points|default(0) > 0 else none}
+                            {'label': _('负责人'), 'badge': render_tw_owner_badge(quotation.owner) if quotation.owner else none}
                         ]
                     ) }}
                 </div>

@@ -381,23 +381,6 @@
                             </div>
                         </div>
 
-                        <!-- 积分系数设置 (仅Admin) -->
-                        {% if is_admin %}
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <label for="points_coefficient_override" class="form-label">{{ _('积分系数') }}</label>
-                                <div class="input-group">
-                                    <input type="number" class="form-control" id="points_coefficient_override"
-                                           name="points_coefficient_override"
-                                           value="{{ product.points_coefficient_override if product and product.points_coefficient_override is not none else '' }}"
-                                           step="0.5" min="1.0" max="10.0"
-                                           placeholder="{{ _('留空=自动计算 (当前: {:.1f}X)').format(product.points_coefficient if product else 3.0) }}">
-                                    <span class="input-group-text">X</span>
-                                </div>
-                                <small class="form-text text-muted">{{ _('留空表示按时间衰减自动计算系数') }}</small>
-                            </div>
-                        </div>
-                        {% endif %}
 
                         <div class="row mb-3">
                             <div class="col-md-12">

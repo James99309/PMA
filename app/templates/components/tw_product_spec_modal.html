@@ -81,7 +81,6 @@ ProductSpecModal.open({
                             <div id="specSelectedInfo" class="hidden">
                                 <div class="flex items-center gap-2 mb-4">
                                     <p id="specProductBrandLeft" class="text-sm text-slate-500 dark:text-slate-400">--</p>
-                                    <span id="specStep1PointsValue" class="hidden flex items-center gap-1 text-sm font-medium"></span>
                                 </div>
                                 <!-- 固定字段区域（编码规格）- 放在左侧图片下方，独立滚动 -->
                                 <div id="specFixedFields" class="space-y-2 text-sm max-h-[180px] overflow-y-auto pr-1">
@@ -144,10 +143,7 @@ ProductSpecModal.open({
                                     <span class="text-slate-500 dark:text-slate-400 text-sm">{{ _('产品单价') }}</span>
                                     <span id="specStep2ProductPrice" class="text-xl font-bold text-primary">--</span>
                                 </div>
-                                <div id="specStep2PointsRow" class="hidden flex justify-between items-center mt-2">
-                                    <span class="text-slate-500 dark:text-slate-400 text-sm">{{ _('产品积分') }}</span>
-                                    <span id="specStep2PointsValue" class="flex items-center gap-1 text-sm font-medium"></span>
-                                </div>
+
                             </div>
                         </div>
 
@@ -196,10 +192,7 @@ ProductSpecModal.open({
                                     <span class="text-lg font-semibold text-slate-800 dark:text-slate-200">{{ _('合计') }}</span>
                                     <span id="confirmTotalPrice" class="text-2xl font-bold text-primary">--</span>
                                 </div>
-                                <div id="confirmPointsRow" class="hidden pt-2 flex justify-between items-center text-sm">
-                                    <span class="text-slate-500 dark:text-slate-400">{{ _('产品积分') }}</span>
-                                    <span id="confirmPointsValue" class="flex items-center gap-1 font-medium"></span>
-                                </div>
+
                             </div>
                         </div>
 
@@ -1375,8 +1368,6 @@ const ProductSpecModal = (function() {
             // 渲染规格字段（从编码快照）
             renderSelectedSpecs();
 
-            // 积分显示（品牌右侧内联）
-            renderPointsInline('specStep1PointsValue', state.selectedProduct);
         } else {
             // 隐藏详细信息
             selectedInfoEl.classList.add('hidden');
@@ -1522,9 +1513,6 @@ const ProductSpecModal = (function() {
 
         // 产品价格
         if (priceEl) priceEl.textContent = formatPrice(product.retail_price || product.market_price);
-
-        // 积分显示
-        renderPointsRow('specStep2PointsRow', 'specStep2PointsValue', product);
 
         // 产品图片
         if (imageEl) {
@@ -1873,18 +1861,6 @@ const ProductSpecModal = (function() {
         if (specEl) specEl.textContent = product.specification || product.product_spec || '--';
         if (brandEl) brandEl.textContent = product.brand || '--';
         if (basePriceEl) basePriceEl.textContent = formatPrice(product.retail_price || product.market_price);
-
-        // 积分显示（累加配件积分）
-        let totalPoints = product.points || 0;
-        if (state.selectedConfigs && state.selectedConfigs.length > 0) {
-            state.selectedConfigs.forEach(config => {
-                totalPoints += (config.points || 0) * (config.quantity || 1);
-            });
-        }
-        renderPointsRow('confirmPointsRow', 'confirmPointsValue', {
-            points: totalPoints,
-            points_tier: getPointsTier(totalPoints)
-        });
 
         if (imageEl) {
             const imageUrl = product.effective_image || product.image_path || product.image_url || product.image;
@@ -2413,61 +2389,6 @@ const ProductSpecModal = (function() {
         const symbol = currency === 'CNY' ? '¥' : '$';
         const locale = currency === 'CNY' ? 'zh-CN' : 'en-US';
         return `${symbol}${num.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
-
-    /**
-     * 根据积分值返回等级
-     */
-    function getPointsTier(pts) {
-        if (pts >= 10000000) return 'gold';
-        if (pts >= 1000000) return 'silver';
-        if (pts >= 100000) return 'bronze';
-        return 'none';
-    }
-
-    /**
-     * 生成积分HTML片段（金币图标+数值）
-     */
-    function pointsHtml(product, iconSize = 14) {
-        const pts = product.points;
-        if (!pts || pts <= 0) return null;
-        const tier = product.points_tier || getPointsTier(pts);
-        const colors = { gold: '#EAB308', silver: '#A1A1AA', bronze: '#F97316', none: '#7C9CBF' };
-        const strokes = { gold: '#CA8A04', silver: '#71717A', bronze: '#EA580C', none: '#5A7A9B' };
-        const fill = colors[tier] || colors.none;
-        const stroke = strokes[tier] || strokes.none;
-        return `<svg style="width:${iconSize}px;height:${iconSize}px;flex-shrink:0" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10.5" fill="${fill}" opacity="0.15"/><circle cx="12" cy="12" r="9.5" stroke="${fill}" stroke-width="1.5"/><circle cx="12" cy="12" r="7" stroke="${fill}" stroke-width="0.75" opacity="0.4"/><text x="12" y="16.5" text-anchor="middle" font-size="11" font-weight="700" fill="${stroke}" font-family="serif">$</text></svg><span style="color:${stroke}">${pts.toLocaleString()}</span>`;
-    }
-
-    /**
-     * 渲染积分行（复用于步骤2和步骤3，带标签的行）
-     */
-    function renderPointsRow(rowId, valueId, product) {
-        const row = document.getElementById(rowId);
-        const val = document.getElementById(valueId);
-        if (!row || !val) return;
-        const html = pointsHtml(product);
-        if (html) {
-            val.innerHTML = html;
-            row.classList.remove('hidden');
-        } else {
-            row.classList.add('hidden');
-        }
-    }
-
-    /**
-     * 渲染积分内联（步骤1品牌右侧，单元素显隐）
-     */
-    function renderPointsInline(elId, product) {
-        const el = document.getElementById(elId);
-        if (!el) return;
-        const html = pointsHtml(product);
-        if (html) {
-            el.innerHTML = html;
-            el.classList.remove('hidden');
-        } else {
-            el.classList.add('hidden');
-        }
     }
 
     /**
