@@ -77,6 +77,9 @@ def upgrade():
         ('task_complete', '完成任务', 'task', 15, NULL)
     """)
 
+    # 5. 清除旧的产品积分台账表
+    op.execute("DROP TABLE IF EXISTS user_points_ledger CASCADE")
+
 
 def downgrade():
     op.drop_table('user_points_summary')

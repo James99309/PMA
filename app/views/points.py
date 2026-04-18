@@ -5,6 +5,7 @@ from sqlalchemy import func
 from app.extensions import db
 from app.models.points import PointsBehaviorConfig, PointsTransaction, UserPointsSummary
 from app.models.user import User
+from app.decorators import permission_required
 
 points_bp = Blueprint('points', __name__, url_prefix='/points')
 
@@ -76,33 +77,67 @@ def api_my_transactions():
     now = datetime.utcnow()
     year, month = now.year, now.month
 
-    query = PointsTransaction.query.filter_by(user_id=current_user.id, year=year)
     if period == 'month':
-        query = query.filter_by(month=month)
+        months = [month]
     elif period == 'quarter':
         q_start = ((month - 1) // 3) * 3 + 1
         months = list(range(q_start, min(q_start + 3, 13)))
+    else:
+        months = list(range(1, 13))
+
+    query = PointsTransaction.query.filter_by(user_id=current_user.id, year=year)
+    if len(months) == 1:
+        query = query.filter_by(month=months[0])
+    else:
         query = query.filter(PointsTransaction.month.in_(months))
 
     pagination = query.order_by(PointsTransaction.created_at.desc()).paginate(
         page=page, per_page=20, error_out=False
     )
 
-    summary = UserPointsSummary.query.filter_by(
-        user_id=current_user.id, year=year, month=month
-    ).first()
-    total = summary.total_points if summary else 0
-    breakdown = dict(summary.behavior_breakdown or {}) if summary else {}
+    # 汇总指定周期内的积分
+    if len(months) == 1:
+        summary = UserPointsSummary.query.filter_by(
+            user_id=current_user.id, year=year, month=months[0]
+        ).first()
+        total = summary.total_points if summary else 0
+        breakdown = dict(summary.behavior_breakdown or {}) if summary else {}
+    else:
+        summaries = UserPointsSummary.query.filter(
+            UserPointsSummary.user_id == current_user.id,
+            UserPointsSummary.year == year,
+            UserPointsSummary.month.in_(months)
+        ).all()
+        total = sum(s.total_points for s in summaries)
+        breakdown = {}
+        for s in summaries:
+            for k, v in (s.behavior_breakdown or {}).items():
+                breakdown[k] = breakdown.get(k, 0) + v
 
-    rank_val = db.session.query(func.count(UserPointsSummary.user_id) + 1).filter(
-        UserPointsSummary.year == year,
-        UserPointsSummary.month == month,
-        UserPointsSummary.total_points > total
-    ).scalar()
-    total_users = db.session.query(func.count(UserPointsSummary.user_id)).filter(
-        UserPointsSummary.year == year,
-        UserPointsSummary.month == month
-    ).scalar()
+    # 排名：同周期内比当前用户总分高的人数 + 1
+    if len(months) == 1:
+        rank_val = db.session.query(func.count(UserPointsSummary.user_id) + 1).filter(
+            UserPointsSummary.year == year,
+            UserPointsSummary.month == months[0],
+            UserPointsSummary.total_points > total
+        ).scalar()
+        total_users = db.session.query(func.count(UserPointsSummary.user_id)).filter(
+            UserPointsSummary.year == year,
+            UserPointsSummary.month == months[0]
+        ).scalar()
+    else:
+        # 季度/年度排名：需要聚合
+        subq = db.session.query(
+            UserPointsSummary.user_id,
+            func.sum(UserPointsSummary.total_points).label('period_total')
+        ).filter(
+            UserPointsSummary.year == year,
+            UserPointsSummary.month.in_(months)
+        ).group_by(UserPointsSummary.user_id).subquery()
+        rank_val = db.session.query(func.count() + 1).filter(
+            subq.c.period_total > total
+        ).scalar()
+        total_users = db.session.query(func.count()).select_from(subq).scalar()
 
     transactions = [{
         'id': tx.id,
@@ -146,10 +181,8 @@ def api_nav_summary():
 
 @points_bp.route('/admin/config')
 @login_required
+@permission_required('system_settings', 'edit')
 def admin_config():
-    if current_user.role not in ('admin', 'ceo'):
-        from flask import abort
-        abort(403)
     configs = PointsBehaviorConfig.query.order_by(
         PointsBehaviorConfig.category, PointsBehaviorConfig.id
     ).all()
@@ -168,9 +201,8 @@ def admin_config():
 
 @points_bp.route('/admin/config/api', methods=['GET'])
 @login_required
+@permission_required('system_settings', 'edit')
 def admin_config_api_list():
-    if current_user.role not in ('admin', 'ceo'):
-        return jsonify({'success': False}), 403
     configs = PointsBehaviorConfig.query.order_by(
         PointsBehaviorConfig.category, PointsBehaviorConfig.id
     ).all()
@@ -183,9 +215,8 @@ def admin_config_api_list():
 
 @points_bp.route('/admin/config/api/<int:config_id>', methods=['PUT'])
 @login_required
+@permission_required('system_settings', 'edit')
 def admin_config_update(config_id):
-    if current_user.role not in ('admin', 'ceo'):
-        return jsonify({'success': False}), 403
     config = PointsBehaviorConfig.query.get_or_404(config_id)
     data = request.get_json()
     if 'points' in data and data['points'] is not None:
@@ -202,9 +233,8 @@ def admin_config_update(config_id):
 
 @points_bp.route('/admin/config/api', methods=['POST'])
 @login_required
+@permission_required('system_settings', 'edit')
 def admin_config_create():
-    if current_user.role not in ('admin', 'ceo'):
-        return jsonify({'success': False}), 403
     data = request.get_json()
     config = PointsBehaviorConfig(
         behavior_code=data['behavior_code'],
