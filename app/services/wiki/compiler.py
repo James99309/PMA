@@ -576,6 +576,40 @@ def _salvage_truncated_json(s: str) -> dict:
 # 内部：应用 operations
 # ══════════════════════════════════════════════════════════════════
 
+def _award_wiki_cited(old_refs: list, new_refs: list):
+    """对 outbound_refs 中新增的被引用文章的 owner 发放 wiki_cited 积分。
+
+    old_refs / new_refs 格式为 "<topic>/<slug>" 字符串列表。
+    本函数在 _apply_operations 内调用，不负责 commit，由调用方统一提交。
+    """
+    new_cited = set(new_refs) - set(old_refs)
+    if not new_cited:
+        return
+    try:
+        from app.services.points_service import award_points
+        for ref in new_cited:
+            parts = ref.split('/', 1)
+            if len(parts) != 2:
+                continue
+            ref_topic, ref_slug = parts
+            cited_art = KnowledgeWikiArticle.query.filter_by(
+                topic=ref_topic, slug=ref_slug
+            ).first()
+            if cited_art and cited_art.owner_id:
+                try:
+                    award_points(
+                        user_id=cited_art.owner_id,
+                        behavior_code='wiki_cited',
+                        source_type='wiki_article',
+                        source_id=cited_art.id,
+                        memo=f'Wiki文章被引用: {cited_art.title}'
+                    )
+                except Exception as pts_err:
+                    logger.warning(f"[Ingest] 发放wiki_cited积分失败 article={cited_art.id}: {pts_err}")
+    except Exception as e:
+        logger.warning(f"[Ingest] _award_wiki_cited 整体失败: {e}")
+
+
 def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: dict,
                       scope: str = 'company', owner_id: int = 1,
                       owner_department: str | None = None):
@@ -640,6 +674,8 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                 merged = set(existing_art.source_raw_ids or [])
                 merged.update(source_ids)
                 existing_art.source_raw_ids = sorted(merged)
+                # 检测新增被引用的文章，发放 wiki_cited 积分
+                _award_wiki_cited(existing_art.outbound_refs or [], list(outbound_refs))
                 existing_art.outbound_refs = list(outbound_refs)
                 existing_art.last_compiled_at = now
                 existing_art.compile_model = compile_model
@@ -707,6 +743,8 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                 existing.update(source_ids)
                 art.source_raw_ids = sorted(existing)
                 if 'outbound_refs' in op:
+                    # 检测新增被引用的文章，发放 wiki_cited 积分
+                    _award_wiki_cited(art.outbound_refs or [], list(outbound_refs))
                     art.outbound_refs = list(outbound_refs)
                 art.last_compiled_at = now
                 art.compile_model = compile_model

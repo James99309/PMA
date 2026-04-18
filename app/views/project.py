@@ -1457,8 +1457,23 @@ def add_project():
             )
             
             db.session.add(project)
+
+            # 发放积分：新建项目（flush 确保 project.id 已生成）
+            try:
+                from app.services.points_service import award_points
+                db.session.flush()
+                award_points(
+                    user_id=current_user.id,
+                    behavior_code='project_create',
+                    source_type='project',
+                    source_id=project.id,
+                    memo=f'新建项目: {project.project_name}'
+                )
+            except Exception as pts_err:
+                logger.warning(f"发放项目创建积分失败: {pts_err}")
+
             db.session.commit()
-            
+
             # 记录创建历史
             try:
                 ChangeTracker.log_create(project)
@@ -2662,7 +2677,25 @@ def update_project_stage():
             # 提交所有更改（让SQLAlchemy自动更新updated_at字段）
             db.session.commit()
             current_app.logger.info(f"数据库事务已提交")
-            
+
+            # 发放积分：项目阶段向前推进
+            try:
+                from app.services.points_service import award_points
+                _forward_stages = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed']
+                _old_idx = _forward_stages.index(old_stage) if old_stage in _forward_stages else -1
+                _new_idx = _forward_stages.index(new_stage) if new_stage in _forward_stages else -1
+                if _new_idx > _old_idx >= 0:
+                    award_points(
+                        user_id=project.owner_id or current_user.id,
+                        behavior_code='project_stage_advance',
+                        source_type='project',
+                        source_id=project.id,
+                        memo=f'推进项目[{project.project_name}]阶段: {old_stage} → {new_stage}'
+                    )
+                    db.session.commit()
+            except Exception as pts_err:
+                current_app.logger.warning(f"发放项目阶段推进积分失败: {pts_err}")
+
             # 在提交后更新项目活跃度（使用最新的updated_at时间）
             current_app.logger.info(f"开始更新项目活跃度状态")
             update_active_status(project, commit=True)
@@ -4889,6 +4922,21 @@ def api_create_project():
         )
         
         db.session.add(new_project)
+
+        # 发放积分：新建项目（flush 确保 new_project.id 已生成）
+        try:
+            from app.services.points_service import award_points
+            db.session.flush()
+            award_points(
+                user_id=current_user.id,
+                behavior_code='project_create',
+                source_type='project',
+                source_id=new_project.id,
+                memo=f'新建项目: {new_project.project_name}'
+            )
+        except Exception as pts_err:
+            logger.warning(f"发放项目创建积分失败: {pts_err}")
+
         db.session.commit()
 
         # 记录创建历史

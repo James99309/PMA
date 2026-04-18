@@ -472,6 +472,21 @@ def change_article_scope(article_id):
         art.owner_id = current_user.id
     if not art.owner_department and art.owner:
         art.owner_department = art.owner.department
+
+    # 发放积分：Wiki 文章 scope 提升到 company/system
+    if new_scope in ('company', 'system') and old_scope not in ('company', 'system') and art.owner_id:
+        try:
+            from app.services.points_service import award_points
+            award_points(
+                user_id=art.owner_id,
+                behavior_code='wiki_share',
+                source_type='wiki_article',
+                source_id=art.id,
+                memo=f'共享Wiki文章: {art.title}'
+            )
+        except Exception as pts_err:
+            logger.warning(f"发放wiki_share积分失败: {pts_err}")
+
     db.session.commit()
 
     logger.info(f'[Wiki] user={current_user.id} 调整文章 id={article_id} scope: {old_scope} → {new_scope}')
@@ -684,6 +699,20 @@ def review_promotion_request(request_id):
             if not art.owner_department and art.owner:
                 art.owner_department = art.owner.department
             logger.info(f'[Wiki] 晋升审核通过 article={art.id} {old_scope}→{req.to_scope} by user={current_user.id}')
+
+            # 发放积分：Wiki 文章晋升到 company/system
+            if req.to_scope in ('company', 'system') and old_scope not in ('company', 'system') and art.owner_id:
+                try:
+                    from app.services.points_service import award_points
+                    award_points(
+                        user_id=art.owner_id,
+                        behavior_code='wiki_share',
+                        source_type='wiki_article',
+                        source_id=art.id,
+                        memo=f'共享Wiki文章: {art.title}'
+                    )
+                except Exception as pts_err:
+                    logger.warning(f"发放wiki_share积分失败: {pts_err}")
 
         # 通知申请人
         scope_labels = {'personal': '个人', 'department': '部门', 'company': '公司', 'system': '系统'}

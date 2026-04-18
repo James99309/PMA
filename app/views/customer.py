@@ -2409,6 +2409,21 @@ def api_create_company():
             company.supplier_code = generate_supplier_code(data.get('company_name'), existing_codes)
 
         db.session.add(company)
+
+        # 发放积分：新建客户（在 commit 前 flush，保证 company.id 已生成）
+        try:
+            from app.services.points_service import award_points
+            db.session.flush()
+            award_points(
+                user_id=current_user.id,
+                behavior_code='customer_create',
+                source_type='company',
+                source_id=company.id,
+                memo=f'发现新客户: {company.company_name}'
+            )
+        except Exception as pts_err:
+            logger.warning(f"发放客户创建积分失败: {pts_err}")
+
         db.session.commit()
 
         # 记录创建历史

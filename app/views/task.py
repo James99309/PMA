@@ -255,6 +255,20 @@ def complete_task(id):
             except Exception as e:
                 logger.warning(f"发送完成通知失败: {e}")
 
+        # 发放积分：任务完成
+        try:
+            from app.services.points_service import award_points
+            assignee_id = t.assignee_id if t.assignee_id else current_user.id
+            award_points(
+                user_id=assignee_id,
+                behavior_code='task_complete',
+                source_type='task',
+                source_id=t.id,
+                memo=f'完成任务: {t.title}'
+            )
+        except Exception as pts_err:
+            logger.warning(f"发放任务完成积分失败: {pts_err}")
+
         db.session.commit()
         return jsonify({'success': True, 'message': _('任务已完成'), 'data': t.to_dict()})
     except Exception as e:

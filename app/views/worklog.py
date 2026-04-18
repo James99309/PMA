@@ -1420,6 +1420,19 @@ def submit_daily_log(log_date):
     worklog.quality_score = score_result['total']
     worklog.quality_issues = score_result['issues']
 
+    # 发放积分：提交工作日志
+    try:
+        from app.services.points_service import award_points
+        award_points(
+            user_id=current_user.id,
+            behavior_code='daily_log_submit',
+            source_type='worklog',
+            source_id=worklog.id,
+            memo='提交工作日志'
+        )
+    except Exception as pts_err:
+        logger.warning(f"发放日志提交积分失败: {pts_err}")
+
     db.session.commit()
 
     # 发送日志提交通知给领导
