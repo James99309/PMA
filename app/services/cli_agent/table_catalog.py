@@ -209,7 +209,6 @@ TIER2_CATALOG: dict[str, str] = {
     'sales_team_config': '销售团队配置',
     'system_diagrams': '系统图',
     'company_assets': '公司资产',
-    'user_points_ledger': '用户积分流水',
     'monthly_activity_snapshots': '月度活跃度快照',
     'user_daily_login_records': '用户日登录记录',
     'file_library': '文件库',

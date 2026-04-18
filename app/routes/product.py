@@ -1144,8 +1144,6 @@ def get_products():
                     'currency': p.currency if hasattr(p, 'currency') else Config.DEFAULT_CURRENCY,  # 添加货币字段
                     'status': p.status,
                     'is_vendor_product': p.is_vendor_product if hasattr(p, 'is_vendor_product') else False,  # 添加厂商产品标记
-                    'points': p.points,
-                    'points_tier': p.points_tier,
                     'created_at': p.created_at.strftime('%Y-%m-%d %H:%M:%S') if p.created_at else None,
                     'updated_at': p.updated_at.strftime('%Y-%m-%d %H:%M:%S') if p.updated_at else None,
                     'owner_id': p.owner_id,  # 添加所有者ID
@@ -2338,21 +2336,6 @@ def update_product(id):
         else:
             product.retail_price = Decimal('0.00')
 
-        # 积分系数 (仅admin可设置)
-        if current_user.role == 'admin':
-            coeff_str = request.form.get('points_coefficient_override', '').strip()
-            if coeff_str:
-                try:
-                    new_val = float(coeff_str)
-                    if product.points_coefficient_override is None or float(product.points_coefficient_override) != new_val:
-                        product.points_coefficient_override = new_val
-                        product.points_coefficient_override_at = datetime.now()
-                except (ValueError, TypeError):
-                    pass
-            else:
-                product.points_coefficient_override = None
-                product.points_coefficient_override_at = None
-
         # 如果分类改变且已确认，清空规格数据并更新编码
         if category_changed and clear_specs_confirmed:
             from app.models.product_spec import ProductSpec
@@ -3013,39 +2996,6 @@ def get_region_prices_batch():
     missing = [pid for pid in product_ids if pid not in price_map]
 
     return jsonify({'prices': price_map, 'missing': missing})
-
-
-@bp.route('/api/products/<int:id>/coefficient', methods=['POST'])
-@login_required
-def update_product_coefficient(id):
-    """更新产品积分系数 (仅admin)"""
-    if current_user.role != 'admin':
-        return jsonify({'success': False, 'message': '无权限'}), 403
-
-    product = Product.query.get_or_404(id)
-    data = request.get_json(silent=True) or {}
-    coeff_str = str(data.get('coefficient', '')).strip()
-
-    if coeff_str:
-        try:
-            val = float(coeff_str)
-            if val < 1.0 or val > 10.0:
-                return jsonify({'success': False, 'message': '系数范围 1.0 ~ 10.0'}), 400
-            product.points_coefficient_override = val
-            product.points_coefficient_override_at = datetime.now()
-        except (ValueError, TypeError):
-            return jsonify({'success': False, 'message': '系数格式不正确'}), 400
-    else:
-        product.points_coefficient_override = None
-        product.points_coefficient_override_at = None
-
-    db.session.commit()
-    return jsonify({
-        'success': True,
-        'coefficient': round(float(product.points_coefficient), 1),
-        'points': product.points,
-        'is_override': product.points_coefficient_override is not None
-    })
 
 
 @bp.route('/api/products/<int:id>/delete', methods=['POST'])
@@ -3830,9 +3780,6 @@ def get_products_by_subcategory_api():
                 'effective_image': effective_image,
                 'config_count': config_count,
                 'has_configurations': config_count > 0,
-                'points': product.points,
-                'points_tier': product.points_tier,
-                'points_coefficient': float(product.points_coefficient) if product.points_coefficient else None
             })
 
         # 为 snapshot 中的 field_name 补充英文名（从 product_specs 批量查）
@@ -3942,54 +3889,12 @@ def search_products_api():
                 'retail_price': float(p.retail_price) if p.retail_price else None,
                 'currency': p.currency,
                 'status': p.status,
-                'points': p.points,
-                'points_tier': p.points_tier
             })
 
         return jsonify(results)
     except Exception as e:
         logger.error(f'搜索产品失败: {str(e)}')
         return jsonify([])
-
-
-@bp.route('/api/v1/user/product-points-summary', methods=['GET'])
-@login_required
-def get_user_product_points_summary():
-    """获取当前用户的产品积分汇总（供导航栏使用）
-
-    统一从 ledger 读取。销售：source_type='quotation'，产品经理：source_type='pm_category'。
-    """
-    try:
-        from app.helpers.product_points import get_points_tier
-        from app.models.user_points_ledger import UserPointsLedger
-
-        current_year = datetime.now().year
-        total_points = db.session.query(
-            db.func.coalesce(db.func.sum(UserPointsLedger.points), 0)
-        ).filter(
-            UserPointsLedger.user_id == current_user.id,
-            UserPointsLedger.year == current_year
-        ).scalar()
-
-        # 按来源分类汇总：quotation + pm_category 均归为"产品植入积分"
-        categories = []
-        if total_points > 0:
-            categories.append({
-                'name': '产品植入积分',
-                'name_en': 'Product Points',
-                'points': total_points
-            })
-
-        return jsonify({
-            'success': True,
-            'total_points': total_points,
-            'points_tier': get_points_tier(total_points),
-            'year': current_year,
-            'categories': categories
-        })
-    except Exception as e:
-        logger.error(f'获取用户积分汇总失败: {str(e)}')
-        return jsonify({'success': False, 'total_points': 0, 'points_tier': 'none', 'year': datetime.now().year, 'categories': []})
 
 
 @bp.route('/api/products/<int:product_id>/configurations', methods=['GET'])
@@ -5208,8 +5113,6 @@ def get_product_relations(product_id):
                 'specification': related.specification or '',
                 'retail_price': float(related.retail_price) if related.retail_price else 0,
                 'unit': related.unit or 'Set',
-                'points': related.points,
-                'points_tier': related.points_tier,
                 'relation_type': relation.relation_type,
                 'relation_type_label': badge_label_map.get(relation.relation_type, {}).get(lang, relation.relation_type),
                 'relation_type_label_class': badge_class,

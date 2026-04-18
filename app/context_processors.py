@@ -263,20 +263,6 @@ def inject_stage_configs():
     }
 
 
-def inject_product_points_functions():
-    """向模板上下文注入产品积分辅助函数"""
-    from app.helpers.product_points import get_points_tier, get_tier_color_class, format_points_display
-
-    def points_tier_class(points):
-        return get_tier_color_class(get_points_tier(points))
-
-    return {
-        'points_tier_class': points_tier_class,
-        'get_points_tier': get_points_tier,
-        'format_points_display': format_points_display,
-    }
-
-
 def inject_resource_pool_helpers():
     """向模板上下文注入资源池辅助函数（名称遮挡等）"""
 

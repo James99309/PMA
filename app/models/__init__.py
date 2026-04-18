@@ -52,7 +52,6 @@ from app.models.meeting import (
     MeetingRecording, MeetingTranscript, MeetingSpeaker,
     MeetingMinutes, MeetingActionItem
 )
-from app.models.user_points_ledger import UserPointsLedger
 # 文件管理模块
 from app.models.file_manager import FileLibrary, UserFolder, UserFileRef
 # 知识库模块（Karpathy LLM Wiki 方案）
@@ -103,7 +102,6 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'QuotationConfirmationTask',
            'Task', 'TaskAttachment', 'TaskReply',
            'SubTask', 'SubTaskUpdate', 'SubTaskAttachment',
-           'UserPointsLedger',
            'FileLibrary', 'UserFolder', 'UserFileRef',
            'KnowledgeTag', 'KnowledgeRawFile', 'KnowledgeWikiArticle',
            'AccessRequest',

@@ -962,10 +962,6 @@ def create_app(config_class=Config):
     from app.context_processors import inject_currency_config
     app.context_processor(inject_currency_config)
 
-    # 添加产品积分辅助函数到模板上下文
-    from app.context_processors import inject_product_points_functions
-    app.context_processor(inject_product_points_functions)
-
     # 添加资源池辅助函数到模板上下文
     from app.context_processors import inject_resource_pool_helpers
     app.context_processor(inject_resource_pool_helpers)

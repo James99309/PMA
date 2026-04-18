@@ -45,14 +45,6 @@ class Product(db.Model):
     source_configuration_id = db.Column(db.Integer, db.ForeignKey('product_configurations.id'))  # 来源配置版本ID（本地）
     productized_at = db.Column(db.DateTime)  # 产品化时间
 
-    # 积分系数
-    points_coefficient_override = db.Column(db.Numeric(3, 1), nullable=True, comment='手动积分系数(Admin设置,NULL=按引用频次自动)')
-    points_coefficient_override_at = db.Column(db.DateTime, nullable=True, comment='手动系数设置时间')
-
-    # 引用频次系数（批量预计算）
-    citation_coefficient = db.Column(db.Numeric(4, 2), nullable=True, comment='引用频率积分系数')
-    citation_count = db.Column(db.Integer, nullable=True, comment='过去12个月引用次数')
-
     # 软删除
     is_deleted = db.Column(db.Boolean, default=False, nullable=False)
 
@@ -218,29 +210,6 @@ class Product(db.Model):
     def has_configuration_specs(self):
         """检查是否使用新的配置版本规格系统"""
         return self.source_configuration_id is not None
-
-    @property
-    def points_coefficient(self):
-        """积分系数：手动覆盖 > 预计算引用系数 > 回退默认值"""
-        if self.points_coefficient_override is not None:
-            return float(self.points_coefficient_override)
-        if self.citation_coefficient is not None:
-            return float(self.citation_coefficient)
-        return 3.0
-
-    @property
-    def points(self):
-        """积分 = 系数 × retail_price"""
-        if not self.retail_price:
-            return 0
-        return round(self.points_coefficient * float(self.retail_price))
-
-    @property
-    def points_tier(self):
-        """积分等级: 'gold' / 'silver' / 'bronze'"""
-        from app.helpers.product_points import get_points_tier
-        return get_points_tier(self.points)
-
 
 class ProductRegionPrice(db.Model):
     """产品地区价格表 — 同一产品在不同货币/地区的独立面价"""

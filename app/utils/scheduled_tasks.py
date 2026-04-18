@@ -254,28 +254,6 @@ def run_ai_research_batch():
         logger.error(traceback.format_exc())
 
 
-def run_weekly_citation_coefficient_update():
-    """每周更新产品引用频次系数"""
-    from flask import current_app
-    from app import create_app
-
-    logger.info(f"[{datetime.now()}] 开始执行每周引用系数更新...")
-
-    try:
-        try:
-            app = current_app._get_current_object()
-        except RuntimeError:
-            app = create_app()
-
-        with app.app_context():
-            from app.helpers.product_points import batch_update_citation_coefficients
-            updated, total = batch_update_citation_coefficients()
-            logger.info(f"[{datetime.now()}] 引用系数更新完成: {updated}/{total} 产品")
-
-    except Exception as e:
-        logger.error(f"[{datetime.now()}] 引用系数更新失败: {str(e)}")
-
-
 def cleanup_old_worklog_notifications():
     """
     清理超过1天的 worklog_submitted 通知消息。
@@ -396,10 +374,6 @@ def start_scheduler(run_time="01:00"):
     # AI 调研批量任务
     schedule.every().day.at("06:00").do(run_ai_research_batch)
     logger.info("AI 调研批量任务已注册: 每日 06:00")
-
-    # 引用系数每周更新
-    schedule.every().monday.at("05:00").do(run_weekly_citation_coefficient_update)
-    logger.info("引用系数更新任务已注册: 每周一 05:00")
 
     # 工作日志通知清理（每天凌晨 00:30 清理超过1天的 worklog_submitted）
     schedule.every().day.at("00:30").do(cleanup_old_worklog_notifications)

@@ -1089,11 +1089,8 @@ def api_v2_ranking():
         data = []
         for p in products:
             s = stats_map.get(p.product_mn)
-            coeff = p.points_coefficient
-            points = p.points
             retail_price = float(p.retail_price) if p.retail_price else 0
             category = p.category_name
-            warning = coeff >= 2.0 and retail_price >= 50000
             data.append({
                 'name': p.name or '',
                 'model': p.model or '',
@@ -1101,11 +1098,8 @@ def api_v2_ranking():
                 'amount': float(s.amount or 0) if s else 0,
                 'quantity': int(s.qty or 0) if s else 0,
                 'citations': int(s.citation_count or 0) if s else 0,
-                'coefficient': round(coeff, 2),
-                'points': points,
                 'retail_price': retail_price,
                 'category': category,
-                'warning': warning
             })
 
         return jsonify({'success': True, 'data': data})
@@ -1118,29 +1112,17 @@ def api_v2_ranking():
 @login_required
 @permission_required('product_analysis', 'view')
 def api_v2_coefficient_stats():
-    """引用系数统计卡片数据"""
+    """产品统计卡片数据（旧积分系数统计已废弃）"""
     try:
         active_products = Product.query.filter(Product.status != 'discontinued').all()
         total_active = len(active_products)
-        with_citations = sum(1 for p in active_products if p.citation_count and p.citation_count > 0)
-        citation_counts = [p.citation_count for p in active_products if p.citation_count and p.citation_count > 0]
-
-        import statistics as stats_mod
-        median_citations = stats_mod.median(citation_counts) if citation_counts else 0
-
-        coefficients = [p.points_coefficient for p in active_products if p.citation_coefficient is not None or p.points_coefficient_override is not None]
-        avg_coefficient = round(sum(coefficients) / len(coefficients), 2) if coefficients else 0
-
-        attention_count = sum(1 for p in active_products
-                             if p.points_coefficient >= 2.0
-                             and p.retail_price and float(p.retail_price) >= 50000)
 
         return jsonify({'success': True, 'data': {
             'total_active': total_active,
-            'with_citations': with_citations,
-            'median_citations': median_citations,
-            'avg_coefficient': avg_coefficient,
-            'attention_count': attention_count
+            'with_citations': 0,
+            'median_citations': 0,
+            'avg_coefficient': 0,
+            'attention_count': 0
         }})
     except Exception as e:
         logger.error(f"v2 coefficient-stats 失败: {e}")
