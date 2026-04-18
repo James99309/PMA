@@ -335,6 +335,9 @@ def create_app(config_class=Config):
     # 导入工作日历蓝图
     from app.views.worklog import worklog
 
+    # 导入积分系统蓝图
+    from app.views.points import points_bp
+
     # 注册所有Blueprint
     app.register_blueprint(main)
     app.register_blueprint(auth, url_prefix='/auth')
@@ -373,6 +376,9 @@ def create_app(config_class=Config):
     # 注册工作日历蓝图
     app.register_blueprint(worklog)
     csrf.exempt(worklog)  # 豁免工作日历蓝图的CSRF保护
+
+    # 注册积分系统蓝图
+    app.register_blueprint(points_bp)
 
     # 注册文件管理蓝图
     from app.views.file_manager import file_manager_bp
