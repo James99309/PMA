@@ -246,6 +246,7 @@ class CliTerminalApp {
 
       this._updateTokenDisplay(data.session?.usage_total || {});
       this._renderHistory(data.messages || []);
+      this._restorePartialStream(sessionId);
     } catch (e) {
       console.error('[CLI] restoreSession failed', e);
     }
@@ -307,6 +308,12 @@ class CliTerminalApp {
     this._streamingText += text;
     this._streamingBlock.innerHTML = this.md.renderStreaming(this._streamingText);
     this._scrollToBottom();
+    // 同步写入 localStorage，刷新后可恢复
+    if (this.activeId && this._streamingText) {
+      try {
+        localStorage.setItem(`cli_partial_${this.activeId}`, this._streamingText);
+      } catch (_) {}
+    }
   }
 
   // 流式：结束当前块，做最终渲染
@@ -316,6 +323,27 @@ class CliTerminalApp {
     }
     this._streamingBlock = null;
     this._streamingText = '';
+    // 流正常结束，清除缓存
+    if (this.activeId) {
+      try { localStorage.removeItem(`cli_partial_${this.activeId}`); } catch (_) {}
+    }
+  }
+
+  // 检查并恢复中断的流式内容
+  _restorePartialStream(sessionId) {
+    let partial;
+    try { partial = localStorage.getItem(`cli_partial_${sessionId}`); } catch (_) { return; }
+    if (!partial) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'cli-line cli-line-assistant cli-partial-restored';
+    wrap.innerHTML = this.md.render(partial);
+    const notice = document.createElement('div');
+    notice.className = 'cli-line cli-line-system';
+    notice.style.cssText = 'font-size:0.75em;opacity:0.6;margin-top:-4px';
+    notice.textContent = '⚠️ 上次回复因刷新中断，以上为部分内容';
+    this.els.transcript.appendChild(wrap);
+    this.els.transcript.appendChild(notice);
+    this._scrollToBottom();
   }
 
   // ── Artifact iframe 渲染 ───────────────────────────────────────────
