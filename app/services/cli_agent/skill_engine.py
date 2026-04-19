@@ -321,6 +321,7 @@ def _render_output_template(
     params: dict[str, str],
     raw_params: dict,
     step_results: dict[str, dict],
+    artifacts_out: list | None = None,
 ) -> str:
     """渲染输出格式模板。
 
@@ -381,6 +382,23 @@ def _render_output_template(
 
     output = re.sub(r'\{([a-zA-Z_]\w*)\.table\}', _replace_table, output)
 
+    # 2b. 替换 {step_name.artifact} 和 {step_name.artifact:"标题"}
+    _arts = artifacts_out if artifacts_out is not None else []
+
+    def _replace_artifact(match: re.Match) -> str:
+        step_name = match.group(1)
+        title = match.group(2) or ''
+        return _collect_artifact_table(step_name, step_results, title, _arts)
+
+    output = re.sub(r'\{([a-zA-Z_]\w*)\.artifact(?::"([^"]*)")?\}', _replace_artifact, output)
+
+    # 2c. 替换 {step_name.artifact_card}
+    def _replace_artifact_card(match: re.Match) -> str:
+        step_name = match.group(1)
+        return _collect_artifact_user_card(step_name, step_results, _arts)
+
+    output = re.sub(r'\{([a-zA-Z_]\w*)\.artifact_card\}', _replace_artifact_card, output)
+
     # 3. 替换 {step_name.count}
     def _replace_count(match: re.Match) -> str:
         step_name = match.group(1)
@@ -418,6 +436,93 @@ def _render_output_template(
     output = re.sub(r'\{([a-zA-Z_]\w*)\}', _replace_param, output)
 
     return output.strip()
+
+
+_ARTIFACT_CSS = """
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Microsoft YaHei','微软雅黑',Calibri,'PingFang SC',sans-serif;font-size:12px;color:#1a1a1a;background:#fff;padding:2px}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  th{background:#1F4E79;color:#fff;padding:7px 10px;text-align:left;font-weight:600;white-space:nowrap;border:1px solid #163a5f}
+  td{padding:6px 10px;border:1px solid #d0d7de;vertical-align:top;color:#1a1a1a}
+  tbody tr:nth-child(odd) td{background:#F2F2F2}
+  tbody tr:nth-child(even) td{background:#FFFFFF}
+  tbody tr:hover td{background:#dce9f5}
+  .empty{text-align:center;color:#666;padding:16px}
+  .card{display:flex;align-items:flex-start;gap:12px;padding:2px 0}
+  .av{width:38px;height:38px;border-radius:50%;background:#1F4E79;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
+  .info{flex:1;min-width:0}
+  .name{font-weight:700;font-size:14px;color:#1a1a1a}
+  .meta{color:#555;font-size:12px;margin-top:3px}
+  .stats{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}
+  .stat{font-size:12px;color:#555}
+  .stat strong{display:block;color:#1F4E79;font-size:13px;font-weight:700}
+"""
+
+def _build_artifact_html(title: str, body_html: str) -> dict:
+    """包装成完整自包含 HTML 文档，供 iframe srcdoc 使用。"""
+    html = (
+        f'<!DOCTYPE html><html><head><meta charset="UTF-8">'
+        f'<style>{_ARTIFACT_CSS}</style></head>'
+        f'<body>{body_html}</body></html>'
+    )
+    return {'title': title, 'html': html}
+
+
+def _collect_artifact_table(step_name: str, step_results: dict, title: str, artifacts_out: list) -> str:
+    """生成表格 artifact 并追加到 artifacts_out，返回替换占位符用的文字。"""
+    result = step_results.get(step_name)
+    if not result or not result.get('rows'):
+        return '(无数据)'
+
+    columns = result.get('columns', [])
+    rows = result.get('rows', [])
+
+    def _esc(v):
+        return str(v).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;') if v is not None else ''
+
+    thead = ''.join(f'<th>{_esc(c)}</th>' for c in columns)
+    tbody = ''.join(
+        '<tr>' + ''.join(f'<td>{_esc(cell)}</td>' for cell in row) + '</tr>'
+        for row in rows
+    ) or f'<tr><td colspan="{len(columns)}" class="empty">暂无数据</td></tr>'
+
+    body_html = f'<table><thead><tr>{thead}</tr></thead><tbody>{tbody}</tbody></table>'
+    artifacts_out.append(_build_artifact_html(title or step_name, body_html))
+    return f'*（{title or step_name}，共 {len(rows)} 条）*'
+
+
+def _collect_artifact_user_card(step_name: str, step_results: dict, artifacts_out: list) -> str:
+    """生成用户信息卡 artifact 并追加到 artifacts_out，返回替换占位符用的文字。"""
+    result = step_results.get(step_name)
+    if not result or not result.get('rows'):
+        return '(无用户信息)'
+
+    row = result['rows'][0]
+    cols = result.get('columns', [])
+
+    def _get(field):
+        return str(row[cols.index(field)]) if field in cols else ''
+
+    def _esc(v):
+        return str(v).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    name = _get('姓名')
+    role = _get('角色')
+    dept = _get('部门')
+    initial = _esc(name[0].upper()) if name else '?'
+    meta_parts = [p for p in [role, dept] if p]
+    meta_html = f'<div class="meta">{" · ".join(_esc(p) for p in meta_parts)}</div>' if meta_parts else ''
+
+    body_html = (
+        f'<div class="card">'
+        f'<div class="av">{initial}</div>'
+        f'<div class="info">'
+        f'<div class="name">{_esc(name)}</div>'
+        f'{meta_html}'
+        f'</div></div>'
+    )
+    artifacts_out.append(_build_artifact_html('用户信息', body_html))
+    return f'*{name}（{" · ".join(p for p in [role, dept] if p)}）*'
 
 
 def _fallback_output(step_results: dict[str, dict]) -> str:
@@ -610,6 +715,7 @@ class SkillEngine:
 
         # --- 3. 渲染输出 ---
         # 优先级：SQL skill_body render() > output_format 模板 > fallback 默认
+        artifacts: list[dict] = []
         try:
             if skill.skill_type == 'sql' and skill.skill_body:
                 output = _execute_render_body(skill.skill_body, step_results, params)
@@ -619,16 +725,21 @@ class SkillEngine:
                     prepared_params,
                     params,
                     step_results,
+                    artifacts_out=artifacts,
                 )
         except Exception as e:
             logger.exception('[SkillEngine] 输出渲染失败')
             output = _fallback_output(step_results)
             output = f'(输出渲染失败,使用默认格式)\n\n{output}'
 
-        logger.info(f'[SkillEngine] 技能 {skill_name} 执行完成')
+        logger.info(
+            f'[SkillEngine] 技能 {skill_name} 执行完成，'
+            f'artifacts={len(artifacts)}'
+        )
 
         return {
             'success': True,
             'output': output,
+            'artifacts': artifacts,
             'raw_results': step_results,
         }
