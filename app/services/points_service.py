@@ -79,3 +79,23 @@ def award_points(user_id, behavior_code, source_type=None, source_id=None, memo=
 
     db.session.flush()
     return pts
+
+
+def sync_registry_to_db():
+    """启动时调用：将 BEHAVIOR_REGISTRY 中缺失的行为写入数据库（不覆盖已有配置）。"""
+    from app.services.points_registry import BEHAVIOR_REGISTRY
+    from app.models.points import PointsBehaviorConfig
+    changed = False
+    for code, meta in BEHAVIOR_REGISTRY.items():
+        if not PointsBehaviorConfig.query.filter_by(behavior_code=code).first():
+            db.session.add(PointsBehaviorConfig(
+                behavior_code=code,
+                behavior_name=meta['name'],
+                category=meta['category'],
+                points=meta['default_points'],
+                daily_cap=meta['default_daily_cap'],
+                is_active=True,
+            ))
+            changed = True
+    if changed:
+        db.session.commit()

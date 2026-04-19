@@ -969,6 +969,56 @@ def approve(instance_id):
                     project = Project.query.get(instance.object_id)
                     if project and project.authorization_code:
                         current_app.logger.info(f"为项目 {project.id} 生成授权编号: {project.authorization_code}")
+
+                # ── 积分钩子 ──────────────────────────────────────────
+                try:
+                    from app.services.points_service import award_points
+                    # 审批人参与奖励（同一项目同一审批人只算一次）
+                    if instance.object_type == 'project':
+                        award_points(
+                            user_id=current_user.id,
+                            behavior_code='project_approver_acted',
+                            source_type='approval_project',
+                            source_id=f'{instance.object_id}_approver_{current_user.id}',
+                            memo=f'参与项目审批 #{instance.object_id}',
+                        )
+                    elif instance.object_type == 'pricing_order':
+                        award_points(
+                            user_id=current_user.id,
+                            behavior_code='pricing_order_approver_acted',
+                            source_type='approval_pricing_order',
+                            source_id=f'{instance.object_id}_approver_{current_user.id}',
+                            memo=f'参与批价单审批 #{instance.object_id}',
+                        )
+                    # 最终通过奖励（re-query 检查 instance 是否已全部完成）
+                    fresh = instance.__class__.query.get(instance_id)
+                    if fresh and fresh.status.value == 'approved':
+                        if fresh.object_type == 'project':
+                            from app.models.project import Project as _Proj
+                            _proj = _Proj.query.get(fresh.object_id)
+                            if _proj and _proj.owner_id:
+                                award_points(
+                                    user_id=_proj.owner_id,
+                                    behavior_code='project_approved',
+                                    source_type='approval_project',
+                                    source_id=f'final_{fresh.object_id}',
+                                    memo=f'项目审批通过: {_proj.project_name}',
+                                )
+                        elif fresh.object_type == 'pricing_order':
+                            from app.models.pricing_order import PricingOrder
+                            _po = PricingOrder.query.get(fresh.object_id)
+                            if _po and _po.created_by:
+                                award_points(
+                                    user_id=_po.created_by,
+                                    behavior_code='pricing_order_approved',
+                                    source_type='approval_pricing_order',
+                                    source_id=f'final_{fresh.object_id}',
+                                    memo=f'批价单审批通过 #{fresh.object_id}',
+                                )
+                    db.session.commit()
+                except Exception as _pts_err:
+                    current_app.logger.warning(f'审批积分发放失败: {_pts_err}')
+                # ─────────────────────────────────────────────────────
             else:
                 success_message = '已拒绝此审批'
                 current_app.logger.info(f"用户 {current_user.username} 拒绝了审批 {instance_id}")

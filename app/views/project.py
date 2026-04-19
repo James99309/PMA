@@ -2685,11 +2685,12 @@ def update_project_stage():
                 _old_idx = _forward_stages.index(old_stage) if old_stage in _forward_stages else -1
                 _new_idx = _forward_stages.index(new_stage) if new_stage in _forward_stages else -1
                 if _new_idx > _old_idx >= 0:
+                    from datetime import date as _date
                     award_points(
                         user_id=project.owner_id or current_user.id,
                         behavior_code='project_stage_advance',
                         source_type='project',
-                        source_id=project.id,
+                        source_id=f'{project.id}_{_date.today().isoformat()}',
                         memo=f'推进项目[{project.project_name}]阶段: {old_stage} → {new_stage}'
                     )
                     db.session.commit()
@@ -2852,7 +2853,16 @@ def add_action_for_project(project_id):
             # 如果关联了客户，更新客户活跃状态
             if company_id and company_id.isdigit():
                 check_company_activity(company_id=int(company_id), days_threshold=1)
-
+            try:
+                from app.services.points_service import award_points
+                from datetime import date as _date
+                award_points(user_id=current_user.id, behavior_code='action_record_create',
+                             source_type='action_project',
+                             source_id=f'project_{project_id}_{current_user.id}_{_date.today().isoformat()}',
+                             memo=f'项目跟进记录: {project.project_name}')
+                db.session.commit()
+            except Exception as _pts_err:
+                current_app.logger.warning(f'action_record_create积分发放失败: {_pts_err}')
             flash('行动记录添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project_id))
     
@@ -2949,6 +2959,17 @@ def api_add_action(project_id):
         # 如果关联了客户，更新客户活跃状态
         if company_id:
             check_company_activity(company_id=int(company_id), days_threshold=1)
+
+        try:
+            from app.services.points_service import award_points
+            from datetime import date as _date
+            award_points(user_id=current_user.id, behavior_code='action_record_create',
+                         source_type='action_project',
+                         source_id=f'project_{project_id}_{current_user.id}_{_date.today().isoformat()}',
+                         memo=f'项目跟进记录: {project_obj.project_name}')
+            db.session.commit()
+        except Exception as _pts_err:
+            current_app.logger.warning(f'action_record_create积分发放失败: {_pts_err}')
 
         # 构建返回数据
         owner_name = current_user.real_name or current_user.username

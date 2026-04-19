@@ -1733,7 +1733,16 @@ def add_contact(company_id):
         # 设置为主要联系人（如果勾选）
         if request.form.get('is_primary'):
             contact.set_as_primary()
-        
+
+        try:
+            from app.services.points_service import award_points
+            award_points(user_id=current_user.id, behavior_code='contact_create',
+                         source_type='contact', source_id=contact.id,
+                         memo=f'创建联系人: {contact.name}')
+            db.session.commit()
+        except Exception as _pts_err:
+            logger.warning(f'contact_create积分发放失败: {_pts_err}')
+
         flash('联系人添加成功！', 'success')
         # 修改为添加后跳转客户详情页
         return redirect(url_for('customer.view_company', company_id=company_id))
@@ -1989,6 +1998,17 @@ def api_add_action_for_company(company_id):
 
         # 更新客户活跃状态
         check_company_activity(company_id=company_id, days_threshold=1)
+
+        try:
+            from app.services.points_service import award_points
+            from datetime import date as _date
+            award_points(user_id=current_user.id, behavior_code='action_record_create',
+                         source_type='action_company',
+                         source_id=f'company_{company_id}_{current_user.id}_{_date.today().isoformat()}',
+                         memo=f'客户跟进记录: {company.company_name}')
+            db.session.commit()
+        except Exception as _pts_err:
+            logger.warning(f'action_record_create积分发放失败: {_pts_err}')
 
         # 构建返回数据
         owner_name = current_user.real_name or current_user.username
@@ -3781,6 +3801,16 @@ def add_action_for_company(company_id):
             company.updated_at = datetime.now(ZoneInfo('Asia/Shanghai')).replace(tzinfo=None)
             update_active_status(company)
             db.session.commit()
+            try:
+                from app.services.points_service import award_points
+                from datetime import date as _date
+                award_points(user_id=current_user.id, behavior_code='action_record_create',
+                             source_type='action_company',
+                             source_id=f'company_{company_id}_{current_user.id}_{_date.today().isoformat()}',
+                             memo=f'客户跟进记录: {company.company_name}')
+                db.session.commit()
+            except Exception as _pts_err:
+                logger.warning(f'action_record_create积分发放失败: {_pts_err}')
             flash('行动记录添加成功！', 'success')
             return redirect(url_for('customer.view_company', company_id=company_id))
     if contact_id:
