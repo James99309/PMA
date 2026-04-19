@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}编辑 {{ skill.title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid page-with-fixed-nav">
+    <div class="page-header-with-actions mb-4">
+        <div class="row align-items-center">
+            <div class="col">
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb mb-1">
+                        <li class="breadcrumb-item"><a href="{{ url_for('admin.skill_list') }}">Skill 管理</a></li>
+                        <li class="breadcrumb-item"><a href="{{ url_for('admin.skill_detail', skill_id=skill.id) }}">{{ skill.title }}</a></li>
+                        <li class="breadcrumb-item active">编辑</li>
+                    </ol>
+                </nav>
+                <h1 class="page-title mb-0">编辑 Skill：{{ skill.title }}</h1>
+            </div>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-xl-10">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <strong>Skill Body（Python 函数库代码）</strong>
+                    <span class="text-muted small ms-2">修改后会自动保存新版本，旧版本可随时回滚</span>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label class="form-label">变更说明 <span class="text-muted small">（将记录在版本历史中）</span></label>
+                            <input type="text" name="change_note" class="form-control"
+                                   placeholder="例：修正字体大小 / 新增 add_kpi_table 函数">
+                        </div>
+                        {% if skill.skill_type == 'docx' %}
+                        <div class="mb-3">
+                            <label class="form-label">API 摘要 <span class="text-muted small">（注入 system prompt，告知 Claude 可用函数；更新后 Claude 立即感知）</span></label>
+                            <textarea name="description" class="form-control font-monospace"
+                                      rows="18" style="font-size:12px;tab-size:4;">{{ skill.description or '' }}</textarea>
+                        </div>
+                        {% endif %}
+                        <div class="mb-3">
+                            <label class="form-label">Skill Body</label>
+                            <textarea name="skill_body" class="form-control font-monospace"
+                                      rows="30" style="font-size:12px;tab-size:4;">{{ skill.skill_body or '' }}</textarea>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="is_active"
+                                   name="is_active" {% if skill.is_active %}checked{% endif %}>
+                            <label class="form-check-label" for="is_active">启用（注入到智能终端 system prompt）</label>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary">保存并创建新版本</button>
+                            <a href="{{ url_for('admin.skill_detail', skill_id=skill.id) }}"
+                               class="btn btn-outline-secondary">取消</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

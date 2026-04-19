@@ -13,7 +13,7 @@
     <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js,typography"></script>
     <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}"></script>
     <script src="{{ url_for('static', filename='vendor/dompurify/purify.min.js') }}"></script>
@@ -1699,7 +1699,14 @@ function wikiApp() {
             if (!a) return;
             e.preventDefault();
             const id = parseInt(a.getAttribute('data-article-id'), 10);
-            if (id) this.openArticle(id);
+            if (id) {
+                this.openArticle(id);
+                // 上报引用链接点击（积分由后端发放给文章作者，过滤作者本人）
+                fetch(`/api/wiki/articles/${id}/citation-click`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token() }}' },
+                }).catch(() => {});
+            }
         },
 
         formatDate(iso) {

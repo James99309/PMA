@@ -1,0 +1,859 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('任务中心') }} - PMA</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" }, fontFamily: { "display": ["Inter","sans-serif"] } } }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400; }
+        [x-cloak] { display: none !important; }
+
+        /* 移动端响应式 */
+        @media (max-width: 768px) {
+            .task-list-panel.hidden-mobile { display: none !important; }
+            .task-detail-panel { display: none !important; }
+            .task-detail-panel.show-mobile { display: flex !important; }
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-800 dark:text-slate-200">
+
+{% call(slot) render_tw_layout(active_page='task_management', show_search=false) %}
+{% if slot == 'content' %}
+
+<div class="h-[calc(100vh-56px)] flex overflow-hidden"
+     x-data="taskManagement()"
+     x-init="init()"
+     x-cloak>
+
+    {# ═══════════ 左侧栏：任务列表 ═══════════ #}
+    <aside class="flex-shrink-0 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 flex flex-col w-[360px] min-w-[300px] task-list-panel"
+           :class="{ 'hidden-mobile': selectedTask }">
+
+        {# 顶部操作栏 #}
+        <div class="px-3 pt-3 pb-2 border-b border-slate-100 dark:border-slate-800 space-y-2">
+            {# 标题 + 新建按钮 #}
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-xl">task_alt</span>
+                    <span class="font-semibold text-sm">{{ _('任务中心') }}</span>
+                </div>
+                <button @click="openCreateModal()"
+                        class="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-primary rounded-lg hover:bg-blue-700 transition">
+                    <span class="material-symbols-outlined text-sm">add</span>
+                    {{ _('新建') }}
+                </button>
+            </div>
+
+            {# 搜索 #}
+            <div class="relative">
+                <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-base text-slate-400">search</span>
+                <input type="text" x-model="search" @input.debounce.300ms="loadTasks()"
+                       placeholder="{{ _('搜索任务...') }}"
+                       class="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-slate-50 dark:bg-slate-800 focus:ring-1 focus:ring-primary focus:border-primary">
+            </div>
+
+            {# Tab 切换 #}
+            <div class="flex text-xs gap-1">
+                <template x-for="t in tabs" :key="t.key">
+                    <button @click="tab = t.key; loadTasks()"
+                            :class="tab === t.key
+                                ? 'bg-primary/10 text-primary dark:bg-primary/20'
+                                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                            class="px-2.5 py-1 rounded-md transition font-medium"
+                            x-text="t.label"></button>
+                </template>
+            </div>
+
+            {# 排序 + 统计 #}
+            <div class="flex items-center justify-between text-xs text-slate-500">
+                <select x-model="sortBy" @change="loadTasks()"
+                        class="text-xs border-0 bg-transparent focus:ring-0 py-0 pl-0 text-slate-500 dark:text-slate-400 cursor-pointer">
+                    <option value="updated">{{ _('最近更新') }}</option>
+                    <option value="due_date">{{ _('截止日期') }}</option>
+                    <option value="priority">{{ _('优先级') }}</option>
+                    <option value="created">{{ _('创建时间') }}</option>
+                </select>
+                <span class="text-slate-400" x-text="'{{ _('共') }} ' + totalTasks + ' {{ _('个') }}'"></span>
+            </div>
+        </div>
+
+        {# 任务列表 #}
+        <div class="flex-1 overflow-y-auto">
+            {# 加载状态 #}
+            <template x-if="loading">
+                <div class="flex items-center justify-center py-12">
+                    <span class="material-symbols-outlined text-3xl text-slate-300 animate-spin">progress_activity</span>
+                </div>
+            </template>
+
+            <template x-if="!loading">
+                <div>
+                    <template x-for="task in tasks" :key="task.id">
+                        <div @click="selectTask(task.id)"
+                             :class="selectedTaskId === task.id
+                                 ? 'bg-primary/5 border-l-2 border-l-primary dark:bg-primary/10'
+                                 : 'border-l-2 border-l-transparent hover:bg-slate-50 dark:hover:bg-slate-800/50'"
+                             class="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 cursor-pointer transition">
+
+                            {# 第一行：优先级点 + 标题 #}
+                            <div class="flex items-start gap-2">
+                                <span :class="priorityDotClass(task.priority)"
+                                      class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"></span>
+                                <span class="text-sm font-medium line-clamp-2"
+                                      :class="task.status === 'completed' ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'"
+                                      x-text="task.title"></span>
+                            </div>
+
+                            {# 第二行：负责人 + 状态 #}
+                            <div class="flex items-center justify-between mt-1.5 text-xs text-slate-500">
+                                <div class="flex items-center gap-1.5">
+                                    <span x-text="task.assignee_name || '{{ _('未分配') }}'"></span>
+                                    <template x-if="(task.shared_with_users || []).length > 0">
+                                        <span class="text-slate-400" x-text="'+' + task.shared_with_users.length"></span>
+                                    </template>
+                                </div>
+                                <span :class="statusBadgeClass(task.status)"
+                                      class="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                      x-text="statusText(task.status)"></span>
+                            </div>
+
+                            {# 第三行：子任务进度 + 截止日期 #}
+                            <div class="flex items-center justify-between mt-1.5">
+                                <div class="flex items-center gap-2 text-[10px] text-slate-400">
+                                    <template x-if="task.subtask_count > 0">
+                                        <div class="flex items-center gap-1">
+                                            <div class="w-14 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                <div :style="'width:' + (task.subtask_count > 0 ? task.subtask_completed / task.subtask_count * 100 : 0) + '%'"
+                                                     class="h-full bg-primary rounded-full transition-all"></div>
+                                            </div>
+                                            <span x-text="task.subtask_completed + '/' + task.subtask_count"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="task.milestone_count > 0">
+                                        <span class="text-amber-500" x-text="'🏁' + task.milestone_confirmed + '/' + task.milestone_count"></span>
+                                    </template>
+                                </div>
+                                <span class="text-[10px]"
+                                      :class="isOverdue(task) ? 'text-red-500 font-medium' : 'text-slate-400'"
+                                      x-text="formatDate(task.due_date)"></span>
+                            </div>
+                        </div>
+                    </template>
+
+                    {# 空状态 #}
+                    <template x-if="tasks.length === 0">
+                        <div class="flex flex-col items-center justify-center py-16 text-slate-400">
+                            <span class="material-symbols-outlined text-4xl mb-3 text-slate-300">inbox</span>
+                            <p class="text-sm">{{ _('暂无任务') }}</p>
+                            <button @click="openCreateModal()"
+                                    class="mt-3 text-xs text-primary hover:underline">+ {{ _('新建任务') }}</button>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+    </aside>
+
+    {# ═══════════ 右侧：任务详情 ═══════════ #}
+    <main class="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 task-detail-panel"
+          :class="{ 'show-mobile': selectedTask }">
+
+        {# 未选中态 #}
+        <template x-if="!selectedTask && !detailLoading">
+            <div class="flex-1 flex items-center justify-center text-slate-400">
+                <div class="text-center">
+                    <span class="material-symbols-outlined text-5xl mb-4 text-slate-300">assignment</span>
+                    <p class="text-sm">{{ _('选择一个任务查看详情') }}</p>
+                    <button @click="openCreateModal()"
+                            class="mt-4 px-4 py-2 bg-primary text-white text-sm rounded-lg hover:bg-blue-700 transition">
+                        + {{ _('新建任务') }}
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        {# 加载中 #}
+        <template x-if="detailLoading">
+            <div class="flex-1 flex items-center justify-center">
+                <span class="material-symbols-outlined text-3xl text-slate-300 animate-spin">progress_activity</span>
+            </div>
+        </template>
+
+        {# 选中态：详情内容 #}
+        <template x-if="selectedTask && !detailLoading">
+            <div class="flex-1 overflow-y-auto">
+
+                {# ── 头部信息 ── #}
+                <div class="px-5 py-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+                    {# 移动端返回 #}
+                    <button @click="selectedTask = null; selectedTaskId = null"
+                            class="md:hidden mb-2 text-sm text-primary flex items-center gap-1">
+                        <span class="material-symbols-outlined text-base">arrow_back</span>
+                        {{ _('返回列表') }}
+                    </button>
+
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 min-w-0">
+                            <h2 class="text-lg font-semibold text-slate-900 dark:text-white leading-snug"
+                                x-text="selectedTask.title"></h2>
+                            <div class="flex items-center gap-2 mt-1.5 flex-wrap">
+                                <span :class="priorityBadgeClass(selectedTask.priority)"
+                                      class="px-2 py-0.5 rounded text-xs font-medium"
+                                      x-text="priorityText(selectedTask.priority)"></span>
+                            </div>
+                        </div>
+                        {# 操作按钮 #}
+                        <div class="flex items-center gap-1 ml-3 flex-shrink-0">
+                            <template x-if="selectedTask.can_edit">
+                                <button @click="openEditModal()"
+                                        class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+                                        title="{{ _('编辑') }}">
+                                    <span class="material-symbols-outlined text-lg">edit</span>
+                                </button>
+                            </template>
+                            <div x-data="{ menuOpen: false }" class="relative">
+                                <button @click="menuOpen = !menuOpen"
+                                        class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
+                                    <span class="material-symbols-outlined text-lg">more_vert</span>
+                                </button>
+                                <div x-show="menuOpen" @click.away="menuOpen = false" x-transition
+                                     class="absolute right-0 mt-1 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-20">
+                                    <template x-if="selectedTask.status !== 'completed'">
+                                        <button @click="completeTask(); menuOpen = false"
+                                                class="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-base text-green-600">check_circle</span>
+                                            {{ _('完成任务') }}
+                                        </button>
+                                    </template>
+                                    <template x-if="selectedTask.status === 'in_progress'">
+                                        <button @click="showPauseModal = true; menuOpen = false"
+                                                class="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-base text-amber-500">pause_circle</span>
+                                            {{ _('暂停任务') }}
+                                        </button>
+                                    </template>
+                                    <template x-if="selectedTask.status === 'paused'">
+                                        <button @click="resumeTask(); menuOpen = false"
+                                                class="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-base text-green-500">play_circle</span>
+                                            {{ _('恢复任务') }}
+                                        </button>
+                                    </template>
+                                    <template x-if="selectedTask.can_edit">
+                                        <button @click="deleteTask(); menuOpen = false"
+                                                class="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2">
+                                            <span class="material-symbols-outlined text-base">delete</span>
+                                            {{ _('删除任务') }}
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {# 基本信息网格 #}
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
+                        <div>
+                            <span class="text-slate-500 text-xs">{{ _('状态') }}</span>
+                            <p class="mt-0.5">
+                                <span :class="statusBadgeClass(selectedTask.status)"
+                                      class="px-2 py-0.5 rounded text-xs font-medium"
+                                      x-text="statusText(selectedTask.status)"></span>
+                            </p>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 text-xs">{{ _('负责人') }}</span>
+                            <p class="text-slate-900 dark:text-slate-100" x-text="selectedTask.assignee_name || '{{ _('未分配') }}'"></p>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 text-xs">{{ _('开始') }}</span>
+                            <p class="text-slate-900 dark:text-slate-100" x-text="formatDate(selectedTask.start_date) || '-'"></p>
+                        </div>
+                        <div>
+                            <span class="text-slate-500 text-xs">{{ _('截止') }}</span>
+                            <p :class="isOverdue(selectedTask) ? 'text-red-500 font-medium' : 'text-slate-900 dark:text-slate-100'"
+                               x-text="formatDate(selectedTask.due_date) || '-'"></p>
+                        </div>
+                    </div>
+
+                    {# 协助人 #}
+                    <template x-if="sharedUserNames && sharedUserNames.length > 0">
+                        <div class="mt-2 text-sm">
+                            <span class="text-slate-500 text-xs">{{ _('协助人') }}</span>
+                            <p class="text-slate-900 dark:text-slate-100" x-text="sharedUserNames.join('、')"></p>
+                        </div>
+                    </template>
+
+                    {# 描述 #}
+                    <template x-if="selectedTask.description">
+                        <div class="mt-3 text-sm text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 rounded-lg p-3"
+                             x-text="selectedTask.description"></div>
+                    </template>
+                </div>
+
+                {# ── 时间线(单轴节点式) ── #}
+                <template x-if="subtasks.length > 0 && subtasks.some(s => s.start_date || s.due_date)">
+                    <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+                        <h3 class="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm">timeline</span>
+                            {{ _('时间线') }}
+                        </h3>
+                        <div x-html="renderTimeline()"></div>
+                    </div>
+                </template>
+
+                {# ── 子任务区域 ── #}
+                <div class="px-5 py-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-base">checklist</span>
+                            {{ _('子任务') }}
+                            <template x-if="subtasks.length > 0">
+                                <span class="text-slate-400 font-normal text-xs"
+                                      x-text="'(' + completedSubtaskCount + '/' + subtasks.length + ')'"></span>
+                            </template>
+                        </h3>
+                        <button @click="openSubtaskModal()"
+                                class="flex items-center gap-1 text-xs text-primary hover:text-blue-800 font-medium">
+                            <span class="material-symbols-outlined text-sm">add</span>
+                            {{ _('新增子任务') }}
+                        </button>
+                    </div>
+
+                    {# 子任务选卡（按日期排序，与时间线对齐） #}
+                    <div class="flex flex-wrap gap-1.5">
+                        <template x-for="st in subtasksByDate()" :key="st.id">
+                            <button :id="'subtask-' + st.id"
+                                    @click="focusSubtask(st.id)"
+                                    class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs transition-all cursor-pointer"
+                                    :class="expandedSubtasks[0] === st.id
+                                        ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/30 dark:border-blue-600 ring-1 ring-blue-300 dark:ring-blue-600'
+                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600'">
+                                <span x-html="subtaskStatusIcon(st)" class="flex-shrink-0 [&>span]:!text-sm"></span>
+                                <span class="max-w-[100px] truncate"
+                                      :class="st.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-200'"
+                                      x-text="st.title"></span>
+                                <template x-if="st.is_milestone">
+                                    <span class="text-[9px]">🏁</span>
+                                </template>
+                            </button>
+                        </template>
+                    </div>
+
+                    {# 选中子任务的详情面板 #}
+                    <template x-for="st in subtasks" :key="'detail-' + st.id">
+                        <div x-show="expandedSubtasks[0] === st.id" x-collapse
+                             class="mt-2 bg-white dark:bg-slate-900 rounded-lg border border-blue-200 dark:border-blue-800 overflow-hidden">
+                            {# 标题行 #}
+                            <div class="flex items-center justify-between px-3 py-2 bg-blue-50/50 dark:bg-blue-900/20 border-b border-blue-100 dark:border-blue-800">
+                                <div class="flex items-center gap-2 min-w-0">
+                                    <span x-html="subtaskStatusIcon(st)" class="flex-shrink-0"></span>
+                                    <span class="text-sm font-medium text-slate-900 dark:text-white truncate" x-text="st.title"></span>
+                                    <template x-if="st.is_milestone && st.milestone_status">
+                                        <span :class="{
+                                            'text-amber-600 bg-amber-50 dark:bg-amber-900/30': st.milestone_status === 'pending_confirmation',
+                                            'text-green-600 bg-green-50 dark:bg-green-900/30': st.milestone_status === 'confirmed',
+                                            'text-red-600 bg-red-50 dark:bg-red-900/30': st.milestone_status === 'rejected'
+                                        }" class="px-1.5 py-0.5 rounded text-[10px]"
+                                           x-text="milestoneStatusText(st)"></span>
+                                    </template>
+                                </div>
+                                <div class="flex items-center gap-1.5 text-xs flex-shrink-0 ml-2">
+                                    <span class="text-slate-400" x-text="st.assignee_name || ''"></span>
+                                    <span class="text-slate-400" x-text="formatDateRange(st.start_date, st.due_date)"></span>
+                                </div>
+                            </div>
+
+                            {# 描述 #}
+                            <template x-if="st.description">
+                                <div class="px-3 py-2 text-sm text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700"
+                                     x-text="st.description"></div>
+                            </template>
+
+                            {# 里程碑会审人 #}
+                            <template x-if="st.is_milestone && (st.milestone_reviewers || []).length > 0">
+                                <div class="px-3 py-1.5 bg-amber-50/50 dark:bg-amber-900/10 border-b border-slate-100 dark:border-slate-700">
+                                    <div class="flex flex-wrap gap-2">
+                                        <template x-for="r in st.milestone_reviewers" :key="r.id">
+                                            <span class="inline-flex items-center gap-1 text-xs">
+                                                <span x-show="r.status === 'confirmed'" class="material-symbols-outlined text-sm text-green-500" style="font-variation-settings:'FILL' 1">check_circle</span>
+                                                <span x-show="r.status === 'rejected'" class="material-symbols-outlined text-sm text-red-500" style="font-variation-settings:'FILL' 1">cancel</span>
+                                                <span x-show="r.status === 'pending'" class="material-symbols-outlined text-sm text-slate-400">radio_button_unchecked</span>
+                                                <span x-text="r.reviewer_name" class="text-slate-700 dark:text-slate-300"></span>
+                                                <template x-if="r.comment">
+                                                    <span class="text-slate-500 dark:text-slate-400" x-text="'「' + r.comment + '」'"></span>
+                                                </template>
+                                            </span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+
+                            {# 操作按钮 #}
+                            <div class="flex items-center gap-3 px-3 py-2 text-xs">
+                                <template x-if="st.status === 'pending'">
+                                    <button @click.stop="startSubtask(st.id)"
+                                            class="text-primary hover:underline font-medium">{{ _('开始') }}</button>
+                                </template>
+                                <template x-if="st.status === 'in_progress' || st.status === 'delayed'">
+                                    <button @click.stop="completeSubtask(st.id)"
+                                            class="text-green-600 hover:underline font-medium"
+                                            x-text="st.is_milestone ? '{{ _('提交确认') }}' : '{{ _('完成') }}'"></button>
+                                </template>
+                                <template x-if="st.is_milestone && st.milestone_status === 'pending_confirmation' && (st.milestone_reviewers || []).some(r => r.reviewer_id == currentUserId && r.status === 'pending')">
+                                    <div class="flex gap-2">
+                                        <button @click.stop="openMilestoneConfirmModal(st, 'confirm')"
+                                                class="text-green-600 hover:underline font-medium">{{ _('确认通过') }}</button>
+                                        <button @click.stop="openMilestoneConfirmModal(st, 'reject')"
+                                                class="text-red-600 hover:underline font-medium">{{ _('驳回') }}</button>
+                                    </div>
+                                </template>
+                                <template x-if="st.status !== 'completed'">
+                                    <button @click.stop="openSubtaskModal(st)"
+                                            class="text-slate-500 hover:underline">{{ _('编辑') }}</button>
+                                </template>
+                                <template x-if="st.status !== 'completed'">
+                                    <button @click.stop="deleteSubtask(st.id)"
+                                            class="text-red-500 hover:underline">{{ _('删除') }}</button>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+
+                    {# 无子任务 #}
+                    <template x-if="subtasks.length === 0">
+                        <div class="text-center text-slate-400 text-sm py-10 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 border-dashed">
+                            <span class="material-symbols-outlined text-3xl mb-2 text-slate-300">playlist_add</span>
+                            <p>{{ _('暂无子任务') }}</p>
+                            <button @click="openSubtaskModal()"
+                                    class="mt-2 text-primary hover:underline text-xs">+ {{ _('新增子任务') }}</button>
+                        </div>
+                    </template>
+                </div>
+
+                {# ── 附件区域 ── #}
+                <div class="px-5 py-4 border-t border-slate-100 dark:border-slate-800">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <span class="material-symbols-outlined text-base">attach_file</span>
+                            {{ _('附件') }}
+                            <span class="text-slate-400 font-normal text-xs"
+                                  x-text="expandedSubtasks.length ? '(' + filteredAttachments().length + '/' + taskAttachments.length + ')' : '(' + taskAttachments.length + ')'"></span>
+                        </h3>
+                        <div x-show="selectedTask.status !== 'completed'" class="flex items-center gap-2">
+                            {# 关联子任务选择 #}
+                            <select x-model="attachSubtaskId"
+                                    class="text-xs border border-slate-200 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                <option value="">{{ _('不关联子任务') }}</option>
+                                <template x-for="st in subtasks" :key="st.id">
+                                    <option :value="st.id" x-text="st.title"></option>
+                                </template>
+                            </select>
+                            <label class="flex items-center gap-1 text-xs text-primary hover:text-blue-800 font-medium cursor-pointer">
+                                <span class="material-symbols-outlined text-sm">upload_file</span>
+                                {{ _('上传') }}
+                                <input type="file" class="hidden" @change="uploadAttachment($event)" multiple>
+                            </label>
+                        </div>
+                    </div>
+                    <!-- 上传进度条 -->
+                    <div x-show="uploadingFile" class="mb-2">
+                        <div class="flex items-center justify-between text-xs text-slate-500 mb-1">
+                            <span>{{ _('上传中...') }}</span>
+                            <span x-text="uploadProgress + '%'"></span>
+                        </div>
+                        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5">
+                            <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-300" :style="'width: ' + uploadProgress + '%'"></div>
+                        </div>
+                    </div>
+                    <!-- 附件列表 -->
+                    <div x-show="filteredAttachments().length > 0" class="space-y-1">
+                        <template x-for="att in filteredAttachments()" :key="att.id">
+                            <div class="flex items-center justify-between px-3 py-1.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 text-sm">
+                                <a :href="'/task/api/' + selectedTaskId + '/attachments/' + att.id + '/download'"
+                                   class="flex items-center gap-2 min-w-0 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                                    <span class="material-symbols-outlined text-base text-slate-400">attach_file</span>
+                                    <span class="truncate text-slate-900 dark:text-white" x-text="att.filename"></span>
+                                    <span class="text-slate-400 flex-shrink-0 text-xs" x-text="formatFileSize(att.file_size)"></span>
+                                    <template x-if="att.subtask_title">
+                                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 flex-shrink-0"
+                                              x-text="att.subtask_title"></span>
+                                    </template>
+                                </a>
+                                <button x-show="att.uploaded_by == currentUserId"
+                                        @click="deleteAttachment(att.id)" class="text-slate-400 hover:text-red-500 flex-shrink-0 ml-2">
+                                    <span class="material-symbols-outlined text-base">delete</span>
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                    <template x-if="filteredAttachments().length === 0 && !uploadingFile">
+                        <p class="text-xs text-slate-400 text-center py-3" x-text="expandedSubtasks.length ? '{{ _('该子任务暂无附件') }}' : '{{ _('暂无附件') }}'"></p>
+                    </template>
+                </div>
+
+                {# ── 任务讨论区 ── #}
+                <div class="px-5 pb-4">
+                    <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-base">forum</span>
+                        {{ _('讨论') }}
+                        <span class="text-slate-400 font-normal text-xs"
+                              x-text="expandedSubtasks.length ? '(' + filteredReplies().length + '/' + taskReplies.length + ')' : '(' + taskReplies.length + ')'"></span>
+                    </h3>
+                    <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                        {# 讨论列表 #}
+                        <div class="max-h-60 overflow-y-auto p-3 space-y-2">
+                            <template x-for="reply in filteredReplies()" :key="reply.id">
+                                <div class="text-sm border-l-2 pl-3 py-1"
+                                     :class="reply.subtask_title ? 'border-blue-300 dark:border-blue-600' : 'border-slate-200 dark:border-slate-600'">
+                                    <div class="flex items-center gap-1.5 flex-wrap">
+                                        <span class="font-medium text-slate-700 dark:text-slate-300" x-text="reply.author_name"></span>
+                                        <span class="text-xs text-slate-400" x-text="formatDateTime(reply.created_at)"></span>
+                                        <template x-if="reply.subtask_title">
+                                            <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                                                  x-text="'@ ' + reply.subtask_title"></span>
+                                        </template>
+                                    </div>
+                                    <p class="text-slate-800 dark:text-slate-200 mt-0.5" x-text="reply.content"></p>
+                                </div>
+                            </template>
+                            <template x-if="filteredReplies().length === 0">
+                                <p class="text-slate-400 text-xs text-center py-3" x-text="expandedSubtasks.length ? '{{ _('该子任务暂无讨论') }}' : '{{ _('暂无讨论') }}'"></p>
+                            </template>
+                        </div>
+                        {# 输入框 + @提及 #}
+                        <div class="border-t border-slate-100 dark:border-slate-700 p-3">
+                            {# 已选子任务标签 #}
+                            <template x-if="replySubtaskId">
+                                <div class="flex items-center gap-1 mb-2">
+                                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 flex items-center gap-1">
+                                        <span x-text="'@ ' + replySubtaskTitle"></span>
+                                        <button @click="replySubtaskId = null; replySubtaskTitle = ''"
+                                                class="text-blue-400 hover:text-red-500 leading-none">&times;</button>
+                                    </span>
+                                </div>
+                            </template>
+                            <div class="flex gap-2 relative">
+                                <input type="text" x-model="newReplyContent" x-ref="replyInput"
+                                       @keydown.enter="if(!showMentionDrop) addReply()"
+                                       @input="onReplyInput($event)"
+                                       @keydown.arrow-down.prevent="if(showMentionDrop) mentionIdx = Math.min(mentionIdx+1, mentionList.length-1)"
+                                       @keydown.arrow-up.prevent="if(showMentionDrop) mentionIdx = Math.max(mentionIdx-1, 0)"
+                                       @keydown.enter.prevent="if(showMentionDrop) selectMention(mentionList[mentionIdx])"
+                                       @keydown.escape="showMentionDrop = false"
+                                       :placeholder="'{{ _('输入讨论内容，@ 关联子任务...') }}'"
+                                       class="flex-1 text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary focus:border-primary">
+                                {# @提及下拉 #}
+                                <div x-show="showMentionDrop" x-transition
+                                     class="absolute bottom-full left-0 mb-1 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-30 max-h-40 overflow-y-auto">
+                                    <template x-for="(st, idx) in mentionList" :key="st.id">
+                                        <button @click="selectMention(st)"
+                                                class="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                                :class="idx === mentionIdx ? 'bg-slate-100 dark:bg-slate-700' : ''">
+                                            <span x-html="subtaskStatusIcon(st)" class="[&>span]:!text-sm flex-shrink-0"></span>
+                                            <span class="truncate" x-text="st.title"></span>
+                                        </button>
+                                    </template>
+                                    <template x-if="mentionList.length === 0">
+                                        <p class="text-xs text-slate-400 text-center py-2">{{ _('无匹配子任务') }}</p>
+                                    </template>
+                                </div>
+                                <button @click="addReply()"
+                                        class="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-blue-700 transition flex-shrink-0">
+                                    {{ _('发送') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </main>
+</div>
+
+{# ═══════════ 子任务弹窗 ═══════════ #}
+<div x-data x-show="$store.taskMgmt && $store.taskMgmt.showSubtaskModal" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center"
+     @keydown.escape.window="$store.taskMgmt && ($store.taskMgmt.showSubtaskModal = false)">
+    <div class="absolute inset-0 bg-black/40" @click="$store.taskMgmt.showSubtaskModal = false"></div>
+    <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-md mx-4 p-5" @click.stop>
+        <h3 class="text-base font-semibold mb-4 text-slate-900 dark:text-white"
+            x-text="$store.taskMgmt?.editingSubtask ? '{{ _('编辑子任务') }}' : '{{ _('新建子任务') }}'"></h3>
+        <div class="space-y-3">
+            <div>
+                <label class="text-sm font-medium text-slate-600 dark:text-slate-400">{{ _('标题') }} <span class="text-red-500">*</span></label>
+                <input type="text" x-model="$store.taskMgmt.subtaskForm.title"
+                       class="w-full mt-1 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary">
+            </div>
+            <div>
+                <label class="text-sm font-medium text-slate-600 dark:text-slate-400">{{ _('描述') }}</label>
+                <textarea x-model="$store.taskMgmt.subtaskForm.description" rows="2"
+                          class="w-full mt-1 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary"></textarea>
+            </div>
+            {# 负责人 — 可搜索单选 #}
+            <div>
+                <label class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1 block">{{ _('负责人') }}</label>
+                <div x-data="userSearchPicker({
+                         users: $store.taskMgmt.allUsers,
+                         multiple: false,
+                         selected: $store.taskMgmt.subtaskForm.assignee_id,
+                         placeholder: '{{ _('搜索用户') }}',
+                         onChange(uid) { $store.taskMgmt.subtaskForm.assignee_id = uid ? String(uid) : ''; }
+                     })"
+                     x-effect="if ($store.taskMgmt.showSubtaskModal) { setUsers($store.taskMgmt.allUsers); setSelected($store.taskMgmt.subtaskForm.assignee_id); }">
+                    {% from 'components/tw_task_modal.html' import render_user_search_picker %}
+                    {{ render_user_search_picker(ref='stAssignee') }}
+                </div>
+            </div>
+            {# 里程碑 + 确认人 #}
+            <div class="flex items-center gap-3">
+                <label class="text-sm font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1.5 cursor-pointer flex-shrink-0">
+                    <input type="checkbox" x-model="$store.taskMgmt.subtaskForm.is_milestone"
+                           class="rounded border-slate-300 text-primary focus:ring-primary">
+                    {{ _('里程碑') }}
+                </label>
+                <template x-if="$store.taskMgmt.subtaskForm.is_milestone">
+                    <div class="flex-1"
+                         x-data="userSearchPicker({
+                             users: $store.taskMgmt.allUsers,
+                             multiple: true,
+                             selected: $store.taskMgmt.subtaskForm.selectedConfirmers,
+                             tagColor: 'amber',
+                             placeholder: '{{ _('搜索确认人') }}',
+                             onChange(arr) { $store.taskMgmt.subtaskForm.selectedConfirmers = arr; }
+                         })"
+                         x-effect="if ($store.taskMgmt.showSubtaskModal) { setUsers($store.taskMgmt.allUsers); setSelected($store.taskMgmt.subtaskForm.selectedConfirmers); }">
+                        {{ render_user_search_picker(ref='stConfirmer') }}
+                    </div>
+                </template>
+            </div>
+            {# 双滑块日期范围选择 #}
+            <div x-data="dateRangeSlider()" x-effect="syncFromForm()" class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm font-medium text-slate-600 dark:text-slate-400">{{ _('时间范围') }}</span>
+                    <span class="text-xs text-slate-400" x-text="parentLabel"></span>
+                </div>
+                {# 滑轨容器 #}
+                <div class="relative h-8 select-none" x-ref="track">
+                    {# 背景轨道 #}
+                    <div class="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700"></div>
+                    {# 选中区间 #}
+                    <div class="absolute top-1/2 -translate-y-1/2 h-1.5 rounded-full bg-primary/60"
+                         :style="'left:' + leftPct + '%;right:' + (100 - rightPct) + '%'"></div>
+                    {# 左滑块 #}
+                    <div class="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow cursor-grab active:cursor-grabbing z-10"
+                         :style="'left:calc(' + leftPct + '% - 8px)'"
+                         @mousedown.prevent="startDrag('left', $event)"
+                         @touchstart.prevent="startDrag('left', $event)"></div>
+                    {# 右滑块 #}
+                    <div class="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-white border-2 border-primary shadow cursor-grab active:cursor-grabbing z-10"
+                         :style="'left:calc(' + rightPct + '% - 8px)'"
+                         @mousedown.prevent="startDrag('right', $event)"
+                         @touchstart.prevent="startDrag('right', $event)"></div>
+                </div>
+                {# 日期标签 #}
+                <div class="flex items-center justify-between text-xs">
+                    <span class="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+                          x-text="startLabel"></span>
+                    <span class="text-slate-400">→</span>
+                    <span class="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium"
+                          x-text="endLabel"></span>
+                </div>
+            </div>
+        </div>
+        <div class="flex justify-end gap-2 mt-5">
+            <button @click="$store.taskMgmt.showSubtaskModal = false"
+                    class="px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition">{{ _('取消') }}</button>
+            <button @click="$store.taskMgmt.saveSubtaskFromModal()"
+                    class="px-4 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-blue-700 transition">{{ _('保存') }}</button>
+        </div>
+    </div>
+</div>
+
+{# ═══════════ 里程碑确认弹窗 ═══════════ #}
+<div x-data x-show="$store.taskMgmt && $store.taskMgmt.showMilestoneModal" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center"
+     @keydown.escape.window="$store.taskMgmt && ($store.taskMgmt.showMilestoneModal = false)">
+    <div class="absolute inset-0 bg-black/40" @click="$store.taskMgmt.showMilestoneModal = false"></div>
+    <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" @click.stop>
+        <h3 class="text-base font-semibold mb-2 text-slate-900 dark:text-white"
+            x-text="$store.taskMgmt?.milestoneAction === 'confirm' ? '{{ _('确认里程碑') }}' : '{{ _('驳回里程碑') }}'"></h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400 mb-3"
+           x-text="'{{ _('子任务') }}：' + ($store.taskMgmt?.milestoneTarget?.title || '')"></p>
+        <textarea x-model="$store.taskMgmt.milestoneComment" rows="3"
+                  :placeholder="'{{ _('输入意见（可选）...') }}'"
+                  class="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary"></textarea>
+        <div class="flex justify-end gap-2 mt-4">
+            <button @click="$store.taskMgmt.showMilestoneModal = false"
+                    class="px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition">{{ _('取消') }}</button>
+            <button @click="$store.taskMgmt.submitMilestoneDecisionFromModal()"
+                    :class="$store.taskMgmt?.milestoneAction === 'confirm'
+                        ? 'bg-green-600 hover:bg-green-700'
+                        : 'bg-red-600 hover:bg-red-700'"
+                    class="px-4 py-1.5 text-sm text-white rounded-lg transition"
+                    x-text="$store.taskMgmt?.milestoneAction === 'confirm' ? '{{ _('确认通过') }}' : '{{ _('驳回') }}'"></button>
+        </div>
+    </div>
+</div>
+
+{# ═══════════ 暂停理由弹窗 ═══════════ #}
+<div x-data x-show="$store.taskMgmt && $store.taskMgmt.showPauseModal" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center"
+     @keydown.escape.window="$store.taskMgmt && ($store.taskMgmt.showPauseModal = false)">
+    <div class="absolute inset-0 bg-black/40" @click="$store.taskMgmt.showPauseModal = false"></div>
+    <div class="relative bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5" @click.stop>
+        <h3 class="text-base font-semibold mb-2 text-slate-900 dark:text-white flex items-center gap-2">
+            <span class="material-symbols-outlined text-amber-500">pause_circle</span>
+            {{ _('暂停任务') }}
+        </h3>
+        <p class="text-sm text-slate-500 dark:text-slate-400 mb-3">{{ _('请填写暂停理由') }}</p>
+        <textarea x-model="$store.taskMgmt.pauseReason" rows="3"
+                  :placeholder="'{{ _('暂停理由...') }}'"
+                  class="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary"></textarea>
+        <div class="flex justify-end gap-2 mt-4">
+            <button @click="$store.taskMgmt.showPauseModal = false"
+                    class="px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition">{{ _('取消') }}</button>
+            <button @click="$store.taskMgmt.submitPauseFromModal()"
+                    class="px-4 py-1.5 text-sm text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition">{{ _('确认暂停') }}</button>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+{% endcall %}
+
+{# ═══════════ 脚本 ═══════════ #}
+{{ render_tw_layout_script() }}
+<script>window.CURRENT_USER_ID = {{ current_user.id }};</script>
+<script>
+/** 双滑块日期范围选择器 — 限定在父任务周期内 */
+function dateRangeSlider() {
+    return {
+        // 父任务边界（天数偏移）
+        totalDays: 1,
+        parentStart: null,   // Date
+        parentEnd: null,     // Date
+        leftVal: 0,          // 天数偏移（从 parentStart 起）
+        rightVal: 1,
+        dragging: null,      // 'left' | 'right' | null
+
+        get leftPct()  { return this.totalDays ? (this.leftVal  / this.totalDays * 100) : 0; },
+        get rightPct() { return this.totalDays ? (this.rightVal / this.totalDays * 100) : 100; },
+        get startLabel() { return this._offsetToStr(this.leftVal); },
+        get endLabel()   { return this._offsetToStr(this.rightVal); },
+        get parentLabel() {
+            if (!this.parentStart || !this.parentEnd) return '{{ _("请先设置任务时间") }}';
+            return this._fmt(this.parentStart) + ' ~ ' + this._fmt(this.parentEnd);
+        },
+
+        _synced: false,
+        /** 从 store / selectedTask 同步边界和已有值（仅弹窗打开时执行一次） */
+        syncFromForm() {
+            // 检测弹窗是否打开 — 作为 x-effect 的响应触发点
+            const show = Alpine.store('taskMgmt')?.showSubtaskModal;
+            if (!show) { this._synced = false; return; }
+            if (this._synced) return;
+            this._synced = true;
+
+            const comp = Alpine.store('taskMgmt')._component;
+            const task = comp?.selectedTask;
+            if (!task) return;
+            // 解析父任务边界
+            const ps = task.start_date ? new Date(task.start_date + 'T00:00:00') : null;
+            const pe = task.due_date   ? new Date(task.due_date.slice(0, 10) + 'T00:00:00') : null;
+            if (!ps || !pe || pe <= ps) { this.totalDays = 1; this.parentStart = null; this.parentEnd = null; return; }
+            this.parentStart = ps;
+            this.parentEnd = pe;
+            this.totalDays = Math.round((pe - ps) / 86400000);
+            if (this.totalDays < 1) this.totalDays = 1;
+            // 同步已有值
+            const form = Alpine.store('taskMgmt').subtaskForm;
+            if (form.start_date) {
+                const sd = new Date(form.start_date + 'T00:00:00');
+                this.leftVal = Math.max(0, Math.min(this.totalDays, Math.round((sd - ps) / 86400000)));
+            } else {
+                this.leftVal = 0;
+            }
+            if (form.due_date) {
+                const ed = new Date(form.due_date + 'T00:00:00');
+                this.rightVal = Math.max(this.leftVal, Math.min(this.totalDays, Math.round((ed - ps) / 86400000)));
+            } else {
+                this.rightVal = this.totalDays;
+            }
+            this._writeBack();
+        },
+
+        /** 拖拽开始 */
+        startDrag(which, e) {
+            if (!this.parentStart) return;
+            this.dragging = which;
+            const onMove = (ev) => {
+                const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+                const rect = this.$refs.track.getBoundingClientRect();
+                let pct = (clientX - rect.left) / rect.width;
+                pct = Math.max(0, Math.min(1, pct));
+                let day = Math.round(pct * this.totalDays);
+                if (this.dragging === 'left') {
+                    day = Math.min(day, this.rightVal);
+                    this.leftVal = day;
+                } else {
+                    day = Math.max(day, this.leftVal);
+                    this.rightVal = day;
+                }
+                this._writeBack();
+            };
+            const onUp = () => {
+                this.dragging = null;
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                document.removeEventListener('touchmove', onMove);
+                document.removeEventListener('touchend', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onUp);
+        },
+
+        /** 回写到 store.subtaskForm */
+        _writeBack() {
+            const form = Alpine.store('taskMgmt').subtaskForm;
+            form.start_date = this._offsetToStr(this.leftVal);
+            form.due_date   = this._offsetToStr(this.rightVal);
+        },
+        _offsetToStr(days) {
+            if (!this.parentStart) return '';
+            const d = new Date(this.parentStart);
+            d.setDate(d.getDate() + days);
+            return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        },
+        _fmt(d) {
+            return (d.getMonth()+1) + '/' + d.getDate();
+        },
+    };
+}
+</script>
+<script src="{{ url_for('static', filename='js/user-search-picker.js') }}"></script>
+<script src="{{ url_for('static', filename='js/task-management.js') }}"></script>
+</body>
+</html>

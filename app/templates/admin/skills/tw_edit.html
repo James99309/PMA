@@ -1,0 +1,195 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>编辑 {{ skill.title }} - PMA</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" }, fontFamily: { "display": ["Inter", "sans-serif"] } } }
+        }
+    </script>
+    <style>[x-cloak] { display: none !important; }</style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark font-display text-gray-800 dark:text-gray-200 antialiased">
+
+{% call(slot) render_tw_layout(active_page='skill_list') %}
+{% if slot == 'content' %}
+
+<div class="p-4 lg:p-6 space-y-5">
+
+    {# ===== 页头 ===== #}
+    <div class="flex items-center gap-3">
+        <a href="{{ url_for('admin.skill_detail', skill_id=skill.id) }}"
+           class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+            <span class="material-symbols-outlined text-lg">arrow_back</span>
+        </a>
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white">编辑 Skill：{{ skill.title }}</h1>
+            <p class="text-xs text-gray-400 mt-0.5">修改后自动保存新版本，旧版本可随时回滚</p>
+        </div>
+    </div>
+
+    {# ===== 表单 ===== #}
+    <form method="POST" class="space-y-5">
+
+        {# 变更说明 #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                变更说明
+                {% if skill.skill_type == 'docx' %}<span class="text-gray-400 font-normal text-xs ml-1">（将记录在版本历史中）</span>{% endif %}
+            </label>
+            <input type="text" name="change_note"
+                   placeholder="例：修正触发词 / 优化 SQL 查询逻辑"
+                   class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-sm focus:ring-primary focus:border-primary">
+        </div>
+
+        {# 标题（sql 类型可编辑） #}
+        {% if skill.skill_type == 'sql' %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">标题</label>
+            <input type="text" name="title" value="{{ skill.title }}"
+                   class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-sm focus:ring-primary focus:border-primary">
+        </div>
+        {% endif %}
+
+        {# 触发词 / API 摘要 #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                {% if skill.skill_type == 'docx' %}API 摘要{% else %}触发词 / 描述{% endif %}
+            </label>
+            <p class="text-xs text-gray-400 mb-3">
+                {% if skill.skill_type == 'docx' %}
+                    注入 system prompt，告知 Claude 可用函数。
+                {% else %}
+                    注入 system prompt，告知 Claude 何时调用此 Skill。描述越精准，agent 选 Skill 越准确。
+                {% endif %}
+            </p>
+            <textarea name="description" rows="{{ 16 if skill.skill_type == 'docx' else 5 }}"
+                      class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-xs font-mono focus:ring-primary focus:border-primary leading-relaxed"
+                      style="tab-size:4">{{ skill.description or '' }}</textarea>
+        </div>
+
+        {# SQL 步骤编辑（仅 sql 类型） #}
+        {% if skill.skill_type == 'sql' %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5 space-y-5">
+            <div>
+                <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300">SQL 查询步骤</h3>
+                <p class="text-xs text-gray-400 mt-0.5">支持占位符：<code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{param_name}</code> <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{period_start}</code> <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{period_end}</code></p>
+            </div>
+            {% for q in skill.queries or [] %}
+            <div class="border border-gray-200 dark:border-gray-600 rounded-lg p-4 space-y-3">
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded px-2 py-0.5">步骤 {{ loop.index }}</span>
+                    <input type="text" name="query_as_name_{{ loop.index0 }}" value="{{ q.as_name or '' }}"
+                           placeholder="步骤名 (as_name)"
+                           class="w-36 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-xs font-mono focus:ring-primary focus:border-primary">
+                    <input type="text" name="query_desc_{{ loop.index0 }}" value="{{ q.description or '' }}"
+                           placeholder="步骤说明（可选）"
+                           class="flex-1 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-xs focus:ring-primary focus:border-primary">
+                </div>
+                <textarea name="query_sql_{{ loop.index0 }}" rows="8"
+                          class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-xs font-mono focus:ring-primary focus:border-primary leading-relaxed"
+                          style="tab-size:4">{{ q.sql or '' }}</textarea>
+            </div>
+            {% endfor %}
+        </div>
+
+        {# 参数定义 #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">参数定义（JSON）</label>
+            <p class="text-xs text-gray-400 mb-3">type 可选值：<code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">string | number | date | boolean | period</code></p>
+            <textarea name="parameters_json" rows="10"
+                      class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-xs font-mono focus:ring-primary focus:border-primary leading-relaxed"
+                      style="tab-size:4">{{ skill.parameters | tojson(indent=2) if skill.parameters else '[]' }}</textarea>
+        </div>
+
+        {# 输出模板（低优先级，有 render 函数时忽略） #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                输出模板（Markdown）
+                <span class="text-gray-400 font-normal text-xs ml-1">可选，有 Python 渲染函数时此项被忽略</span>
+            </label>
+            <p class="text-xs text-gray-400 mb-3">使用 <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{step_name.table}</code> 渲染表格，<code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{param_name}</code> 引用参数值</p>
+            <textarea name="output_format" rows="8"
+                      class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-xs font-mono focus:ring-primary focus:border-primary leading-relaxed"
+                      style="tab-size:4">{{ skill.output_format or '' }}</textarea>
+        </div>
+
+        {# Python 渲染函数（高优先级，输出到终端对话） #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+            <div class="flex items-start justify-between mb-1">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Python 渲染函数
+                    <span class="ml-1.5 text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full px-2 py-0.5">优先</span>
+                </label>
+            </div>
+            <p class="text-xs text-gray-400 mb-1">定义 <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">render(results, params)</code> 函数，返回 Markdown 字符串，输出到终端对话框。</p>
+            <p class="text-xs text-gray-400 mb-3">
+                <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">results</code> = <span class="text-gray-500">{step_name: {columns, rows, row_count}}</span> &nbsp;
+                <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">params</code> = <span class="text-gray-500">用户传入的参数字典</span>
+            </p>
+            <textarea name="skill_body" rows="22"
+                      class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-xs font-mono focus:ring-primary focus:border-primary leading-relaxed"
+                      placeholder="def render(results, params):&#10;    lines = []&#10;    for step, data in results.items():&#10;        lines.append(f'### {step} ({data[&quot;row_count&quot;]} 行)')&#10;        # ... 格式化逻辑 ...&#10;    return '\n'.join(lines)"
+                      style="tab-size:4">{{ skill.skill_body or '' }}</textarea>
+        </div>
+        {% endif %}
+
+        {# Skill Body（仅 docx） #}
+        {% if skill.skill_type == 'docx' %}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Skill Body
+                <span class="text-gray-400 font-normal text-xs ml-1">（Python 函数库代码）</span>
+            </label>
+            <p class="text-xs text-gray-400 mb-3">完整的样式库实现代码，执行时自动作为 <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">pma_docx_style.py</code> 注入沙盒。</p>
+            <textarea name="skill_body" rows="35"
+                      class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 text-xs font-mono focus:ring-primary focus:border-primary leading-relaxed"
+                      style="tab-size:4">{{ skill.skill_body or '' }}</textarea>
+        </div>
+        {% endif %}
+
+        {# 底部操作栏 #}
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex items-center justify-between">
+            <label class="flex items-center gap-2.5 cursor-pointer">
+                <input type="checkbox" name="is_active" {% if skill.is_active %}checked{% endif %}
+                       class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary">
+                <span class="text-sm text-gray-700 dark:text-gray-300">启用（注入智能终端 system prompt）</span>
+            </label>
+            <div class="flex items-center gap-3">
+                <a href="{{ url_for('admin.skill_detail', skill_id=skill.id) }}"
+                   class="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                    取消
+                </a>
+                <button type="submit"
+                        class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-blue-600 transition-colors">
+                    <span class="material-symbols-outlined text-sm" style="font-size:16px">save</span>
+                    保存并创建新版本
+                </button>
+            </div>
+        </div>
+
+    </form>
+
+</div>
+{% endif %}
+{% endcall %}
+
+{{ render_tw_layout_script() }}
+</body>
+</html>

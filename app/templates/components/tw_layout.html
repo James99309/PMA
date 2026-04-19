@@ -225,11 +225,13 @@ document.addEventListener('submit', function(e) {
                 </div>
             </div>
 
-            <!-- 产品积分 -->
-            <div id="navProductPoints" class="hidden relative" x-data="{ open: false }" title="{{ _('我的产品积分') }}">
+            <!-- 工作积分 -->
+            <div id="navProductPoints" class="flex relative" x-data="{ open: false }" title="{{ _('我的工作积分') }}">
                 <button @click="open = !open" class="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity">
                     <span id="navPointsCoin" class="flex-shrink-0"></span>
-                    <span id="navPointsValue" class="text-sm font-semibold">--</span>
+                    <span id="navPointsTier" class="text-xs font-medium text-slate-400">新手</span>
+                    <span class="text-slate-300 dark:text-slate-600 text-xs mx-0.5">·</span>
+                    <span id="navPointsValue" class="text-sm font-semibold text-slate-400">0</span>
                 </button>
                 <!-- 积分明细弹出卡片 -->
                 <div id="pointsDropdownCard"
@@ -243,6 +245,9 @@ document.addEventListener('submit', function(e) {
                     <div class="border-t border-slate-100 dark:border-slate-700 pt-3">
                         <div id="pointsCardCategories" class="space-y-2"></div>
                     </div>
+                    <a href="/points/" class="block mt-3 pt-3 border-t border-slate-100 dark:border-slate-700 text-center text-sm text-primary hover:underline">
+                        {{ _('查看详情') }} →
+                    </a>
                 </div>
             </div>
 
@@ -310,8 +315,35 @@ document.addEventListener('submit', function(e) {
                 </div>
             </div>
 
-            <!-- 新建任务 -->
-            {{ render_task_create_button() }}
+            <!-- 我的任务 -->
+            <div class="relative" x-data="{ taskOpen: false }" id="navTaskPanel">
+                <button @click="taskOpen = !taskOpen; if(taskOpen) loadNavTaskSummary()"
+                        title="{{ _('我的任务') }}"
+                        class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors relative">
+                    <span class="material-symbols-outlined text-xl">task_alt</span>
+                    <span id="navTaskBadge" class="hidden absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center"></span>
+                </button>
+                <!-- 任务下拉面板 -->
+                <div class="absolute top-full right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden"
+                     x-show="taskOpen" x-transition x-cloak @click.outside="taskOpen = false">
+                    <div class="px-4 pt-4 pb-2 flex items-center justify-between">
+                        <span class="text-sm font-semibold text-slate-900 dark:text-white">{{ _('我的任务') }}</span>
+                        <span id="navTaskTotal" class="text-xs text-slate-400"></span>
+                    </div>
+                    <!-- 任务列表 -->
+                    <div id="navTaskList" class="px-2 pb-2 space-y-1">
+                        <div class="flex items-center justify-center py-6 text-sm text-slate-400">
+                            <span class="material-symbols-outlined animate-spin text-base mr-1">progress_activity</span>
+                            {{ _('加载中...') }}
+                        </div>
+                    </div>
+                    <!-- 底部入口 -->
+                    <a href="{{ url_for('task.task_management') }}"
+                       class="block px-4 py-2.5 text-center text-sm text-primary hover:bg-slate-50 dark:hover:bg-slate-700/50 border-t border-slate-100 dark:border-slate-700 font-medium">
+                        {{ _('进入任务管理') }} →
+                    </a>
+                </div>
+            </div>
 
             <!-- 消息通知 -->
             {{ render_message_button() }}
@@ -416,8 +448,10 @@ document.addEventListener('submit', function(e) {
 {# 聊天面板脚本 #}
 <script>window.__chatUserIsAdmin = {{ 'true' if current_user.role in ['admin', 'ceo'] else 'false' }};</script>
 {{ render_chat_panel_script() }}
+{# 通用用户搜索选择器 #}
+<script src="{{ url_for('static', filename='js/user-search-picker.js') }}"></script>
 {# 任务模态框脚本 #}
-{{ render_task_modal_script(current_user.id) }}
+{{ render_task_modal_script(current_user.id, current_user.real_name or current_user.username) }}
 {# 新手引导资源 #}
 {{ render_onboarding_resources() }}
 {# 检测刚登录标记，设置 sessionStorage 供消息面板使用 #}
@@ -608,9 +642,9 @@ document.addEventListener('submit', function(e) {
     }
 
     function getPointsTier(pts) {
-        if (pts >= 10000000) return 'gold';
-        if (pts >= 1000000) return 'silver';
-        if (pts >= 100000) return 'bronze';
+        if (pts >= 2000) return 'gold';
+        if (pts >= 500) return 'silver';
+        if (pts >= 100) return 'bronze';
         return 'none';
     }
 
@@ -620,32 +654,62 @@ document.addEventListener('submit', function(e) {
 
         const lang = document.documentElement.lang || 'zh';
 
+        // 在 fetch 完成前先渲染 localStorage 缓存的上次值，避免从"0"闪跳
+        const cached = getPreviousPointsState();
+        const tierColors = {gold:'#EAB308', silver:'#A1A1AA', bronze:'#F97316', none:'#94A3B8'};
+        const tierStrokes = {gold:'#CA8A04', silver:'#71717A', bronze:'#EA580C', none:'#64748B'};
+        const tierTextCls = {gold:'text-yellow-600', silver:'text-zinc-500', bronze:'text-orange-500', none:'text-slate-400'};
+        const tierLabels  = {gold:'金牌', silver:'银牌', bronze:'青铜', none:'新手'};
+        const tierLabelsEn= {gold:'Gold', silver:'Silver', bronze:'Bronze', none:'Novice'};
+
+        function renderCoin(tier) {
+            const c = tierColors[tier] || tierColors.none, s = tierStrokes[tier] || tierStrokes.none;
+            return `<svg class="w-5 h-5 inline-block" viewBox="0 0 24 24" fill="none">` +
+                `<circle cx="12" cy="12" r="10.5" fill="${c}" opacity="0.15"/>` +
+                `<circle cx="12" cy="12" r="9.5" stroke="${c}" stroke-width="1.5"/>` +
+                `<circle cx="12" cy="12" r="7" stroke="${c}" stroke-width="0.75" opacity="0.4"/>` +
+                `<text x="12" y="16.5" text-anchor="middle" font-size="11" font-weight="700" fill="${s}" font-family="serif">$</text>` +
+                `</svg>`;
+        }
+
+        if (cached) {
+            // 用上次缓存值初始化，避免从 0 开始显示
+            const ct = cached.tier || 'none';
+            document.getElementById('navPointsCoin').innerHTML = renderCoin(ct);
+            const tierEl = document.getElementById('navPointsTier');
+            if (tierEl) { tierEl.className = 'text-xs font-medium ' + tierTextCls[ct]; tierEl.textContent = lang === 'en' ? tierLabelsEn[ct] : tierLabels[ct]; }
+            const valEl = document.getElementById('navPointsValue');
+            if (valEl) { valEl.className = 'text-sm font-semibold ' + tierTextCls[ct]; valEl.textContent = formatPoints(cached.points, ct); }
+        } else {
+            // 首次：渲染灰色硬币 + 0
+            document.getElementById('navPointsCoin').innerHTML = renderCoin('none');
+        }
+
         fetch('/points/api/nav-summary')
             .then(r => r.json())
             .then(data => {
-                if (!data.success || !data.total_points) return;
-                const tier = data.points_tier || getPointsTier(data.total_points);
+                if (!data.success) return;
+                const total = data.total_points || 0;
+                const tier = getPointsTier(total);
 
-                const colors = {gold:'#EAB308', silver:'#A1A1AA', bronze:'#F97316', none:'#7C9CBF'};
-                const strokes = {gold:'#CA8A04', silver:'#71717A', bronze:'#EA580C', none:'#5A7A9B'};
-                const textClasses = {gold:'text-yellow-600', silver:'text-zinc-500', bronze:'text-orange-500', none:'text-slate-600'};
-                const c = colors[tier], s = strokes[tier];
+                const textClasses = tierTextCls;
 
-                document.getElementById('navPointsCoin').innerHTML =
-                    `<svg class="w-5 h-5 inline-block" viewBox="0 0 24 24" fill="none">` +
-                    `<circle cx="12" cy="12" r="10.5" fill="${c}" opacity="0.15"/>` +
-                    `<circle cx="12" cy="12" r="9.5" stroke="${c}" stroke-width="1.5"/>` +
-                    `<circle cx="12" cy="12" r="7" stroke="${c}" stroke-width="0.75" opacity="0.4"/>` +
-                    `<text x="12" y="16.5" text-anchor="middle" font-size="11" font-weight="700" fill="${s}" font-family="serif">$</text>` +
-                    `</svg>`;
+                document.getElementById('navPointsCoin').innerHTML = renderCoin(tier);
+
+                // 等级名称
+                const tierEl = document.getElementById('navPointsTier');
+                if (tierEl) {
+                    tierEl.className = 'text-xs font-medium ' + textClasses[tier];
+                    tierEl.textContent = lang === 'en' ? tierLabelsEn[tier] : tierLabels[tier];
+                }
 
                 const valueEl = document.getElementById('navPointsValue');
                 valueEl.className = 'text-sm font-semibold ' + textClasses[tier];
 
-                // 检测积分变化并播放动画
-                const prev = getPreviousPointsState();
+                // 检测积分变化：prev 已在 fetch 前读过（cached），直接复用
+                const prev = cached;
                 const year = data.year || new Date().getFullYear();
-                const change = detectPointsChange(prev, data.total_points, tier, year);
+                const change = detectPointsChange(prev, total, tier, year);
 
                 if (change.type !== 'none') {
                     animateCounter(valueEl, change.oldValue, change.newValue, 800, v => formatPoints(v, tier));
@@ -654,10 +718,10 @@ document.addEventListener('submit', function(e) {
                     btn.classList.add('points-animating', change.type);
                     setTimeout(() => btn.classList.remove('points-animating', 'increase', 'decrease'), 1200);
                 } else {
-                    valueEl.textContent = formatPoints(data.total_points, tier);
+                    valueEl.textContent = formatPoints(total, tier);
                 }
 
-                storePointsState(data.total_points, tier, year);
+                storePointsState(total, tier, year);
 
                 // 填充弹出卡片
                 const yearEl = document.getElementById('pointsCardYear');
@@ -665,7 +729,7 @@ document.addEventListener('submit', function(e) {
 
                 const totalEl = document.getElementById('pointsCardTotal');
                 if (totalEl) {
-                    totalEl.textContent = data.total_points.toLocaleString();
+                    totalEl.textContent = total.toLocaleString();
                     totalEl.className = 'text-2xl font-bold mb-3 ' + textClasses[tier];
                 }
 
@@ -678,21 +742,113 @@ document.addEventListener('submit', function(e) {
                         `</div>`
                     ).join('');
                 }
-
-                container.classList.remove('hidden');
-                container.classList.add('flex');
             })
             .catch(() => {});
+    }
+
+    // ─── 导航栏任务摘要 ───
+    const _priorityLabel = { urgent: '{{ _("紧急") }}', high: '{{ _("高") }}', normal: '{{ _("普通") }}', low: '{{ _("低") }}' };
+    const _priorityCls = {
+        urgent: 'bg-red-500 text-white',
+        high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400',
+        normal: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
+        low: 'bg-slate-50 text-slate-400 dark:bg-slate-700/50 dark:text-slate-500',
+    };
+    const _statusLabel = { pending: '{{ _("等待开始") }}', in_progress: '{{ _("进行中") }}', paused: '{{ _("已暂停") }}' };
+
+    window.loadNavTaskSummary = async function() {
+        const listEl = document.getElementById('navTaskList');
+        try {
+            const res = await fetch('/task/api/nav-summary');
+            const data = await res.json();
+            if (!data.success) {
+                if (listEl) listEl.innerHTML = '<div class="text-center py-6 text-sm text-slate-400">{{ _("加载失败") }}</div>';
+                return;
+            }
+
+            // 更新 badge
+            const badge = document.getElementById('navTaskBadge');
+            if (badge) {
+                if (data.total > 0) {
+                    badge.textContent = data.total > 99 ? '99+' : data.total;
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            }
+            // 更新 total
+            const totalEl = document.getElementById('navTaskTotal');
+            if (totalEl) totalEl.textContent = data.total + ' {{ _("项") }}';
+
+            // 渲染列表
+            const listEl = document.getElementById('navTaskList');
+            if (!listEl) return;
+            if (data.tasks.length === 0) {
+                listEl.innerHTML = '<div class="flex flex-col items-center py-6 text-slate-400 text-sm"><span class="material-symbols-outlined text-3xl mb-1">task_alt</span>{{ _("暂无进行中的任务") }}</div>';
+                return;
+            }
+            listEl.innerHTML = data.tasks.map(t => {
+                const pct = t.subtask_count > 0 ? Math.round(t.subtask_completed / t.subtask_count * 100) : 0;
+                const progressText = t.subtask_count > 0 ? t.subtask_completed + '/' + t.subtask_count : '-';
+                const pCls = _priorityCls[t.priority] || _priorityCls.normal;
+                const pLbl = _priorityLabel[t.priority] || t.priority;
+                // 截止日期
+                let dueText = '-';
+                let dueCls = 'text-slate-400';
+                if (t.due_date) {
+                    const d = new Date(t.due_date);
+                    const now = new Date();
+                    const diffDays = Math.ceil((d - now) / 86400000);
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const hh = String(d.getHours()).padStart(2, '0');
+                    const mi = String(d.getMinutes()).padStart(2, '0');
+                    dueText = mm + '/' + dd + ' ' + hh + ':' + mi;
+                    if (diffDays < 0) dueCls = 'text-red-500 font-medium';
+                    else if (diffDays <= 2) dueCls = 'text-amber-500';
+                }
+                return `<a href="/task/management?open=${t.id}" class="block px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group">
+                    <div class="flex items-center gap-2 mb-1.5">
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold leading-none ${pCls}">${pLbl}</span>
+                        <span class="text-sm font-medium text-slate-900 dark:text-white truncate flex-1 group-hover:text-primary transition-colors">${t.title}</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-xs text-slate-400">
+                        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">schedule</span><span class="${dueCls}">${dueText}</span></span>
+                        <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[14px]">checklist</span>${progressText}</span>
+                        <div class="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden ml-auto max-w-[60px]">
+                            <div class="h-full rounded-full ${pct >= 100 ? 'bg-green-500' : 'bg-primary'}" style="width:${pct}%"></div>
+                        </div>
+                    </div>
+                </a>`;
+            }).join('');
+        } catch (e) {
+            console.error('加载任务摘要失败:', e);
+            if (listEl) listEl.innerHTML = '<div class="text-center py-6 text-sm text-slate-400">{{ _("加载失败") }}</div>';
+        }
+    };
+
+    function initNavTaskBadge() {
+        // 页面加载时仅更新badge数字，不展开面板
+        fetch('/task/api/nav-summary').then(r => r.json()).then(data => {
+            if (!data.success) return;
+            const badge = document.getElementById('navTaskBadge');
+            if (badge && data.total > 0) {
+                badge.textContent = data.total > 99 ? '99+' : data.total;
+                badge.classList.remove('hidden');
+            }
+        }).catch(() => {});
     }
 
     // 初始化
     document.addEventListener('DOMContentLoaded', updateLanguageDisplay);
     document.addEventListener('DOMContentLoaded', updateCalendarPendingDot);
     document.addEventListener('DOMContentLoaded', loadNavProductPoints);
+    document.addEventListener('DOMContentLoaded', initNavTaskBadge);
     if (document.readyState !== 'loading') {
         updateLanguageDisplay();
         updateCalendarPendingDot();
         loadNavProductPoints();
+        initNavTaskBadge();
     }
 })();
 </script>

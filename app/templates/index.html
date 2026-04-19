@@ -16,7 +16,7 @@
     <!-- DNS预解析和预连接，加速CDN资源加载 -->
     <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
     <link rel="dns-prefetch" href="https://fonts.gstatic.cn">
-    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="/static/vendor/tailwind/tailwind.forms.min.js">
     <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
     <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
     <!-- 字体：使用国内镜像，非阻塞加载 -->
@@ -27,7 +27,7 @@
         <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     </noscript>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
     <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
     <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
     <script>

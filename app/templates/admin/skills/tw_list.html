@@ -1,0 +1,215 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>Skill 管理 - PMA</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" }, fontFamily: { "display": ["Inter", "sans-serif"] } } }
+        }
+    </script>
+    <style>[x-cloak] { display: none !important; }</style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark font-display text-gray-800 dark:text-gray-200 antialiased">
+
+{% call(slot) render_tw_layout(active_page='skill_list') %}
+{% if slot == 'content' %}
+
+{# 把 skill 数据序列化给 Alpine #}
+<script>
+const SKILLS_DATA = {{ skills | map(attribute='__dict__') | list | tojson(default=str) | safe if false else '[]' }};
+// 直接用服务端渲染的行，通过 scope 属性过滤
+</script>
+
+<div class="p-4 lg:p-6 space-y-5" x-data="{ activeTab: 'global' }">
+
+    {# ===== 页头 ===== #}
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary">extension</span>
+                Skill 管理
+            </h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">管理智能终端的 Skill，包括文档生成样式库</p>
+        </div>
+    </div>
+
+    {# ===== Tab 栏 ===== #}
+    <div class="flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
+        <button @click="activeTab = 'global'"
+                :class="activeTab === 'global' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                class="px-4 py-2.5 text-sm font-medium transition-colors -mb-px whitespace-nowrap">
+            全局 Skill
+            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-800 text-slate-500">
+                {{ skills | selectattr('scope', 'equalto', 'global') | list | length }}
+            </span>
+        </button>
+        <button @click="activeTab = 'personal'"
+                :class="activeTab === 'personal' ? 'border-b-2 border-primary text-primary' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                class="px-4 py-2.5 text-sm font-medium transition-colors -mb-px whitespace-nowrap">
+            个人 Skill
+            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-800 text-slate-500">
+                {{ skills | rejectattr('scope', 'equalto', 'global') | list | length }}
+            </span>
+        </button>
+    </div>
+
+    {# ===== Skill 表格 ===== #}
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        <th class="px-5 py-3 text-left font-medium">名称 / 标题</th>
+                        <th class="px-4 py-3 text-left font-medium">类型</th>
+                        <th class="px-4 py-3 text-left font-medium">状态</th>
+                        <th class="px-4 py-3 text-left font-medium">版本</th>
+                        <th class="px-4 py-3 text-left font-medium">更新时间</th>
+                        <th class="px-5 py-3 text-right font-medium">操作</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+
+                    {# 全局 Skill #}
+                    {% set global_skills = skills | selectattr('scope', 'equalto', 'global') | list %}
+                    {% for skill in global_skills %}
+                    <tr x-show="activeTab === 'global'"
+                        class="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+                        <td class="px-5 py-3.5">
+                            <a href="{{ url_for('admin.skill_detail', skill_id=skill.id) }}"
+                               class="font-medium text-gray-900 dark:text-white hover:text-primary transition-colors">
+                                {{ skill.title }}
+                            </a>
+                            <p class="text-xs text-gray-400 font-mono mt-0.5">{{ skill.name }}</p>
+                        </td>
+                        <td class="px-4 py-3.5">
+                            {% if skill.skill_type == 'docx' %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-full px-2 py-0.5">
+                                <span class="material-symbols-outlined" style="font-size:13px">description</span>docx
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full px-2 py-0.5">
+                                <span class="material-symbols-outlined" style="font-size:13px">storage</span>sql
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5">
+                            {% if skill.is_active %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>启用
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+                                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>停用
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 text-gray-500 dark:text-gray-400 text-xs">
+                            {% set ver = skill.current_version %}
+                            {% if ver %}v{{ ver.version }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap">
+                            {{ skill.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                        <td class="px-5 py-3.5 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <a href="{{ url_for('admin.skill_detail', skill_id=skill.id) }}"
+                                   class="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                    详情
+                                </a>
+                                <a href="{{ url_for('admin.skill_edit', skill_id=skill.id) }}"
+                                   class="text-xs px-2.5 py-1.5 rounded-lg bg-primary text-white hover:bg-blue-600 transition-colors">
+                                    编辑
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr x-show="activeTab === 'global'" x-cloak
+                        {% if global_skills %}style="display:none"{% endif %}>
+                        <td colspan="6" class="px-5 py-10 text-center text-gray-400 text-sm">暂无全局 Skill</td>
+                    </tr>
+
+                    {# 个人 Skill #}
+                    {% set personal_skills = skills | rejectattr('scope', 'equalto', 'global') | list %}
+                    {% for skill in personal_skills %}
+                    <tr x-show="activeTab === 'personal'"
+                        class="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+                        <td class="px-5 py-3.5">
+                            <a href="{{ url_for('admin.skill_detail', skill_id=skill.id) }}"
+                               class="font-medium text-gray-900 dark:text-white hover:text-primary transition-colors">
+                                {{ skill.title }}
+                            </a>
+                            <p class="text-xs text-gray-400 font-mono mt-0.5">{{ skill.name }}</p>
+                        </td>
+                        <td class="px-4 py-3.5">
+                            {% if skill.skill_type == 'docx' %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-full px-2 py-0.5">
+                                <span class="material-symbols-outlined" style="font-size:13px">description</span>docx
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 rounded-full px-2 py-0.5">
+                                <span class="material-symbols-outlined" style="font-size:13px">storage</span>sql
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5">
+                            {% if skill.is_active %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 dark:text-green-400">
+                                <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>启用
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+                                <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>停用
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 text-gray-500 dark:text-gray-400 text-xs">
+                            {% set ver = skill.current_version %}
+                            {% if ver %}v{{ ver.version }}{% else %}—{% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 text-gray-400 text-xs whitespace-nowrap">
+                            {{ skill.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                        </td>
+                        <td class="px-5 py-3.5 text-right">
+                            <div class="flex items-center justify-end gap-2">
+                                <a href="{{ url_for('admin.skill_detail', skill_id=skill.id) }}"
+                                   class="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                    详情
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr x-show="activeTab === 'personal'" x-cloak
+                        {% if personal_skills %}style="display:none"{% endif %}>
+                        <td colspan="6" class="px-5 py-10 text-center text-gray-400 text-sm">暂无个人 Skill</td>
+                    </tr>
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endif %}
+{% endcall %}
+
+{{ render_tw_layout_script() }}
+</body>
+</html>

@@ -527,6 +527,7 @@
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('approval_config.template_list') }}">{{ _('审批流程配置') }}</a></li>
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('change_history.index') }}">{{ _('历史记录') }}</a></li>
                                 <li><a class="nav-link text-sm py-2" href="{{ url_for('backup.index') }}">{{ _('数据库备份') }}</a></li>
+                                <li><a class="nav-link text-sm py-2" href="{{ url_for('admin.skill_list') }}">Skill 管理</a></li>
                             </ul>
                         </details>
                     </li>
@@ -561,6 +562,11 @@
                             <li>
                                 <a class="dropdown-item" href="{{ url_for('backup.index') }}">
                                     {{ _('数据库备份') }}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('admin.skill_list') }}">
+                                    Skill 管理
                                 </a>
                             </li>
                         </ul>
