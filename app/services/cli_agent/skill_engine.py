@@ -625,32 +625,46 @@ def _execute_render_body(
     code: str,
     step_results: dict[str, dict],
     raw_params: dict,
-) -> str:
-    """执行 SQL skill 的 Python 渲染函数，返回 Markdown 字符串。
+) -> tuple[str, list]:
+    """执行 SQL skill 的 Python 渲染函数，返回 (Markdown字符串, artifacts列表)。
 
     代码必须定义 `def render(results, params): return str`。
+    render 函数可调用注入的辅助函数：
+      artifact_table(step_name, title='')  → 生成表格 artifact，返回占位文字
+      artifact_card(step_name, mapping='') → 生成卡片 artifact，返回占位文字
     执行失败时降级到 _fallback_output 并附加错误提示。
     """
+    collected_artifacts: list = []
+
+    def _helper_artifact_table(step_name: str, title: str = '') -> str:
+        return _collect_artifact_table(step_name, step_results, title, collected_artifacts)
+
+    def _helper_artifact_card(step_name: str, mapping: str = '') -> str:
+        return _collect_artifact_card(step_name, step_results, mapping, collected_artifacts)
+
     namespace: dict = dict(_SAFE_BUILTINS)
+    namespace['artifact_table'] = _helper_artifact_table
+    namespace['artifact_card'] = _helper_artifact_card
+
     try:
         exec(compile(code, '<skill_render_body>', 'exec'), namespace)  # noqa: S102
     except SyntaxError as e:
         logger.warning(f'[SkillEngine] render_body 编译失败: {e}')
-        return _fallback_output(step_results) + f'\n\n> ⚠️ 渲染函数语法错误: {e}'
+        return _fallback_output(step_results) + f'\n\n> ⚠️ 渲染函数语法错误: {e}', []
 
     render_fn = namespace.get('render')
     if not callable(render_fn):
         logger.warning('[SkillEngine] render_body 未定义 render() 函数')
-        return _fallback_output(step_results) + '\n\n> ⚠️ 渲染函数未定义 render(results, params)'
+        return _fallback_output(step_results) + '\n\n> ⚠️ 渲染函数未定义 render(results, params)', []
 
     try:
         result = render_fn(step_results, raw_params)
         if not isinstance(result, str):
             result = str(result)
-        return result.strip()
+        return result.strip(), collected_artifacts
     except Exception as e:
         logger.warning(f'[SkillEngine] render_body 执行异常: {e}')
-        return _fallback_output(step_results) + f'\n\n> ⚠️ 渲染函数执行失败: {e}'
+        return _fallback_output(step_results) + f'\n\n> ⚠️ 渲染函数执行失败: {e}', []
 
 
 # ---------------------------------------------------------------------------
@@ -783,7 +797,8 @@ class SkillEngine:
         artifacts: list[dict] = []
         try:
             if skill.skill_type == 'sql' and skill.skill_body:
-                output = _execute_render_body(skill.skill_body, step_results, params)
+                output, body_artifacts = _execute_render_body(skill.skill_body, step_results, params)
+                artifacts.extend(body_artifacts)
             else:
                 output = _render_output_template(
                     skill.output_format,
