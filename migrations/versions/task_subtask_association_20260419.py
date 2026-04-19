@@ -8,7 +8,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = 'task_subtask_assoc_20260419'
-down_revision = 'task_multi_reviewers_20260419'
+down_revision = 'task_multi_review_20260419'
 branch_labels = None
 depends_on = None
 
