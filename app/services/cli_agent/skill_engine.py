@@ -514,10 +514,11 @@ def _collect_artifact_table(step_name: str, step_results: dict, title: str, arti
 def _parse_card_mapping(mapping_str: str, columns: list) -> dict:
     """解析 artifact_card 参数字符串，返回 {role: [col_name, ...]} 映射。
 
-    格式: "title=姓名,sub=部门,tags=角色|职级,kv=入职日期|直属上级"
+    格式: "title=姓名,sub=部门,tags=角色|职级,kv=入职日期|直属上级,_label=用户信息"
+    _label 为卡片区块标题（不对应列名）。
     若未提供参数，自动按列顺序分配：第1列→title，第2列→sub，其余→kv。
     """
-    mapping = {'title': [], 'sub': [], 'tags': [], 'kv': []}
+    mapping = {'title': [], 'sub': [], 'tags': [], 'kv': [], '_label': []}
     if mapping_str.strip():
         for part in mapping_str.split(','):
             part = part.strip()
@@ -525,6 +526,9 @@ def _parse_card_mapping(mapping_str: str, columns: list) -> dict:
                 continue
             role, cols_str = part.split('=', 1)
             role = role.strip()
+            if role == '_label':
+                mapping['_label'] = [cols_str.strip()]
+                continue
             col_names = [c.strip() for c in cols_str.split('|') if c.strip()]
             if role in mapping:
                 mapping[role] = col_names
@@ -584,7 +588,8 @@ def _collect_artifact_card(step_name: str, step_results: dict, mapping_str: str,
 
     sep = '<hr style="border:none;border-top:0.5px solid #f3f4f6;margin:8px 0">'
     body_html = sep.join(cards_html)
-    artifacts_out.append(_build_artifact_html(step_name, body_html))
+    display_label = mapping['_label'][0] if mapping['_label'] else step_name
+    artifacts_out.append(_build_artifact_html(display_label, body_html))
 
     summary = title_val if len(rows) == 1 else f'{len(rows)} 条记录'
     return f'*（{summary}）*'

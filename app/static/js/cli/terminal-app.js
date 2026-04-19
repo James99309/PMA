@@ -352,19 +352,58 @@ class CliTerminalApp {
     this._finishStreamingBlock();
     const wrap = document.createElement('div');
     wrap.className = 'cli-artifact';
+
+    // 标题栏 + 展开/折叠按钮
     const header = document.createElement('div');
     header.className = 'cli-artifact-header';
-    header.textContent = title;
+    header.style.cssText = 'cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none';
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = title;
+    const chevron = document.createElement('span');
+    chevron.textContent = '▾';
+    chevron.style.cssText = 'font-size:10px;opacity:0.5;transition:transform .2s';
+    header.appendChild(titleSpan);
+    header.appendChild(chevron);
+
     const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'width:100%;border:none;display:block;min-height:40px';
+    iframe.style.cssText = 'width:100%;border:none;display:block;min-height:40px;transition:height .2s';
     iframe.sandbox = 'allow-scripts';
     iframe.srcdoc = html;
-    iframe.onload = () => {
+
+    // 高度自适应：用 postMessage 或直接读取
+    const resizeIframe = () => {
       try {
-        const h = iframe.contentDocument?.documentElement?.scrollHeight;
-        if (h) iframe.style.height = h + 'px';
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc) {
+          const h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight);
+          if (h > 0) iframe.style.height = h + 'px';
+        }
       } catch (_) {}
     };
+    iframe.onload = () => {
+      resizeIframe();
+      // 二次检查（图片/字体加载后高度可能变化）
+      setTimeout(resizeIframe, 200);
+    };
+
+    // 折叠逻辑
+    let collapsed = false;
+    let savedHeight = '';
+    header.addEventListener('click', () => {
+      collapsed = !collapsed;
+      if (collapsed) {
+        savedHeight = iframe.style.height;
+        iframe.style.height = '0';
+        iframe.style.overflow = 'hidden';
+        chevron.style.transform = 'rotate(-90deg)';
+      } else {
+        iframe.style.height = savedHeight || '200px';
+        iframe.style.overflow = '';
+        chevron.style.transform = '';
+        setTimeout(resizeIframe, 50);
+      }
+    });
+
     wrap.appendChild(header);
     wrap.appendChild(iframe);
     this.els.transcript.appendChild(wrap);
