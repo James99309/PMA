@@ -757,7 +757,8 @@ _BUILTIN_SKILLS: list[dict] = [
                 'as_name': 'lost_paused',
                 'description': '期间变为搁置或失败的项目（销售角色用）',
                 'sql': (
-                    "SELECT p.project_name AS 项目, "
+                    "SELECT DISTINCT ON (sh.project_id, sh.to_stage, sh.change_date::date) "
+                    "p.project_name AS 项目, "
                     "CASE sh.to_stage WHEN 'lost' THEN '❌ 失败' ELSE '⏸ 搁置' END AS 结果, "
                     "sh.from_stage AS 原阶段, "
                     "sh.change_date::date AS 变更日期, "
@@ -770,7 +771,7 @@ _BUILTIN_SKILLS: list[dict] = [
                     "AND sh.change_date >= {period_start}::date "
                     "AND sh.change_date < ({period_end}::date + INTERVAL '1 day') "
                     "AND sh.to_stage IN ('lost', 'paused') "
-                    "ORDER BY sh.change_date DESC "
+                    "ORDER BY sh.project_id, sh.to_stage, sh.change_date::date, sh.id DESC "
                     "LIMIT 10"
                 ),
             },

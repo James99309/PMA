@@ -40,6 +40,9 @@ class CliTerminalApp {
     this._streamingBlock = null;
     this._streamingText  = '';
     this._abortController = null;
+
+    // 智能滚动：用户手动上滚时暂停自动跟随
+    this._userScrolled = false;
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -49,9 +52,22 @@ class CliTerminalApp {
   async init() {
     this._bindInput();
     this._bindShortcuts();
+    this._bindScrollWatch();
     this._autoResize();
     await this._loadSessions();
     this.els.input.focus();
+  }
+
+  _bindScrollWatch() {
+    this.els.body.addEventListener('scroll', () => {
+      const el = this.els.body;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 60;
+      if (atBottom) {
+        this._userScrolled = false;
+      } else if (this.isStreaming) {
+        this._userScrolled = true;
+      }
+    }, { passive: true });
   }
 
   async _loadSessions() {
@@ -407,6 +423,7 @@ class CliTerminalApp {
     this._appendUserLine(text);
     this._clearInput();
     this.isStreaming = true;
+    this._userScrolled = false;  // 发送新消息时重置，确保能跟随到最新内容
     this._abortController = new AbortController();
     this._setInputDisabled(true);
     this._finishStreamingBlock();
@@ -473,6 +490,8 @@ class CliTerminalApp {
       this._setInputDisabled(false);
       this._finishStreamingBlock();
       this._removeLoadingDots();
+      this._userScrolled = false;
+      this._scrollToBottom();  // 流结束后强制滚到底（让用户看到完整结果）
       this.els.input.focus();
     }
   }
@@ -1054,7 +1073,8 @@ class CliTerminalApp {
     }
   }
 
-  _scrollToBottom() {
+  _scrollToBottom(force = false) {
+    if (!force && this._userScrolled) return;
     this.els.body.scrollTop = this.els.body.scrollHeight;
   }
 
