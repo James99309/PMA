@@ -38,7 +38,7 @@ class Task(db.Model):
 
     # 状态
     status = Column(String(20), default='pending', nullable=False, index=True)
-    # pending / in_progress / completed / cancelled
+    # pending(等待开始) / in_progress / paused / pending_review / completed
     priority = Column(String(20), default='normal', nullable=False)
     # normal / high / urgent （UI 仅提供三级，low 保留兼容）
 
@@ -66,6 +66,13 @@ class Task(db.Model):
     shared_with_users = Column(JSON, default=list, comment='协助人员ID列表')
     task_type = Column(String(30), default='general', comment='任务类型: general/product_dev/custom')
 
+    # 审计（会审：多人并行审核）
+    review_status = Column(String(20), nullable=True, comment='pending_review/approved/rejected')
+    reviewed_at = Column(DateTime, nullable=True)
+    # 保留旧字段兼容迁移，新逻辑使用 task_reviewers 表
+    reviewer_id = Column(Integer, ForeignKey('users.id'), nullable=True, comment='[废弃]旧单审计人')
+    review_comment = Column(Text, nullable=True, comment='[废弃]旧审计意见')
+
     # 系统
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
@@ -81,11 +88,23 @@ class Task(db.Model):
     subtasks = relationship('SubTask', backref='task', lazy='dynamic',
                             cascade='all, delete-orphan',
                             order_by='SubTask.sort_order, SubTask.created_at')
+    task_reviewers = relationship('TaskReviewer', backref='task', lazy='joined',
+                                  cascade='all, delete-orphan',
+                                  order_by='TaskReviewer.created_at')
 
     __table_args__ = (
         Index('ix_tasks_assignee_status', 'assignee_id', 'status'),
         Index('ix_tasks_creator_status', 'creator_id', 'status'),
     )
+
+    @property
+    def effective_status(self):
+        """开始时间到达后 pending 自动变为 in_progress"""
+        if self.status == 'pending' and self.start_date:
+            from datetime import date as _date
+            if self.start_date <= _date.today():
+                return 'in_progress'
+        return self.status
 
     def to_dict(self):
         """完整序列化"""
@@ -97,7 +116,7 @@ class Task(db.Model):
             'creator_name': (self.creator.real_name or self.creator.username) if self.creator else None,
             'assignee_id': self.assignee_id,
             'assignee_name': (self.assignee.real_name or self.assignee.username) if self.assignee else None,
-            'status': self.status,
+            'status': self.effective_status,
             'priority': self.priority,
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'due_date': self.due_date.isoformat() if self.due_date else None,
@@ -115,6 +134,10 @@ class Task(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'shared_with_users': self.shared_with_users or [],
             'task_type': self.task_type or 'general',
+            'review_status': self.review_status,
+            'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
+            'is_audit_task': len(self.task_reviewers) > 0,
+            'reviewers': [r.to_dict() for r in self.task_reviewers],
             'attachment_count': self.attachments.filter_by(is_deleted=False).count() if self.attachments else 0,
             'reply_count': self.replies.filter_by(is_deleted=False).count() if self.replies else 0,
             'subtask_count': self.subtasks.filter_by(is_deleted=False).count(),
@@ -138,11 +161,14 @@ class Task(db.Model):
         }
         color = priority_colors.get(self.priority, '#f97316')
 
-        # 已完成用绿色，已取消用灰色
-        if self.status == 'completed':
+        # 已完成用绿色，已暂停用琥珀色
+        es = self.effective_status
+        if es == 'completed':
             color = '#16a34a'  # green-600
-        elif self.status == 'cancelled':
-            color = '#9ca3af'
+        elif es == 'paused':
+            color = '#d97706'  # amber-600
+        elif es == 'pending':
+            color = '#94a3b8'  # slate-400
 
         return {
             'id': f'task-{self.id}',
@@ -155,7 +181,7 @@ class Task(db.Model):
             'extendedProps': {
                 'event_type': 'task',
                 'task_id': self.id,
-                'status': self.status,
+                'status': es,
                 'priority': self.priority,
                 'assignee_name': (self.assignee.real_name or self.assignee.username) if self.assignee else None,
             }
@@ -168,14 +194,45 @@ class TaskAttachment(db.Model):
 
     id = Column(Integer, primary_key=True)
     task_id = Column(Integer, ForeignKey('tasks.id'), nullable=False, index=True)
+    subtask_id = Column(Integer, ForeignKey('subtasks.id', ondelete='SET NULL'), nullable=True, comment='关联子任务')
     filename = Column(String(255), nullable=False)
     storage_path = Column(String(500), nullable=False)
     file_size = Column(Integer, default=0)
     file_type = Column(String(100))
     uploaded_by = Column(Integer, ForeignKey('users.id'), nullable=False)
     uploader = relationship('User', foreign_keys=[uploaded_by])
+    subtask = relationship('SubTask', foreign_keys=[subtask_id], lazy='joined')
     created_at = Column(DateTime, default=get_local_time)
     is_deleted = Column(Boolean, default=False)
+
+
+class TaskReviewer(db.Model):
+    """任务审计人（会审）"""
+    __tablename__ = 'task_reviewers'
+
+    id = Column(Integer, primary_key=True)
+    task_id = Column(Integer, ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    status = Column(String(20), default='pending', nullable=False, comment='pending/approved/rejected')
+    comment = Column(Text, nullable=True, comment='审计意见')
+    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=get_local_time)
+
+    reviewer = relationship('User', foreign_keys=[reviewer_id], lazy='joined')
+
+    __table_args__ = (
+        Index('ix_task_reviewers_task_reviewer', 'task_id', 'reviewer_id', unique=True),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'reviewer_id': self.reviewer_id,
+            'reviewer_name': (self.reviewer.real_name or self.reviewer.username) if self.reviewer else None,
+            'status': self.status,
+            'comment': self.comment,
+            'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
+        }
 
 
 class TaskReply(db.Model):
@@ -184,8 +241,10 @@ class TaskReply(db.Model):
 
     id = Column(Integer, primary_key=True)
     task_id = Column(Integer, ForeignKey('tasks.id'), nullable=False, index=True)
+    subtask_id = Column(Integer, ForeignKey('subtasks.id', ondelete='SET NULL'), nullable=True, comment='关联子任务')
     author_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     author = relationship('User', foreign_keys=[author_id])
+    subtask = relationship('SubTask', foreign_keys=[subtask_id], lazy='joined')
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=get_local_time)
     is_deleted = Column(Boolean, default=False)

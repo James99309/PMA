@@ -42,12 +42,14 @@ class SubTask(db.Model):
     # 排序
     sort_order = Column(Integer, default=0)
 
-    # 里程碑
+    # 里程碑（会审：多人并行确认）
     is_milestone = Column(Boolean, default=False, nullable=False)
-    milestone_confirmer_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    milestone_criteria = Column(Text, nullable=True, comment='里程碑达标条件')
     milestone_status = Column(String(20), nullable=True, comment='pending_confirmation/confirmed/rejected')
     milestone_confirmed_at = Column(DateTime, nullable=True)
-    milestone_comment = Column(Text, nullable=True, comment='确认/驳回意见')
+    # 保留旧字段兼容迁移，新逻辑使用 milestone_reviewers 表
+    milestone_confirmer_id = Column(Integer, ForeignKey('users.id'), nullable=True, comment='[废弃]旧单确认人')
+    milestone_comment = Column(Text, nullable=True, comment='[废弃]旧确认意见')
 
     # 系统字段
     created_at = Column(DateTime, default=get_local_time, nullable=False)
@@ -60,10 +62,22 @@ class SubTask(db.Model):
     updates = relationship('SubTaskUpdate', backref='subtask', lazy='dynamic',
                            cascade='all, delete-orphan',
                            order_by='SubTaskUpdate.created_at.desc()')
+    milestone_reviewers = relationship('MilestoneReviewer', backref='subtask', lazy='joined',
+                                       cascade='all, delete-orphan',
+                                       order_by='MilestoneReviewer.created_at')
 
     __table_args__ = (
         Index('ix_subtasks_task_status', 'task_id', 'status'),
     )
+
+    @property
+    def effective_status(self):
+        """pending + start_date 已到 → 自动视为 in_progress"""
+        if self.status == 'pending' and self.start_date:
+            from datetime import date as _date
+            if self.start_date <= _date.today():
+                return 'in_progress'
+        return self.status
 
     def to_dict(self):
         return {
@@ -75,15 +89,14 @@ class SubTask(db.Model):
             'assignee_name': (self.assignee.real_name or self.assignee.username) if self.assignee else None,
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'due_date': self.due_date.isoformat() if self.due_date else None,
-            'status': self.status,
+            'status': self.effective_status,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'sort_order': self.sort_order,
             'is_milestone': self.is_milestone,
-            'milestone_confirmer_id': self.milestone_confirmer_id,
-            'milestone_confirmer_name': (self.milestone_confirmer.real_name or self.milestone_confirmer.username) if self.milestone_confirmer else None,
+            'milestone_criteria': self.milestone_criteria,
             'milestone_status': self.milestone_status,
             'milestone_confirmed_at': self.milestone_confirmed_at.isoformat() if self.milestone_confirmed_at else None,
-            'milestone_comment': self.milestone_comment,
+            'milestone_reviewers': [r.to_dict() for r in self.milestone_reviewers],
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'update_count': self.updates.filter_by(is_deleted=False).count(),
         }
@@ -145,4 +158,33 @@ class SubTaskAttachment(db.Model):
             'uploaded_by': self.uploaded_by,
             'uploader_name': (self.uploader.real_name or self.uploader.username) if self.uploader else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class MilestoneReviewer(db.Model):
+    """里程碑确认人（会审）"""
+    __tablename__ = 'milestone_reviewers'
+
+    id = Column(Integer, primary_key=True)
+    subtask_id = Column(Integer, ForeignKey('subtasks.id', ondelete='CASCADE'), nullable=False)
+    reviewer_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    status = Column(String(20), default='pending', nullable=False, comment='pending/confirmed/rejected')
+    comment = Column(Text, nullable=True, comment='确认意见')
+    reviewed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=get_local_time)
+
+    reviewer = relationship('User', foreign_keys=[reviewer_id], lazy='joined')
+
+    __table_args__ = (
+        Index('ix_milestone_reviewers_subtask_reviewer', 'subtask_id', 'reviewer_id', unique=True),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'reviewer_id': self.reviewer_id,
+            'reviewer_name': (self.reviewer.real_name or self.reviewer.username) if self.reviewer else None,
+            'status': self.status,
+            'comment': self.comment,
+            'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
         }
