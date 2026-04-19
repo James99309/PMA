@@ -342,8 +342,8 @@ body:has(.cli-window) button.fixed.bottom-6.right-6.bg-primary.rounded-full { di
 .cli-md-table-wrap { margin: 0.2em 0; }
 
 /* 表格 */
-.cli-md-table-wrap { overflow-x: auto; overflow-y: auto; max-height: 272px; margin: 0.5em 0; border: 1px solid var(--cli-table-border); border-radius: 6px; }
-.cli-md-table { border-collapse: collapse; font-size: 13px; min-width: 200px; width: 100%; }
+.cli-md-table-wrap { overflow-x: auto; overflow-y: auto; max-height: 272px; width: fit-content; max-width: 100%; margin: 0.5em 0; border: 1px solid var(--cli-table-border); border-radius: 6px; }
+.cli-md-table { border-collapse: collapse; font-size: 13px; min-width: 200px; width: auto; }
 .cli-md-table th, .cli-md-table td {
     padding: 5px 12px; border-bottom: 1px solid var(--cli-table-border); text-align: left; white-space: nowrap;
 }
