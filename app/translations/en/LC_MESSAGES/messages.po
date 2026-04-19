@@ -27013,3 +27013,71 @@ msgstr "Task Review"
 msgid "输入审核意见（驳回时必填）..."
 msgstr "Enter review comments (required for rejection)..."
 
+#: app/templates/task/tw_task_management.html
+msgid "确认里程碑"
+msgstr "Confirm Milestone"
+
+msgid "驳回里程碑"
+msgstr "Reject Milestone"
+
+#: app/views/task.py (review_task)
+msgid "您不是此任务的审计对象"
+msgstr "You are not a reviewer of this task"
+
+msgid "任务不在待审核状态"
+msgstr "Task is not pending review"
+
+msgid "您已完成审核"
+msgstr "You have already completed the review"
+
+msgid "您已通过，等待其他审计人"
+msgstr "Approved. Waiting for other reviewers"
+
+msgid "无效的操作"
+msgstr "Invalid action"
+
+msgid "任务不在被驳回状态"
+msgstr "Task is not in rejected status"
+
+#: app/views/task.py (confirm_milestone)
+msgid "此节点不是里程碑"
+msgstr "This node is not a milestone"
+
+msgid "您不是此里程碑的确认人"
+msgstr "You are not a reviewer of this milestone"
+
+msgid "里程碑不在待确认状态"
+msgstr "Milestone is not pending confirmation"
+
+msgid "您已完成确认"
+msgstr "You have already confirmed"
+
+msgid "里程碑已确认通过"
+msgstr "Milestone confirmed"
+
+msgid "您已确认，等待其他确认人"
+msgstr "Confirmed. Waiting for other reviewers"
+
+msgid "里程碑已被驳回"
+msgstr "Milestone rejected"
+
+msgid "无效操作"
+msgstr "Invalid action"
+
+msgid "已重新提交审核"
+msgstr "Review resubmitted"
+
+msgid "该节点尚未到开始日期（%(date)s）"
+msgstr "This node has not reached its start date (%(date)s)"
+
+#: app/views/message.py
+msgid "任务「%(task)s」的节点「%(node)s」已完成，请确认"
+msgstr "Node \"%(node)s\" of task \"%(task)s\" is completed, please confirm"
+
+msgid "任务「%(task)s」已完成，请审核"
+msgstr "Task \"%(task)s\" is completed, please review"
+
+#: app/models/points.py
+msgid "审批参与"
+msgstr "Approval"
+

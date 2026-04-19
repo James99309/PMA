@@ -1061,11 +1061,11 @@ def review_task(id):
         # 找到当前用户的审计记录
         my_review = next((r for r in t.task_reviewers if r.reviewer_id == current_user.id), None)
         if not my_review:
-            return jsonify({'success': False, 'message': '您不是此任务的审计对象'}), 403
+            return jsonify({'success': False, 'message': _('您不是此任务的审计对象')}), 403
         if t.review_status != 'pending_review':
-            return jsonify({'success': False, 'message': '任务不在待审核状态'}), 400
+            return jsonify({'success': False, 'message': _('任务不在待审核状态')}), 400
         if my_review.status != 'pending':
-            return jsonify({'success': False, 'message': '您已完成审核'}), 400
+            return jsonify({'success': False, 'message': _('您已完成审核')}), 400
 
         data = request.get_json() or {}
         action = data.get('action')  # 'approve' or 'reject'
@@ -1103,7 +1103,7 @@ def review_task(id):
 
         elif action == 'reject':
             if not comment:
-                return jsonify({'success': False, 'message': '驳回时必须填写意见'}), 400
+                return jsonify({'success': False, 'message': _('驳回时必须填写意见')}), 400
             my_review.status = 'rejected'
             my_review.comment = comment
             my_review.reviewed_at = get_local_time()
@@ -1113,7 +1113,7 @@ def review_task(id):
             t.status = 'in_progress'
             msg_text = _('任务审核被驳回')
         else:
-            return jsonify({'success': False, 'message': '无效的操作'}), 400
+            return jsonify({'success': False, 'message': _('无效的操作')}), 400
 
         # 通知执行人（全部通过或被驳回时）
         if t.review_status in ('approved', 'rejected'):
@@ -1147,7 +1147,7 @@ def resubmit_review(id):
         if t.assignee_id != current_user.id and t.creator_id != current_user.id:
             return jsonify({'success': False, 'message': '无权操作'}), 403
         if t.review_status != 'rejected':
-            return jsonify({'success': False, 'message': '任务不在被驳回状态'}), 400
+            return jsonify({'success': False, 'message': _('任务不在被驳回状态')}), 400
 
         t.status = 'pending_review'
         t.review_status = 'pending_review'
@@ -1393,7 +1393,7 @@ def update_subtask_status(task_id, subtask_id):
             start = subtask.start_date or t.start_date
             if start and today < start:
                 return jsonify({'success': False,
-                                'message': f'该节点尚未到开始日期（{start.strftime("%m/%d")}）'}), 400
+                                'message': _('该节点尚未到开始日期（%(date)s）', date=start.strftime("%m/%d"))}), 400
             subtask.status = 'in_progress'
         elif action == 'complete':
             # 里程碑节点完成时进入待确认（会审）
@@ -1451,16 +1451,16 @@ def confirm_milestone(task_id, subtask_id):
         if not subtask:
             return jsonify({'success': False, 'message': '节点不存在'}), 404
         if not subtask.is_milestone:
-            return jsonify({'success': False, 'message': '此节点不是里程碑'}), 400
+            return jsonify({'success': False, 'message': _('此节点不是里程碑')}), 400
 
         # 找到当前用户的确认记录
         my_review = next((r for r in subtask.milestone_reviewers if r.reviewer_id == current_user.id), None)
         if not my_review:
-            return jsonify({'success': False, 'message': '您不是此里程碑的确认人'}), 403
+            return jsonify({'success': False, 'message': _('您不是此里程碑的确认人')}), 403
         if subtask.milestone_status != 'pending_confirmation':
-            return jsonify({'success': False, 'message': '里程碑不在待确认状态'}), 400
+            return jsonify({'success': False, 'message': _('里程碑不在待确认状态')}), 400
         if my_review.status != 'pending':
-            return jsonify({'success': False, 'message': '您已完成确认'}), 400
+            return jsonify({'success': False, 'message': _('您已完成确认')}), 400
 
         data = request.get_json() or {}
         action = data.get('action')  # 'confirm' or 'reject'
@@ -1490,7 +1490,7 @@ def confirm_milestone(task_id, subtask_id):
 
         elif action == 'reject':
             if not comment:
-                return jsonify({'success': False, 'message': '驳回时必须填写意见'}), 400
+                return jsonify({'success': False, 'message': _('驳回时必须填写意见')}), 400
             my_review.status = 'rejected'
             my_review.comment = comment
             my_review.reviewed_at = get_local_time()
@@ -1500,7 +1500,7 @@ def confirm_milestone(task_id, subtask_id):
             subtask.status = 'in_progress'
             msg_text = _('里程碑已被驳回')
         else:
-            return jsonify({'success': False, 'message': '无效操作'}), 400
+            return jsonify({'success': False, 'message': _('无效操作')}), 400
 
         # 通知任务执行人（全部确认或被驳回时）
         if subtask.milestone_status in ('confirmed', 'rejected'):
