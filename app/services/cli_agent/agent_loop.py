@@ -210,15 +210,27 @@ class AgentLoop:
                     output = {'error': f'工具执行异常: {e}'}
                     is_error = True
 
+                # invoke_skill 的 artifacts 直接推给前端，不经过 LLM
+                if tu['name'] == 'invoke_skill' and not is_error:
+                    arts = output.get('artifacts') or []
+                    print(f'[agent_loop] invoke_skill artifacts count={len(arts)}', flush=True)
+                    for art in arts:
+                        yield {'type': 'artifact', 'title': art.get('title', ''), 'html': art.get('html', '')}
+
+                # artifacts 体积大，不传给 LLM
+                llm_output = output
+                if tu['name'] == 'invoke_skill' and isinstance(output, dict) and 'artifacts' in output:
+                    llm_output = {k: v for k, v in output.items() if k != 'artifacts'}
+
                 tool_results.append(conv.tool_result_block(
                     tool_use_id=tu['id'],
-                    content=output,
+                    content=llm_output,
                     is_error=is_error,
                 ))
                 yield {
                     'type': 'tool_result',
                     'name': tu['name'],
-                    'output': output,
+                    'output': llm_output,
                     'is_error': is_error,
                 }
 

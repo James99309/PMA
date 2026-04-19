@@ -299,6 +299,31 @@ class CliTerminalApp {
     this._streamingText = '';
   }
 
+  // ── Artifact iframe 渲染 ───────────────────────────────────────────
+
+  _appendArtifact(title, html) {
+    this._finishStreamingBlock();
+    const wrap = document.createElement('div');
+    wrap.className = 'cli-artifact';
+    const header = document.createElement('div');
+    header.className = 'cli-artifact-header';
+    header.textContent = title;
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'width:100%;border:none;display:block;min-height:40px';
+    iframe.sandbox = 'allow-scripts';
+    iframe.srcdoc = html;
+    iframe.onload = () => {
+      try {
+        const h = iframe.contentDocument?.documentElement?.scrollHeight;
+        if (h) iframe.style.height = h + 'px';
+      } catch (_) {}
+    };
+    wrap.appendChild(header);
+    wrap.appendChild(iframe);
+    this.els.transcript.appendChild(wrap);
+    this._scrollToBottom();
+  }
+
   _appendToolStatus(text, spinning) {
     const div = document.createElement('div');
     div.className = 'cli-line cli-line-tool';
@@ -503,6 +528,11 @@ class CliTerminalApp {
           statusMsg = '生成文档...';
         }
         toolStatusEl = this._appendToolStatus(statusMsg, true);
+        break;
+
+      case 'artifact':
+        console.log('[artifact] received:', evt.title, 'html length:', (evt.html||'').length);
+        this._appendArtifact(evt.title || '数据', evt.html || '');
         break;
 
       case 'tool_result': {
