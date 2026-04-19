@@ -140,7 +140,8 @@ class SaveSkillTool(BaseTool):
 
         # 禁止创建与内置 Skill 同名或功能重复的
         _RESERVED = {'sales_activity_report', 'customer_overview', 'project_detail',
-                     'pipeline_analysis', 'sales_weekly_review', 'weekly_summary'}
+                     'pipeline_analysis', 'sales_weekly_review', 'weekly_summary',
+                     'work_summary'}
         if name in _RESERVED:
             return {'error': f'"{name}" 是内置 Skill，不允许重新创建。请直接使用 invoke_skill 调用。'}
         if not title:

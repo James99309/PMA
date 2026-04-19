@@ -434,6 +434,56 @@ def _fallback_output(step_results: dict[str, dict]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Python 渲染函数执行（SQL skill render body）
+# ---------------------------------------------------------------------------
+
+_SAFE_BUILTINS = {
+    '__builtins__': {
+        'str': str, 'int': int, 'float': float, 'bool': bool,
+        'len': len, 'range': range, 'sorted': sorted, 'reversed': reversed,
+        'enumerate': enumerate, 'zip': zip, 'map': map, 'filter': filter,
+        'dict': dict, 'list': list, 'set': set, 'frozenset': frozenset, 'tuple': tuple,
+        'sum': sum, 'min': min, 'max': max, 'round': round, 'abs': abs,
+        'isinstance': isinstance, 'type': type,
+        'print': print,  # 调试用，输出到 server log
+        'True': True, 'False': False, 'None': None,
+    }
+}
+
+
+def _execute_render_body(
+    code: str,
+    step_results: dict[str, dict],
+    raw_params: dict,
+) -> str:
+    """执行 SQL skill 的 Python 渲染函数，返回 Markdown 字符串。
+
+    代码必须定义 `def render(results, params): return str`。
+    执行失败时降级到 _fallback_output 并附加错误提示。
+    """
+    namespace: dict = dict(_SAFE_BUILTINS)
+    try:
+        exec(compile(code, '<skill_render_body>', 'exec'), namespace)  # noqa: S102
+    except SyntaxError as e:
+        logger.warning(f'[SkillEngine] render_body 编译失败: {e}')
+        return _fallback_output(step_results) + f'\n\n> ⚠️ 渲染函数语法错误: {e}'
+
+    render_fn = namespace.get('render')
+    if not callable(render_fn):
+        logger.warning('[SkillEngine] render_body 未定义 render() 函数')
+        return _fallback_output(step_results) + '\n\n> ⚠️ 渲染函数未定义 render(results, params)'
+
+    try:
+        result = render_fn(step_results, raw_params)
+        if not isinstance(result, str):
+            result = str(result)
+        return result.strip()
+    except Exception as e:
+        logger.warning(f'[SkillEngine] render_body 执行异常: {e}')
+        return _fallback_output(step_results) + f'\n\n> ⚠️ 渲染函数执行失败: {e}'
+
+
+# ---------------------------------------------------------------------------
 # 主入口
 # ---------------------------------------------------------------------------
 
@@ -558,19 +608,22 @@ class SkillEngine:
                 f'{step_results[step_name]["row_count"]} 行'
             )
 
-        # --- 3. 渲染输出模板 ---
+        # --- 3. 渲染输出 ---
+        # 优先级：SQL skill_body render() > output_format 模板 > fallback 默认
         try:
-            output = _render_output_template(
-                skill.output_format,
-                prepared_params,
-                params,          # 原始参数用于人类可读输出
-                step_results,
-            )
+            if skill.skill_type == 'sql' and skill.skill_body:
+                output = _execute_render_body(skill.skill_body, step_results, params)
+            else:
+                output = _render_output_template(
+                    skill.output_format,
+                    prepared_params,
+                    params,
+                    step_results,
+                )
         except Exception as e:
-            logger.exception('[SkillEngine] 输出模板渲染失败')
-            # 降级:返回原始数据
+            logger.exception('[SkillEngine] 输出渲染失败')
             output = _fallback_output(step_results)
-            output = f'(输出模板渲染失败,使用默认格式)\n\n{output}'
+            output = f'(输出渲染失败,使用默认格式)\n\n{output}'
 
         logger.info(f'[SkillEngine] 技能 {skill_name} 执行完成')
 

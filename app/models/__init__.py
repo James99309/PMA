@@ -39,8 +39,8 @@ from app.models.worklog_read import WorklogRead
 from app.models.dingtalk import DingtalkUserMapping, DingtalkSyncQueue
 from app.models.message import Message
 from app.models.quotation_confirmation_task import QuotationConfirmationTask
-from app.models.task import Task, TaskAttachment, TaskReply
-from app.models.subtask import SubTask, SubTaskUpdate, SubTaskAttachment
+from app.models.task import Task, TaskAttachment, TaskReply, TaskReviewer
+from app.models.subtask import SubTask, SubTaskUpdate, SubTaskAttachment, MilestoneReviewer
 from app.models.announcement import Announcement, AnnouncementRead, AnnouncementAttachment
 # 订单模块
 from app.models.product_test import ProductTest, ProductTestDetail, ProductTestSampling
@@ -100,8 +100,8 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'MeetingRecording', 'MeetingTranscript', 'MeetingSpeaker',
            'MeetingMinutes', 'MeetingActionItem',
            'QuotationConfirmationTask',
-           'Task', 'TaskAttachment', 'TaskReply',
-           'SubTask', 'SubTaskUpdate', 'SubTaskAttachment',
+           'Task', 'TaskAttachment', 'TaskReply', 'TaskReviewer',
+           'SubTask', 'SubTaskUpdate', 'SubTaskAttachment', 'MilestoneReviewer',
            'FileLibrary', 'UserFolder', 'UserFileRef',
            'KnowledgeTag', 'KnowledgeRawFile', 'KnowledgeWikiArticle',
            'AccessRequest',

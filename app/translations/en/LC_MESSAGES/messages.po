@@ -7848,6 +7848,10 @@ msgstr "Collapse approval flow"
 msgid "关联报价单"
 msgstr "Related Quotations"
 
+#: app/templates/components/tw_task_modal.html
+msgid "关联项目/报价单"
+msgstr "Link Project/Quotation"
+
 #: app/templates/components/tw_pricing_order_modal.html:255
 msgid "批价单位"
 msgstr "Pricing Company"
@@ -8981,6 +8985,172 @@ msgstr "Cancelled"
 #: app/templates/components/tw_task_modal.html:679 app/views/task.py:259
 msgid "任务已完成"
 msgstr "Task completed"
+
+#: app/views/task.py
+msgid "任务已提交审核"
+msgstr "Task submitted for review"
+
+#: app/views/task.py
+msgid "任务审核通过"
+msgstr "Task review approved"
+
+#: app/views/task.py
+msgid "任务审核被驳回"
+msgstr "Task review rejected"
+
+#: app/views/task.py
+msgid "已重新提交审核"
+msgstr "Resubmitted for review"
+
+#: app/views/task.py
+msgid "您已通过，等待其他审计人"
+msgstr "You approved, waiting for other reviewers"
+
+#: app/views/task.py
+msgid "里程碑已确认通过"
+msgstr "Milestone confirmed"
+
+#: app/views/task.py
+msgid "您已确认，等待其他确认人"
+msgstr "You confirmed, waiting for other reviewers"
+
+#: app/views/task.py
+msgid "里程碑已被驳回"
+msgstr "Milestone rejected"
+
+#: app/templates/components/tw_nav_menu.html
+msgid "任务中心"
+msgstr "Task Center"
+
+#: app/templates/components/tw_layout.html
+msgid "我的任务"
+msgstr "My Tasks"
+
+#: app/templates/components/tw_layout.html
+msgid "暂无进行中的任务"
+msgstr "No active tasks"
+
+#: app/templates/components/tw_layout.html
+msgid "进入任务管理"
+msgstr "Go to Task Management"
+
+msgid "时间线"
+msgstr "Timeline"
+
+msgid "不关联子任务"
+msgstr "No subtask"
+
+msgid "输入讨论内容，@ 关联子任务..."
+msgstr "Type to discuss, @ to mention subtask..."
+
+msgid "无匹配子任务"
+msgstr "No matching subtask"
+
+#: app/templates/components/tw_layout.html
+msgid "项"
+msgstr "items"
+
+#: app/templates/task/tw_task_management.html
+msgid "提交确认"
+msgstr "Submit for Review"
+
+#: app/templates/task/tw_task_management.html
+msgid "设为里程碑"
+msgstr "Set as Milestone"
+
+#: app/templates/task/tw_task_management.html
+msgid "暂无跟进记录"
+msgstr "No updates yet"
+
+#: app/templates/task/tw_task_management.html
+msgid "输入跟进内容..."
+msgstr "Enter update..."
+
+#: app/templates/task/tw_task_management.html
+msgid "开始"
+msgstr "Start"
+
+#: app/views/task.py
+msgid "节点已创建"
+msgstr "Node created"
+
+#: app/views/task.py
+msgid "节点已更新"
+msgstr "Node updated"
+
+#: app/views/task.py
+msgid "节点已删除"
+msgstr "Node deleted"
+
+#: app/templates/components/tw_task_modal.html
+msgid "审计对象"
+msgstr "Reviewer"
+
+#: app/templates/components/tw_task_modal.html
+msgid "可选，设置后为审计类任务"
+msgstr "Optional, enables audit workflow"
+
+msgid "可选，多人并行会审"
+msgstr "Optional, parallel joint review"
+
+#: app/templates/components/tw_task_modal.html
+msgid "搜索审计对象"
+msgstr "Search reviewer"
+
+#: app/templates/components/tw_task_modal.html
+msgid "审计类任务"
+msgstr "Audit Task"
+
+msgid "会审"
+msgstr "Joint Review"
+
+#: app/templates/components/tw_task_modal.html
+msgid "审计意见"
+msgstr "Review Comment"
+
+#: app/templates/components/tw_task_modal.html
+msgid "审计意见（驳回时必填）"
+msgstr "Review comment (required for rejection)"
+
+#: app/templates/components/tw_task_modal.html
+msgid "驳回"
+msgstr "Reject"
+
+#: app/templates/components/tw_task_modal.html
+msgid "通过"
+msgstr "Approve"
+
+#: app/templates/components/tw_task_modal.html
+msgid "重新提交审核"
+msgstr "Resubmit for Review"
+
+#: app/templates/components/tw_task_modal.html
+msgid "驳回时必须填写意见"
+msgstr "Comment is required for rejection"
+
+#: app/templates/components/tw_task_modal.html
+msgid "提交审核"
+msgstr "Submit for Review"
+
+#: app/templates/components/tw_task_modal.html
+msgid "确定提交审核？"
+msgstr "Submit for review?"
+
+#: app/templates/components/tw_task_modal.html
+msgid "待审核"
+msgstr "Pending Review"
+
+#: app/templates/components/tw_task_modal.html
+msgid "已通过"
+msgstr "Approved"
+
+#: app/templates/components/tw_task_modal.html
+msgid "已驳回"
+msgstr "Rejected"
+
+#: app/templates/components/tw_task_modal.html
+msgid "待提交"
+msgstr "Not Submitted"
 
 #: app/templates/components/tw_task_modal.html:696 app/views/task.py:279
 msgid "任务已取消"
@@ -19639,9 +19809,14 @@ msgstr "Are you sure to delete?"
 #: app/templates/spec_template/tw_edit.html:1976
 #: app/templates/spec_template/tw_edit.html:2012
 #: app/templates/spec_template/tw_spec_config_matrix.html:703
-#, fuzzy
 msgid "暂无附件"
-msgstr "Attachments"
+msgstr "No attachments"
+
+msgid "该子任务暂无附件"
+msgstr "No attachments for this subtask"
+
+msgid "该子任务暂无讨论"
+msgstr "No discussions for this subtask"
 
 #: app/templates/spec_template/tw_edit.html:2008
 #, fuzzy
@@ -26793,4 +26968,36 @@ msgstr "Revoke"
 
 #~ msgid "仅锁定配置可同步"
 #~ msgstr "Only locked configurations can be synced"
+
+#: app/templates/task/tw_task_management.html
+msgid "暂停任务"
+msgstr "Pause Task"
+
+#: app/templates/task/tw_task_management.html
+msgid "请填写暂停理由"
+msgstr "Please enter pause reason"
+
+#: app/templates/task/tw_task_management.html
+msgid "暂停理由..."
+msgstr "Pause reason..."
+
+#: app/templates/task/tw_task_management.html
+msgid "确认暂停"
+msgstr "Confirm Pause"
+
+#: app/templates/task/tw_task_management.html
+msgid "恢复任务"
+msgstr "Resume Task"
+
+#: app/templates/task/tw_task_management.html
+msgid "时间范围"
+msgstr "Date Range"
+
+#: app/templates/task/tw_task_management.html
+msgid "请先设置任务时间"
+msgstr "Set task dates first"
+
+#: app/templates/task/tw_task_management.html
+msgid "里程碑"
+msgstr "Milestone"
 

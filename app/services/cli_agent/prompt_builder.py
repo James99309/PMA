@@ -33,7 +33,7 @@ _STATIC_ROLE_AND_RULES = """\
 
 1. **工具优先** — 一切事实性问题必须调工具，不凭记忆回答。用户提到的任何实体（公司、人、项目），无论多知名，都要查。上一轮出现过的实体，追问时仍要重新查详情，不要从摘要里回答。
 2. **果断行动 + 一次做完** — 有合理默认就直接执行，不反问。在同一条回复里完成所有工具调用并给出完整答案。**严禁**说"如果你要我可以继续查"、"回复'继续'我就补齐"、"收到，马上开始"——说了就必须同时调工具。用户说"确认"或"好的"时，立刻执行而不是再回一条空话。
-3. **路由清晰** — 先检查是否匹配已有 Skill → `invoke_skill`（从用户消息中提取所有参数值，如人名、时间词等，映射到 Skill 参数后一次性传入，不要遗漏）；PMA 内部数据 → `query_pma_database`；外部公开信息 → `web_search`；创建 Skill → `save_skill`；用户说"导出Word/生成文档/下载报告" → `export_to_word`（把上一条回复的完整 Markdown 传入）；闲聊 → 婉拒。工具调用失败时立刻用正确参数重试，不要反问用户确认。
+3. **路由清晰** — 先检查是否匹配已有 Skill → `invoke_skill`（从用户消息中提取所有参数值，如人名、时间词等，映射到 Skill 参数后一次性传入，不要遗漏）；PMA 内部数据 → `query_pma_database`；外部公开信息 → `web_search`；创建 Skill → `save_skill`；用户说"导出Word/生成文档/生成报告/下载报告" → `export_to_word`（使用 [PMA Word 样式库] 中的函数写完整 python-docx 代码，传入 python_code 参数；db_type 从 [运行环境] 获取）；闲聊 → 婉拒。工具调用失败时立刻用正确参数重试，不要反问用户确认。
 4. **隐藏管道** — 永远不向用户暴露表名、字段名、SQL、ID、权限规则。查不到就说"暂无记录"。工具报错时转述友好信息。
 5. **数据呈现** — **按用户提问的语言回复**（中文问就中文答，English Q → English A；保留业务实体/人名/公司名的原文）。简洁直接，不写分析套话（不要"经营表现解读"、"阶段性结论"、"行动建议"等空话段落）。直接给数据和表格。紧凑排版，多行用 Markdown 表格；列头语言与回复语言一致。枚举值按 Schema 末尾的"枚举字段中文标签"对照后展示（英文回复时把中文标签译成对应英文，保留语义不变）。金额带千分位和货币符号。首次提及的业务实体**加粗**。
 6. **保留上下文** — 工具结果可能在长会话中被压缩清除，关键数据值（名称、金额、日期）必须在回复文本中复述。
@@ -80,6 +80,24 @@ Assistant: [调用 invoke_skill(skill_name="customer_profile", params={"keyword"
 """
 
 
+def _docx_skill_section() -> str:
+    """从 DB 读取 docx skill 的 description 注入 system prompt。
+    description 字段由管理员在 Admin UI 维护，包含 API 摘要供 Claude 参考。
+    完整实现（skill_body）由 export_to_word 在执行时写入 pma_docx_style.py。
+    """
+    try:
+        from app.models.cli_skill import CliSkill
+        skill = CliSkill.query.filter_by(
+            name='pma_docx_style', skill_type='docx', is_active=True
+        ).first()
+        if not skill or not skill.description:
+            return ''
+        return '\n' + skill.description + '\n'
+    except Exception as e:
+        current_app.logger.warning(f'[CLI Agent] 读取 docx skill 失败: {e}')
+        return ''
+
+
 def _schema_section() -> str:
     """生成分级 DB schema 段。
 
@@ -101,7 +119,7 @@ def _schema_section() -> str:
 
 def build_static_section() -> str:
     """整个 session 内不变的部分。享受 prompt cache。"""
-    return _STATIC_ROLE_AND_RULES + _schema_section()
+    return _STATIC_ROLE_AND_RULES + _schema_section() + _docx_skill_section()
 
 
 # ─── Skill 清单(动态,每用户不同)────────────────────────────────────────

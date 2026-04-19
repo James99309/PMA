@@ -107,11 +107,9 @@ def get_default_registry() -> ToolRegistry:
         _default_registry.register(SaveMemoryTool())
         _default_registry.register(DeleteMemoryTool())
 
-        # 注册 export_to_word（pandoc 可用时）
-        import shutil
-        if shutil.which('pandoc'):
-            from app.services.cli_agent.tools.export_to_word import ExportToWordTool
-            _default_registry.register(ExportToWordTool())
+        # 注册 export_to_word（python-docx 主路径，pandoc 兜底）
+        from app.services.cli_agent.tools.export_to_word import ExportToWordTool
+        _default_registry.register(ExportToWordTool())
 
         # 注册 web_search(只在配置了 TAVILY_API_KEY 时)
         import os

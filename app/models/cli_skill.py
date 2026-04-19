@@ -37,6 +37,12 @@ class CliSkill(db.Model):
     # 输出格式模板(Markdown),使用 {step_name.field} 占位符
     output_format = db.Column(db.Text, nullable=True)
 
+    # skill 类型: sql(默认) | docx(代码库型，注入 system prompt)
+    skill_type = db.Column(db.String(20), nullable=False, default='sql')
+
+    # docx 类型专用：完整 Python 函数库代码
+    skill_body = db.Column(db.Text, nullable=True)
+
     # 作用域: global / team / personal
     scope = db.Column(db.String(20), nullable=False, default=SCOPE_GLOBAL)
 
@@ -59,12 +65,19 @@ class CliSkill(db.Model):
             'parameters': self.parameters or [],
             'queries': self.queries or [],
             'output_format': self.output_format,
+            'skill_type': self.skill_type or 'sql',
+            'skill_body': self.skill_body,
             'scope': self.scope,
             'is_active': self.is_active,
             'created_by': self.created_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
+
+    @property
+    def current_version(self):
+        return CliSkillVersion.query.filter_by(skill_id=self.id).order_by(
+            CliSkillVersion.version.desc()).first()
 
     def to_prompt_description(self) -> str:
         """返回一行摘要,用于拼入 Agent 的 system prompt。
@@ -82,3 +95,32 @@ class CliSkill(db.Model):
                 parts.append(f'{name}[{req}]')
             param_info = f'（参数: {", ".join(parts)}）'
         return f"{self.name} — {self.title}{param_info}"
+
+
+class CliSkillVersion(db.Model):
+    """CliSkill 的历史版本快照"""
+
+    __tablename__ = 'cli_skill_versions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    skill_id = db.Column(db.Integer, db.ForeignKey('cli_skills.id', ondelete='CASCADE'),
+                         nullable=False, index=True)
+    version = db.Column(db.Integer, nullable=False)
+    skill_body = db.Column(db.Text, nullable=True)
+    change_note = db.Column(db.String(500), nullable=True)
+    created_by = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'),
+                           nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    skill = db.relationship('CliSkill', backref=db.backref('versions', lazy='dynamic',
+                             order_by='CliSkillVersion.version.desc()'))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'skill_id': self.skill_id,
+            'version': self.version,
+            'change_note': self.change_note,
+            'created_by': self.created_by,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }

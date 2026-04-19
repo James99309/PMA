@@ -209,7 +209,29 @@ class SmartStorageManager:
             except Exception as e:
                 logger.error(f"Supabase 回退上传失败: {e}")
 
-        logger.error("文件上传失败：NAS 和 Supabase 都不可用")
+        # NAS 和 Supabase 都不可用时，最终 fallback 到本地文件存储
+        try:
+            if hasattr(file, 'seek'):
+                file.seek(0)
+            local_result = self.supabase_client.upload_file(
+                object_id=object_id,
+                file=file if hasattr(file, 'read') else BytesIO(file_data),
+                filename=filename,
+                file_type=file_type,
+                bucket_type=bucket_type,
+                business_type=business_type,
+                **kwargs
+            )
+            if local_result:
+                result['url'] = local_result.get('url')
+                result['storage'] = 'local'
+                result['storage_path'] = local_result.get('storage_path', storage_path)
+                logger.info(f"文件回退到本地存储: {result['storage_path']}")
+                return result
+        except Exception as e:
+            logger.error(f"本地存储回退也失败: {e}")
+
+        logger.error("文件上传失败：所有存储方式都不可用")
         return None
 
     def _generate_storage_path(

@@ -10,8 +10,11 @@ import platform
 import tempfile
 from datetime import datetime
 from flask import render_template, current_app
-from weasyprint import HTML, CSS
-from weasyprint.text.fonts import FontConfiguration
+try:
+    from weasyprint import HTML, CSS
+    from weasyprint.text.fonts import FontConfiguration
+except Exception:
+    HTML = CSS = FontConfiguration = None
 import logging
 
 from jinja2 import Environment, FileSystemLoader
@@ -26,7 +29,7 @@ class PDFGenerator:
         self.env = Environment(loader=FileSystemLoader(self.template_dir))
         
         # 配置字体
-        self.font_config = FontConfiguration()
+        self.font_config = FontConfiguration() if FontConfiguration else None
         # 检查内嵌字体是否可用
         self.embedded_fonts_available = self._check_embedded_fonts()
         

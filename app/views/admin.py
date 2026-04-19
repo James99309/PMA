@@ -157,3 +157,115 @@ def ai_usage_stats_api():
 def index():
     """管理员首页"""
     return redirect(url_for('admin.system_settings'))
+
+
+# ─── Skill 管理 ──────────────────────────────────────────────────────────────
+
+@admin_bp.route('/skills')
+@admin_required
+def skill_list():
+    from app.models.cli_skill import CliSkill
+    skills = CliSkill.query.order_by(CliSkill.skill_type, CliSkill.title).all()
+    return render_template('admin/skills/tw_list.html', skills=skills)
+
+
+@admin_bp.route('/skills/<int:skill_id>')
+@admin_required
+def skill_detail(skill_id):
+    from app.models.cli_skill import CliSkill, CliSkillVersion
+    skill = CliSkill.query.get_or_404(skill_id)
+    versions = CliSkillVersion.query.filter_by(skill_id=skill_id).order_by(
+        CliSkillVersion.version.desc()).all()
+    return render_template('admin/skills/tw_detail.html', skill=skill, versions=versions)
+
+
+@admin_bp.route('/skills/<int:skill_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def skill_edit(skill_id):
+    from app.models.cli_skill import CliSkill, CliSkillVersion
+    from app import db
+    skill = CliSkill.query.get_or_404(skill_id)
+
+    if request.method == 'POST':
+        import json as _json
+        change_note = request.form.get('change_note', '').strip() or '管理员更新'
+        skill.is_active = bool(request.form.get('is_active'))
+        new_title = request.form.get('title', '').strip()
+        if new_title:
+            skill.title = new_title
+        new_desc = request.form.get('description', '').strip()
+        if new_desc:
+            skill.description = new_desc
+
+        if skill.skill_type == 'docx':
+            new_body = request.form.get('skill_body', '').strip()
+            if new_body:
+                last = CliSkillVersion.query.filter_by(skill_id=skill_id).order_by(
+                    CliSkillVersion.version.desc()).first()
+                next_ver = (last.version + 1) if last else 1
+                db.session.add(CliSkillVersion(
+                    skill_id=skill_id, version=next_ver,
+                    skill_body=new_body, change_note=change_note,
+                    created_by=current_user.id,
+                ))
+                skill.skill_body = new_body
+                flash(f'Skill 已更新（版本 v{next_ver}）', 'success')
+            else:
+                flash('Skill 基本信息已更新', 'success')
+
+        elif skill.skill_type == 'sql':
+            # 重建 queries 列表：每步 SQL 单独 textarea
+            existing = skill.queries or []
+            new_queries = []
+            for i, step in enumerate(existing):
+                sql_val = request.form.get(f'query_sql_{i}', '').strip()
+                as_name = request.form.get(f'query_as_name_{i}', step.get('as_name', '')).strip()
+                step_desc = request.form.get(f'query_desc_{i}', step.get('description', '')).strip()
+                new_queries.append({
+                    'sql': sql_val or step.get('sql', ''),
+                    'as_name': as_name,
+                    'description': step_desc,
+                })
+            skill.queries = new_queries
+
+            params_raw = request.form.get('parameters_json', '').strip()
+            if params_raw:
+                try:
+                    skill.parameters = _json.loads(params_raw)
+                except ValueError:
+                    flash('参数 JSON 格式错误，已保留原值', 'warning')
+
+            output_fmt = request.form.get('output_format', '').strip()
+            skill.output_format = output_fmt or skill.output_format
+            flash('Skill 已更新', 'success')
+
+        db.session.commit()
+        return redirect(url_for('admin.skill_detail', skill_id=skill_id))
+
+    return render_template('admin/skills/tw_edit.html', skill=skill)
+
+
+@admin_bp.route('/skills/<int:skill_id>/versions/<int:version_id>/restore', methods=['POST'])
+@admin_required
+def skill_version_restore(skill_id, version_id):
+    from app.models.cli_skill import CliSkill, CliSkillVersion
+    from app import db
+    skill = CliSkill.query.get_or_404(skill_id)
+    ver = CliSkillVersion.query.get_or_404(version_id)
+
+    last = CliSkillVersion.query.filter_by(skill_id=skill_id).order_by(
+        CliSkillVersion.version.desc()).first()
+    next_ver = (last.version + 1) if last else 1
+
+    snap = CliSkillVersion(
+        skill_id=skill_id,
+        version=next_ver,
+        skill_body=ver.skill_body,
+        change_note=f'从 v{ver.version} 回滚',
+        created_by=current_user.id,
+    )
+    db.session.add(snap)
+    skill.skill_body = ver.skill_body
+    db.session.commit()
+    flash(f'已从 v{ver.version} 回滚（新版本 v{next_ver}）', 'success')
+    return redirect(url_for('admin.skill_detail', skill_id=skill_id))

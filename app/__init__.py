@@ -1190,6 +1190,14 @@ def create_app(config_class=Config):
             except Exception as e:
                 app.logger.error(f"启动客户活跃度定时任务时出错: {str(e)}")
 
+        # 同步积分行为注册表到数据库
+        try:
+            from app.services.points_service import sync_registry_to_db
+            sync_registry_to_db()
+            app.logger.info("积分行为注册表同步完成")
+        except Exception as e:
+            app.logger.error(f"同步积分注册表时出错: {str(e)}")
+
         # 钉钉集成：仅单向拉取（钉钉 → PMA），无反向推送
         try:
             from app.services.dingtalk.config import is_dingtalk_enabled
