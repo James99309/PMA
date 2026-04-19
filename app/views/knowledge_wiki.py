@@ -473,8 +473,8 @@ def change_article_scope(article_id):
     if not art.owner_department and art.owner:
         art.owner_department = art.owner.department
 
-    # 发放积分：Wiki 文章 scope 提升到 company/system
-    if new_scope in ('company', 'system') and old_scope not in ('company', 'system') and art.owner_id:
+    # 发放积分：文章首次从私有变为共享（任意共享状态）
+    if new_scope != 'personal' and old_scope == 'personal' and art.owner_id:
         try:
             from app.services.points_service import award_points
             award_points(
@@ -700,8 +700,8 @@ def review_promotion_request(request_id):
                 art.owner_department = art.owner.department
             logger.info(f'[Wiki] 晋升审核通过 article={art.id} {old_scope}→{req.to_scope} by user={current_user.id}')
 
-            # 发放积分：Wiki 文章晋升到 company/system
-            if req.to_scope in ('company', 'system') and old_scope not in ('company', 'system') and art.owner_id:
+            # 发放积分：文章首次从私有变为共享（任意共享状态）
+            if req.to_scope != 'personal' and old_scope == 'personal' and art.owner_id:
                 try:
                     from app.services.points_service import award_points
                     award_points(
@@ -1021,7 +1021,8 @@ def query_endpoint():
         return jsonify({'success': False, 'message': '问题不能为空'}), 400
 
     try:
-        result = querier.query_wiki(question, top_k=top_k, topic=topic)
+        result = querier.query_wiki(question, top_k=top_k, topic=topic,
+                                    current_user_id=current_user.id)
     except querier.QueryError as e:
         return jsonify({'success': False, 'message': str(e)}), 400
     except Exception:
@@ -1349,3 +1350,25 @@ def search_share_targets():
         results = [{'value': r[0], 'label': r[0], 'sub': ''} for r in rows if r[0]]
 
     return jsonify({'success': True, 'data': results})
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/citation-click', methods=['POST'])
+@login_required
+def wiki_citation_click(article_id):
+    """记录问答引用链接被点击，向文章作者发放 wiki_link_opened 积分（不计自己点击）。"""
+    from datetime import date
+    from app.models.knowledge_wiki import KnowledgeWikiArticle
+    article = KnowledgeWikiArticle.query.get_or_404(article_id)
+    if article.owner_id and article.owner_id != current_user.id:
+        try:
+            from app.services.points_service import award_points
+            award_points(
+                user_id=article.owner_id,
+                behavior_code='wiki_link_opened',
+                source_type='wiki_click',
+                source_id=f'{article_id}_{current_user.id}_{date.today().isoformat()}',
+                memo=f'引用链接被点击: {article.title}',
+            )
+        except Exception as _pts_err:
+            logger.warning(f'wiki_link_opened积分发放失败: {_pts_err}')
+    return jsonify({'success': True})

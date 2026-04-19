@@ -45,6 +45,7 @@ def query_wiki(
     top_k: int = DEFAULT_TOP_K,
     topic: str | None = None,
     claude: claude_client.WikiClaudeClient | None = None,
+    current_user_id: int | None = None,
 ) -> dict[str, Any]:
     """对 Wiki 发起一次问答。
 
@@ -126,6 +127,23 @@ def query_wiki(
     finally:
         if own_client:
             claude.close()
+
+    # 发放 wiki_cited_qa 积分（过滤自引）
+    if current_user_id:
+        try:
+            from app.services.points_service import award_points
+            for art, _ in articles_with_content:
+                if art.owner_id and art.owner_id != current_user_id:
+                    award_points(
+                        user_id=art.owner_id,
+                        behavior_code='wiki_cited_qa',
+                        source_type='wiki_qa_session',
+                        source_id=f'qa_{art.id}_{current_user_id}',
+                        memo=f'问答引用: {art.title}',
+                    )
+            db.session.commit()
+        except Exception as _pts_err:
+            logger.warning(f'wiki_cited_qa积分发放失败: {_pts_err}')
 
     return {
         'answer': resp.text,

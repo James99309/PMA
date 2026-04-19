@@ -699,6 +699,15 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                     owner_department=owner_department,
                 )
                 db.session.add(art)
+                db.session.flush()  # 确保 art.id 已生成
+                if art.owner_id:
+                    try:
+                        from app.services.points_service import award_points
+                        award_points(user_id=art.owner_id, behavior_code='wiki_create',
+                                     source_type='wiki_article', source_id=art.id,
+                                     memo=f'创建Wiki文章: {art.title}')
+                    except Exception as _pts_err:
+                        logger.warning(f'wiki_create积分发放失败: {_pts_err}')
                 logger.info(f'[Ingest] create {topic}/{slug}')
 
         elif action == 'update':

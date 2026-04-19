@@ -183,6 +183,7 @@ def api_nav_summary():
 @login_required
 @permission_required('system_settings', 'edit')
 def admin_config():
+    from app.services.points_registry import BEHAVIOR_REGISTRY
     configs = PointsBehaviorConfig.query.order_by(
         PointsBehaviorConfig.category, PointsBehaviorConfig.id
     ).all()
@@ -194,6 +195,8 @@ def admin_config():
         'points': c.points,
         'daily_cap': c.daily_cap,
         'is_active': c.is_active,
+        'trigger': BEHAVIOR_REGISTRY.get(c.behavior_code, {}).get('trigger', '自定义行为'),
+        'is_system': c.behavior_code in BEHAVIOR_REGISTRY,
     } for c in configs]
     return render_template('points/tw_points_admin_config.html',
                            configs=configs_data, active_page='points_config')
@@ -236,6 +239,8 @@ def admin_config_update(config_id):
 @permission_required('system_settings', 'edit')
 def admin_config_create():
     data = request.get_json()
+    if PointsBehaviorConfig.query.filter_by(behavior_code=data.get('behavior_code', '')).first():
+        return jsonify({'success': False, 'message': f"行为代码 '{data['behavior_code']}' 已存在"})
     config = PointsBehaviorConfig(
         behavior_code=data['behavior_code'],
         behavior_name=data['behavior_name'],
@@ -245,4 +250,12 @@ def admin_config_create():
     )
     db.session.add(config)
     db.session.commit()
-    return jsonify({'success': True, 'id': config.id})
+    return jsonify({'success': True, 'config': {
+        'id': config.id,
+        'behavior_code': config.behavior_code,
+        'behavior_name': config.behavior_name,
+        'category': config.category,
+        'points': config.points,
+        'daily_cap': config.daily_cap,
+        'is_active': config.is_active,
+    }})
