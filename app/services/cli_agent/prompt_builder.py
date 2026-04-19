@@ -131,6 +131,7 @@ def _skill_section(user) -> str:
         from sqlalchemy import or_
         skills = CliSkill.query.filter(
             CliSkill.is_active == True,
+            CliSkill.skill_type != 'docx',   # docx 是样式库，不可直接 invoke
             or_(
                 CliSkill.scope == 'global',
                 CliSkill.created_by == user.id

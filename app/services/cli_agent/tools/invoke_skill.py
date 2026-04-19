@@ -87,6 +87,13 @@ class InvokeSkillTool(BaseTool):
                 'error': f'未找到名为 "{skill_name}" 的活跃技能。请检查名称或使用 query_pma_database 直接查询。',
             }
 
+        # --- 2a. docx 类型是样式库，不可直接调用 ---
+        if getattr(skill, 'skill_type', 'sql') == 'docx':
+            return {
+                'error': f'"{skill_name}" 是样式库，不能直接调用。'
+                         f'请使用 export_to_word 工具生成 Word 文档。',
+            }
+
         # --- 2. 权限检查:personal scope 只限创建者使用 ---
         if skill.scope == CliSkill.SCOPE_PERSONAL and skill.created_by != user.id:
             return {
