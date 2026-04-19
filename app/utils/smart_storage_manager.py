@@ -380,6 +380,19 @@ class SmartStorageManager:
             except Exception as e:
                 logger.error(f"Supabase 下载也失败: {e}")
 
+        # 从本地文件系统下载（最终 fallback）
+        try:
+            import os
+            local_root = self.supabase_client.local_storage_root if self.supabase_client else './storage'
+            local_path = os.path.join(local_root, storage_path)
+            if os.path.isfile(local_path):
+                with open(local_path, 'rb') as f:
+                    data = f.read()
+                logger.debug(f"从本地文件系统下载: {local_path}")
+                return data
+        except Exception as e:
+            logger.error(f"本地文件下载也失败: {e}")
+
         return None
 
     def delete_file(self, storage_path: str, bucket_type: str = 'invoice') -> bool:

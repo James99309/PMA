@@ -20,6 +20,7 @@ class PointsBehaviorConfig(db.Model):
         'business': '业务推进',
         'task': '任务达成',
         'content': '内容创作',
+        'approval': '审批参与',
     }
 
 
@@ -30,7 +31,7 @@ class PointsTransaction(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     behavior_code = db.Column(db.String(64), nullable=False)
     source_type = db.Column(db.String(64), nullable=True)
-    source_id = db.Column(db.Integer, nullable=True)
+    source_id = db.Column(db.String(128), nullable=True)
     points = db.Column(db.Integer, nullable=False)
     memo = db.Column(db.String(256), nullable=True)
     year = db.Column(db.SmallInteger, nullable=False)

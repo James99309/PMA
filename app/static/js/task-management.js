@@ -69,6 +69,7 @@ function taskManagement() {
         subtasks: [],
         subtaskUpdates: {},
         expandedSubtasks: [],
+        expandedTimelineGroups: [],
         taskReplies: [],
         sharedUserNames: [],
 
@@ -102,10 +103,31 @@ function taskManagement() {
             this.currentUserId = window.CURRENT_USER_ID;
             Alpine.store('taskMgmt')._component = this;
             await this.loadUsers();
-            await this.loadTasks();
+
+            // URL ?task_id=X&subtask_id=Y — 从待办（里程碑确认等）点击过来
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlTaskId = urlParams.get('task_id');
+            const urlSubtaskId = urlParams.get('subtask_id');
+            if (urlTaskId) {
+                // 切换到"待我审核"tab 并重新加载列表
+                this.tab = 'review';
+                await this.loadTasks();
+                await this.selectTask(parseInt(urlTaskId));
+                // 自动展开对应子任务
+                if (urlSubtaskId) {
+                    this.focusSubtask(parseInt(urlSubtaskId));
+                }
+                // 清理 URL 参数
+                const cleaned = new URL(window.location);
+                cleaned.searchParams.delete('task_id');
+                cleaned.searchParams.delete('subtask_id');
+                history.replaceState(null, '', cleaned.pathname + cleaned.search);
+            } else {
+                await this.loadTasks();
+            }
 
             // URL ?open=<taskId> — 从导航栏下拉点击过来时自动打开该任务
-            const urlOpen = new URLSearchParams(window.location.search).get('open');
+            const urlOpen = urlParams.get('open');
             if (urlOpen) {
                 this.selectTask(parseInt(urlOpen));
                 // 清理 URL 参数避免刷新重复打开
@@ -306,6 +328,27 @@ function taskManagement() {
                 }
             } catch (e) {
                 console.error('里程碑操作失败:', e);
+            }
+        },
+
+        async submitTaskReview(action, comment) {
+            try {
+                const res = await fetch('/task/api/' + this.selectedTaskId + '/review', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, comment: comment || '' }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    // 重新加载任务详情和列表
+                    this.selectedTaskId = null;  // 强制刷新
+                    await this.selectTask(data.data.id);
+                    await this.loadTasks();
+                } else {
+                    alert(data.message);
+                }
+            } catch (e) {
+                console.error('任务审核失败:', e);
             }
         },
 
@@ -617,6 +660,14 @@ function taskManagement() {
         },
 
         subtaskStatusIcon(st) {
+            // 里程碑待确认 — 优先于 completed 判断
+            if (st.is_milestone && st.milestone_status === 'pending_confirmation') {
+                return '<span class="material-symbols-outlined text-base text-amber-500">hourglass_top</span>';
+            }
+            // 里程碑被驳回
+            if (st.is_milestone && st.milestone_status === 'rejected') {
+                return '<span class="material-symbols-outlined text-base text-red-500" style="font-variation-settings:\'FILL\' 1">cancel</span>';
+            }
             if (st.status === 'completed') {
                 return '<span class="material-symbols-outlined text-base text-green-500" style="font-variation-settings:\'FILL\' 1">check_circle</span>';
             }
@@ -624,9 +675,6 @@ function taskManagement() {
                 return '<span class="material-symbols-outlined text-base text-red-500">warning</span>';
             }
             if (st.status === 'in_progress') {
-                if (st.is_milestone && st.milestone_status === 'pending_confirmation') {
-                    return '<span class="material-symbols-outlined text-base text-amber-500">hourglass_top</span>';
-                }
                 return '<span class="material-symbols-outlined text-base text-blue-500">play_circle</span>';
             }
             return '<span class="material-symbols-outlined text-base text-slate-400">radio_button_unchecked</span>';
@@ -678,6 +726,12 @@ function taskManagement() {
         renderTimeline() {
             const self = this;
             window._tlFocus = (id) => self.focusSubtask(id);
+            window._tlToggleGroup = (key) => {
+                const idx = self.expandedTimelineGroups.indexOf(key);
+                if (idx >= 0) self.expandedTimelineGroups.splice(idx, 1);
+                else self.expandedTimelineGroups.push(key);
+            };
+
             const subs = this.subtasks
                 .filter(s => s.due_date || s.start_date)
                 .map(s => ({ ...s, _pos_date: s.due_date || s.start_date }));
@@ -688,19 +742,20 @@ function taskManagement() {
             if (this.selectedTask.due_date) allDates.push(new Date(this.selectedTask.due_date));
             let minD = new Date(Math.min(...allDates));
             let maxD = new Date(Math.max(...allDates));
-            // 只在起止相同时加 padding 防止 0 宽度
             if (maxD - minD < 86400000) {
                 minD.setDate(minD.getDate() - 1);
                 maxD.setDate(maxD.getDate() + 1);
             }
+            const totalDays = Math.max(1, (maxD - minD) / 86400000);
             const totalMs = maxD - minD || 1;
 
-            const pct = (d) => ((new Date(d) - minD) / totalMs * 100).toFixed(1);
             const fmt = (d) => { const t = new Date(d); return (t.getMonth()+1) + '/' + t.getDate(); };
+            const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+            const pct = (d) => ((new Date(d) - minD) / totalMs * 100);
 
             const now = new Date(); now.setHours(0,0,0,0);
             const showToday = now >= minD && now <= maxD;
-            const todayPct = pct(now);
+            const todayPct = pct(now).toFixed(2);
 
             const dotColor = {
                 completed:   'bg-green-500',
@@ -710,52 +765,128 @@ function taskManagement() {
                 paused:      'bg-amber-400',
             };
 
-            // 按位置排序，检测重叠后交替上下
-            const sorted = subs.map(s => ({ ...s, _pct: parseFloat(pct(s._pos_date)) }))
+            // 按日期分组
+            const sorted = subs.map(s => ({ ...s, _pct: pct(s._pos_date) }))
                                .sort((a, b) => a._pct - b._pct);
-            const positions = []; // track which side: false=below, true=above
-            sorted.forEach((s, i) => {
-                let above = false;
-                if (i > 0 && s._pct - sorted[i-1]._pct < 12) {
-                    above = !positions[i-1];
-                }
-                positions.push(above);
-            });
-
-            let dots = '';
-            sorted.forEach((s, i) => {
-                const left = s._pct.toFixed(1);
-                const label = s.title.length > 6 ? s.title.substring(0,6) + '…' : s.title;
-                const tip = s.title + ' (' + fmt(s._pos_date) + ')';
-                const click = 'onclick="window._tlFocus(' + s.id + ')"';
-                const shifted = positions[i]; // true = 第二层（节点1标签下方）
-
-                // 层级布局：
-                // 第一层: 节点 top=-5, 标签 top=10
-                // 第二层: 节点 top=28, 标签 top=43
-                const dTop = shifted ? 28 : -5;
-                const lTop = shifted ? 43 : 10;
-                const mDTop = shifted ? 25 : -8;
-                const mLTop = shifted ? 43 : 10;
-
-                let dotHtml;
-                if (s.is_milestone) {
-                    const mColor = s.milestone_status === 'confirmed' ? 'text-green-500'
-                                 : s.milestone_status === 'rejected' ? 'text-red-500'
-                                 : 'text-blue-500';
-                    dotHtml = '<span class="text-base leading-none ' + mColor + '" style="position:absolute;top:' + mDTop + 'px;left:50%;transform:translateX(-50%)">\u25C6</span>'
-                            + '<span class="text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap" style="position:absolute;top:' + mLTop + 'px;left:50%;transform:translateX(-50%)">' + label + '</span>';
+            const groups = [];
+            sorted.forEach(s => {
+                const dk = dayKey(s._pos_date);
+                const last = groups.length ? groups[groups.length - 1] : null;
+                if (last && last.key === dk) {
+                    last.items.push(s);
                 } else {
-                    const cls = dotColor[s.status] || dotColor.pending;
-                    dotHtml = '<div class="w-2.5 h-2.5 rounded-full ' + cls + '" style="position:absolute;top:' + dTop + 'px;left:50%;transform:translateX(-50%)"></div>'
-                            + '<span class="text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap" style="position:absolute;top:' + lTop + 'px;left:50%;transform:translateX(-50%)">' + label + '</span>';
+                    groups.push({ key: dk, items: [s], pct: s._pct });
                 }
-
-                dots += '<div class="absolute cursor-pointer" style="left:' + left + '%" title="' + tip + '" ' + click + '>'
-                      + dotHtml
-                      + '</div>';
             });
 
+            // 展开组额外需要的百分比空间
+            const SPREAD_PCT = 4; // 展开时每个节点间隔 4%
+            let extraPct = 0;
+            groups.forEach(g => {
+                if (g.items.length > 1 && this.expandedTimelineGroups.includes(g.key)) {
+                    extraPct += (g.items.length - 1) * SPREAD_PCT;
+                }
+            });
+
+            // 计算最终定位：考虑展开后的偏移
+            const renderNodes = []; // { s, leftPct, isGroup }
+            let accOffset = 0; // 累积偏移
+            const scale = 100 / (100 + extraPct); // 缩放因子
+
+            groups.forEach(g => {
+                const basePct = g.pct * scale + accOffset;
+
+                if (g.items.length === 1) {
+                    renderNodes.push({ s: g.items[0], leftPct: basePct });
+                } else if (this.expandedTimelineGroups.includes(g.key)) {
+                    // 展开：水平铺开
+                    const count = g.items.length;
+                    const totalSpread = (count - 1) * SPREAD_PCT * scale;
+                    g.items.forEach((s, j) => {
+                        const offset = j * SPREAD_PCT * scale;
+                        renderNodes.push({ s, leftPct: basePct + offset });
+                    });
+                    accOffset += totalSpread;
+                } else {
+                    // 合并：显示为一个带 + 的节点
+                    renderNodes.push({ s: g.items[0], leftPct: basePct, group: g });
+                }
+            });
+
+            // 标签避让：相邻节点距离 < 8% 时交替上下
+            const labelAbove = [];
+            renderNodes.forEach((n, i) => {
+                if (i === 0) { labelAbove.push(false); return; }
+                const close = n.leftPct - renderNodes[i-1].leftPct < 8;
+                labelAbove.push(close ? !labelAbove[i-1] : false);
+            });
+
+            // 渲染节点
+            let dots = '';
+            renderNodes.forEach((n, i) => {
+                const s = n.s;
+                const left = n.leftPct.toFixed(2);
+                const above = labelAbove[i];
+
+                if (n.group) {
+                    // 合并节点：显示第一个节点样式 + 计数角标
+                    const g = n.group;
+                    const count = g.items.length;
+                    const names = g.items.map(x => x.title).join(', ');
+                    const tip = count + ' 个节点: ' + names + ' (' + fmt(s._pos_date) + ')';
+                    const label = s.title.length > 4 ? s.title.substring(0,4) + '…' : s.title;
+                    const click = 'onclick="window._tlToggleGroup(\'' + g.key + '\')"';
+
+                    let nodeHtml;
+                    if (s.is_milestone) {
+                        const mColor = s.milestone_status === 'confirmed' ? 'text-green-500'
+                                     : s.milestone_status === 'rejected' ? 'text-red-500'
+                                     : s.milestone_status === 'pending_confirmation' ? 'text-amber-500'
+                                     : 'text-blue-500';
+                        nodeHtml = '<span class="text-base leading-none ' + mColor + '" style="position:absolute;top:-8px;left:50%;transform:translateX(-50%)">\u25C6</span>';
+                    } else {
+                        const cls = dotColor[s.status] || dotColor.pending;
+                        nodeHtml = '<div class="w-2.5 h-2.5 rounded-full ' + cls + '" style="position:absolute;top:-5px;left:50%;transform:translateX(-50%)"></div>';
+                    }
+
+                    // "+" 角标
+                    const badge = '<span style="position:absolute;top:-12px;left:50%;margin-left:4px;'
+                        + 'font-size:9px;font-weight:700;color:#3b82f6;background:#eff6ff;border-radius:50%;'
+                        + 'width:14px;height:14px;display:flex;align-items:center;justify-content:center;'
+                        + 'box-shadow:0 0 0 1px #bfdbfe">+' + (count - 1) + '</span>';
+
+                    const lTop = above ? -22 : 8;
+                    const labelHtml = '<span class="text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap" style="position:absolute;top:' + lTop + 'px;left:50%;transform:translateX(-50%)">' + label + '</span>';
+
+                    dots += '<div class="absolute cursor-pointer" style="left:' + left + '%" title="' + tip + '" ' + click + '>'
+                          + nodeHtml + badge + labelHtml + '</div>';
+                } else {
+                    // 普通节点
+                    const label = s.title.length > 6 ? s.title.substring(0,6) + '…' : s.title;
+                    const tip = s.title + ' (' + fmt(s._pos_date) + ')';
+                    const click = 'onclick="window._tlFocus(' + s.id + ')"';
+
+                    let nodeHtml;
+                    if (s.is_milestone) {
+                        const mColor = s.milestone_status === 'confirmed' ? 'text-green-500'
+                                     : s.milestone_status === 'rejected' ? 'text-red-500'
+                                     : s.milestone_status === 'pending_confirmation' ? 'text-amber-500'
+                                     : 'text-blue-500';
+                        nodeHtml = '<span class="text-base leading-none ' + mColor + '" style="position:absolute;top:-8px;left:50%;transform:translateX(-50%)">\u25C6</span>';
+                    } else {
+                        const cls = dotColor[s.status] || dotColor.pending;
+                        nodeHtml = '<div class="w-2.5 h-2.5 rounded-full ' + cls + '" style="position:absolute;top:-5px;left:50%;transform:translateX(-50%)"></div>';
+                    }
+
+                    const lTop = above ? -22 : 8;
+                    const labelHtml = '<span class="text-[10px] text-slate-500 dark:text-slate-400 whitespace-nowrap" style="position:absolute;top:' + lTop + 'px;left:50%;transform:translateX(-50%)">' + label + '</span>';
+
+                    dots += '<div class="absolute cursor-pointer" style="left:' + left + '%" title="' + tip + '" ' + click + '>'
+                          + nodeHtml + labelHtml + '</div>';
+                }
+            });
+
+            // 今天标记
             const todayMark = showToday
                 ? '<div class="absolute -translate-x-1/2 flex flex-col items-center" style="left:' + todayPct + '%">'
                   + '<div class="w-px h-3 bg-red-400" style="margin-top:-14px"></div>'
@@ -763,15 +894,17 @@ function taskManagement() {
                   + '</div>'
                 : '';
 
-            const hasShifted = positions.some(p => p);
-            return '<div class="relative px-2" style="padding-top:20px;padding-bottom:' + (hasShifted ? '62px' : '28px') + '">'
+            const hasAbove = labelAbove.some(p => p);
+            const topPad = hasAbove ? 32 : 20;
+            const MIN_PX_PER_DAY = 50;
+            const minTrackWidth = totalDays * MIN_PX_PER_DAY * (1 + extraPct / 100);
+
+            return '<div style="padding-top:' + topPad + 'px;padding-bottom:28px;overflow-x:auto">'
+                 + '<div class="relative" style="width:100%;min-width:' + minTrackWidth + 'px">'
                  + '<div class="flex justify-between text-[10px] text-slate-400 mb-1">'
-                 + '<span>' + fmt(minD) + '</span><span>' + fmt(maxD) + '</span>'
-                 + '</div>'
+                 + '<span>' + fmt(minD) + '</span><span>' + fmt(maxD) + '</span></div>'
                  + '<div class="relative h-px bg-slate-300 dark:bg-slate-600">'
-                 + dots + todayMark
-                 + '</div>'
-                 + '</div>';
+                 + dots + todayMark + '</div></div></div>';
         },
 
         // ══════════════════════════════════════════════════════

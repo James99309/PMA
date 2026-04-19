@@ -166,7 +166,7 @@
                             <span class="material-symbols-outlined"
                                   :class="item.status === 'confirmed' ? 'text-green-600 dark:text-green-400'
                                          : 'text-orange-600 dark:text-orange-400'"
-                                  x-text="item.status === 'confirmed' ? 'check_circle' : (item.type === 'access_request' ? 'person_add' : (item.type === 'wiki_promotion' ? 'arrow_upward' : (item.type === 'general_task' ? 'task_alt' : 'assignment')))"></span>
+                                  x-text="item.status === 'confirmed' ? 'check_circle' : (item.type === 'access_request' ? 'person_add' : (item.type === 'wiki_promotion' ? 'arrow_upward' : (item.type === 'milestone_confirmation' ? 'verified' : (item.type === 'task_review' ? 'rate_review' : (item.type === 'general_task' ? 'task_alt' : 'assignment')))))"></span>
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center justify-between gap-2">
@@ -696,6 +696,14 @@ function messagePanel() {
                 // 知识库晋升申请 → 跳转到知识库并打开审核
                 this.close();
                 window.location.href = `/wiki?promote=${item.promotion_request_id}`;
+            } else if (item.type === 'milestone_confirmation' && item.task_id) {
+                // 里程碑确认 → 跳转任务管理页打开对应子任务
+                this.close();
+                window.location.href = item.detail_url || `/task/management?task_id=${item.task_id}&subtask_id=${item.subtask_id}`;
+            } else if (item.type === 'task_review' && item.task_id) {
+                // 任务审核 → 跳转任务管理页待我审核tab
+                this.close();
+                window.location.href = item.detail_url || `/task/management?task_id=${item.task_id}`;
             } else if (item.type === 'general_task' && item.task_id) {
                 // 通用任务 → 打开任务详情模态框
                 this.close();

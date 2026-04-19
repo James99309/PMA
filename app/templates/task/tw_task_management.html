@@ -117,7 +117,7 @@
 
                             {# 第一行：优先级点 + 标题 #}
                             <div class="flex items-start gap-2">
-                                <span :class="priorityDotClass(task.priority)"
+                                <span :class="task.status === 'completed' ? 'bg-green-500' : priorityDotClass(task.priority)"
                                       class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"></span>
                                 <span class="text-sm font-medium line-clamp-2"
                                       :class="task.status === 'completed' ? 'text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'"
@@ -144,7 +144,8 @@
                                         <div class="flex items-center gap-1">
                                             <div class="w-14 h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
                                                 <div :style="'width:' + (task.subtask_count > 0 ? task.subtask_completed / task.subtask_count * 100 : 0) + '%'"
-                                                     class="h-full bg-primary rounded-full transition-all"></div>
+                                                     :class="task.status === 'completed' ? 'bg-green-500' : 'bg-primary'"
+                                                     class="h-full rounded-full transition-all"></div>
                                             </div>
                                             <span x-text="task.subtask_completed + '/' + task.subtask_count"></span>
                                         </div>
@@ -231,14 +232,14 @@
                                     <span class="material-symbols-outlined text-lg">edit</span>
                                 </button>
                             </template>
-                            <div x-data="{ menuOpen: false }" class="relative">
+                            <div x-data="{ menuOpen: false }" class="relative" x-show="!selectedTask.is_milestone_reviewer_only">
                                 <button @click="menuOpen = !menuOpen"
                                         class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500">
                                     <span class="material-symbols-outlined text-lg">more_vert</span>
                                 </button>
                                 <div x-show="menuOpen" @click.away="menuOpen = false" x-transition
                                      class="absolute right-0 mt-1 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-20">
-                                    <template x-if="selectedTask.status !== 'completed'">
+                                    <template x-if="selectedTask.status !== 'completed' && selectedTask.status !== 'pending_review' && !selectedTask.is_reviewer">
                                         <button @click="completeTask(); menuOpen = false"
                                                 class="w-full text-left px-3 py-1.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2">
                                             <span class="material-symbols-outlined text-base text-green-600">check_circle</span>
@@ -311,6 +312,53 @@
                     </template>
                 </div>
 
+                {# ── 任务审核面板（待审核状态 + 审计人可见） ── #}
+                <template x-if="selectedTask.status === 'pending_review' && selectedTask.reviewers && selectedTask.reviewers.length > 0">
+                    <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700 bg-amber-50/50 dark:bg-amber-900/10">
+                        <h3 class="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-2 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-sm">rate_review</span>
+                            {{ _('任务审核') }}
+                        </h3>
+                        {# 审计人列表 #}
+                        <div class="flex flex-wrap gap-2 mb-3">
+                            <template x-for="r in selectedTask.reviewers" :key="r.id">
+                                <span class="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+                                      :class="r.status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                            : r.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                            : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'">
+                                    <span class="material-symbols-outlined text-sm"
+                                          x-text="r.status === 'approved' ? 'check_circle' : (r.status === 'rejected' ? 'cancel' : 'radio_button_unchecked')"
+                                          :style="r.status === 'approved' ? 'font-variation-settings:\'FILL\' 1' : (r.status === 'rejected' ? 'font-variation-settings:\'FILL\' 1' : '')"></span>
+                                    <span x-text="r.reviewer_name"></span>
+                                    <template x-if="r.comment">
+                                        <span class="text-slate-500" x-text="'「' + r.comment + '」'"></span>
+                                    </template>
+                                </span>
+                            </template>
+                        </div>
+                        {# 当前用户是审计人且未审核 → 显示操作 #}
+                        <template x-if="selectedTask.can_review">
+                            <div x-data="{ reviewComment: '', submitting: false }">
+                                <textarea x-model="reviewComment" rows="2"
+                                          :placeholder="'{{ _('输入审核意见（驳回时必填）...') }}'"
+                                          class="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary mb-2"></textarea>
+                                <div class="flex gap-2">
+                                    <button @click="submitting = true; submitTaskReview('approve', reviewComment).finally(() => submitting = false)"
+                                            :disabled="submitting"
+                                            class="px-4 py-1.5 text-sm text-white bg-green-600 hover:bg-green-700 rounded-lg transition disabled:opacity-50">
+                                        {{ _('确认通过') }}
+                                    </button>
+                                    <button @click="if(!reviewComment.trim()){alert('{{ _('驳回时必须填写意见') }}');return;} submitting = true; submitTaskReview('reject', reviewComment).finally(() => submitting = false)"
+                                            :disabled="submitting"
+                                            class="px-4 py-1.5 text-sm text-white bg-red-600 hover:bg-red-700 rounded-lg transition disabled:opacity-50">
+                                        {{ _('驳回') }}
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
                 {# ── 时间线(单轴节点式) ── #}
                 <template x-if="subtasks.length > 0 && subtasks.some(s => s.start_date || s.due_date)">
                     <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
@@ -333,7 +381,8 @@
                                       x-text="'(' + completedSubtaskCount + '/' + subtasks.length + ')'"></span>
                             </template>
                         </h3>
-                        <button @click="openSubtaskModal()"
+                        <button x-show="!selectedTask.is_milestone_reviewer_only"
+                                @click="openSubtaskModal()"
                                 class="flex items-center gap-1 text-xs text-primary hover:text-blue-800 font-medium">
                             <span class="material-symbols-outlined text-sm">add</span>
                             {{ _('新增子任务') }}
@@ -351,7 +400,7 @@
                                         : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600'">
                                 <span x-html="subtaskStatusIcon(st)" class="flex-shrink-0 [&>span]:!text-sm"></span>
                                 <span class="max-w-[100px] truncate"
-                                      :class="st.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-200'"
+                                      :class="(st.status === 'completed' && !(st.is_milestone && (st.milestone_status === 'pending_confirmation' || st.milestone_status === 'rejected'))) ? 'line-through text-slate-400' : 'text-slate-800 dark:text-slate-200'"
                                       x-text="st.title"></span>
                                 <template x-if="st.is_milestone">
                                     <span class="text-[9px]">🏁</span>
@@ -415,10 +464,14 @@
                                     <button @click.stop="startSubtask(st.id)"
                                             class="text-primary hover:underline font-medium">{{ _('开始') }}</button>
                                 </template>
-                                <template x-if="st.status === 'in_progress' || st.status === 'delayed'">
+                                <template x-if="(st.status === 'in_progress' || st.status === 'delayed') && !(st.is_milestone && st.milestone_status === 'rejected')">
                                     <button @click.stop="completeSubtask(st.id)"
                                             class="text-green-600 hover:underline font-medium"
                                             x-text="st.is_milestone ? '{{ _('提交确认') }}' : '{{ _('完成') }}'"></button>
+                                </template>
+                                <template x-if="st.is_milestone && st.milestone_status === 'rejected' && !selectedTask.is_milestone_reviewer_only">
+                                    <button @click.stop="completeSubtask(st.id)"
+                                            class="text-amber-600 hover:underline font-medium">{{ _('再次提交') }}</button>
                                 </template>
                                 <template x-if="st.is_milestone && st.milestone_status === 'pending_confirmation' && (st.milestone_reviewers || []).some(r => r.reviewer_id == currentUserId && r.status === 'pending')">
                                     <div class="flex gap-2">
@@ -428,11 +481,11 @@
                                                 class="text-red-600 hover:underline font-medium">{{ _('驳回') }}</button>
                                     </div>
                                 </template>
-                                <template x-if="st.status !== 'completed'">
+                                <template x-if="st.status !== 'completed' && !(st.is_milestone && st.milestone_status === 'rejected')">
                                     <button @click.stop="openSubtaskModal(st)"
                                             class="text-slate-500 hover:underline">{{ _('编辑') }}</button>
                                 </template>
-                                <template x-if="st.status !== 'completed'">
+                                <template x-if="st.status !== 'completed' && !(st.is_milestone && st.milestone_status === 'rejected')">
                                     <button @click.stop="deleteSubtask(st.id)"
                                             class="text-red-500 hover:underline">{{ _('删除') }}</button>
                                 </template>
@@ -441,11 +494,12 @@
                     </template>
 
                     {# 无子任务 #}
-                    <template x-if="subtasks.length === 0">
+                    <template x-if="subtasks.length === 0 && !selectedTask.is_milestone_reviewer_only">
                         <div class="text-center text-slate-400 text-sm py-10 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 border-dashed">
                             <span class="material-symbols-outlined text-3xl mb-2 text-slate-300">playlist_add</span>
                             <p>{{ _('暂无子任务') }}</p>
-                            <button @click="openSubtaskModal()"
+                            <button x-show="!selectedTask.is_milestone_reviewer_only"
+                                    @click="openSubtaskModal()"
                                     class="mt-2 text-primary hover:underline text-xs">+ {{ _('新增子任务') }}</button>
                         </div>
                     </template>

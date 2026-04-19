@@ -12,6 +12,10 @@ def award_points(user_id, behavior_code, source_type=None, source_id=None, memo=
     """
     from app.models.points import PointsBehaviorConfig, PointsTransaction, UserPointsSummary
 
+    # 统一转字符串，兼容旧调用方传入整数 id
+    if source_id is not None:
+        source_id = str(source_id)
+
     config = PointsBehaviorConfig.query.filter_by(
         behavior_code=behavior_code, is_active=True
     ).first()
@@ -82,12 +86,16 @@ def award_points(user_id, behavior_code, source_type=None, source_id=None, memo=
 
 
 def sync_registry_to_db():
-    """启动时调用：将 BEHAVIOR_REGISTRY 中缺失的行为写入数据库（不覆盖已有配置）。"""
+    """启动时调用：将 BEHAVIOR_REGISTRY 同步到数据库。
+    - 缺失的行为：新增
+    - 已有的行为：用注册表的默认值更新（积分值、每日上限、分类）
+    """
     from app.services.points_registry import BEHAVIOR_REGISTRY
     from app.models.points import PointsBehaviorConfig
     changed = False
     for code, meta in BEHAVIOR_REGISTRY.items():
-        if not PointsBehaviorConfig.query.filter_by(behavior_code=code).first():
+        existing = PointsBehaviorConfig.query.filter_by(behavior_code=code).first()
+        if not existing:
             db.session.add(PointsBehaviorConfig(
                 behavior_code=code,
                 behavior_name=meta['name'],
@@ -97,5 +105,15 @@ def sync_registry_to_db():
                 is_active=True,
             ))
             changed = True
+        else:
+            if (existing.points != meta['default_points'] or
+                    existing.daily_cap != meta['default_daily_cap'] or
+                    existing.category != meta['category'] or
+                    existing.behavior_name != meta['name']):
+                existing.points = meta['default_points']
+                existing.daily_cap = meta['default_daily_cap']
+                existing.category = meta['category']
+                existing.behavior_name = meta['name']
+                changed = True
     if changed:
         db.session.commit()

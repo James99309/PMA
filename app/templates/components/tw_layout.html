@@ -635,9 +635,6 @@ document.addEventListener('submit', function(e) {
     }
 
     function formatPoints(pts, tier) {
-        if (tier === 'gold') return (pts / 10000000).toFixed(2);
-        if (tier === 'silver') return (pts / 1000000).toFixed(1);
-        if (tier === 'bronze') return (pts / 100000).toFixed(1);
         return pts.toLocaleString();
     }
 

@@ -63,14 +63,24 @@ def _auto_promote_pending_subtasks(task_id=None):
 
 
 def _can_access(t):
-    """创建者、被指派人、协助人或审计对象可访问"""
+    """创建者、被指派人、协助人、审计人或里程碑确认人可访问"""
     if t.creator_id == current_user.id or t.assignee_id == current_user.id:
         return True
     # 审计人（会审）
     if any(r.reviewer_id == current_user.id for r in t.task_reviewers):
         return True
     shared = t.shared_with_users or []
-    return current_user.id in shared
+    if current_user.id in shared:
+        return True
+    # 里程碑确认人
+    from app.models.subtask import MilestoneReviewer, SubTask
+    has_milestone = db.session.query(MilestoneReviewer.id).join(
+        SubTask, MilestoneReviewer.subtask_id == SubTask.id
+    ).filter(
+        SubTask.task_id == t.id,
+        MilestoneReviewer.reviewer_id == current_user.id,
+    ).first()
+    return has_milestone is not None
 
 
 @task.route('/api/create', methods=['POST'])
@@ -276,6 +286,19 @@ def get_task(id):
         task_dict['can_review'] = (my_review is not None
                                    and my_review.status == 'pending'
                                    and t.review_status == 'pending_review')
+
+        # 里程碑确认人标识（仅作为确认人，不是任务负责人/创建者/参与者）
+        from app.models.subtask import MilestoneReviewer as MR
+        is_milestone_only = (
+            t.creator_id != current_user.id
+            and t.assignee_id != current_user.id
+            and not any(r.reviewer_id == current_user.id for r in t.task_reviewers)
+            and current_user.id not in (t.shared_with_users or [])
+            and db.session.query(MR.id).join(SubTask, MR.subtask_id == SubTask.id).filter(
+                SubTask.task_id == t.id, MR.reviewer_id == current_user.id
+            ).first() is not None
+        )
+        task_dict['is_milestone_reviewer_only'] = is_milestone_only
 
         return jsonify({'success': True, 'data': task_dict})
     except Exception as e:
@@ -764,6 +787,15 @@ def management_list():
             TaskReviewer.reviewer_id == uid
         ).scalar_subquery()
 
+        # 作为里程碑确认人的任务ID（通过子任务关联）
+        from app.models.subtask import MilestoneReviewer, SubTask
+        milestone_task_ids = db.session.query(SubTask.task_id).join(
+            MilestoneReviewer, MilestoneReviewer.subtask_id == SubTask.id
+        ).filter(
+            MilestoneReviewer.reviewer_id == uid,
+            MilestoneReviewer.status == 'pending',
+        ).scalar_subquery()
+
         # Tab 筛选
         if tab == 'my':
             query = query.filter(Task.assignee_id == uid)
@@ -772,7 +804,10 @@ def management_list():
         elif tab == 'shared':
             query = query.filter(Task.shared_with_users.cast(db.Text).contains(str(uid)))
         elif tab == 'review':
-            query = query.filter(Task.id.in_(reviewer_task_ids))
+            query = query.filter(db.or_(
+                Task.id.in_(reviewer_task_ids),
+                Task.id.in_(milestone_task_ids),
+            ))
         else:
             # tab == 'all': 我能看到的全部
             query = query.filter(db.or_(
@@ -780,6 +815,7 @@ def management_list():
                 Task.creator_id == uid,
                 Task.shared_with_users.cast(db.Text).contains(str(uid)),
                 Task.id.in_(reviewer_task_ids),
+                Task.id.in_(milestone_task_ids),
             ))
 
         # 状态筛选
@@ -793,9 +829,13 @@ def management_list():
         # 统计
         total = query.count()
 
-        # 排序
+        # 排序：已完成/已取消 排到底部
+        completed_last = db.case(
+            (Task.status.in_(['completed', 'cancelled']), 1),
+            else_=0
+        )
         if sort == 'due_date':
-            query = query.order_by(Task.due_date.asc().nullslast(), Task.updated_at.desc())
+            query = query.order_by(completed_last, Task.due_date.asc().nullslast(), Task.updated_at.desc())
         elif sort == 'priority':
             priority_order = db.case(
                 (Task.priority == 'urgent', 1),
@@ -804,11 +844,11 @@ def management_list():
                 (Task.priority == 'low', 4),
                 else_=5
             )
-            query = query.order_by(priority_order, Task.updated_at.desc())
+            query = query.order_by(completed_last, priority_order, Task.updated_at.desc())
         elif sort == 'created':
-            query = query.order_by(Task.created_at.desc())
+            query = query.order_by(completed_last, Task.created_at.desc())
         else:
-            query = query.order_by(Task.updated_at.desc())
+            query = query.order_by(completed_last, Task.updated_at.desc())
 
         # 分页
         tasks = query.options(

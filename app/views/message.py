@@ -263,6 +263,65 @@ def get_panel_data():
             })
             pending_todo_count += 1
 
+        # 4.8 获取待确认的里程碑会审（分配给自己的）
+        from app.models.subtask import MilestoneReviewer, SubTask
+        milestone_reviews = MilestoneReviewer.query.join(
+            SubTask, MilestoneReviewer.subtask_id == SubTask.id
+        ).join(
+            GeneralTask, SubTask.task_id == GeneralTask.id
+        ).filter(
+            MilestoneReviewer.reviewer_id == current_user.id,
+            MilestoneReviewer.status == 'pending',
+            SubTask.is_deleted == False,
+            GeneralTask.is_deleted == False,
+        ).order_by(MilestoneReviewer.created_at.desc()).all()
+
+        for mr in milestone_reviews:
+            st = mr.subtask
+            t = st.task if st else None
+            task_title = t.title if t else ''
+            todo_list.append({
+                'id': f'milestone_{mr.id}',
+                'type': 'milestone_confirmation',
+                'status': 'pending',
+                'title': f'里程碑确认: {st.title}',
+                'message': f'任务「{task_title}」的节点「{st.title}」已完成，请确认',
+                'requester_name': (st.assignee.real_name or st.assignee.username) if st and st.assignee else '',
+                'due_date': st.due_date.isoformat() if st and st.due_date else None,
+                'created_at': mr.created_at.isoformat() if mr.created_at else None,
+                'detail_url': f'/task/management?task_id={t.id}&subtask_id={st.id}' if t and st else '#',
+                'task_id': t.id if t else None,
+                'subtask_id': st.id if st else None,
+            })
+            pending_todo_count += 1
+
+        # 4.85 获取待审核的任务（作为审计人）
+        from app.models.task import TaskReviewer
+        task_reviews = TaskReviewer.query.join(
+            GeneralTask, TaskReviewer.task_id == GeneralTask.id
+        ).filter(
+            TaskReviewer.reviewer_id == current_user.id,
+            TaskReviewer.status == 'pending',
+            GeneralTask.is_deleted == False,
+            GeneralTask.review_status == 'pending_review',
+        ).order_by(TaskReviewer.created_at.desc()).all()
+
+        for tr in task_reviews:
+            t = tr.task
+            todo_list.append({
+                'id': f'task_review_{tr.id}',
+                'type': 'task_review',
+                'status': 'pending',
+                'title': f'任务审核: {t.title}',
+                'message': f'任务「{t.title}」已完成，请审核',
+                'requester_name': (t.assignee.real_name or t.assignee.username) if t and t.assignee else '',
+                'due_date': t.due_date.isoformat() if t and t.due_date else None,
+                'created_at': tr.created_at.isoformat() if tr.created_at else None,
+                'detail_url': f'/task/management?task_id={t.id}',
+                'task_id': t.id,
+            })
+            pending_todo_count += 1
+
         # 4.9 混合排序：pending/in_progress 在前，confirmed/completed 在后，各组内按创建时间倒序
         def todo_sort_key(item):
             s = item.get('status', '')

@@ -27001,3 +27001,15 @@ msgstr "Set task dates first"
 msgid "里程碑"
 msgstr "Milestone"
 
+msgid "里程碑确认"
+msgstr "Milestone Confirmation"
+
+msgid "再次提交"
+msgstr "Resubmit"
+
+msgid "任务审核"
+msgstr "Task Review"
+
+msgid "输入审核意见（驳回时必填）..."
+msgstr "Enter review comments (required for rejection)..."
+
