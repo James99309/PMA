@@ -392,12 +392,13 @@ def _render_output_template(
 
     output = re.sub(r'\{([a-zA-Z_]\w*)\.artifact(?::"([^"]*)")?\}', _replace_artifact, output)
 
-    # 2c. 替换 {step_name.artifact_card}
+    # 2c. 替换 {step_name.artifact_card} 或 {step_name.artifact_card:"title=col,sub=col,tags=col1|col2,kv=col3|col4"}
     def _replace_artifact_card(match: re.Match) -> str:
         step_name = match.group(1)
-        return _collect_artifact_user_card(step_name, step_results, _arts)
+        mapping_str = match.group(2) or ''
+        return _collect_artifact_card(step_name, step_results, mapping_str, _arts)
 
-    output = re.sub(r'\{([a-zA-Z_]\w*)\.artifact_card\}', _replace_artifact_card, output)
+    output = re.sub(r'\{([a-zA-Z_]\w*)\.artifact_card(?::"([^"]*)")?\}', _replace_artifact_card, output)
 
     # 3. 替换 {step_name.count}
     def _replace_count(match: re.Match) -> str:
@@ -440,22 +441,26 @@ def _render_output_template(
 
 _ARTIFACT_CSS = """
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Microsoft YaHei','微软雅黑',Calibri,'PingFang SC',sans-serif;font-size:12px;color:#1a1a1a;background:#fff;padding:2px}
-  table{border-collapse:collapse;width:100%;font-size:12px}
-  th{background:#1F4E79;color:#fff;padding:7px 10px;text-align:left;font-weight:600;white-space:nowrap;border:1px solid #163a5f}
-  td{padding:6px 10px;border:1px solid #d0d7de;vertical-align:top;color:#1a1a1a}
-  tbody tr:nth-child(odd) td{background:#F2F2F2}
-  tbody tr:nth-child(even) td{background:#FFFFFF}
-  tbody tr:hover td{background:#dce9f5}
-  .empty{text-align:center;color:#666;padding:16px}
-  .card{display:flex;align-items:flex-start;gap:12px;padding:2px 0}
-  .av{width:38px;height:38px;border-radius:50%;background:#1F4E79;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;flex-shrink:0}
+  body{font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;font-size:13px;color:#111827;background:#fff;padding:4px}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  thead tr{background:#f9fafb;border-bottom:1px solid #e5e7eb}
+  th{padding:8px 12px;text-align:left;font-weight:600;color:#374151;white-space:nowrap;font-size:12px;letter-spacing:.02em}
+  td{padding:7px 12px;border-bottom:1px solid #f3f4f6;vertical-align:top;color:#111827}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:#f9fafb}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;color:#374151}
+  .empty{text-align:center;color:#9ca3af;padding:20px;font-size:12px}
+  .card{display:flex;align-items:flex-start;gap:12px;padding:4px 0}
+  .av{width:36px;height:36px;border-radius:50%;background:#e5e7eb;color:#374151;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
   .info{flex:1;min-width:0}
-  .name{font-weight:700;font-size:14px;color:#1a1a1a}
-  .meta{color:#555;font-size:12px;margin-top:3px}
-  .stats{display:flex;gap:16px;margin-top:8px;flex-wrap:wrap}
-  .stat{font-size:12px;color:#555}
-  .stat strong{display:block;color:#1F4E79;font-size:13px;font-weight:700}
+  .card-title{font-weight:600;font-size:14px;color:#111827}
+  .card-sub{color:#6b7280;font-size:12px;margin-top:2px}
+  .tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+  .tag{font-size:11px;padding:2px 8px;border-radius:99px;background:#f3f4f6;color:#374151;border:0.5px solid #e5e7eb}
+  .kv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:8px}
+  .kv{padding:8px 10px;border:0.5px solid #e5e7eb;border-radius:8px;background:#f9fafb}
+  .kv-label{font-size:11px;color:#9ca3af;margin-bottom:2px}
+  .kv-value{font-size:13px;font-weight:600;color:#111827}
 """
 
 def _build_artifact_html(title: str, body_html: str) -> dict:
@@ -468,8 +473,12 @@ def _build_artifact_html(title: str, body_html: str) -> dict:
     return {'title': title, 'html': html}
 
 
+def _esc(v) -> str:
+    return str(v).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;') if v is not None else ''
+
+
 def _collect_artifact_table(step_name: str, step_results: dict, title: str, artifacts_out: list) -> str:
-    """生成表格 artifact 并追加到 artifacts_out，返回替换占位符用的文字。"""
+    """生成 Claude 极简风格表格 artifact。"""
     result = step_results.get(step_name)
     if not result or not result.get('rows'):
         return '(无数据)'
@@ -477,12 +486,23 @@ def _collect_artifact_table(step_name: str, step_results: dict, title: str, arti
     columns = result.get('columns', [])
     rows = result.get('rows', [])
 
-    def _esc(v):
-        return str(v).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;') if v is not None else ''
+    # 数字列右对齐
+    def _is_num(col_idx):
+        for row in rows[:5]:
+            v = row[col_idx] if col_idx < len(row) else None
+            if v is not None and not isinstance(v, (int, float)):
+                try: float(str(v).replace(',', ''))
+                except ValueError: return False
+        return True
+
+    num_cols = {i for i in range(len(columns)) if _is_num(i)}
 
     thead = ''.join(f'<th>{_esc(c)}</th>' for c in columns)
     tbody = ''.join(
-        '<tr>' + ''.join(f'<td>{_esc(cell)}</td>' for cell in row) + '</tr>'
+        '<tr>' + ''.join(
+            f'<td class="num">{_esc(cell)}</td>' if i in num_cols else f'<td>{_esc(cell)}</td>'
+            for i, cell in enumerate(row)
+        ) + '</tr>'
         for row in rows
     ) or f'<tr><td colspan="{len(columns)}" class="empty">暂无数据</td></tr>'
 
@@ -491,38 +511,83 @@ def _collect_artifact_table(step_name: str, step_results: dict, title: str, arti
     return f'*（{title or step_name}，共 {len(rows)} 条）*'
 
 
-def _collect_artifact_user_card(step_name: str, step_results: dict, artifacts_out: list) -> str:
-    """生成用户信息卡 artifact 并追加到 artifacts_out，返回替换占位符用的文字。"""
+def _parse_card_mapping(mapping_str: str, columns: list) -> dict:
+    """解析 artifact_card 参数字符串，返回 {role: [col_name, ...]} 映射。
+
+    格式: "title=姓名,sub=部门,tags=角色|职级,kv=入职日期|直属上级"
+    若未提供参数，自动按列顺序分配：第1列→title，第2列→sub，其余→kv。
+    """
+    mapping = {'title': [], 'sub': [], 'tags': [], 'kv': []}
+    if mapping_str.strip():
+        for part in mapping_str.split(','):
+            part = part.strip()
+            if '=' not in part:
+                continue
+            role, cols_str = part.split('=', 1)
+            role = role.strip()
+            col_names = [c.strip() for c in cols_str.split('|') if c.strip()]
+            if role in mapping:
+                mapping[role] = col_names
+    else:
+        # 自动分配
+        if len(columns) >= 1:
+            mapping['title'] = [columns[0]]
+        if len(columns) >= 2:
+            mapping['sub'] = [columns[1]]
+        if len(columns) > 2:
+            mapping['kv'] = list(columns[2:])
+    return mapping
+
+
+def _collect_artifact_card(step_name: str, step_results: dict, mapping_str: str, artifacts_out: list) -> str:
+    """生成可配置的 Claude 极简风格卡片 artifact。
+
+    占位符: {step.artifact_card} 或 {step.artifact_card:"title=姓名,sub=部门,tags=角色|职级,kv=入职日期"}
+    """
     result = step_results.get(step_name)
     if not result or not result.get('rows'):
-        return '(无用户信息)'
+        return '(无数据)'
 
-    row = result['rows'][0]
-    cols = result.get('columns', [])
+    columns = result.get('columns', [])
+    rows = result.get('rows', [])
+    mapping = _parse_card_mapping(mapping_str, columns)
 
-    def _get(field):
-        return str(row[cols.index(field)]) if field in cols else ''
+    def _get_val(row, col_name):
+        return str(row[columns.index(col_name)]) if col_name in columns else ''
 
-    def _esc(v):
-        return str(v).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+    cards_html = []
+    for row in rows:
+        title_val = ' '.join(_get_val(row, c) for c in mapping['title'] if _get_val(row, c))
+        sub_val = ' · '.join(_get_val(row, c) for c in mapping['sub'] if _get_val(row, c))
+        tag_vals = [_get_val(row, c) for c in mapping['tags'] if _get_val(row, c)]
+        kv_vals = [(c, _get_val(row, c)) for c in mapping['kv'] if _get_val(row, c)]
 
-    name = _get('姓名')
-    role = _get('角色')
-    dept = _get('部门')
-    initial = _esc(name[0].upper()) if name else '?'
-    meta_parts = [p for p in [role, dept] if p]
-    meta_html = f'<div class="meta">{" · ".join(_esc(p) for p in meta_parts)}</div>' if meta_parts else ''
+        initial = _esc(title_val[0].upper()) if title_val else '?'
+        sub_html = f'<div class="card-sub">{_esc(sub_val)}</div>' if sub_val else ''
+        tags_html = (
+            '<div class="tags">' + ''.join(f'<span class="tag">{_esc(t)}</span>' for t in tag_vals) + '</div>'
+        ) if tag_vals else ''
+        kv_html = (
+            '<div class="kv-grid">' +
+            ''.join(f'<div class="kv"><div class="kv-label">{_esc(k)}</div><div class="kv-value">{_esc(v)}</div></div>' for k, v in kv_vals) +
+            '</div>'
+        ) if kv_vals else ''
 
-    body_html = (
-        f'<div class="card">'
-        f'<div class="av">{initial}</div>'
-        f'<div class="info">'
-        f'<div class="name">{_esc(name)}</div>'
-        f'{meta_html}'
-        f'</div></div>'
-    )
-    artifacts_out.append(_build_artifact_html('用户信息', body_html))
-    return f'*{name}（{" · ".join(p for p in [role, dept] if p)}）*'
+        cards_html.append(
+            f'<div class="card">'
+            f'<div class="av">{initial}</div>'
+            f'<div class="info">'
+            f'<div class="card-title">{_esc(title_val)}</div>'
+            f'{sub_html}{tags_html}{kv_html}'
+            f'</div></div>'
+        )
+
+    sep = '<hr style="border:none;border-top:0.5px solid #f3f4f6;margin:8px 0">'
+    body_html = sep.join(cards_html)
+    artifacts_out.append(_build_artifact_html(step_name, body_html))
+
+    summary = title_val if len(rows) == 1 else f'{len(rows)} 条记录'
+    return f'*（{summary}）*'
 
 
 def _fallback_output(step_results: dict[str, dict]) -> str:
