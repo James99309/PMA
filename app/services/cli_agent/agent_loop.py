@@ -23,7 +23,7 @@ from app import db
 from app.models.cli_session import CliSession
 from app.services.cli_agent import conversation as conv
 from app.services.cli_agent.compaction import compact, should_compact
-from app.services.cli_agent.config import CLI_CONTEXT_REJECT, CLI_SESSION_MAX_TURNS
+from app.services.cli_agent.config import CLI_CONTEXT_REJECT, CLI_LLM_MAX_TOKENS, CLI_SESSION_MAX_TURNS
 from app.services.cli_agent.usage import estimate_messages_tokens
 from app.services.cli_agent.llm_client import BaseLLMClient, get_default_client
 from app.services.cli_agent.prompt_builder import build_system_prompt_blocks
@@ -128,6 +128,7 @@ class AgentLoop:
                 system_blocks=system_blocks,
                 tools=tool_defs,
                 messages=request_messages,
+                max_tokens=CLI_LLM_MAX_TOKENS,
             ):
                 etype = event['type']
 
@@ -165,6 +166,16 @@ class AgentLoop:
                         'usage': event.get('usage', {}),
                         'model': event.get('model'),
                     }
+                    # max_tokens 截断时 tool_use JSON 不完整,丢弃残缺工具调用
+                    if event.get('stop_reason') == 'max_tokens' and not pending_tool_uses:
+                        if collected_text_blocks:
+                            # 只保留纯文本块,丢弃不完整的 tool_use 块
+                            collected_text_blocks = [
+                                b for b in collected_text_blocks if b.get('type') == 'text'
+                            ]
+                        truncation_msg = '回复内容过长被截断，请缩小查询范围后重试。'
+                        collected_text_blocks.append(conv.text_block(truncation_msg))
+                        yield {'type': 'text_delta', 'text': '\n\n' + truncation_msg}
 
                 elif etype == 'error':
                     yield {'type': 'error', 'message': event.get('message', '未知错误')}

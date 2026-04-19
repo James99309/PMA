@@ -44,6 +44,10 @@ CLI_QUERY_DEFAULT_LIMIT = 100
 CLI_TOOL_RESULT_MAX_TOKENS = 8_000
 """单条 tool result 进入 context 的最大 token 数。超过会强制截断并提示 AI 缩小查询范围"""
 
+CLI_LLM_MAX_TOKENS = 8_192
+"""LLM 单轮最大输出 token 数。export_to_word 生成 python_code 需要 6000+ token,
+4096 会导致 tool_use JSON 被截断。8192 满足绝大多数场景。"""
+
 # ─── 会话生命周期 ──────────────────────────────────────────────────────
 CLI_SESSION_ARCHIVE_HOURS = 48
 """非活跃 session 自动归档的小时数。归档不删除数据,通过 /history 可找回"""
