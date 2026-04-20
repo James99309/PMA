@@ -122,7 +122,8 @@ class InvokeSkillTool(BaseTool):
             'skill_title': skill.title,
             'output': output,
             'artifacts': artifacts,
-            'instruction': '请将上面的 output 内容完整输出给用户，不要删减章节、不要重新排版、不要跳过表格。',
+            'instruction': '请将上面的 output 内容完整输出给用户，不要删减章节、不要重新排版、不要跳过表格。'
+                          '其中的 <details> HTML 标签是可折叠交互组件，必须原样保留，不要改写为普通表格。',
         }
 
         # 附加各步骤行数统计

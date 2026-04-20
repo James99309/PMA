@@ -313,7 +313,7 @@ def _render_grouped_table(columns: list[str], rows: list[list], group_col: str) 
         key = str(row[gi]) if row[gi] is not None else '其他'
         groups.setdefault(key, []).append(row)
 
-    lines: list[str] = []
+    lines: list[str] = ['<!-- interactive: collapsible groups, output as-is -->']
     for gname in sorted(groups, key=lambda g: -len(groups[g])):
         grow = groups[gname]
         lines.append(f'<details><summary><strong>{gname}</strong> — {len(grow)} 项</summary>\n')
@@ -446,18 +446,11 @@ def _render_output_template(
 
     output = re.sub(r'\{([a-zA-Z_]\w*)\.artifact_card(?::"([^"]*)")?\}', _replace_artifact_card, output)
 
-    # 2d. 替换 {step_name.grouped_by:"列名"} → 按指定列分组的可折叠表格
+    # 2d. 替换 {step_name.grouped_by:"列名"} → 按指定列分组的可折叠 artifact
     def _replace_grouped(match: re.Match) -> str:
         step_name = match.group(1)
         group_col = match.group(2) or ''
-        if step_name in step_results:
-            result = step_results[step_name]
-            return _render_grouped_table(
-                result.get('columns', []),
-                result.get('rows', []),
-                group_col,
-            )
-        return f'(步骤 {step_name} 无数据)'
+        return _collect_artifact_grouped(step_name, step_results, group_col, '', _arts)
 
     output = re.sub(r'\{([a-zA-Z_]\w*)\.grouped_by:"([^"]*)"\}', _replace_grouped, output)
 
@@ -522,6 +515,13 @@ _ARTIFACT_CSS = """
   .kv{padding:8px 10px;border:0.5px solid #e5e7eb;border-radius:8px;background:#f9fafb}
   .kv-label{font-size:11px;color:#9ca3af;margin-bottom:2px}
   .kv-value{font-size:13px;font-weight:600;color:#111827}
+  details{margin:4px 0;border:1px solid #e5e7eb;border-radius:6px;overflow:hidden}
+  details summary{cursor:pointer;padding:8px 12px;font-size:13px;background:#f9fafb;user-select:none;list-style:none}
+  details summary::-webkit-details-marker{display:none}
+  details summary::before{content:'▶ ';font-size:10px;color:#9ca3af;transition:transform .15s;display:inline-block;margin-right:4px}
+  details[open] summary::before{transform:rotate(90deg)}
+  details[open] summary{border-bottom:1px solid #e5e7eb}
+  details table{margin:0}
 """
 
 def _build_artifact_html(title: str, body_html: str) -> dict:
@@ -570,6 +570,60 @@ def _collect_artifact_table(step_name: str, step_results: dict, title: str, arti
     body_html = f'<table><thead><tr>{thead}</tr></thead><tbody>{tbody}</tbody></table>'
     artifacts_out.append(_build_artifact_html(title or step_name, body_html))
     return f'*（{title or step_name}，共 {len(rows)} 条）*'
+
+
+def _collect_artifact_grouped(
+    step_name: str, step_results: dict, group_col: str, title: str, artifacts_out: list,
+) -> str:
+    """按指定列分组，生成可折叠 <details> artifact（iframe 渲染，绕过 AI）。
+
+    用法:
+        output_format 模板: {step_name.grouped_by:"类型"}
+        skill_body 中:      artifact_grouped('step_name', '类型', '标题')
+
+    返回占位文字供 AI 输出；实际交互表格走 artifact 通道直达前端。
+    """
+    result = step_results.get(step_name)
+    if not result or not result.get('rows'):
+        return '(无数据)'
+
+    columns = result.get('columns', [])
+    rows = result.get('rows', [])
+
+    if group_col not in columns:
+        return _collect_artifact_table(step_name, step_results, title, artifacts_out)
+
+    gi = columns.index(group_col)
+    other_cols = [c for i, c in enumerate(columns) if i != gi]
+
+    groups: dict[str, list] = {}
+    for row in rows:
+        key = str(row[gi]) if row[gi] is not None else '其他'
+        groups.setdefault(key, []).append(row)
+
+    html_parts: list[str] = []
+    for gname in sorted(groups, key=lambda g: -len(groups[g])):
+        grow = groups[gname]
+        thead = ''.join(f'<th>{_esc(c)}</th>' for c in other_cols)
+        tbody = ''.join(
+            '<tr>' + ''.join(
+                f'<td>{_esc(row[i])}</td>' for i in range(len(row)) if i != gi
+            ) + '</tr>'
+            for row in grow
+        )
+        html_parts.append(
+            f'<details>'
+            f'<summary><strong>{_esc(gname)}</strong> — {len(grow)} 项</summary>'
+            f'<table><thead><tr>{thead}</tr></thead><tbody>{tbody}</tbody></table>'
+            f'</details>'
+        )
+
+    display_title = title or f'{step_name}（按{group_col}分组）'
+    artifacts_out.append(_build_artifact_html(display_title, '\n'.join(html_parts)))
+
+    top_groups = sorted(groups.items(), key=lambda x: -len(x[1]))[:5]
+    summary = '、'.join(f'{g}({len(r)}项)' for g, r in top_groups)
+    return f'*（{display_title}：{summary}，详见下方交互面板）*'
 
 
 def _parse_card_mapping(mapping_str: str, columns: list) -> dict:
@@ -696,8 +750,9 @@ def _execute_render_body(
 
     代码必须定义 `def render(results, params): return str`。
     render 函数可调用注入的辅助函数：
-      artifact_table(step_name, title='')  → 生成表格 artifact，返回占位文字
-      artifact_card(step_name, mapping='') → 生成卡片 artifact，返回占位文字
+      artifact_table(step_name, title='')          → 生成表格 artifact，返回占位文字
+      artifact_card(step_name, mapping='')         → 生成卡片 artifact，返回占位文字
+      artifact_grouped(step_name, group_col, title='') → 按列分组生成可折叠 artifact
     执行失败时降级到 _fallback_output 并附加错误提示。
     """
     collected_artifacts: list = []
@@ -708,9 +763,13 @@ def _execute_render_body(
     def _helper_artifact_card(step_name: str, mapping: str = '') -> str:
         return _collect_artifact_card(step_name, step_results, mapping, collected_artifacts)
 
+    def _helper_artifact_grouped(step_name: str, group_col: str, title: str = '') -> str:
+        return _collect_artifact_grouped(step_name, step_results, group_col, title, collected_artifacts)
+
     namespace: dict = dict(_SAFE_BUILTINS)
     namespace['artifact_table'] = _helper_artifact_table
     namespace['artifact_card'] = _helper_artifact_card
+    namespace['artifact_grouped'] = _helper_artifact_grouped
 
     try:
         exec(compile(code, '<skill_render_body>', 'exec'), namespace)  # noqa: S102
