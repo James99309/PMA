@@ -53,3 +53,24 @@ class BaseAgentLoop:
                 'download_url': output['download_url'],
             }
         return None
+
+    def _strip_artifacts(self, tool_name: str, output: dict, is_error: bool) -> tuple[dict, list[dict]]:
+        """invoke_skill 专用：提取 artifacts 事件列表，返回剥离后的 llm_output。
+
+        两端（chat/CLI）完全相同的逻辑，统一放在基类。
+        Returns:
+            (llm_output, artifact_events)  — llm_output 不含 artifacts 字段
+        """
+        artifact_events: list[dict] = []
+        if tool_name != 'invoke_skill' or is_error or not isinstance(output, dict):
+            return output, artifact_events
+
+        for art in (output.get('artifacts') or []):
+            artifact_events.append({
+                'type': 'artifact',
+                'title': art.get('title', ''),
+                'html': art.get('html', ''),
+            })
+
+        llm_output = {k: v for k, v in output.items() if k != 'artifacts'} if 'artifacts' in output else output
+        return llm_output, artifact_events

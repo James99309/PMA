@@ -211,17 +211,9 @@ class AgentLoop(BaseAgentLoop):
                 }
                 output, is_error = self._run_tool(tu)
 
-                # invoke_skill 的 artifacts 直接推给前端，不经过 LLM
-                if tu['name'] == 'invoke_skill' and not is_error:
-                    arts = output.get('artifacts') or []
-                    print(f'[agent_loop] invoke_skill artifacts count={len(arts)}', flush=True)
-                    for art in arts:
-                        yield {'type': 'artifact', 'title': art.get('title', ''), 'html': art.get('html', '')}
-
-                # artifacts 体积大，不传给 LLM
-                llm_output = output
-                if tu['name'] == 'invoke_skill' and isinstance(output, dict) and 'artifacts' in output:
-                    llm_output = {k: v for k, v in output.items() if k != 'artifacts'}
+                llm_output, artifact_events = self._strip_artifacts(tu['name'], output, is_error)
+                for evt in artifact_events:
+                    yield evt
 
                 tool_results.append(conv.tool_result_block(
                     tool_use_id=tu['id'],
