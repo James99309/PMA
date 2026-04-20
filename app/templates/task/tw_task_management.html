@@ -78,7 +78,7 @@
                 </button>
 
                 {% for m in team_members %}
-                <button @click="setViewUser({{ m.id }}, {{ m.name | tojson }})"
+                <button @click='setViewUser({{ m.id }}, {{ m.name | tojson }})'
                         class="flex-shrink-0 cursor-pointer group"
                         title="{{ m.name }}">
                     <div :class="viewUserId === {{ m.id }} ? 'ring-2 ring-primary ring-offset-1' : 'opacity-60 group-hover:opacity-100'"
