@@ -790,20 +790,25 @@ def task_management():
     if is_admin or is_dept_mgr:
         can_view_team = True
 
-        # 有活跃任务的 user_id 集合（distinct 避免重复，subquery() 确保生成正确子查询）
-        active_assignee_ids = db.session.query(Task.assignee_id).filter(
-            Task.is_deleted == False,
-            Task.status.notin_(['completed', 'cancelled']),
-        ).distinct().subquery()
+        # 先把有活跃任务的 assignee_id 取成 Python list，避免 ORM 子查询兼容性问题
+        active_ids = [
+            row[0] for row in db.session.query(Task.assignee_id).filter(
+                Task.is_deleted == False,
+                Task.status.notin_(['completed', 'cancelled']),
+            ).distinct().all()
+            if row[0] is not None
+        ]
 
-        if is_admin:
+        if not active_ids:
+            users = []
+        elif is_admin:
             users = User.query.filter(
-                User.id.in_(active_assignee_ids),
+                User.id.in_(active_ids),
                 User._is_active == True,
             ).order_by(User.real_name).all()
         elif current_user.department and current_user.company_name:
             users = User.query.filter(
-                User.id.in_(active_assignee_ids),
+                User.id.in_(active_ids),
                 User.department == current_user.department,
                 User.company_name == current_user.company_name,
                 User._is_active == True,
