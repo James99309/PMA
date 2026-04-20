@@ -648,8 +648,18 @@
                                 </div>
                             </div>
                             </template>
-                            <!-- Markdown 内容（无气泡） -->
-                            <div class="prose prose-sm prose-slate dark:prose-invert max-w-none text-sm leading-relaxed"
+                            <!-- AI 导出文件下载按钮 -->
+                            <template x-if="msg.message_type === 'download' && msg.download_url">
+                            <a :href="msg.download_url" :download="msg.content"
+                               class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700 text-violet-700 dark:text-violet-300 text-sm font-medium hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-colors"
+                               @click.stop>
+                                <span class="material-symbols-outlined text-base">download</span>
+                                <span x-text="msg.content"></span>
+                            </a>
+                            </template>
+                            <!-- Markdown 内容（无气泡，跳过 download 类型） -->
+                            <div x-show="msg.message_type !== 'download'"
+                                 class="prose prose-sm prose-slate dark:prose-invert max-w-none text-sm leading-relaxed"
                                  x-html="renderMarkdown(msg.content)"></div>
                             <!-- 快捷选项（AI 列出多个匹配时显示） -->
                             <template x-if="msg._choices && msg._choices.length > 0">
@@ -2938,6 +2948,19 @@ function chatPanel() {
                             } else if (payload.type === 'thinking') {
                                 // AI 思考过程
                                 this.aiThinkingText += payload.text;
+                                this.scrollToBottom();
+                            } else if (payload.type === 'download') {
+                                // 文件导出完成 — 插入下载按钮消息
+                                this.messages.push({
+                                    id: 'dl_' + Date.now(),
+                                    content: payload.filename,
+                                    download_url: payload.download_url,
+                                    message_type: 'download',
+                                    is_mine: false,
+                                    is_ai: true,
+                                    sender_name: '{{ _("AI 助手") }}',
+                                    created_at: new Date().toISOString(),
+                                });
                                 this.scrollToBottom();
                             } else if (payload.type === 'agent_status') {
                                 // 工具执行状态

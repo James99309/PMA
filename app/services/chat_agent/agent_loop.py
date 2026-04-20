@@ -262,6 +262,13 @@ class ChatAgentLoop:
                     'name': tu['name'],
                     'phase': 'error' if is_error else 'done',
                 }
+                # 文件导出工具：把下载链接推给前端
+                if not is_error and isinstance(output, dict) and output.get('download_url'):
+                    yield {
+                        'type': 'download',
+                        'filename': output.get('filename', '导出文件'),
+                        'download_url': output['download_url'],
+                    }
 
             history_messages.append({'role': 'user', 'content': tool_results})
 
