@@ -27,7 +27,7 @@ class InvokeSkillTool(BaseTool):
     description = (
         '调用预定义的业务查询 Skill。匹配已有 Skill 时优先使用,结果比 query_pma_database 更准确一致。\n'
         '- 通过 skill_name 指定要调用的技能(见系统提示中的可用 Skill 列表)。\n'
-        '- parameters 是技能所需的参数键值对(参考各 Skill 的参数定义)。\n'
+        '- 从用户消息中提取所有参数值(人名、时间词等),映射到 params 后一次性传入,不要遗漏。\n'
         '- 返回 Markdown 格式的结果输出;如果失败,返回含 error 字段的 JSON。'
     )
     input_schema = {
@@ -36,6 +36,10 @@ class InvokeSkillTool(BaseTool):
             'skill_name': {
                 'type': 'string',
                 'description': 'Skill 标识名',
+            },
+            'params': {
+                'type': 'object',
+                'description': '技能参数字典，如 {"user_name": "范敬", "period": "last_week"}',
             },
             'user_name': {
                 'type': 'string',
@@ -53,18 +57,27 @@ class InvokeSkillTool(BaseTool):
         'required': ['skill_name'],
     }
 
+    def __init__(self, query_fn=None):
+        """
+        query_fn: 可选查询函数，默认 execute_safe_query（CLI 权限）。
+                  Chat 场景传入 execute_chat_safe_query（前端权限模型）。
+        """
+        self._query_fn = query_fn
+
     def execute(self, tool_input: dict, context: dict) -> Any:
         raw_name = (tool_input or {}).get('skill_name', '').strip()
         skill_name = raw_name.split('(')[0].strip()
         user = context.get('user')
 
-        # 参数提取：优先从 parameters 嵌套对象，fallback 从顶层提取
-        params = (tool_input or {}).get('parameters') or {}
+        # 参数提取：优先 params 字典，其次 parameters 嵌套对象，最后从顶层字段提取
+        params = (tool_input or {}).get('params') or {}
         if not params:
-            reserved = {'skill_name', 'parameters'}
+            params = (tool_input or {}).get('parameters') or {}
+        if not params:
+            reserved = {'skill_name', 'params', 'parameters'}
             params = {k: v for k, v in (tool_input or {}).items() if k not in reserved and v}
 
-        logger.info(f'[CLI Agent] invoke_skill 收到: skill_name={skill_name}, params={params}, raw_input={tool_input}')
+        logger.info(f'[Agent] invoke_skill 收到: skill_name={skill_name}, params={params}')
 
         if not skill_name:
             return {'error': 'skill_name 参数不能为空'}
@@ -79,7 +92,7 @@ class InvokeSkillTool(BaseTool):
                 is_active=True,
             ).first()
         except Exception as e:
-            logger.exception('[CLI Agent] invoke_skill 查询 CliSkill 异常')
+            logger.exception('[Agent] invoke_skill 查询 CliSkill 异常')
             return {'error': f'查询技能定义失败: {e}'}
 
         if skill is None:
@@ -87,25 +100,24 @@ class InvokeSkillTool(BaseTool):
                 'error': f'未找到名为 "{skill_name}" 的活跃技能。请检查名称或使用 query_pma_database 直接查询。',
             }
 
-        # --- 2a. docx 类型是样式库，不可直接调用 ---
-        if getattr(skill, 'skill_type', 'sql') == 'docx':
+        # --- 2. 样式库类型不可直接调用 ---
+        if getattr(skill, 'skill_type', 'sql') in ('docx', 'xlsx', 'tool'):
             return {
-                'error': f'"{skill_name}" 是样式库，不能直接调用。'
-                         f'请使用 export_to_word 工具生成 Word 文档。',
+                'error': f'"{skill_name}" 是样式库或内置工具，不能直接调用。',
             }
 
-        # --- 2. 权限检查:personal scope 只限创建者使用 ---
+        # --- 3. 权限检查:personal scope 只限创建者使用 ---
         if skill.scope == CliSkill.SCOPE_PERSONAL and skill.created_by != user.id:
             return {
                 'error': f'技能 "{skill_name}" 是个人技能,仅创建者可使用。',
             }
 
-        # --- 3. 调用 SkillEngine 执行 ---
+        # --- 4. 调用 SkillEngine 执行 ---
         try:
             from app.services.cli_agent.skill_engine import SkillEngine
-            result = SkillEngine.execute(skill, params, user)
+            result = SkillEngine.execute(skill, params, user, query_fn=self._query_fn)
         except Exception as e:
-            logger.exception(f'[CLI Agent] invoke_skill 执行技能 {skill_name} 异常')
+            logger.exception(f'[Agent] invoke_skill 执行技能 {skill_name} 异常')
             return {'error': f'技能执行异常: {e}'}
 
         if not result.get('success'):
@@ -143,7 +155,7 @@ class InvokeSkillTool(BaseTool):
             response['truncated'] = True
 
         logger.info(
-            f'[CLI Agent] invoke_skill 完成: skill={skill_name}, '
+            f'[Agent] invoke_skill 完成: skill={skill_name}, '
             f'steps={len(raw_results)}, output_chars={len(output)}'
         )
         return response

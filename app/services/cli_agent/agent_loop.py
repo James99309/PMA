@@ -26,6 +26,7 @@ from app.services.cli_agent.compaction import compact, should_compact
 from app.services.cli_agent.config import CLI_CONTEXT_REJECT, CLI_LLM_MAX_TOKENS, CLI_SESSION_MAX_TURNS
 from app.services.cli_agent.usage import estimate_messages_tokens
 from app.services.cli_agent.llm_client import BaseLLMClient, get_default_client
+from app.services.cli_agent.base_agent_loop import BaseAgentLoop
 from app.services.cli_agent.prompt_builder import build_system_prompt_blocks
 from app.services.cli_agent.tools import ToolRegistry, get_default_registry
 
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 _MAX_TOOL_ROUNDS_PER_RUN = 6
 
 
-class AgentLoop:
+class AgentLoop(BaseAgentLoop):
     """一个 Session 对应的 Agent Loop 执行器"""
 
     def __init__(
@@ -46,10 +47,8 @@ class AgentLoop:
         llm_client: BaseLLMClient | None = None,
         tool_registry: ToolRegistry | None = None,
     ):
+        super().__init__(user=user, llm_client=llm_client, tools=tool_registry or get_default_registry())
         self.session = session
-        self.user = user
-        self.llm = llm_client or get_default_client()
-        self.tools = tool_registry or get_default_registry()
 
     # ─── 主入口 ─────────────────────────────────────────────────────
 
@@ -210,18 +209,7 @@ class AgentLoop:
                     'type': 'status',
                     'message': f'正在执行 {self._friendly_tool_name(tu["name"])}...',
                 }
-                try:
-                    tool = self.tools.get(tu['name'])
-                    if tool is None:
-                        output = {'error': f'未知工具: {tu["name"]}'}
-                        is_error = True
-                    else:
-                        output = tool.execute(tu['input'], {'user': self.user})
-                        is_error = isinstance(output, dict) and 'error' in output
-                except Exception as e:
-                    logger.exception(f'[CLI Agent] 工具 {tu["name"]} 执行异常')
-                    output = {'error': f'工具执行异常: {e}'}
-                    is_error = True
+                output, is_error = self._run_tool(tu)
 
                 # invoke_skill 的 artifacts 直接推给前端，不经过 LLM
                 if tu['name'] == 'invoke_skill' and not is_error:

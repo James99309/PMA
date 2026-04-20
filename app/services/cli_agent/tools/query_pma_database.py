@@ -43,6 +43,13 @@ class QueryPmaDatabaseTool(BaseTool):
         'required': ['sql'],
     }
 
+    def __init__(self, query_fn=None):
+        """
+        query_fn: 可选查询函数，默认 execute_safe_query（CLI 权限）。
+                  Chat 场景传入 execute_chat_safe_query（前端权限模型）。
+        """
+        self._query_fn = query_fn
+
     def execute(self, tool_input: dict, context: dict) -> Any:
         sql = (tool_input or {}).get('sql', '').strip()
         user = context.get('user')
@@ -52,21 +59,22 @@ class QueryPmaDatabaseTool(BaseTool):
         if user is None:
             return {'error': '内部错误:缺少用户上下文'}
 
-        # 复用 PMA 现有实现(自带权限注入 + LIMIT + 安全校验)
         try:
-            from app.services.chat_db_query import execute_safe_query
-            result = execute_safe_query(sql, user)
+            if self._query_fn is not None:
+                _query = self._query_fn
+            else:
+                from app.services.chat_db_query import execute_safe_query
+                _query = execute_safe_query
+            result = _query(sql, user)
         except Exception as e:
-            logger.exception('[CLI Agent] query_pma_database 执行异常')
-            # 脱敏：不暴露 SQL 和内部错误给 LLM/用户
+            logger.exception('[Agent] query_pma_database 执行异常')
             return {'error': '查询执行失败，请检查查询条件后重试。'}
 
         if not result.get('success'):
             raw_err = result.get('error', '查询失败')
-            # 保留权限相关提示，脱敏其他技术细节
-            if '权限' in raw_err:
+            if '权限' in raw_err or '没有' in raw_err:
                 return {'error': raw_err}
-            logger.warning(f'[CLI Agent] query_pma_database 失败: {raw_err}')
+            logger.warning(f'[Agent] query_pma_database 失败: {raw_err}')
             return {'error': '查询失败，请换个方式提问或缩小查询范围。'}
 
         # 成功结果 → 检查大小,过大截断
@@ -92,7 +100,7 @@ class QueryPmaDatabaseTool(BaseTool):
             rows = rows[:kept]
             truncated = True
             logger.info(
-                f'[CLI Agent] tool result 截断: {original_row_count} → {kept} 行'
+                f'[Agent] tool result 截断: {original_row_count} → {kept} 行'
             )
 
         output: dict = {

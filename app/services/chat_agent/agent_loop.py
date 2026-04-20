@@ -30,6 +30,7 @@ from app import db
 from app.models.chat import ChatMessage
 from app.services.cli_agent import conversation as conv
 from app.services.cli_agent.llm_client import BaseLLMClient, get_default_client
+from app.services.cli_agent.base_agent_loop import BaseAgentLoop
 from app.services.chat_agent.prompt_builder import build_system_prompt_blocks
 from app.services.chat_agent.tools import get_chat_default_registry
 from app.services.cli_agent.tools import ToolRegistry
@@ -46,7 +47,7 @@ _HISTORY_LOAD_MESSAGES = 40
 _HISTORY_KEEP_RECENT = 12
 
 
-class ChatAgentLoop:
+class ChatAgentLoop(BaseAgentLoop):
     """一个聊天对话的 Agent Loop 执行器"""
 
     def __init__(
@@ -56,10 +57,8 @@ class ChatAgentLoop:
         llm_client: BaseLLMClient | None = None,
         tool_registry: ToolRegistry | None = None,
     ):
+        super().__init__(user=user, llm_client=llm_client, tools=tool_registry or get_chat_default_registry())
         self.conversation_id = conversation_id
-        self.user = user
-        self.llm = llm_client or get_default_client()
-        self.tools = tool_registry or get_chat_default_registry()
 
     # ─── 主入口 ──────────────────────────────────────────────────────
 
@@ -239,19 +238,7 @@ class ChatAgentLoop:
             # 执行所有 tool_use,生成 tool_result,追加为 user 消息
             tool_results: list[dict] = []
             for tu in pending_tool_uses:
-                try:
-                    tool = self.tools.get(tu['name'])
-                    if tool is None:
-                        output = {'error': f'未知工具: {tu["name"]}'}
-                        is_error = True
-                    else:
-                        output = tool.execute(tu['input'], {'user': self.user})
-                        is_error = isinstance(output, dict) and 'error' in output
-                except Exception as e:
-                    logger.exception(f'[Chat Agent] 工具 {tu["name"]} 执行异常')
-                    output = {'error': f'工具执行异常: {e}'}
-                    is_error = True
-
+                output, is_error = self._run_tool(tu)
                 tool_results.append(conv.tool_result_block(
                     tool_use_id=tu['id'],
                     content=output,
@@ -262,13 +249,10 @@ class ChatAgentLoop:
                     'name': tu['name'],
                     'phase': 'error' if is_error else 'done',
                 }
-                # 文件导出工具：把下载链接推给前端
-                if not is_error and isinstance(output, dict) and output.get('download_url'):
-                    yield {
-                        'type': 'download',
-                        'filename': output.get('filename', '导出文件'),
-                        'download_url': output['download_url'],
-                    }
+                if not is_error:
+                    dl = self._download_event(output)
+                    if dl:
+                        yield dl
 
             history_messages.append({'role': 'user', 'content': tool_results})
 

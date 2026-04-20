@@ -2,23 +2,17 @@
 """
 Chat Agent 工具注册表
 
-相比 cli_agent 的工具集（query + skill + memory + web_search + export_to_word），
-chat_agent 注册:
-
-    - query_pma_database: 通过 execute_chat_safe_query 做前端权限过滤的 SQL 查询
-    - save_memory / recall_memory / delete_memory:
-          与 CLI agent 共享同一张 cli_memories 表,实现跨入口统一的用户画像
-          （chat 里学到的"张奕是 HR 经理"在 CLI 终端也记得）
-    - web_search: 有 TAVILY_API_KEY 环境变量时启用,用于查询公网信息
-    - export_to_word: pandoc 可用时启用,用户可在聊天里说"导出Word"
-
-不注册 skill 工具,聊天场景用户期望即时问答,不需要 CLI 那种技能沉淀。
+所有工具均复用 cli_agent/tools/ 的统一实现，通过构造参数 query_fn
+传入 execute_chat_safe_query（前端权限模型），无需维护 chat 专用工具文件。
 
 工具注册说明:
-    - invoke_skill: 调用 CliSkill 预定义业务技能，使用 execute_chat_safe_query（前端权限）
-    - web_search: 有 TAVILY_API_KEY 环境变量时启用（与 CLI 统一用 .strip() 判断）
-    - export_to_word: 无条件注册，工具内部已有 python-docx 主路径 + pandoc 兜底
-    - describe_table: 配合 Tier 2 表按需查询字段，与 CLI 分级 schema 注入配合
+    - query_pma_database: 传入 execute_chat_safe_query（前端权限）
+    - invoke_skill: 传入 execute_chat_safe_query（前端权限）
+    - memory 三件套: 与 CLI 共享同一张 cli_memories 表
+    - query_wiki: Chat 独有，公司内部知识库问答
+    - web_search: 有 TAVILY_API_KEY 环境变量时启用
+    - export_to_word / export_to_excel / export_quotation_to_excel: 直接复用
+    - describe_table: 配合 Tier 2 表按需查询字段
 """
 from __future__ import annotations
 
@@ -36,15 +30,14 @@ def get_chat_default_registry() -> ToolRegistry:
     if _chat_default_registry is None:
         _chat_default_registry = ToolRegistry()
 
-        from app.services.chat_agent.tools.query_pma_database import (
-            ChatQueryPmaDatabaseTool,
-        )
-        _chat_default_registry.register(ChatQueryPmaDatabaseTool())
+        from app.services.chat_db_query import execute_chat_safe_query
+        from app.services.cli_agent.tools.query_pma_database import QueryPmaDatabaseTool
+        _chat_default_registry.register(QueryPmaDatabaseTool(query_fn=execute_chat_safe_query))
 
-        # invoke_skill（使用前端权限模型，无需 cli_permissions 配置）
+        # invoke_skill（使用前端权限模型）
         try:
-            from app.services.chat_agent.tools.invoke_skill import ChatInvokeSkillTool
-            _chat_default_registry.register(ChatInvokeSkillTool())
+            from app.services.cli_agent.tools.invoke_skill import InvokeSkillTool
+            _chat_default_registry.register(InvokeSkillTool(query_fn=execute_chat_safe_query))
         except Exception:
             pass
 
