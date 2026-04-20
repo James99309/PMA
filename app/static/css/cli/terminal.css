@@ -373,6 +373,16 @@ body:has(.cli-window) button.fixed.bottom-6.right-6.bg-primary.rounded-full { di
 .cli-md-link { color: var(--cli-link); text-decoration: none; }
 .cli-md-link:hover { text-decoration: underline; }
 
+/* 可折叠分组（<details> 块） */
+.cli-msg details { margin: 4px 0; border: 1px solid var(--cli-table-border); border-radius: 6px; overflow: hidden; }
+.cli-msg details summary { cursor: pointer; padding: 6px 12px; font-size: 13px; background: var(--cli-table-header); user-select: none; list-style: none; }
+.cli-msg details summary::-webkit-details-marker { display: none; }
+.cli-msg details summary::before { content: '▶ '; font-size: 10px; color: var(--cli-muted); transition: transform 0.15s; display: inline-block; margin-right: 4px; }
+.cli-msg details[open] summary::before { transform: rotate(90deg); }
+.cli-msg details[open] summary { border-bottom: 1px solid var(--cli-table-border); }
+.cli-msg details > :not(summary) { padding: 0 8px; }
+.cli-msg details .cli-md-table-wrap { border: none; margin: 0; border-radius: 0; }
+
 /* 业务实体高亮 */
 .cli-hl-cny { color: var(--cli-cny); font-weight: 500; }
 .cli-hl-usd { color: var(--cli-usd); font-weight: 500; }
