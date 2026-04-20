@@ -64,6 +64,47 @@
                 </button>
             </div>
 
+            {% if can_view_team %}
+            {# 成员切换栏 #}
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                {# 我 - 始终第一 #}
+                <button @click="setViewUser(null)"
+                        :class="viewUserId === null
+                            ? 'ring-2 ring-primary bg-primary/10'
+                            : 'bg-slate-100 dark:bg-slate-700 hover:bg-primary/10'"
+                        class="flex-shrink-0 flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg transition cursor-pointer">
+                    <div class="w-7 h-7 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center">
+                        {{ (current_user.real_name or current_user.username)[:2] }}
+                    </div>
+                    <span class="text-[10px] text-slate-600 dark:text-slate-400 w-8 text-center truncate">{{ _('我') }}</span>
+                </button>
+
+                {% for m in team_members %}
+                <button @click="setViewUser({{ m.id }}, '{{ m.name }}')"
+                        :class="viewUserId === {{ m.id }}
+                            ? 'ring-2 ring-primary bg-primary/10'
+                            : 'bg-slate-100 dark:bg-slate-700 hover:bg-primary/10'"
+                        class="flex-shrink-0 flex flex-col items-center gap-0.5 px-1.5 py-1 rounded-lg transition cursor-pointer">
+                    <div class="w-7 h-7 rounded-full bg-slate-400 text-white text-xs font-bold flex items-center justify-center">
+                        {{ m.initials }}
+                    </div>
+                    <span class="text-[10px] text-slate-600 dark:text-slate-400 w-8 text-center truncate">{{ m.name[:3] }}</span>
+                </button>
+                {% endfor %}
+            </div>
+
+            {# 正在查看他人时显示提示条 #}
+            <div x-show="viewUserId !== null"
+                 x-cloak
+                 class="flex items-center gap-1 text-xs text-primary bg-primary/5 rounded-md px-2 py-1">
+                <span class="material-symbols-outlined text-sm">visibility</span>
+                <span>{{ _('正在查看') }}：<span x-text="viewUserName"></span></span>
+                <button @click="setViewUser(null)" class="ml-auto text-slate-400 hover:text-primary transition">
+                    <span class="material-symbols-outlined text-sm">close</span>
+                </button>
+            </div>
+            {% endif %}
+
             {# 搜索 #}
             <div class="relative">
                 <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-base text-slate-400">search</span>
@@ -799,6 +840,7 @@
 {# ═══════════ 脚本 ═══════════ #}
 {{ render_tw_layout_script() }}
 <script>window.CURRENT_USER_ID = {{ current_user.id }};</script>
+<script>window.CAN_VIEW_TEAM = {{ 'true' if can_view_team else 'false' }};</script>
 <script>
 /** 双滑块日期范围选择器 — 限定在父任务周期内 */
 function dateRangeSlider() {
