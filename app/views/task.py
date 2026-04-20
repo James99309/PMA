@@ -844,6 +844,20 @@ def management_list():
         per_page = request.args.get('per_page', 20, type=int)
 
         uid = current_user.id
+
+        # 代理查看：管理员或部门负责人可查看他人任务
+        view_user_id = request.args.get('view_user_id', type=int)
+        if view_user_id and view_user_id != uid:
+            is_admin = current_user.role in ('admin', 'ceo')
+            is_dept_mgr = getattr(current_user, 'is_department_manager', False)
+            if is_admin:
+                uid = view_user_id
+            elif is_dept_mgr and current_user.department and current_user.company_name:
+                target = User.query.get(view_user_id)
+                if target and target.department == current_user.department \
+                        and target.company_name == current_user.company_name:
+                    uid = view_user_id
+
         query = Task.query.filter(Task.is_deleted == False)
 
         # 作为审计人的任务ID
