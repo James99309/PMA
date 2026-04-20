@@ -23163,6 +23163,9 @@ msgstr "Search tasks..."
 msgid "共 {n} 个"
 msgstr "Total: {n}"
 
+msgid "正在查看"
+msgstr "Viewing"
+
 #~ msgid "English"
 #~ msgstr "English"
 
