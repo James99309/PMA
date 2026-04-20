@@ -50,9 +50,27 @@
     <div class="page-with-fixed-nav">
       <div class="max-w-7xl mx-auto px-4 py-6">
         <div x-data="pointsPage()" x-init="init()">
-          <!-- 标题 + 周期切换 -->
-          <div class="flex items-center justify-between mb-4">
-            <h1 class="text-xl font-bold text-slate-900 dark:text-white">工作积分</h1>
+          <!-- 标题 + 页签 + 周期切换 -->
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <div class="flex items-center gap-3">
+              <h1 class="text-xl font-bold text-slate-900 dark:text-white">工作积分</h1>
+              <!-- 页签 -->
+              <div class="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+                <button @click="activeTab = 'points'"
+                  :class="activeTab === 'points' ? 'bg-white dark:bg-slate-700 shadow text-primary font-medium' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                  class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-all">
+                  <span class="material-symbols-outlined text-sm leading-none">emoji_events</span>
+                  积分排行
+                </button>
+                <button @click="switchToAI()"
+                  :class="activeTab === 'ai' ? 'bg-white dark:bg-slate-700 shadow text-primary font-medium' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
+                  class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-all">
+                  <span class="material-symbols-outlined text-sm leading-none">smart_toy</span>
+                  AI 使用排行
+                </button>
+              </div>
+            </div>
+            <!-- 周期切换（两个页签共用） -->
             <div class="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
               <template x-for="p in periods" :key="p.key">
                 <button @click="setPeriod(p.key)"
@@ -62,7 +80,8 @@
             </div>
           </div>
 
-          <!-- 主体二栏 -->
+          <!-- ===== 积分排行页签 ===== -->
+          <div x-show="activeTab === 'points'">
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             <!-- 左栏：排行榜 -->
@@ -89,8 +108,14 @@
                   <p class="text-center text-slate-400 py-8 text-sm">暂无数据</p>
                 </template>
                 <template x-for="item in filteredLeaderboard" :key="item.user_id">
-                  <div :class="item.is_me ? 'bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg' : ''"
-                    class="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors">
+                  <div
+                    :class="[
+                      item.is_me && !selectedUserId ? 'bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg' : '',
+                      selectedUserId === item.user_id ? 'bg-primary/10 dark:bg-primary/20 border border-primary/40 rounded-lg' : '',
+                      isAdmin ? 'cursor-pointer' : ''
+                    ]"
+                    class="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    @click="isAdmin && loadUserDetail(item)">
                     <div class="w-7 text-center flex-shrink-0">
                       <template x-if="item.rank === 1"><span class="text-lg">🥇</span></template>
                       <template x-if="item.rank === 2"><span class="text-lg">🥈</span></template>
@@ -106,30 +131,40 @@
                       </div>
                       <div class="text-xs text-slate-400 truncate" x-text="item.department"></div>
                     </div>
-                    <div class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex-shrink-0"
-                      x-text="item.total_points.toLocaleString() + ' pts'"></div>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                      <div class="text-sm font-semibold text-slate-700 dark:text-slate-200"
+                        x-text="item.total_points.toLocaleString() + ' pts'"></div>
+                      <span x-show="isAdmin" class="material-symbols-outlined text-slate-300 dark:text-slate-600 text-sm leading-none">chevron_right</span>
+                    </div>
                   </div>
                 </template>
               </div>
             </div>
 
-            <!-- 右栏：我的积分明细 -->
+            <!-- 右栏：积分明细 -->
             <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-              <h2 class="font-semibold text-slate-800 dark:text-white flex items-center gap-2 mb-4">
-                <span class="material-symbols-outlined text-blue-500">receipt_long</span>
-                我的积分明细
-              </h2>
+              <div class="flex items-center justify-between mb-4">
+                <h2 class="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                  <span class="material-symbols-outlined text-blue-500">receipt_long</span>
+                  <span x-text="selectedUserId ? selectedUserName + '的积分明细' : '我的积分明细'"></span>
+                </h2>
+                <button x-show="isAdmin && selectedUserId" @click="clearUserDetail()"
+                  class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+                  <span class="material-symbols-outlined text-sm leading-none">close</span>
+                  返回我的
+                </button>
+              </div>
 
               <!-- 汇总 -->
               <div class="bg-gradient-to-br from-primary/5 to-blue-50 dark:from-primary/10 dark:to-slate-800 rounded-xl p-4 mb-4">
                 <div class="flex items-end gap-2 mb-3">
-                  <span class="text-3xl font-bold text-primary" x-text="(myData.total_points || 0).toLocaleString()"></span>
+                  <span class="text-3xl font-bold text-primary" x-text="(displayData.total_points || 0).toLocaleString()"></span>
                   <span class="text-slate-500 text-sm pb-1">pts</span>
-                  <span class="ml-auto text-sm text-slate-500 pb-1"
+                  <span x-show="!selectedUserId" class="ml-auto text-sm text-slate-500 pb-1"
                     x-text="myData.rank ? ('排名 #' + myData.rank + ' / ' + myData.total_users + '人') : ''"></span>
                 </div>
                 <div class="grid grid-cols-2 gap-x-4 gap-y-1">
-                  <template x-for="[cat, pts] in Object.entries(myData.breakdown || {})" :key="cat">
+                  <template x-for="[cat, pts] in Object.entries(displayData.breakdown || {})" :key="cat">
                     <div class="flex justify-between text-xs">
                       <span class="text-slate-500" x-text="catLabels[cat] || cat"></span>
                       <span class="font-medium text-slate-700 dark:text-slate-300" x-text="pts + ' pts'"></span>
@@ -161,6 +196,131 @@
             </div>
 
           </div>
+          </div><!-- end activeTab=points -->
+
+          <!-- ===== AI 使用排行页签 ===== -->
+          <div x-show="activeTab === 'ai'" x-cloak>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+              <!-- 左栏：AI Token 排行榜 -->
+              <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                    <span class="material-symbols-outlined text-purple-500">token</span>
+                    AI 用量排行
+                  </h2>
+                </div>
+                <div x-show="aiLoading" class="flex justify-center py-8">
+                  <span class="material-symbols-outlined animate-spin text-primary">progress_activity</span>
+                </div>
+                <div class="space-y-1" x-show="!aiLoading">
+                  <template x-if="aiLeaderboard.length === 0">
+                    <p class="text-center text-slate-400 py-8 text-sm">暂无 AI 使用记录</p>
+                  </template>
+                  <template x-for="item in aiLeaderboard" :key="item.user_id">
+                    <div
+                      :class="[
+                        item.is_me && !selectedAIUserId ? 'bg-primary/5 dark:bg-primary/10 border border-primary/20' : '',
+                        selectedAIUserId === item.user_id ? 'bg-primary/10 dark:bg-primary/20 border border-primary/40' : '',
+                        isAdmin ? 'cursor-pointer' : ''
+                      ]"
+                      class="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                      @click="isAdmin && selectAIUser(item)">
+                      <div class="w-7 text-center flex-shrink-0">
+                        <template x-if="item.rank === 1"><span class="text-lg">🥇</span></template>
+                        <template x-if="item.rank === 2"><span class="text-lg">🥈</span></template>
+                        <template x-if="item.rank === 3"><span class="text-lg">🥉</span></template>
+                        <template x-if="item.rank > 3">
+                          <span class="text-slate-500 text-sm font-medium" x-text="'#' + item.rank"></span>
+                        </template>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-1">
+                          <span class="text-sm font-medium text-slate-800 dark:text-white truncate" x-text="item.name"></span>
+                          <span x-show="item.is_me" class="text-xs text-primary">(我)</span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-0.5">
+                          <span x-show="item.chat_tokens > 0"
+                            class="inline-flex items-center gap-0.5 text-xs text-blue-500">
+                            <span class="material-symbols-outlined" style="font-size:11px">chat</span>
+                            <span x-text="fmtTokens(item.chat_tokens)"></span>
+                          </span>
+                          <span x-show="item.cli_tokens > 0"
+                            class="inline-flex items-center gap-0.5 text-xs text-emerald-500">
+                            <span class="material-symbols-outlined" style="font-size:11px">terminal</span>
+                            <span x-text="fmtTokens(item.cli_tokens)"></span>
+                          </span>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-1 flex-shrink-0">
+                        <div class="text-right">
+                          <div class="text-sm font-semibold text-slate-700 dark:text-slate-200"
+                            x-text="fmtTokens(item.total_tokens)"></div>
+                          <div class="text-xs text-slate-400">$<span x-text="item.estimated_cost.toFixed(4)"></span></div>
+                        </div>
+                        <span x-show="isAdmin" class="material-symbols-outlined text-slate-300 dark:text-slate-600 text-sm leading-none">chevron_right</span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+
+              <!-- 右栏：AI 使用详情（我的 or 选中用户） -->
+              <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                    <span class="material-symbols-outlined text-blue-500">monitoring</span>
+                    <span x-text="selectedAIUserId ? selectedAIUserName + ' 的 AI 使用' : '我的 AI 使用'"></span>
+                  </h2>
+                  <button x-show="isAdmin && selectedAIUserId" @click="clearAIUser()"
+                    class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+                    <span class="material-symbols-outlined text-sm leading-none">close</span>
+                    返回我的
+                  </button>
+                </div>
+                <template x-if="displayAI">
+                  <div>
+                    <div class="bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-xl p-4 mb-4">
+                      <div class="flex items-end gap-2 mb-3">
+                        <span class="text-3xl font-bold text-purple-600 dark:text-purple-400" x-text="fmtTokens(displayAI.total_tokens)"></span>
+                        <span class="text-slate-500 text-sm pb-1">tokens</span>
+                        <span x-show="!selectedAIUserId && displayAI.rank" class="ml-auto text-sm text-slate-500 pb-1"
+                          x-text="'排名 #' + displayAI.rank + ' / ' + aiLeaderboard.length + '人'"></span>
+                        <span x-show="selectedAIUserId" class="ml-auto text-sm text-slate-500 pb-1"
+                          x-text="'排名 #' + displayAI.rank + ' / ' + aiLeaderboard.length + '人'"></span>
+                      </div>
+                      <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-white/60 dark:bg-slate-800/60 rounded-lg p-3">
+                          <div class="flex items-center gap-1.5 mb-1">
+                            <span class="material-symbols-outlined text-blue-500" style="font-size:16px">chat</span>
+                            <span class="text-xs text-slate-500">Chat 对话</span>
+                          </div>
+                          <div class="text-lg font-semibold text-slate-700 dark:text-slate-200" x-text="fmtTokens(displayAI.chat_tokens || 0)"></div>
+                        </div>
+                        <div class="bg-white/60 dark:bg-slate-800/60 rounded-lg p-3">
+                          <div class="flex items-center gap-1.5 mb-1">
+                            <span class="material-symbols-outlined text-emerald-500" style="font-size:16px">terminal</span>
+                            <span class="text-xs text-slate-500">CLI 终端</span>
+                          </div>
+                          <div class="text-lg font-semibold text-slate-700 dark:text-slate-200" x-text="fmtTokens(displayAI.cli_tokens || 0)"></div>
+                        </div>
+                      </div>
+                      <div class="mt-3 pt-3 border-t border-white/40 dark:border-slate-700 flex justify-between items-center">
+                        <span class="text-xs text-slate-500">预估费用</span>
+                        <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">$<span x-text="(displayAI.estimated_cost || 0).toFixed(4)"></span></span>
+                      </div>
+                    </div>
+                    <p class="text-xs text-slate-400 text-center">数据实时统计，费用为模型定价估算</p>
+                  </div>
+                </template>
+                <template x-if="!displayAI">
+                  <p class="text-center text-slate-400 py-8 text-sm">暂无 AI 使用记录</p>
+                </template>
+              </div>
+
+            </div>
+          </div><!-- end activeTab=ai -->
+
         </div>
       </div>
     </div>
@@ -185,18 +345,73 @@ function pointsPage() {
     txLoading: false,
     txPage: 1,
     hasNext: false,
+    isAdmin: {{ 'true' if is_admin else 'false' }},
+    selectedUserId: null,
+    selectedUserName: '',
+    selectedUserData: {},
+    activeTab: 'points',
+    aiLeaderboard: [],
+    aiLoading: false,
+    myAI: null,
+    selectedAIUserId: null,
+    selectedAIUserName: '',
 
     get filteredLeaderboard() {
       if (!this.dept) return this.leaderboard;
       return this.leaderboard.filter(r => r.department === this.dept);
     },
+    get displayData() {
+      return this.selectedUserId ? this.selectedUserData : this.myData;
+    },
+    get displayAI() {
+      if (this.selectedAIUserId) {
+        return this.aiLeaderboard.find(u => u.user_id === this.selectedAIUserId) || null;
+      }
+      return this.myAI;
+    },
     init() { this.loadLeaderboard(); this.loadMyData(); },
+    switchToAI() {
+      this.activeTab = 'ai';
+      this.loadAILeaderboard();
+    },
+    loadAILeaderboard() {
+      this.aiLoading = true;
+      this.selectedAIUserId = null;
+      fetch(`/points/api/ai-leaderboard?period=${this.period}`)
+        .then(r => r.json())
+        .then(data => {
+          this.aiLeaderboard = data.data || [];
+          this.myAI = this.aiLeaderboard.find(u => u.is_me) || null;
+        })
+        .finally(() => { this.aiLoading = false; });
+    },
+    selectAIUser(item) {
+      this.selectedAIUserId = item.user_id;
+      this.selectedAIUserName = item.name;
+    },
+    clearAIUser() {
+      this.selectedAIUserId = null;
+      this.selectedAIUserName = '';
+    },
+    fmtTokens(n) {
+      if (!n) return '0';
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+      return n.toString();
+    },
     setPeriod(p) {
       this.period = p;
       this.txPage = 1;
       this.transactions = [];
-      this.loadLeaderboard();
-      this.loadMyData();
+      this.selectedUserId = null;
+      this.selectedUserName = '';
+      this.selectedUserData = {};
+      if (this.activeTab === 'ai') {
+        this.loadAILeaderboard();
+      } else {
+        this.loadLeaderboard();
+        this.loadMyData();
+      }
     },
     loadLeaderboard() {
       this.leaderboardLoading = true;
@@ -212,19 +427,50 @@ function pointsPage() {
         .then(r => r.json())
         .then(data => {
           this.myData = data;
-          this.transactions = data.transactions || [];
-          this.hasNext = data.has_next;
+          if (!this.selectedUserId) {
+            this.transactions = data.transactions || [];
+            this.hasNext = data.has_next;
+          }
         })
-        .finally(() => { this.txLoading = false; });
+        .finally(() => { if (!this.selectedUserId) this.txLoading = false; });
     },
     loadMoreTx() {
       this.txPage++;
-      fetch(`/points/api/my-transactions?period=${this.period}&page=${this.txPage}`)
+      const url = this.selectedUserId
+        ? `/points/api/admin/user-transactions/${this.selectedUserId}?period=${this.period}&page=${this.txPage}`
+        : `/points/api/my-transactions?period=${this.period}&page=${this.txPage}`;
+      fetch(url)
         .then(r => r.json())
         .then(data => {
           this.transactions = [...this.transactions, ...(data.transactions || [])];
           this.hasNext = data.has_next;
         });
+    },
+    loadUserDetail(item) {
+      this.selectedUserId = item.user_id;
+      this.selectedUserName = item.name;
+      this.selectedUserData = {};
+      this.transactions = [];
+      this.txPage = 1;
+      this.hasNext = false;
+      this.txLoading = true;
+      fetch(`/points/api/admin/user-transactions/${item.user_id}?period=${this.period}&page=1`)
+        .then(r => r.json())
+        .then(data => {
+          this.selectedUserData = { total_points: data.total_points, breakdown: data.breakdown };
+          this.transactions = data.transactions || [];
+          this.hasNext = data.has_next;
+        })
+        .finally(() => { this.txLoading = false; });
+    },
+    clearUserDetail() {
+      this.selectedUserId = null;
+      this.selectedUserName = '';
+      this.selectedUserData = {};
+      this.txPage = 1;
+      this.txLoading = false;
+      this.transactions = this.myData.transactions || [];
+      this.hasNext = this.myData.has_next || false;
     },
   };
 }

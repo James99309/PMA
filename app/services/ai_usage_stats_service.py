@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-AI 使用量统计服务 - 聚合查询 ChatMessage 中的 AI 使用数据
+AI 使用量统计服务 - 聚合 Chat 和 CLI Agent 两个来源的 AI 使用数据
 """
 import logging
 from datetime import datetime
@@ -10,27 +10,61 @@ from sqlalchemy import func, and_
 
 from app import db
 from app.models.chat import ChatMessage, ChatConversation
+from app.models.cli_session import CliSession
 
 logger = logging.getLogger(__name__)
 
 # 模型定价 (USD per million tokens)
 MODEL_PRICING = {
-    'deepseek-chat': {'prompt': 0.27, 'completion': 1.10},
+    # Anthropic Claude 3.5 系列
+    'claude-3-5-sonnet-20241022':     {'prompt': 3.0,   'completion': 15.0},
+    'claude-3-5-sonnet-latest':       {'prompt': 3.0,   'completion': 15.0},
+    'claude-3-5-sonnet-20240620':     {'prompt': 3.0,   'completion': 15.0},
+    'claude-3-5-haiku-20241022':      {'prompt': 0.8,   'completion': 4.0},
+    'claude-3-5-haiku-latest':        {'prompt': 0.8,   'completion': 4.0},
+    # Anthropic Claude 3 系列
+    'claude-3-opus-20240229':         {'prompt': 15.0,  'completion': 75.0},
+    'claude-3-opus-latest':           {'prompt': 15.0,  'completion': 75.0},
+    'claude-3-sonnet-20240229':       {'prompt': 3.0,   'completion': 15.0},
+    'claude-3-haiku-20240307':        {'prompt': 0.25,  'completion': 1.25},
+    # Anthropic Claude 4 系列
+    'claude-opus-4-5':                {'prompt': 15.0,  'completion': 75.0},
+    'claude-sonnet-4-5':              {'prompt': 3.0,   'completion': 15.0},
+    'claude-haiku-4-5':               {'prompt': 0.8,   'completion': 4.0},
+    'claude-opus-4-7':                {'prompt': 15.0,  'completion': 75.0},
+    'claude-sonnet-4-6':              {'prompt': 3.0,   'completion': 15.0},
+    'claude-haiku-4-5-20251001':      {'prompt': 0.8,   'completion': 4.0},
+    # DeepSeek
+    'deepseek-chat':                  {'prompt': 0.27,  'completion': 1.10},
+    'deepseek-reasoner':              {'prompt': 0.55,  'completion': 2.19},
 }
-DEFAULT_PRICING = {'prompt': 1.0, 'completion': 2.0}
+DEFAULT_PRICING = {'prompt': 3.0, 'completion': 15.0}  # 未知 Claude 模型的兜底价格
+
+
+def get_model_pricing(model: str | None) -> dict:
+    """获取模型定价，支持前缀匹配（处理 -latest 等别名）"""
+    if not model:
+        return DEFAULT_PRICING
+    if model in MODEL_PRICING:
+        return MODEL_PRICING[model]
+    # 前缀模糊匹配（如 claude-3-5-sonnet → claude-3-5-sonnet-20241022）
+    for key, pricing in MODEL_PRICING.items():
+        if model.startswith(key) or key.startswith(model):
+            return pricing
+    return DEFAULT_PRICING
 
 
 def calculate_cost(model, prompt_tokens, completion_tokens):
     """根据模型计算费用 (USD)"""
-    pricing = MODEL_PRICING.get(model, DEFAULT_PRICING) if model else DEFAULT_PRICING
+    pricing = get_model_pricing(model)
     return round(
         (prompt_tokens or 0) / 1e6 * pricing['prompt'] +
         (completion_tokens or 0) / 1e6 * pricing['completion'],
-        4
+        6
     )
 
 
-def get_ai_usage_stats(year, month, user_id=None):
+def get_ai_usage_stats(year, month, user_id=None, source=None):
     """
     获取 AI 使用量统计数据
 
@@ -38,187 +72,311 @@ def get_ai_usage_stats(year, month, user_id=None):
         year: 年份
         month: 月份 (1-12)
         user_id: 可选，按用户过滤
+        source: 可选，'chat' / 'cli' / None(全部)
 
     Returns:
         dict: 包含 summary, daily_usage, model_breakdown, user_breakdown
     """
     try:
-        # 计算日期范围
         _, last_day = monthrange(year, month)
         start_date = datetime(year, month, 1)
         end_date = datetime(year, month, last_day, 23, 59, 59)
 
-        # 基础过滤条件
-        base_filters = [
-            ChatMessage.is_ai_response == True,
-            ChatMessage.is_deleted == False,
-            ChatMessage.created_at >= start_date,
-            ChatMessage.created_at <= end_date,
-        ]
+        chat_data = {} if source == 'cli' else _get_chat_stats(start_date, end_date, user_id)
+        cli_data  = {} if source == 'chat' else _get_cli_stats(start_date, end_date, user_id)
 
-        # 按用户过滤: 通过 conversation 的 created_by 字段
-        if user_id:
-            base_filters.append(
-                ChatMessage.conversation_id.in_(
-                    db.session.query(ChatConversation.id).filter(
-                        ChatConversation.created_by == user_id
-                    )
-                )
-            )
-
-        # === 每日统计 ===
-        daily_query = db.session.query(
-            func.date(ChatMessage.created_at).label('day'),
-            func.count(ChatMessage.id).label('request_count'),
-            func.coalesce(func.sum(ChatMessage.ai_prompt_tokens), 0).label('prompt_tokens'),
-            func.coalesce(func.sum(ChatMessage.ai_completion_tokens), 0).label('completion_tokens'),
-        ).filter(
-            and_(*base_filters)
-        ).group_by(
-            func.date(ChatMessage.created_at)
-        ).order_by(
-            func.date(ChatMessage.created_at)
-        ).all()
-
-        daily_usage = []
-        for row in daily_query:
-            day_str = str(row.day)
-            prompt_t = int(row.prompt_tokens)
-            completion_t = int(row.completion_tokens)
-            daily_usage.append({
-                'day': day_str,
-                'request_count': row.request_count,
-                'prompt_tokens': prompt_t,
-                'completion_tokens': completion_t,
-                'total_tokens': prompt_t + completion_t,
-                'estimated_cost': _estimate_daily_cost(day_str, base_filters),
-            })
-
-        # === 模型分布 ===
-        model_query = db.session.query(
-            ChatMessage.ai_model.label('model'),
-            func.count(ChatMessage.id).label('request_count'),
-            func.coalesce(func.sum(ChatMessage.ai_prompt_tokens), 0).label('prompt_tokens'),
-            func.coalesce(func.sum(ChatMessage.ai_completion_tokens), 0).label('completion_tokens'),
-        ).filter(
-            and_(*base_filters)
-        ).group_by(
-            ChatMessage.ai_model
-        ).all()
-
-        model_breakdown = []
-        for row in model_query:
-            prompt_t = int(row.prompt_tokens)
-            completion_t = int(row.completion_tokens)
-            model_breakdown.append({
-                'model': row.model or 'unknown',
-                'request_count': row.request_count,
-                'prompt_tokens': prompt_t,
-                'completion_tokens': completion_t,
-                'estimated_cost': calculate_cost(row.model, prompt_t, completion_t),
-            })
-
-        # === 用户分布（仅全部用户视图） ===
-        user_breakdown = []
-        if not user_id:
-            user_query = db.session.query(
-                ChatConversation.created_by.label('user_id'),
-                func.count(ChatMessage.id).label('request_count'),
-                func.coalesce(func.sum(ChatMessage.ai_prompt_tokens), 0).label('prompt_tokens'),
-                func.coalesce(func.sum(ChatMessage.ai_completion_tokens), 0).label('completion_tokens'),
-            ).join(
-                ChatConversation,
-                ChatMessage.conversation_id == ChatConversation.id
-            ).filter(
-                and_(*base_filters)
-            ).group_by(
-                ChatConversation.created_by
-            ).all()
-
-            # 批量获取用户名
-            user_ids = [row.user_id for row in user_query]
-            user_names = _get_user_names(user_ids)
-
-            for row in user_query:
-                prompt_t = int(row.prompt_tokens)
-                completion_t = int(row.completion_tokens)
-                total_t = prompt_t + completion_t
-                user_breakdown.append({
-                    'user_id': row.user_id,
-                    'user_name': user_names.get(row.user_id, f'User #{row.user_id}'),
-                    'request_count': row.request_count,
-                    'total_tokens': total_t,
-                    'estimated_cost': calculate_cost(None, prompt_t, completion_t),
-                })
-
-            user_breakdown.sort(key=lambda x: x['total_tokens'], reverse=True)
-
-        # === 汇总 ===
-        total_requests = sum(d['request_count'] for d in daily_usage)
-        total_prompt = sum(d['prompt_tokens'] for d in daily_usage)
-        total_completion = sum(d['completion_tokens'] for d in daily_usage)
-        total_cost = sum(m['estimated_cost'] for m in model_breakdown)
-        active_users = len(user_breakdown) if user_breakdown else (1 if user_id and total_requests > 0 else 0)
-
-        return {
-            'success': True,
-            'data': {
-                'summary': {
-                    'total_requests': total_requests,
-                    'total_prompt_tokens': total_prompt,
-                    'total_completion_tokens': total_completion,
-                    'total_tokens': total_prompt + total_completion,
-                    'estimated_cost': round(total_cost, 4),
-                    'active_users': active_users,
-                },
-                'daily_usage': daily_usage,
-                'model_breakdown': model_breakdown,
-                'user_breakdown': user_breakdown,
-            }
-        }
+        return _merge_stats(chat_data, cli_data)
 
     except Exception as e:
         logger.error(f"获取 AI 使用量统计失败: {str(e)}", exc_info=True)
-        return {
-            'success': False,
-            'message': f'获取统计数据失败: {str(e)}',
-            'data': {
-                'summary': {
-                    'total_requests': 0,
-                    'total_prompt_tokens': 0,
-                    'total_completion_tokens': 0,
-                    'total_tokens': 0,
-                    'estimated_cost': 0,
-                    'active_users': 0,
-                },
-                'daily_usage': [],
-                'model_breakdown': [],
-                'user_breakdown': [],
-            }
+        return _empty_result(str(e))
+
+
+# ─── Chat 来源 ────────────────────────────────────────────────────────────────
+
+def _get_chat_stats(start_date, end_date, user_id=None):
+    base_filters = [
+        ChatMessage.is_ai_response == True,
+        ChatMessage.is_deleted == False,
+        ChatMessage.created_at >= start_date,
+        ChatMessage.created_at <= end_date,
+    ]
+    if user_id:
+        base_filters.append(
+            ChatMessage.conversation_id.in_(
+                db.session.query(ChatConversation.id).filter(
+                    ChatConversation.created_by == user_id
+                )
+            )
+        )
+
+    # 每日
+    daily_rows = db.session.query(
+        func.date(ChatMessage.created_at).label('day'),
+        func.count(ChatMessage.id).label('req'),
+        func.coalesce(func.sum(ChatMessage.ai_prompt_tokens), 0).label('pt'),
+        func.coalesce(func.sum(ChatMessage.ai_completion_tokens), 0).label('ct'),
+    ).filter(and_(*base_filters)).group_by(func.date(ChatMessage.created_at)).all()
+
+    daily = {}
+    for r in daily_rows:
+        day = str(r.day)
+        pt, ct = int(r.pt), int(r.ct)
+        daily[day] = {
+            'request_count': r.req,
+            'prompt_tokens': pt,
+            'completion_tokens': ct,
+            'estimated_cost': _chat_daily_cost(day, base_filters),
         }
 
+    # 模型分布
+    model_rows = db.session.query(
+        ChatMessage.ai_model.label('model'),
+        func.count(ChatMessage.id).label('req'),
+        func.coalesce(func.sum(ChatMessage.ai_prompt_tokens), 0).label('pt'),
+        func.coalesce(func.sum(ChatMessage.ai_completion_tokens), 0).label('ct'),
+    ).filter(and_(*base_filters)).group_by(ChatMessage.ai_model).all()
 
-def _estimate_daily_cost(day_str, base_filters):
-    """计算某天的费用（按模型分组计算）"""
-    try:
-        rows = db.session.query(
-            ChatMessage.ai_model,
+    models = []
+    for r in model_rows:
+        pt, ct = int(r.pt), int(r.ct)
+        models.append({
+            'model': r.model or 'unknown',
+            'source': 'chat',
+            'request_count': r.req,
+            'prompt_tokens': pt,
+            'completion_tokens': ct,
+            'estimated_cost': calculate_cost(r.model, pt, ct),
+            'pricing': get_model_pricing(r.model),
+        })
+
+    # 用户分布
+    users = []
+    if not user_id:
+        user_rows = db.session.query(
+            ChatConversation.created_by.label('uid'),
+            func.count(ChatMessage.id).label('req'),
             func.coalesce(func.sum(ChatMessage.ai_prompt_tokens), 0).label('pt'),
             func.coalesce(func.sum(ChatMessage.ai_completion_tokens), 0).label('ct'),
-        ).filter(
-            and_(*base_filters),
-            func.date(ChatMessage.created_at) == day_str,
-        ).group_by(
-            ChatMessage.ai_model
-        ).all()
+        ).join(ChatConversation, ChatMessage.conversation_id == ChatConversation.id
+        ).filter(and_(*base_filters)).group_by(ChatConversation.created_by).all()
 
-        return round(sum(calculate_cost(r.ai_model, int(r.pt), int(r.ct)) for r in rows), 4)
-    except Exception:
-        return 0.0
+        uid_list = [r.uid for r in user_rows]
+        names = _get_user_names(uid_list)
+        for r in user_rows:
+            pt, ct = int(r.pt), int(r.ct)
+            users.append({
+                'user_id': r.uid,
+                'user_name': names.get(r.uid, f'User #{r.uid}'),
+                'source': 'chat',
+                'request_count': r.req,
+                'total_tokens': pt + ct,
+                'estimated_cost': calculate_cost(None, pt, ct),
+            })
+
+    return {'daily': daily, 'models': models, 'users': users}
+
+
+def _chat_daily_cost(day_str, base_filters):
+    rows = db.session.query(
+        ChatMessage.ai_model,
+        func.coalesce(func.sum(ChatMessage.ai_prompt_tokens), 0).label('pt'),
+        func.coalesce(func.sum(ChatMessage.ai_completion_tokens), 0).label('ct'),
+    ).filter(
+        and_(*base_filters),
+        func.date(ChatMessage.created_at) == day_str,
+    ).group_by(ChatMessage.ai_model).all()
+    return round(sum(calculate_cost(r.ai_model, int(r.pt), int(r.ct)) for r in rows), 6)
+
+
+# ─── CLI 来源 ─────────────────────────────────────────────────────────────────
+
+def _get_cli_stats(start_date, end_date, user_id=None):
+    base_filters = [
+        CliSession.last_active_at >= start_date,
+        CliSession.last_active_at <= end_date,
+    ]
+    if user_id:
+        base_filters.append(CliSession.user_id == user_id)
+
+    session_rows = db.session.query(
+        CliSession.user_id,
+        CliSession.model,
+        func.date(CliSession.last_active_at).label('day'),
+        func.count(CliSession.id).label('sessions'),
+        func.coalesce(
+            func.sum(
+                func.cast(
+                    func.coalesce(CliSession.usage_total['input_tokens'].astext, '0'),
+                    db.Integer
+                )
+            ), 0
+        ).label('pt'),
+        func.coalesce(
+            func.sum(
+                func.cast(
+                    func.coalesce(CliSession.usage_total['output_tokens'].astext, '0'),
+                    db.Integer
+                )
+            ), 0
+        ).label('ct'),
+    ).filter(and_(*base_filters)).group_by(
+        CliSession.user_id, CliSession.model, func.date(CliSession.last_active_at)
+    ).all()
+
+    daily = {}
+    model_map = {}
+    user_map = {}
+
+    uid_set = set()
+    for r in session_rows:
+        uid_set.add(r.user_id)
+
+    names = _get_user_names(list(uid_set))
+
+    for r in session_rows:
+        day = str(r.day)
+        pt, ct = int(r.pt), int(r.ct)
+        model = r.model or 'unknown'
+        cost = calculate_cost(model, pt, ct)
+
+        # 每日汇总
+        if day not in daily:
+            daily[day] = {'request_count': 0, 'prompt_tokens': 0, 'completion_tokens': 0, 'estimated_cost': 0.0}
+        daily[day]['request_count'] += r.sessions
+        daily[day]['prompt_tokens'] += pt
+        daily[day]['completion_tokens'] += ct
+        daily[day]['estimated_cost'] = round(daily[day]['estimated_cost'] + cost, 6)
+
+        # 模型汇总
+        key = ('cli', model)
+        if key not in model_map:
+            model_map[key] = {
+                'model': model,
+                'source': 'cli',
+                'request_count': 0,
+                'prompt_tokens': 0,
+                'completion_tokens': 0,
+                'estimated_cost': 0.0,
+                'pricing': get_model_pricing(model),
+            }
+        model_map[key]['request_count'] += r.sessions
+        model_map[key]['prompt_tokens'] += pt
+        model_map[key]['completion_tokens'] += ct
+        model_map[key]['estimated_cost'] = round(model_map[key]['estimated_cost'] + cost, 6)
+
+        # 用户汇总
+        uid = r.user_id
+        if uid not in user_map:
+            user_map[uid] = {
+                'user_id': uid,
+                'user_name': names.get(uid, f'User #{uid}'),
+                'source': 'cli',
+                'request_count': 0,
+                'total_tokens': 0,
+                'estimated_cost': 0.0,
+            }
+        user_map[uid]['request_count'] += r.sessions
+        user_map[uid]['total_tokens'] += pt + ct
+        user_map[uid]['estimated_cost'] = round(user_map[uid]['estimated_cost'] + cost, 6)
+
+    return {
+        'daily': daily,
+        'models': list(model_map.values()),
+        'users': list(user_map.values()),
+    }
+
+
+# ─── 合并 ─────────────────────────────────────────────────────────────────────
+
+def _merge_stats(chat_data, cli_data):
+    all_days = set(chat_data.get('daily', {}).keys()) | set(cli_data.get('daily', {}).keys())
+    daily_usage = []
+    for day in sorted(all_days):
+        c = chat_data.get('daily', {}).get(day, {})
+        l = cli_data.get('daily', {}).get(day, {})
+        pt = c.get('prompt_tokens', 0) + l.get('prompt_tokens', 0)
+        ct = c.get('completion_tokens', 0) + l.get('completion_tokens', 0)
+        daily_usage.append({
+            'day': day,
+            'request_count': c.get('request_count', 0) + l.get('request_count', 0),
+            'prompt_tokens': pt,
+            'completion_tokens': ct,
+            'total_tokens': pt + ct,
+            'estimated_cost': round(
+                c.get('estimated_cost', 0.0) + l.get('estimated_cost', 0.0), 6
+            ),
+            'chat_tokens': c.get('prompt_tokens', 0) + c.get('completion_tokens', 0),
+            'cli_tokens': l.get('prompt_tokens', 0) + l.get('completion_tokens', 0),
+        })
+
+    model_breakdown = chat_data.get('models', []) + cli_data.get('models', [])
+
+    # 用户明细：同一 user_id 的 chat+cli 合并
+    user_combined = {}
+    for u in chat_data.get('users', []) + cli_data.get('users', []):
+        uid = u['user_id']
+        if uid not in user_combined:
+            user_combined[uid] = {
+                'user_id': uid,
+                'user_name': u['user_name'],
+                'request_count': 0,
+                'total_tokens': 0,
+                'estimated_cost': 0.0,
+                'chat_tokens': 0,
+                'cli_tokens': 0,
+            }
+        user_combined[uid]['request_count'] += u['request_count']
+        user_combined[uid]['total_tokens'] += u['total_tokens']
+        user_combined[uid]['estimated_cost'] = round(
+            user_combined[uid]['estimated_cost'] + u['estimated_cost'], 6
+        )
+        if u.get('source') == 'chat':
+            user_combined[uid]['chat_tokens'] += u['total_tokens']
+        else:
+            user_combined[uid]['cli_tokens'] += u['total_tokens']
+
+    user_breakdown = sorted(user_combined.values(), key=lambda x: x['total_tokens'], reverse=True)
+
+    total_req = sum(d['request_count'] for d in daily_usage)
+    total_pt = sum(d['prompt_tokens'] for d in daily_usage)
+    total_ct = sum(d['completion_tokens'] for d in daily_usage)
+    total_cost = sum(m['estimated_cost'] for m in model_breakdown)
+
+    return {
+        'success': True,
+        'data': {
+            'summary': {
+                'total_requests': total_req,
+                'total_prompt_tokens': total_pt,
+                'total_completion_tokens': total_ct,
+                'total_tokens': total_pt + total_ct,
+                'estimated_cost': round(total_cost, 4),
+                'active_users': len(user_breakdown),
+            },
+            'daily_usage': daily_usage,
+            'model_breakdown': model_breakdown,
+            'user_breakdown': user_breakdown,
+        }
+    }
+
+
+def _empty_result(msg=''):
+    return {
+        'success': False,
+        'message': f'获取统计数据失败: {msg}',
+        'data': {
+            'summary': {
+                'total_requests': 0, 'total_prompt_tokens': 0,
+                'total_completion_tokens': 0, 'total_tokens': 0,
+                'estimated_cost': 0, 'active_users': 0,
+            },
+            'daily_usage': [], 'model_breakdown': [], 'user_breakdown': [],
+        }
+    }
 
 
 def _get_user_names(user_ids):
-    """批量获取用户名"""
     if not user_ids:
         return {}
     try:

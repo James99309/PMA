@@ -5,7 +5,7 @@ from sqlalchemy import func
 from app.extensions import db
 from app.models.points import PointsBehaviorConfig, PointsTransaction, UserPointsSummary
 from app.models.user import User
-from app.decorators import permission_required
+from app.decorators import permission_required, admin_required
 
 points_bp = Blueprint('points', __name__, url_prefix='/points')
 
@@ -18,7 +18,9 @@ def index():
         User.is_active == True
     ).distinct().order_by(User.department).all()
     departments = [d[0] for d in departments if d[0]]
-    return render_template('points/tw_points.html', active_page='points', departments=departments)
+    is_admin = current_user.role == 'admin'
+    return render_template('points/tw_points.html', active_page='points',
+                           departments=departments, is_admin=is_admin)
 
 
 @points_bp.route('/api/leaderboard')
@@ -179,6 +181,68 @@ def api_nav_summary():
     return jsonify({'success': True, 'total_points': total, 'year': year, 'categories': categories})
 
 
+@points_bp.route('/api/ai-leaderboard')
+@login_required
+def api_ai_leaderboard():
+    """AI Token 使用量排行榜，支持 period=month/quarter/year"""
+    from app.services.ai_usage_stats_service import get_ai_usage_stats
+    period = request.args.get('period', 'month')
+    now = datetime.utcnow()
+    year, month = now.year, now.month
+
+    if period == 'month':
+        months = [month]
+    elif period == 'quarter':
+        q_start = ((month - 1) // 3) * 3 + 1
+        months = list(range(q_start, min(q_start + 3, 13)))
+    else:
+        months = list(range(1, month + 1))
+
+    # 按月聚合（stats service 是月维度的）
+    user_totals = {}
+    for m in months:
+        result = get_ai_usage_stats(year, m)
+        if not result.get('success'):
+            continue
+        for u in result['data'].get('user_breakdown', []):
+            uid = u['user_id']
+            if uid not in user_totals:
+                user_totals[uid] = {
+                    'user_id': uid,
+                    'user_name': u['user_name'],
+                    'total_tokens': 0,
+                    'chat_tokens': 0,
+                    'cli_tokens': 0,
+                    'estimated_cost': 0.0,
+                }
+            user_totals[uid]['total_tokens']   += u['total_tokens']
+            user_totals[uid]['chat_tokens']    += u.get('chat_tokens', 0)
+            user_totals[uid]['cli_tokens']     += u.get('cli_tokens', 0)
+            user_totals[uid]['estimated_cost'] += u['estimated_cost']
+
+    sorted_users = sorted(user_totals.values(), key=lambda x: x['total_tokens'], reverse=True)
+
+    user_ids = [u['user_id'] for u in sorted_users]
+    users_db = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+
+    data = []
+    for rank, u in enumerate(sorted_users, 1):
+        user_obj = users_db.get(u['user_id'])
+        data.append({
+            'rank': rank,
+            'user_id': u['user_id'],
+            'name': u['user_name'],
+            'department': (getattr(user_obj, 'department', '') or '') if user_obj else '',
+            'total_tokens': u['total_tokens'],
+            'chat_tokens': u['chat_tokens'],
+            'cli_tokens': u['cli_tokens'],
+            'estimated_cost': round(u['estimated_cost'], 4),
+            'is_me': u['user_id'] == current_user.id,
+        })
+
+    return jsonify({'success': True, 'data': data})
+
+
 @points_bp.route('/admin/config')
 @login_required
 @permission_required('system_settings', 'edit')
@@ -232,6 +296,72 @@ def admin_config_update(config_id):
         config.behavior_name = data['behavior_name']
     db.session.commit()
     return jsonify({'success': True})
+
+
+@points_bp.route('/api/admin/user-transactions/<int:user_id>')
+@login_required
+@admin_required
+def api_admin_user_transactions(user_id):
+    target_user = User.query.get_or_404(user_id)
+    period = request.args.get('period', 'month')
+    page = request.args.get('page', 1, type=int)
+    now = datetime.utcnow()
+    year, month = now.year, now.month
+
+    if period == 'month':
+        months = [month]
+    elif period == 'quarter':
+        q_start = ((month - 1) // 3) * 3 + 1
+        months = list(range(q_start, min(q_start + 3, 13)))
+    else:
+        months = list(range(1, 13))
+
+    query = PointsTransaction.query.filter_by(user_id=user_id, year=year)
+    if len(months) == 1:
+        query = query.filter_by(month=months[0])
+    else:
+        query = query.filter(PointsTransaction.month.in_(months))
+
+    pagination = query.order_by(PointsTransaction.created_at.desc()).paginate(
+        page=page, per_page=20, error_out=False
+    )
+
+    if len(months) == 1:
+        summary = UserPointsSummary.query.filter_by(
+            user_id=user_id, year=year, month=months[0]
+        ).first()
+        total = summary.total_points if summary else 0
+        breakdown = dict(summary.behavior_breakdown or {}) if summary else {}
+    else:
+        summaries = UserPointsSummary.query.filter(
+            UserPointsSummary.user_id == user_id,
+            UserPointsSummary.year == year,
+            UserPointsSummary.month.in_(months)
+        ).all()
+        total = sum(s.total_points for s in summaries)
+        breakdown = {}
+        for s in summaries:
+            for k, v in (s.behavior_breakdown or {}).items():
+                breakdown[k] = breakdown.get(k, 0) + v
+
+    transactions = [{
+        'id': tx.id,
+        'behavior_code': tx.behavior_code,
+        'points': tx.points,
+        'memo': tx.memo or '',
+        'created_at': tx.created_at.strftime('%Y-%m-%d %H:%M'),
+    } for tx in pagination.items]
+
+    return jsonify({
+        'success': True,
+        'user_id': user_id,
+        'user_name': target_user.real_name or target_user.username,
+        'total_points': total,
+        'breakdown': breakdown,
+        'transactions': transactions,
+        'has_next': pagination.has_next,
+        'page': page,
+    })
 
 
 @points_bp.route('/admin/config/api', methods=['POST'])

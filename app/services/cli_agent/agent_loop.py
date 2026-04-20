@@ -159,8 +159,10 @@ class AgentLoop:
                     if current_text:
                         collected_text_blocks.append(conv.text_block(current_text))
                         current_text = ''
-                    # 累计 usage
+                    # 累计 usage，记录模型名
                     self.session.accumulate_usage(event.get('usage', {}))
+                    if event.get('model'):
+                        self.session.model = event['model']
                     yield {
                         'type': 'usage',
                         'usage': event.get('usage', {}),

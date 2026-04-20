@@ -148,7 +148,8 @@ def ai_usage_stats_api():
     year = request.args.get('year', datetime.now().year, type=int)
     month = request.args.get('month', datetime.now().month, type=int)
     user_id = request.args.get('user_id', type=int)
-    result = get_ai_usage_stats(year, month, user_id)
+    source = request.args.get('source') or None
+    result = get_ai_usage_stats(year, month, user_id, source)
     return jsonify(result)
 
 

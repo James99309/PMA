@@ -34,6 +34,9 @@ class CliSession(db.Model):
     # 累计 usage: {"input_tokens": N, "output_tokens": N, "cache_read_input_tokens": N, "cache_creation_input_tokens": N}
     usage_total = db.Column(JSONB, nullable=False, default=dict)
 
+    # 最近使用的 LLM 模型名称（如 claude-3-5-sonnet-latest）
+    model = db.Column(db.String(100), nullable=True)
+
     # 压缩元数据: {"count": N, "last_summary": "..."}
     compaction_meta = db.Column(JSONB, nullable=True)
 
@@ -49,6 +52,7 @@ class CliSession(db.Model):
             'user_id': self.user_id,
             'title': self.title,
             'status': self.status,
+            'model': self.model,
             'message_count': len(self.messages or []),
             'usage_total': self.usage_total or {},
             'compaction_count': (self.compaction_meta or {}).get('count', 0),
