@@ -781,7 +781,49 @@ def add_reply(id):
 @login_required
 def task_management():
     """任务管理页面"""
-    return render_template('task/tw_task_management.html')
+    team_members = []
+    can_view_team = False
+
+    is_admin = current_user.role in ('admin', 'ceo')
+    is_dept_mgr = getattr(current_user, 'is_department_manager', False)
+
+    if is_admin or is_dept_mgr:
+        can_view_team = True
+
+        # 有活跃任务的 user_id 集合
+        active_assignee_ids = db.session.query(Task.assignee_id).filter(
+            Task.is_deleted == False,
+            Task.status.notin_(['completed', 'cancelled']),
+        )
+
+        if is_admin:
+            users = User.query.filter(
+                User.id.in_(active_assignee_ids),
+                User._is_active == True,
+            ).order_by(User.real_name).all()
+        else:
+            users = User.query.filter(
+                User.id.in_(active_assignee_ids),
+                User.department == current_user.department,
+                User.company_name == current_user.company_name,
+                User._is_active == True,
+            ).order_by(User.real_name).all()
+
+        for u in users:
+            if u.id == current_user.id:
+                continue
+            name = u.real_name or u.username
+            team_members.append({
+                'id': u.id,
+                'name': name,
+                'initials': name[:2] if name else '?',
+            })
+
+    return render_template(
+        'task/tw_task_management.html',
+        can_view_team=can_view_team,
+        team_members=team_members,
+    )
 
 
 @task.route('/api/management/list', methods=['GET'])
