@@ -805,13 +805,15 @@ class SkillEngine:
     """
 
     @staticmethod
-    def execute(skill, params: dict, user) -> dict:
+    def execute(skill, params: dict, user, query_fn=None) -> dict:
         """执行一个技能定义并返回格式化结果。
 
         Args:
             skill: CliSkill 模型实例(含 parameters / queries / output_format)。
             params: 用户提供的参数字典(由 LLM 解析填充)。
-            user: 当前用户对象(用于 execute_safe_query 的权限过滤)。
+            user: 当前用户对象(用于权限过滤)。
+            query_fn: 可选查询函数，默认 execute_safe_query（CLI权限）。
+                      Chat 场景传入 execute_chat_safe_query 以使用前端权限模型。
 
         Returns:
             {
@@ -844,6 +846,7 @@ class SkillEngine:
         step_results: dict[str, dict] = {}
 
         from app.services.chat_db_query import execute_safe_query
+        _query_fn = query_fn or execute_safe_query
 
         for i, query_def in enumerate(queries):
             sql_template = query_def.get('sql', '').strip()
@@ -887,7 +890,7 @@ class SkillEngine:
 
             # 执行查询
             try:
-                result = execute_safe_query(rendered_sql, user)
+                result = _query_fn(rendered_sql, user)
             except Exception as e:
                 logger.exception(f'[SkillEngine] 步骤 {step_name} 查询执行异常')
                 return {
