@@ -2,11 +2,19 @@
 """
 AI 客户网络调研服务
 
-通过 OpenClaw Gateway 调用 web_search + AI 分析，一次请求完成搜索+结构化。
+通过 Claude 直接调用（默认）或 OpenClaw Gateway 调用 web_search + AI 分析，
+一次请求完成搜索+结构化。
+
+调研提供者选择（环境变量 AI_RESEARCH_PROVIDER）：
+    claude（默认）  直接调用 Claude API，使用 CLI 同款 OAuth identity prefix
+    openclaw        转发给 OpenClaw WebSocket 网关
+模型（环境变量 AI_RESEARCH_MODEL，默认 claude-sonnet-4-6）。
+
 支持后台自动调研：新建/改名客户自动触发，定时任务补充未调研的客户。
 """
 import json
 import logging
+import os
 import re
 import threading
 from datetime import datetime, timedelta
@@ -204,7 +212,6 @@ class AIResearchService:
         """执行完整调研并写入数据库"""
         from app.models.customer import Company
         from app import db
-        from app.services.openclaw_provider import send_openclaw_request
 
         with app.app_context():
             try:
@@ -217,7 +224,7 @@ class AIResearchService:
                 search_term = core_name if core_name and len(core_name) >= 2 else search_name
 
                 prompt = cls._build_research_prompt(search_name, search_term)
-                response = send_openclaw_request(prompt, timeout=180)
+                response = cls._send_research_request(prompt, timeout=180)
                 logger.info(f"[AI-Research-Full] 原始回复 ({len(response)} chars): {response[:1000]}")
                 structured = cls._extract_json(response)
 
@@ -288,7 +295,6 @@ class AIResearchService:
         """阶段二：执行完整调研（兼容旧同步接口）"""
         from app.models.customer import Company
         from app import db
-        from app.services.openclaw_provider import send_openclaw_request
 
         company = Company.query.get(company_id)
         if not company:
@@ -301,7 +307,7 @@ class AIResearchService:
         prompt = cls._build_research_prompt(search_name, search_term)
 
         try:
-            response = send_openclaw_request(prompt, timeout=180)
+            response = cls._send_research_request(prompt, timeout=180)
             logger.info(f"[AI-Research-Full] 原始回复 ({len(response)} chars): {response[:1000]}")
             structured = cls._extract_json(response)
         except Exception as e:
@@ -323,6 +329,14 @@ class AIResearchService:
                 'updated_at': now.isoformat()
             }
         }
+
+    # ─── 调研请求分发 ─────────────────────────────────────────
+
+    @classmethod
+    def _send_research_request(cls, prompt: str, timeout: int = 180) -> str:
+        """发送调研请求，使用 Claude 直接调用（与 CLI 相同的 OAuth identity prefix）。"""
+        from app.services.claude_research_provider import send_claude_research_request
+        return send_claude_research_request(prompt, timeout=timeout)
 
     # ─── 私有工具方法 ──────────────────────────────────────
 
@@ -378,9 +392,7 @@ class AIResearchService:
 
     @classmethod
     def _ai_pre_check(cls, company_name):
-        """用 OpenClaw 搜索并判断公司是否存在"""
-        from app.services.openclaw_provider import send_openclaw_request
-
+        """搜索并判断公司是否存在"""
         core_name = cls._extract_core_name(company_name)
         search_term = core_name if core_name and len(core_name) >= 2 else company_name
 
@@ -395,7 +407,7 @@ class AIResearchService:
         )
 
         try:
-            response = send_openclaw_request(prompt, timeout=90)
+            response = cls._send_research_request(prompt, timeout=90)
             logger.info(f"[AI-Research-PreCheck] 原始回复 ({len(response)} chars): {response[:500]}")
             parsed = cls._extract_json(response)
             return {
@@ -556,7 +568,6 @@ class AIResearchService:
         """项目后台调研：直接执行完整调研（无需预搜索）"""
         from app.models.project import Project
         from app import db
-        from app.services.openclaw_provider import send_openclaw_request
 
         with app.app_context():
             try:
@@ -565,7 +576,7 @@ class AIResearchService:
                     return
 
                 prompt = cls._build_project_research_prompt(project.project_name)
-                response = send_openclaw_request(prompt, timeout=180)
+                response = cls._send_research_request(prompt, timeout=180)
                 logger.info(f"[AI-Research-Project] 原始回复 ({len(response)} chars): {response[:1000]}")
                 structured = cls._extract_json(response)
 

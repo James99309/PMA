@@ -371,10 +371,6 @@ def start_scheduler(run_time="01:00"):
     schedule.every().day.at("01:30").do(run_project_activity_correction)
     schedule.every().day.at("02:00").do(run_monthly_activity_snapshot)
 
-    # AI 调研批量任务
-    schedule.every().day.at("06:00").do(run_ai_research_batch)
-    logger.info("AI 调研批量任务已注册: 每日 06:00")
-
     # 工作日志通知清理（每天凌晨 00:30 清理超过1天的 worklog_submitted）
     schedule.every().day.at("00:30").do(cleanup_old_worklog_notifications)
     logger.info("工作日志通知清理任务已注册: 每日 00:30")
@@ -400,7 +396,7 @@ def start_scheduler(run_time="01:00"):
     _scheduler_thread = threading.Thread(target=_run_schedule, daemon=True)
     _scheduler_thread.start()
 
-    logger.info(f"定时任务调度器已启动: {run_time} 客户活跃度, 01:30 项目活跃度, 02:00 快照, {backup_time} 备份, 06:00 AI调研")
+    logger.info(f"定时任务调度器已启动: {run_time} 客户活跃度, 01:30 项目活跃度, 02:00 快照, {backup_time} 备份")
 
 
 def stop_scheduler():
