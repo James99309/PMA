@@ -348,6 +348,17 @@ document.addEventListener('submit', function(e) {
             <!-- 消息通知 -->
             {{ render_message_button() }}
 
+            <!-- AI 聊天 -->
+            <button @click="$dispatch('toggle-chat-panel')"
+                    class="relative flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    title="{{ _('AI 聊天') }}">
+                <span class="material-symbols-outlined text-xl">chat</span>
+                <span x-show="$store.chat && $store.chat.unreadCount > 0"
+                      x-text="$store.chat.unreadCount > 99 ? '99+' : $store.chat.unreadCount"
+                      x-cloak
+                      class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-500 rounded-full flex items-center justify-center"></span>
+            </button>
+
             <!-- 深色模式切换 -->
             <button id="themeToggle" class="flex items-center justify-center w-10 h-10 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
                 <span class="material-symbols-outlined dark:hidden">dark_mode</span>
@@ -428,7 +439,6 @@ document.addEventListener('submit', function(e) {
     {% include 'components/tw_access_request_modal.html' %}
 
     <!-- 聊天面板 -->
-    {{ render_chat_button() }}
     {{ render_chat_panel() }}
 
     <!-- 任务模态框 -->

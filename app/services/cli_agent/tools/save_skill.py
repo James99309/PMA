@@ -191,7 +191,7 @@ class SaveSkillTool(BaseTool):
         if existing:
             # --- 更新已有 Skill ---
             # 权限检查:只有创建者或 admin 可以更新
-            if existing.created_by != user.id and not is_admin:
+            if existing.created_by != user.id and user.role != 'admin':
                 return {
                     'error': (
                         f'技能 "{name}" 已存在且由其他用户创建,您没有权限修改。'

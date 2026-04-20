@@ -81,6 +81,20 @@ def get_chat_default_registry() -> ToolRegistry:
         except Exception:
             pass
 
+        # export_to_excel（openpyxl，含 PMA 样式库）
+        try:
+            from app.services.cli_agent.tools.export_to_excel import ExportToExcelTool
+            _chat_default_registry.register(ExportToExcelTool())
+        except Exception:
+            pass
+
+        # export_quotation_to_excel（按模板格式导出报价单）
+        try:
+            from app.services.cli_agent.tools.export_quotation_to_excel import ExportQuotationToExcelTool
+            _chat_default_registry.register(ExportQuotationToExcelTool())
+        except Exception:
+            pass
+
         # describe_table（配合 Tier 2 按需查询表的字段）
         try:
             from app.services.cli_agent.tools.describe_table import DescribeTableTool

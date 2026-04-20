@@ -27195,6 +27195,3 @@ msgstr "'s AI Usage"
 msgid "排名 #"
 msgstr "Rank #"
 
-msgid "人"
-msgstr " users"
-

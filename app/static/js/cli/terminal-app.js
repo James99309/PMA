@@ -615,6 +615,11 @@ class CliTerminalApp {
           statusMsg = `${tr('searching', '搜索')}: ${evt.input?.query || ''}`;
         } else if (toolName === 'export_to_word') {
           statusMsg = tr('generatingDoc', '生成文档...');
+        } else if (toolName === 'export_to_excel') {
+          statusMsg = tr('generatingExcel', '生成 Excel...');
+        } else if (toolName === 'export_quotation_to_excel') {
+          const qnum = evt.input?.quotation_number || evt.input?.quotation_id || '';
+          statusMsg = tr('generatingQuotation', '生成报价单') + (qnum ? ` ${qnum}` : '') + '...';
         }
         toolStatusEl = this._appendToolStatus(statusMsg, true);
         break;

@@ -60,7 +60,9 @@ _STATIC_ROLE_AND_RULES = """\
    - **公网信息**（某公司最新动态/注册地、行业政策、新闻、事实性问答）→ `web_search`（Tavily 已配置好）
    - 记忆管理 → `save_memory / recall_memory / delete_memory`
    - **公司内部知识**（产品手册、规章制度、FAQ、流程规范、内部政策）→ `query_wiki_knowledge`
-   - Word 导出 → `export_to_word`（当用户说"导出"时）
+   - Word 导出 → `export_to_word`（当用户说"导出Word/生成报告/下载报告"时，使用 [PMA Word 样式库] 中的函数写完整 python-docx 代码）
+   - Excel 导出 → `export_to_excel`（当用户说"导出Excel/生成表格/导出表格"时，使用 [PMA Excel 样式库] 中的函数写完整 openpyxl 代码）
+   - 报价单 Excel → `export_quotation_to_excel`（当用户说"导出报价单/生成报价Excel"时，**必须先确认有效的 quotation_number 或 quotation_id**，不明确时先用 `query_pma_database` 查询后再调用）
    用户问任何外部事实时,先调 web_search,再结合结果回答;不要反问"要不要帮你搜"。
    用户问公司内部知识/制度/规范时,调 query_wiki_knowledge;与实时业务数据区分开。
 
@@ -115,9 +117,18 @@ def _schema_section() -> str:
         return ''
 
 
+def _xlsx_skill_section() -> str:
+    """注入 PMA Excel 样式库描述（复用 CLI 的实现）。"""
+    try:
+        from app.services.cli_agent.prompt_builder import _xlsx_skill_section as _cli_xlsx
+        return _cli_xlsx()
+    except Exception:
+        return ''
+
+
 def build_static_section() -> str:
     """整个会话内不变的部分。享受 prompt cache。"""
-    return _STATIC_ROLE_AND_RULES + _schema_section()
+    return _STATIC_ROLE_AND_RULES + _schema_section() + _xlsx_skill_section()
 
 
 # ─── 动态段(每用户不同,会话内稳定) ────────────────────────────────────

@@ -50,8 +50,7 @@
      x-transition:leave-end="opacity-0 translate-y-4 scale-95"
      @toggle-chat-panel.window="toggle()"
      @keydown.escape.window="chatOpen && (splitMode ? exitSplitMode() : closePanel())"
-    @click.outside="chatOpen && !splitMode && closePanel()"
-     class="fixed top-0 left-0 right-0 h-[100dvh] z-50 md:inset-auto md:top-16 md:right-0 md:h-[calc(100vh-4rem)] md:max-w-[calc(100vw-48px)] md:z-20 bg-gray-50 dark:bg-slate-900 md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
+     class="fixed top-0 left-0 right-0 h-[100dvh] z-50 md:inset-auto md:top-16 md:right-0 md:h-[calc(100vh-4rem)] md:max-w-[calc(100vw-48px)] md:z-20 bg-gray-50 dark:bg-slate-900 text-slate-900 dark:text-white md:rounded-l-2xl shadow-2xl md:border md:border-r-0 border-slate-200 dark:border-slate-700 flex overflow-hidden"
      :style="window.innerWidth >= 768 ? { width: splitMode ? '30vw' : '70vw', transition: 'width 400ms cubic-bezier(0.4,0,0.2,1)' } : {}"
      x-cloak
      style="display: none;">

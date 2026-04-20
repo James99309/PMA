@@ -111,6 +111,14 @@ def get_default_registry() -> ToolRegistry:
         from app.services.cli_agent.tools.export_to_word import ExportToWordTool
         _default_registry.register(ExportToWordTool())
 
+        # 注册 export_to_excel（openpyxl，含 PMA 样式库）
+        from app.services.cli_agent.tools.export_to_excel import ExportToExcelTool
+        _default_registry.register(ExportToExcelTool())
+
+        # 注册 export_quotation_to_excel（按模板格式导出报价单）
+        from app.services.cli_agent.tools.export_quotation_to_excel import ExportQuotationToExcelTool
+        _default_registry.register(ExportQuotationToExcelTool())
+
         # 注册 web_search(只在配置了 TAVILY_API_KEY 时)
         import os
         if os.environ.get('TAVILY_API_KEY', '').strip():
