@@ -287,6 +287,52 @@ def _render_markdown_table(columns: list[str], rows: list[list]) -> str:
     return '\n'.join(lines)
 
 
+def _render_grouped_table(columns: list[str], rows: list[list], group_col: str) -> str:
+    """按指定列分组，生成可折叠的 <details> 块。
+
+    用法（在 output_format 模板中）:
+        {step_name.grouped_by:"类型"}
+
+    渲染效果:
+        ▶ 客户拜访 — 5 项     (点击展开明细表)
+        ▶ 售前支持 — 3 项
+        ▶ 会议 — 2 项
+    """
+    if not columns or not rows:
+        return '(无数据)'
+
+    if group_col not in columns:
+        return _render_markdown_table(columns, rows)
+
+    gi = columns.index(group_col)
+    other_cols = [c for i, c in enumerate(columns) if i != gi]
+
+    # 按分组列聚合，保持插入顺序
+    groups: dict[str, list] = {}
+    for row in rows:
+        key = str(row[gi]) if row[gi] is not None else '其他'
+        groups.setdefault(key, []).append(row)
+
+    lines: list[str] = []
+    for gname in sorted(groups, key=lambda g: -len(groups[g])):
+        grow = groups[gname]
+        lines.append(f'<details><summary><strong>{gname}</strong> — {len(grow)} 项</summary>\n')
+        # 表头
+        lines.append('| ' + ' | '.join(str(c) for c in other_cols) + ' |')
+        lines.append('| ' + ' | '.join('---' for _ in other_cols) + ' |')
+        for row in grow:
+            cells = []
+            for i, val in enumerate(row):
+                if i == gi:
+                    continue
+                s = '' if val is None else str(val).replace('|', '\\|')
+                cells.append(s)
+            lines.append('| ' + ' | '.join(cells) + ' |')
+        lines.append('\n</details>\n')
+
+    return '\n'.join(lines)
+
+
 def _get_step_cell(step_results: dict, key: str) -> str:
     """解析 step_name.N.field 并返回单元格值的字符串形式。"""
     parts = key.split('.')
@@ -399,6 +445,21 @@ def _render_output_template(
         return _collect_artifact_card(step_name, step_results, mapping_str, _arts)
 
     output = re.sub(r'\{([a-zA-Z_]\w*)\.artifact_card(?::"([^"]*)")?\}', _replace_artifact_card, output)
+
+    # 2d. 替换 {step_name.grouped_by:"列名"} → 按指定列分组的可折叠表格
+    def _replace_grouped(match: re.Match) -> str:
+        step_name = match.group(1)
+        group_col = match.group(2) or ''
+        if step_name in step_results:
+            result = step_results[step_name]
+            return _render_grouped_table(
+                result.get('columns', []),
+                result.get('rows', []),
+                group_col,
+            )
+        return f'(步骤 {step_name} 无数据)'
+
+    output = re.sub(r'\{([a-zA-Z_]\w*)\.grouped_by:"([^"]*)"\}', _replace_grouped, output)
 
     # 3. 替换 {step_name.count}
     def _replace_count(match: re.Match) -> str:
