@@ -246,5 +246,6 @@ class TaskReply(db.Model):
     author = relationship('User', foreign_keys=[author_id])
     subtask = relationship('SubTask', foreign_keys=[subtask_id], lazy='joined')
     content = Column(Text, nullable=False)
+    reply_type = Column(String(20), default='comment', nullable=False, server_default='comment')
     created_at = Column(DateTime, default=get_local_time)
     is_deleted = Column(Boolean, default=False)

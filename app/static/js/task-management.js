@@ -90,6 +90,8 @@ function taskManagement() {
         newReplyContent: '',
         replySubtaskId: null,
         replySubtaskTitle: '',
+        subtaskActionContent: '',
+        _subtaskUpdatesCache: {},
         showMentionDrop: false,
         mentionList: [],
         mentionIdx: 0,
@@ -141,7 +143,12 @@ function taskManagement() {
             }
 
             // Listen for task creation/update events from tw_task_modal
-            window.addEventListener('task-created', () => this.loadTasks());
+            window.addEventListener('task-created', async (e) => {
+                await this.loadTasks();
+                if (e.detail && e.detail.id) {
+                    this.selectTask(e.detail.id);
+                }
+            });
             window.addEventListener('task-updated', () => {
                 this.loadTasks();
                 if (this.selectedTaskId) this.selectTask(this.selectedTaskId);
@@ -190,7 +197,7 @@ function taskManagement() {
             this.selectedTaskId = taskId;
             this.detailLoading = true;
             this.subtasks = [];
-            this.subtaskUpdates = {};
+            this._subtaskUpdatesCache = {};
             this.expandedSubtasks = [];
             this.taskReplies = [];
             this.sharedUserNames = [];
@@ -220,7 +227,7 @@ function taskManagement() {
                     // Pre-populate updates from inline data
                     for (const st of this.subtasks) {
                         if (st.updates) {
-                            this.subtaskUpdates[st.id] = st.updates;
+                            this._subtaskUpdatesCache[st.id] = st.updates;
                         }
                     }
                 }
@@ -423,6 +430,30 @@ function taskManagement() {
             }
         },
 
+        subtaskUpdates(stId) {
+            return (this.taskReplies || []).filter(r => r.subtask_id == stId && r.reply_type === 'update')
+                .slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        },
+
+        async addSubtaskUpdate(stId) {
+            const content = (this.subtaskActionContent || '').trim();
+            if (!content || !this.selectedTaskId) return;
+            try {
+                const res = await fetch('/task/api/' + this.selectedTaskId + '/replies', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content, subtask_id: stId, reply_type: 'update' }),
+                });
+                const data = await res.json();
+                if (data.success) {
+                    this.subtaskActionContent = '';
+                    this.taskReplies.push(data.data);
+                }
+            } catch (e) {
+                console.error('添加进展失败:', e);
+            }
+        },
+
         async completeTask() {
             if (!this.selectedTaskId) return;
             if (!confirm('确定完成此任务？')) return;
@@ -578,7 +609,7 @@ function taskManagement() {
                     this.subtasks = data.data;
                     for (const st of this.subtasks) {
                         if (st.updates) {
-                            this.subtaskUpdates[st.id] = st.updates;
+                            this._subtaskUpdatesCache[st.id] = st.updates;
                         }
                     }
                 }
@@ -617,8 +648,13 @@ function taskManagement() {
 
         filteredReplies() {
             const focusId = this.expandedSubtasks[0];
-            if (!focusId) return this.taskReplies;
-            return this.taskReplies.filter(r => r.subtask_id == focusId);
+            const comments = (this.taskReplies || []).filter(r => !r.reply_type || r.reply_type === 'comment');
+            if (!focusId) return comments;
+            return comments.filter(r => r.subtask_id == focusId);
+        },
+
+        commentCount() {
+            return (this.taskReplies || []).filter(r => !r.reply_type || r.reply_type === 'comment').length;
         },
 
         toggleSubtask(id) {
@@ -753,14 +789,13 @@ function taskManagement() {
             if (!subs.length) return '';
 
             let allDates = subs.map(s => new Date(s._pos_date));
-            if (this.selectedTask.start_date) allDates.push(new Date(this.selectedTask.start_date));
-            if (this.selectedTask.due_date) allDates.push(new Date(this.selectedTask.due_date));
             let minD = new Date(Math.min(...allDates));
             let maxD = new Date(Math.max(...allDates));
-            if (maxD - minD < 86400000) {
-                minD.setDate(minD.getDate() - 1);
-                maxD.setDate(maxD.getDate() + 1);
-            }
+            // 两侧各留 5% 的缓冲（至少 2 天）
+            const rangeDays = Math.max(1, (maxD - minD) / 86400000);
+            const bufDays = Math.max(2, Math.round(rangeDays * 0.05));
+            minD.setDate(minD.getDate() - bufDays);
+            maxD.setDate(maxD.getDate() + bufDays);
             const totalDays = Math.max(1, (maxD - minD) / 86400000);
             const totalMs = maxD - minD || 1;
 
@@ -914,8 +949,8 @@ function taskManagement() {
             const MIN_PX_PER_DAY = 50;
             const minTrackWidth = totalDays * MIN_PX_PER_DAY * (1 + extraPct / 100);
 
-            return '<div style="padding-top:' + topPad + 'px;padding-bottom:28px;overflow-x:auto">'
-                 + '<div class="relative" style="width:100%;min-width:' + minTrackWidth + 'px">'
+            return '<div style="padding-top:' + topPad + 'px;overflow-x:auto">'
+                 + '<div class="relative" style="width:100%;min-width:' + minTrackWidth + 'px;padding-bottom:28px">'
                  + '<div class="flex justify-between text-[10px] text-slate-400 mb-1">'
                  + '<span>' + fmt(minD) + '</span><span>' + fmt(maxD) + '</span></div>'
                  + '<div class="relative h-px bg-slate-300 dark:bg-slate-600">'

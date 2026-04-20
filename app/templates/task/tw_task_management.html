@@ -527,6 +527,42 @@
                                             class="text-red-500 hover:underline">{{ _('删除') }}</button>
                                 </template>
                             </div>
+
+                            {# 进展记录 #}
+                            <div class="border-t border-slate-100 dark:border-slate-700 px-3 py-2.5">
+                                <div class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-sm">update</span>
+                                    {{ _('进展记录') }}
+                                    <span x-show="subtaskUpdates(st.id).length > 0"
+                                          x-text="'(' + subtaskUpdates(st.id).length + ')'"
+                                          class="text-slate-400"></span>
+                                </div>
+                                <template x-if="subtaskUpdates(st.id).length > 0">
+                                    <div class="mb-2 space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                                        <template x-for="u in subtaskUpdates(st.id)" :key="u.id">
+                                            <div class="text-xs border-l-2 border-amber-400 dark:border-amber-600 pl-2.5 py-1 bg-amber-50/60 dark:bg-amber-900/10 rounded-r">
+                                                <div class="flex items-center gap-1.5 mb-0.5">
+                                                    <span x-text="u.author_name" class="font-medium text-slate-700 dark:text-slate-300"></span>
+                                                    <span x-text="formatDateTime(u.created_at)" class="text-slate-400"></span>
+                                                </div>
+                                                <p class="text-slate-700 dark:text-slate-300 whitespace-pre-wrap" x-text="u.content"></p>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                                <template x-if="!selectedTask || selectedTask.status !== 'completed'">
+                                    <div class="flex gap-2 items-end">
+                                        <textarea x-model="subtaskActionContent"
+                                                  rows="2"
+                                                  :placeholder="'{{ _('记录今日进展...') }}'"
+                                                  @keydown.ctrl.enter.prevent="addSubtaskUpdate(st.id)"
+                                                  class="flex-1 text-xs border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1.5 bg-white dark:bg-slate-800 focus:ring-1 focus:ring-amber-400 focus:border-amber-400 resize-y min-h-[52px] max-h-40"></textarea>
+                                        <button @click.stop="addSubtaskUpdate(st.id)"
+                                                :disabled="!subtaskActionContent.trim()"
+                                                class="flex-shrink-0 text-xs bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white px-2.5 py-1.5 rounded-lg font-medium transition">{{ _('记录') }}</button>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
                     </template>
 
@@ -609,7 +645,7 @@
                         <span class="material-symbols-outlined text-base">forum</span>
                         {{ _('讨论') }}
                         <span class="text-slate-400 font-normal text-xs"
-                              x-text="expandedSubtasks.length ? '(' + filteredReplies().length + '/' + taskReplies.length + ')' : '(' + taskReplies.length + ')'"></span>
+                              x-text="expandedSubtasks.length ? '(' + filteredReplies().length + '/' + commentCount() + ')' : '(' + commentCount() + ')'"></span>
                     </h3>
                     <div class="bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
                         {# 讨论列表 #}
@@ -645,15 +681,15 @@
                                 </div>
                             </template>
                             <div class="flex gap-2 relative">
-                                <input type="text" x-model="newReplyContent" x-ref="replyInput"
-                                       @keydown.enter="if(!showMentionDrop) addReply()"
+                                <textarea x-model="newReplyContent" x-ref="replyInput"
+                                       rows="1"
+                                       @keydown.enter="if(showMentionDrop){ $event.preventDefault(); selectMention(mentionList[mentionIdx]); } else if(!$event.shiftKey){ $event.preventDefault(); addReply(); }"
                                        @input="onReplyInput($event)"
                                        @keydown.arrow-down.prevent="if(showMentionDrop) mentionIdx = Math.min(mentionIdx+1, mentionList.length-1)"
                                        @keydown.arrow-up.prevent="if(showMentionDrop) mentionIdx = Math.max(mentionIdx-1, 0)"
-                                       @keydown.enter.prevent="if(showMentionDrop) selectMention(mentionList[mentionIdx])"
                                        @keydown.escape="showMentionDrop = false"
                                        :placeholder="'{{ _('输入讨论内容，@ 关联子任务...') }}'"
-                                       class="flex-1 text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary focus:border-primary">
+                                       class="flex-1 text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1.5 bg-white dark:bg-slate-800 focus:ring-1 focus:ring-primary focus:border-primary resize-y min-h-[34px] max-h-48"></textarea>
                                 {# @提及下拉 #}
                                 <div x-show="showMentionDrop" x-transition
                                      class="absolute bottom-full left-0 mb-1 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 z-30 max-h-40 overflow-y-auto">

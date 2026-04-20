@@ -206,7 +206,7 @@ class Config:
     WTF_CSRF_TIME_LIMIT = 3600
     
     # 文件上传配置
-    MAX_CONTENT_LENGTH = 32 * 1024 * 1024  # 32MB
+    MAX_CONTENT_LENGTH = 1024 * 1024 * 1024  # 1GB
     UPLOAD_FOLDER = os.path.join(basedir, 'uploads')
     
     # 缓存配置

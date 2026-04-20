@@ -277,6 +277,7 @@ def get_task(id):
             'subtask_id': r.subtask_id,
             'subtask_title': r.subtask.title if r.subtask else None,
             'content': r.content,
+            'reply_type': r.reply_type,
             'created_at': r.created_at.isoformat() if r.created_at else None,
         } for r in replies]
 
@@ -736,12 +737,16 @@ def add_reply(id):
             return jsonify({'success': False, 'message': '回复内容不能为空'}), 400
 
         subtask_id = data.get('subtask_id') if data else None
+        reply_type = (data.get('reply_type') or 'comment') if data else 'comment'
+        if reply_type not in ('comment', 'update'):
+            reply_type = 'comment'
 
         reply = TaskReply(
             task_id=id,
             subtask_id=subtask_id,
             author_id=current_user.id,
             content=content,
+            reply_type=reply_type,
         )
         db.session.add(reply)
         db.session.commit()
@@ -770,6 +775,7 @@ def add_reply(id):
                 'subtask_id': reply.subtask_id,
                 'subtask_title': subtask_title,
                 'content': reply.content,
+                'reply_type': reply.reply_type,
                 'created_at': reply.created_at.isoformat() if reply.created_at else None,
             }
         })
