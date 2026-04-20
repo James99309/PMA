@@ -854,7 +854,8 @@ def management_list():
                 uid = view_user_id
             elif is_dept_mgr and current_user.department and current_user.company_name:
                 target = User.query.get(view_user_id)
-                if target and target.department == current_user.department \
+                if target and target._is_active \
+                        and target.department == current_user.department \
                         and target.company_name == current_user.company_name:
                     uid = view_user_id
 
