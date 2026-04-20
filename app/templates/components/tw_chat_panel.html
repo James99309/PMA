@@ -648,6 +648,26 @@
                                 </div>
                             </div>
                             </template>
+                            <!-- invoke_skill artifact iframe 卡片 -->
+                            <template x-if="msg.message_type === 'artifact' && msg.artifact_html">
+                            <div class="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 w-full">
+                                <div class="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 cursor-pointer select-none"
+                                     @click="msg._collapsed = !msg._collapsed">
+                                    <span class="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                                        <span class="material-symbols-outlined text-sm">table_chart</span>
+                                        <span x-text="msg.content"></span>
+                                    </span>
+                                    <span class="material-symbols-outlined text-sm text-slate-400 transition-transform"
+                                          :style="msg._collapsed ? 'transform:rotate(-90deg)' : ''">expand_more</span>
+                                </div>
+                                <div x-show="!msg._collapsed">
+                                    <iframe :srcdoc="msg.artifact_html"
+                                            sandbox="allow-scripts"
+                                            style="width:100%;border:none;display:block;min-height:60px;max-height:480px"
+                                            @load="$el.style.height = Math.min($el.contentDocument?.body?.scrollHeight || 200, 480) + 'px'"></iframe>
+                                </div>
+                            </div>
+                            </template>
                             <!-- AI 导出文件下载按钮 -->
                             <template x-if="msg.message_type === 'download' && msg.download_url">
                             <a :href="msg.download_url" :download="msg.content"
@@ -2948,6 +2968,20 @@ function chatPanel() {
                             } else if (payload.type === 'thinking') {
                                 // AI 思考过程
                                 this.aiThinkingText += payload.text;
+                                this.scrollToBottom();
+                            } else if (payload.type === 'artifact') {
+                                // invoke_skill artifact — 插入 iframe 卡片消息
+                                this.messages.push({
+                                    id: 'art_' + Date.now(),
+                                    content: payload.title || 'Skill 输出',
+                                    artifact_html: payload.html,
+                                    message_type: 'artifact',
+                                    is_mine: false,
+                                    is_ai: true,
+                                    sender_name: '{{ _("AI 助手") }}',
+                                    created_at: new Date().toISOString(),
+                                    _collapsed: false,
+                                });
                                 this.scrollToBottom();
                             } else if (payload.type === 'download') {
                                 // 文件导出完成 — 插入下载按钮消息

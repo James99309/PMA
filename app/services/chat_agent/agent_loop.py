@@ -239,9 +239,19 @@ class ChatAgentLoop(BaseAgentLoop):
             tool_results: list[dict] = []
             for tu in pending_tool_uses:
                 output, is_error = self._run_tool(tu)
+
+                # invoke_skill: artifacts 直接推给前端，不传给 LLM
+                if tu['name'] == 'invoke_skill' and not is_error:
+                    for art in (output.get('artifacts') or []):
+                        yield {'type': 'artifact', 'title': art.get('title', ''), 'html': art.get('html', '')}
+
+                llm_output = output
+                if tu['name'] == 'invoke_skill' and isinstance(output, dict) and 'artifacts' in output:
+                    llm_output = {k: v for k, v in output.items() if k != 'artifacts'}
+
                 tool_results.append(conv.tool_result_block(
                     tool_use_id=tu['id'],
-                    content=output,
+                    content=llm_output,
                     is_error=is_error,
                 ))
                 yield {
@@ -250,7 +260,7 @@ class ChatAgentLoop(BaseAgentLoop):
                     'phase': 'error' if is_error else 'done',
                 }
                 if not is_error:
-                    dl = self._download_event(output)
+                    dl = self._download_event(llm_output)
                     if dl:
                         yield dl
 
