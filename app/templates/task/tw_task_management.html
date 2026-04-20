@@ -66,25 +66,25 @@
 
             {% if can_view_team %}
             {# 成员切换栏 #}
-            <div class="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+            <div class="flex items-center gap-2 overflow-x-auto pt-1 pb-1 scrollbar-none">
                 {# 我 - 始终第一 #}
                 <button @click="setViewUser(null)"
-                        class="flex-shrink-0 flex flex-col items-center gap-0.5 cursor-pointer group">
+                        class="flex-shrink-0 cursor-pointer group"
+                        :title="'{{ (current_user.real_name or current_user.username) }}'">
                     <div :class="viewUserId === null ? 'ring-2 ring-primary ring-offset-1' : 'opacity-60 group-hover:opacity-100'"
                          class="w-6 h-6 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center transition">
                         {{ (current_user.real_name or current_user.username)[:2] }}
                     </div>
-                    <span class="text-[9px] text-slate-500 dark:text-slate-400 w-7 text-center truncate leading-tight">{{ _('我') }}</span>
                 </button>
 
                 {% for m in team_members %}
                 <button @click="setViewUser({{ m.id }}, {{ m.name | tojson }})"
-                        class="flex-shrink-0 flex flex-col items-center gap-0.5 cursor-pointer group">
+                        class="flex-shrink-0 cursor-pointer group"
+                        title="{{ m.name }}">
                     <div :class="viewUserId === {{ m.id }} ? 'ring-2 ring-primary ring-offset-1' : 'opacity-60 group-hover:opacity-100'"
                          class="w-6 h-6 rounded-full bg-slate-400 text-white text-[10px] font-bold flex items-center justify-center transition">
                         {{ m.initials }}
                     </div>
-                    <span class="text-[9px] text-slate-500 dark:text-slate-400 w-7 text-center truncate leading-tight">{{ m.name[:3] }}</span>
                 </button>
                 {% endfor %}
             </div>
