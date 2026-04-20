@@ -5,15 +5,17 @@ from app.extensions import db
 
 
 def _build_memo(behavior_code, context=None):
-    """根据当前语言和行为注册表自动生成 memo。"""
+    """根据数据库实例语言和行为注册表自动生成 memo。
+    语言由 IS_OVS 配置决定（SG=英文，CN=中文），与请求语言无关。
+    """
     from app.services.points_registry import BEHAVIOR_REGISTRY
     try:
-        from app.utils.i18n import get_current_language
-        lang = get_current_language()
+        from flask import current_app
+        is_en = current_app.config.get('IS_OVS', False)
     except Exception:
-        lang = 'zh'
+        is_en = False
     behavior = BEHAVIOR_REGISTRY.get(behavior_code, {})
-    name = behavior.get('name_en' if lang == 'en' else 'name') or behavior.get('name', behavior_code)
+    name = behavior.get('name_en' if is_en else 'name') or behavior.get('name', behavior_code)
     return f'{name}: {context}' if context else name
 
 
