@@ -63,7 +63,7 @@ class ExportToWordTool(BaseTool):
             },
             'title': {
                 'type': 'string',
-                'description': '文档标题（可选，用于文件命名）',
+                'description': '文档标题（必填，用于文件命名，应概括文档内容，如"范敬_失败项目说明"、"李华伟_上周工作总结"）',
             },
         },
     }
@@ -185,8 +185,15 @@ class ExportToWordTool(BaseTool):
 
     @staticmethod
     def _make_filename(title: str) -> str:
-        short_id = uuid.uuid4().hex[:8]
         date_str = datetime.now().strftime('%Y%m%d_%H%M')
+        if title:
+            # 只保留中文、英文、数字、下划线，其余替换为下划线
+            safe = re.sub(r'[^\w\u4e00-\u9fff]+', '_', title).strip('_')
+            # 截断过长标题
+            if len(safe) > 60:
+                safe = safe[:60].rstrip('_')
+            return f'{safe}_{date_str}.docx'
+        short_id = uuid.uuid4().hex[:8]
         return f'report_{date_str}_{short_id}.docx'
 
     @staticmethod
