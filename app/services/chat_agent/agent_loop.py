@@ -40,8 +40,10 @@ logger = logging.getLogger(__name__)
 # 单轮 run 最多几次 "LLM→工具→LLM" 循环
 _MAX_TOOL_ROUNDS_PER_RUN = 6
 
-# 构建 LLM 请求时,从历史最多读取多少条文本消息
-_HISTORY_MAX_MESSAGES = 20
+# 构建 LLM 请求时,总共加载多少条历史消息（用于生成摘要）
+_HISTORY_LOAD_MESSAGES = 40
+# 压缩后保留最近多少条消息原样（其余摘要化）
+_HISTORY_KEEP_RECENT = 12
 
 
 class ChatAgentLoop:
@@ -285,12 +287,8 @@ class ChatAgentLoop:
     def _load_history_as_messages(self) -> list[dict]:
         """从 ChatMessage 表读最近历史,转成 Anthropic messages 纯文本格式。
 
-        只读文本类消息,跳过卡片/附件/系统消息。每条 ChatMessage 对应一条
-        Anthropic 消息 (role=user 如果是用户发的,role=assistant 如果是 AI 发的)。
-
-        工具调用轨迹不在 ChatMessage 里持久化,所以跨轮次时 LLM 只能看到
-        用户输入和 AI 最终文本——这是有意的简化(完整 tool 轨迹只在单次 run
-        内维持)。
+        超过 _HISTORY_KEEP_RECENT 条时对旧消息生成规则摘要（不调 LLM），
+        保留最近 _HISTORY_KEEP_RECENT 条原样，避免长对话静默丢失上下文。
         """
         rows = (
             ChatMessage.query.filter_by(
@@ -299,32 +297,51 @@ class ChatAgentLoop:
             )
             .filter(ChatMessage.message_type.in_(['text', 'form_result_card']))
             .order_by(ChatMessage.id.desc())
-            .limit(_HISTORY_MAX_MESSAGES)
+            .limit(_HISTORY_LOAD_MESSAGES)
             .all()
         )
         rows.reverse()  # 按时间正序
 
-        messages: list[dict] = []
+        # 转为 Anthropic messages 格式（纯文本，同 role 连续合并）
+        all_messages: list[dict] = []
         for m in rows:
             if not (m.content or '').strip():
                 continue
             role = 'assistant' if m.is_ai_response else 'user'
             text = m.content.strip()
-            # 把同 role 的连续消息合并,避免 Anthropic 报 role alternation 错
-            if messages and messages[-1]['role'] == role:
-                messages[-1]['content'][0]['text'] += '\n\n' + text
+            if all_messages and all_messages[-1]['role'] == role:
+                all_messages[-1]['content'][0]['text'] += '\n\n' + text
             else:
-                messages.append(
+                all_messages.append(
                     {'role': role, 'content': [conv.text_block(text)]}
                 )
 
         # Anthropic 要求第一条必须是 user
-        while messages and messages[0]['role'] != 'user':
-            messages.pop(0)
+        while all_messages and all_messages[0]['role'] != 'user':
+            all_messages.pop(0)
 
-        # 末尾如果是 user(历史最后一条是用户输入,通常就是刚写进去的那条),
-        # 把它弹掉——调用方会在 run() 里重新追加 user_input,避免重复。
-        if messages and messages[-1]['role'] == 'user':
-            messages.pop()
+        # 末尾如果是 user（刚写进 DB 的本轮输入），弹掉避免重复追加
+        if all_messages and all_messages[-1]['role'] == 'user':
+            all_messages.pop()
 
-        return messages
+        # 超出保留数量时，对旧消息生成摘要
+        if len(all_messages) > _HISTORY_KEEP_RECENT:
+            old_messages = all_messages[:-_HISTORY_KEEP_RECENT]
+            recent_messages = all_messages[-_HISTORY_KEEP_RECENT:]
+            try:
+                from app.services.cli_agent.compaction import _summarize_old_messages
+                summary_text = _summarize_old_messages(old_messages)
+                summary_msg = {
+                    'role': 'user',
+                    'content': [conv.text_block(
+                        f'<chat_history_summary>\n{summary_text}\n</chat_history_summary>\n\n'
+                        f'以上是之前 {len(old_messages)} 条消息的摘要，'
+                        f'最近 {len(recent_messages)} 条消息保留原样如下。'
+                    )],
+                }
+                return [summary_msg] + recent_messages
+            except Exception:
+                logger.warning('[Chat Agent] 历史摘要生成失败，回退到截断模式', exc_info=True)
+                return recent_messages
+
+        return all_messages

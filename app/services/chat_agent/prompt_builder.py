@@ -101,10 +101,12 @@ _STATIC_ROLE_AND_RULES = """\
 
 
 def _schema_section() -> str:
-    """从 chat_db_query 拿 schema 描述(复用 cli_agent 用的那份)"""
+    """使用 CLI Agent 的分级 schema（Tier1 完整字段 + Tier2 表名清单）。
+    LLM 遇到 Tier2 表时调 describe_table 工具按需拉取字段，避免一次性注入全部表。
+    """
     try:
-        from app.services.chat_db_query import get_db_schema
-        return f'\n[PMA 数据库 Schema]\n{get_db_schema()}\n'
+        from app.services.cli_agent.table_catalog import build_tiered_schema_section
+        return f'\n[PMA 数据库 Schema]\n{build_tiered_schema_section()}\n'
     except Exception as e:
         try:
             current_app.logger.warning(f'[Chat Agent] 获取 schema 失败: {e}')
@@ -145,6 +147,18 @@ def build_dynamic_section(user) -> str:
     except Exception as e:
         try:
             current_app.logger.warning(f'[Chat Agent] 获取权限上下文失败: {e}')
+        except Exception:
+            pass
+
+    # 可用 Skill（复用 CLI 的 _skill_section，列出用户可调用的业务技能）
+    try:
+        from app.services.cli_agent.prompt_builder import _skill_section
+        skill_text = _skill_section(user)
+        if skill_text:
+            parts.append(skill_text)
+    except Exception as e:
+        try:
+            current_app.logger.warning(f'[Chat Agent] 加载 skill 列表失败: {e}')
         except Exception:
             pass
 

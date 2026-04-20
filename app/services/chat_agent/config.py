@@ -9,12 +9,14 @@ chat 场景与 CLI 相比的区别:
     - 每轮 tool result 硬上限 CLI_TOOL_RESULT_MAX_TOKENS=8000 tokens
       (复用 cli_agent/config 里的常量,chat 的 query_pma_database 也用它)
 
-所以 chat 的预算可以显著小于 CLI (180k),但必须远大于
-    固定前缀 ~2.5k + 历史文本 ~4k + 单轮双 tool ~16k = 22.5k
-的下限。选 40k 作为 warn、120k 作为 reject。
+预算估算:
+    - 分级 schema 前缀 ~4.5k + 角色规则 ~1.5k + 动态段 ~1k = 7k 静态
+    - 一轮富查询工具结果可达 8k,6 轮上限 ~48k
+    - 历史文本 ~8-15k
+    下限约 60k,warn 设 70k 给用户足够空间;reject 维持 120k。
 """
 
-CHAT_CONTEXT_WARN = 40_000
+CHAT_CONTEXT_WARN = 70_000
 """警告阈值。达到时前端状态栏显示黄色,done 事件附 context_warning=True,允许继续。"""
 
 CHAT_CONTEXT_REJECT = 120_000
