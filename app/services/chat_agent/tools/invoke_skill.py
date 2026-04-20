@@ -21,13 +21,10 @@ logger = logging.getLogger(__name__)
 class ChatInvokeSkillTool(BaseTool):
     name = 'invoke_skill'
     description = (
-        '调用预定义业务技能执行多步骤复合查询。适用场景：\n'
-        '- 工作总结/工作情况查询 → skill_name="work_summary"\n'
-        '- 客户全景分析 → skill_name="customer_overview"\n'
-        '- 项目详情 → skill_name="project_detail"\n'
-        '- 项目管线分析 → skill_name="pipeline_analysis"\n'
-        '- 销售行动力报告 → skill_name="sales_activity_report"\n'
-        '遇到上述场景时优先调用 invoke_skill，比逐条 query_pma_database 更全面准确。'
+        '调用预定义业务技能执行多步骤复合查询。\n'
+        '- 通过 skill_name 指定要调用的技能（见系统提示中的 [可用 Skill] 列表）。\n'
+        '- 用户消息匹配某个 Skill 的触发场景时，优先调用此工具，比逐条 query_pma_database 更全面准确。\n'
+        '- 从用户消息中提取所有参数值（人名、时间词等），映射到 params 后一次性传入，不要遗漏。'
     )
     input_schema = {
         'type': 'object',
