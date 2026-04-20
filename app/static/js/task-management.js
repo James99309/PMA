@@ -98,6 +98,10 @@ function taskManagement() {
         allUsers: [],
         currentUserId: null,
 
+        // ── 团队视图 ──
+        viewUserId: null,
+        viewUserName: '',
+
         // ── 初始化 ──
         async init() {
             this.currentUserId = window.CURRENT_USER_ID;
@@ -157,6 +161,9 @@ function taskManagement() {
                     search: this.search,
                     per_page: '50',
                 });
+                if (this.viewUserId) {
+                    params.set('view_user_id', this.viewUserId);
+                }
                 const res = await fetch('/task/api/management/list?' + params);
                 const data = await res.json();
                 if (data.success) {
@@ -168,6 +175,14 @@ function taskManagement() {
             } finally {
                 this.loading = false;
             }
+        },
+
+        setViewUser(userId, userName = '') {
+            this.viewUserId = userId;
+            this.viewUserName = userName;
+            this.selectedTaskId = null;
+            this.selectedTask = null;
+            this.loadTasks();
         },
 
         async selectTask(taskId) {
