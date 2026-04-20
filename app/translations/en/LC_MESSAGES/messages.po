@@ -23131,6 +23131,38 @@ msgstr "Failed to revoke"
 msgid "撤销"
 msgstr "Revoke"
 
+#: app/templates/task/tw_task_management.html
+msgid "我负责的"
+msgstr "My Tasks"
+
+#: app/templates/task/tw_task_management.html
+msgid "我创建的"
+msgstr "Created by Me"
+
+#: app/templates/task/tw_task_management.html
+msgid "我参与的"
+msgstr "Shared with Me"
+
+#: app/templates/task/tw_task_management.html
+msgid "待我审核"
+msgstr "Pending Review"
+
+#: app/templates/task/tw_task_management.html
+msgid "暂无任务"
+msgstr "No Tasks"
+
+#: app/templates/task/tw_task_management.html
+msgid "选择一个任务查看详情"
+msgstr "Select a task to view details"
+
+#: app/templates/task/tw_task_management.html
+msgid "搜索任务..."
+msgstr "Search tasks..."
+
+#: app/templates/task/tw_task_management.html
+msgid "共 {n} 个"
+msgstr "Total: {n}"
+
 #~ msgid "English"
 #~ msgstr "English"
 

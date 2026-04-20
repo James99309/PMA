@@ -55,11 +55,11 @@ function taskManagement() {
         sortBy: 'updated',
         search: '',
         tabs: [
-            { key: 'all',     label: '全部' },
-            { key: 'my',      label: '我负责的' },
-            { key: 'created', label: '我创建的' },
-            { key: 'shared',  label: '我参与的' },
-            { key: 'review',  label: '待我审核' },
+            { key: 'all',     label: window.TASK_I18N?.tabs?.all     || '全部' },
+            { key: 'my',      label: window.TASK_I18N?.tabs?.my      || '我负责的' },
+            { key: 'created', label: window.TASK_I18N?.tabs?.created || '我创建的' },
+            { key: 'shared',  label: window.TASK_I18N?.tabs?.shared  || '我参与的' },
+            { key: 'review',  label: window.TASK_I18N?.tabs?.review  || '待我审核' },
         ],
 
         // ── 详情状态 ──

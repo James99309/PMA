@@ -93,7 +93,7 @@
                     <option value="priority">{{ _('优先级') }}</option>
                     <option value="created">{{ _('创建时间') }}</option>
                 </select>
-                <span class="text-slate-400" x-text="'{{ _('共') }} ' + totalTasks + ' {{ _('个') }}'"></span>
+                <span class="text-slate-400" x-text="(window.TASK_I18N?.countFmt || '共 {n} 个').replace('{n}', totalTasks)"></span>
             </div>
         </div>
 
@@ -908,6 +908,18 @@ function dateRangeSlider() {
 }
 </script>
 <script src="{{ url_for('static', filename='js/user-search-picker.js') }}"></script>
+<script>
+window.TASK_I18N = {
+    tabs: {
+        all:     '{{ _("全部") }}',
+        my:      '{{ _("我负责的") }}',
+        created: '{{ _("我创建的") }}',
+        shared:  '{{ _("我参与的") }}',
+        review:  '{{ _("待我审核") }}',
+    },
+    countFmt: '{{ _("共 {n} 个") }}',
+};
+</script>
 <script src="{{ url_for('static', filename='js/task-management.js') }}"></script>
 </body>
 </html>
