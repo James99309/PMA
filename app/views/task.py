@@ -188,6 +188,15 @@ def create_task():
 
         db.session.commit()
 
+        try:
+            from app.utils.work_item_recorder import record_task_activity
+            record_task_activity(
+                'create', new_task.id, new_task.title, current_user,
+                project_id=new_task.project_id, customer_id=new_task.customer_id
+            )
+        except Exception as _log_err:
+            logger.warning(f'task日志记录失败: {_log_err}')
+
         # 跨系统推送任务通知（异步，不阻塞）
         if new_task.assignee_id != current_user.id:
             try:
@@ -735,6 +744,15 @@ def add_reply(id):
         db.session.add(reply)
         db.session.commit()
 
+        try:
+            from app.utils.work_item_recorder import record_task_activity
+            record_task_activity(
+                'reply', t.id, t.title, current_user,
+                project_id=t.project_id, customer_id=t.customer_id
+            )
+        except Exception as _log_err:
+            logger.warning(f'task日志记录失败: {_log_err}')
+
         subtask_title = None
         if reply.subtask_id:
             st = SubTask.query.get(reply.subtask_id)
@@ -1276,6 +1294,16 @@ def create_subtask(task_id):
                 db.session.add(mr)
 
         db.session.commit()
+
+        try:
+            from app.utils.work_item_recorder import record_task_activity
+            record_task_activity(
+                'subtask', t.id, t.title, current_user,
+                project_id=t.project_id, customer_id=t.customer_id
+            )
+        except Exception as _log_err:
+            logger.warning(f'task日志记录失败: {_log_err}')
+
         return jsonify({'success': True, 'message': _('节点已创建'), 'data': subtask.to_dict()})
     except Exception as e:
         db.session.rollback()

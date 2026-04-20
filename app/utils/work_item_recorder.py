@@ -162,3 +162,94 @@ def record_activity(action, module, object_name, user,
     except Exception as e:
         logger.warning(f"记录活动失败 [{module}.{action}]: {e}")
         return None
+
+
+# 任务动作标签（中文，聚合到 WorkItem 标题和描述）
+_TASK_ACTION_LABELS = {
+    'create': '创建',
+    'subtask': '添加节点',
+    'reply': '进展更新',
+}
+
+
+def _build_task_title(task_title, action_labels):
+    """构建聚合任务 WorkItem 标题"""
+    if action_labels == ['创建']:
+        return f'创建任务: {task_title}'
+    tag = '+'.join(action_labels)
+    return f'任务跟进 [{tag}]: {task_title}'
+
+
+def record_task_activity(action, task_id, task_title, user,
+                         project_id=None, customer_id=None):
+    """记录任务操作到日历工作项（同任务同天聚合为一条）
+
+    去重规则：同一用户、同一天、同一任务（task_id）只保留一条 WorkItem，
+    后续操作追加到描述并更新标题以反映所有动作。
+
+    Args:
+        action: 'create' | 'subtask' | 'reply'
+        task_id: Task.id
+        task_title: Task.title（显示用）
+        user: 当前用户对象
+        project_id: Task.project_id（可选，关联项目）
+        customer_id: Task.customer_id（可选，关联客户）
+    """
+    from app.models.worklog import WorkItem
+    from app import db
+
+    try:
+        now = datetime.now()
+        now_time = now.time().replace(microsecond=0)
+        today = date.today()
+
+        action_label = _TASK_ACTION_LABELS.get(action, action)
+        time_str = now_time.strftime('%H:%M')
+        log_line = f'{time_str} {action_label}'
+        # 描述首行作为任务标识，用于精确去重
+        marker = f'#T{task_id}'
+
+        existing = WorkItem.query.filter(
+            WorkItem.owner_id == user.id,
+            WorkItem.planned_date == today,
+            WorkItem.work_type == 'task_work',
+            WorkItem.description.like(f'{marker}%')
+        ).first()
+
+        if existing:
+            # 从描述中解析已有动作（跳过首行 marker）
+            lines = (existing.description or '').split('\n')
+            existing_labels = [
+                ln.split(' ', 1)[1] for ln in lines[1:]
+                if ln.strip() and ' ' in ln
+            ]
+            if action_label not in existing_labels:
+                existing_labels.append(action_label)
+                existing.title = _build_task_title(task_title, existing_labels)
+                existing.description = existing.description + '\n' + log_line
+            existing.end_time = now_time
+            existing.completed_at = now
+            db.session.commit()
+            return existing
+
+        work_item = WorkItem(
+            title=_build_task_title(task_title, [action_label]),
+            description=f'{marker}\n{log_line}',
+            planned_date=today,
+            is_all_day=False,
+            start_time=now_time,
+            end_time=now_time,
+            work_type='task_work',
+            status='completed',
+            completed_at=now,
+            owner_id=user.id,
+            project_id=project_id,
+            customer_id=customer_id,
+        )
+        db.session.add(work_item)
+        db.session.commit()
+        return work_item
+
+    except Exception as e:
+        logger.warning(f"记录任务活动失败 [{action} T{task_id}]: {e}")
+        return None

@@ -129,6 +129,8 @@ class WorkItem(db.Model):
         'quality_tracking': '#06b6d4',
         # 产品确认 - 橘色（与产品类同色系）
         'product_confirmation': '#f97316',
+        # 任务跟进 - 靛蓝
+        'task_work': '#6366f1',
     }
 
     # 工作类型标签（31个子类型，出差已改为独立勾选框）
@@ -180,6 +182,7 @@ class WorkItem(db.Model):
         'quality_tracking': '品质跟踪',
         # 待办任务
         'product_confirmation': '产品确认',
+        'task_work': '任务跟进',
     }
 
     def to_calendar_event(self, current_user_id=None):
