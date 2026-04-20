@@ -63,7 +63,9 @@ def _auto_promote_pending_subtasks(task_id=None):
 
 
 def _can_access(t):
-    """创建者、被指派人、协助人、审计人或里程碑确认人可访问"""
+    """创建者、被指派人、协助人、审计人或里程碑确认人可访问；管理员/CEO 全局可访问"""
+    if current_user.role in ('admin', 'ceo'):
+        return True
     if t.creator_id == current_user.id or t.assignee_id == current_user.id:
         return True
     # 审计人（会审）
