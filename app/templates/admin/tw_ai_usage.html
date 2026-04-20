@@ -74,8 +74,8 @@
             <select x-model="selectedSource" @change="onFilterChange()"
                 class="rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 text-sm focus:ring-primary focus:border-primary">
                 <option value="">{{ _('全部来源') }}</option>
-                <option value="chat">Chat 对话</option>
-                <option value="cli">CLI 终端</option>
+                <option value="chat">{{ _('Chat 对话') }}</option>
+                <option value="cli">{{ _('CLI 终端') }}</option>
             </select>
 
             {# 用户选择器 #}

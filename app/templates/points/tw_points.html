@@ -53,20 +53,20 @@
           <!-- 标题 + 页签 + 周期切换 -->
           <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div class="flex items-center gap-3">
-              <h1 class="text-xl font-bold text-slate-900 dark:text-white">工作积分</h1>
+              <h1 class="text-xl font-bold text-slate-900 dark:text-white">{{ _('工作积分') }}</h1>
               <!-- 页签 -->
               <div class="flex gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
                 <button @click="activeTab = 'points'"
                   :class="activeTab === 'points' ? 'bg-white dark:bg-slate-700 shadow text-primary font-medium' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
                   class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-all">
                   <span class="material-symbols-outlined text-sm leading-none">emoji_events</span>
-                  积分排行
+                  {{ _('积分排行') }}
                 </button>
                 <button @click="switchToAI()"
                   :class="activeTab === 'ai' ? 'bg-white dark:bg-slate-700 shadow text-primary font-medium' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'"
                   class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-all">
                   <span class="material-symbols-outlined text-sm leading-none">smart_toy</span>
-                  AI 使用排行
+                  {{ _('AI 使用排行') }}
                 </button>
               </div>
             </div>
@@ -89,11 +89,11 @@
               <div class="flex items-center justify-between mb-4">
                 <h2 class="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                   <span class="material-symbols-outlined text-yellow-500">emoji_events</span>
-                  积分排行榜
+                  {{ _('积分排行榜') }}
                 </h2>
                 <select x-model="dept" @change="loadLeaderboard()"
                   class="text-sm border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  <option value="">全部部门</option>
+                  <option value="">{{ _('全部部门') }}</option>
                   {% for d in departments %}
                   <option value="{{ d }}">{{ d }}</option>
                   {% endfor %}
@@ -105,7 +105,7 @@
               </div>
               <div class="space-y-1" x-show="!leaderboardLoading">
                 <template x-if="filteredLeaderboard.length === 0">
-                  <p class="text-center text-slate-400 py-8 text-sm">暂无数据</p>
+                  <p class="text-center text-slate-400 py-8 text-sm">{{ _('暂无数据') }}</p>
                 </template>
                 <template x-for="item in filteredLeaderboard" :key="item.user_id">
                   <div
@@ -127,7 +127,7 @@
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center gap-1">
                         <span class="text-sm font-medium text-slate-800 dark:text-white truncate" x-text="item.name"></span>
-                        <span x-show="item.is_me" class="text-xs text-primary">(我)</span>
+                        <span x-show="item.is_me" class="text-xs text-primary">{{ _('(我)') }}</span>
                       </div>
                       <div class="text-xs text-slate-400 truncate" x-text="item.department"></div>
                     </div>
@@ -146,12 +146,12 @@
               <div class="flex items-center justify-between mb-4">
                 <h2 class="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                   <span class="material-symbols-outlined text-blue-500">receipt_long</span>
-                  <span x-text="selectedUserId ? selectedUserName + '的积分明细' : '我的积分明细'"></span>
+                  <span x-text="selectedUserId ? selectedUserName + _T.pointsDetailOf : _T.myPointsDetail"></span>
                 </h2>
                 <button x-show="isAdmin && selectedUserId" @click="clearUserDetail()"
                   class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
                   <span class="material-symbols-outlined text-sm leading-none">close</span>
-                  返回我的
+                  {{ _('返回我的') }}
                 </button>
               </div>
 
@@ -161,7 +161,7 @@
                   <span class="text-3xl font-bold text-primary" x-text="(displayData.total_points || 0).toLocaleString()"></span>
                   <span class="text-slate-500 text-sm pb-1">pts</span>
                   <span x-show="!selectedUserId" class="ml-auto text-sm text-slate-500 pb-1"
-                    x-text="myData.rank ? ('排名 #' + myData.rank + ' / ' + myData.total_users + '人') : ''"></span>
+                    x-text="myData.rank ? (_T.rankPrefix + myData.rank + ' / ' + myData.total_users + _T.rankSuffix) : ''"></span>
                 </div>
                 <div class="grid grid-cols-2 gap-x-4 gap-y-1">
                   <template x-for="[cat, pts] in Object.entries(displayData.breakdown || {})" :key="cat">
@@ -179,7 +179,7 @@
               </div>
               <div class="space-y-0 max-h-80 overflow-y-auto" x-show="!txLoading">
                 <template x-if="transactions.length === 0">
-                  <p class="text-center text-slate-400 py-6 text-sm">暂无积分记录</p>
+                  <p class="text-center text-slate-400 py-6 text-sm">{{ _('暂无积分记录') }}</p>
                 </template>
                 <template x-for="tx in transactions" :key="tx.id">
                   <div class="flex items-start gap-2 py-2 border-b border-slate-100 dark:border-slate-800 last:border-0">
@@ -191,7 +191,7 @@
                   </div>
                 </template>
                 <button x-show="hasNext" @click="loadMoreTx()"
-                  class="w-full text-center text-sm text-primary hover:underline py-2 mt-1">加载更多</button>
+                  class="w-full text-center text-sm text-primary hover:underline py-2 mt-1">{{ _('加载更多') }}</button>
               </div>
             </div>
 
@@ -207,7 +207,7 @@
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                     <span class="material-symbols-outlined text-purple-500">token</span>
-                    AI 用量排行
+                    {{ _('AI 用量排行') }}
                   </h2>
                 </div>
                 <div x-show="aiLoading" class="flex justify-center py-8">
@@ -215,7 +215,7 @@
                 </div>
                 <div class="space-y-1" x-show="!aiLoading">
                   <template x-if="aiLeaderboard.length === 0">
-                    <p class="text-center text-slate-400 py-8 text-sm">暂无 AI 使用记录</p>
+                    <p class="text-center text-slate-400 py-8 text-sm">{{ _('暂无 AI 使用记录') }}</p>
                   </template>
                   <template x-for="item in aiLeaderboard" :key="item.user_id">
                     <div
@@ -237,7 +237,7 @@
                       <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-1">
                           <span class="text-sm font-medium text-slate-800 dark:text-white truncate" x-text="item.name"></span>
-                          <span x-show="item.is_me" class="text-xs text-primary">(我)</span>
+                          <span x-show="item.is_me" class="text-xs text-primary">{{ _('(我)') }}</span>
                         </div>
                         <div class="flex items-center gap-2 mt-0.5">
                           <span x-show="item.chat_tokens > 0"
@@ -270,12 +270,12 @@
                 <div class="flex items-center justify-between mb-4">
                   <h2 class="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
                     <span class="material-symbols-outlined text-blue-500">monitoring</span>
-                    <span x-text="selectedAIUserId ? selectedAIUserName + ' 的 AI 使用' : '我的 AI 使用'"></span>
+                    <span x-text="selectedAIUserId ? selectedAIUserName + _T.aiUsageOf : _T.myAIUsage"></span>
                   </h2>
                   <button x-show="isAdmin && selectedAIUserId" @click="clearAIUser()"
                     class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
                     <span class="material-symbols-outlined text-sm leading-none">close</span>
-                    返回我的
+                    {{ _('返回我的') }}
                   </button>
                 </div>
                 <template x-if="displayAI">
@@ -285,36 +285,36 @@
                         <span class="text-3xl font-bold text-purple-600 dark:text-purple-400" x-text="fmtTokens(displayAI.total_tokens)"></span>
                         <span class="text-slate-500 text-sm pb-1">tokens</span>
                         <span x-show="!selectedAIUserId && displayAI.rank" class="ml-auto text-sm text-slate-500 pb-1"
-                          x-text="'排名 #' + displayAI.rank + ' / ' + aiLeaderboard.length + '人'"></span>
+                          x-text="_T.rankPrefix + displayAI.rank + ' / ' + aiLeaderboard.length + _T.rankSuffix"></span>
                         <span x-show="selectedAIUserId" class="ml-auto text-sm text-slate-500 pb-1"
-                          x-text="'排名 #' + displayAI.rank + ' / ' + aiLeaderboard.length + '人'"></span>
+                          x-text="_T.rankPrefix + displayAI.rank + ' / ' + aiLeaderboard.length + _T.rankSuffix"></span>
                       </div>
                       <div class="grid grid-cols-2 gap-3">
                         <div class="bg-white/60 dark:bg-slate-800/60 rounded-lg p-3">
                           <div class="flex items-center gap-1.5 mb-1">
                             <span class="material-symbols-outlined text-blue-500" style="font-size:16px">chat</span>
-                            <span class="text-xs text-slate-500">Chat 对话</span>
+                            <span class="text-xs text-slate-500">{{ _('Chat 对话') }}</span>
                           </div>
                           <div class="text-lg font-semibold text-slate-700 dark:text-slate-200" x-text="fmtTokens(displayAI.chat_tokens || 0)"></div>
                         </div>
                         <div class="bg-white/60 dark:bg-slate-800/60 rounded-lg p-3">
                           <div class="flex items-center gap-1.5 mb-1">
                             <span class="material-symbols-outlined text-emerald-500" style="font-size:16px">terminal</span>
-                            <span class="text-xs text-slate-500">CLI 终端</span>
+                            <span class="text-xs text-slate-500">{{ _('CLI 终端') }}</span>
                           </div>
                           <div class="text-lg font-semibold text-slate-700 dark:text-slate-200" x-text="fmtTokens(displayAI.cli_tokens || 0)"></div>
                         </div>
                       </div>
                       <div class="mt-3 pt-3 border-t border-white/40 dark:border-slate-700 flex justify-between items-center">
-                        <span class="text-xs text-slate-500">预估费用</span>
+                        <span class="text-xs text-slate-500">{{ _('预估费用') }}</span>
                         <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">$<span x-text="(displayAI.estimated_cost || 0).toFixed(4)"></span></span>
                       </div>
                     </div>
-                    <p class="text-xs text-slate-400 text-center">数据实时统计，费用为模型定价估算</p>
+                    <p class="text-xs text-slate-400 text-center">{{ _('数据实时统计，费用为模型定价估算') }}</p>
                   </div>
                 </template>
                 <template x-if="!displayAI">
-                  <p class="text-center text-slate-400 py-8 text-sm">暂无 AI 使用记录</p>
+                  <p class="text-center text-slate-400 py-8 text-sm">{{ _('暂无 AI 使用记录') }}</p>
                 </template>
               </div>
 
@@ -328,16 +328,34 @@
     {% endcall %}
 
 <script>
+const _T = {
+  myPointsDetail: '{{ _("我的积分明细") }}',
+  pointsDetailOf: '{{ _("的积分明细") }}',
+  myAIUsage: '{{ _("我的 AI 使用") }}',
+  aiUsageOf: '{{ _("的 AI 使用") }}',
+  rankPrefix: '{{ _("排名 #") }}',
+  rankSuffix: '{{ _("人") }}',
+  month: '{{ _("本月") }}',
+  quarter: '{{ _("季度") }}',
+  year: '{{ _("本年") }}',
+  knowledge: '{{ _("知识贡献") }}',
+  business: '{{ _("业务推进") }}',
+  approval: '{{ _("审批参与") }}',
+  task: '{{ _("任务达成") }}',
+  content: '{{ _("内容创作") }}',
+};
+</script>
+<script>
 function pointsPage() {
   return {
     period: 'month',
     dept: '',
     periods: [
-      { key: 'month', label: '本月' },
-      { key: 'quarter', label: '季度' },
-      { key: 'year', label: '本年' },
+      { key: 'month', label: _T.month },
+      { key: 'quarter', label: _T.quarter },
+      { key: 'year', label: _T.year },
     ],
-    catLabels: { knowledge: '知识贡献', business: '业务推进', approval: '审批参与', task: '任务达成', content: '内容创作' },
+    catLabels: { knowledge: _T.knowledge, business: _T.business, approval: _T.approval, task: _T.task, content: _T.content },
     leaderboard: [],
     leaderboardLoading: false,
     myData: {},

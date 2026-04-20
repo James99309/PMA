@@ -3079,11 +3079,11 @@ msgstr "Month"
 #: app/templates/admin/tw_ai_usage.html:59
 #: app/templates/components/tw_nav_menu.html:299
 msgid "AI 使用量"
-msgstr ""
+msgstr "AI Usage"
 
 #: app/templates/admin/tw_ai_usage.html:61
 msgid "监控 AI 对话的 Token 消耗与费用"
-msgstr ""
+msgstr "Monitor AI token consumption and costs"
 
 #: app/templates/admin/tw_ai_usage.html:76 app/views/user.py:240
 msgid "全部用户"
@@ -3092,21 +3092,21 @@ msgstr "All Users"
 #: app/templates/admin/tw_ai_usage.html:93
 #, fuzzy
 msgid "总请求数"
-msgstr "Invalid request data"
+msgstr "Total Requests"
 
 #: app/templates/admin/tw_ai_usage.html:106
 #: app/templates/admin/tw_ai_usage.html:226
 msgid "总 Token 数"
-msgstr ""
+msgstr "Total Tokens"
 
 #: app/templates/admin/tw_ai_usage.html:119
 msgid "预估费用"
-msgstr ""
+msgstr "Estimated Cost"
 
 #: app/templates/admin/tw_ai_usage.html:134
 #, fuzzy
 msgid "活跃用户"
-msgstr "User"
+msgstr "Active Users"
 
 #: app/templates/admin/tw_ai_usage.html:146
 #: app/templates/approval/tw_center.html:171
@@ -3203,29 +3203,29 @@ msgstr "Loading..."
 
 #: app/templates/admin/tw_ai_usage.html:156
 msgid "每日使用量"
-msgstr ""
+msgstr "Daily Usage"
 
 #: app/templates/admin/tw_ai_usage.html:164
 msgid "API 请求数趋势"
-msgstr ""
+msgstr "Request Trend"
 
 #: app/templates/admin/tw_ai_usage.html:170
 msgid "Token 使用分布（按模型）"
-msgstr ""
+msgstr "Token Distribution (by Model)"
 
 #: app/templates/admin/tw_ai_usage.html:178
 msgid "模型明细"
-msgstr ""
+msgstr "Model Breakdown"
 
 #: app/templates/admin/tw_ai_usage.html:184
 msgid "模型"
-msgstr ""
+msgstr "Model"
 
 #: app/templates/admin/tw_ai_usage.html:185
 #: app/templates/admin/tw_ai_usage.html:225
 #, fuzzy
 msgid "请求数"
-msgstr "Invalid request data"
+msgstr "Requests"
 
 #: app/templates/admin/tw_ai_usage.html:188
 #: app/templates/admin/tw_ai_usage.html:227
@@ -3273,7 +3273,7 @@ msgstr "No data available"
 #: app/templates/admin/tw_ai_usage.html:218
 #, fuzzy
 msgid "用户明细"
-msgstr "User"
+msgstr "User Breakdown"
 
 # 公告管理模块
 #: app/templates/announcement/tw_list.html:20
@@ -27115,4 +27115,86 @@ msgstr "Task \"%(task)s\" is completed, please review"
 #: app/models/points.py
 msgid "审批参与"
 msgstr "Approval"
+
+
+msgid "Chat 对话"
+msgstr "Chat"
+
+msgid "CLI 终端"
+msgstr "CLI Terminal"
+
+msgid "工作积分"
+msgstr "Work Points"
+
+msgid "积分排行"
+msgstr "Points Ranking"
+
+msgid "AI 使用排行"
+msgstr "AI Usage Ranking"
+
+msgid "AI 用量排行"
+msgstr "AI Usage Ranking"
+
+msgid "全部部门"
+msgstr "All Departments"
+
+msgid "积分排行榜"
+msgstr "Points Leaderboard"
+
+msgid "(我)"
+msgstr "(Me)"
+
+msgid "返回我的"
+msgstr "Back to Mine"
+
+msgid "暂无积分记录"
+msgstr "No points records"
+
+msgid "暂无 AI 使用记录"
+msgstr "No AI usage records"
+
+msgid "数据实时统计，费用为模型定价估算"
+msgstr "Real-time stats; costs are model pricing estimates"
+
+msgid "本月"
+msgstr "This Month"
+
+msgid "季度"
+msgstr "Quarter"
+
+msgid "本年"
+msgstr "This Year"
+
+msgid "知识贡献"
+msgstr "Knowledge"
+
+msgid "业务推进"
+msgstr "Business"
+
+msgid "审批参与"
+msgstr "Approvals"
+
+msgid "任务达成"
+msgstr "Tasks"
+
+msgid "内容创作"
+msgstr "Content"
+
+msgid "我的积分明细"
+msgstr "My Points"
+
+msgid "的积分明细"
+msgstr "'s Points"
+
+msgid "我的 AI 使用"
+msgstr "My AI Usage"
+
+msgid " 的 AI 使用"
+msgstr "'s AI Usage"
+
+msgid "排名 #"
+msgstr "Rank #"
+
+msgid "人"
+msgstr " users"
 
