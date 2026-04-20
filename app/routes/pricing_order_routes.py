@@ -2645,7 +2645,7 @@ def get_pricing_order_status(order_id):
 
 @pricing_order_bp.route('/api/approval/<int:order_id>/submit', methods=['POST'])
 @login_required
-@permission_required('pricing_order', 'edit')
+@permission_required('pricing_order', 'view')
 def submit_pricing_order_approval(order_id):
     """提交批价单审批 - V2统一审批系统"""
     try:
@@ -2755,7 +2755,7 @@ def submit_pricing_order_approval(order_id):
 
 @pricing_order_bp.route('/api/approval/<int:order_id>/resubmit', methods=['POST'])
 @login_required
-@permission_required('pricing_order', 'edit')
+@permission_required('pricing_order', 'view')
 def resubmit_pricing_order_approval(order_id):
     """重新提交批价单审批 - V2统一审批系统"""
     try:
