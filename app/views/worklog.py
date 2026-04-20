@@ -1428,7 +1428,7 @@ def submit_daily_log(log_date):
             behavior_code='daily_log_submit',
             source_type='worklog',
             source_id=worklog.id,
-            memo='提交工作日志'
+            # memo auto-built from registry name
         )
     except Exception as pts_err:
         logger.warning(f"发放日志提交积分失败: {pts_err}")

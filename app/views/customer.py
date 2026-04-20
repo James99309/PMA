@@ -1738,7 +1738,7 @@ def add_contact(company_id):
             from app.services.points_service import award_points
             award_points(user_id=current_user.id, behavior_code='contact_create',
                          source_type='contact', source_id=contact.id,
-                         memo=f'创建联系人: {contact.name}')
+                         context=contact.name)
             db.session.commit()
         except Exception as _pts_err:
             logger.warning(f'contact_create积分发放失败: {_pts_err}')
@@ -2005,7 +2005,7 @@ def api_add_action_for_company(company_id):
             award_points(user_id=current_user.id, behavior_code='action_record_create',
                          source_type='action_company',
                          source_id=f'company_{company_id}_{current_user.id}_{_date.today().isoformat()}',
-                         memo=f'客户跟进记录: {company.company_name}')
+                         context=company.company_name)
             db.session.commit()
         except Exception as _pts_err:
             logger.warning(f'action_record_create积分发放失败: {_pts_err}')
@@ -2439,7 +2439,7 @@ def api_create_company():
                 behavior_code='customer_create',
                 source_type='company',
                 source_id=company.id,
-                memo=f'发现新客户: {company.company_name}'
+                context=company.company_name
             )
         except Exception as pts_err:
             logger.warning(f"发放客户创建积分失败: {pts_err}")
@@ -3807,7 +3807,7 @@ def add_action_for_company(company_id):
                 award_points(user_id=current_user.id, behavior_code='action_record_create',
                              source_type='action_company',
                              source_id=f'company_{company_id}_{current_user.id}_{_date.today().isoformat()}',
-                             memo=f'客户跟进记录: {company.company_name}')
+                             context=company.company_name)
                 db.session.commit()
             except Exception as _pts_err:
                 logger.warning(f'action_record_create积分发放失败: {_pts_err}')

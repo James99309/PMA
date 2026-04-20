@@ -96,7 +96,7 @@ msgstr ""
 
 #: app/data/features_guide_data.py:50
 msgid "数据分析"
-msgstr ""
+msgstr "Data Analysis"
 
 #: app/data/features_guide_data.py:50
 msgid "询问业务数据指标，如\"今年Q1的客户活跃度是多少？\"，获取数据洞察。"
@@ -935,7 +935,7 @@ msgstr "Star Graph"
 
 #: app/data/features_guide_data.py:267
 msgid "关系网络"
-msgstr ""
+msgstr "Relationship Network"
 
 #: app/data/features_guide_data.py:267
 #, fuzzy
@@ -949,23 +949,23 @@ msgstr "Project Link Distribution"
 
 #: app/data/features_guide_data.py:267
 msgid "交互图谱"
-msgstr ""
+msgstr "Interactive Map"
 
 #: app/data/features_guide_data.py:268
 msgid "可视化展示项目与客户的关系网络图，节点大小反映关联度，帮助发现业务关联和拓展机会。"
-msgstr ""
+msgstr "Visualize the relationship network between projects and customers. Node size reflects connection strength, helping discover business associations and expansion opportunities."
 
 #: app/data/features_guide_data.py:270
 msgid "星图功能以可视化网络图的形式展示项目、客户之间的关联关系。每个节点代表一个业务实体（项目或客户），节点大小反映其关联度和业务重要性。"
-msgstr ""
+msgstr "Star Map displays the associations between projects and customers in a visual network format. Each node represents a business entity (project or customer), with node size reflecting its connection degree and business importance."
 
 #: app/data/features_guide_data.py:271
 msgid "通过星图可以直观地发现业务关联——哪些客户参与了相同的项目，哪些项目共享了相同的客户资源。这有助于识别潜在的合作机会和业务拓展方向。"
-msgstr ""
+msgstr "Star Map helps you intuitively discover business associations—which customers participated in the same projects, which projects share the same customer resources. This identifies potential collaboration opportunities and business expansion directions."
 
 #: app/data/features_guide_data.py:272
 msgid "星图支持交互操作，可缩放、拖拽节点，点击节点查看详细信息，帮助您从全局视角理解业务关系。"
-msgstr ""
+msgstr "Star Map supports interactive operations: zoom, drag nodes, and click to view details, helping you understand business relationships from a global perspective."
 
 #: app/data/features_guide_data.py:275
 #, fuzzy
@@ -974,35 +974,35 @@ msgstr "Discovery"
 
 #: app/data/features_guide_data.py:275
 msgid "通过星图发现客户和项目之间的隐藏关联，识别潜在商机。"
-msgstr ""
+msgstr "Discover hidden associations between customers and projects through Star Map, identifying potential business opportunities."
 
 #: app/data/features_guide_data.py:276
 msgid "全局视图"
-msgstr ""
+msgstr "Global View"
 
 #: app/data/features_guide_data.py:276
 msgid "从宏观角度查看整个业务网络，了解各实体的关联密度。"
-msgstr ""
+msgstr "View the entire business network from a macro perspective and understand the connection density between entities."
 
 #: app/data/features_guide_data.py:277
 msgid "重点追踪"
-msgstr ""
+msgstr "Focus Tracking"
 
 #: app/data/features_guide_data.py:277
 msgid "节点大小反映业务量级，快速识别核心客户和关键项目。"
-msgstr ""
+msgstr "Node size reflects business scale, quickly identifying key customers and critical projects."
 
 #: app/data/features_guide_data.py:278
 msgid "路径分析"
-msgstr ""
+msgstr "Path Analysis"
 
 #: app/data/features_guide_data.py:278
 msgid "追踪节点间的连接路径，发现间接业务关联和转介绍机会。"
-msgstr ""
+msgstr "Track connection paths between nodes, discovering indirect business associations and referral opportunities."
 
 #: app/data/features_guide_data.py:280
 msgid "在项目详情页和客户详情页的操作菜单中点击\"星图\""
-msgstr ""
+msgstr "Click 'Star Map' in the action menu on the project details page or customer details page"
 
 #: app/data/features_guide_data.py:282
 #, fuzzy
@@ -1011,15 +1011,15 @@ msgstr "Open Detail Page"
 
 #: app/data/features_guide_data.py:283
 msgid "在操作菜单中选择\"星图\"选项"
-msgstr ""
+msgstr "Select 'Star Map' from the action menu"
 
 #: app/data/features_guide_data.py:284
 msgid "查看以当前实体为中心的关系网络图"
-msgstr ""
+msgstr "View the relationship network diagram centered on the current entity"
 
 #: app/data/features_guide_data.py:285
 msgid "拖拽或缩放调整视图，点击节点查看详情"
-msgstr ""
+msgstr "Drag or zoom to adjust the view, click nodes to view details"
 
 #: app/data/features_guide_data.py:294
 #, fuzzy
@@ -1028,7 +1028,7 @@ msgstr "System Design"
 
 #: app/data/features_guide_data.py:295 app/data/features_guide_data.py:303
 msgid "架构设计"
-msgstr ""
+msgstr "Architecture Design"
 
 #: app/data/features_guide_data.py:295
 #, fuzzy
@@ -1042,35 +1042,35 @@ msgstr "Edges"
 
 #: app/data/features_guide_data.py:295
 msgid "模板库"
-msgstr ""
+msgstr "Template Library"
 
 #: app/data/features_guide_data.py:296
 msgid "拖拽式系统架构图编辑器，支持产品组件连线和层级布局，可保存为模板供团队复用。"
-msgstr ""
+msgstr "Drag-and-drop system architecture diagram editor supporting component connections and hierarchical layouts. Save as templates for team reuse."
 
 #: app/data/features_guide_data.py:298
 msgid "系统图功能提供直观的拖拽式编辑器，用于创建和管理系统架构图。您可以从产品库中选择组件拖入画布，通过连线表示组件之间的关系。"
-msgstr ""
+msgstr "System Diagram provides an intuitive drag-and-drop editor for creating and managing system architecture diagrams. Drag components from the product library onto the canvas and use connectors to represent relationships between components."
 
 #: app/data/features_guide_data.py:299
 msgid "编辑器支持多种布局方式和分层结构，可以清晰地展示产品系统的组成和连接关系。完成的系统图可以保存为模板，方便在不同项目中复用。"
-msgstr ""
+msgstr "The editor supports multiple layout styles and hierarchical structures to clearly display product system composition and connections. Completed system diagrams can be saved as templates for reuse across different projects."
 
 #: app/data/features_guide_data.py:300
 msgid "系统图与产品数据联动——图中的每个组件对应实际的产品型号和规格，支持从架构图直接查看产品详情，实现设计与数据的无缝衔接。"
-msgstr ""
+msgstr "System Diagram integrates with product data—each component in the diagram corresponds to actual product models and specifications, supporting direct access to product details from the architecture diagram."
 
 #: app/data/features_guide_data.py:303
 msgid "拖拽产品组件到画布，用连线表示系统各部分的连接关系。"
-msgstr ""
+msgstr "Drag product components onto the canvas and use connectors to represent system connections."
 
 #: app/data/features_guide_data.py:304
 msgid "模板复用"
-msgstr ""
+msgstr "Template Reuse"
 
 #: app/data/features_guide_data.py:304
 msgid "将常用系统架构保存为模板，在新项目中一键套用。"
-msgstr ""
+msgstr "Save frequently used system architectures as templates for one-click application to new projects."
 
 #: app/data/features_guide_data.py:305
 #, fuzzy
@@ -1079,35 +1079,35 @@ msgstr "Product"
 
 #: app/data/features_guide_data.py:305
 msgid "图中组件直接关联产品数据，点击即可查看型号和规格详情。"
-msgstr ""
+msgstr "Components in the diagram are directly linked to product data. Click to view model and specification details."
 
 #: app/data/features_guide_data.py:306
 msgid "方案展示"
-msgstr ""
+msgstr "Solution Presentation"
 
 #: app/data/features_guide_data.py:306
 msgid "生成专业的系统架构图，用于客户方案展示和技术交流。"
-msgstr ""
+msgstr "Generate professional system architecture diagrams for customer solution presentations and technical discussions."
 
 #: app/data/features_guide_data.py:308
 msgid "在侧边栏\"产品管理\"菜单下选择\"系统图\""
-msgstr ""
+msgstr "Select 'System Diagram' from the 'Product Management' menu in the sidebar"
 
 #: app/data/features_guide_data.py:310
 msgid "进入侧边栏\"产品管理 > 系统图\"页面"
-msgstr ""
+msgstr "Go to 'Product Management > System Diagram' page in the sidebar"
 
 #: app/data/features_guide_data.py:311
 msgid "点击\"新建系统图\"或选择已有模板"
-msgstr ""
+msgstr "Click 'New System Diagram' or select an existing template"
 
 #: app/data/features_guide_data.py:312
 msgid "从左侧产品面板拖拽组件到画布"
-msgstr ""
+msgstr "Drag components from the left product panel onto the canvas"
 
 #: app/data/features_guide_data.py:313
 msgid "使用连线工具连接各组件，完成后保存"
-msgstr ""
+msgstr "Use the connector tool to connect components, then save when complete"
 
 #: app/data/features_guide_data.py:322 app/templates/customer/tw_view.html:180
 #: app/templates/customer/tw_view.html:1100
@@ -1120,7 +1120,7 @@ msgstr "AI Research"
 
 #: app/data/features_guide_data.py:323
 msgid "智能调研"
-msgstr ""
+msgstr "Smart Research"
 
 #: app/data/features_guide_data.py:323
 #, fuzzy
@@ -1139,27 +1139,27 @@ msgstr "Auto"
 
 #: app/data/features_guide_data.py:324
 msgid "AI 自动调研客户的公开网络信息，生成企业概况和行业分析报告，助力业务拓展决策。"
-msgstr ""
+msgstr "AI automatically researches public online information about customers and generates company profiles and industry analysis reports to support business expansion decisions."
 
 #: app/data/features_guide_data.py:326
 msgid "AI 调研功能利用人工智能技术自动搜索和分析客户的公开网络信息。只需输入客户名称，AI 即可从多个公开数据源收集企业信息并生成结构化报告。"
-msgstr ""
+msgstr "AI Research leverages artificial intelligence to automatically search and analyze public online information about customers. Simply enter the customer name and AI collects enterprise information from multiple public data sources to generate structured reports."
 
 #: app/data/features_guide_data.py:327
 msgid "调研报告包括企业基本信息、业务范围、行业地位、近期动态等维度，帮助您在拜访客户前全面了解对方背景，做到\"知己知彼\"。"
-msgstr ""
+msgstr "Research reports include enterprise basics, business scope, industry position, recent developments, and more, helping you fully understand the customer background before visits and achieve 'know yourself and know your enemy'."
 
 #: app/data/features_guide_data.py:328
 msgid "AI 调研结果可以保存到客户档案中，作为客户画像的补充信息，方便团队成员共享和参考。"
-msgstr ""
+msgstr "AI research results can be saved to customer profiles as supplementary information for customer personas, facilitating team member sharing and reference."
 
 #: app/data/features_guide_data.py:331
 msgid "拜访准备"
-msgstr ""
+msgstr "Visit Preparation"
 
 #: app/data/features_guide_data.py:331
 msgid "拜访客户前快速了解企业背景，做到有的放矢。"
-msgstr ""
+msgstr "Quickly understand the company background before visiting customers to ensure targeted approach."
 
 #: app/data/features_guide_data.py:332
 #, fuzzy
@@ -1168,15 +1168,15 @@ msgstr "Industry"
 
 #: app/data/features_guide_data.py:332
 msgid "了解客户所在行业的市场规模和竞争格局，发现合作切入点。"
-msgstr ""
+msgstr "Understand the market size and competitive landscape of the customer's industry to discover collaboration opportunities."
 
 #: app/data/features_guide_data.py:333
 msgid "风险评估"
-msgstr ""
+msgstr "Risk Assessment"
 
 #: app/data/features_guide_data.py:333
 msgid "通过公开信息评估客户的经营状况和合作风险。"
-msgstr ""
+msgstr "Assess the customer's operational status and cooperation risks through public information."
 
 #: app/data/features_guide_data.py:334
 #, fuzzy
@@ -1185,11 +1185,11 @@ msgstr "Discovery"
 
 #: app/data/features_guide_data.py:334
 msgid "从客户近期动态中发现潜在需求和商机，主动出击。"
-msgstr ""
+msgstr "Discover potential needs and business opportunities from recent customer activities and take the initiative."
 
 #: app/data/features_guide_data.py:336
 msgid "在客户详情页点击\"AI 调研\"按钮"
-msgstr ""
+msgstr "Click the \"AI Research\" button on the customer details page"
 
 #: app/data/features_guide_data.py:338
 #, fuzzy
@@ -1198,15 +1198,15 @@ msgstr "Open Detail Page"
 
 #: app/data/features_guide_data.py:339
 msgid "点击\"AI 调研\"按钮启动调研"
-msgstr ""
+msgstr "Click the \"AI Research\" button to start research"
 
 #: app/data/features_guide_data.py:340
 msgid "AI 自动搜索和分析客户公开信息"
-msgstr ""
+msgstr "AI automatically searches and analyzes customer public information"
 
 #: app/data/features_guide_data.py:341
 msgid "查看生成的调研报告，可保存到客户档案"
-msgstr ""
+msgstr "View the generated research report, which can be saved to customer profile"
 
 #: app/routes/backup_routes.py:50
 #: app/templates/components/tw_action_list.html:428
@@ -1555,7 +1555,7 @@ msgstr "Total Products"
 #: app/views/user.py:243 app/views/user.py:251 app/views/user.py:259
 #: app/views/user.py:267
 msgid "个"
-msgstr ""
+msgstr "Items"
 
 #: app/routes/product.py:580
 #: app/templates/components/product/tw_product_modal.html:116
@@ -1674,7 +1674,7 @@ msgstr "Failed to view product details: %s"
 
 #: app/routes/product.py:4623
 msgid "SP8D系统暂时不可用，请稍后重试或手动输入产品配置"
-msgstr ""
+msgstr "SP8D system is temporarily unavailable, please try again later or manually enter product configuration"
 
 #: app/routes/product.py:4782 app/routes/product.py:4933
 msgid "该产品没有关联的配置版本"
@@ -1690,11 +1690,11 @@ msgstr "Configuration template does not exist"
 
 #: app/routes/product.py:4859 app/routes/product.py:5057
 msgid "无法从SP8D获取规格数据"
-msgstr ""
+msgstr "Unable to retrieve specification data from SP8D"
 
 #: app/routes/product.py:4889
 msgid "获取SP8D规格数据失败"
-msgstr ""
+msgstr "Failed to retrieve SP8D specification data"
 
 #: app/routes/product.py:4940 app/routes/product.py:5049
 msgid "请求数据无效"
@@ -1821,11 +1821,11 @@ msgstr "Pricing approval in progress"
 
 #: app/services/spec_import_service.py:329
 msgid "缺少\"模板信息\"工作表"
-msgstr ""
+msgstr "Missing \"Template Information\" worksheet"
 
 #: app/services/spec_import_service.py:331
 msgid "缺少\"规格项选择\"工作表"
-msgstr ""
+msgstr "Missing \"Specification Item Selection\" worksheet"
 
 #: app/services/spec_import_service.py:340
 #, fuzzy
@@ -1844,7 +1844,7 @@ msgstr "Category"
 
 #: app/services/spec_import_service.py:347
 msgid "模板信息验证失败"
-msgstr ""
+msgstr "Template information validation failed"
 
 #: app/services/spec_import_service.py:352
 #, fuzzy, python-format
@@ -1859,7 +1859,7 @@ msgstr "Category"
 #: app/services/spec_import_service.py:364
 #, python-format
 msgid "未找到产品子分类: %(name)s"
-msgstr ""
+msgstr "Product subcategory not found: %(name)s"
 
 #: app/services/spec_import_service.py:365
 #, fuzzy
@@ -1869,16 +1869,16 @@ msgstr "Category"
 #: app/services/spec_import_service.py:367
 #, python-format
 msgid "子分类 \"%(subcat)s\" 不属于分类 \"%(cat)s\"，已自动关联"
-msgstr ""
+msgstr "Subcategory \"%(subcat)s\" does not belong to category \"%(cat)s\", automatically associated"
 
 #: app/services/spec_import_service.py:376
 #, python-format
 msgid "型号 \"%(model)s\" 的规格模板已存在"
-msgstr ""
+msgstr "Specification template for model \"%(model)s\" already exists"
 
 #: app/services/spec_import_service.py:377
 msgid "模板已存在，如需修改请在网页上编辑"
-msgstr ""
+msgstr "Template already exists, please edit on the web if you need to modify"
 
 #: app/services/spec_import_service.py:386
 #, fuzzy
@@ -1892,7 +1892,7 @@ msgstr "Please select a specification"
 
 #: app/services/spec_import_service.py:395
 msgid "在\"规格项选择\"工作表的\"选择\"列填写Y来选择规格项"
-msgstr ""
+msgstr "Fill in Y in the \"Selection\" column of the \"Specification Item Selection\" worksheet to select specification items"
 
 #: app/services/spec_import_service.py:430 app/views/spec_template.py:916
 #, fuzzy
@@ -1902,22 +1902,22 @@ msgstr "Spec created successfully"
 #: app/services/spec_import_service.py:504
 #, python-format
 msgid "第%(row)d行: 规格ID为空"
-msgstr ""
+msgstr "Row %(row)d: Specification ID is empty"
 
 #: app/services/spec_import_service.py:512
 #, python-format
 msgid "第%(row)d行: 规格ID格式错误"
-msgstr ""
+msgstr "Row %(row)d: Specification ID format is invalid"
 
 #: app/services/spec_import_service.py:516
 #, python-format
 msgid "第%(row)d行: 未找到规格ID %(id)s"
-msgstr ""
+msgstr "Row %(row)d: Specification ID %(id)s not found"
 
 #: app/services/spec_import_service.py:524
 #, python-format
 msgid "第%(row)d行: 通用值\"%(value)s\"不是有效数字"
-msgstr ""
+msgstr "Row %(row)d: Generic value \"%(value)s\" is not a valid number"
 
 #: app/services/spec_import_service.py:559
 #: app/services/spec_import_service.py:863
@@ -1927,52 +1927,52 @@ msgstr "Configuration template does not exist"
 
 #: app/services/spec_import_service.py:568
 msgid "没有可导出的未锁定配置"
-msgstr ""
+msgstr "No unlocked configurations available for export"
 
 #: app/services/spec_import_service.py:873
 msgid "缺少\"配置矩阵\"工作表"
-msgstr ""
+msgstr "Missing \"Configuration Matrix\" worksheet"
 
 #: app/services/spec_import_service.py:882
 msgid "Excel中的模板型号与当前模板不匹配"
-msgstr ""
+msgstr "Template model in Excel does not match the current template"
 
 #: app/services/spec_import_service.py:883
 #, python-format
 msgid "文件中型号: %(file_model)s, 当前模板: %(template_model)s"
-msgstr ""
+msgstr "Model in file: %(file_model)s, Current template: %(template_model)s"
 
 #: app/services/spec_import_service.py:893
 msgid "配置数据验证失败"
-msgstr ""
+msgstr "Configuration data validation failed"
 
 #: app/services/spec_import_service.py:896
 msgid "未找到有效的配置数据"
-msgstr ""
+msgstr "No valid configuration data found"
 
 #: app/services/spec_import_service.py:904
 msgid "跳过空配置编码的列"
-msgstr ""
+msgstr "Skip columns with empty configuration codes"
 
 #: app/services/spec_import_service.py:916
 #, python-format
 msgid "配置 %(code)s 已锁定，跳过更新"
-msgstr ""
+msgstr "Configuration %(code)s is locked, skip update"
 
 #: app/services/spec_import_service.py:931
 #, python-format
 msgid "导入完成：新建%(created)d个，更新%(updated)d个，跳过%(skipped)d个"
-msgstr ""
+msgstr "Import completed: %(created)d created, %(updated)d updated, %(skipped)d skipped"
 
 #: app/services/spec_import_service.py:1010
 #, python-format
 msgid "配置 %(code)s 的区域 \"%(region)s\" 无效"
-msgstr ""
+msgstr "Region \"%(region)s\" for configuration %(code)s is invalid"
 
 #: app/services/spec_import_service.py:1028
 #, python-format
 msgid "配置 %(code)s 的状态 \"%(status)s\" 无效，使用默认值 development"
-msgstr ""
+msgstr "Status \"%(status)s\" for configuration %(code)s is invalid, using default value development"
 
 #: app/templates/base.html:215
 msgid "业务机会管理系统"
@@ -4903,11 +4903,11 @@ msgstr "Failed to load contacts"
 
 #: app/templates/components/tw_address_input.html:56
 msgid "点击右侧图标定位地址"
-msgstr ""
+msgstr "Click the icon on the right to locate the address"
 
 #: app/templates/components/tw_address_input.html:65
 msgid "地图定位"
-msgstr ""
+msgstr "Map Location"
 
 #: app/templates/components/tw_announcement_preview.html:43
 #: app/templates/components/tw_message_panel.html:646
@@ -5217,7 +5217,7 @@ msgstr "Add Member"
 
 #: app/templates/components/tw_chat_panel.html:227
 msgid "还原"
-msgstr ""
+msgstr "Restore"
 
 #: app/templates/components/tw_chat_panel.html:282
 #: app/templates/components/tw_vendor_user_selector.html:164
@@ -5313,11 +5313,11 @@ msgstr "to reference clients/projects"
 
 #: app/templates/components/tw_chat_panel.html:1221
 msgid "此对话为只读，无法回复"
-msgstr ""
+msgstr "This conversation is read-only and cannot be replied to"
 
 #: app/templates/components/tw_chat_panel.html:1226
 msgid "打开 SG PMA"
-msgstr ""
+msgstr "Open SG PMA"
 
 #: app/templates/components/tw_chat_panel.html:1238
 msgid "对话上下文已满"
@@ -5435,7 +5435,7 @@ msgstr "Type a message... (# reference, Enter to send)"
 
 #: app/templates/components/tw_chat_panel.html:2141
 msgid "换行"
-msgstr ""
+msgstr "Line Break"
 
 #: app/templates/components/tw_chat_panel.html:2142
 msgid "翻译"
@@ -5623,7 +5623,7 @@ msgstr "[Project Card]"
 
 #: app/templates/components/tw_chat_panel.html:2190
 msgid "[表单操作]"
-msgstr ""
+msgstr "[Form Operation]"
 
 #: app/templates/components/tw_chat_panel.html:2196
 #: app/templates/product_code/tw_category_management.html:410
@@ -5647,7 +5647,7 @@ msgstr "Updated"
 #: app/templates/components/tw_chat_panel.html:2687
 #: app/templates/components/tw_chat_panel.html:3054
 msgid "报销单创建页面已准备好，请点击下方按钮打开："
-msgstr ""
+msgstr "The expense report creation page is ready. Please click the button below to open it:"
 
 #: app/templates/components/tw_chat_panel.html:2689
 #: app/templates/components/tw_chat_panel.html:3056
@@ -5737,22 +5737,22 @@ msgstr "AI structuring analysis..."
 
 #: app/templates/components/tw_daily_report_modal.html:108
 msgid "首次分析可能需要10-20秒"
-msgstr ""
+msgstr "Initial analysis may take 10-20 seconds"
 
 #: app/templates/components/tw_daily_report_modal.html:129
 #: app/templates/components/tw_daily_report_modal.html:432
 msgid "业绩亮点"
-msgstr ""
+msgstr "Performance Highlights"
 
 #: app/templates/components/tw_daily_report_modal.html:145
 #: app/templates/components/tw_daily_report_modal.html:448
 msgid "本月分析"
-msgstr ""
+msgstr "This Month's Analysis"
 
 #: app/templates/components/tw_daily_report_modal.html:149
 #: app/templates/components/tw_daily_report_modal.html:452
 msgid "表现评价"
-msgstr ""
+msgstr "Performance Evaluation"
 
 #: app/templates/components/tw_daily_report_modal.html:155
 #: app/templates/components/tw_daily_report_modal.html:458
@@ -5763,7 +5763,7 @@ msgstr "Month-over-Month"
 #: app/templates/components/tw_daily_report_modal.html:162
 #: app/templates/components/tw_daily_report_modal.html:465
 msgid "同比趋势"
-msgstr ""
+msgstr "Year-over-Year Trend"
 
 #: app/templates/components/tw_daily_report_modal.html:173
 #: app/templates/components/tw_daily_report_modal.html:476
@@ -5786,22 +5786,22 @@ msgstr "Signed"
 #: app/templates/components/tw_daily_report_modal.html:185
 #: app/templates/components/tw_daily_report_modal.html:488
 msgid "风险提醒"
-msgstr ""
+msgstr "Risk Alert"
 
 #: app/templates/components/tw_daily_report_modal.html:202
 #: app/templates/components/tw_daily_report_modal.html:505
 msgid "费用分析"
-msgstr ""
+msgstr "Expense Analysis"
 
 #: app/templates/components/tw_daily_report_modal.html:206
 #: app/templates/components/tw_daily_report_modal.html:509
 msgid "费用效率"
-msgstr ""
+msgstr "Expense Efficiency"
 
 #: app/templates/components/tw_daily_report_modal.html:210
 #: app/templates/components/tw_daily_report_modal.html:513
 msgid "投入产出"
-msgstr ""
+msgstr "Return on Investment"
 
 #: app/templates/components/tw_daily_report_modal.html:230
 #: app/templates/components/tw_daily_report_modal.html:533
@@ -5812,7 +5812,7 @@ msgstr "Suggestions"
 #: app/templates/components/tw_daily_report_modal.html:246
 #: app/templates/components/tw_daily_report_modal.html:549
 msgid "下月预测"
-msgstr ""
+msgstr "Next Month's Forecast"
 
 #: app/templates/components/tw_daily_report_modal.html:254
 #, fuzzy
@@ -5831,7 +5831,7 @@ msgstr "Generating merge suggestions..."
 
 #: app/templates/components/tw_daily_report_modal.html:266
 msgid "这可能需要10-20秒"
-msgstr ""
+msgstr "This may take 10-20 seconds"
 
 #: app/templates/components/tw_daily_report_modal.html:272
 #, fuzzy
@@ -5858,7 +5858,7 @@ msgstr "Team Commission Share"
 
 #: app/templates/components/tw_daily_report_modal.html:296
 msgid "团队整体表现"
-msgstr ""
+msgstr "Overall Team Performance"
 
 #: app/templates/components/tw_daily_report_modal.html:305
 #, fuzzy
@@ -5867,7 +5867,7 @@ msgstr "Team"
 
 #: app/templates/components/tw_daily_report_modal.html:321
 msgid "需要改进"
-msgstr ""
+msgstr "Needs Improvement"
 
 #: app/templates/components/tw_daily_report_modal.html:337
 #, fuzzy
@@ -5886,7 +5886,7 @@ msgstr "Loading..."
 
 #: app/templates/components/tw_daily_report_modal.html:558
 msgid "该成员暂无分析报告，正在生成..."
-msgstr ""
+msgstr "No analysis report available for this member yet. Generating..."
 
 #: app/templates/components/tw_daily_report_modal.html:568
 #, fuzzy
@@ -5900,15 +5900,15 @@ msgstr "Generating merge suggestions..."
 
 #: app/templates/components/tw_daily_report_modal.html:574
 msgid "稍后回来"
-msgstr ""
+msgstr "Come Back Later"
 
 #: app/templates/components/tw_daily_report_modal.html:575
 msgid "开始工作"
-msgstr ""
+msgstr "Start Working"
 
 #: app/templates/components/tw_daily_report_modal.html:700
 msgid "生成报告失败"
-msgstr ""
+msgstr "Report Generation Failed"
 
 #: app/templates/components/tw_daily_report_modal.html:703
 #: app/templates/components/tw_daily_report_modal.html:734
@@ -5918,7 +5918,7 @@ msgstr "Network error, please retry later"
 
 #: app/templates/components/tw_daily_report_modal.html:731
 msgid "重新生成报告失败"
-msgstr ""
+msgstr "Report Regeneration Failed"
 
 #: app/templates/components/tw_data_table.html:282
 msgid "加载更多..."
@@ -6174,7 +6174,7 @@ msgstr "Entertainment"
 #: app/templates/components/tw_performance_dashboard.html:2544
 #: app/templates/config_management/tw_index.html:5358
 msgid "差旅费"
-msgstr ""
+msgstr "Travel Expenses"
 
 #: app/templates/components/tw_expense_budget_card.html:100
 #: app/templates/components/tw_expense_budget_card.html:156
@@ -6189,7 +6189,7 @@ msgstr "Communication"
 #: app/templates/components/tw_performance_dashboard.html:2546
 #: app/templates/config_management/tw_index.html:5360
 msgid "办公费"
-msgstr ""
+msgstr "Office Expenses"
 
 #: app/templates/components/tw_expense_budget_card.html:102
 #: app/templates/components/tw_expense_budget_card.html:158
@@ -6729,7 +6729,7 @@ msgstr "Performance targets"
 
 #: app/templates/components/tw_performance_dashboard.html:141
 msgid "该角色尚未配置绩效指标，请联系管理员在绩效配置中设置"
-msgstr ""
+msgstr "Performance metrics have not been configured for this role. Please contact your administrator to set them up in performance configuration"
 
 #: app/templates/components/tw_performance_dashboard.html:193
 msgid "目标完成度"
@@ -7096,21 +7096,21 @@ msgstr "No customer data"
 #: app/templates/components/tw_performance_dashboard.html:1528
 #: app/templates/components/tw_performance_dashboard.html:2533
 msgid "响应时效达标率"
-msgstr ""
+msgstr "Response Time Compliance Rate"
 
 #: app/templates/components/tw_performance_dashboard.html:1546
 #: app/templates/components/tw_performance_dashboard.html:2534
 msgid "培训次数"
-msgstr ""
+msgstr "Training Sessions"
 
 #: app/templates/components/tw_performance_dashboard.html:1562
 msgid "次"
-msgstr ""
+msgstr "time(s)"
 
 #: app/templates/components/tw_performance_dashboard.html:1565
 #: app/templates/components/tw_performance_dashboard.html:2535
 msgid "内容产出"
-msgstr ""
+msgstr "Content Output"
 
 #: app/templates/components/tw_performance_dashboard.html:1584
 #: app/templates/components/tw_performance_dashboard.html:2536
@@ -7662,11 +7662,11 @@ msgstr "Stock in"
 
 #: app/templates/components/tw_po_timeline.html:156
 msgid "待验收"
-msgstr ""
+msgstr "Pending Acceptance"
 
 #: app/templates/components/tw_po_timeline.html:158
 msgid "验收"
-msgstr ""
+msgstr "Accept"
 
 #: app/templates/components/tw_po_timeline.html:213
 msgid "当前"
@@ -7677,11 +7677,11 @@ msgstr "Current"
 #: app/templates/inventory/tw_purchase_order_list.html:149
 #: app/templates/inventory/tw_purchase_order_list.html:238
 msgid "超期"
-msgstr ""
+msgstr "Overdue"
 
 #: app/templates/components/tw_po_timeline.html:312
 msgid "推进条件"
-msgstr ""
+msgstr "Advancement Conditions"
 
 #: app/templates/components/tw_po_timeline.html:317
 #: app/templates/components/tw_po_timeline.html:320
@@ -7698,20 +7698,20 @@ msgstr "Upload"
 #: app/templates/components/tw_po_timeline.html:335
 #: app/templates/components/tw_po_timeline.html:338
 msgid "报告签证"
-msgstr ""
+msgstr "Report Sign-off"
 
 #: app/templates/components/tw_po_timeline.html:345
 #: app/templates/components/tw_po_timeline.html:348
 msgid "FAT完成"
-msgstr ""
+msgstr "FAT Completion"
 
 #: app/templates/components/tw_po_timeline.html:359
 msgid "点击推进到此阶段"
-msgstr ""
+msgstr "Click to advance to this stage"
 
 #: app/templates/components/tw_po_timeline.html:378
 msgid "备料"
-msgstr ""
+msgstr "Material Preparation"
 
 #: app/templates/components/tw_po_timeline.html:379
 #, fuzzy
@@ -7726,7 +7726,7 @@ msgstr "Test Conditions"
 
 #: app/templates/components/tw_po_timeline.html:381
 msgid "包装"
-msgstr ""
+msgstr "Packaging"
 
 #: app/templates/components/tw_po_timeline.html:382
 #: app/templates/shipment/tw_list.html:64
@@ -7737,11 +7737,11 @@ msgstr "Shipped"
 #: app/templates/components/tw_po_timeline.html:383
 #: app/templates/inventory/partials/_acceptance_form.html:58
 msgid "到货"
-msgstr ""
+msgstr "Arrived"
 
 #: app/templates/components/tw_po_timeline.html:394
 msgid "只能推进到后续阶段"
-msgstr ""
+msgstr "Can only advance to subsequent stage"
 
 #: app/templates/components/tw_po_timeline.html:409
 #: app/templates/project/tw_project_detail.html:1917
@@ -7761,15 +7761,15 @@ msgstr " stage?"
 
 #: app/templates/components/tw_po_timeline.html:426
 msgid "条件已满足"
-msgstr ""
+msgstr "Conditions met"
 
 #: app/templates/components/tw_po_timeline.html:427
 msgid "所有推进条件已满足，确定要推进吗？"
-msgstr ""
+msgstr "All advancement conditions are met. Confirm to proceed?"
 
 #: app/templates/components/tw_po_timeline.html:432
 msgid "条件未满足"
-msgstr ""
+msgstr "Conditions not met"
 
 #: app/templates/components/tw_po_timeline.html:435
 #, fuzzy
@@ -8041,13 +8041,13 @@ msgstr "Phone"
 
 #: app/templates/components/tw_pricing_order_modal.html:633
 msgid "配送方式"
-msgstr ""
+msgstr "Delivery method"
 
 #: app/templates/components/tw_pricing_order_modal.html:638
 #: app/templates/components/tw_purchase_order_form.html:117
 #: app/templates/inventory/partials/_shipment_form.html:100
 msgid "快递"
-msgstr ""
+msgstr "Express delivery"
 
 #: app/templates/components/tw_pricing_order_modal.html:639
 #, fuzzy
@@ -8058,27 +8058,27 @@ msgstr "Logistics"
 #: app/templates/components/tw_purchase_order_form.html:118
 #: app/templates/inventory/partials/_shipment_form.html:101
 msgid "自提"
-msgstr ""
+msgstr "Self-pickup"
 
 #: app/templates/components/tw_pricing_order_modal.html:641
 msgid "送货上门"
-msgstr ""
+msgstr "Door-to-door delivery"
 
 #: app/templates/components/tw_pricing_order_modal.html:647
 msgid "运费条款"
-msgstr ""
+msgstr "Shipping terms"
 
 #: app/templates/components/tw_pricing_order_modal.html:652
 msgid "运费预付"
-msgstr ""
+msgstr "Freight prepaid"
 
 #: app/templates/components/tw_pricing_order_modal.html:653
 msgid "运费到付"
-msgstr ""
+msgstr "Freight collect"
 
 #: app/templates/components/tw_pricing_order_modal.html:654
 msgid "含运费"
-msgstr ""
+msgstr "Freight included"
 
 #: app/templates/components/tw_pricing_order_modal.html:660
 #: app/templates/components/tw_purchase_order_form.html:169
@@ -8203,7 +8203,7 @@ msgstr "Failed to resubmit"
 
 #: app/templates/components/tw_pricing_order_modal.html:2459
 msgid "请填写收货地址"
-msgstr ""
+msgstr "Please enter shipping address"
 
 #: app/templates/components/tw_pricing_order_modal.html:2463
 #, fuzzy
@@ -8422,7 +8422,7 @@ msgstr "Date"
 #: app/templates/components/tw_purchase_order_form.html:97
 #: app/templates/inventory/tw_purchase_order_detail.html:115
 msgid "贸易术语"
-msgstr ""
+msgstr "Trade terms"
 
 #: app/templates/components/tw_purchase_order_form.html:110
 #: app/templates/inventory/partials/_shipment_form.html:92
@@ -8430,45 +8430,45 @@ msgstr ""
 #: app/templates/sales_order/tw_detail.html:119
 #: app/templates/shipment/tw_detail.html:101
 msgid "运输方式"
-msgstr ""
+msgstr "Transportation method"
 
 #: app/templates/components/tw_purchase_order_form.html:115
 msgid "汽运"
-msgstr ""
+msgstr "Road transport"
 
 #: app/templates/components/tw_purchase_order_form.html:116
 #: app/templates/inventory/partials/_shipment_form.html:99
 msgid "空运"
-msgstr ""
+msgstr "Air freight"
 
 #: app/templates/components/tw_purchase_order_form.html:123
 #: app/templates/sales_order/tw_detail.html:125
 msgid "运费承担"
-msgstr ""
+msgstr "Freight responsibility"
 
 #: app/templates/components/tw_purchase_order_form.html:127
 msgid "采购方"
-msgstr ""
+msgstr "Buyer"
 
 #: app/templates/components/tw_purchase_order_form.html:133
 #: app/templates/inventory/tw_purchase_order_detail.html:226
 msgid "验证测试"
-msgstr ""
+msgstr "Verification testing"
 
 #: app/templates/components/tw_purchase_order_form.html:137
 #: app/templates/inventory/partials/_test_form.html:39
 msgid "到货测试"
-msgstr ""
+msgstr "Arrival testing"
 
 #: app/templates/components/tw_purchase_order_form.html:138
 #: app/templates/inventory/partials/_test_form.html:37
 msgid "现场FAT"
-msgstr ""
+msgstr "On-site FAT"
 
 #: app/templates/components/tw_purchase_order_form.html:147
 #: app/templates/inventory/partials/_shipment_form.html:32
 msgid "交货地点"
-msgstr ""
+msgstr "Delivery location"
 
 #: app/templates/components/tw_purchase_order_form.html:152
 #, fuzzy
@@ -8482,7 +8482,7 @@ msgstr "Payment terms"
 
 #: app/templates/components/tw_purchase_order_form.html:161
 msgid "例如：50%预付，发货后45天付清"
-msgstr ""
+msgstr "For example: 50% prepaid, balance due 45 days after shipment"
 
 #: app/templates/components/product/tw_product_modal.html:151
 #: app/templates/components/tw_purchase_order_form.html:197
@@ -8518,12 +8518,12 @@ msgstr "Action Quality"
 #: app/templates/components/tw_quality_score_popover.html:122
 #: app/templates/components/tw_quality_score_popover.html:189
 msgid "多样"
-msgstr ""
+msgstr "Diverse"
 
 #: app/templates/components/tw_quality_score_popover.html:123
 #: app/templates/components/tw_quality_score_popover.html:190
 msgid "及时"
-msgstr ""
+msgstr "Timely"
 
 #: app/templates/components/tw_quality_score_popover.html:124
 #: app/templates/components/tw_quality_score_popover.html:191
@@ -8534,17 +8534,17 @@ msgstr " to "
 #: app/templates/components/tw_quality_score_popover.html:136
 #: app/templates/components/tw_quality_score_popover.html:192
 msgid "互动加分"
-msgstr ""
+msgstr "Interactive points"
 
 #: app/templates/components/tw_quality_score_popover.html:163
 #: app/templates/components/tw_quality_score_popover.html:193
 msgid "太棒了！继续保持！"
-msgstr ""
+msgstr "Awesome! Keep it up!"
 
 #: app/templates/components/tw_quality_score_popover.html:163
 #: app/templates/components/tw_quality_score_popover.html:194
 msgid "做得不错！保持下去！"
-msgstr ""
+msgstr "Great job! Keep going!"
 
 #: app/templates/components/tw_role_user_selector.html:23
 #, fuzzy
@@ -8602,7 +8602,7 @@ msgstr "Custom Config"
 
 #: app/templates/components/tw_role_user_selector.html:131
 msgid "跳转"
-msgstr ""
+msgstr "Jump to"
 
 #: app/templates/components/product/tw_spec_import_modal.html:92
 #: app/templates/components/tw_role_user_selector.html:139
@@ -8702,7 +8702,7 @@ msgstr "None"
 
 #: app/templates/components/tw_signature_pad.html:71
 msgid "在此处签名"
-msgstr ""
+msgstr "Sign here"
 
 #: app/templates/components/tw_spec_dictionary_modal.html:48
 #: app/templates/spec_definition/tw_list.html:14
@@ -9246,7 +9246,7 @@ msgstr "User"
 #: app/templates/components/tw_vendor_user_selector.html:144
 #: app/templates/config_management/tw_index.html:239
 msgid "停用"
-msgstr ""
+msgstr "Disabled"
 
 #: app/templates/components/tw_vendor_user_selector.html:164
 #, fuzzy
@@ -9314,7 +9314,7 @@ msgstr "Reload"
 #: app/templates/system_diagram/tw_editor.html:406
 #: app/templates/worklog/tw_calendar.html:1266
 msgid "只读"
-msgstr ""
+msgstr "Read-only"
 
 #: app/templates/components/tw_worklog_preview.html:53
 #: app/templates/worklog/tw_calendar.html:1272
@@ -9377,7 +9377,7 @@ msgstr "Activity"
 
 #: app/templates/components/tw_worklog_preview.html:129
 msgid "展会"
-msgstr ""
+msgstr "Trade show"
 
 #: app/templates/components/tw_worklog_preview.html:130
 #, fuzzy
@@ -9422,15 +9422,15 @@ msgstr "Quotation"
 
 #: app/templates/components/tw_worklog_preview.html:138
 msgid "文档工作"
-msgstr ""
+msgstr "Document work"
 
 #: app/templates/components/tw_worklog_preview.html:139
 msgid "开发工作"
-msgstr ""
+msgstr "Development work"
 
 #: app/templates/components/tw_worklog_preview.html:140
 msgid "测试工作"
-msgstr ""
+msgstr "Testing work"
 
 #: app/templates/components/tw_worklog_preview.html:141
 #, fuzzy
@@ -9439,7 +9439,7 @@ msgstr "Planned Work Items"
 
 #: app/templates/components/tw_worklog_preview.html:142
 msgid "调研工作"
-msgstr ""
+msgstr "Research work"
 
 #: app/templates/components/tw_worklog_preview.html:143
 #, fuzzy
@@ -9448,32 +9448,32 @@ msgstr "Planned Work Items"
 
 #: app/templates/components/tw_worklog_preview.html:144
 msgid "沟通协调"
-msgstr ""
+msgstr "Communication & coordination"
 
 #: app/templates/components/tw_worklog_preview.html:145
 msgid "报告撰写"
-msgstr ""
+msgstr "Report writing"
 
 #: app/templates/components/tw_worklog_preview.html:146
 msgid "请假"
-msgstr ""
+msgstr "Leave"
 
 #: app/templates/components/tw_worklog_preview.html:147
 msgid "假期"
-msgstr ""
+msgstr "Holiday"
 
 #: app/templates/components/tw_worklog_preview.html:148
 msgid "加班"
-msgstr ""
+msgstr "Overtime"
 
 #: app/templates/components/tw_worklog_preview.html:149
 msgid "值班"
-msgstr ""
+msgstr "On-call"
 
 #: app/templates/components/tw_worklog_preview.html:211
 #: app/templates/worklog/tw_calendar.html:3181
 msgid "该日期没有日志"
-msgstr ""
+msgstr "No logs for this date"
 
 #: app/templates/components/tw_worklog_preview.html:237
 #: app/templates/worklog/tw_calendar.html:1262
@@ -9549,7 +9549,7 @@ msgstr "Failed to add comment"
 
 #: app/templates/components/tw_worklog_reactions.html:64
 msgid "鼓励"
-msgstr ""
+msgstr "Encouragement"
 
 #: app/templates/components/tw_worklog_reactions.html:77
 #, fuzzy
@@ -9601,7 +9601,7 @@ msgstr "Loading Failed"
 
 #: app/templates/components/product/tw_config_selector_modal.html:283
 msgid "网络连接失败，请检查网络后重试"
-msgstr ""
+msgstr "Network connection failed. Please check your network and try again"
 
 #: app/templates/components/product/tw_product_modal.html:42
 #: app/templates/components/product/tw_product_modal.html:322
@@ -9959,7 +9959,7 @@ msgstr "-- Select from spec dictionary --"
 
 #: app/templates/components/product/tw_spec_options_modal.html:86
 msgid "从规格字典中选择已有指标添加，新指标请在规格字典管理页创建"
-msgstr ""
+msgstr "Select existing metrics from the specification dictionary to add. To create new metrics, please go to the Specification Dictionary Management page"
 
 #: app/templates/components/product/tw_spec_options_modal.html:100
 msgid "现有选项"
@@ -10242,7 +10242,7 @@ msgstr "Project"
 
 #: app/templates/config_management/_performance_metrics.html:7
 msgid "配置可用的绩效考核项目，这些项目可在目标配置和薪资公式中使用"
-msgstr ""
+msgstr "Configure available performance appraisal items that can be used in goal configuration and salary formulas"
 
 #: app/templates/config_management/_performance_metrics.html:30
 #: app/templates/config_management/_performance_metrics.html:154
@@ -10276,7 +10276,7 @@ msgstr "Manual Input"
 
 #: app/templates/config_management/_performance_metrics.html:71
 msgid "系统内置项目"
-msgstr ""
+msgstr "System Built-in Items"
 
 #: app/templates/config_management/_performance_metrics.html:87
 #: app/templates/spec_definition/tw_list.html:281
@@ -10288,7 +10288,7 @@ msgstr "Disable"
 
 #: app/templates/config_management/_performance_metrics.html:113
 msgid "暂无绩效项目，点击\"新增项目\"添加"
-msgstr ""
+msgstr "No performance items yet. Click \"Add Item\" to add"
 
 #: app/templates/config_management/_performance_metrics.html:142
 #, fuzzy
@@ -10302,7 +10302,7 @@ msgstr "New Projects"
 
 #: app/templates/config_management/_performance_metrics.html:160
 msgid "英文代码，用于公式引用"
-msgstr ""
+msgstr "English code for formula reference"
 
 #: app/templates/config_management/_performance_metrics.html:182
 #: app/templates/config_management/_performance_metrics.html:406
@@ -10319,23 +10319,23 @@ msgstr "Quantity"
 #: app/templates/config_management/_performance_metrics.html:192
 #: app/templates/config_management/_performance_metrics.html:408
 msgid "百分比"
-msgstr ""
+msgstr "Percentage"
 
 #: app/templates/config_management/_performance_metrics.html:217
 msgid "汇总字段"
-msgstr ""
+msgstr "Summary Field"
 
 #: app/templates/config_management/_performance_metrics.html:229
 msgid "汇总方式"
-msgstr ""
+msgstr "Summary Method"
 
 #: app/templates/config_management/_performance_metrics.html:239
 msgid "计数"
-msgstr ""
+msgstr "Count"
 
 #: app/templates/config_management/_performance_metrics.html:244
 msgid "平均值"
-msgstr ""
+msgstr "Average"
 
 #: app/templates/config_management/_performance_metrics.html:251
 #, fuzzy
@@ -10366,7 +10366,7 @@ msgstr "Researching..."
 
 #: app/templates/config_management/_performance_metrics.html:468
 msgid "请填写项目代码和名称"
-msgstr ""
+msgstr "Please enter the item code and name"
 
 #: app/templates/config_management/_salary_formulas.html:22
 #: app/templates/config_management/_salary_formulas.html:35
@@ -10401,7 +10401,7 @@ msgstr "No formula config, please click 'Initialize Default Data' button"
 
 #: app/templates/config_management/_salary_formulas.html:102
 msgid "提示：点击右上角\"编辑\"按钮启用编辑模式"
-msgstr ""
+msgstr "Tip: Click the \"Edit\" button in the top right to enable edit mode"
 
 #: app/templates/config_management/_salary_grades.html:10
 msgid "专业序列"
@@ -10579,7 +10579,7 @@ msgstr "Permission"
 
 #: app/templates/config_management/tw_index.html:108
 msgid "CLI 表归属"
-msgstr ""
+msgstr "CLI Table Assignment"
 
 #: app/templates/config_management/tw_index.html:109
 #: app/templates/config_management/tw_index.html:119
@@ -10682,19 +10682,19 @@ msgstr "Department"
 
 #: app/templates/config_management/tw_index.html:380
 msgid "(可多选)"
-msgstr ""
+msgstr "(Multiple selections allowed)"
 
 #: app/templates/config_management/tw_index.html:396
 msgid "点击下方添加管理部门"
-msgstr ""
+msgstr "Click below to add a management department"
 
 #: app/templates/config_management/tw_index.html:403
 msgid "+ 添加管理部门"
-msgstr ""
+msgstr "+ Add Management Department"
 
 #: app/templates/config_management/tw_index.html:410
 msgid "选择此用户负责管理的部门"
-msgstr ""
+msgstr "Select the departments this user is responsible for managing"
 
 #: app/templates/config_management/tw_index.html:420
 msgid "开启AI分析功能"
@@ -10785,11 +10785,11 @@ msgstr "Clear Personal Permissions"
 
 #: app/templates/config_management/tw_index.html:737
 msgid "该用户未配置个人权限，当前显示的是角色默认权限"
-msgstr ""
+msgstr "This user has no personal permissions configured. The default role permissions are currently displayed"
 
 #: app/templates/config_management/tw_index.html:740
 msgid "点击\"编辑\"可为该用户创建个人权限覆盖配置"
-msgstr ""
+msgstr "Click \"Edit\" to create personal permission overrides for this user"
 
 #: app/templates/config_management/tw_index.html:771
 msgid "权限不一致"
@@ -10851,7 +10851,7 @@ msgstr "Confirm Save"
 
 #: app/templates/config_management/tw_index.html:1020
 msgid "将同时影响多个账户的权限，是否继续？"
-msgstr ""
+msgstr "This will affect permissions for multiple accounts. Continue?"
 
 #: app/templates/config_management/tw_index.html:1021
 #: app/templates/config_management/tw_index.html:2510
@@ -10874,11 +10874,11 @@ msgstr "Clear personal config for selected users? Will revert to role defaults"
 
 #: app/templates/config_management/tw_index.html:1045
 msgid "CLI 表归属清单"
-msgstr ""
+msgstr "CLI Table Assignment List"
 
 #: app/templates/config_management/tw_index.html:1048
 msgid "记录每张数据库表对应的权限模块归属 —— 决定 CLI 智能终端可以查询哪些表。此清单为只读，如需调整请联系开发通过 migration 修改。"
-msgstr ""
+msgstr "Record the permission module assignment for each database table—determining which tables the CLI terminal can query. This list is read-only. To make adjustments, please contact development to modify via migration"
 
 #: app/templates/config_management/tw_index.html:1064
 #, fuzzy
@@ -10892,7 +10892,7 @@ msgstr "Database"
 
 #: app/templates/config_management/tw_index.html:1072
 msgid "显示名"
-msgstr ""
+msgstr "Display Name"
 
 #: app/templates/config_management/tw_index.html:1073
 msgid "模式"
@@ -10900,15 +10900,15 @@ msgstr "Mode"
 
 #: app/templates/config_management/tw_index.html:1074
 msgid "归属模块 / 父表"
-msgstr ""
+msgstr "Assignment Module / Parent Table"
 
 #: app/templates/config_management/tw_index.html:1086
 msgid "主表"
-msgstr ""
+msgstr "Master Table"
 
 #: app/templates/config_management/tw_index.html:1086
 msgid "跟随"
-msgstr ""
+msgstr "Follow"
 
 # =====================================
 # 配置管理模块 - 绩效配置
@@ -10918,7 +10918,7 @@ msgstr "Target Config"
 
 #: app/templates/config_management/tw_index.html:1110
 msgid "数据录入"
-msgstr ""
+msgstr "Data Entry"
 
 #: app/templates/config_management/tw_index.html:1136
 msgid "用户绩效配置"
@@ -10988,11 +10988,11 @@ msgstr "Manage"
 
 #: app/templates/config_management/tw_index.html:1424
 msgid "的辅助指标数据"
-msgstr ""
+msgstr "auxiliary metric data"
 
 #: app/templates/config_management/tw_index.html:1427
 msgid "请从左侧选择用户，然后录入辅助指标数据"
-msgstr ""
+msgstr "Please select a user from the left, then enter the auxiliary metric data"
 
 #: app/templates/config_management/tw_index.html:1436
 #, fuzzy
@@ -11001,7 +11001,7 @@ msgstr "Import Data"
 
 #: app/templates/config_management/tw_index.html:1454
 msgid "该用户没有需要手工录入的辅助指标"
-msgstr ""
+msgstr "This user has no auxiliary metrics requiring manual entry"
 
 #: app/templates/config_management/tw_index.html:1471
 #, fuzzy
@@ -11022,11 +11022,11 @@ msgstr "Week"
 #: app/templates/config_management/tw_index.html:1563
 #: app/templates/config_management/tw_index.html:1605
 msgid "数值"
-msgstr ""
+msgstr "Value"
 
 #: app/templates/config_management/tw_index.html:1540
 msgid "月度录入"
-msgstr ""
+msgstr "Monthly Entry"
 
 #: app/templates/config_management/tw_index.html:1545
 #, fuzzy
@@ -11035,19 +11035,19 @@ msgstr "Quarter"
 
 #: app/templates/config_management/tw_index.html:1555
 msgid "无需月度录入的指标"
-msgstr ""
+msgstr "Metrics that do not require monthly entry"
 
 #: app/templates/config_management/tw_index.html:1562
 msgid "月份 - 指标"
-msgstr ""
+msgstr "Month - Indicator"
 
 #: app/templates/config_management/tw_index.html:1597
 msgid "无需季度录入的指标"
-msgstr ""
+msgstr "Indicators that do not require quarterly entry"
 
 #: app/templates/config_management/tw_index.html:1604
 msgid "季度 - 指标"
-msgstr ""
+msgstr "Quarter - Indicator"
 
 #: app/templates/config_management/tw_index.html:1657
 #: app/templates/sales_order/tw_detail.html:254
@@ -11420,11 +11420,11 @@ msgstr "Please select at least one reviewer"
 
 #: app/templates/config_management/tw_index.html:3776
 msgid "将同时影响"
-msgstr ""
+msgstr "Will also affect"
 
 #: app/templates/config_management/tw_index.html:3776
 msgid "个账户的权限，是否继续？"
-msgstr ""
+msgstr "accounts' permissions, continue?"
 
 #: app/templates/config_management/tw_index.html:4064
 #: app/templates/config_management/tw_index.html:4085
@@ -11434,7 +11434,7 @@ msgstr "Role config applied, please click Save"
 
 #: app/templates/config_management/tw_index.html:4072
 msgid "无法获取角色信息"
-msgstr ""
+msgstr "Failed to retrieve role information"
 
 #: app/templates/config_management/tw_index.html:4117
 #: app/templates/config_management/tw_index.html:4152
@@ -11456,11 +11456,11 @@ msgstr "Please select user"
 
 #: app/templates/config_management/tw_index.html:5081
 msgid "请至少启用一个绩效项目"
-msgstr ""
+msgstr "Please enable at least one performance project"
 
 #: app/templates/config_management/tw_index.html:5086
 msgid "存在目标值验证错误，是否仍要保存？"
-msgstr ""
+msgstr "Target value validation errors exist. Save anyway?"
 
 #: app/templates/config_management/tw_index.html:5514
 msgid "已分配百分比超过100%，请调整"
@@ -11488,7 +11488,7 @@ msgstr "Annual Bonus Levels"
 
 #: app/templates/config_management/tw_index.html:5772
 msgid "确定要将角色默认配置应用到选中用户吗？"
-msgstr ""
+msgstr "Apply the default role configuration to selected users?"
 
 #: app/templates/config_management/tw_index.html:5789
 #, fuzzy
@@ -11576,7 +11576,7 @@ msgstr "Please select a grade"
 
 #: app/templates/config_management/tw_index.html:7509
 msgid "配置未发生变化"
-msgstr ""
+msgstr "No changes in configuration"
 
 #: app/templates/config_management/tw_index.html:7639
 #, fuzzy
@@ -12662,7 +12662,7 @@ msgstr "Address"
 #: app/templates/customer/partials/_company_form_fields.html:44
 #: app/templates/project/partials/_project_form_fields.html:54
 msgid "点击定位或输入地址"
-msgstr ""
+msgstr "Click to locate or enter address"
 
 #: app/templates/customer/partials/_company_form_fields.html:96
 msgid "请输入备注信息"
@@ -12755,7 +12755,7 @@ msgstr "Attribute to myself"
 #: app/templates/expense/create_expense.html:199
 #: app/templates/expense/edit_expense.html:249
 msgid "费用计入本人部门，审批走本人上级"
-msgstr ""
+msgstr "Expense charged to own department, approval through own supervisor"
 
 #: app/templates/expense/create_expense.html:204
 #: app/templates/expense/edit_expense.html:254
@@ -12766,7 +12766,7 @@ msgstr "Select attributee"
 #: app/templates/expense/create_expense.html:208
 #: app/templates/expense/edit_expense.html:258
 msgid "费用将计入归属人部门，审批需归属人及其上级确认"
-msgstr ""
+msgstr "Expense will be charged to assignee's department, approval requires confirmation from assignee and their supervisor"
 
 #: app/templates/expense/create_expense.html:258
 #: app/templates/expense/create_expense.html:1253
@@ -13437,11 +13437,11 @@ msgstr "Add to Wiki"
 
 #: app/templates/files/tw_file_manager.html:725
 msgid "Wiki 编译中..."
-msgstr ""
+msgstr "Wiki compiling..."
 
 #: app/templates/files/tw_file_manager.html:730
 msgid "已在 Wiki 知识库"
-msgstr ""
+msgstr "Already in Wiki Knowledge Base"
 
 #: app/templates/files/tw_file_manager.html:746
 msgid "打开"
@@ -13454,7 +13454,7 @@ msgstr "Restore File"
 
 #: app/templates/files/tw_file_manager.html:782
 msgid "恢复给用户"
-msgstr ""
+msgstr "Return to user"
 
 #: app/templates/files/tw_file_manager.html:792
 #, fuzzy
@@ -13519,7 +13519,7 @@ msgstr "Select Tags"
 #: app/templates/files/tw_file_manager.html:1163
 #: app/templates/knowledge/tw_wiki.html:487
 msgid "Topic（分类目录）"
-msgstr ""
+msgstr "Topic (Category)"
 
 #: app/templates/files/tw_file_manager.html:1182
 msgid "新建"
@@ -13527,31 +13527,31 @@ msgstr "New"
 
 #: app/templates/files/tw_file_manager.html:1194
 msgid "选择分类目录。同分类的文章会自动建立交叉引用。"
-msgstr ""
+msgstr "Select a category. Articles in the same category will automatically establish cross-references."
 
 #: app/templates/files/tw_file_manager.html:1204
 msgid "添加并编译"
-msgstr ""
+msgstr "Add and compile"
 
 #: app/templates/files/tw_file_manager.html:1215
 msgid "Claude Opus 编译中..."
-msgstr ""
+msgstr "Claude Opus compiling..."
 
 #: app/templates/files/tw_file_manager.html:1216
 msgid "正在阅读文件并生成 Wiki 文章，通常需要 30-60 秒"
-msgstr ""
+msgstr "Reading files and generating Wiki article, typically takes 30-60 seconds"
 
 #: app/templates/files/tw_file_manager.html:1217
 msgid "扫描件 PDF 会通过 Vision 识别图片内容"
-msgstr ""
+msgstr "Scanned PDF will have image content recognized via Vision"
 
 #: app/templates/files/tw_file_manager.html:1227
 msgid "文章已生成，可在 Wiki 页面浏览和提问"
-msgstr ""
+msgstr "Article generated, view and ask questions on Wiki page"
 
 #: app/templates/files/tw_file_manager.html:1235
 msgid "打开 Wiki"
-msgstr ""
+msgstr "Open Wiki"
 
 #: app/templates/files/tw_file_manager.html:1246
 #: app/templates/knowledge/tw_wiki.html:401
@@ -13565,7 +13565,7 @@ msgstr "Compilation failed"
 
 #: app/templates/files/tw_file_manager.html:1255
 msgid "去 Wiki 管理重试"
-msgstr ""
+msgstr "Go to Wiki management to retry"
 
 # ===== 新功能说明书 (Features Guide) =====
 #: app/templates/guide/whats_new.html:209
@@ -13612,7 +13612,7 @@ msgstr "Drag files here to upload"
 
 #: app/templates/guide/whats_new.html:435
 msgid "更多截图"
-msgstr ""
+msgstr "More screenshots"
 
 #: app/templates/guide/whats_new.html:466
 msgid "使用场景"
@@ -13620,7 +13620,7 @@ msgstr "Use Cases"
 
 #: app/templates/guide/whats_new.html:498
 msgid "拖拽或点击"
-msgstr ""
+msgstr "Drag or click"
 
 #: app/templates/guide/whats_new.html:534
 msgid "功能介绍"
@@ -13693,7 +13693,7 @@ msgstr "Resubmit failed:"
 #: app/templates/inventory/order_detail.html:35
 #, python-brace-format
 msgid "当前阶段\"{stage}\"需要由 {approver} 进行审批。您暂无权限审批此阶段。"
-msgstr ""
+msgstr "Current stage \"{stage}\" requires approval by {approver}. You do not have permission to approve this stage."
 
 #: app/templates/inventory/order_detail.html:36
 msgid "阶段信息："
@@ -13820,7 +13820,7 @@ msgstr "Order notes"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:129
 msgid "行号"
-msgstr ""
+msgstr "Line number"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:130
 #: app/templates/macros/product_detail_manager.html:106
@@ -13870,7 +13870,7 @@ msgstr "Product"
 #: app/templates/inventory/tw_purchase_order_detail.html:190
 #: app/templates/product_sn/tw_list.html:133
 msgid "仓位"
-msgstr ""
+msgstr "Position"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:200
 msgid "暂无序列号数据"
@@ -13878,13 +13878,13 @@ msgstr "No serial numbers available"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:211
 msgid "测试记录"
-msgstr ""
+msgstr "Test record"
 
 #: app/templates/inventory/partials/_acceptance_form.html:33
 #: app/templates/inventory/partials/_test_form.html:33
 #: app/templates/inventory/tw_purchase_order_detail.html:218
 msgid "工厂测试"
-msgstr ""
+msgstr "Factory test"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:247
 #, fuzzy
@@ -13900,11 +13900,11 @@ msgstr "Executed"
 #: app/templates/inventory/tw_purchase_order_detail.html:260
 #: app/templates/inventory/tw_purchase_order_detail.html:293
 msgid "上传测试报告"
-msgstr ""
+msgstr "Upload test report"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:265
 msgid "工厂测试是必须的质量检验环节，由供应商在出厂前完成。"
-msgstr ""
+msgstr "Factory testing is a mandatory quality inspection step completed by suppliers before shipment."
 
 #: app/templates/inventory/tw_purchase_order_detail.html:271
 #, fuzzy
@@ -13919,7 +13919,7 @@ msgstr "No test conditions"
 #: app/templates/inventory/tw_purchase_order_detail.html:310
 #: app/templates/shipment/tw_detail.html:98
 msgid "物流信息"
-msgstr ""
+msgstr "Logistics information"
 
 #: app/templates/inventory/partials/_shipment_form.html:68
 #: app/templates/inventory/tw_purchase_order_detail.html:313
@@ -13927,7 +13927,7 @@ msgstr ""
 #: app/templates/shipment/tw_detail.html:99
 #: app/templates/shipment/tw_list.html:103
 msgid "承运商"
-msgstr ""
+msgstr "Carrier"
 
 #: app/templates/inventory/partials/_shipment_form.html:80
 #: app/templates/inventory/tw_purchase_order_detail.html:317
@@ -13973,11 +13973,11 @@ msgstr "Confirm Recall"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:385
 msgid "点击或拖拽上传供应商盖章确认单"
-msgstr ""
+msgstr "Click or drag to upload supplier confirmation document with seal"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:386
 msgid "支持 PDF、JPG、PNG 格式，最大 10MB"
-msgstr ""
+msgstr "Supports PDF, JPG, PNG formats, maximum 10MB"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:401
 #, fuzzy
@@ -14001,7 +14001,7 @@ msgstr "Confirm"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:431
 msgid "确认供应商已确认"
-msgstr ""
+msgstr "Confirm supplier has confirmed"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:444
 #: app/templates/inventory/tw_purchase_order_detail.html:446
@@ -14044,7 +14044,7 @@ msgstr "Reply submitted successfully"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:548
 msgid "请上传 PDF、JPG 或 PNG 格式的文件"
-msgstr ""
+msgstr "Please upload a file in PDF, JPG, or PNG format"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:555
 #, fuzzy
@@ -14053,7 +14053,7 @@ msgstr "File size cannot exceed 12MB"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:576
 msgid "请上传供应商盖章确认回执"
-msgstr ""
+msgstr "Please upload the supplier's stamped confirmation receipt"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:583
 #, fuzzy
@@ -14072,7 +14072,7 @@ msgstr "Reply sent"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:675
 msgid "测试报告上传功能开发中"
-msgstr ""
+msgstr "Test report upload feature in development"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:676
 #, fuzzy
@@ -14097,7 +14097,7 @@ msgstr "items"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:768
 msgid "总交期"
-msgstr ""
+msgstr "Total delivery time"
 
 #: app/templates/inventory/tw_purchase_order_detail.html:769
 #, fuzzy
@@ -14144,22 +14144,22 @@ msgstr "Status"
 #: app/templates/inventory/tw_purchase_order_list.html:107
 #: app/templates/inventory/tw_purchase_order_list.html:199
 msgid "工厂测试通过"
-msgstr ""
+msgstr "Factory test passed"
 
 #: app/templates/inventory/tw_purchase_order_list.html:108
 #: app/templates/inventory/tw_purchase_order_list.html:207
 msgid "工厂测试待执行"
-msgstr ""
+msgstr "Factory test pending execution"
 
 #: app/templates/inventory/tw_purchase_order_list.html:109
 #: app/templates/inventory/tw_purchase_order_list.html:213
 msgid "验证测试通过"
-msgstr ""
+msgstr "Verification test passed"
 
 #: app/templates/inventory/tw_purchase_order_list.html:110
 #: app/templates/inventory/tw_purchase_order_list.html:225
 msgid "验证测试待执行"
-msgstr ""
+msgstr "Verification test pending execution"
 
 #: app/templates/inventory/tw_purchase_order_list.html:121
 #: app/templates/macros/approval_macros.html:452
@@ -14182,7 +14182,7 @@ msgstr "Progress"
 
 #: app/templates/inventory/tw_purchase_order_list.html:139
 msgid "交期"
-msgstr ""
+msgstr "Delivery time"
 
 #: app/templates/inventory/tw_purchase_order_list.html:203
 #, fuzzy
@@ -14196,7 +14196,7 @@ msgstr "Detection failed"
 
 #: app/templates/inventory/tw_purchase_order_list.html:221
 msgid "无需验证测试"
-msgstr ""
+msgstr "Verification test not required"
 
 #: app/templates/inventory/tw_purchase_order_list.html:278
 #: app/templates/macros/product_detail_manager.html:124
@@ -14211,7 +14211,7 @@ msgstr "Page "
 #: app/templates/sales_order/tw_list.html:182
 #: app/templates/shipment/tw_list.html:169
 msgid "页，共"
-msgstr ""
+msgstr "page(s), total"
 
 #: app/templates/inventory/tw_purchase_order_list.html:278
 #: app/templates/product_sn/tw_list.html:199
@@ -14223,19 +14223,19 @@ msgstr "Home"
 
 #: app/templates/inventory/partials/_acceptance_form.html:24
 msgid "前置条件"
-msgstr ""
+msgstr "Prerequisites"
 
 #: app/templates/inventory/partials/_acceptance_form.html:41
 msgid "FAT测试通过"
-msgstr ""
+msgstr "FAT test passed"
 
 #: app/templates/inventory/partials/_acceptance_form.html:44
 msgid "FAT测试（不适用）"
-msgstr ""
+msgstr "FAT test (not applicable)"
 
 #: app/templates/inventory/partials/_acceptance_form.html:47
 msgid "FAT测试"
-msgstr ""
+msgstr "FAT test"
 
 #: app/templates/inventory/partials/_acceptance_form.html:55
 #, fuzzy
@@ -14254,7 +14254,7 @@ msgstr "Shipped"
 
 #: app/templates/inventory/partials/_acceptance_form.html:78
 msgid "实收数"
-msgstr ""
+msgstr "Quantity received"
 
 #: app/templates/inventory/partials/_acceptance_form.html:79
 #, fuzzy
@@ -14263,41 +14263,41 @@ msgstr "Description"
 
 #: app/templates/inventory/partials/_acceptance_form.html:103
 msgid "如有差异请说明"
-msgstr ""
+msgstr "Please explain if there are discrepancies"
 
 #: app/templates/inventory/partials/_acceptance_form.html:118
 msgid "包装检查"
-msgstr ""
+msgstr "Packaging inspection"
 
 #: app/templates/inventory/partials/_acceptance_form.html:124
 msgid "外包装完好"
-msgstr ""
+msgstr "Outer packaging intact"
 
 #: app/templates/inventory/partials/_acceptance_form.html:131
 #: app/templates/inventory/partials/_acceptance_form.html:152
 msgid "完好"
-msgstr ""
+msgstr "Intact"
 
 #: app/templates/inventory/partials/_acceptance_form.html:137
 #: app/templates/inventory/partials/_acceptance_form.html:158
 msgid "有破损"
-msgstr ""
+msgstr "Damaged"
 
 #: app/templates/inventory/partials/_acceptance_form.html:145
 msgid "内包装完好"
-msgstr ""
+msgstr "Inner packaging intact"
 
 #: app/templates/inventory/partials/_acceptance_form.html:166
 msgid "配件齐全"
-msgstr ""
+msgstr "Accessories complete"
 
 #: app/templates/inventory/partials/_acceptance_form.html:173
 msgid "齐全"
-msgstr ""
+msgstr "Complete"
 
 #: app/templates/inventory/partials/_acceptance_form.html:179
 msgid "缺失"
-msgstr ""
+msgstr "Missing"
 
 #: app/templates/inventory/partials/_acceptance_form.html:187
 #, fuzzy
@@ -14306,11 +14306,11 @@ msgstr "Tags"
 
 #: app/templates/inventory/partials/_acceptance_form.html:194
 msgid "清晰"
-msgstr ""
+msgstr "Clear"
 
 #: app/templates/inventory/partials/_acceptance_form.html:200
 msgid "模糊/缺失"
-msgstr ""
+msgstr "Blurry/Missing"
 
 #: app/templates/inventory/partials/_acceptance_form.html:209
 #, fuzzy
@@ -14335,7 +14335,7 @@ msgstr "Date"
 
 #: app/templates/inventory/partials/_acceptance_form.html:236
 msgid "验收人"
-msgstr ""
+msgstr "Receiving inspector"
 
 #: app/templates/inventory/partials/_acceptance_form.html:245
 #, fuzzy
@@ -14344,7 +14344,7 @@ msgstr "Stock in"
 
 #: app/templates/inventory/partials/_acceptance_form.html:248
 msgid "如：A区-货架3"
-msgstr ""
+msgstr "E.g., Zone A - Shelf 3"
 
 #: app/templates/inventory/partials/_acceptance_form.html:258
 #, fuzzy
@@ -14353,11 +14353,11 @@ msgstr "Docs"
 
 #: app/templates/inventory/partials/_acceptance_form.html:265
 msgid "上传送货单、装箱单等"
-msgstr ""
+msgstr "Upload shipping invoice, packing list, etc."
 
 #: app/templates/inventory/partials/_acceptance_form.html:290
 msgid "验收结论"
-msgstr ""
+msgstr "Acceptance conclusion"
 
 #: app/templates/inventory/partials/_acceptance_form.html:297
 #, fuzzy
@@ -14366,11 +14366,11 @@ msgstr "Stock in"
 
 #: app/templates/inventory/partials/_acceptance_form.html:303
 msgid "部分合格"
-msgstr ""
+msgstr "Partially accepted"
 
 #: app/templates/inventory/partials/_acceptance_form.html:309
 msgid "拒收"
-msgstr ""
+msgstr "Rejected"
 
 #: app/templates/inventory/partials/_acceptance_form.html:320
 #, fuzzy
@@ -14385,7 +14385,7 @@ msgstr "Please select date"
 #: app/templates/inventory/partials/_acceptance_form.html:348
 #: app/templates/inventory/partials/_test_form.html:453
 msgid "请签名"
-msgstr ""
+msgstr "Please sign"
 
 #: app/templates/inventory/partials/_acceptance_form.html:393
 #, fuzzy
@@ -14406,7 +14406,7 @@ msgstr "Total Quantity"
 
 #: app/templates/inventory/partials/_shipment_form.html:40
 msgid "发货信息"
-msgstr ""
+msgstr "Shipping information"
 
 #: app/templates/inventory/partials/_shipment_form.html:57
 #, fuzzy
@@ -14415,19 +14415,19 @@ msgstr "Expected Date"
 
 #: app/templates/inventory/partials/_shipment_form.html:72
 msgid "如：顺丰速运、德邦物流"
-msgstr ""
+msgstr "E.g., S.F. Express, DBL"
 
 #: app/templates/inventory/partials/_shipment_form.html:84
 msgid "物流运单号"
-msgstr ""
+msgstr "Logistics tracking number"
 
 #: app/templates/inventory/partials/_shipment_form.html:98
 msgid "陆运"
-msgstr ""
+msgstr "Ground transportation"
 
 #: app/templates/inventory/partials/_shipment_form.html:108
 msgid "发货清单"
-msgstr ""
+msgstr "Shipping list"
 
 #: app/templates/inventory/partials/_shipment_form.html:114
 #, fuzzy
@@ -14436,7 +14436,7 @@ msgstr "Purchase quantity"
 
 #: app/templates/inventory/partials/_shipment_form.html:115
 msgid "本次发货"
-msgstr ""
+msgstr "This shipment"
 
 #: app/templates/inventory/partials/_shipment_form.html:143
 #, fuzzy
@@ -14445,7 +14445,7 @@ msgstr "Notes"
 
 #: app/templates/inventory/partials/_shipment_form.html:146
 msgid "如有特殊说明请在此填写"
-msgstr ""
+msgstr "Please fill in any special notes here"
 
 #: app/templates/inventory/partials/_shipment_form.html:157
 #: app/templates/shipment/tw_detail.html:80
@@ -14460,7 +14460,7 @@ msgstr "Please select date"
 
 #: app/templates/inventory/partials/_shipment_form.html:184
 msgid "请填写承运商"
-msgstr ""
+msgstr "Please fill in the carrier"
 
 #: app/templates/inventory/partials/_shipment_form.html:189
 #, fuzzy
@@ -14474,7 +14474,7 @@ msgstr "Submitted"
 
 #: app/templates/inventory/partials/_test_form.html:35
 msgid "FAT验证测试"
-msgstr ""
+msgstr "FAT Validation Test"
 
 #: app/templates/inventory/partials/_test_form.html:60
 #, fuzzy
@@ -14483,11 +14483,11 @@ msgstr "Mode"
 
 #: app/templates/inventory/partials/_test_form.html:69
 msgid "采样数"
-msgstr ""
+msgstr "Sample Size"
 
 #: app/templates/inventory/partials/_test_form.html:97
 msgid "测试明细"
-msgstr ""
+msgstr "Test Details"
 
 #: app/templates/inventory/partials/_test_form.html:113
 msgid "结果"
@@ -14495,7 +14495,7 @@ msgstr "Result"
 
 #: app/templates/inventory/partials/_test_form.html:116
 msgid "报告"
-msgstr ""
+msgstr "Report"
 
 #: app/templates/inventory/partials/_test_form.html:143
 #: app/templates/inventory/partials/_test_form.html:204
@@ -14519,16 +14519,16 @@ msgstr "Pending"
 
 #: app/templates/inventory/partials/_test_form.html:175
 msgid "录入"
-msgstr ""
+msgstr "Enter"
 
 #: app/templates/inventory/partials/_test_form.html:197
 msgid "测试人员签名"
-msgstr ""
+msgstr "Tester Signature"
 
 #: app/templates/inventory/partials/_test_form.html:204
 #: app/templates/inventory/partials/_test_form.html:210
 msgid "台"
-msgstr ""
+msgstr "Unit"
 
 #: app/templates/inventory/partials/_test_form.html:219
 #, fuzzy
@@ -14537,7 +14537,7 @@ msgstr "Date"
 
 #: app/templates/inventory/partials/_test_form.html:227
 msgid "测试人员"
-msgstr ""
+msgstr "Tester"
 
 #: app/templates/inventory/partials/_test_form.html:231
 #: app/templates/inventory/partials/_test_form.html:446
@@ -14547,11 +14547,11 @@ msgstr "Please enter contact name"
 
 #: app/templates/inventory/partials/_test_form.html:252
 msgid "提交测试结果"
-msgstr ""
+msgstr "Submit Test Results"
 
 #: app/templates/inventory/partials/_test_form.html:265
 msgid "录入测试结果"
-msgstr ""
+msgstr "Enter Test Results"
 
 #: app/templates/inventory/partials/_test_form.html:283
 #, fuzzy
@@ -14560,7 +14560,7 @@ msgstr "Result"
 
 #: app/templates/inventory/partials/_test_form.html:302
 msgid "测试报告"
-msgstr ""
+msgstr "Test Report"
 
 #: app/templates/inventory/partials/_test_form.html:309
 msgid "点击上传"
@@ -14568,7 +14568,7 @@ msgstr "Click to Upload"
 
 #: app/templates/inventory/partials/_test_form.html:309
 msgid "或拖放文件"
-msgstr ""
+msgstr "or drag and drop files"
 
 #: app/templates/inventory/partials/_test_form.html:311
 #: app/templates/product/upload_files.html:60
@@ -14577,7 +14577,7 @@ msgstr "Maximum"
 
 #: app/templates/inventory/partials/_test_form.html:329
 msgid "如有异常情况请在此说明"
-msgstr ""
+msgstr "Please describe any abnormalities here"
 
 #: app/templates/inventory/partials/_test_form.html:400
 #, fuzzy
@@ -14586,7 +14586,7 @@ msgstr "Select Test Condition"
 
 #: app/templates/inventory/partials/_test_form.html:405
 msgid "请上传测试报告"
-msgstr ""
+msgstr "Please upload test report"
 
 #: app/templates/inventory/partials/_test_form.html:441
 #, fuzzy
@@ -14600,15 +14600,15 @@ msgstr "Submitted"
 
 #: app/templates/knowledge/tw_wiki.html:133
 msgid "Wiki 为空"
-msgstr ""
+msgstr "Wiki is empty"
 
 #: app/templates/knowledge/tw_wiki.html:134
 msgid "当前过滤条件下无文章"
-msgstr ""
+msgstr "No articles under current filters"
 
 #: app/templates/knowledge/tw_wiki.html:136
 msgid "点击右上角 ⚙ 开始管理原始资料"
-msgstr ""
+msgstr "Click ⚙ in the top right to start managing source materials"
 
 #: app/templates/knowledge/tw_wiki.html:167
 #, fuzzy
@@ -14635,7 +14635,7 @@ msgstr "View source"
 
 #: app/templates/knowledge/tw_wiki.html:236
 msgid "篇文章"
-msgstr ""
+msgstr "articles"
 
 #: app/templates/knowledge/tw_wiki.html:239
 #, fuzzy
@@ -14656,7 +14656,7 @@ msgstr "Or ask Wiki directly in the Q&A area below"
 
 #: app/templates/knowledge/tw_wiki.html:276
 msgid "编译于"
-msgstr ""
+msgstr "Compiled on"
 
 #: app/templates/knowledge/tw_wiki.html:280
 #, fuzzy
@@ -14686,7 +14686,7 @@ msgstr "Researching..."
 
 #: app/templates/knowledge/tw_wiki.html:357
 msgid "Wiki 管理"
-msgstr ""
+msgstr "Wiki Management"
 
 #: app/templates/knowledge/tw_wiki.html:372
 #, fuzzy
@@ -14695,35 +14695,35 @@ msgstr "Drag files here to upload"
 
 #: app/templates/knowledge/tw_wiki.html:373
 msgid "支持 PDF / DOCX / MD"
-msgstr ""
+msgstr "Supports PDF / DOCX / MD"
 
 #: app/templates/knowledge/tw_wiki.html:387
 msgid "待编译队列"
-msgstr ""
+msgstr "Compilation Queue"
 
 #: app/templates/knowledge/tw_wiki.html:407
 msgid "编译中"
-msgstr ""
+msgstr "Compiling"
 
 #: app/templates/knowledge/tw_wiki.html:413
 msgid "编译"
-msgstr ""
+msgstr "Compile"
 
 #: app/templates/knowledge/tw_wiki.html:423
 msgid "上传文件后显示在这里"
-msgstr ""
+msgstr "Displayed here after uploading files"
 
 #: app/templates/knowledge/tw_wiki.html:430
 msgid "质检 (Lint)"
-msgstr ""
+msgstr "Quality Check (Lint)"
 
 #: app/templates/knowledge/tw_wiki.html:431
 msgid "让 AI 检查整库的坏链接、冲突、过时内容和缺摘要"
-msgstr ""
+msgstr "Let AI check the entire repository for broken links, conflicts, outdated content, and missing summaries"
 
 #: app/templates/knowledge/tw_wiki.html:434
 msgid "自动修复可安全修复的问题"
-msgstr ""
+msgstr "Auto-fix safely fixable issues"
 
 #: app/templates/knowledge/tw_wiki.html:438
 #, fuzzy
@@ -14743,15 +14743,15 @@ msgstr "New"
 
 #: app/templates/knowledge/tw_wiki.html:508
 msgid "新 topic 名"
-msgstr ""
+msgstr "New topic name"
 
 #: app/templates/knowledge/tw_wiki.html:517
 msgid "英文小写，用于文件夹分类。同 topic 的文章会自动建立交叉引用。"
-msgstr ""
+msgstr "Lowercase English for folder classification. Articles with the same topic will automatically establish cross-references."
 
 #: app/templates/knowledge/tw_wiki.html:527
 msgid "添加到待编译"
-msgstr ""
+msgstr "Add to Compilation Queue"
 
 #: app/templates/knowledge/tw_wiki.html:542
 msgid "wiki/index.md"
@@ -14759,7 +14759,7 @@ msgstr ""
 
 #: app/templates/knowledge/tw_wiki.html:562
 msgid "申请晋升等级"
-msgstr ""
+msgstr "Request Level Promotion"
 
 #: app/templates/knowledge/tw_wiki.html:568
 #, fuzzy
@@ -14774,11 +14774,11 @@ msgstr "Fill in the reason and submit"
 
 #: app/templates/knowledge/tw_wiki.html:585
 msgid "请说明为什么需要提升该文章的等级..."
-msgstr ""
+msgstr "Please explain why this article needs a level promotion..."
 
 #: app/templates/knowledge/tw_wiki.html:610
 msgid "审核晋升申请"
-msgstr ""
+msgstr "Review Promotion Request"
 
 #: app/templates/knowledge/tw_wiki.html:621
 #, fuzzy
@@ -14792,11 +14792,11 @@ msgstr "Time"
 
 #: app/templates/knowledge/tw_wiki.html:643
 msgid "审核备注（可选）"
-msgstr ""
+msgstr "Review Notes (Optional)"
 
 #: app/templates/knowledge/tw_wiki.html:645
 msgid "可选：填写审核意见..."
-msgstr ""
+msgstr "Optional: Enter review comments..."
 
 #: app/templates/knowledge/tw_wiki.html:1038
 msgid "开始编译"
@@ -14804,12 +14804,12 @@ msgstr "Start compilation"
 
 #: app/templates/knowledge/tw_wiki.html:1039
 msgid "编译可能需要 30-60 秒，确认开始吗？"
-msgstr ""
+msgstr "Compilation may take 30-60 seconds. Confirm to start?"
 
 #: app/templates/knowledge/tw_wiki.html:1073
 #, python-format
 msgid "确定删除「%(title)s」吗？已编译的文章不会被删除。"
-msgstr ""
+msgstr "Delete \"%(title)s\"? Compiled articles will not be deleted."
 
 #: app/templates/knowledge/tw_wiki.html:1094
 #, fuzzy
@@ -14830,7 +14830,7 @@ msgstr "This article has no associated source files."
 
 #: app/templates/knowledge/tw_wiki.html:1117
 msgid "将重新编译关联的原始文件，可能需要 30-60 秒。确认开始吗？"
-msgstr ""
+msgstr "Will recompile associated source files, may take 30-60 seconds. Confirm to start?"
 
 #: app/templates/knowledge/tw_wiki.html:1163
 #: app/templates/knowledge/tw_wiki.html:1166
@@ -14845,7 +14845,7 @@ msgstr "Submitted"
 
 #: app/templates/knowledge/tw_wiki.html:1259
 msgid "晋升申请"
-msgstr ""
+msgstr "Promotion Application"
 
 #: app/templates/knowledge/tw_wiki.html:1283
 #, fuzzy
@@ -14854,7 +14854,7 @@ msgstr "Source"
 
 #: app/templates/knowledge/tw_wiki.html:1292
 msgid "将对整个 Wiki 执行质检，可能需要 30-60 秒。确认开始吗？"
-msgstr ""
+msgstr "A quality check will be performed on the entire Wiki, which may take 30-60 seconds. Confirm to proceed?"
 
 #: app/templates/knowledge/tw_wiki.html:1315
 #: app/templates/knowledge/tw_wiki.html:1318
@@ -15832,7 +15832,7 @@ msgstr "Channel Manager"
 
 #: app/templates/macros/ui_helpers.html:9307
 msgid "商务助理"
-msgstr ""
+msgstr "Business Assistant"
 
 #: app/templates/macros/ui_helpers.html:9308
 #, fuzzy
@@ -15899,15 +15899,15 @@ msgstr "Save and select"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:101
 msgid "请确认说话人身份"
-msgstr ""
+msgstr "Please confirm the speaker identity"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:103
 msgid "系统识别到"
-msgstr ""
+msgstr "System detected"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:103
 msgid "位说话人，请根据发言内容选择对应的参与者"
-msgstr ""
+msgstr "speaker(s). Please select the corresponding participant based on the speaking content"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:109
 #, fuzzy
@@ -15916,7 +15916,7 @@ msgstr "Skip This Item"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:134
 msgid "试听"
-msgstr ""
+msgstr "Preview"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:141
 #, fuzzy
@@ -15925,7 +15925,7 @@ msgstr "Please select..."
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:145
 msgid "+ 添加外部人员"
-msgstr ""
+msgstr "+ Add External Participant"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:153
 #, fuzzy
@@ -15934,11 +15934,11 @@ msgstr "Please enter contact name"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:162
 msgid "选择的用户将自动添加为会议参与者"
-msgstr ""
+msgstr "Selected users will be automatically added as meeting participants"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:170
 msgid "确认映射并继续"
-msgstr ""
+msgstr "Confirm Mapping and Continue"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:185
 #, fuzzy
@@ -15952,7 +15952,7 @@ msgstr "Process"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:194
 msgid "转录完成后将自动进入说话人映射"
-msgstr ""
+msgstr "Speaker mapping will start automatically after transcription is complete"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:204
 #, fuzzy
@@ -15966,11 +15966,11 @@ msgstr "No conversations"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:212
 msgid "提取关键要点"
-msgstr ""
+msgstr "Extract Key Points"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:216
 msgid "识别行动项..."
-msgstr ""
+msgstr "Identifying action items..."
 
 # 导航菜单缺失翻译
 #: app/templates/meeting/tw_meeting_minutes_detail.html:220
@@ -15985,11 +15985,11 @@ msgstr "Usually takes 30-60 seconds, please wait"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:246
 msgid "完整转录"
-msgstr ""
+msgstr "Full Transcript"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:255
 msgid "录音回放"
-msgstr ""
+msgstr "Recording Playback"
 
 # 导航菜单缺失翻译
 #: app/templates/meeting/tw_meeting_minutes_detail.html:272
@@ -16004,7 +16004,7 @@ msgstr "None"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:283
 msgid "关键要点"
-msgstr ""
+msgstr "Key Points"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:299
 #, fuzzy
@@ -16018,11 +16018,11 @@ msgstr "Overdue"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:333
 msgid "添加到日历"
-msgstr ""
+msgstr "Add to Calendar"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:352
 msgid "决策事项"
-msgstr ""
+msgstr "Decisions"
 
 # 导航菜单缺失翻译
 #: app/templates/meeting/tw_meeting_minutes_detail.html:370
@@ -16033,7 +16033,7 @@ msgstr "Meeting Minutes"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:371
 msgid "完成说话人映射后将自动生成纪要"
-msgstr ""
+msgstr "Meeting notes will be automatically generated after speaker mapping is completed"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:379
 #, fuzzy
@@ -16057,7 +16057,7 @@ msgstr "Generate"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:400
 msgid "发布纪要"
-msgstr ""
+msgstr "Publish Notes"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:416
 #, fuzzy
@@ -16071,11 +16071,11 @@ msgstr "No Records"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:448
 msgid "转录完成后将在此显示完整内容"
-msgstr ""
+msgstr "Full content will be displayed here after transcription is complete"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:516
 msgid "点击转录文本中的时间戳可跳转到对应位置"
-msgstr ""
+msgstr "Click timestamps in the transcript to jump to the corresponding position"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:525
 #, fuzzy
@@ -16097,15 +16097,15 @@ msgstr "No document"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:554
 msgid "适合打印和正式存档"
-msgstr ""
+msgstr "Suitable for printing and formal archiving"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:561
 msgid "适合进一步编辑"
-msgstr ""
+msgstr "Suitable for further editing"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:568
 msgid "适合技术文档和知识库"
-msgstr ""
+msgstr "Suitable for technical documentation and knowledge base"
 
 # 导航菜单缺失翻译
 #: app/templates/meeting/tw_meeting_minutes_detail.html:582
@@ -16115,24 +16115,24 @@ msgstr "Meeting Minutes"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:588
 msgid "分享功能即将上线"
-msgstr ""
+msgstr "Share feature coming soon"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:805
 msgid "重新生成将覆盖当前的会议纪要内容，确定继续吗？"
-msgstr ""
+msgstr "Regenerating will overwrite the current meeting notes. Continue?"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:832
 #: app/templates/meeting/tw_meeting_minutes_detail.html:842
 msgid "编辑功能即将上线"
-msgstr ""
+msgstr "Edit feature coming soon"
 
 #: app/templates/meeting/tw_meeting_minutes_detail.html:837
 msgid "添加到日历功能即将上线"
-msgstr ""
+msgstr "Add to Calendar feature coming soon"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:37
 msgid "发起会议录音"
-msgstr ""
+msgstr "Start Meeting Recording"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:50
 #, fuzzy
@@ -16143,7 +16143,7 @@ msgstr "Search announcement title..."
 #: app/templates/meeting/tw_meeting_minutes_list.html:338
 #: app/templates/worklog/tw_calendar.html:2885
 msgid "转录中"
-msgstr ""
+msgstr "Transcribing"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:59
 #, fuzzy
@@ -16152,7 +16152,7 @@ msgstr "Mapping"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:77
 msgid "从工作日历创建会议行程后，可以在会议详情中开始录音"
-msgstr ""
+msgstr "After creating a meeting schedule from the work calendar, you can start recording in the meeting details"
 
 # 工作日历模块
 #: app/templates/meeting/tw_meeting_minutes_list.html:81
@@ -16179,41 +16179,41 @@ msgstr "Select Template"
 #: app/templates/meeting/tw_meeting_minutes_list.html:204
 #: app/templates/worklog/tw_calendar.html:1214
 msgid "选择适合当前会议场景的录音模式"
-msgstr ""
+msgstr "Select the recording mode suitable for your current meeting scenario"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:211
 #: app/templates/meeting/tw_meeting_recording.html:157
 #: app/templates/worklog/tw_calendar.html:1221
 msgid "仅麦克风"
-msgstr ""
+msgstr "Microphone Only"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:212
 #: app/templates/worklog/tw_calendar.html:1222
 msgid "适用于线下会议、面对面沟通"
-msgstr ""
+msgstr "Suitable for offline meetings and face-to-face communication"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:222
 #: app/templates/meeting/tw_meeting_recording.html:155
 #: app/templates/worklog/tw_calendar.html:1232
 msgid "麦克风 + 系统音频"
-msgstr ""
+msgstr "Microphone + System Audio"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:223
 #: app/templates/worklog/tw_calendar.html:1233
 msgid "适用于在线会议（腾讯会议、Zoom等）"
-msgstr ""
+msgstr "Suitable for online meetings (Tencent Meeting, Zoom, etc.)"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:226
 #: app/templates/worklog/tw_calendar.html:1236
 msgid "需要选择共享屏幕以获取系统音频"
-msgstr ""
+msgstr "Screen sharing needs to be selected to capture system audio"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:337
 #: app/templates/meeting/tw_meeting_recording.html:4
 #: app/templates/meeting/tw_meeting_recording.html:105
 #: app/templates/worklog/tw_calendar.html:2884
 msgid "录音中"
-msgstr ""
+msgstr "Recording"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:339
 #, fuzzy
@@ -16222,15 +16222,15 @@ msgstr "Forward failed"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:340
 msgid "待映射说话人"
-msgstr ""
+msgstr "Unmapped Speaker"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:341
 msgid "纪要生成中"
-msgstr ""
+msgstr "Generating minutes"
 
 #: app/templates/meeting/tw_meeting_minutes_list.html:344
 msgid "已录音"
-msgstr ""
+msgstr "Recording completed"
 
 # ===== 通用类 =====
 #: app/templates/meeting/tw_meeting_recording.html:4
@@ -16248,7 +16248,7 @@ msgstr "Logout"
 
 #: app/templates/meeting/tw_meeting_recording.html:89
 msgid "网络连接已断开，录音将保存在本地，恢复后自动上传"
-msgstr ""
+msgstr "Network connection lost. Recording will be saved locally and uploaded automatically after reconnection."
 
 #: app/templates/meeting/tw_meeting_recording.html:105
 #, fuzzy
@@ -16262,24 +16262,24 @@ msgstr "Not Set"
 
 #: app/templates/meeting/tw_meeting_recording.html:192
 msgid "录音提示："
-msgstr ""
+msgstr "Recording tips:"
 
 #: app/templates/meeting/tw_meeting_recording.html:194
 msgid "录音将自动在后台分段上传，停止时无需等待"
-msgstr ""
+msgstr "Recording will be automatically uploaded in segments in the background. No need to wait when stopping."
 
 #: app/templates/meeting/tw_meeting_recording.html:195
 msgid "请保持稳定的网络连接"
-msgstr ""
+msgstr "Please maintain a stable network connection"
 
 #: app/templates/meeting/tw_meeting_recording.html:196
 msgid "暂停后可继续录音，将合并为同一份记录"
-msgstr ""
+msgstr "You can continue recording after pausing, which will be merged into one record"
 
 #: app/templates/meeting/tw_meeting_recording.html:197
 #: app/templates/meeting/tw_meeting_recording.html:350
 msgid "单次录音最长支持 3 小时"
-msgstr ""
+msgstr "Single recording supports up to 3 hours maximum"
 
 #: app/templates/meeting/tw_meeting_recording.html:209
 #, fuzzy
@@ -16288,11 +16288,11 @@ msgstr "Upload Image"
 
 #: app/templates/meeting/tw_meeting_recording.html:212
 msgid "网络恢复后自动上传"
-msgstr ""
+msgstr "Automatically upload after network recovery"
 
 #: app/templates/meeting/tw_meeting_recording.html:229
 msgid "停止录音"
-msgstr ""
+msgstr "Stop recording"
 
 #: app/templates/meeting/tw_meeting_recording.html:238
 #, fuzzy
@@ -16301,19 +16301,19 @@ msgstr "Are you sure to delete?"
 
 #: app/templates/meeting/tw_meeting_recording.html:242
 msgid "录音时长"
-msgstr ""
+msgstr "Recording duration"
 
 #: app/templates/meeting/tw_meeting_recording.html:248
 msgid "停止后将开始："
-msgstr ""
+msgstr "After stopping, will begin:"
 
 #: app/templates/meeting/tw_meeting_recording.html:250
 msgid "上传剩余音频片段"
-msgstr ""
+msgstr "Upload remaining audio segments"
 
 #: app/templates/meeting/tw_meeting_recording.html:251
 msgid "自动开始语音转录"
-msgstr ""
+msgstr "Automatically start speech transcription"
 
 #: app/templates/meeting/tw_meeting_recording.html:266
 #, fuzzy
@@ -16322,11 +16322,11 @@ msgstr "Confirm"
 
 #: app/templates/meeting/tw_meeting_recording.html:294
 msgid "录音正在进行中，确定要退出吗？"
-msgstr ""
+msgstr "Recording is in progress, are you sure you want to exit?"
 
 #: app/templates/meeting/tw_meeting_recording.html:298
 msgid "退出将停止当前录音。已录制的内容将被保存并开始转录。"
-msgstr ""
+msgstr "Exiting will stop the current recording. The recorded content will be saved and transcription will begin."
 
 #: app/templates/meeting/tw_meeting_recording.html:306
 #: app/templates/meeting/tw_meeting_recording.html:358
@@ -16342,47 +16342,47 @@ msgstr "Save and select"
 
 #: app/templates/meeting/tw_meeting_recording.html:328
 msgid "录音时长提示"
-msgstr ""
+msgstr "Recording duration reminder"
 
 #: app/templates/meeting/tw_meeting_recording.html:340
 msgid "建议："
-msgstr ""
+msgstr "Suggestion:"
 
 #: app/templates/meeting/tw_meeting_recording.html:342
 msgid "长时间录音转录可能需要较长时间"
-msgstr ""
+msgstr "Long recording transcription may take considerable time"
 
 #: app/templates/meeting/tw_meeting_recording.html:343
 msgid "如会议已结束，建议停止录音开始转录"
-msgstr ""
+msgstr "If the meeting has ended, it is recommended to stop recording and start transcription"
 
 #: app/templates/meeting/tw_meeting_recording.html:344
 msgid "如会议继续，录音将正常进行"
-msgstr ""
+msgstr "If the meeting continues, recording will proceed normally"
 
 #: app/templates/meeting/tw_meeting_recording.html:362
 msgid "停止并转录"
-msgstr ""
+msgstr "Stop and transcribe"
 
 #: app/templates/meeting/tw_meeting_recording.html:490
 msgid "麦克风权限被拒绝，请在浏览器设置中允许访问麦克风"
-msgstr ""
+msgstr "Microphone permission denied. Please allow microphone access in your browser settings."
 
 #: app/templates/meeting/tw_meeting_recording.html:492
 msgid "未找到麦克风设备，请检查设备连接"
-msgstr ""
+msgstr "Microphone device not found. Please check device connection."
 
 #: app/templates/meeting/tw_meeting_recording.html:494
 msgid "无法启动录音："
-msgstr ""
+msgstr "Unable to start recording:"
 
 #: app/templates/meeting/tw_meeting_recording.html:505
 msgid "当前录音已超过 1 小时"
-msgstr ""
+msgstr "Current recording has exceeded 1 hour"
 
 #: app/templates/meeting/tw_meeting_recording.html:509
 msgid "当前录音已超过 2 小时"
-msgstr ""
+msgstr "Current recording has exceeded 2 hours"
 
 #: app/templates/meeting/tw_meeting_recording.html:643
 #, fuzzy
@@ -17511,7 +17511,7 @@ msgstr "Serial Numbers"
 #: app/templates/product_sn/tw_list.html:131
 #: app/templates/product_sn/tw_list.html:257
 msgid "批次号"
-msgstr ""
+msgstr "Batch number"
 
 #: app/templates/product_sn/tw_detail.html:91
 #, fuzzy
@@ -17525,7 +17525,7 @@ msgstr "Version"
 
 #: app/templates/product_sn/tw_detail.html:93
 msgid "MAC地址"
-msgstr ""
+msgstr "MAC address"
 
 #: app/templates/product_sn/tw_detail.html:94
 #, fuzzy
@@ -17571,7 +17571,7 @@ msgstr "Date"
 
 #: app/templates/product_sn/tw_detail.html:122
 msgid "目的地"
-msgstr ""
+msgstr "Destination"
 
 #: app/templates/product_sn/tw_detail.html:123
 #, fuzzy
@@ -17585,11 +17585,11 @@ msgstr "Save info"
 
 #: app/templates/product_sn/tw_detail.html:142
 msgid "质保开始"
-msgstr ""
+msgstr "Warranty start"
 
 #: app/templates/product_sn/tw_detail.html:143
 msgid "质保结束"
-msgstr ""
+msgstr "Warranty end"
 
 #: app/templates/product_sn/tw_detail.html:144
 #, fuzzy
@@ -17598,11 +17598,11 @@ msgstr "Status"
 
 #: app/templates/product_sn/tw_detail.html:144
 msgid "在保"
-msgstr ""
+msgstr "Under warranty"
 
 #: app/templates/product_sn/tw_detail.html:144
 msgid "过保"
-msgstr ""
+msgstr "Out of warranty"
 
 #: app/templates/product_sn/tw_detail.html:145
 #, fuzzy
@@ -17615,7 +17615,7 @@ msgstr "Stock in"
 
 #: app/templates/product_sn/tw_detail.html:174
 msgid "生命周期"
-msgstr ""
+msgstr "Lifecycle"
 
 #: app/templates/product_sn/tw_detail.html:227
 #, fuzzy
@@ -17629,7 +17629,7 @@ msgstr "Serial Numbers"
 
 #: app/templates/product_sn/tw_detail.html:276
 msgid "例如: A-01-03"
-msgstr ""
+msgstr "Example: A-01-03"
 
 #: app/templates/product_sn/tw_detail.html:294
 #, fuzzy
@@ -17643,7 +17643,7 @@ msgstr "Please enter position"
 
 #: app/templates/product_sn/tw_list.html:79
 msgid "已登记"
-msgstr ""
+msgstr "Registered"
 
 #: app/templates/product_sn/tw_list.html:81
 #, fuzzy
@@ -17652,7 +17652,7 @@ msgstr "Inventory"
 
 #: app/templates/product_sn/tw_list.html:83
 msgid "已预留"
-msgstr ""
+msgstr "Reserved"
 
 #: app/templates/product_sn/tw_list.html:87
 #, fuzzy
@@ -17661,16 +17661,16 @@ msgstr "Paid"
 
 #: app/templates/product_sn/tw_list.html:96
 msgid "搜索序列号或批次号..."
-msgstr ""
+msgstr "Search serial number or batch number..."
 
 #: app/templates/product_sn/tw_list.html:229
 msgid "手动录入序列号"
-msgstr ""
+msgstr "Manual entry of serial number"
 
 #: app/templates/product_sn/tw_list.html:241
 #: app/templates/product_sn/tw_list.html:375
 msgid "请输入序列号"
-msgstr ""
+msgstr "Please enter the serial number"
 
 #: app/templates/product_sn/tw_list.html:292
 #, fuzzy
@@ -17699,11 +17699,11 @@ msgstr "Drag files here"
 
 #: app/templates/product_sn/tw_list.html:315
 msgid "支持 Excel(.xlsx, .xls) 或 CSV 格式"
-msgstr ""
+msgstr "Support Excel (.xlsx, .xls) or CSV format"
 
 #: app/templates/product_sn/tw_list.html:322
 msgid "步骤3: 数据预览"
-msgstr ""
+msgstr "Step 3: Data Preview"
 
 #: app/templates/product_sn/tw_list.html:324
 #, fuzzy
@@ -17712,7 +17712,7 @@ msgstr "Valid Until"
 
 #: app/templates/product_sn/tw_list.html:325
 msgid "重复"
-msgstr ""
+msgstr "Duplicate"
 
 #: app/templates/product_sn/tw_list.html:338
 #: app/templates/spec_template/tw_configurations.html:531
@@ -18110,12 +18110,12 @@ msgstr "Add Quote"
 #: app/templates/project/tw_project_detail.html:938
 #: app/templates/system_diagram/tw_editor.html:411
 msgid "矢量图"
-msgstr ""
+msgstr "Vector Image"
 
 #: app/templates/project/tw_project_detail.html:939
 #: app/templates/system_diagram/tw_editor.html:411
 msgid "位图"
-msgstr ""
+msgstr "Bitmap"
 
 #: app/templates/project/tw_project_detail.html:978
 #: app/templates/system_diagram/tw_list.html:136
@@ -18218,7 +18218,7 @@ msgstr "Delete"
 
 #: app/templates/project/tw_project_detail.html:1318
 msgid "」将同时删除以下关联数据："
-msgstr ""
+msgstr "」will also delete the following associated data:"
 
 #: app/templates/project/tw_project_detail.html:1460
 msgid "项目尚未提交审批"
@@ -18511,7 +18511,7 @@ msgstr "Reconfirmation Required"
 #: app/templates/quotation/tw_list.html:334
 #: app/templates/quotation/tw_quotation_detail.html:400
 msgid "以下产品未填写市场单价"
-msgstr ""
+msgstr "The following products have not filled in market unit price"
 
 #: app/templates/quotation/tw_list.html:335
 #: app/templates/quotation/tw_quotation_detail.html:401
@@ -18543,7 +18543,7 @@ msgstr "Total Installation Amount"
 
 #: app/templates/quotation/tw_quotation_detail.html:196
 msgid "变更历史"
-msgstr ""
+msgstr "Change History"
 
 #: app/templates/quotation/tw_quotation_detail.html:231
 msgid "暂无关联报价单"
@@ -18688,7 +18688,7 @@ msgstr "PDF file download started"
 
 #: app/templates/quotation/tw_quotation_detail.html:1246
 msgid "以下产品未填写市场单价，无法保存"
-msgstr ""
+msgstr "The following products have not filled in market unit price and cannot be saved"
 
 #: app/templates/quotation/tw_quotation_detail.html:1280
 msgid "报价单已更新"
@@ -18696,7 +18696,7 @@ msgstr "Quotation updated"
 
 #: app/templates/quotation/tw_quotation_detail.html:1430
 msgid "获取地区面价失败，请检查网络后重试"
-msgstr ""
+msgstr "Failed to get regional pricing, please check your network and try again"
 
 #: app/templates/quotation/partials/_quotation_modal_fields.html:36
 msgid "搜索项目..."
@@ -18708,7 +18708,7 @@ msgstr "-- Please select project first --"
 
 #: app/templates/quotation/partials/_quotation_modal_fields.html:125
 msgid "更多选项"
-msgstr ""
+msgstr "More Options"
 
 #: app/templates/quotation/partials/_quotation_modal_fields.html:135
 msgid "添加自建产品"
@@ -18748,7 +18748,7 @@ msgstr "Order"
 
 #: app/templates/sales_order/tw_detail.html:114
 msgid "交付信息"
-msgstr ""
+msgstr "Delivery Information"
 
 #: app/templates/sales_order/tw_detail.html:116
 msgid "交付地址"
@@ -18766,7 +18766,7 @@ msgstr "Sent"
 
 #: app/templates/sales_order/tw_detail.html:136
 msgid "已收"
-msgstr ""
+msgstr "Received"
 
 #: app/templates/sales_order/tw_detail.html:164
 #: app/templates/shipment/tw_detail.html:172
@@ -18782,11 +18782,11 @@ msgstr "Progress"
 #: app/templates/sales_order/tw_detail.html:196
 #: app/templates/shipment/tw_list.html:70
 msgid "已签收"
-msgstr ""
+msgstr "Signed"
 
 #: app/templates/sales_order/tw_detail.html:210
 msgid "发货记录"
-msgstr ""
+msgstr "Shipment Records"
 
 #: app/templates/sales_order/tw_detail.html:232
 #, fuzzy
@@ -18803,12 +18803,12 @@ msgstr ""
 #: app/templates/sales_order/tw_detail.html:295
 #: app/templates/shipment/tw_detail.html:120
 msgid "收货人"
-msgstr ""
+msgstr "Recipient"
 
 #: app/templates/sales_order/tw_detail.html:306
 #: app/templates/shipment/tw_detail.html:134
 msgid "发货明细"
-msgstr ""
+msgstr "Shipment Details"
 
 #: app/templates/sales_order/tw_detail.html:312
 #, fuzzy
@@ -18835,11 +18835,11 @@ msgstr "Confirm"
 
 #: app/templates/shipment/tw_detail.html:110
 msgid "实际到达"
-msgstr ""
+msgstr "Actual Arrival"
 
 #: app/templates/shipment/tw_detail.html:115
 msgid "收发货信息"
-msgstr ""
+msgstr "Shipment and Receipt Information"
 
 #: app/templates/shipment/tw_detail.html:117
 #, fuzzy
@@ -18848,12 +18848,12 @@ msgstr "Address"
 
 #: app/templates/shipment/tw_detail.html:126
 msgid "签收信息"
-msgstr ""
+msgstr "Signature Information"
 
 #: app/templates/shipment/tw_detail.html:127
 #: app/templates/shipment/tw_detail.html:258
 msgid "签收人"
-msgstr ""
+msgstr "Signed by"
 
 #: app/templates/shipment/tw_detail.html:128
 #: app/templates/shipment/tw_detail.html:262
@@ -18874,7 +18874,7 @@ msgstr "Quantity"
 
 #: app/templates/shipment/tw_detail.html:186
 msgid "物流跟踪"
-msgstr ""
+msgstr "Logistics Tracking"
 
 #: app/templates/shipment/tw_detail.html:219
 #: app/templates/shipment/tw_list.html:102
@@ -18889,7 +18889,7 @@ msgstr "No Association"
 
 #: app/templates/shipment/tw_list.html:66
 msgid "运输中"
-msgstr ""
+msgstr "In Transit"
 
 #: app/templates/shipment/tw_list.html:68
 #, fuzzy
@@ -18898,7 +18898,7 @@ msgstr "Sent"
 
 #: app/templates/shipment/tw_list.html:79
 msgid "搜索发货单号或运单号..."
-msgstr ""
+msgstr "Search by shipment number or tracking number..."
 
 #: app/templates/shipment/tw_list.html:101
 #, fuzzy
@@ -18997,15 +18997,15 @@ msgstr "No options yet, click the button above to add"
 
 #: app/templates/spec_definition/tw_list.html:489
 msgid "个产品规格需要同步更新"
-msgstr ""
+msgstr "%(count)d product specifications need to be synced"
 
 #: app/templates/spec_definition/tw_list.html:496
 msgid "暂不同步"
-msgstr ""
+msgstr "Don't Sync Now"
 
 #: app/templates/spec_definition/tw_list.html:506
 msgid "立即同步"
-msgstr ""
+msgstr "Sync Now"
 
 #: app/templates/spec_definition/tw_list.html:520
 #: app/templates/spec_template/tw_edit.html:618
@@ -19018,7 +19018,7 @@ msgstr "Enter indicator value"
 #: app/templates/spec_template/tw_edit.html:642
 #: app/templates/spec_template/tw_spec_config_matrix.html:864
 msgid "建议英文值"
-msgstr ""
+msgstr "Suggested English Value"
 
 #: app/templates/spec_definition/tw_list.html:577
 #, fuzzy
@@ -19027,7 +19027,7 @@ msgstr "Click to sync to products"
 
 #: app/templates/spec_definition/tw_list.html:579
 msgid "以下产品的规格将被更新"
-msgstr ""
+msgstr "The following products' specifications will be updated"
 
 #: app/templates/spec_definition/tw_list.html:604
 #, fuzzy
@@ -19445,7 +19445,7 @@ msgstr "Are you sure you want to delete this configuration?"
 
 #: app/templates/spec_template/tw_configurations.html:453
 msgid "配置 vs 产品库对比"
-msgstr ""
+msgstr "Configuration vs Product Library Comparison"
 
 #: app/templates/spec_template/tw_configurations.html:480
 #: app/templates/spec_template/tw_spec_config_matrix.html:740
@@ -19622,7 +19622,7 @@ msgstr "Name"
 
 #: app/templates/spec_template/tw_edit.html:213
 msgid "可选：Template Name (EN)"
-msgstr ""
+msgstr "Optional: Template Name (EN)"
 
 #: app/templates/spec_template/tw_edit.html:225
 msgid "可选：模板描述"
@@ -19649,7 +19649,7 @@ msgstr "Code"
 
 #: app/templates/spec_template/tw_edit.html:283
 msgid "非编码区域"
-msgstr ""
+msgstr "Non-coded Area"
 
 #: app/templates/spec_template/tw_edit.html:377
 msgid "通用值 (General)"
@@ -19657,7 +19657,7 @@ msgstr "General Value"
 
 #: app/templates/spec_template/tw_edit.html:378
 msgid "从指标中选择"
-msgstr ""
+msgstr "Select from Metrics"
 
 #: app/templates/spec_template/tw_edit.html:382
 #, fuzzy
@@ -19725,7 +19725,7 @@ msgstr "Code Specs"
 
 #: app/templates/spec_template/tw_edit.html:1792
 msgid "编码参与状态变更"
-msgstr ""
+msgstr "Encoding Status Change"
 
 #: app/templates/spec_template/tw_edit.html:1793
 #, fuzzy
@@ -19734,7 +19734,7 @@ msgstr "Code Length"
 
 #: app/templates/spec_template/tw_edit.html:1794
 msgid "编码顺序变更"
-msgstr ""
+msgstr "Encoding Order Change"
 
 #: app/templates/spec_template/tw_edit.html:1795
 #, fuzzy
@@ -19847,7 +19847,7 @@ msgstr "No spec templates"
 #: app/templates/spec_template/tw_list.html:233
 #, python-format
 msgid "已配置: %(c)s · 未配置: %(u)s · 产品: %(p)s · 未关联: %(un)s"
-msgstr ""
+msgstr "Configured: %(c)s · Unconfigured: %(u)s · Products: %(p)s · Unlinked: %(un)s"
 
 #: app/templates/spec_template/tw_list.html:283
 #: app/templates/spec_template/tw_list.html:393
@@ -19921,7 +19921,7 @@ msgstr "Please select a file"
 #: app/templates/spec_template/tw_spec_config_matrix.html:2327
 #: app/views/spec_template.py:2823 app/views/spec_template.py:2898
 msgid "请上传Excel文件（.xlsx或.xls格式）"
-msgstr ""
+msgstr "Please upload an Excel file (.xlsx or .xls format)"
 
 #: app/templates/spec_template/tw_list.html:512
 #, fuzzy
@@ -19955,7 +19955,7 @@ msgstr "MN code position "
 
 #: app/templates/spec_template/tw_spec_config_matrix.html:447
 msgid "位"
-msgstr ""
+msgstr "Bit"
 
 #: app/templates/spec_template/tw_spec_config_matrix.html:464
 msgid "MN编码已锁定，不可编辑"
@@ -20047,7 +20047,7 @@ msgstr "Save Values Only"
 
 #: app/templates/spec_template/tw_spec_config_matrix.html:690
 msgid "当前显示默认附件，上传后将使用配置特定附件"
-msgstr ""
+msgstr "Currently displaying default attachment. After upload, configuration-specific attachment will be used"
 
 #: app/templates/spec_template/tw_spec_config_matrix.html:712
 #, fuzzy
@@ -20056,7 +20056,7 @@ msgstr "Click to Upload"
 
 #: app/templates/spec_template/tw_spec_config_matrix.html:714
 msgid "支持 PDF、JPG、PNG 格式，单个文件最大 10MB"
-msgstr ""
+msgstr "Supports PDF, JPG, PNG formats, max 10MB per file"
 
 #: app/templates/spec_template/tw_spec_config_matrix.html:876
 #, fuzzy
@@ -20256,7 +20256,7 @@ msgstr "Recenter star graph on this"
 
 #: app/templates/star_graph/tw_star_graph.html:551
 msgid "为中心重新展开星图"
-msgstr ""
+msgstr "Re-expand star chart to center"
 
 #: app/templates/star_graph/tw_star_graph.html:1064
 #, fuzzy
@@ -20265,7 +20265,7 @@ msgstr "Switch Center"
 
 #: app/templates/star_graph/tw_star_graph.html:1066
 msgid "点击展开更多"
-msgstr ""
+msgstr "Click to expand more"
 
 #: app/templates/star_graph/tw_star_graph.html:1147
 msgid "数据加载失败，请刷新重试"
@@ -20289,7 +20289,7 @@ msgstr "Loading products..."
 
 #: app/templates/system_diagram/tw_editor.html:368
 msgid "显示/隐藏产品面板"
-msgstr ""
+msgstr "Show/Hide product panel"
 
 #: app/templates/system_diagram/tw_editor.html:371
 #: app/templates/system_diagram/tw_editor.html:434
@@ -20360,7 +20360,7 @@ msgstr "Export cancelled"
 
 #: app/templates/system_diagram/tw_editor.html:414
 msgid "从系统图生成报价清单"
-msgstr ""
+msgstr "Generate quote list from system diagram"
 
 #: app/templates/system_diagram/tw_editor.html:414
 #, fuzzy
@@ -20398,11 +20398,11 @@ msgstr "Please select PDF file"
 
 #: app/templates/system_diagram/tw_editor.html:533
 msgid "导入选中页面"
-msgstr ""
+msgstr "Import selected pages"
 
 #: app/templates/system_diagram/tw_editor.html:545
 msgid "物料清单预览"
-msgstr ""
+msgstr "Bill of materials preview"
 
 #: app/templates/system_diagram/tw_editor.html:546
 #, fuzzy
@@ -20585,7 +20585,7 @@ msgstr "Use grade defaults"
 
 #: app/templates/user/edit.html:148
 msgid "用于报销默认货币、预算统计和薪资计算"
-msgstr ""
+msgstr "Used for reimbursement default currency, budget statistics, and payroll calculation"
 
 #: app/templates/user/edit.html:154
 msgid "保存用户"
@@ -20605,7 +20605,7 @@ msgstr "Department"
 
 #: app/templates/user/tw_department_management.html:85
 msgid "按公司筛选"
-msgstr ""
+msgstr "Filter by company"
 
 #: app/templates/user/tw_department_management.html:88
 msgid "全部公司"
@@ -20659,7 +20659,7 @@ msgstr "? This action cannot be undone."
 
 #: app/templates/user/tw_department_management.html:369
 msgid "部门名称和所属公司不能为空"
-msgstr ""
+msgstr "Department name and company cannot be empty"
 
 #: app/templates/user/tw_department_management.html:402
 #: app/templates/user/tw_department_management.html:433
@@ -20719,7 +20719,7 @@ msgstr "No"
 
 #: app/templates/user/tw_detail.html:236
 msgid "管理的部门"
-msgstr ""
+msgstr "Managed departments"
 
 #: app/templates/user/tw_detail.html:248
 #, fuzzy
@@ -20728,7 +20728,7 @@ msgstr "Cur"
 
 #: app/templates/user/tw_detail.html:248
 msgid "越南盾"
-msgstr ""
+msgstr "Vietnamese Dong"
 
 #: app/templates/user/tw_detail.html:258
 msgid "AI功能"
@@ -20928,7 +20928,7 @@ msgstr "Role assigned by administrator"
 
 #: app/templates/user/tw_profile.html:191
 msgid "用于报销默认货币和薪资计算"
-msgstr ""
+msgstr "Used for reimbursement default currency and payroll calculation"
 
 #: app/templates/user/tw_profile.html:200
 msgid "系统管理员特权"
@@ -21288,7 +21288,7 @@ msgstr "No Records"
 
 #: app/templates/worklog/tw_calendar.html:1140
 msgid "开始录音"
-msgstr ""
+msgstr "Start recording"
 
 #: app/templates/worklog/tw_calendar.html:1174
 #, fuzzy
@@ -21317,7 +21317,7 @@ msgstr "Once submitted, it cannot be modified. Are you sure you want to submit?"
 
 #: app/templates/worklog/tw_calendar.html:1680
 msgid "删除后无法恢复，确定要删除此日志吗？"
-msgstr ""
+msgstr "Cannot be recovered after deletion. Are you sure you want to delete this log?"
 
 #: app/templates/worklog/tw_calendar.html:1690
 msgid "确定要取消这个工作项吗？"
@@ -21364,11 +21364,11 @@ msgstr "Upload"
 
 #: app/templates/worklog/tw_calendar.html:2928
 msgid "关联了客户或项目时，请填写行动记录"
-msgstr ""
+msgstr "Please fill in action record when associated with customer or project"
 
 #: app/templates/worklog/tw_calendar.html:2950
 msgid "行动记录将同步到客户/项目"
-msgstr ""
+msgstr "Action record will sync to customer/project"
 
 #: app/templates/worklog/tw_calendar.html:2970
 #: app/templates/worklog/tw_calendar.html:3092
@@ -21386,7 +21386,7 @@ msgstr "Please fill in actual hours"
 
 #: app/templates/worklog/tw_calendar.html:3165
 msgid "不能为未来日期添加日志"
-msgstr ""
+msgstr "Cannot add log for future dates"
 
 #: app/templates/worklog/tw_calendar.html:3398
 msgid "备注已保存"
@@ -21905,7 +21905,7 @@ msgstr "Server error"
 
 #: app/views/meeting.py:296 app/views/meeting.py:978
 msgid "无权访问"
-msgstr ""
+msgstr "Access denied"
 
 #: app/views/meeting.py:333
 #, fuzzy
@@ -21914,7 +21914,7 @@ msgstr "File"
 
 #: app/views/meeting.py:408
 msgid "当前状态无法开始转录"
-msgstr ""
+msgstr "Cannot start transcription in current status"
 
 #: app/views/meeting.py:419
 #, fuzzy
@@ -21933,15 +21933,15 @@ msgstr "Forward failed"
 
 #: app/views/meeting.py:469
 msgid "说话人识别完成"
-msgstr ""
+msgstr "Speaker identification completed"
 
 #: app/views/meeting.py:476
 msgid "说话人识别失败："
-msgstr ""
+msgstr "Speaker identification failed:"
 
 #: app/views/meeting.py:530
 msgid "说话人映射已保存"
-msgstr ""
+msgstr "Speaker mapping saved"
 
 #: app/views/meeting.py:549
 #, fuzzy
@@ -21950,11 +21950,11 @@ msgstr "Incomplete"
 
 #: app/views/meeting.py:566
 msgid "纪要生成完成"
-msgstr ""
+msgstr "Minutes generation completed"
 
 #: app/views/meeting.py:575
 msgid "纪要生成失败："
-msgstr ""
+msgstr "Minutes generation failed:"
 
 #: app/views/meeting.py:634
 #, fuzzy
@@ -21991,11 +21991,11 @@ msgstr "Quotation"
 
 #: app/views/product_analysis.py:1322
 msgid "丢失"
-msgstr ""
+msgstr "Missing"
 
 #: app/views/product_analysis.py:1487
 msgid "仅管理员可使用导出功能"
-msgstr ""
+msgstr "Only administrators can use export feature"
 
 #: app/views/product_analysis.py:1571
 #, fuzzy
@@ -22247,11 +22247,11 @@ msgstr "Project updated successfully"
 
 #: app/views/spec_definition.py:194
 msgid "该规格项已被模板使用，无法删除"
-msgstr ""
+msgstr "This spec item is in use by a template and cannot be deleted"
 
 #: app/views/spec_definition.py:202
 msgid "该规格项下有指标选项，请先删除指标"
-msgstr ""
+msgstr "This spec has metric options. Please delete metrics first"
 
 #: app/views/spec_definition.py:210
 #, fuzzy
@@ -22275,7 +22275,7 @@ msgstr "Cannot be empty"
 
 #: app/views/spec_definition.py:305
 msgid "该分类代码已存在"
-msgstr ""
+msgstr "This category code already exists"
 
 #: app/views/spec_definition.py:310 app/views/spec_definition.py:350
 #, fuzzy
@@ -22295,7 +22295,7 @@ msgstr "Spec Categories"
 #: app/views/spec_definition.py:384
 #, python-format
 msgid "该分类下有 %(count)s 个规格定义，请先删除或移动这些规格项"
-msgstr ""
+msgstr "There are %(count)s spec definitions in this category. Please delete or move these items first"
 
 #: app/views/spec_definition.py:392
 #, fuzzy
@@ -22304,7 +22304,7 @@ msgstr "Spec Categories"
 
 #: app/views/spec_definition.py:477 app/views/spec_definition.py:511
 msgid "测试方法名称不能为空"
-msgstr ""
+msgstr "Test method name cannot be empty"
 
 #: app/views/spec_definition.py:481 app/views/spec_definition.py:518
 #, fuzzy
@@ -22364,7 +22364,7 @@ msgstr "Created successfully"
 #: app/views/spec_definition.py:770
 #, python-format
 msgid "该指标已被 %(count)s 个子分类引用，无法删除"
-msgstr ""
+msgstr "This metric is referenced by %(count)s subcategories and cannot be deleted"
 
 #: app/views/spec_definition.py:777
 #, fuzzy
@@ -22394,7 +22394,7 @@ msgstr "Missing parameters"
 #: app/views/spec_definition.py:951
 #, python-format
 msgid "同步完成：%(specs)s 条规格，%(products)s 个产品"
-msgstr ""
+msgstr "Sync completed: %(specs)s specs, %(products)s products"
 
 #: app/views/spec_template.py:856 app/views/spec_template.py:947
 #, fuzzy
@@ -22404,41 +22404,41 @@ msgstr "Model"
 #: app/views/spec_template.py:861 app/views/spec_template.py:956
 #: app/views/spec_template.py:1245
 msgid "该型号的规格模板已存在"
-msgstr ""
+msgstr "Spec template for this model already exists"
 
 #: app/views/spec_template.py:1011
 #, python-format
 msgid "编码项「%(name)s」已被配置引用，不可删除"
-msgstr ""
+msgstr "Code item \"%(name)s\" is referenced by configuration and cannot be deleted"
 
 #: app/views/spec_template.py:1018
 #, python-format
 msgid "编码项「%(name)s」已被配置引用，不可取消编码"
-msgstr ""
+msgstr "Code item \"%(name)s\" is referenced by configuration and cannot be unencoded"
 
 #: app/views/spec_template.py:1023
 #, python-format
 msgid "编码项「%(name)s」已被配置引用，不可更改顺序（当前: %(old)s, 提交: %(new)s）"
-msgstr ""
+msgstr "Code item \"%(name)s\" is referenced by configuration and order cannot be changed (current: %(old)s, submitted: %(new)s)"
 
 #: app/views/spec_template.py:1029
 #, python-format
 msgid "编码项「%(name)s」已被配置引用，不可更改编码长度"
-msgstr ""
+msgstr "Code item \"%(name)s\" is referenced by configuration and code length cannot be changed"
 
 #: app/views/spec_template.py:1039
 #, python-format
 msgid "新编码项「%(name)s」的顺序 %(order)s 必须大于已有编码项最大顺序 %(max)s"
-msgstr ""
+msgstr "New code item \"%(name)s\" order %(order)s must be greater than the max existing order %(max)s"
 
 #: app/views/spec_template.py:1047
 #, python-format
 msgid "模板已有 %(count)s 个配置已生成产品，编码项受固化保护"
-msgstr ""
+msgstr "The template has %(count)s configurations that have generated products. Encoding items are protected from modification."
 
 #: app/views/spec_template.py:1061
 msgid "检测到结构性变更，需要确认是否升级版本"
-msgstr ""
+msgstr "Structural changes detected. Please confirm whether to upgrade the version."
 
 #: app/views/spec_template.py:1194
 #, fuzzy
@@ -22448,7 +22448,7 @@ msgstr "Spec Templates"
 #: app/views/spec_template.py:1196
 #, python-format
 msgid "，已自动更新 %(count)s 个未锁定配置的编码"
-msgstr ""
+msgstr ", automatically updated encoding for %(count)s unlocked configurations."
 
 #: app/views/spec_template.py:1219
 #, fuzzy
@@ -22473,7 +22473,7 @@ msgstr "Cannot be empty"
 #: app/views/spec_template.py:1552 app/views/spec_template.py:1670
 #: app/views/spec_template.py:1786
 msgid "该配置编码已存在"
-msgstr ""
+msgstr "This configuration encoding already exists."
 
 #: app/views/spec_template.py:1606
 #, fuzzy
@@ -22521,11 +22521,11 @@ msgstr "Inconsistent"
 
 #: app/views/spec_template.py:1897 app/views/spec_template.py:1937
 msgid "地区码不同"
-msgstr ""
+msgstr "Region codes do not match."
 
 #: app/views/spec_template.py:1953
 msgid "SG 产品库不可用"
-msgstr ""
+msgstr "SG product repository is unavailable."
 
 #: app/views/spec_template.py:2059
 #, fuzzy
@@ -22535,24 +22535,24 @@ msgstr "This product has no associated configuration version"
 #: app/views/spec_template.py:2085
 #, python-format
 msgid "已关联产品 %(mn)s，规格已同步"
-msgstr ""
+msgstr "Product %(mn)s linked. Specifications have been synced."
 
 #: app/views/spec_template.py:2094
 msgid "SG 产品不存在"
-msgstr ""
+msgstr "SG product does not exist."
 
 #: app/views/spec_template.py:2140
 msgid "，SG 产品规格已同步"
-msgstr ""
+msgstr ", SG product specifications have been synced."
 
 #: app/views/spec_template.py:2142
 #, python-format
 msgid "，SG 规格同步失败: %(msg)s"
-msgstr ""
+msgstr ", SG specification sync failed: %(msg)s"
 
 #: app/views/spec_template.py:2144
 msgid "（SG API 未配置，需手动同步规格）"
-msgstr ""
+msgstr "(SG API not configured. Manual specification sync required.)"
 
 #: app/views/spec_template.py:2147
 #, python-format
@@ -22562,7 +22562,7 @@ msgstr "(SG spec sync failed: %(err)s)"
 #: app/views/spec_template.py:2151
 #, python-format
 msgid "已关联 SG 产品 %(mn)s"
-msgstr ""
+msgstr "SG product %(mn)s linked."
 
 #: app/views/spec_template.py:2156 app/views/spec_template.py:2222
 #, fuzzy
@@ -22577,12 +22577,12 @@ msgstr "This product has no associated configuration version"
 #: app/views/spec_template.py:2207
 #, python-format
 msgid "已解除关联，配置编码已更新为 %(mn)s"
-msgstr ""
+msgstr "Association removed. Configuration encoding updated to %(mn)s."
 
 #: app/views/spec_template.py:2219
 #, python-format
 msgid "已解除 SG 产品关联，配置编码已更新为 %(mn)s"
-msgstr ""
+msgstr "SG product association removed. Configuration encoding updated to %(mn)s."
 
 #: app/views/spec_template.py:2353
 #, fuzzy
@@ -22595,7 +22595,7 @@ msgstr "Spec values updated (MN code is locked)"
 
 #: app/views/spec_template.py:2758
 msgid "SG API 未配置"
-msgstr ""
+msgstr "SG API not configured."
 
 #: app/views/spec_template.py:2761
 #, python-format
@@ -22619,7 +22619,7 @@ msgstr "Import failed: %(error)s"
 
 #: app/views/spec_template.py:2926
 msgid "不支持的文件类型，仅支持图片和PDF"
-msgstr ""
+msgstr "Unsupported file type. Only images and PDFs are supported."
 
 #: app/views/spec_template.py:2934
 #, fuzzy
@@ -22628,7 +22628,7 @@ msgstr "File size cannot exceed 12MB"
 
 #: app/views/spec_template.py:2972 app/views/spec_template.py:3178
 msgid "该规格项不允许上传附件"
-msgstr ""
+msgstr "This specification item does not allow file attachments."
 
 #: app/views/spec_template.py:3102 app/views/worklog.py:1671
 #: app/views/worklog.py:1682 app/views/worklog.py:1929
@@ -22639,7 +22639,7 @@ msgstr "Failed to get preview"
 
 #: app/views/spec_template.py:3171
 msgid "该配置版本已锁定，无法修改"
-msgstr ""
+msgstr "This configuration version is locked and cannot be modified."
 
 #: app/views/star_graph.py:153 app/views/star_graph.py:506
 msgid "销售经理"
@@ -22704,7 +22704,7 @@ msgstr "Only PNG/JPG formats supported"
 
 #: app/views/system_diagram.py:462
 msgid "PDF 文件已过期，请重新上传"
-msgstr ""
+msgstr "PDF file has expired. Please upload again."
 
 #: app/views/system_diagram.py:622
 #, fuzzy
@@ -22718,7 +22718,7 @@ msgstr "Project not found"
 
 #: app/views/system_diagram.py:634
 msgid "报价单必须包含至少一个明细项"
-msgstr ""
+msgstr "Quote must contain at least one line item."
 
 #: app/views/system_diagram.py:706
 #, fuzzy
@@ -22727,7 +22727,7 @@ msgstr "Quotation created successfully!"
 
 #: app/views/system_diagram.py:881
 msgid "链接无效"
-msgstr ""
+msgstr "Invalid link."
 
 #: app/views/system_diagram.py:883
 #, fuzzy
@@ -22741,16 +22741,16 @@ msgstr "Overdue"
 
 #: app/views/system_diagram.py:914
 msgid "邮箱地址与分享指定的收件人不匹配"
-msgstr ""
+msgstr "Email address does not match the specified recipient for sharing."
 
 #: app/views/system_diagram.py:976
 msgid "当前为只读权限，无法保存"
-msgstr ""
+msgstr "Current read-only access. Unable to save."
 
 #: app/views/system_diagram.py:980 app/views/system_diagram.py:1035
 #: app/views/system_diagram.py:1078
 msgid "请先验证邮箱"
-msgstr ""
+msgstr "Please verify your email first."
 
 #: app/views/system_diagram.py:994
 #, fuzzy
@@ -22781,7 +22781,7 @@ msgstr "Attachment uploaded"
 
 #: app/views/task.py:399
 msgid "只能删除自己上传的附件"
-msgstr ""
+msgstr "You can only delete attachments you uploaded."
 
 #: app/views/task.py:412
 msgid "附件已删除"
@@ -22960,11 +22960,11 @@ msgstr "No permission to view this work item"
 
 #: app/views/worklog.py:808
 msgid "只有创建人可以修改此行程"
-msgstr ""
+msgstr "Only the creator can modify this itinerary."
 
 #: app/views/worklog.py:975
 msgid "只有创建人可以删除此行程"
-msgstr ""
+msgstr "Only the creator can delete this itinerary."
 
 #: app/views/worklog.py:1000
 msgid "已作废"
@@ -22972,11 +22972,11 @@ msgstr "Invalidated"
 
 #: app/views/worklog.py:1024
 msgid "只有创建人可以标记此行程完成"
-msgstr ""
+msgstr "Only the creator can mark this itinerary as completed."
 
 #: app/views/worklog.py:1097
 msgid "只有创建人可以取消此行程"
-msgstr ""
+msgstr "Only the creator can cancel this itinerary."
 
 #: app/views/worklog.py:1449 app/views/worklog.py:1836
 #: app/views/worklog.py:1875 app/views/worklog.py:2270
@@ -23017,7 +23017,7 @@ msgstr "Invoice file not found"
 
 #: app/views/worklog.py:1684 app/views/worklog.py:1943
 msgid "无效的文件URL"
-msgstr ""
+msgstr "Invalid file URL."
 
 #: app/views/worklog.py:1688 app/views/worklog.py:1947
 #, fuzzy
@@ -23060,23 +23060,23 @@ msgstr "No permission to delete this comment"
 
 #: app/views/worklog.py:2261
 msgid "缺少 owner_id 参数"
-msgstr ""
+msgstr "Missing owner_id parameter."
 
 #: app/views/worklog.py:2274
 msgid "只能对已提交的日志进行反馈"
-msgstr ""
+msgstr "Feedback can only be given on submitted logs."
 
 #: app/views/worklog.py:2278
 msgid "不能给自己的日志点赞"
-msgstr ""
+msgstr "Cannot like your own log."
 
 #: app/views/worklog.py:2283
 msgid "缺少反馈类型"
-msgstr ""
+msgstr "Missing feedback type."
 
 #: app/views/worklog.py:2287
 msgid "无效的反馈类型"
-msgstr ""
+msgstr "Invalid feedback type."
 
 # ── Wiki 分享功能 ──
 #: app/templates/knowledge/tw_wiki.html:213

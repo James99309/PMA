@@ -980,7 +980,7 @@ def approve(instance_id):
                             behavior_code='project_approver_acted',
                             source_type='approval_project',
                             source_id=f'{instance.object_id}_approver_{current_user.id}',
-                            memo=f'参与项目审批 #{instance.object_id}',
+                            context=f'#{instance.object_id}',
                         )
                     elif instance.object_type == 'pricing_order':
                         award_points(
@@ -988,7 +988,7 @@ def approve(instance_id):
                             behavior_code='pricing_order_approver_acted',
                             source_type='approval_pricing_order',
                             source_id=f'{instance.object_id}_approver_{current_user.id}',
-                            memo=f'参与批价单审批 #{instance.object_id}',
+                            context=f'#{instance.object_id}',
                         )
                     # 最终通过奖励（re-query 检查 instance 是否已全部完成）
                     fresh = instance.__class__.query.get(instance_id)
@@ -1002,7 +1002,7 @@ def approve(instance_id):
                                     behavior_code='project_approved',
                                     source_type='approval_project',
                                     source_id=f'final_{fresh.object_id}',
-                                    memo=f'项目审批通过: {_proj.project_name}',
+                                    context=_proj.project_name,
                                 )
                         elif fresh.object_type == 'pricing_order':
                             from app.models.pricing_order import PricingOrder
@@ -1013,7 +1013,7 @@ def approve(instance_id):
                                     behavior_code='pricing_order_approved',
                                     source_type='approval_pricing_order',
                                     source_id=f'final_{fresh.object_id}',
-                                    memo=f'批价单审批通过 #{fresh.object_id}',
+                                    context=f'#{fresh.object_id}',
                                 )
                     db.session.commit()
                 except Exception as _pts_err:

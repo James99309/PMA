@@ -1467,7 +1467,7 @@ def add_project():
                     behavior_code='project_create',
                     source_type='project',
                     source_id=project.id,
-                    memo=f'新建项目: {project.project_name}'
+                    context=project.project_name
                 )
             except Exception as pts_err:
                 logger.warning(f"发放项目创建积分失败: {pts_err}")
@@ -2859,7 +2859,7 @@ def add_action_for_project(project_id):
                 award_points(user_id=current_user.id, behavior_code='action_record_create',
                              source_type='action_project',
                              source_id=f'project_{project_id}_{current_user.id}_{_date.today().isoformat()}',
-                             memo=f'项目跟进记录: {project.project_name}')
+                             context=project.project_name)
                 db.session.commit()
             except Exception as _pts_err:
                 current_app.logger.warning(f'action_record_create积分发放失败: {_pts_err}')
@@ -2966,7 +2966,7 @@ def api_add_action(project_id):
             award_points(user_id=current_user.id, behavior_code='action_record_create',
                          source_type='action_project',
                          source_id=f'project_{project_id}_{current_user.id}_{_date.today().isoformat()}',
-                         memo=f'项目跟进记录: {project_obj.project_name}')
+                         context=project_obj.project_name)
             db.session.commit()
         except Exception as _pts_err:
             current_app.logger.warning(f'action_record_create积分发放失败: {_pts_err}')
@@ -4953,7 +4953,7 @@ def api_create_project():
                 behavior_code='project_create',
                 source_type='project',
                 source_id=new_project.id,
-                memo=f'新建项目: {new_project.project_name}'
+                context=new_project.project_name
             )
         except Exception as pts_err:
             logger.warning(f"发放项目创建积分失败: {pts_err}")

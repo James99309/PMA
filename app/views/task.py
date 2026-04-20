@@ -184,7 +184,7 @@ def create_task():
             from app.services.points_service import award_points
             award_points(user_id=current_user.id, behavior_code='task_create',
                          source_type='task', source_id=new_task.id,
-                         memo=f'创建任务: {new_task.title}')
+                         context=new_task.title)
         except Exception as _pts_err:
             logger.warning(f'task_create积分发放失败: {_pts_err}')
 
@@ -453,7 +453,7 @@ def complete_task(id):
                 behavior_code='task_complete',
                 source_type='task',
                 source_id=t.id,
-                memo=f'完成任务: {t.title}'
+                context=t.title,
             )
         except Exception as pts_err:
             logger.warning(f"发放任务完成积分失败: {pts_err}")
@@ -1181,11 +1181,11 @@ def review_task(id):
                     from app.services.points_service import award_points
                     award_points(user_id=t.assignee_id, behavior_code='task_complete',
                                  source_type='task', source_id=t.id,
-                                 memo=f'完成任务: {t.title}')
+                                 context=t.title)
                     for r in t.task_reviewers:
                         award_points(user_id=r.reviewer_id, behavior_code='task_review_approved',
                                      source_type='task_review', source_id=t.id,
-                                     memo=f'审计任务通过: {t.title}')
+                                     context=t.title)
                 except Exception as pts_err:
                     logger.warning(f"发放任务完成积分失败: {pts_err}")
             else:
@@ -1526,7 +1526,7 @@ def update_subtask_status(task_id, subtask_id):
                     uid = subtask.assignee_id or t.assignee_id
                     award_points(user_id=uid, behavior_code='subtask_complete',
                                  source_type='subtask', source_id=subtask.id,
-                                 memo=f'完成节点: {subtask.title}')
+                                 context=subtask.title)
                 except Exception as _pts_err:
                     logger.warning(f'subtask_complete积分发放失败: {_pts_err}')
         else:
@@ -1583,7 +1583,7 @@ def confirm_milestone(task_id, subtask_id):
                     uid = subtask.assignee_id or t.assignee_id
                     award_points(user_id=uid, behavior_code='task_milestone_confirmed',
                                  source_type='subtask', source_id=subtask.id,
-                                 memo=f'里程碑通过: {subtask.title}')
+                                 context=subtask.title)
                 except Exception as _pts_err:
                     logger.warning(f'task_milestone_confirmed积分发放失败: {_pts_err}')
                 msg_text = _('里程碑已确认通过')

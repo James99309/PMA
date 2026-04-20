@@ -482,7 +482,7 @@ def change_article_scope(article_id):
                 behavior_code='wiki_share',
                 source_type='wiki_article',
                 source_id=art.id,
-                memo=f'共享Wiki文章: {art.title}'
+                context=art.title
             )
         except Exception as pts_err:
             logger.warning(f"发放wiki_share积分失败: {pts_err}")
@@ -709,7 +709,7 @@ def review_promotion_request(request_id):
                         behavior_code='wiki_share',
                         source_type='wiki_article',
                         source_id=art.id,
-                        memo=f'共享Wiki文章: {art.title}'
+                        context=art.title
                     )
                 except Exception as pts_err:
                     logger.warning(f"发放wiki_share积分失败: {pts_err}")
@@ -1367,7 +1367,7 @@ def wiki_citation_click(article_id):
                 behavior_code='wiki_link_opened',
                 source_type='wiki_click',
                 source_id=f'{article_id}_{current_user.id}_{date.today().isoformat()}',
-                memo=f'引用链接被点击: {article.title}',
+                context=article.title,
             )
         except Exception as _pts_err:
             logger.warning(f'wiki_link_opened积分发放失败: {_pts_err}')

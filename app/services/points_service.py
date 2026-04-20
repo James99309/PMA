@@ -4,13 +4,31 @@ from sqlalchemy import func
 from app.extensions import db
 
 
-def award_points(user_id, behavior_code, source_type=None, source_id=None, memo=None):
+def _build_memo(behavior_code, context=None):
+    """根据当前语言和行为注册表自动生成 memo。"""
+    from app.services.points_registry import BEHAVIOR_REGISTRY
+    try:
+        from app.utils.i18n import get_current_language
+        lang = get_current_language()
+    except Exception:
+        lang = 'zh'
+    behavior = BEHAVIOR_REGISTRY.get(behavior_code, {})
+    name = behavior.get('name_en' if lang == 'en' else 'name') or behavior.get('name', behavior_code)
+    return f'{name}: {context}' if context else name
+
+
+def award_points(user_id, behavior_code, source_type=None, source_id=None, memo=None, context=None):
     """
     发放积分。检查 daily_cap 防刷，写入流水，更新汇总缓存。
     返回实际发放的积分数（0 表示被上限拦截或重复触发）。
     在调用方的 db.session 中执行，调用方负责 commit。
+
+    memo:    显式指定说明文字（优先级最高）
+    context: 对象名称等上下文，当 memo 为 None 时自动拼接行为名称
     """
     from app.models.points import PointsBehaviorConfig, PointsTransaction, UserPointsSummary
+    if memo is None:
+        memo = _build_memo(behavior_code, context)
 
     # 统一转字符串，兼容旧调用方传入整数 id
     if source_id is not None:
