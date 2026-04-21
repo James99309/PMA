@@ -179,10 +179,9 @@ AiFormEnrich.init({
     enrichApi:     '/project/api/ai-enrich',
     enrichBodyKey: 'project_name',
     fieldMap: [
-        { key: 'industry',      label: '行业',     targetId: 'industry',      labelKey: 'industry_label' },
-        { key: 'project_type',  label: '项目类型', targetId: 'project_type',  labelKey: 'project_type_label' },
-        { key: 'address',       label: '地址',     targetId: 'address' },
-        { key: 'description',   label: '项目描述', targetId: 'stage_description', onlyIfEmpty: true }
+        { key: 'industry',    label: '行业', targetId: 'industry', labelKey: 'industry_label' },
+        { key: 'address',     label: '地址', targetId: 'address' },
+        { key: 'description', label: '项目描述', targetId: 'stage_description', onlyIfEmpty: true }
     ]
 });
 </script>

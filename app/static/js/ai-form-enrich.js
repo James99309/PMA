@@ -96,17 +96,26 @@
 
         // ---- AI 回填 ----
         function renderAiPanel(data) {
-            var nameOptions = (data.official_names || []).map(function (n) {
+            var names = data.official_names || [];
+            var nameOptions = names.map(function (n, i) {
                 return '<label class="flex items-center gap-2 cursor-pointer">' +
-                    '<input type="radio" name="ai_name_pick" value="' + escHtml(n) + '" class="text-primary">' +
+                    '<input type="radio" name="ai_name_pick" value="' + escHtml(n) + '" class="text-primary"' + (i === 0 ? ' checked' : '') + '>' +
                     '<span class="text-sm text-slate-800 dark:text-slate-200">' + escHtml(n) + '</span>' +
                     '</label>';
             }).join('');
 
             var html = '';
             if (nameOptions) {
-                html += '<div class="space-y-1"><p class="text-xs text-slate-500 mb-1">选择正式名称（点选后自动填入）</p>' + nameOptions + '</div>';
+                var hint = names.length > 1
+                    ? '以下为同一工程的不同正式叫法，选一个填入'
+                    : '点选后自动填入项目名称';
+                html += '<div class="space-y-1"><p class="text-xs text-slate-500 mb-1">' + hint + '</p>' + nameOptions + '</div>';
+                if (names.length > 1) {
+                    html += '<p class="text-xs text-slate-400">以下行业、地址、描述信息适用于所有候选名称</p>';
+                }
             }
+            // 同步预选第一个名称到输入框
+            if (names.length > 0) nameInput.value = names[0];
 
             (cfg.fieldMap || []).forEach(function (f) {
                 var displayVal = f.labelKey ? (data[f.labelKey] || data[f.key]) : data[f.key];

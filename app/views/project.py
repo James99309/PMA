@@ -5236,7 +5236,7 @@ def ai_enrich_project():
         from tavily import TavilyClient
         client = TavilyClient(api_key=tavily_key)
         search_result = client.search(
-            query=f'{project_name} 项目 地址 行业 简介',
+            query=f'{project_name} 工程项目 招标 建设 业主 地址',
             search_depth='basic',
             max_results=5,
             include_answer=True,
@@ -5263,28 +5263,24 @@ def ai_enrich_project():
         'shipbuilding(造船) / semiconductor(半导体) / chemical(化工) / '
         'tunnel_underground(隧道地下) / other(其他)'
     )
-    project_type_opts = (
-        'channel_follow(渠道跟进) / sales_focus(销售重点) / business_opportunity(服务机会)'
-    )
 
     prompt = (
-        f'根据以下搜索结果，提取关于项目「{project_name}」的结构化信息。\n\n'
+        f'根据以下搜索结果，提取关于工程项目「{project_name}」的结构化信息。\n\n'
         f'搜索结果：\n{search_text}\n\n'
         '请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n'
         '{\n'
         '  "official_names": ["项目正式名称候选1", "项目正式名称候选2"],\n'
-        '  "address": "项目所在地址（中文）",\n'
+        '  "address": "项目所在地址（尽量精确到街道/路名/门牌号，如 \'上海市浦东新区启航路300号\'；无具体地址时写到城市/区县）",\n'
         '  "country": "国家（英文，如 China / Singapore）",\n'
         f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
-        f'  "project_type": "从以下选项中选最匹配的 key，只返回 key：{project_type_opts}",\n'
-        '  "description": "100字以内的项目背景简介（中文）"\n'
+        '  "description": "100字以内的项目背景简介（工程类型、业主单位、建设规模等，中文）"\n'
         '}\n\n'
         '只返回 JSON，不要任何其他文字。'
     )
 
     try:
         import anthropic as _anthropic
-        from app.utils.dictionary_helpers import INDUSTRY_LABELS, PROJECT_TYPE_LABELS
+        from app.utils.dictionary_helpers import INDUSTRY_LABELS
         claude = _anthropic.Anthropic(api_key=anthropic_key)
         msg = claude.messages.create(
             model='claude-haiku-4-5-20251001',
@@ -5300,7 +5296,6 @@ def ai_enrich_project():
         return jsonify({'success': False, 'message': 'AI 解析失败，请稍后重试'}), 500
 
     industry_key = parsed.get('industry') or ''
-    project_type_key = parsed.get('project_type') or ''
     return jsonify({
         'success': True,
         'official_names': parsed.get('official_names') or [],
@@ -5308,8 +5303,6 @@ def ai_enrich_project():
         'country': parsed.get('country') or '',
         'industry': industry_key,
         'industry_label': INDUSTRY_LABELS.get(industry_key, {}).get('zh', ''),
-        'project_type': project_type_key,
-        'project_type_label': PROJECT_TYPE_LABELS.get(project_type_key, {}).get('zh', ''),
         'description': parsed.get('description') or '',
     })
 

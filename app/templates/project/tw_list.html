@@ -420,6 +420,18 @@ with context %}
                         placeholders: i18n
                     });
 
+                    // 报备时间默认今天
+                    const reportTimeEl = document.getElementById('report_time');
+                    if (reportTimeEl) {
+                        reportTimeEl.value = new Date().toISOString().split('T')[0];
+                    }
+
+                    // 厂商用户自动填入自己（form.reset 会清空选中值）
+                    {% if current_user.is_vendor_user() %}
+                    const vendorEl = document.getElementById('vendor_sales_manager_id');
+                    if (vendorEl) vendorEl.value = '{{ current_user.id }}';
+                    {% endif %}
+
                     // 打开模态框
                     openFormModal('projectFormModal');
                 } catch (error) {
