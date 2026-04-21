@@ -697,6 +697,12 @@ def check_chat_table_access(user, table_names):
     registry = _load_registry()
 
     for table in table_names:
+        # users 表是公共查询表: 仅暴露 id/username/real_name 等非敏感字段,
+        # 且 _inject_chat_permission_filters 不对其做行级过滤,
+        # 无需要求 user 模块权限即可用于 JOIN 取 owner 姓名.
+        if table == 'users':
+            continue
+
         entry = registry.get(table)
         if not entry:
             return f'安全限制: 表 {table} 未登记到可查询清单, 请联系管理员添加归属'
