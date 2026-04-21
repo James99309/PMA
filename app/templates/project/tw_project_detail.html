@@ -2694,7 +2694,7 @@ render_tw_expense_status_badge with context %}
                     const json = await resp.json();
 
                     this.status = json.status || 'none';
-                    this.data = json.data;
+                    this.data = json.research_data;
                     this.updatedAt = json.updated_at;
                     this.candidates = json.candidates || [];
                     this.errorMsg = json.error || '';
