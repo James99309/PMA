@@ -4211,6 +4211,48 @@ def debug_normalize():
             'message': f'调试失败: {str(e)}'
         }), 500
 
+@customer.route('/api/similar-companies')
+@login_required
+@permission_required('customer', 'view')
+def similar_companies_api():
+    """实时相似企业查询，供创建表单防抖调用"""
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify({'results': []})
+
+    from app.utils.access_control import get_viewable_data
+    import difflib
+
+    companies = get_viewable_data(
+        Company, current_user, [Company.is_deleted == False]
+    ).all()
+
+    q_norm = normalize_company_name(q)
+    results = []
+
+    for c in companies:
+        c_norm = normalize_company_name(c.company_name)
+        if not c_norm:
+            continue
+        if q_norm == c_norm:
+            score = 1.0
+        elif len(q_norm) < 2 or len(c_norm) < 2:
+            continue
+        else:
+            score = difflib.SequenceMatcher(None, q_norm, c_norm).ratio()
+
+        if score >= 0.5:
+            results.append({
+                'id': c.id,
+                'name': c.company_name,
+                'score': round(score, 2),
+                'url': url_for('customer.view_company', company_id=c.id),
+            })
+
+    results.sort(key=lambda x: x['score'], reverse=True)
+    return jsonify({'results': results[:6]})
+
+
 @customer.route('/api/detect-duplicates', methods=['GET'])
 @login_required
 @permission_required('customer', 'view')
