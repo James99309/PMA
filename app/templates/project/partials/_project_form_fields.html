@@ -179,9 +179,24 @@ AiFormEnrich.init({
     enrichApi:     '/project/api/ai-enrich',
     enrichBodyKey: 'project_name',
     fieldMap: [
-        { key: 'industry',    label: '行业', targetId: 'industry', labelKey: 'industry_label' },
-        { key: 'address',     label: '地址', targetId: 'address' },
-        { key: 'description', label: '项目描述', targetId: 'stage_description', onlyIfEmpty: true }
-    ]
+        { key: 'industry',    label: '{{ _("行业") }}',    targetId: 'industry', labelKey: 'industry_label' },
+        { key: 'address',     label: '{{ _("地址") }}',    targetId: 'address' },
+        { key: 'description', label: '{{ _("项目描述") }}', targetId: 'stage_description', onlyIfEmpty: true }
+    ],
+    i18n: {
+        btnLoading:    '{{ _("查询中") }}',
+        nameHintMulti: '{{ _("以下为同一工程的不同正式叫法，选一个填入") }}',
+        nameHintSingle:'{{ _("点选后自动填入") }}',
+        fieldHint:     '{{ _("以下行业、地址、描述信息适用于所有候选名称") }}',
+        applyBtn:      '{{ _("应用到表单") }}',
+        emptyName:     '{{ _("请先输入名称") }}',
+        queryFailed:   '{{ _("AI 查询失败，请稍后重试") }}',
+        networkError:  '{{ _("网络错误，请稍后重试") }}',
+        similarHigh:   '{{ _("高度相似") }}',
+        similarMed:    '{{ _("相似") }}',
+        similarView:   '{{ _("查看") }}',
+        similarOwner:  '{{ _("归属：") }}',
+        similarExists: '{{ _("已存在，请勿重复创建") }}',
+    }
 });
 </script>

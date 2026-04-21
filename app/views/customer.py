@@ -4278,15 +4278,21 @@ def ai_enrich_company():
         return jsonify({'success': False, 'message': '请输入企业名称'}), 400
 
     # 1. Tavily 搜索
+    is_en = current_app.config.get('IS_OVS', False)
     tavily_key = os.environ.get('TAVILY_API_KEY', '').strip()
     if not tavily_key:
         return jsonify({'success': False, 'message': '未配置 TAVILY_API_KEY'}), 500
 
+    search_query = (
+        f'{company_name} company website address overview'
+        if is_en else
+        f'{company_name} 公司 官网 地址 简介'
+    )
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=tavily_key)
         search_result = client.search(
-            query=f'{company_name} 公司 官网 地址 简介',
+            query=search_query,
             search_depth='basic',
             max_results=5,
             include_answer=True,
@@ -4307,31 +4313,44 @@ def ai_enrich_company():
         return jsonify({'success': False, 'message': '未配置 ANTHROPIC_API_KEY'}), 500
 
     industry_opts = (
-        'manufacturing(制造) / datacenter(数据中心) / energy(能源) / technology(科技) / '
-        'government(政府) / healthcare(医疗) / finance(金融) / real_estate(地产) / '
-        'education(教育) / retail(零售) / transportation(交通) / hospitality(酒店) / '
-        'shipbuilding(造船) / semiconductor(半导体) / chemical(化工) / '
-        'tunnel_underground(隧道地下) / other(其他)'
+        'manufacturing / datacenter / energy / technology / government / healthcare / '
+        'finance / real_estate / education / retail / transportation / hospitality / '
+        'shipbuilding / semiconductor / chemical / tunnel_underground / other'
     )
     company_type_opts = (
-        'user(终端用户) / dealer(经销商) / integrator(系统集成商) / distributor(分销商) / '
-        'contractor(总包商) / designer(顾问设计院) / partner(合作伙伴) / '
-        'supplier(供应商) / other(其他)'
+        'user / dealer / integrator / distributor / contractor / designer / '
+        'partner / supplier / other'
     )
-    prompt = (
-        f'根据以下搜索结果，提取关于企业「{company_name}」的结构化信息。\n\n'
-        f'搜索结果：\n{search_text}\n\n'
-        '请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n'
-        '{\n'
-        '  "official_names": ["正式名称候选1", "正式名称候选2"],\n'
-        '  "address": "详细地址（中文）",\n'
-        '  "country": "国家（英文，如 China / Singapore）",\n'
-        '  "description": "100字以内的企业简介（中文）",\n'
-        f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
-        f'  "company_type": "从以下选项中选最匹配的 key，只返回 key：{company_type_opts}"\n'
-        '}\n\n'
-        '只返回 JSON，不要任何其他文字。'
-    )
+    if is_en:
+        prompt = (
+            f'Based on the following search results, extract structured information about the company "{company_name}".\n\n'
+            f'Search results:\n{search_text}\n\n'
+            'Return a JSON object with the following fields (use empty string for unknown fields):\n'
+            '{\n'
+            '  "official_names": ["official name 1", "official name 2"],\n'
+            '  "address": "detailed address",\n'
+            '  "country": "country name (e.g. China / Singapore)",\n'
+            '  "description": "company overview in under 100 words",\n'
+            f'  "industry": "pick the best matching key from: {industry_opts}",\n'
+            f'  "company_type": "pick the best matching key from: {company_type_opts}"\n'
+            '}\n\n'
+            'Return JSON only, no other text.'
+        )
+    else:
+        prompt = (
+            f'根据以下搜索结果，提取关于企业「{company_name}」的结构化信息。\n\n'
+            f'搜索结果：\n{search_text}\n\n'
+            '请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n'
+            '{\n'
+            '  "official_names": ["正式名称候选1", "正式名称候选2"],\n'
+            '  "address": "详细地址",\n'
+            '  "country": "国家（英文，如 China / Singapore）",\n'
+            '  "description": "100字以内的企业简介",\n'
+            f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
+            f'  "company_type": "从以下选项中选最匹配的 key，只返回 key：{company_type_opts}"\n'
+            '}\n\n'
+            '只返回 JSON，不要任何其他文字。'
+        )
 
     try:
         import anthropic as _anthropic

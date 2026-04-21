@@ -27228,3 +27228,54 @@ msgstr "AI Auto-fill"
 msgid "AI 建议"
 msgstr "AI Suggestions"
 
+
+msgid "以下为同一工程的不同正式叫法，选一个填入"
+msgstr "Multiple official names found, select one to fill in"
+
+msgid "点选后自动填入"
+msgstr "Click to fill in"
+
+msgid "以下行业、地址、描述信息适用于所有候选名称"
+msgstr "Industry, address and description apply to all name candidates"
+
+msgid "应用到表单"
+msgstr "Apply to Form"
+
+msgid "请先输入名称"
+msgstr "Please enter a name first"
+
+msgid "AI 查询失败，请稍后重试"
+msgstr "AI query failed, please try again"
+
+msgid "网络错误，请稍后重试"
+msgstr "Network error, please try again"
+
+msgid "高度相似"
+msgstr "Highly Similar"
+
+msgid "相似"
+msgstr "Similar"
+
+msgid "查看"
+msgstr "View"
+
+msgid "归属："
+msgstr "Owner: "
+
+msgid "已存在，请勿重复创建"
+msgstr "Already exists, do not create duplicate"
+
+msgid "查询中"
+msgstr "Searching"
+
+msgid "行业"
+msgstr "Industry"
+
+msgid "企业类型"
+msgstr "Company Type"
+
+msgid "企业简介"
+msgstr "Company Overview"
+
+msgid "项目描述"
+msgstr "Project Description"

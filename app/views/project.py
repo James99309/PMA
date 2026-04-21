@@ -5228,15 +5228,21 @@ def ai_enrich_project():
         return jsonify({'success': False, 'message': '请输入项目名称'}), 400
     project_name = project_name[:200].replace('\n', ' ').replace('\r', ' ')
 
+    is_en = current_app.config.get('IS_OVS', False)
     tavily_key = os.environ.get('TAVILY_API_KEY', '').strip()
     if not tavily_key:
         return jsonify({'success': False, 'message': '未配置 TAVILY_API_KEY'}), 500
 
+    search_query = (
+        f'{project_name} construction project owner location'
+        if is_en else
+        f'{project_name} 工程项目 招标 建设 业主 地址'
+    )
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=tavily_key)
         search_result = client.search(
-            query=f'{project_name} 工程项目 招标 建设 业主 地址',
+            query=search_query,
             search_depth='basic',
             max_results=5,
             include_answer=True,
@@ -5256,27 +5262,42 @@ def ai_enrich_project():
         return jsonify({'success': False, 'message': '未配置 ANTHROPIC_API_KEY'}), 500
 
     industry_opts = (
-        'manufacturing(制造) / datacenter(数据中心) / energy(能源) / technology(科技) / '
-        'government(政府) / healthcare(医疗) / finance(金融) / real_estate(地产) / '
-        'education(教育) / retail(零售) / transportation(交通) / hospitality(酒店) / '
-        'shipbuilding(造船) / semiconductor(半导体) / chemical(化工) / '
-        'tunnel_underground(隧道地下) / other(其他)'
+        'manufacturing / datacenter / energy / technology / government / healthcare / '
+        'finance / real_estate / education / retail / transportation / hospitality / '
+        'shipbuilding / semiconductor / chemical / tunnel_underground / other'
     )
-    json_schema = (
-        '{\n'
-        '  "official_names": ["项目正式名称候选1", "项目正式名称候选2"],\n'
-        '  "address": "项目所在地址（尽量精确到街道/路名/门牌号；无具体地址时写到城市/区县）",\n'
-        '  "country": "国家（英文，如 China / Singapore）",\n'
-        f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
-        '  "description": "100字以内的项目背景简介（工程类型、业主单位、建设规模等，中文）"\n'
-        '}\n\n'
-        '只返回 JSON，不要任何其他文字。'
-    )
-    prompt = (
-        f'根据以下搜索结果，提取关于工程项目「{project_name}」的结构化信息。\n\n'
-        f'搜索结果：\n{search_text}\n\n'
-        f'请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n{json_schema}'
-    )
+    if is_en:
+        json_schema = (
+            '{\n'
+            '  "official_names": ["official project name 1", "official project name 2"],\n'
+            '  "address": "project location address (street level if possible)",\n'
+            '  "country": "country name (e.g. China / Singapore)",\n'
+            f'  "industry": "pick the best matching key from: {industry_opts}",\n'
+            '  "description": "project background in under 100 words (project type, owner, scale)"\n'
+            '}\n\n'
+            'Return JSON only, no other text.'
+        )
+        prompt = (
+            f'Based on the following search results, extract structured information about the project "{project_name}".\n\n'
+            f'Search results:\n{search_text}\n\n'
+            f'Return a JSON object with the following fields (use empty string for unknown fields):\n{json_schema}'
+        )
+    else:
+        json_schema = (
+            '{\n'
+            '  "official_names": ["项目正式名称候选1", "项目正式名称候选2"],\n'
+            '  "address": "项目所在地址（尽量精确到街道/路名/门牌号；无具体地址时写到城市/区县）",\n'
+            '  "country": "国家（英文，如 China / Singapore）",\n'
+            f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
+            '  "description": "100字以内的项目背景简介（工程类型、业主单位、建设规模等）"\n'
+            '}\n\n'
+            '只返回 JSON，不要任何其他文字。'
+        )
+        prompt = (
+            f'根据以下搜索结果，提取关于工程项目「{project_name}」的结构化信息。\n\n'
+            f'搜索结果：\n{search_text}\n\n'
+            f'请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n{json_schema}'
+        )
 
     try:
         import anthropic as _anthropic

@@ -39,8 +39,24 @@
         var aiClose     = document.getElementById(cfg.aiCloseId);
         var debounceTimer = null;
 
+        var t = Object.assign({
+            btnLoading:      '查询中',
+            nameHintMulti:   '以下为同一工程的不同正式叫法，选一个填入',
+            nameHintSingle:  '点选后自动填入',
+            fieldHint:       '以下行业、地址、描述信息适用于所有候选名称',
+            applyBtn:        '应用到表单',
+            emptyName:       '请先输入名称',
+            queryFailed:     'AI 查询失败，请稍后重试',
+            networkError:    '网络错误，请稍后重试',
+            similarHigh:     '高度相似',
+            similarMed:      '相似',
+            similarView:     '查看',
+            similarOwner:    '归属：',
+            similarExists:   '已存在，请勿重复创建',
+        }, cfg.i18n || {});
+
         var AI_BTN_DEFAULT = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg> AI';
-        var AI_BTN_LOADING = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> 查询中';
+        var AI_BTN_LOADING = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> ' + t.btnLoading;
 
         // ---- 内部查重 ----
         function renderSimilarList(results) {
@@ -50,20 +66,20 @@
             }
             similarList.innerHTML = results.map(function (r) {
                 var badge = r.score >= 0.9
-                    ? '<span class="text-xs text-red-500 font-medium ml-1">高度相似</span>'
+                    ? '<span class="text-xs text-red-500 font-medium ml-1">' + t.similarHigh + '</span>'
                     : r.score >= 0.7
-                        ? '<span class="text-xs text-yellow-500 font-medium ml-1">相似</span>'
+                        ? '<span class="text-xs text-yellow-500 font-medium ml-1">' + t.similarMed + '</span>'
                         : '';
                 if (r.viewable) {
                     return '<a href="' + safeUrl(r.url) + '" target="_blank"' +
                         ' class="flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-100 dark:border-slate-700 last:border-0">' +
                         '<span class="text-slate-800 dark:text-slate-200">' + escHtml(r.name) + badge + '</span>' +
-                        '<span class="text-xs text-slate-400">查看</span>' +
+                        '<span class="text-xs text-slate-400">' + t.similarView + '</span>' +
                         '</a>';
                 } else {
                     var ownerHint = r.owner_name
-                        ? '<span class="text-xs text-slate-400">归属：' + escHtml(r.owner_name) + '，请勿重复创建</span>'
-                        : '<span class="text-xs text-slate-400">已存在，请勿重复创建</span>';
+                        ? '<span class="text-xs text-slate-400">' + t.similarOwner + escHtml(r.owner_name) + '，' + t.similarExists + '</span>'
+                        : '<span class="text-xs text-slate-400">' + t.similarExists + '</span>';
                     return '<div class="flex items-center justify-between px-3 py-2 border-b border-slate-100 dark:border-slate-700 last:border-0">' +
                         '<span class="text-slate-500 dark:text-slate-400">' + escHtml(r.name) + badge + '</span>' +
                         ownerHint +
@@ -106,12 +122,10 @@
 
             var html = '';
             if (nameOptions) {
-                var hint = names.length > 1
-                    ? '以下为同一工程的不同正式叫法，选一个填入'
-                    : '点选后自动填入项目名称';
+                var hint = names.length > 1 ? t.nameHintMulti : t.nameHintSingle;
                 html += '<div class="space-y-1"><p class="text-xs text-slate-500 mb-1">' + hint + '</p>' + nameOptions + '</div>';
                 if (names.length > 1) {
-                    html += '<p class="text-xs text-slate-400">以下行业、地址、描述信息适用于所有候选名称</p>';
+                    html += '<p class="text-xs text-slate-400">' + t.fieldHint + '</p>';
                 }
             }
             // 同步预选第一个名称到输入框
@@ -125,7 +139,7 @@
                 }
             });
 
-            html += '<div class="flex gap-2 pt-1"><button type="button" id="_aiApplyBtn_' + cfg.nameInputId + '" class="flex-1 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">应用到表单</button></div>';
+            html += '<div class="flex gap-2 pt-1"><button type="button" id="_aiApplyBtn_' + cfg.nameInputId + '" class="flex-1 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">' + t.applyBtn + '</button></div>';
 
             aiContent.innerHTML = html;
 
@@ -157,7 +171,7 @@
 
         aiBtn && aiBtn.addEventListener('click', function () {
             var q = nameInput ? nameInput.value.trim() : '';
-            if (!q) { alert('请先输入名称'); return; }
+            if (!q) { alert(t.emptyName); return; }
 
             aiBtn.disabled = true;
             aiBtn.innerHTML = AI_BTN_LOADING;
@@ -179,10 +193,10 @@
                     if (data.success) {
                         renderAiPanel(data);
                     } else {
-                        alert(data.message || 'AI 查询失败，请稍后重试');
+                        alert(data.message || t.queryFailed);
                     }
                 })
-                .catch(function () { alert('网络错误，请稍后重试'); })
+                .catch(function () { alert(t.networkError); })
                 .finally(function () {
                     aiBtn.disabled = false;
                     aiBtn.innerHTML = AI_BTN_DEFAULT;
