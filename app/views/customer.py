@@ -4220,37 +4220,38 @@ def similar_companies_api():
     if len(q) < 2:
         return jsonify({'results': []})
 
-    from app.utils.access_control import get_viewable_data
-    import difflib
+    try:
+        companies = get_viewable_data(
+            Company, current_user, [Company.is_deleted == False]
+        ).all()
 
-    companies = get_viewable_data(
-        Company, current_user, [Company.is_deleted == False]
-    ).all()
+        q_norm = normalize_company_name(q)
+        results = []
 
-    q_norm = normalize_company_name(q)
-    results = []
+        for c in companies:
+            c_norm = normalize_company_name(c.company_name)
+            if not c_norm:
+                continue
+            if q_norm == c_norm:
+                score = 1.0
+            elif len(q_norm) < 2 or len(c_norm) < 2:
+                continue
+            else:
+                score = difflib.SequenceMatcher(None, q_norm, c_norm).ratio()
 
-    for c in companies:
-        c_norm = normalize_company_name(c.company_name)
-        if not c_norm:
-            continue
-        if q_norm == c_norm:
-            score = 1.0
-        elif len(q_norm) < 2 or len(c_norm) < 2:
-            continue
-        else:
-            score = difflib.SequenceMatcher(None, q_norm, c_norm).ratio()
+            if score >= 0.5:
+                results.append({
+                    'id': c.id,
+                    'name': c.company_name,
+                    'score': round(score, 2),
+                    'url': url_for('customer.view_company', company_id=c.id),
+                })
 
-        if score >= 0.5:
-            results.append({
-                'id': c.id,
-                'name': c.company_name,
-                'score': round(score, 2),
-                'url': url_for('customer.view_company', company_id=c.id),
-            })
-
-    results.sort(key=lambda x: x['score'], reverse=True)
-    return jsonify({'results': results[:6]})
+        results.sort(key=lambda x: x['score'], reverse=True)
+        return jsonify({'results': results[:6]})
+    except Exception as e:
+        current_app.logger.error(f'[similar_companies_api] 查询失败: {e}', exc_info=True)
+        return jsonify({'results': []})
 
 
 @customer.route('/api/detect-duplicates', methods=['GET'])
