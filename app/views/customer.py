@@ -4260,9 +4260,9 @@ def similar_companies_api():
 @permission_required('customer', 'create')
 def ai_enrich_company():
     """AI 回填：Tavily 搜索 + Claude Haiku 解析，返回企业结构化信息"""
-    import json as _json
     data = request.get_json(silent=True) or {}
     company_name = (data.get('company_name') or '').strip()
+    company_name = company_name[:200].replace('\n', ' ').replace('\r', ' ')
     if not company_name:
         return jsonify({'success': False, 'message': '请输入企业名称'}), 400
 
@@ -4318,11 +4318,9 @@ def ai_enrich_company():
             messages=[{'role': 'user', 'content': prompt}],
         )
         raw = msg.content[0].text.strip()
-        if raw.startswith('```'):
-            raw = raw.split('```')[1]
-            if raw.startswith('json'):
-                raw = raw[4:]
-        parsed = _json.loads(raw.strip())
+        raw = re.sub(r'^```(?:json)?\s*', '', raw)
+        raw = re.sub(r'\s*```\s*$', '', raw)
+        parsed = json.loads(raw.strip())
     except Exception as e:
         current_app.logger.error(f'[ai_enrich] Claude 解析失败: {e}')
         return jsonify({'success': False, 'message': 'AI 解析失败，请稍后重试'}), 500
