@@ -26,6 +26,7 @@ class ChatConversation(db.Model):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
     is_deleted = Column(Boolean, default=False)
+    sync_metadata = Column(Text, nullable=True)  # JSON: {"peer_sender_email": "..."} 或 {"peer_group_id": 7}
 
     # 关系
     creator = db.relationship('User', foreign_keys=[created_by], backref='created_conversations')
