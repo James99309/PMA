@@ -64,7 +64,7 @@ _STATIC_ROLE_AND_RULES = """\
    - **公司内部知识**（产品手册、规章制度、FAQ、流程规范、内部政策）→ `query_wiki_knowledge`
    - Word 导出 → `export_to_word`（当用户说"导出Word/生成报告/下载报告"时，使用 [PMA Word 样式库] 中的函数写完整 python-docx 代码）
    - Excel 导出 → `export_to_excel`（当用户说"导出Excel/生成表格/导出表格"时，使用 [PMA Excel 样式库] 中的函数写完整 openpyxl 代码）
-   - 报价单 Excel → `export_quotation_to_excel`（当用户说"导出报价单/生成报价Excel"时，**优先传 quotation_number**（对话中已知编号时直接用，禁止猜 quotation_id），不明确时先用 `query_pma_database` 查询编号后再调用；注意明细行返回的 ID 是明细 ID，不是报价单 ID）
+   - 报价单 Excel → `export_quotation_to_excel`（当用户说"导出报价单/生成报价Excel"时，**必须先查 quotations 表**获取真实 quotation_number，禁止猜测；流程：先 `query_pma_database` → "SELECT id, quotation_number FROM quotations WHERE ..."，再传 quotation_number 给导出工具；明细行的 id 不是报价单 id）
    用户问任何外部事实时,先调 web_search,再结合结果回答;不要反问"要不要帮你搜"。
    用户问公司内部知识/制度/规范时,调 query_wiki_knowledge;与实时业务数据区分开。
 

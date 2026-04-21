@@ -141,8 +141,17 @@ def _row_h(ws, row, height):
 
 # ── 主生成函数 ───────────────────────────────────────────────────────────────
 
-def _build_excel(quotation, db_type: str) -> bytes:
-    """根据 Quotation ORM 对象生成 Excel bytes。"""
+def _build_excel(data: dict, db_type: str) -> bytes:
+    """根据 plain dict 数据生成报价单 Excel bytes。
+
+    data 结构:
+        quotation_number, project_name, company_name, contact_name,
+        contact_phone, quote_date (str YYYY-MM-DD), total_amount (float),
+        owner_name (str), details (list of dict)
+    detail dict:
+        product_name, product_model, product_desc, brand, unit,
+        quantity, discount (float|None), unit_price (float), total_price (float)
+    """
     from openpyxl import Workbook
     from openpyxl.styles import Font, Alignment
     from io import BytesIO
@@ -151,19 +160,16 @@ def _build_excel(quotation, db_type: str) -> bytes:
     ws = wb.active
     ws.title = '销售报价单'
 
-    # 列宽
     for col_letter, width in _COL_WIDTHS.items():
         ws.column_dimensions[col_letter].width = width
 
     # ── Row 1: 公司抬头 ──────────────────────────────────────────────────────
     _row_h(ws, 1, 50.25)
-    # B1:E1 — 公司名称大标题
-    _merge(ws, 1, 2, 1, 5)   # B1:E1
+    _merge(ws, 1, 2, 1, 5)
     c_logo = ws.cell(row=1, column=2, value='和源通信')
     c_logo.font = Font(name='微软雅黑', size=22, bold=True)
     c_logo.alignment = Alignment(horizontal='center', vertical='center')
-    # G1:L1 — 公司信息
-    _merge(ws, 1, 7, 1, 12)  # G1:L1
+    _merge(ws, 1, 7, 1, 12)
     header_text = _SP8D_HEADER if db_type.upper() != 'OVS' else _OVS_HEADER
     c = ws.cell(row=1, column=7, value=header_text)
     c.font = Font(name='微软雅黑', size=8)
@@ -171,50 +177,46 @@ def _build_excel(quotation, db_type: str) -> bytes:
 
     # ── Row 2: 标题 ──────────────────────────────────────────────────────────
     _row_h(ws, 2, 53.25)
-    _merge(ws, 2, 2, 2, 12)  # B2:L2
+    _merge(ws, 2, 2, 2, 12)
     c = ws.cell(row=2, column=2, value='销 售 报 价 单')
     c.font = Font(name='微软雅黑', size=16)
     c.alignment = Alignment(horizontal='center', vertical='center')
 
     # ── Row 3: 空白分隔 ──────────────────────────────────────────────────────
     _row_h(ws, 3, 19.5)
-    _merge(ws, 3, 2, 3, 12)  # B3:L3
+    _merge(ws, 3, 2, 3, 12)
 
     # ── Row 4: 报价主题 ──────────────────────────────────────────────────────
     _row_h(ws, 4, 21.0)
-    _merge(ws, 4, 2, 4, 3)   # B4:C4
-    _merge(ws, 4, 4, 4, 12)  # D4:L4
+    _merge(ws, 4, 2, 4, 3)
+    _merge(ws, 4, 4, 4, 12)
     _set_cell(ws, 4, 2, '报价主题', h_align='left')
-    project_name = (quotation.project.project_name if quotation.project else '')
-    _set_cell(ws, 4, 4, project_name, h_align='left')
+    _set_cell(ws, 4, 4, data.get('project_name', ''), h_align='left')
 
     # ── Row 5: 公司 / 接收人 ─────────────────────────────────────────────────
     _row_h(ws, 5, 21.0)
-    _merge(ws, 5, 2, 5, 3)   # B5:C5
-    _merge(ws, 5, 4, 5, 5)   # D5:E5
-    _merge(ws, 5, 7, 5, 12)  # G5:L5
+    _merge(ws, 5, 2, 5, 3)
+    _merge(ws, 5, 4, 5, 5)
+    _merge(ws, 5, 7, 5, 12)
     _set_cell(ws, 5, 2, '公司', h_align='left')
-    company_name = (quotation.customer.company_name if quotation.customer else '')
-    _set_cell(ws, 5, 4, company_name, h_align='left')
+    _set_cell(ws, 5, 4, data.get('company_name', ''), h_align='left')
     _set_cell(ws, 5, 6, '接收人', h_align='left')
-    contact_name = (quotation.contact.name if quotation.contact else '')
-    _set_cell(ws, 5, 7, contact_name, h_align='left')
+    _set_cell(ws, 5, 7, data.get('contact_name', ''), h_align='left')
 
     # ── Row 6: 联系方式 / 报价日期 ────────────────────────────────────────────
     _row_h(ws, 6, 21.0)
-    _merge(ws, 6, 2, 6, 3)   # B6:C6
-    _merge(ws, 6, 4, 6, 5)   # D6:E6
-    _merge(ws, 6, 7, 6, 12)  # G6:L6
+    _merge(ws, 6, 2, 6, 3)
+    _merge(ws, 6, 4, 6, 5)
+    _merge(ws, 6, 7, 6, 12)
     _set_cell(ws, 6, 2, '联系方式', h_align='left')
-    contact_phone = (quotation.contact.phone if quotation.contact else '')
-    _set_cell(ws, 6, 4, contact_phone, h_align='left')
+    _set_cell(ws, 6, 4, data.get('contact_phone', ''), h_align='left')
     _set_cell(ws, 6, 6, '报价日期', h_align='left')
-    quote_date = quotation.created_at.strftime('%Y-%m-%d') if quotation.created_at else ''
+    quote_date = data.get('quote_date', '')
     _set_cell(ws, 6, 7, quote_date, h_align='center')
 
     # ── Row 7: 报价明细标题 ──────────────────────────────────────────────────
     _row_h(ws, 7, 21.75)
-    _merge(ws, 7, 2, 7, 12)  # B7:L7
+    _merge(ws, 7, 2, 7, 12)
     _set_cell(ws, 7, 2, '报 价 明 细', bold=False, h_align='center')
 
     # ── Row 8: 表头 ──────────────────────────────────────────────────────────
@@ -222,39 +224,35 @@ def _build_excel(quotation, db_type: str) -> bytes:
     headers = ['ID', '产品名称', '产品型号', '产品规格', '产品品牌',
                '产品单位', '数量', '折扣', '单价', '小计']
     for ci, h in enumerate(headers):
-        _set_cell(ws, 8, ci + 2, h, bold=True, h_align='center',
-                  fill_color=_HEADER_BG)
+        _set_cell(ws, 8, ci + 2, h, bold=True, h_align='center', fill_color=_HEADER_BG)
 
     # ── 明细行 ───────────────────────────────────────────────────────────────
-    details = [d for d in quotation.details if not d.is_accessory]
+    details = data.get('details', [])
     data_start = 9
-    currency_sym = quotation.currency_symbol if hasattr(quotation, 'currency_symbol') else '¥'
-
     for i, d in enumerate(details):
         r = data_start + i
         _row_h(ws, r, 21.75)
-        discount_pct = f'{int((d.discount or 1) * 100)}%' if d.discount else '100%'
-        unit_price = d.unit_price or 0
-        total = d.total_price or 0
+        discount = d.get('discount')
+        discount_pct = f'{int((discount or 1) * 100)}%' if discount else '100%'
         row_vals = [
             i + 1,
-            d.product_name or '',
-            d.product_model or '',
-            d.product_desc or '',
-            d.brand or '',
-            d.unit or '',
-            d.quantity or 0,
+            d.get('product_name') or '',
+            d.get('product_model') or '',
+            d.get('product_desc') or '',
+            d.get('brand') or '',
+            d.get('unit') or '',
+            d.get('quantity') or 0,
             discount_pct,
-            unit_price,
-            total,
+            d.get('unit_price') or 0,
+            d.get('total_price') or 0,
         ]
         for ci, val in enumerate(row_vals):
             col = ci + 2
-            if col in (9, 10):   # 单价、小计 — 数字格式
+            if col in (9, 10):
                 _set_cell(ws, r, col, val, h_align='right', num_format='#,##0.00')
-            elif col == 7:       # 数量 — 居中
+            elif col == 7:
                 _set_cell(ws, r, col, val, h_align='center')
-            elif col == 2:       # ID — 居中
+            elif col == 2:
                 _set_cell(ws, r, col, val, h_align='center')
             else:
                 _set_cell(ws, r, col, val, h_align='left')
@@ -262,10 +260,9 @@ def _build_excel(quotation, db_type: str) -> bytes:
     # ── 小计行 ───────────────────────────────────────────────────────────────
     subtotal_row = data_start + len(details)
     _row_h(ws, subtotal_row, 22.5)
-    _merge(ws, subtotal_row, 10, subtotal_row, 11)  # J:K merged
-    _set_cell(ws, subtotal_row, 3, '小计', h_align='center',
-              fill_color=_HEADER_BG)
-    total_amount = quotation.amount or sum(d.total_price or 0 for d in details)
+    _merge(ws, subtotal_row, 10, subtotal_row, 11)
+    _set_cell(ws, subtotal_row, 3, '小计', h_align='center', fill_color=_HEADER_BG)
+    total_amount = data.get('total_amount') or sum(d.get('total_price') or 0 for d in details)
     _set_cell(ws, subtotal_row, 10, total_amount, h_align='center',
               fill_color=_HEADER_BG, num_format='#,##0.00')
 
@@ -285,15 +282,14 @@ def _build_excel(quotation, db_type: str) -> bytes:
     # ── 报价总额行 ────────────────────────────────────────────────────────────
     total_row = sep_row + 1
     _row_h(ws, total_row, 22.5)
-    _merge(ws, total_row, 4, total_row, 5)   # D:E 小写金额
-    _merge(ws, total_row, 8, total_row, 12)  # H:L 大写金额
+    _merge(ws, total_row, 4, total_row, 5)
+    _merge(ws, total_row, 8, total_row, 12)
     _set_cell(ws, total_row, 2, '一', h_align='left')
     _set_cell(ws, total_row, 3, '报价总额【小写】', h_align='left')
     _set_cell(ws, total_row, 4, total_amount, bold=True, h_align='left',
               num_format='#,##0.00')
     _set_cell(ws, total_row, 6, '报价总额【大写】', h_align='left')
-    _set_cell(ws, total_row, 8, _num_to_chinese(total_amount),
-              bold=True, h_align='left')
+    _set_cell(ws, total_row, 8, _num_to_chinese(total_amount), bold=True, h_align='left')
 
     # ── 付款方式 / 交付说明 / 备注 ────────────────────────────────────────────
     extra_rows = [('二', '付款方式'), ('三', '交付说明'), ('四', '备注')]
@@ -303,25 +299,21 @@ def _build_excel(quotation, db_type: str) -> bytes:
         _merge(ws, r, 4, r, 12)
         _set_cell(ws, r, 2, num, h_align='left')
         _set_cell(ws, r, 3, label, h_align='left')
-        _set_cell(ws, r, 4, '', h_align='left')   # 留空供手动填写
+        _set_cell(ws, r, 4, '', h_align='left')
 
-    # ── 签章行（统一微软雅黑）────────────────────────────────────────────────
+    # ── 签章行 ────────────────────────────────────────────────────────────────
     sig_row = total_row + len(extra_rows) + 3
     _row_h(ws, sig_row, 21.75)
     _merge(ws, sig_row, 7, sig_row, 10)
     _set_cell(ws, sig_row, 4, '盖章', bold=True, h_align='center')
-    owner_name = ''
-    if quotation.owner:
-        owner_name = (getattr(quotation.owner, 'real_name', '')
-                      or getattr(quotation.owner, 'username', ''))
-    _set_cell(ws, sig_row, 6, f'报价人：{owner_name}', bold=True)
+    _set_cell(ws, sig_row, 6, f'报价人：{data.get("owner_name", "")}', bold=True)
     _set_cell(ws, sig_row, 7, f'日期：{quote_date}', bold=True)
 
-    # ── 边框：只到"备注"行，签章区（空行+盖章行）不加边框 ──────────────────────
-    last_footer_row = total_row + len(extra_rows)   # "备注"所在行
-    _fill_borders(ws, 4, 2, last_footer_row, 12)    # B4:L[备注行]
+    # ── 边框 ──────────────────────────────────────────────────────────────────
+    last_footer_row = total_row + len(extra_rows)
+    _fill_borders(ws, 4, 2, last_footer_row, 12)
 
-    # ── 打印设置：适应页宽，水平居中，两侧各留约半列 ─────────────────────────
+    # ── 打印设置 ──────────────────────────────────────────────────────────────
     ws.print_area = f'A1:L{sig_row}'
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToPage = True
@@ -376,74 +368,147 @@ class ExportQuotationToExcelTool(BaseTool):
         if not qnum and not qid:
             return {'error': '请提供 quotation_number 或 quotation_id'}
 
-        # ── 查询报价单 ────────────────────────────────────────────────────────
+        # ── 查询报价单（raw SQL 第一步，与 query_pma_database 用同一 engine）────
+        # 避免 Flask-SQLAlchemy scoped session 的事务状态干扰 ORM 查询结果
         try:
-            from app.models.quotation import Quotation, QuotationDetail
-            q = None
+            from sqlalchemy import text as _text
+            from app.services.chat_db_query import _get_readonly_engine
+            engine = _get_readonly_engine()
+            real_id: int | None = None
+            real_number: str | None = None
 
-            if qnum:
-                # 1. 精确匹配
-                q = Quotation.query.filter_by(quotation_number=qnum).first()
-                # 2. LIKE 兜底（容忍 LLM 年月序号小偏差）
-                if q is None:
-                    q = Quotation.query.filter(
-                        Quotation.quotation_number.ilike(f'%{qnum.replace("-", "%")}%')
-                    ).order_by(Quotation.id.desc()).first()
-                    if q:
-                        logger.info(
-                            f'[export_quotation_to_excel] 模糊匹配 {qnum!r} → {q.quotation_number}'
-                        )
+            with engine.connect() as conn:
+                if qnum:
+                    # 精确匹配优先，再 ILIKE 模糊（容忍 LLM 年月序号小偏差）
+                    fuzzy = f"%{qnum.replace('-', '%')}%"
+                    row = conn.execute(_text(
+                        'SELECT id, quotation_number FROM quotations '
+                        'WHERE quotation_number = :n OR quotation_number ILIKE :fuzzy '
+                        'ORDER BY id DESC LIMIT 1'
+                    ), {'n': qnum, 'fuzzy': fuzzy}).fetchone()
+                    if row:
+                        real_id, real_number = row[0], row[1]
+                        if real_number != qnum:
+                            logger.info(f'[export_quotation_to_excel] 模糊匹配 {qnum!r} → {real_number}')
 
-            if q is None and qid:
-                # 3. 按报价单 ID 精确查
-                q = Quotation.query.get(qid)
-                # 4. qid 可能是明细行 ID — 反查
-                if q is None:
-                    detail = QuotationDetail.query.get(qid)
-                    if detail and detail.quotation_id:
-                        q = Quotation.query.get(detail.quotation_id)
-                        if q:
-                            logger.info(
-                                f'[export_quotation_to_excel] 明细 ID {qid} 反查到 {q.quotation_number}'
-                            )
+                if real_id is None and qid:
+                    # qid 可能是 quotations.id、quotation_details.quotation_id 或 quotation_details.id
+                    row = conn.execute(_text(
+                        'SELECT id, quotation_number FROM quotations WHERE id = :qid '
+                        'UNION '
+                        'SELECT q.id, q.quotation_number FROM quotations q '
+                        'JOIN quotation_details qd ON qd.quotation_id = q.id '
+                        'WHERE qd.quotation_id = :qid OR qd.id = :qid '
+                        'LIMIT 1'
+                    ), {'qid': int(qid)}).fetchone()
+                    if row:
+                        real_id, real_number = row[0], row[1]
+                        logger.info(f'[export_quotation_to_excel] qid={qid} → 报价单 {real_number}(id={real_id})')
 
         except Exception as e:
-            logger.exception('[export_quotation_to_excel] DB 查询异常')
+            logger.exception('[export_quotation_to_excel] raw SQL 查询异常')
             return {'error': f'查询报价单失败: {e}'}
 
-        if not q:
+        if real_id is None:
             ident = qnum or str(qid)
             return {
                 'error': (
-                    f'未找到报价单（{ident}）。请先用 query_pma_database 查询'
-                    ' "SELECT id, quotation_number FROM quotations WHERE ..." '
-                    '获取准确的报价单编号后重试。'
+                    f'未找到报价单（{ident}）。'
+                    '请先用 query_pma_database 执行 '
+                    '"SELECT id, quotation_number FROM quotations WHERE owner_id=... ORDER BY id DESC LIMIT 5" '
+                    '获取准确编号后重试。'
                 )
             }
 
-        # ── 权限检查 ──────────────────────────────────────────────────────────
+        # ── 第二步：用 raw SQL 加载报价单完整数据（与第一步同一 engine）────────
         try:
-            from app.utils.access_control import get_viewable_data
-            from app.models.quotation import Quotation as Q
-            accessible = get_viewable_data(Q, user, [Q.id == q.id]).first()
-            if not accessible:
-                return {'error': f'您没有权限查看报价单 {q.quotation_number}'}
-        except Exception as e:
-            logger.warning(f'[export_quotation_to_excel] 权限检查跳过: {e}')
+            with engine.connect() as conn:
+                h = conn.execute(_text(
+                    'SELECT q.amount, q.created_at, q.owner_id,'
+                    " COALESCE(p.project_name, '') AS project_name,"
+                    " COALESCE(c.company_name, '') AS company_name,"
+                    " COALESCE(ct.name, '') AS contact_name,"
+                    " COALESCE(ct.phone, '') AS contact_phone,"
+                    " COALESCE(u.real_name, u.username, '') AS owner_name"
+                    ' FROM quotations q'
+                    ' LEFT JOIN projects p ON p.id = q.project_id'
+                    ' LEFT JOIN companies c ON c.id = q.customer_id'
+                    ' LEFT JOIN contacts ct ON ct.id = q.contact_id'
+                    ' LEFT JOIN users u ON u.id = q.owner_id'
+                    ' WHERE q.id = :real_id'
+                ), {'real_id': real_id}).fetchone()
 
-        # ── 生成 Excel ────────────────────────────────────────────────────────
+                detail_rows = conn.execute(_text(
+                    'SELECT product_name, product_model, product_desc, brand, unit,'
+                    ' quantity, discount, unit_price, total_price'
+                    ' FROM quotation_details'
+                    ' WHERE quotation_id = :real_id'
+                    '   AND (is_accessory = FALSE OR is_accessory IS NULL)'
+                    ' ORDER BY id'
+                ), {'real_id': real_id}).fetchall()
+
+        except Exception as e:
+            logger.exception('[export_quotation_to_excel] 数据加载异常')
+            return {'error': f'加载报价单数据失败: {e}'}
+
+        if not h:
+            return {'error': f'加载报价单 {real_number} 失败，请重试'}
+
+        # ── 权限检查 ────────────────────────────────────────
+        if user:
+            user_role = getattr(user, 'role', 'user')
+            owner_id = h[2]
+            admin_roles = {'admin', 'ceo', 'finance', 'finance_director', 'finace_director', 'system'}
+            if user_role not in admin_roles and owner_id != user.id:
+                try:
+                    from app.utils.access_control import get_viewable_data
+                    from app.models.quotation import Quotation as _Q
+                    accessible = get_viewable_data(_Q, user, [_Q.id == real_id]).first()
+                    if not accessible:
+                        return {'error': f'您没有权限查看报价单 {real_number}'}
+                except Exception as e:
+                    logger.warning(f'[export_quotation_to_excel] 权限检查跳过: {e}')
+
+        # ── 构建 data dict ──────────────────────────────────
+        quote_date = h[1].strftime('%Y-%m-%d') if h[1] else ''
+        data = {
+            'quotation_number': real_number,
+            'project_name': h[3],
+            'company_name': h[4],
+            'contact_name': h[5],
+            'contact_phone': h[6],
+            'quote_date': quote_date,
+            'total_amount': float(h[0]) if h[0] else 0.0,
+            'owner_name': h[7],
+            'details': [
+                {
+                    'product_name': r[0] or '',
+                    'product_model': r[1] or '',
+                    'product_desc': r[2] or '',
+                    'brand': r[3] or '',
+                    'unit': r[4] or '',
+                    'quantity': r[5] or 0,
+                    'discount': float(r[6]) if r[6] is not None else None,
+                    'unit_price': float(r[7]) if r[7] is not None else 0.0,
+                    'total_price': float(r[8]) if r[8] is not None else 0.0,
+                }
+                for r in detail_rows
+            ],
+        }
+
+        # ── 生成 Excel ────────────────────────────────────────
         from flask import current_app
         db_type = 'OVS' if current_app.config.get('IS_OVS') else 'SP8D'
 
         try:
-            xlsx_bytes = _build_excel(q, db_type)
+            xlsx_bytes = _build_excel(data, db_type)
         except Exception as e:
             logger.exception('[export_quotation_to_excel] 生成 Excel 异常')
             return {'error': f'Excel 生成失败: {e}'}
 
-        # ── 保存文件 ──────────────────────────────────────────────────────────
+        # ── 保存文件 ────────────────────────────────────────
         os.makedirs(_STORAGE_DIR, exist_ok=True)
-        safe_num = re.sub(r'[^\w\u4e00-\u9fff]+', '_', q.quotation_number)
+        safe_num = re.sub(r'[^\w\u4e00-\u9fff]+', '_', real_number)
         date_str = datetime.now().strftime('%Y%m%d_%H%M')
         filename = f'报价单_{safe_num}_{date_str}.xlsx'
         file_path = os.path.join(_STORAGE_DIR, filename)
@@ -455,10 +520,11 @@ class ExportQuotationToExcelTool(BaseTool):
         return {
             'success': True,
             'filename': filename,
-            'quotation_number': q.quotation_number,
+            'quotation_number': real_number,
             'download_url': f'/cli/api/exports/{filename}',
             'note': '下载按钮已显示在终端中，只需简短回复"报价单Excel已生成"即可。',
         }
+
 
     @staticmethod
     def _try_upload_nas(file_path: str, filename: str, user) -> None:

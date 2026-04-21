@@ -296,9 +296,18 @@
 
         <!-- 消息区域 -->
         <div class="flex-1 overflow-y-auto overflow-x-hidden chat-panel-scroll px-4 py-4 space-y-4 relative" x-ref="messageArea"
+             @scroll.passive="{ const el = $refs.messageArea; const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 60; if (atBottom) { _userScrolled = false; } else if (aiTyping || aiStreamingMsg || aiStatusMsg) { _userScrolled = true; } }"
              @dragover.prevent="dragOver = true"
              @dragleave.prevent="dragOver = false"
              @drop.prevent="handleDrop($event)">
+
+            <!-- 智能滚动：用户上滚时出现「↓」按钮 -->
+            <button x-show="_userScrolled" x-transition
+                    @click="_userScrolled = false; scrollToBottom(true)"
+                    class="sticky bottom-4 float-right z-10 p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-full shadow-md text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                    title="滚动到底部">
+                <span class="material-symbols-outlined text-base leading-none">keyboard_arrow_down</span>
+            </button>
 
             <!-- 拖拽遮罩 -->
             <div x-show="dragOver"
@@ -1137,10 +1146,14 @@
 
             <!-- AI 状态消息 -->
             <div x-show="aiStatusMsg" class="mb-2 chat-msg-appear">
-                <div class="inline-flex items-center gap-2 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    <svg class="animate-spin h-3 w-3" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>
+                <div class="inline-flex items-center gap-2 px-3 py-1.5 text-xs transition-colors duration-300"
+                     :class="aiStatusDone ? 'text-slate-400 dark:text-slate-600' : 'text-slate-500 dark:text-slate-400'">
+                    <!-- 进行中：旋转 spinner -->
+                    <svg x-show="!aiStatusDone" class="animate-spin h-3 w-3 flex-shrink-0" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z"/></svg>
+                    <!-- 完成：静态对勾 -->
+                    <span x-show="aiStatusDone" class="material-symbols-outlined text-xs flex-shrink-0">check</span>
                     <span x-text="aiStatusMsg"></span>
-                    <span x-show="aiStatusElapsed >= 10" x-cloak
+                    <span x-show="!aiStatusDone && aiStatusElapsed >= 10" x-cloak
                           class="text-amber-500 dark:text-amber-400">(<span x-text="aiStatusElapsed"></span>s)</span>
                 </div>
             </div>
@@ -2087,7 +2100,9 @@ function chatPanel() {
         aiThinkingText: '',
         aiThinkingCollapsed: true,
         aiStatusMsg: '',
+        aiStatusDone: false,
         aiStatusElapsed: 0,
+        _userScrolled: false,
         _slowTimerInterval: null,
         _slowTimerStart: 0,
         _aiAbortController: null,
@@ -2885,6 +2900,7 @@ function chatPanel() {
             this.stopPolling();
 
             // 开始 AI 流式响应
+            this._userScrolled = false;
             this.aiTyping = true;
             this.aiStreamingMsg = '';
             this.aiThinkingText = '';
@@ -2962,6 +2978,7 @@ function chatPanel() {
                             } else if (payload.type === 'status') {
                                 // AI 处理阶段状态
                                 this.aiStatusMsg = payload.message;
+                                this.aiStatusDone = false;
                                 this.aiTyping = false;
                                 this._resetSlowTimer();
                                 this.scrollToBottom();
@@ -2999,12 +3016,13 @@ function chatPanel() {
                             } else if (payload.type === 'agent_status') {
                                 // 工具执行状态
                                 this.aiStatusMsg = payload.message;
+                                this.aiStatusDone = false;
                                 this._resetSlowTimer();
                                 this.scrollToBottom();
                             } else if (payload.type === 'content') {
-                                // 内容到达：折叠思考、清除状态
+                                // 内容到达：折叠思考；状态保留但标记完成（避免高度跳变）
                                 this.aiThinkingCollapsed = true;
-                                this.aiStatusMsg = '';
+                                this.aiStatusDone = true;
                                 this._clearSlowTimer();
                                 this.aiStreamingMsg += payload.text;
                                 this.scrollToBottom();
@@ -3013,6 +3031,7 @@ function chatPanel() {
                                 this.aiThinkingText = '';
                                 this.aiThinkingCollapsed = true;
                                 this.aiStatusMsg = '';
+                                this.aiStatusDone = false;
                                 this._clearSlowTimer();
                                 // 清除可能残留的表单标记或选项标记文本
                                 if (this.aiStreamingMsg) {
@@ -4178,9 +4197,9 @@ function chatPanel() {
             this._toastTimer = setTimeout(() => { this.toastMsg = ''; }, duration);
         },
 
-        scrollToBottom() {
+        scrollToBottom(force = false) {
             this.$nextTick(() => {
-                if (this.$refs.messageArea) {
+                if (this.$refs.messageArea && (!this._userScrolled || force)) {
                     this.$refs.messageArea.scrollTop = this.$refs.messageArea.scrollHeight;
                 }
             });
