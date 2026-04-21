@@ -103,6 +103,8 @@ services:
       CLI_AGENT_PROVIDER: ${CLI_AGENT_PROVIDER:-claude}
       CLI_AGENT_MODEL: ${CLI_AGENT_MODEL:-claude-sonnet-4-6}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      # Tavily 网络搜索（AI 回填客户/项目信息）
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
 
       # Wiki 知识库（Karpathy LLM Wiki 方案）- 复用 ANTHROPIC_BASE_URL 代理
       WIKI_INGEST_MODEL: ${WIKI_INGEST_MODEL:-claude-opus-4-6}

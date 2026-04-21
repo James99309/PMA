@@ -4277,27 +4277,29 @@ def ai_enrich_company():
     if not company_name:
         return jsonify({'success': False, 'message': '请输入企业名称'}), 400
 
-    # 1. Tavily 搜索（可选，无 key 时降级为纯 Claude 推断）
+    # 1. Tavily 搜索
     tavily_key = os.environ.get('TAVILY_API_KEY', '').strip()
-    search_text = ''
-    if tavily_key:
-        try:
-            from tavily import TavilyClient
-            client = TavilyClient(api_key=tavily_key)
-            search_result = client.search(
-                query=f'{company_name} 公司 官网 地址 简介',
-                search_depth='basic',
-                max_results=5,
-                include_answer=True,
-            )
-            snippets = '\n'.join(
-                f"- {r.get('title', '')}: {(r.get('content', '') or '')[:300]}"
-                for r in search_result.get('results', [])
-            )
-            answer = search_result.get('answer', '') or ''
-            search_text = f"Answer: {answer}\n\nSnippets:\n{snippets}"
-        except Exception as e:
-            current_app.logger.warning(f'[ai_enrich] Tavily 失败，降级为纯推断: {e}')
+    if not tavily_key:
+        return jsonify({'success': False, 'message': '未配置 TAVILY_API_KEY'}), 500
+
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=tavily_key)
+        search_result = client.search(
+            query=f'{company_name} 公司 官网 地址 简介',
+            search_depth='basic',
+            max_results=5,
+            include_answer=True,
+        )
+        snippets = '\n'.join(
+            f"- {r.get('title', '')}: {(r.get('content', '') or '')[:300]}"
+            for r in search_result.get('results', [])
+        )
+        answer = search_result.get('answer', '') or ''
+        search_text = f"Answer: {answer}\n\nSnippets:\n{snippets}"
+    except Exception as e:
+        current_app.logger.error(f'[ai_enrich] Tavily 搜索失败: {e}')
+        return jsonify({'success': False, 'message': f'Tavily 搜索失败: {e}'}), 500
 
     # 2. Claude Haiku 解析
     anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
@@ -4316,35 +4318,20 @@ def ai_enrich_company():
         'contractor(总包商) / designer(顾问设计院) / partner(合作伙伴) / '
         'supplier(供应商) / other(其他)'
     )
-    if search_text:
-        prompt = (
-            f'根据以下搜索结果，提取关于企业「{company_name}」的结构化信息。\n\n'
-            f'搜索结果：\n{search_text}\n\n'
-            '请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n'
-            '{\n'
-            '  "official_names": ["正式名称候选1", "正式名称候选2"],\n'
-            '  "address": "详细地址（中文）",\n'
-            '  "country": "国家（英文，如 China / Singapore）",\n'
-            '  "description": "100字以内的企业简介（中文）",\n'
-            f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
-            f'  "company_type": "从以下选项中选最匹配的 key，只返回 key：{company_type_opts}"\n'
-            '}\n\n'
-            '只返回 JSON，不要任何其他文字。'
-        )
-    else:
-        prompt = (
-            f'根据你的知识，提取关于企业「{company_name}」的结构化信息。\n\n'
-            '请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n'
-            '{\n'
-            '  "official_names": ["正式名称候选1", "正式名称候选2"],\n'
-            '  "address": "详细地址（中文）",\n'
-            '  "country": "国家（英文，如 China / Singapore）",\n'
-            '  "description": "100字以内的企业简介（中文）",\n'
-            f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
-            f'  "company_type": "从以下选项中选最匹配的 key，只返回 key：{company_type_opts}"\n'
-            '}\n\n'
-            '只返回 JSON，不要任何其他文字。'
-        )
+    prompt = (
+        f'根据以下搜索结果，提取关于企业「{company_name}」的结构化信息。\n\n'
+        f'搜索结果：\n{search_text}\n\n'
+        '请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n'
+        '{\n'
+        '  "official_names": ["正式名称候选1", "正式名称候选2"],\n'
+        '  "address": "详细地址（中文）",\n'
+        '  "country": "国家（英文，如 China / Singapore）",\n'
+        '  "description": "100字以内的企业简介（中文）",\n'
+        f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
+        f'  "company_type": "从以下选项中选最匹配的 key，只返回 key：{company_type_opts}"\n'
+        '}\n\n'
+        '只返回 JSON，不要任何其他文字。'
+    )
 
     try:
         import anthropic as _anthropic
