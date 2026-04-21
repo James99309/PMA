@@ -4370,6 +4370,7 @@ def ai_enrich_company():
 
     industry_key = parsed.get('industry') or ''
     company_type_key = parsed.get('company_type') or ''
+    lang = 'en' if is_en else 'zh'
     return jsonify({
         'success': True,
         'official_names': parsed.get('official_names') or [],
@@ -4377,9 +4378,9 @@ def ai_enrich_company():
         'country': parsed.get('country') or '',
         'description': parsed.get('description') or '',
         'industry': industry_key,
-        'industry_label': INDUSTRY_LABELS.get(industry_key, {}).get('zh', ''),
+        'industry_label': INDUSTRY_LABELS.get(industry_key, {}).get(lang, ''),
         'company_type': company_type_key,
-        'company_type_label': COMPANY_TYPE_LABELS.get(company_type_key, {}).get('zh', ''),
+        'company_type_label': COMPANY_TYPE_LABELS.get(company_type_key, {}).get(lang, ''),
     })
 
 

@@ -5317,13 +5317,14 @@ def ai_enrich_project():
         return jsonify({'success': False, 'message': 'AI 解析失败，请稍后重试'}), 500
 
     industry_key = parsed.get('industry') or ''
+    lang = 'en' if is_en else 'zh'
     return jsonify({
         'success': True,
         'official_names': parsed.get('official_names') or [],
         'address': parsed.get('address') or '',
         'country': parsed.get('country') or '',
         'industry': industry_key,
-        'industry_label': INDUSTRY_LABELS.get(industry_key, {}).get('zh', ''),
+        'industry_label': INDUSTRY_LABELS.get(industry_key, {}).get(lang, ''),
         'description': parsed.get('description') or '',
     })
 
