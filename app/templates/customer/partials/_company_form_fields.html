@@ -251,7 +251,12 @@
 
         fetch('/customer/api/ai-enrich', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: (function() {
+                var h = { 'Content-Type': 'application/json' };
+                var m = document.querySelector('meta[name="csrf-token"]');
+                if (m) h['X-CSRFToken'] = m.getAttribute('content');
+                return h;
+            }()),
             body: JSON.stringify({ company_name: q }),
         })
             .then(function (r) { return r.json(); })
