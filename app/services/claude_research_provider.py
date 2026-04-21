@@ -52,6 +52,13 @@ def send_claude_research_request(prompt: str, timeout: int = 300) -> str:
     tools = [web_search.to_anthropic_schema()]
     messages: list[dict] = [{'role': 'user', 'content': prompt}]
 
+    system_blocks = [{'type': 'text', 'text': (
+        '你是一个专业的工程项目信息调研助手。'
+        '使用 web_search 工具收集信息后，最终回复必须是且仅是合法的 JSON 对象。'
+        '严禁在 JSON 前后添加任何解释、总结或 markdown 代码块。'
+        'JSON 字符串值内如需引用内容，必须使用中文引号「」或将双引号转义为 \\"。'
+    )}]
+
     for iteration in range(_MAX_ITERATIONS):
         full_text = ''
         tool_uses: list[dict] = []
@@ -59,7 +66,7 @@ def send_claude_research_request(prompt: str, timeout: int = 300) -> str:
         error: str | None = None
 
         for event in client.stream(
-            system_blocks=[],
+            system_blocks=system_blocks,
             tools=tools,
             messages=messages,
             max_tokens=_MAX_TOKENS,

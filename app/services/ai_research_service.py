@@ -383,18 +383,9 @@ class AIResearchService:
         start = content.find('{')
         end = content.rfind('}')
         if start != -1 and end != -1:
-            candidate = content[start:end + 1]
             try:
-                return json.loads(candidate)
+                return json.loads(content[start:end + 1])
             except json.JSONDecodeError:
-                pass
-            # 兜底: 用 json-repair 修复 AI 输出中常见的非法字符（如字符串值内未转义的引号）
-            try:
-                from json_repair import repair_json
-                repaired = repair_json(candidate, return_objects=True)
-                if isinstance(repaired, dict) and repaired:
-                    return repaired
-            except Exception:
                 pass
 
         raise ValueError("无法从 AI 响应中提取有效的 JSON")
