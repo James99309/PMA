@@ -24,6 +24,9 @@ def cross_sync_push():
         return jsonify({'success': False, 'message': '无效的请求数据'}), 400
 
     if data.get('reply_mode'):
+        for field in ['sender_email', 'recipient_email', 'content']:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'缺少必要字段: {field}'}), 400
         from app.services.cross_sync_service import receive_private_reply_from_peer
         result = receive_private_reply_from_peer(data)
     else:
