@@ -283,9 +283,9 @@ def push_group_to_peer(sg_group_id, group_name, sender_name, sender_email, conte
         return
 
     def _do_push():
-        import httpx
+        import requests
         try:
-            resp = httpx.post(
+            resp = requests.post(
                 f'{peer_url}/cross-sync/push-group',
                 headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
                 json={
@@ -296,7 +296,7 @@ def push_group_to_peer(sg_group_id, group_name, sender_name, sender_email, conte
                     'content': content,
                     'recipient_emails': recipient_emails,
                 },
-                timeout=10.0,
+                timeout=10,
             )
             if resp.status_code == 200:
                 logger.info(f"群聊跨系统推送成功: sg_group_id={sg_group_id}")
@@ -305,7 +305,6 @@ def push_group_to_peer(sg_group_id, group_name, sender_name, sender_email, conte
         except Exception as e:
             logger.warning(f"群聊跨系统推送异常: {e}")
 
-    import threading
     threading.Thread(target=_do_push, daemon=True).start()
 
 
@@ -319,9 +318,9 @@ def push_group_reply_to_peer(sg_group_id, sender_email, sender_name, content):
         return
 
     def _do_push():
-        import httpx
+        import requests
         try:
-            resp = httpx.post(
+            resp = requests.post(
                 f'{peer_url}/cross-sync/push-group',
                 headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
                 json={
@@ -331,14 +330,13 @@ def push_group_reply_to_peer(sg_group_id, sender_email, sender_name, content):
                     'content': content,
                     'reply_mode': True,
                 },
-                timeout=10.0,
+                timeout=10,
             )
             if resp.status_code != 200:
                 logger.warning(f"群聊回复推送失败: status={resp.status_code}, body={resp.text[:200]}")
         except Exception as e:
             logger.warning(f"群聊回复推送异常: {e}")
 
-    import threading
     threading.Thread(target=_do_push, daemon=True).start()
 
 
