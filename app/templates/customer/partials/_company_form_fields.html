@@ -125,181 +125,23 @@
               placeholder="{{ _('请输入备注信息') }}"></textarea>
 </div>
 
+<script src="{{ url_for('static', filename='js/ai-form-enrich.js') }}"></script>
 <script>
-(function () {
-    function escHtml(s) {
-        var d = document.createElement('div');
-        d.textContent = String(s || '');
-        return d.innerHTML;
-    }
-
-    function safeUrl(url) {
-        return /^https?:\/\//i.test(url) ? url : '#';
-    }
-
-    const nameInput = document.getElementById('company_name');
-    const similarList = document.getElementById('companySimilarList');
-    const aiBtn = document.getElementById('aiEnrichBtn');
-    const aiPanel = document.getElementById('aiEnrichPanel');
-    const aiContent = document.getElementById('aiEnrichContent');
-    const aiClose = document.getElementById('aiEnrichClose');
-    let debounceTimer = null;
-
-    // ---- 内部查重 ----
-    function renderSimilarList(results) {
-        if (!results.length) {
-            similarList.classList.add('hidden');
-            return;
-        }
-        similarList.innerHTML = results.map(function (r) {
-            var badge = r.score >= 0.9
-                ? '<span class="text-xs text-red-500 font-medium ml-1">高度相似</span>'
-                : r.score >= 0.7
-                    ? '<span class="text-xs text-yellow-500 font-medium ml-1">相似</span>'
-                    : '';
-            if (r.viewable) {
-                return '<a href="' + safeUrl(r.url) + '" target="_blank"' +
-                    ' class="flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-100 dark:border-slate-700 last:border-0">' +
-                    '<span class="text-slate-800 dark:text-slate-200">' + escHtml(r.name) + badge + '</span>' +
-                    '<span class="text-xs text-slate-400">查看</span>' +
-                    '</a>';
-            } else {
-                var ownerHint = r.owner_name
-                    ? '<span class="text-xs text-slate-400">归属：' + escHtml(r.owner_name) + '，请勿重复创建</span>'
-                    : '<span class="text-xs text-slate-400">已存在，请勿重复创建</span>';
-                return '<div class="flex items-center justify-between px-3 py-2 border-b border-slate-100 dark:border-slate-700 last:border-0">' +
-                    '<span class="text-slate-500 dark:text-slate-400">' + escHtml(r.name) + badge + '</span>' +
-                    ownerHint +
-                    '</div>';
-            }
-        }).join('');
-        similarList.classList.remove('hidden');
-    }
-
-    nameInput && nameInput.addEventListener('input', function () {
-        clearTimeout(debounceTimer);
-        var q = this.value.trim();
-        if (q.length < 2) {
-            similarList && similarList.classList.add('hidden');
-            return;
-        }
-        debounceTimer = setTimeout(function () {
-            fetch('/customer/api/similar-companies?q=' + encodeURIComponent(q))
-                .then(function (r) { return r.json(); })
-                .then(function (data) { renderSimilarList(data.results || []); })
-                .catch(function () {});
-        }, 500);
-    });
-
-    document.addEventListener('click', function (e) {
-        if (similarList && !similarList.contains(e.target) && e.target !== nameInput) {
-            similarList.classList.add('hidden');
-        }
-    });
-
-    // ---- AI 回填 ----
-    function renderAiPanel(data) {
-        var nameOptions = (data.official_names || []).map(function (n) {
-            return '<label class="flex items-center gap-2 cursor-pointer">' +
-                '<input type="radio" name="ai_name_pick" value="' + escHtml(n) + '" class="text-primary">' +
-                '<span class="text-sm text-slate-800 dark:text-slate-200">' + escHtml(n) + '</span>' +
-                '</label>';
-        }).join('');
-
-        var html = '';
-        if (nameOptions) {
-            html += '<div class="space-y-1"><p class="text-xs text-slate-500 mb-1">选择正式名称（点选后自动填入）</p>' + nameOptions + '</div>';
-        }
-        if (data.industry && data.industry_label) {
-            html += '<div class="text-sm"><span class="text-slate-500 text-xs">行业</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + escHtml(data.industry_label) + '</p></div>';
-        }
-        if (data.company_type && data.company_type_label) {
-            html += '<div class="text-sm"><span class="text-slate-500 text-xs">企业类型</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + escHtml(data.company_type_label) + '</p></div>';
-        }
-        if (data.address) {
-            html += '<div class="text-sm"><span class="text-slate-500 text-xs">地址</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + escHtml(data.address) + '</p></div>';
-        }
-        if (data.description) {
-            html += '<div class="text-sm"><span class="text-slate-500 text-xs">企业简介</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + escHtml(data.description) + '</p></div>';
-        }
-        html += '<div class="flex gap-2 pt-1"><button type="button" id="aiApplyBtn" class="flex-1 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">应用到表单</button></div>';
-
-        aiContent.innerHTML = html;
-
-        aiContent.querySelectorAll('input[name="ai_name_pick"]').forEach(function (radio) {
-            radio.addEventListener('change', function () {
-                nameInput.value = this.value;
-            });
-        });
-
-        var applyBtn = document.getElementById('aiApplyBtn');
-        applyBtn && applyBtn.addEventListener('click', function () {
-            var picked = aiContent.querySelector('input[name="ai_name_pick"]:checked');
-            if (picked) nameInput.value = picked.value;
-
-            if (data.address) {
-                var addrField = document.getElementById('address');
-                if (addrField) addrField.value = data.address;
-            }
-            if (data.country) {
-                var countryField = document.getElementById('country');
-                if (countryField) countryField.value = data.country;
-            }
-            if (data.industry) {
-                var industryField = document.getElementById('industry');
-                if (industryField) industryField.value = data.industry;
-            }
-            if (data.company_type) {
-                var companyTypeField = document.getElementById('company_type');
-                if (companyTypeField) companyTypeField.value = data.company_type;
-            }
-            if (data.description) {
-                var notesField = document.getElementById('notes');
-                if (notesField && !notesField.value) notesField.value = data.description;
-            }
-            aiPanel.classList.add('hidden');
-        });
-
-        aiPanel.classList.remove('hidden');
-    }
-
-    var AI_BTN_DEFAULT_HTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg> AI';
-    var AI_BTN_LOADING_HTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> 查询中';
-
-    aiBtn && aiBtn.addEventListener('click', function () {
-        var q = nameInput ? nameInput.value.trim() : '';
-        if (!q) { alert('请先输入企业名称'); return; }
-
-        aiBtn.disabled = true;
-        aiBtn.innerHTML = AI_BTN_LOADING_HTML;
-
-        fetch('/customer/api/ai-enrich', {
-            method: 'POST',
-            headers: (function() {
-                var h = { 'Content-Type': 'application/json' };
-                var m = document.querySelector('meta[name="csrf-token"]');
-                if (m) h['X-CSRFToken'] = m.getAttribute('content');
-                return h;
-            }()),
-            body: JSON.stringify({ company_name: q }),
-        })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (data.success) {
-                    renderAiPanel(data);
-                } else {
-                    alert(data.message || 'AI 查询失败，请稍后重试');
-                }
-            })
-            .catch(function () { alert('网络错误，请稍后重试'); })
-            .finally(function () {
-                aiBtn.disabled = false;
-                aiBtn.innerHTML = AI_BTN_DEFAULT_HTML;
-            });
-    });
-
-    aiClose && aiClose.addEventListener('click', function () {
-        aiPanel.classList.add('hidden');
-    });
-}());
+AiFormEnrich.init({
+    nameInputId:   'company_name',
+    similarListId: 'companySimilarList',
+    aiBtnId:       'aiEnrichBtn',
+    aiPanelId:     'aiEnrichPanel',
+    aiContentId:   'aiEnrichContent',
+    aiCloseId:     'aiEnrichClose',
+    similarApi:    '/customer/api/similar-companies',
+    enrichApi:     '/customer/api/ai-enrich',
+    enrichBodyKey: 'company_name',
+    fieldMap: [
+        { key: 'industry',      label: '行业',     targetId: 'industry',      labelKey: 'industry_label' },
+        { key: 'company_type',  label: '企业类型', targetId: 'company_type',  labelKey: 'company_type_label' },
+        { key: 'address',       label: '地址',     targetId: 'address' },
+        { key: 'description',   label: '企业简介', targetId: 'notes',         onlyIfEmpty: true }
+    ]
+});
 </script>
