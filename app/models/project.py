@@ -73,8 +73,9 @@ class Project(SharingMixin, db.Model):
     # AI 网络调研字段
     ai_research_data = Column(JSON, nullable=True)  # 结构化调研结果
     ai_research_updated_at = Column(DateTime, nullable=True)  # 最后调研时间
-    ai_research_status = Column(String(20), default='none')  # none/researching/completed/error
+    ai_research_status = Column(String(20), default='none')  # none/pre_searching/needs_input/researching/completed/error
     ai_research_error = Column(String(500), nullable=True)  # 错误信息
+    ai_research_candidates = Column(JSON, nullable=True)  # 候选项目名称列表（待用户确认）
 
     # 通用共享字段
     shared_with_users = Column(JSON, default=list, nullable=True)  # 共享给的用户ID列表

@@ -431,6 +431,46 @@ render_tw_expense_status_badge with context %}
             <div x-show="researchOpen" x-collapse.duration.300ms>
             <div x-data="projectResearch()" x-init="init()">
 
+                <!-- 候选确认状态 -->
+                <template x-if="status === 'needs_input'">
+                    <div class="bg-white dark:bg-slate-800/80 rounded-2xl border border-amber-200 dark:border-amber-700/60 p-6">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="material-symbols-outlined text-amber-500">help</span>
+                            <h3 class="font-semibold text-slate-900 dark:text-white">{{ _('请确认项目名称') }}</h3>
+                        </div>
+
+                        <template x-if="candidates && candidates.length > 0">
+                            <div>
+                                <p class="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                                    {{ _('未找到与当前项目名完全匹配的结果，以下是搜索到的相关项目，请选择正确的项目：') }}
+                                </p>
+                                <div class="space-y-2 mb-4">
+                                    <template x-for="(name, idx) in candidates" :key="idx">
+                                        <button @click="confirmCandidate(name)"
+                                            class="w-full text-left px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer">
+                                            <span class="text-sm font-medium text-slate-900 dark:text-white" x-text="name"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                                <button @click="confirmCandidate(null)"
+                                    class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 underline cursor-pointer">
+                                    {{ _('以上均不是，强制用原名调研') }}
+                                </button>
+                            </div>
+                        </template>
+
+                        <template x-if="!candidates || candidates.length === 0">
+                            <div>
+                                <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">{{ _('未找到匹配的候选项目') }}</p>
+                                <button @click="confirmCandidate(null)"
+                                    class="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-xl text-sm font-medium transition-colors cursor-pointer">
+                                    {{ _('强制用原名调研') }}
+                                </button>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
                 <!-- 已加载但数据为空 -->
                 <template x-if="status === 'completed' && isEmptyResult">
                     <div class="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-8 text-center">
@@ -2597,10 +2637,11 @@ render_tw_expense_status_badge with context %}
     <script>
     function projectResearch() {
         return {
-            status: 'none',      // none | researching | completed | error
+            status: 'none',      // none | pre_searching | needs_input | researching | completed | error
             data: null,
             updatedAt: null,
             errorMsg: '',
+            candidates: [],
             projectId: {{ project.id }},
             _pollTimer: null,
 
@@ -2617,10 +2658,12 @@ render_tw_expense_status_badge with context %}
                 const label = btn.querySelector('span:last-child');
 
                 const styles = {
-                    none: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg', icon: 'travel_explore', spin: false, text: '{{ _("AI 调研") }}' },
-                    researching: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg cursor-wait', icon: 'progress_activity', spin: true, text: '{{ _("调研中...") }}' },
-                    completed: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer', icon: 'check_circle', spin: false, text: '{{ _("AI 调研") }}' },
-                    error: { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-lg cursor-pointer', icon: 'error', spin: false, text: '{{ _("调研失败") }}' },
+                    none:         { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg', icon: 'travel_explore', spin: false, text: '{{ _("AI 调研") }}' },
+                    pre_searching:{ cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg cursor-wait', icon: 'progress_activity', spin: true, text: '{{ _("调研中...") }}' },
+                    researching:  { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg cursor-wait', icon: 'progress_activity', spin: true, text: '{{ _("调研中...") }}' },
+                    needs_input:  { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 border border-amber-300 dark:border-amber-700 rounded-lg animate-pulse cursor-pointer', icon: 'warning', spin: false, text: '{{ _("待确认") }}' },
+                    completed:    { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors cursor-pointer', icon: 'check_circle', spin: false, text: '{{ _("AI 调研") }}' },
+                    error:        { cls: 'inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-700 rounded-lg cursor-pointer', icon: 'error', spin: false, text: '{{ _("调研失败") }}' },
                 };
                 const s = styles[this.status] || styles.none;
                 btn.className = s.cls;
@@ -2629,8 +2672,8 @@ render_tw_expense_status_badge with context %}
             },
 
             handleBtnClick() {
-                if (this.status === 'researching') return;
-                if (this.status === 'completed' || this.status === 'error') {
+                if (this.status === 'pre_searching' || this.status === 'researching') return;
+                if (this.status === 'completed' || this.status === 'error' || this.status === 'needs_input') {
                     window.dispatchEvent(new CustomEvent('toggle-project-research'));
                 }
                 if (this.status === 'none') {
@@ -2645,7 +2688,6 @@ render_tw_expense_status_badge with context %}
                         headers: { 'X-CSRFToken': csrfToken }
                     });
                     if (!resp.ok) {
-                        // 权限不足或其他错误，停止轮询
                         if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
                         return;
                     }
@@ -2654,10 +2696,20 @@ render_tw_expense_status_badge with context %}
                     this.status = json.status || 'none';
                     this.data = json.data;
                     this.updatedAt = json.updated_at;
+                    this.candidates = json.candidates || [];
                     this.errorMsg = json.error || '';
 
-                    if (this.status === 'researching') {
+                    if (this.status === 'pre_searching' || this.status === 'researching') {
                         this.startPolling();
+                    } else if (this._pollTimer) {
+                        clearInterval(this._pollTimer);
+                        this._pollTimer = null;
+                        if (this.status === 'completed') {
+                            window.dispatchEvent(new CustomEvent('set-project-research', { detail: true }));
+                        }
+                        if (this.status === 'needs_input') {
+                            window.dispatchEvent(new CustomEvent('set-project-research', { detail: true }));
+                        }
                     }
                 } catch (e) {
                     console.error('获取项目 AI 调研状态失败:', e);
@@ -2667,16 +2719,7 @@ render_tw_expense_status_badge with context %}
 
             startPolling() {
                 if (this._pollTimer) return;
-                this._pollTimer = setInterval(async () => {
-                    await this.fetchStatus();
-                    if (this.status !== 'researching') {
-                        clearInterval(this._pollTimer);
-                        this._pollTimer = null;
-                        if (this.status === 'completed') {
-                            window.dispatchEvent(new CustomEvent('set-project-research', { detail: true }));
-                        }
-                    }
-                }, 5000);
+                this._pollTimer = setInterval(() => this.fetchStatus(), 5000);
             },
 
             async retry() {
@@ -2686,11 +2729,28 @@ render_tw_expense_status_badge with context %}
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken }
                     });
-                    this.status = 'researching';
+                    this.status = 'pre_searching';
+                    this.candidates = [];
                     window.dispatchEvent(new CustomEvent('set-project-research', { detail: false }));
                     this.startPolling();
                 } catch (e) {
                     console.error('重试失败:', e);
+                }
+            },
+
+            async confirmCandidate(name) {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                try {
+                    await fetch(`/project/api/${this.projectId}/ai-research/confirm`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                        body: JSON.stringify({ confirmed_name: name })
+                    });
+                    this.status = 'researching';
+                    this.candidates = [];
+                    this.startPolling();
+                } catch (e) {
+                    console.error('确认候选失败:', e);
                 }
             },
 

@@ -4973,13 +4973,6 @@ def api_create_project():
             start_time_str=data.get('page_open_time'),
             description=f'创建项目 {new_project.project_name}')
 
-        # 触发 AI 网络调研（后台线程）
-        try:
-            from app.services.ai_research_service import AIResearchService
-            AIResearchService.trigger_project_research(new_project.id)
-        except Exception as e:
-            logger.warning(f"触发项目AI调研失败: {e}")
-
         return jsonify({
             'success': True,
             'message': _('项目创建成功'),
@@ -5052,14 +5045,6 @@ def api_update_project(project_id):
             ChangeTracker.log_update(proj, old_values)
         except Exception as track_err:
             logger.warning(f"记录项目修改历史失败: {str(track_err)}")
-
-        # 项目名称变更时重新触发 AI 调研
-        if project_name_changed:
-            try:
-                from app.services.ai_research_service import AIResearchService
-                AIResearchService.trigger_project_research(proj.id)
-            except Exception as e:
-                logger.warning(f"触发项目AI调研失败: {e}")
 
         return jsonify({
             'success': True,
@@ -5176,5 +5161,19 @@ def api_retry_project_ai_research(project_id):
     except Exception as e:
         logger.error(f"重试项目AI调研失败: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@project.route('/api/<int:project_id>/ai-research/confirm', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def api_confirm_project_ai_research(project_id):
+    """用户确认候选项目名后继续调研"""
+    proj = Project.query.filter_by(id=project_id).first_or_404()
+    data = request.get_json() or {}
+    confirmed_name = data.get('confirmed_name') or proj.project_name
+
+    from app.services.ai_research_service import AIResearchService
+    AIResearchService.continue_project_with_candidate(project_id, confirmed_name)
+    return jsonify({'success': True, 'message': _('已启动调研')})
 
 

@@ -469,7 +469,7 @@ class AIResearchService:
 
     @classmethod
     def trigger_project_research(cls, project_id):
-        """非阻塞触发项目后台调研"""
+        """非阻塞触发项目后台调研（预搜索 → 候选确认 → 完整调研）"""
         from app.models.project import Project
         from app import db
         from flask import current_app
@@ -477,11 +477,12 @@ class AIResearchService:
         project = Project.query.get(project_id)
         if not project:
             return
-        if project.ai_research_status in ('researching',):
+        if project.ai_research_status in ('pre_searching', 'researching'):
             return  # 防重复
 
-        project.ai_research_status = 'researching'
+        project.ai_research_status = 'pre_searching'
         project.ai_research_error = None
+        project.ai_research_candidates = None
         db.session.commit()
 
         app = current_app._get_current_object()
@@ -492,6 +493,31 @@ class AIResearchService:
         )
         thread.start()
         logger.info(f"[AI-Research-Project] 后台调研已触发: project_id={project_id}")
+
+    @classmethod
+    def continue_project_with_candidate(cls, project_id, confirmed_name):
+        """用户选择候选项目名后继续完整调研（非阻塞）"""
+        from app.models.project import Project
+        from app import db
+        from flask import current_app
+
+        project = Project.query.get(project_id)
+        if not project:
+            return
+        if project.ai_research_status == 'researching':
+            return
+
+        project.ai_research_status = 'researching'
+        project.ai_research_error = None
+        db.session.commit()
+
+        app = current_app._get_current_object()
+        thread = threading.Thread(
+            target=cls._project_do_full_research,
+            args=(app, project_id, confirmed_name),
+            daemon=True
+        )
+        thread.start()
 
     @classmethod
     def get_project_status(cls, project_id):
@@ -506,6 +532,7 @@ class AIResearchService:
             'status': project.ai_research_status or 'none',
             'research_data': project.ai_research_data,
             'updated_at': project.ai_research_updated_at.isoformat() if project.ai_research_updated_at else None,
+            'candidates': project.ai_research_candidates,
             'error': project.ai_research_error,
         }
 
@@ -539,8 +566,9 @@ class AIResearchService:
             count = 0
             for project in projects:
                 try:
-                    project.ai_research_status = 'researching'
+                    project.ai_research_status = 'pre_searching'
                     project.ai_research_error = None
+                    project.ai_research_candidates = None
                     db.session.commit()
 
                     cls._project_background_worker(app, project.id)
@@ -565,7 +593,7 @@ class AIResearchService:
 
     @classmethod
     def _project_background_worker(cls, app, project_id):
-        """项目后台调研：直接执行完整调研（无需预搜索）"""
+        """项目后台调研：预搜索 → 有候选则等用户确认，否则直接完整调研"""
         from app.models.project import Project
         from app import db
 
@@ -575,7 +603,61 @@ class AIResearchService:
                 if not project:
                     return
 
-                prompt = cls._build_project_research_prompt(project.project_name)
+                project_name = project.project_name
+
+                try:
+                    ai_result = cls._project_pre_check(project_name)
+                except Exception as e:
+                    logger.error(f"[AI-Research-Project-BG] 预搜索失败: {project_name}: {e}")
+                    project.ai_research_status = 'error'
+                    project.ai_research_error = f'预搜索失败: {str(e)[:400]}'
+                    db.session.commit()
+                    return
+
+                if ai_result['match']:
+                    project.ai_research_status = 'researching'
+                    db.session.commit()
+                    cls._project_do_full_research(app, project_id, None)
+                else:
+                    candidates = ai_result.get('candidates', [])
+                    if candidates:
+                        project.ai_research_status = 'needs_input'
+                        project.ai_research_candidates = candidates
+                        db.session.commit()
+                    else:
+                        # 无候选：用去掉城市前缀的核心名重试
+                        project.ai_research_status = 'researching'
+                        db.session.commit()
+                        cls._project_do_full_research(app, project_id, None)
+
+            except Exception as e:
+                logger.error(f"[AI-Research-Project-BG] 未知错误: project_id={project_id}: {e}")
+                try:
+                    project = Project.query.get(project_id)
+                    if project:
+                        project.ai_research_status = 'error'
+                        project.ai_research_error = str(e)[:500]
+                        db.session.commit()
+                except Exception:
+                    db.session.rollback()
+
+    @classmethod
+    def _project_do_full_research(cls, app, project_id, confirmed_name):
+        """执行项目完整调研并写入数据库"""
+        from app.models.project import Project
+        from app import db
+
+        with app.app_context():
+            try:
+                project = Project.query.get(project_id)
+                if not project:
+                    return
+
+                search_name = confirmed_name or project.project_name
+                core_name = cls._extract_project_core_name(search_name)
+                search_term = core_name if core_name and len(core_name) >= 2 else search_name
+
+                prompt = cls._build_project_research_prompt(search_name, search_term)
                 response = cls._send_research_request(prompt, timeout=180)
                 logger.info(f"[AI-Research-Project] 原始回复 ({len(response)} chars): {response[:1000]}")
                 structured = cls._extract_json(response)
@@ -585,9 +667,10 @@ class AIResearchService:
                 project.ai_research_updated_at = now
                 project.ai_research_status = 'completed'
                 project.ai_research_error = None
+                project.ai_research_candidates = None
                 db.session.commit()
 
-                logger.info(f"[AI-Research-Project] 调研完成: {project.project_name} (id={project_id})")
+                logger.info(f"[AI-Research-Project] 调研完成: {search_name} (id={project_id})")
 
             except Exception as e:
                 logger.error(f"[AI-Research-Project] 调研失败: project_id={project_id}: {e}")
@@ -601,16 +684,61 @@ class AIResearchService:
                     db.session.rollback()
 
     @classmethod
-    def _build_project_research_prompt(cls, project_name):
+    def _project_pre_check(cls, project_name):
+        """预搜索：判断项目是否有公开信息，无精确匹配时返回候选列表"""
+        core_name = cls._extract_project_core_name(project_name)
+        search_term = core_name if core_name and len(core_name) >= 2 else project_name
+
+        prompt = (
+            f'请使用 web_search 工具搜索工程项目"{search_term}"，判断搜索结果中是否有与"{project_name}"相关的公开项目信息。\n\n'
+            f'注意：项目可能有简称、分期（一期/二期）、别名等变体，这些都算匹配。\n\n'
+            f'请输出 JSON（不要包含其他文字）：\n'
+            f'{{"match": true/false, "candidates": ["候选项目名称1", "候选项目名称2"]}}\n\n'
+            f'- match=true 表示搜索结果中有该项目的明确信息\n'
+            f'- candidates: match=false 时填写搜索结果中找到的可能相关项目名称（最多5个，仅填真实搜索到的名称）'
+        )
+
+        try:
+            response = cls._send_research_request(prompt, timeout=90)
+            logger.info(f"[AI-Research-Project-PreCheck] 原始回复 ({len(response)} chars): {response[:500]}")
+            parsed = cls._extract_json(response)
+            return {
+                'match': bool(parsed.get('match', False)),
+                'candidates': parsed.get('candidates', [])[:5]
+            }
+        except Exception as e:
+            logger.error(f"项目预搜索失败: {project_name}: {e}")
+            raise
+
+    @classmethod
+    def _extract_project_core_name(cls, project_name):
+        """从项目全名中提取核心名称，去除城市/区县前缀"""
+        cities = (
+            '北京', '上海', '广州', '深圳', '天津', '重庆', '成都', '武汉', '杭州', '南京',
+            '西安', '苏州', '长沙', '沈阳', '哈尔滨', '济南', '郑州', '青岛', '大连', '宁波',
+            '厦门', '福州', '昆明', '贵阳', '南宁', '太原', '合肥', '南昌', '兰州', '乌鲁木齐',
+            '海口', '银川', '西宁', '呼和浩特', '拉萨', '石家庄', '长春', '南通', '无锡', '佛山',
+            '东莞', '温州', '烟台', '徐州', '常州', '嘉兴', '中山',
+        )
+        name = project_name
+        for city in cities:
+            if name.startswith(city) and len(name) - len(city) >= 2:
+                name = name[len(city):]
+                break
+        return name.strip()
+
+    @classmethod
+    def _build_project_research_prompt(cls, project_name, search_term=None):
         """构建项目调研的 AI 提示词 — 4 个定向搜索维度"""
         current_year = datetime.utcnow().year
+        kw = search_term or project_name
         return (
             f'请对工程项目「{project_name}」进行全面的公开信息调研。\n\n'
             f'请使用 web_search 工具，按以下 4 个方向分别搜索：\n'
-            f'1. "{project_name}" 总投资 建筑面积 开工 竣工\n'
-            f'2. "{project_name}" 建设单位 总承包 施工 设计院\n'
-            f'3. "{project_name}" 立项 批复 发改委 环评\n'
-            f'4. "{project_name}" {current_year} 招标 进展 中标\n\n'
+            f'1. "{kw}" 总投资 建筑面积 开工 竣工\n'
+            f'2. "{kw}" 建设单位 总承包 施工 设计院\n'
+            f'3. "{kw}" 立项 批复 发改委 环评\n'
+            f'4. "{kw}" {current_year} 招标 进展 中标\n\n'
             f'## 最重要的规则\n'
             f'**严禁编造任何信息！** 如果搜索结果中没有提到某项信息，该字段必须留空（空字符串""或空数组[]）。\n'
             f'- 只有搜索结果中**原文包含**的真实信息才能填入\n'
