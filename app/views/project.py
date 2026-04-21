@@ -5177,3 +5177,140 @@ def api_confirm_project_ai_research(project_id):
     return jsonify({'success': True, 'message': _('已启动调研')})
 
 
+@project.route('/api/similar-projects')
+@login_required
+@permission_required('project', 'view')
+def similar_projects_api():
+    """实时相似项目查询，全库查重，按权限区分显示"""
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify({'results': []})
+
+    try:
+        projects = (Project.query
+                    .filter(Project.is_deleted == False)
+                    .options(joinedload(Project.owner))
+                    .all())
+
+        results = []
+        for p in projects:
+            is_sim, score = is_similar_project_name(q, p.project_name)
+            if not is_sim:
+                continue
+            viewable = can_view_project(current_user, p)
+            owner_name = ''
+            if not viewable and p.owner:
+                owner_name = p.owner.real_name or p.owner.username
+            results.append({
+                'id': p.id,
+                'name': p.project_name,
+                'score': round(score / 100, 2),
+                'viewable': viewable,
+                'url': url_for('project.view_project', project_id=p.id) if viewable else '',
+                'owner_name': owner_name,
+            })
+
+        results.sort(key=lambda x: x['score'], reverse=True)
+        return jsonify({'results': results[:6]})
+    except Exception as e:
+        current_app.logger.error(f'[similar_projects_api] 查询失败: {e}', exc_info=True)
+        return jsonify({'results': []})
+
+
+@project.route('/api/ai-enrich', methods=['POST'])
+@login_required
+@permission_required('project', 'create')
+def ai_enrich_project():
+    """AI 回填：Tavily 搜索 + Claude Haiku 解析项目信息"""
+    data = request.get_json(silent=True) or {}
+    project_name = (data.get('project_name') or '').strip()
+    if not project_name:
+        return jsonify({'success': False, 'message': '请输入项目名称'}), 400
+    project_name = project_name[:200].replace('\n', ' ').replace('\r', ' ')
+
+    tavily_key = os.environ.get('TAVILY_API_KEY', '').strip()
+    if not tavily_key:
+        return jsonify({'success': False, 'message': '未配置 TAVILY_API_KEY'}), 500
+
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=tavily_key)
+        search_result = client.search(
+            query=f'{project_name} 项目 地址 行业 简介',
+            search_depth='basic',
+            max_results=5,
+            include_answer=True,
+        )
+    except Exception as e:
+        current_app.logger.error(f'[ai_enrich_project] Tavily 失败: {e}')
+        return jsonify({'success': False, 'message': '网络搜索失败，请稍后重试'}), 500
+
+    anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
+    if not anthropic_key:
+        return jsonify({'success': False, 'message': '未配置 ANTHROPIC_API_KEY'}), 500
+
+    snippets = '\n'.join(
+        f"- {r.get('title', '')}: {(r.get('content', '') or '')[:300]}"
+        for r in search_result.get('results', [])
+    )
+    answer = search_result.get('answer', '') or ''
+    search_text = f"Answer: {answer}\n\nSnippets:\n{snippets}"
+
+    industry_opts = (
+        'manufacturing(制造) / datacenter(数据中心) / energy(能源) / technology(科技) / '
+        'government(政府) / healthcare(医疗) / finance(金融) / real_estate(地产) / '
+        'education(教育) / retail(零售) / transportation(交通) / hospitality(酒店) / '
+        'shipbuilding(造船) / semiconductor(半导体) / chemical(化工) / '
+        'tunnel_underground(隧道地下) / other(其他)'
+    )
+    project_type_opts = (
+        'channel_follow(渠道跟进) / sales_focus(销售重点) / business_opportunity(服务机会)'
+    )
+
+    prompt = (
+        f'根据以下搜索结果，提取关于项目「{project_name}」的结构化信息。\n\n'
+        f'搜索结果：\n{search_text}\n\n'
+        '请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n'
+        '{\n'
+        '  "official_names": ["项目正式名称候选1", "项目正式名称候选2"],\n'
+        '  "address": "项目所在地址（中文）",\n'
+        '  "country": "国家（英文，如 China / Singapore）",\n'
+        f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
+        f'  "project_type": "从以下选项中选最匹配的 key，只返回 key：{project_type_opts}",\n'
+        '  "description": "100字以内的项目背景简介（中文）"\n'
+        '}\n\n'
+        '只返回 JSON，不要任何其他文字。'
+    )
+
+    try:
+        import anthropic as _anthropic
+        from app.utils.dictionary_helpers import INDUSTRY_LABELS, PROJECT_TYPE_LABELS
+        claude = _anthropic.Anthropic(api_key=anthropic_key)
+        msg = claude.messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=512,
+            messages=[{'role': 'user', 'content': prompt}],
+        )
+        raw = msg.content[0].text.strip()
+        raw = re.sub(r'^```(?:json)?\s*', '', raw)
+        raw = re.sub(r'\s*```\s*$', '', raw)
+        parsed = json.loads(raw.strip())
+    except Exception as e:
+        current_app.logger.error(f'[ai_enrich_project] Claude 解析失败: {e}')
+        return jsonify({'success': False, 'message': 'AI 解析失败，请稍后重试'}), 500
+
+    industry_key = parsed.get('industry') or ''
+    project_type_key = parsed.get('project_type') or ''
+    return jsonify({
+        'success': True,
+        'official_names': parsed.get('official_names') or [],
+        'address': parsed.get('address') or '',
+        'country': parsed.get('country') or '',
+        'industry': industry_key,
+        'industry_label': INDUSTRY_LABELS.get(industry_key, {}).get('zh', ''),
+        'project_type': project_type_key,
+        'project_type_label': PROJECT_TYPE_LABELS.get(project_type_key, {}).get('zh', ''),
+        'description': parsed.get('description') or '',
+    })
+
+
