@@ -1254,19 +1254,29 @@
                 </div>
             </div>
 
-            <!-- 跨系统只读提示条 -->
+            <!-- 跨系统信息提示条（可回复） -->
             <template x-if="activeConv && activeConv.type === 'cross_system'">
-            <div class="px-4 py-3">
-                <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
-                        <span class="material-symbols-outlined text-base">info</span>
-                        {{ _('此对话为只读，无法回复') }}
-                    </div>
+            <div class="px-4 pt-2">
+                <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                        <span class="material-symbols-outlined text-sm">language</span>
+                        {{ _('来自 SG PMA · 可直接回复') }}
+                    </span>
                     <a href="https://sg-pma.jamesgpone.win" target="_blank" rel="noopener"
-                       class="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex-shrink-0">
-                        <span class="material-symbols-outlined text-sm">open_in_new</span>
+                       class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex-shrink-0">
+                        <span class="material-symbols-outlined text-xs">open_in_new</span>
                         {{ _('打开 SG PMA') }}
                     </a>
+                </div>
+            </div>
+            </template>
+
+            <!-- 跨系统群提示条 -->
+            <template x-if="activeConv && activeConv.type === 'cross_system_group'">
+            <div class="px-4 pt-2">
+                <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50 rounded-xl px-3 py-2 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-sm text-emerald-500">language</span>
+                    <span class="text-xs text-emerald-600 dark:text-emerald-400">{{ _('此群已与 SG PMA 同步，回复将发送至 SG') }}</span>
                 </div>
             </div>
             </template>
@@ -1287,7 +1297,7 @@
             </div>
             </template>
 
-            <template x-if="!contextExhausted && !(activeConv && activeConv.type === 'cross_system')">
+            <template x-if="!contextExhausted">
             <div class="px-4 py-3">
             <div class="bg-slate-100 dark:bg-slate-800 rounded-2xl">
                 <!-- Row 1: 文本输入 -->
