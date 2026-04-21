@@ -11,6 +11,7 @@ from sqlalchemy import or_, func, desc, text
 from datetime import datetime, date
 import difflib
 import json
+import os
 import re
 import logging
 from app.utils.dictionary_helpers import get_company_type_options, get_industry_options, get_status_options, get_country_options, get_report_source_options, COMPANY_TYPE_LABELS, INDUSTRY_LABELS, STATUS_LABELS, COUNTRY_LABELS, get_currency_type_options
@@ -4252,6 +4253,87 @@ def similar_companies_api():
     except Exception as e:
         current_app.logger.error(f'[similar_companies_api] 查询失败: {e}', exc_info=True)
         return jsonify({'results': []})
+
+
+@customer.route('/api/ai-enrich', methods=['POST'])
+@login_required
+@permission_required('customer', 'create')
+def ai_enrich_company():
+    """AI 回填：Tavily 搜索 + Claude Haiku 解析，返回企业结构化信息"""
+    import json as _json
+    data = request.get_json(silent=True) or {}
+    company_name = (data.get('company_name') or '').strip()
+    if not company_name:
+        return jsonify({'success': False, 'message': '请输入企业名称'}), 400
+
+    # 1. Tavily 搜索
+    tavily_key = os.environ.get('TAVILY_API_KEY', '').strip()
+    if not tavily_key:
+        return jsonify({'success': False, 'message': '未配置 TAVILY_API_KEY'}), 500
+
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=tavily_key)
+        search_result = client.search(
+            query=f'{company_name} 公司 官网 地址 简介',
+            search_depth='basic',
+            max_results=5,
+            include_answer=True,
+        )
+    except Exception as e:
+        current_app.logger.error(f'[ai_enrich] Tavily 失败: {e}')
+        return jsonify({'success': False, 'message': f'网络搜索失败，请稍后重试'}), 500
+
+    # 2. Claude Haiku 解析
+    anthropic_key = os.environ.get('ANTHROPIC_API_KEY', '').strip()
+    if not anthropic_key:
+        return jsonify({'success': False, 'message': '未配置 ANTHROPIC_API_KEY'}), 500
+
+    snippets = '\n'.join(
+        f"- {r.get('title', '')}: {(r.get('content', '') or '')[:300]}"
+        for r in search_result.get('results', [])
+    )
+    answer = search_result.get('answer', '') or ''
+    search_text = f"Answer: {answer}\n\nSnippets:\n{snippets}"
+
+    prompt = (
+        f'根据以下搜索结果，提取关于企业「{company_name}」的结构化信息。\n\n'
+        f'搜索结果：\n{search_text}\n\n'
+        '请以 JSON 格式返回，字段如下（无法确定的字段返回空字符串）：\n'
+        '{\n'
+        '  "official_names": ["正式名称候选1", "正式名称候选2"],\n'
+        '  "address": "详细地址（中文）",\n'
+        '  "country": "国家（英文，如 China / Singapore）",\n'
+        '  "description": "100字以内的企业简介（中文）"\n'
+        '}\n\n'
+        '只返回 JSON，不要任何其他文字。'
+    )
+
+    try:
+        import anthropic as _anthropic
+        claude = _anthropic.Anthropic(api_key=anthropic_key)
+        msg = claude.messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=512,
+            messages=[{'role': 'user', 'content': prompt}],
+        )
+        raw = msg.content[0].text.strip()
+        if raw.startswith('```'):
+            raw = raw.split('```')[1]
+            if raw.startswith('json'):
+                raw = raw[4:]
+        parsed = _json.loads(raw.strip())
+    except Exception as e:
+        current_app.logger.error(f'[ai_enrich] Claude 解析失败: {e}')
+        return jsonify({'success': False, 'message': 'AI 解析失败，请稍后重试'}), 500
+
+    return jsonify({
+        'success': True,
+        'official_names': parsed.get('official_names') or [],
+        'address': parsed.get('address') or '',
+        'country': parsed.get('country') or '',
+        'description': parsed.get('description') or '',
+    })
 
 
 @customer.route('/api/detect-duplicates', methods=['GET'])
