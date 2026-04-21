@@ -646,6 +646,7 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None):
                             msg_type='reply',
                             sender_email=sender_user.email if sender_user else None,
                             reply_mode=True,
+                            source_lang=source_lang,
                         )
             except Exception as ce:
                 logger.warning(f"跨系统私聊回复推送失败: {ce}")

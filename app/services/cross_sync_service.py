@@ -14,7 +14,7 @@ import threading
 from datetime import datetime, timezone
 
 from app import db
-from app.models.chat import ChatConversation, ChatParticipant, ChatMessage
+from app.models.chat import ChatConversation, ChatParticipant, ChatMessage, ChatTranslation
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -106,6 +106,7 @@ def receive_message_from_peer(data):
     content = data.get('content', '')
     msg_type = data.get('msg_type', 'chat')
     source_label = data.get('source_label', DEFAULT_SOURCE_LABEL)
+    source_lang = data.get('source_lang', 'en')
 
     if not recipient_email or not content:
         return {'success': False, 'message': '缺少必要字段: recipient_email, content'}
@@ -143,7 +144,7 @@ def receive_message_from_peer(data):
             sender_id=None,  # 跨系统消息无本地发送者
             content=msg_content,
             message_type='cross_system',
-            source_language='zh',
+            source_language=source_lang,
         )
         db.session.add(message)
 
@@ -155,6 +156,10 @@ def receive_message_from_peer(data):
             f"跨系统消息接收成功: conv_id={conv.id}, recipient={recipient_email}, "
             f"sender={sender_name}, type={msg_type}"
         )
+
+        # 翻译原始文本（不翻译 JSON 包装）
+        _trigger_cross_system_translation(message.id, content, source_lang, conv.id)
+
         return {'success': True, 'message': '消息接收成功'}
 
     except Exception as e:
@@ -217,6 +222,14 @@ def receive_private_reply_from_peer(data):
         db.session.commit()
 
         logger.info(f"私聊回复注入成功: conv_id={conv.id}, sender={sender_email}")
+
+        # 为 SG 英文用户触发中→英翻译
+        try:
+            from app.services.chat_service import _trigger_translation
+            _trigger_translation(message.id, 'zh', conv.id)
+        except Exception as te:
+            logger.warning(f"私聊回复翻译失败: {te}")
+
         return {'success': True, 'message': '回复注入成功'}
     except Exception as e:
         db.session.rollback()
@@ -224,7 +237,7 @@ def receive_private_reply_from_peer(data):
         return {'success': False, 'message': str(e)}
 
 
-def push_message_to_peer(recipient_email, sender_name, content, msg_type='chat', sender_email=None, reply_mode=False):
+def push_message_to_peer(recipient_email, sender_name, content, msg_type='chat', sender_email=None, reply_mode=False, source_lang='en'):
     """
     异步推送消息到对等端（SG → CN）。
 
@@ -258,6 +271,7 @@ def push_message_to_peer(recipient_email, sender_name, content, msg_type='chat',
                     'source_label': source_label,
                     'sender_email': sender_email or '',
                     'reply_mode': reply_mode,
+                    'source_lang': source_lang,
                 },
                 headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
                 timeout=15,
@@ -295,6 +309,7 @@ def push_group_to_peer(sg_group_id, group_name, sender_name, sender_email, conte
                     'sender_email': sender_email,
                     'content': content,
                     'recipient_emails': recipient_emails,
+                    'source_lang': 'en',
                 },
                 timeout=10,
             )
@@ -347,6 +362,7 @@ def receive_group_message_from_peer(data):
     sender_name = data.get('sender_name', '未知 [SG]')
     content = data.get('content', '')
     recipient_emails = [e.lower() for e in data.get('recipient_emails', [])]
+    source_lang = data.get('source_lang', 'en')
 
     if not sg_group_id or not content or not recipient_emails:
         return {'success': False, 'message': '缺少必要字段: sg_group_id, content, recipient_emails'}
@@ -406,13 +422,17 @@ def receive_group_message_from_peer(data):
             sender_id=None,
             content=msg_content,
             message_type='cross_system',
-            source_language='zh',
+            source_language=source_lang,
         )
         db.session.add(message)
         mirror_conv.updated_at = datetime.now(timezone.utc)
         db.session.commit()
 
         logger.info(f"群聊消息写入成功: conv_id={mirror_conv.id}, sender={sender_name}")
+
+        # 翻译原始文本（不翻译 JSON 包装）
+        _trigger_cross_system_translation(message.id, content, source_lang, mirror_conv.id)
+
         return {'success': True}
 
     except Exception as e:
@@ -462,11 +482,51 @@ def receive_group_reply_from_peer(data):
         db.session.commit()
 
         logger.info(f"群聊回复注入成功: conv_id={sg_group_id}, sender={sender_email}")
+
+        # 为 SG 英文用户触发中→英翻译
+        try:
+            if sender:
+                from app.services.chat_service import _trigger_translation
+                _trigger_translation(message.id, 'zh', conv.id)
+            else:
+                _trigger_cross_system_translation(message.id, content, 'zh', conv.id)
+        except Exception as te:
+            logger.warning(f"群聊回复翻译失败: {te}")
+
         return {'success': True}
     except Exception as e:
         db.session.rollback()
         logger.error(f"群聊回复注入失败: {e}", exc_info=True)
         return {'success': False, 'message': str(e)}
+
+
+def _trigger_cross_system_translation(message_id, original_text, source_lang, conv_id):
+    """为跨系统消息触发翻译（翻译原始文本，而非 JSON 包装后的内容）"""
+    try:
+        participants = ChatParticipant.query.filter_by(conversation_id=conv_id).all()
+        target_langs = set()
+        for part in participants:
+            user = User.query.get(part.user_id)
+            if user and user.language_preference and user.language_preference != source_lang:
+                target_langs.add(user.language_preference)
+
+        if not target_langs:
+            return
+
+        from app.services.chat_translation_service import translate_text
+        for target_lang in target_langs:
+            translated = translate_text(original_text, source_lang, target_lang)
+            if translated:
+                db.session.add(ChatTranslation(
+                    message_id=message_id,
+                    target_language=target_lang,
+                    translated_content=translated,
+                ))
+        db.session.commit()
+        logger.info(f"跨系统消息翻译完成: msg_id={message_id}, {source_lang}→{target_langs}")
+    except Exception as e:
+        db.session.rollback()
+        logger.warning(f"跨系统消息翻译失败: {e}")
 
 
 def push_task_to_peer(assignee_email, creator_name, task_title, due_date_str=None):
