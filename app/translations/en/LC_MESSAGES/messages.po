@@ -27222,3 +27222,9 @@ msgstr "View Leaderboard"
 msgid "全库"
 msgstr "Global"
 
+msgid "AI 智能回填"
+msgstr "AI Auto-fill"
+
+msgid "AI 建议"
+msgstr "AI Suggestions"
+
