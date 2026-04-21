@@ -343,9 +343,14 @@ class ExportQuotationToExcelTool(BaseTool):
     description = (
         '将 PMA 系统中的报价单导出为格式化 Excel 文件（.xlsx）。\n'
         '当用户说"导出报价单"、"导出报价单Excel"、"生成报价Excel"时使用。\n\n'
-        '参数：\n'
-        '- quotation_number（优先）：报价单编号，如 "HY2024001"\n'
-        '- quotation_id（备选）：报价单 ID（整数）\n\n'
+        '**重要：必须先获取真实的 quotation_number 才能调用。**\n'
+        '若当前上下文没有从 quotations 表直接读到 quotation_number，请先执行：\n'
+        '  query_pma_database → "SELECT id, quotation_number FROM quotations WHERE ..."\n'
+        '  再用查出的 quotation_number 调用本工具。\n'
+        '**禁止**根据明细行数据或上下文猜测 quotation_number 或 quotation_id。\n\n'
+        '参数（二选一）：\n'
+        '- quotation_number（优先）：从 quotations 表查到的报价单编号，如 "QU202604-036"\n'
+        '- quotation_id（备选）：quotations 表的主键 id（非明细行 id）\n\n'
         '返回结果包含 download_url，回复"报价单Excel已生成"即可。'
     )
     input_schema = {
@@ -373,18 +378,48 @@ class ExportQuotationToExcelTool(BaseTool):
 
         # ── 查询报价单 ────────────────────────────────────────────────────────
         try:
-            from app.models.quotation import Quotation
+            from app.models.quotation import Quotation, QuotationDetail
+            q = None
+
             if qnum:
+                # 1. 精确匹配
                 q = Quotation.query.filter_by(quotation_number=qnum).first()
-            else:
+                # 2. LIKE 兜底（容忍 LLM 年月序号小偏差）
+                if q is None:
+                    q = Quotation.query.filter(
+                        Quotation.quotation_number.ilike(f'%{qnum.replace("-", "%")}%')
+                    ).order_by(Quotation.id.desc()).first()
+                    if q:
+                        logger.info(
+                            f'[export_quotation_to_excel] 模糊匹配 {qnum!r} → {q.quotation_number}'
+                        )
+
+            if q is None and qid:
+                # 3. 按报价单 ID 精确查
                 q = Quotation.query.get(qid)
+                # 4. qid 可能是明细行 ID — 反查
+                if q is None:
+                    detail = QuotationDetail.query.get(qid)
+                    if detail and detail.quotation_id:
+                        q = Quotation.query.get(detail.quotation_id)
+                        if q:
+                            logger.info(
+                                f'[export_quotation_to_excel] 明细 ID {qid} 反查到 {q.quotation_number}'
+                            )
+
         except Exception as e:
             logger.exception('[export_quotation_to_excel] DB 查询异常')
             return {'error': f'查询报价单失败: {e}'}
 
         if not q:
             ident = qnum or str(qid)
-            return {'error': f'未找到报价单 {ident}'}
+            return {
+                'error': (
+                    f'未找到报价单（{ident}）。请先用 query_pma_database 查询'
+                    ' "SELECT id, quotation_number FROM quotations WHERE ..." '
+                    '获取准确的报价单编号后重试。'
+                )
+            }
 
         # ── 权限检查 ──────────────────────────────────────────────────────────
         try:

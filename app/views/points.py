@@ -364,6 +364,141 @@ def api_admin_user_transactions(user_id):
     })
 
 
+@points_bp.route('/api/knowledge-leaderboard')
+@login_required
+def api_knowledge_leaderboard():
+    """知识共享贡献排行 + 最多被引用文章"""
+    from app.models.knowledge import KnowledgeWikiArticle
+    period = request.args.get('period', 'month')
+    now = datetime.utcnow()
+    year, month = now.year, now.month
+
+    if period == 'month':
+        months = [month]
+    elif period == 'quarter':
+        q_start = ((month - 1) // 3) * 3 + 1
+        months = list(range(q_start, min(q_start + 3, 13)))
+    else:
+        months = list(range(1, 13))
+
+    # ── 直接查 KnowledgeWikiArticle 统计每人的上传数和已共享数（历史数据也能正确体现）
+    # 上传数：该用户 owner 的所有文章
+    upload_rows = db.session.query(
+        KnowledgeWikiArticle.owner_id,
+        func.count(KnowledgeWikiArticle.id).label('cnt')
+    ).filter(KnowledgeWikiArticle.owner_id.isnot(None)).group_by(
+        KnowledgeWikiArticle.owner_id
+    ).all()
+    upload_map = {r.owner_id: r.cnt for r in upload_rows}
+
+    # 已共享数：scope != personal 的文章
+    shared_rows = db.session.query(
+        KnowledgeWikiArticle.owner_id,
+        func.count(KnowledgeWikiArticle.id).label('cnt')
+    ).filter(
+        KnowledgeWikiArticle.owner_id.isnot(None),
+        KnowledgeWikiArticle.scope != 'personal',
+    ).group_by(KnowledgeWikiArticle.owner_id).all()
+    shared_map = {r.owner_id: r.cnt for r in shared_rows}
+
+    # ── PointsTransaction 统计被引次数和被浏览次数（事件驱动，按周期过滤）
+    EVENT_CODES = ['wiki_cited', 'wiki_cited_qa', 'wiki_link_opened']
+    event_q = PointsTransaction.query.filter(
+        PointsTransaction.behavior_code.in_(EVENT_CODES),
+        PointsTransaction.year == year,
+    )
+    if len(months) == 1:
+        event_q = event_q.filter(PointsTransaction.month == months[0])
+    else:
+        event_q = event_q.filter(PointsTransaction.month.in_(months))
+
+    event_stats = {}
+    for tx in event_q.all():
+        uid = tx.user_id
+        if uid not in event_stats:
+            event_stats[uid] = {'cited': 0, 'viewed': 0, 'event_points': 0}
+        event_stats[uid]['event_points'] += tx.points
+        if tx.behavior_code in ('wiki_cited', 'wiki_cited_qa'):
+            event_stats[uid]['cited'] += 1
+        elif tx.behavior_code == 'wiki_link_opened':
+            event_stats[uid]['viewed'] += 1
+
+    # ── 合并：所有有文章的用户都要出现在排行榜中
+    all_user_ids = set(upload_map.keys()) | set(shared_map.keys()) | set(event_stats.keys())
+    users = {u.id: u for u in User.query.filter(User.id.in_(list(all_user_ids))).all()} if all_user_ids else {}
+
+    user_stats = {}
+    for uid in all_user_ids:
+        ev = event_stats.get(uid, {'cited': 0, 'viewed': 0, 'event_points': 0})
+        uploaded = upload_map.get(uid, 0)
+        shared = shared_map.get(uid, 0)
+        # 综合得分：上传×5 + 共享×10 + 事件积分
+        score = uploaded * 5 + shared * 10 + ev['event_points']
+        user_stats[uid] = {
+            'uploaded': uploaded,
+            'shared': shared,
+            'cited': ev['cited'],
+            'viewed': ev['viewed'],
+            'total_points': score,
+        }
+
+    leaderboard = []
+    for uid, stats in user_stats.items():
+        u = users.get(uid)
+        if not u or not (u.is_active if hasattr(u, 'is_active') else True):
+            continue
+        leaderboard.append({
+            'user_id': uid,
+            'name': u.real_name or u.username,
+            'department': getattr(u, 'department', '') or '',
+            'uploaded': stats['uploaded'],
+            'shared': stats['shared'],
+            'cited': stats['cited'],
+            'viewed': stats['viewed'],
+            'total_points': stats['total_points'],
+            'is_me': uid == current_user.id,
+        })
+
+    leaderboard.sort(key=lambda x: x['total_points'], reverse=True)
+    for i, item in enumerate(leaderboard, 1):
+        item['rank'] = i
+
+    # ── 最多被引用文章（按 outbound_refs 反查 inbound 数，即该文章 slug 被多少其他文章引用）
+    # 用 KnowledgeWikiArticle.outbound_refs（JSON 数组）统计每个 slug 被引次数
+    all_articles = KnowledgeWikiArticle.query.all()
+    inbound_count = {}  # slug → count
+    for art in all_articles:
+        for ref in (art.outbound_refs or []):
+            inbound_count[ref] = inbound_count.get(ref, 0) + 1
+
+    # 取 top 10，关联文章元数据
+    top_slugs = sorted(inbound_count.items(), key=lambda x: -x[1])[:10]
+    slug_to_art = {a.topic + '/' + a.slug: a for a in all_articles}
+
+    top_articles_list = []
+    for slug, cnt in top_slugs:
+        art = slug_to_art.get(slug)
+        if not art:
+            continue
+        owner = users.get(art.owner_id)
+        if owner:
+            owner_name = owner.real_name or owner.username
+        elif art.owner:
+            owner_name = art.owner.real_name or art.owner.username
+        else:
+            owner_name = ''
+        top_articles_list.append({
+            'id': art.id,
+            'title': art.title,
+            'topic': art.topic,
+            'scope': art.scope,
+            'cite_count': cnt,
+            'owner_name': owner_name,
+        })
+
+    return jsonify({'success': True, 'leaderboard': leaderboard, 'top_articles': top_articles_list})
+
+
 @points_bp.route('/admin/config/api', methods=['POST'])
 @login_required
 @permission_required('system_settings', 'edit')

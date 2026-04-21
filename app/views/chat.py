@@ -710,12 +710,12 @@ def ai_stream():
                 )
 
                 def _chunk_source():
-                    # ChatAgentLoop 原生 emit: content / thinking / tool_status / done / error
-                    # 这里只保留 content/done/error,其它 (thinking, tool_status) 映射为
-                    # 轻量 status 事件透传给前端(前端忽略未知类型即可)
+                    # ChatAgentLoop 原生 emit: content / thinking / tool_status /
+                    # artifact / download / done / error
+                    # artifact/download 直接透传；thinking/tool_status 映射为轻量 status
                     for _ev in _loop.run(content):
                         _t = _ev.get('type')
-                        if _t in ('content', 'done', 'error'):
+                        if _t in ('content', 'done', 'error', 'artifact', 'download'):
                             yield _ev
                         elif _t in ('thinking', 'tool_status'):
                             yield {

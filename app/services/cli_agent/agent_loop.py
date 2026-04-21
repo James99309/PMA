@@ -212,6 +212,7 @@ class AgentLoop(BaseAgentLoop):
                 output, is_error = self._run_tool(tu)
 
                 llm_output, artifact_events = self._strip_artifacts(tu['name'], output, is_error)
+                artifact_events += self._auto_tabular_artifact(tu['name'], llm_output, is_error)
                 for evt in artifact_events:
                     yield evt
 

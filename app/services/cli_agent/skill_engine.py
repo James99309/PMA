@@ -380,7 +380,7 @@ def _render_output_template(
         {if !step_name}...{endif} → 当步骤无数据时显示内容
     """
     if not template:
-        return _fallback_output(step_results)
+        return _fallback_output(step_results, artifacts_out)
 
     output = template
 
@@ -415,21 +415,21 @@ def _render_output_template(
         flags=re.DOTALL,
     )
 
-    # 2. 替换 {step_name.table}
+    # 2. 替换 {step_name.table} — 自动生成 artifact 供前端渲染，同时返回 markdown 供 LLM 推理
+    _arts = artifacts_out if artifacts_out is not None else []
+
     def _replace_table(match: re.Match) -> str:
         step_name = match.group(1)
-        if step_name in step_results:
-            result = step_results[step_name]
-            return _render_markdown_table(
-                result.get('columns', []),
-                result.get('rows', []),
-            )
-        return f'(步骤 {step_name} 无数据)'
+        if step_name not in step_results:
+            return f'(步骤 {step_name} 无数据)'
+        result = step_results[step_name]
+        if len(result.get('rows') or []) >= 2:
+            _collect_artifact_table(step_name, step_results, '', _arts)
+        return _render_markdown_table(result.get('columns', []), result.get('rows', []))
 
     output = re.sub(r'\{([a-zA-Z_]\w*)\.table\}', _replace_table, output)
 
-    # 2b. 替换 {step_name.artifact} 和 {step_name.artifact:"标题"}
-    _arts = artifacts_out if artifacts_out is not None else []
+    # 2b. 替换 {step_name.artifact} 和 {step_name.artifact:"标题"}（显式 artifact，支持自定义标题）
 
     def _replace_artifact(match: re.Match) -> str:
         step_name = match.group(1)
@@ -538,26 +538,19 @@ def _esc(v) -> str:
     return str(v).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;') if v is not None else ''
 
 
-def _collect_artifact_table(step_name: str, step_results: dict, title: str, artifacts_out: list) -> str:
-    """生成 Claude 极简风格表格 artifact。"""
-    result = step_results.get(step_name)
-    if not result or not result.get('rows'):
-        return '(无数据)'
-
-    columns = result.get('columns', [])
-    rows = result.get('rows', [])
-
-    # 数字列右对齐
-    def _is_num(col_idx):
+def _build_table_html(columns: list, rows: list) -> str:
+    """从 columns/rows 构建 HTML 表格字符串（不含 artifact 包装）。"""
+    def _is_num(col_idx: int) -> bool:
         for row in rows[:5]:
             v = row[col_idx] if col_idx < len(row) else None
             if v is not None and not isinstance(v, (int, float)):
-                try: float(str(v).replace(',', ''))
-                except ValueError: return False
+                try:
+                    float(str(v).replace(',', ''))
+                except ValueError:
+                    return False
         return True
 
     num_cols = {i for i in range(len(columns)) if _is_num(i)}
-
     thead = ''.join(f'<th>{_esc(c)}</th>' for c in columns)
     tbody = ''.join(
         '<tr>' + ''.join(
@@ -566,9 +559,28 @@ def _collect_artifact_table(step_name: str, step_results: dict, title: str, arti
         ) + '</tr>'
         for row in rows
     ) or f'<tr><td colspan="{len(columns)}" class="empty">暂无数据</td></tr>'
+    return f'<table><thead><tr>{thead}</tr></thead><tbody>{tbody}</tbody></table>'
 
-    body_html = f'<table><thead><tr>{thead}</tr></thead><tbody>{tbody}</tbody></table>'
-    artifacts_out.append(_build_artifact_html(title or step_name, body_html))
+
+def build_table_artifact(title: str, columns: list, rows: list) -> dict | None:
+    """从原始 columns/rows 构建 table artifact dict，供 BaseAgentLoop 使用。
+
+    Returns:
+        {'title': ..., 'html': ...}  或 None（无数据）
+    """
+    if not columns or not rows:
+        return None
+    return _build_artifact_html(title, _build_table_html(columns, rows))
+
+
+def _collect_artifact_table(step_name: str, step_results: dict, title: str, artifacts_out: list) -> str:
+    """生成表格 artifact，追加到 artifacts_out，返回占位摘要文字。"""
+    result = step_results.get(step_name)
+    if not result or not result.get('rows'):
+        return '(无数据)'
+    columns = result.get('columns', [])
+    rows = result.get('rows', [])
+    artifacts_out.append(_build_artifact_html(title or step_name, _build_table_html(columns, rows)))
     return f'*（{title or step_name}，共 {len(rows)} 条）*'
 
 
@@ -710,14 +722,17 @@ def _collect_artifact_card(step_name: str, step_results: dict, mapping_str: str,
     return f'*（{summary}）*'
 
 
-def _fallback_output(step_results: dict[str, dict]) -> str:
-    """无输出模板时的默认输出:按步骤逐个输出表格。"""
+def _fallback_output(step_results: dict[str, dict], artifacts_out: list | None = None) -> str:
+    """无输出模板时的默认输出：有数据的步骤自动生成 artifact，同时返回 markdown。"""
+    _arts = artifacts_out if artifacts_out is not None else []
     parts: list[str] = []
     for step_name, result in step_results.items():
         columns = result.get('columns', [])
         rows = result.get('rows', [])
         row_count = result.get('row_count', 0)
         parts.append(f'### {step_name} ({row_count} 行)')
+        if len(rows) >= 2:
+            _collect_artifact_table(step_name, step_results, step_name, _arts)
         parts.append(_render_markdown_table(columns, rows))
         parts.append('')
     return '\n'.join(parts).strip() if parts else '(查询完成,无数据返回)'
@@ -775,12 +790,12 @@ def _execute_render_body(
         exec(compile(code, '<skill_render_body>', 'exec'), namespace)  # noqa: S102
     except SyntaxError as e:
         logger.warning(f'[SkillEngine] render_body 编译失败: {e}')
-        return _fallback_output(step_results) + f'\n\n> ⚠️ 渲染函数语法错误: {e}', []
+        return _fallback_output(step_results, collected_artifacts) + f'\n\n> ⚠️ 渲染函数语法错误: {e}', collected_artifacts
 
     render_fn = namespace.get('render')
     if not callable(render_fn):
         logger.warning('[SkillEngine] render_body 未定义 render() 函数')
-        return _fallback_output(step_results) + '\n\n> ⚠️ 渲染函数未定义 render(results, params)', []
+        return _fallback_output(step_results, collected_artifacts) + '\n\n> ⚠️ 渲染函数未定义 render(results, params)', collected_artifacts
 
     try:
         result = render_fn(step_results, raw_params)
@@ -789,7 +804,7 @@ def _execute_render_body(
         return result.strip(), collected_artifacts
     except Exception as e:
         logger.warning(f'[SkillEngine] render_body 执行异常: {e}')
-        return _fallback_output(step_results) + f'\n\n> ⚠️ 渲染函数执行失败: {e}', []
+        return _fallback_output(step_results, collected_artifacts) + f'\n\n> ⚠️ 渲染函数执行失败: {e}', collected_artifacts
 
 
 # ---------------------------------------------------------------------------
@@ -937,7 +952,7 @@ class SkillEngine:
                 )
         except Exception as e:
             logger.exception('[SkillEngine] 输出渲染失败')
-            output = _fallback_output(step_results)
+            output = _fallback_output(step_results, artifacts)
             output = f'(输出渲染失败,使用默认格式)\n\n{output}'
 
         logger.info(

@@ -391,8 +391,7 @@ def list_memories():
 @cli_bp.route('/api/exports/<filename>', methods=['GET'])
 @login_required
 def download_export(filename: str):
-    """下载 CLI Agent 导出的文件"""
-    _require_cli_access()
+    """下载 Agent 导出的文件（Chat 和 CLI 共用此端点，仅需登录）"""
     import os
     import urllib.parse
     from flask import send_file, current_app

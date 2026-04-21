@@ -54,6 +54,26 @@ class BaseAgentLoop:
             }
         return None
 
+    def _auto_tabular_artifact(self, tool_name: str, output: dict, is_error: bool) -> list[dict]:
+        """若工具输出含 columns/rows，自动生成 table artifact 事件。
+
+        invoke_skill 由 _strip_artifacts 处理（SkillEngine 已生成 artifacts 字段），此处跳过。
+        """
+        if tool_name == 'invoke_skill' or is_error or not isinstance(output, dict):
+            return []
+        columns = output.get('columns', [])
+        rows = output.get('rows', [])
+        if not columns or len(rows) < 2:
+            return []
+        try:
+            from app.services.cli_agent.skill_engine import build_table_artifact
+            art = build_table_artifact(f'查询结果（{len(rows)} 条）', columns, rows)
+            if art:
+                return [{'type': 'artifact', 'title': art['title'], 'html': art['html']}]
+        except Exception:
+            logger.warning('[Agent] 自动生成 tabular artifact 失败', exc_info=True)
+        return []
+
     def _strip_artifacts(self, tool_name: str, output: dict, is_error: bool) -> tuple[dict, list[dict]]:
         """invoke_skill 专用：提取 artifacts 事件列表，返回剥离后的 llm_output。
 

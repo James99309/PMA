@@ -30,6 +30,7 @@ class QueryPmaDatabaseTool(BaseTool):
         '- 参数 sql 必须是 SELECT 或 WITH 开头的一条语句。\n'
         '- 系统会自动按当前用户权限注入 WHERE 过滤,并强制 LIMIT 行数。\n'
         '- 返回 JSON,含 columns、rows、row_count 字段;如果查询失败,含 error 字段。\n'
+        '- 查询结果由系统自动渲染为 artifact 表格卡片，**无需在回复中重复输出 Markdown 表格**，直接引用关键数字或提供简短说明即可。\n'
         f'- 单条查询默认 LIMIT {CLI_QUERY_DEFAULT_LIMIT},超大结果会被截断,此时请加严 WHERE。'
     )
     input_schema = {

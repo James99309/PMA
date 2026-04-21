@@ -27195,3 +27195,30 @@ msgstr "'s AI Usage"
 msgid "排名 #"
 msgstr "Rank #"
 
+msgid "知识共享"
+msgstr "Knowledge"
+
+msgid "知识贡献排行"
+msgstr "Knowledge Leaderboard"
+
+msgid "最多被引用文章"
+msgstr "Most Referenced Articles"
+
+msgid "暂无知识贡献记录"
+msgstr "No knowledge contributions yet"
+
+msgid "暂无引用记录"
+msgstr "No references yet"
+
+msgid "被引"
+msgstr "Cited"
+
+msgid "被浏览"
+msgstr "Viewed"
+
+msgid "查看排行榜"
+msgstr "View Leaderboard"
+
+msgid "全库"
+msgstr "Global"
+
