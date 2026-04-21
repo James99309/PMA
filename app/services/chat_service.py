@@ -650,6 +650,54 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None):
             except Exception as ce:
                 logger.warning(f"跨系统私聊回复推送失败: {ce}")
 
+        # 群聊跨系统推送（group → CN mirror group）
+        if conv and conv.type == 'group':
+            try:
+                from app.services.cross_sync_service import is_cross_sync_enabled, push_group_to_peer
+                if is_cross_sync_enabled():
+                    sender_user = User.query.get(sender_id)
+                    sender_display = (sender_user.real_name or sender_user.username) if sender_user else ''
+                    other_parts = ChatParticipant.query.filter(
+                        ChatParticipant.conversation_id == conversation_id,
+                        ChatParticipant.user_id != sender_id,
+                    ).all()
+                    recipient_emails = []
+                    for p in other_parts:
+                        u = User.query.get(p.user_id)
+                        if u and u.email:
+                            recipient_emails.append(u.email)
+                    if recipient_emails:
+                        push_group_to_peer(
+                            sg_group_id=conversation_id,
+                            group_name=conv.name or '群聊',
+                            sender_name=f'{sender_display} [SG]',
+                            sender_email=sender_user.email if sender_user else '',
+                            content=content.strip(),
+                            recipient_emails=recipient_emails,
+                        )
+            except Exception as ce:
+                logger.warning(f"群聊跨系统推送失败: {ce}")
+
+        # 群聊镜像回复推送（cross_system_group → 推回 SG 原群）
+        if conv and conv.type == 'cross_system_group':
+            try:
+                import json as _json
+                from app.services.cross_sync_service import is_cross_sync_enabled, push_group_reply_to_peer
+                if is_cross_sync_enabled():
+                    metadata = _json.loads(conv.sync_metadata or '{}')
+                    peer_group_id = metadata.get('peer_group_id')
+                    if peer_group_id:
+                        sender_user = User.query.get(sender_id)
+                        sender_display = (sender_user.real_name or sender_user.username) if sender_user else ''
+                        push_group_reply_to_peer(
+                            sg_group_id=peer_group_id,
+                            sender_email=sender_user.email if sender_user else '',
+                            sender_name=sender_display,
+                            content=content.strip(),
+                        )
+            except Exception as ce:
+                logger.warning(f"群聊镜像回复推送失败: {ce}")
+
         # 返回消息数据
         sender = User.query.get(sender_id)
         data = {

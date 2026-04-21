@@ -41,6 +41,31 @@ def cross_sync_push():
     return jsonify(result), status_code
 
 
+@api_v1_bp.route('/cross-sync/push-group', methods=['POST'])
+@require_api_key_or_jwt
+def cross_sync_push_group():
+    """接收跨系统群聊消息或群聊回复"""
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+    if data.get('reply_mode'):
+        for field in ['sg_group_id', 'sender_email', 'content']:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'缺少必要字段: {field}'}), 400
+        from app.services.cross_sync_service import receive_group_reply_from_peer
+        result = receive_group_reply_from_peer(data)
+    else:
+        for field in ['sg_group_id', 'content', 'recipient_emails']:
+            if not data.get(field):
+                return jsonify({'success': False, 'message': f'缺少必要字段: {field}'}), 400
+        from app.services.cross_sync_service import receive_group_message_from_peer
+        result = receive_group_message_from_peer(data)
+
+    status_code = 200 if result.get('success') else 400
+    return jsonify(result), status_code
+
+
 @api_v1_bp.route('/cross-sync/refresh-cache', methods=['POST'])
 @require_api_key_or_jwt
 def cross_sync_refresh_cache():

@@ -273,6 +273,204 @@ def push_message_to_peer(recipient_email, sender_name, content, msg_type='chat',
     thread.start()
 
 
+def push_group_to_peer(sg_group_id, group_name, sender_name, sender_email, content, recipient_emails):
+    """异步推送 SG 群消息到 CN（触发 CN 创建/更新镜像群）"""
+    if not is_cross_sync_enabled():
+        return
+    peer_url = os.environ.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+    api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+    if not peer_url:
+        return
+
+    def _do_push():
+        import httpx
+        try:
+            resp = httpx.post(
+                f'{peer_url}/cross-sync/push-group',
+                headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
+                json={
+                    'sg_group_id': sg_group_id,
+                    'group_name': group_name,
+                    'sender_name': sender_name,
+                    'sender_email': sender_email,
+                    'content': content,
+                    'recipient_emails': recipient_emails,
+                },
+                timeout=10.0,
+            )
+            if resp.status_code == 200:
+                logger.info(f"群聊跨系统推送成功: sg_group_id={sg_group_id}")
+            else:
+                logger.warning(f"群聊跨系统推送失败: status={resp.status_code}, body={resp.text[:200]}")
+        except Exception as e:
+            logger.warning(f"群聊跨系统推送异常: {e}")
+
+    import threading
+    threading.Thread(target=_do_push, daemon=True).start()
+
+
+def push_group_reply_to_peer(sg_group_id, sender_email, sender_name, content):
+    """异步推送 CN 镜像群回复到 SG 原群"""
+    if not is_cross_sync_enabled():
+        return
+    peer_url = os.environ.get('CROSS_SYNC_PEER_URL', '').rstrip('/')
+    api_key = os.environ.get('CROSS_SYNC_API_KEY', '')
+    if not peer_url:
+        return
+
+    def _do_push():
+        import httpx
+        try:
+            resp = httpx.post(
+                f'{peer_url}/cross-sync/push-group',
+                headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
+                json={
+                    'sg_group_id': sg_group_id,
+                    'sender_email': sender_email,
+                    'sender_name': sender_name,
+                    'content': content,
+                    'reply_mode': True,
+                },
+                timeout=10.0,
+            )
+            if resp.status_code != 200:
+                logger.warning(f"群聊回复推送失败: status={resp.status_code}, body={resp.text[:200]}")
+        except Exception as e:
+            logger.warning(f"群聊回复推送异常: {e}")
+
+    import threading
+    threading.Thread(target=_do_push, daemon=True).start()
+
+
+def receive_group_message_from_peer(data):
+    """接收 SG 群消息，在 CN 创建/更新镜像群并写入消息"""
+    sg_group_id = data.get('sg_group_id')
+    group_name = data.get('group_name', '群聊')
+    sender_name = data.get('sender_name', '未知 [SG]')
+    content = data.get('content', '')
+    recipient_emails = [e.lower() for e in data.get('recipient_emails', [])]
+
+    if not sg_group_id or not content or not recipient_emails:
+        return {'success': False, 'message': '缺少必要字段: sg_group_id, content, recipient_emails'}
+
+    local_users = User.query.filter(
+        db.func.lower(User.email).in_(recipient_emails),
+        User._is_active == True,
+    ).all()
+
+    if not local_users:
+        return {'success': False, 'message': f'CN 无对应用户: {recipient_emails}'}
+
+    try:
+        # 查找现有镜像群
+        mirror_conv = None
+        candidates = ChatConversation.query.filter(
+            ChatConversation.type == 'cross_system_group',
+            ChatConversation.is_deleted == False,
+            ChatConversation.sync_metadata.isnot(None),
+        ).all()
+        for c in candidates:
+            meta = json.loads(c.sync_metadata or '{}')
+            if meta.get('peer_group_id') == sg_group_id:
+                mirror_conv = c
+                break
+
+        # 首次：创建镜像群
+        if not mirror_conv:
+            mirror_conv = ChatConversation(
+                type='cross_system_group',
+                name=f'{group_name} · SG PMA',
+                created_by=local_users[0].id,
+                sync_metadata=json.dumps({'peer_group_id': sg_group_id}, ensure_ascii=False),
+            )
+            db.session.add(mirror_conv)
+            db.session.flush()
+
+            for user in local_users:
+                db.session.add(ChatParticipant(
+                    conversation_id=mirror_conv.id,
+                    user_id=user.id,
+                    role='member',
+                    last_read_at=datetime.now(timezone.utc),
+                ))
+            db.session.flush()
+            logger.info(f"创建镜像群: conv_id={mirror_conv.id}, sg_group_id={sg_group_id}, members={[u.email for u in local_users]}")
+
+        # 写入消息
+        msg_content = json.dumps({
+            'sender_name': sender_name,
+            'text': content,
+            'msg_type': 'chat',
+        }, ensure_ascii=False)
+
+        message = ChatMessage(
+            conversation_id=mirror_conv.id,
+            sender_id=None,
+            content=msg_content,
+            message_type='cross_system',
+            source_language='zh',
+        )
+        db.session.add(message)
+        mirror_conv.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        logger.info(f"群聊消息写入成功: conv_id={mirror_conv.id}, sender={sender_name}")
+        return {'success': True}
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"接收群聊消息失败: {e}", exc_info=True)
+        return {'success': False, 'message': str(e)}
+
+
+def receive_group_reply_from_peer(data):
+    """接收 CN 镜像群回复，注入到 SG 原群对话"""
+    sg_group_id = data.get('sg_group_id')
+    sender_email = data.get('sender_email', '').strip().lower()
+    sender_name = data.get('sender_name', '未知用户')
+    content = data.get('content', '')
+
+    if not sg_group_id or not sender_email or not content:
+        return {'success': False, 'message': '缺少必要字段'}
+
+    conv = ChatConversation.query.get(sg_group_id)
+    if not conv or conv.type != 'group' or conv.is_deleted:
+        return {'success': False, 'message': f'群对话未找到: {sg_group_id}'}
+
+    sender = User.query.filter(
+        db.func.lower(User.email) == sender_email,
+        User._is_active == True,
+    ).first()
+
+    try:
+        if sender:
+            message = ChatMessage(
+                conversation_id=conv.id,
+                sender_id=sender.id,
+                content=content,
+                message_type='text',
+                source_language='zh',
+            )
+        else:
+            message = ChatMessage(
+                conversation_id=conv.id,
+                sender_id=None,
+                content=json.dumps({'sender_name': f'{sender_name} [CN]', 'text': content}, ensure_ascii=False),
+                message_type='cross_system',
+                source_language='zh',
+            )
+        db.session.add(message)
+        conv.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        logger.info(f"群聊回复注入成功: conv_id={sg_group_id}, sender={sender_email}")
+        return {'success': True}
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"群聊回复注入失败: {e}", exc_info=True)
+        return {'success': False, 'message': str(e)}
+
+
 def push_task_to_peer(assignee_email, creator_name, task_title, due_date_str=None):
     """
     推送任务分配通知到对等端。
