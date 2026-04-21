@@ -25,15 +25,44 @@
     <label for="company_name" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
         {{ _('企业名称') }}<span class="text-red-500">*</span>
     </label>
-    <input type="text" id="company_name" name="company_name"
-           data-field-code="company_name"
-           class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
-           placeholder="{{ _('请输入企业名称') }}"
-           required>
+    <div class="flex gap-2">
+        <div class="relative flex-1">
+            <input type="text" id="company_name" name="company_name"
+                   data-field-code="company_name"
+                   class="form-input block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm shadow-sm"
+                   placeholder="{{ _('请输入企业名称') }}"
+                   autocomplete="off"
+                   required>
+            <!-- 查重下拉 -->
+            <div id="companySimilarList"
+                 class="hidden absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-56 overflow-y-auto text-sm">
+            </div>
+        </div>
+        <!-- AI 回填按钮 -->
+        <button type="button" id="aiEnrichBtn"
+                title="{{ _('AI 智能回填') }}"
+                class="flex-shrink-0 px-3 py-2 rounded-lg border border-primary text-primary hover:bg-primary hover:text-white transition-colors text-sm font-medium flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+            </svg>
+            AI
+        </button>
+    </div>
     <!-- 名称错误提示 -->
     <p id="companyNameError" class="hidden mt-1 text-sm text-red-500"></p>
-    <!-- 相似企业建议列表 -->
-    <div id="companySuggestions" class="hidden absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"></div>
+    <!-- AI 回填结果面板（默认隐藏） -->
+    <div id="aiEnrichPanel" class="hidden mt-3 p-4 rounded-lg border border-primary/30 bg-primary/5 dark:bg-primary/10 space-y-3">
+        <div class="flex items-center justify-between">
+            <p class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ _('AI 建议') }}</p>
+            <button type="button" id="aiEnrichClose" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <div id="aiEnrichContent"></div>
+    </div>
 </div>
 
 <!-- 地址（含定位功能，自动填充国家、省/州） -->
@@ -95,3 +124,143 @@
               class="form-textarea block w-full rounded-lg border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-primary focus:ring-primary text-sm resize-none shadow-sm"
               placeholder="{{ _('请输入备注信息') }}"></textarea>
 </div>
+
+<script>
+(function () {
+    const nameInput = document.getElementById('company_name');
+    const similarList = document.getElementById('companySimilarList');
+    const aiBtn = document.getElementById('aiEnrichBtn');
+    const aiPanel = document.getElementById('aiEnrichPanel');
+    const aiContent = document.getElementById('aiEnrichContent');
+    const aiClose = document.getElementById('aiEnrichClose');
+    let debounceTimer = null;
+
+    // ---- 内部查重 ----
+    function renderSimilarList(results) {
+        if (!results.length) {
+            similarList.classList.add('hidden');
+            return;
+        }
+        similarList.innerHTML = results.map(function (r) {
+            var badge = r.score >= 0.9
+                ? '<span class="text-xs text-red-500 font-medium ml-1">高度相似</span>'
+                : r.score >= 0.7
+                    ? '<span class="text-xs text-yellow-500 font-medium ml-1">相似</span>'
+                    : '';
+            return '<a href="' + r.url + '" target="_blank"' +
+                ' class="flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-100 dark:border-slate-700 last:border-0">' +
+                '<span class="text-slate-800 dark:text-slate-200">' + r.name + badge + '</span>' +
+                '<span class="text-xs text-slate-400">查看</span>' +
+                '</a>';
+        }).join('');
+        similarList.classList.remove('hidden');
+    }
+
+    nameInput && nameInput.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        var q = this.value.trim();
+        if (q.length < 2) {
+            similarList && similarList.classList.add('hidden');
+            return;
+        }
+        debounceTimer = setTimeout(function () {
+            fetch('/customer/api/similar-companies?q=' + encodeURIComponent(q))
+                .then(function (r) { return r.json(); })
+                .then(function (data) { renderSimilarList(data.results || []); })
+                .catch(function () {});
+        }, 500);
+    });
+
+    document.addEventListener('click', function (e) {
+        if (similarList && !similarList.contains(e.target) && e.target !== nameInput) {
+            similarList.classList.add('hidden');
+        }
+    });
+
+    // ---- AI 回填 ----
+    function renderAiPanel(data) {
+        var nameOptions = (data.official_names || []).map(function (n) {
+            return '<label class="flex items-center gap-2 cursor-pointer">' +
+                '<input type="radio" name="ai_name_pick" value="' + n + '" class="text-primary">' +
+                '<span class="text-sm text-slate-800 dark:text-slate-200">' + n + '</span>' +
+                '</label>';
+        }).join('');
+
+        var html = '';
+        if (nameOptions) {
+            html += '<div class="space-y-1"><p class="text-xs text-slate-500 mb-1">选择正式名称（点选后自动填入）</p>' + nameOptions + '</div>';
+        }
+        if (data.address) {
+            html += '<div class="text-sm"><span class="text-slate-500 text-xs">地址</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + data.address + '</p></div>';
+        }
+        if (data.description) {
+            html += '<div class="text-sm"><span class="text-slate-500 text-xs">企业简介</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + data.description + '</p></div>';
+        }
+        html += '<div class="flex gap-2 pt-1"><button type="button" id="aiApplyBtn" class="flex-1 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">应用到表单</button></div>';
+
+        aiContent.innerHTML = html;
+
+        aiContent.querySelectorAll('input[name="ai_name_pick"]').forEach(function (radio) {
+            radio.addEventListener('change', function () {
+                nameInput.value = this.value;
+            });
+        });
+
+        var applyBtn = document.getElementById('aiApplyBtn');
+        applyBtn && applyBtn.addEventListener('click', function () {
+            var picked = aiContent.querySelector('input[name="ai_name_pick"]:checked');
+            if (picked) nameInput.value = picked.value;
+
+            if (data.address) {
+                var addrField = document.getElementById('address');
+                if (addrField) addrField.value = data.address;
+            }
+            if (data.country) {
+                var countryField = document.getElementById('country');
+                if (countryField) countryField.value = data.country;
+            }
+            if (data.description) {
+                var notesField = document.getElementById('notes');
+                if (notesField && !notesField.value) notesField.value = data.description;
+            }
+            aiPanel.classList.add('hidden');
+        });
+
+        aiPanel.classList.remove('hidden');
+    }
+
+    var AI_BTN_DEFAULT_HTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg> AI';
+    var AI_BTN_LOADING_HTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> 查询中';
+
+    aiBtn && aiBtn.addEventListener('click', function () {
+        var q = nameInput ? nameInput.value.trim() : '';
+        if (!q) { alert('请先输入企业名称'); return; }
+
+        aiBtn.disabled = true;
+        aiBtn.innerHTML = AI_BTN_LOADING_HTML;
+
+        fetch('/customer/api/ai-enrich', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ company_name: q }),
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    renderAiPanel(data);
+                } else {
+                    alert(data.message || 'AI 查询失败，请稍后重试');
+                }
+            })
+            .catch(function () { alert('网络错误，请稍后重试'); })
+            .finally(function () {
+                aiBtn.disabled = false;
+                aiBtn.innerHTML = AI_BTN_DEFAULT_HTML;
+            });
+    });
+
+    aiClose && aiClose.addEventListener('click', function () {
+        aiPanel.classList.add('hidden');
+    });
+}());
+</script>
