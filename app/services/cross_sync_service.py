@@ -114,7 +114,7 @@ def receive_message_from_peer(data):
     user = User.query.filter(
         db.func.lower(User.email) == recipient_email,
         User.username != 'admin',
-        User.is_active == True,
+        User._is_active == True,
     ).first()
 
     if not user:
@@ -122,6 +122,14 @@ def receive_message_from_peer(data):
 
     try:
         conv = get_or_create_cross_system_conversation(user.id, source_label)
+
+        # 存储 sender_email 到 sync_metadata（仅首次写入）
+        sender_email_in = data.get('sender_email', '').strip()
+        if sender_email_in:
+            metadata = json.loads(conv.sync_metadata or '{}')
+            if 'peer_sender_email' not in metadata:
+                metadata['peer_sender_email'] = sender_email_in
+                conv.sync_metadata = json.dumps(metadata, ensure_ascii=False)
 
         # 构建 JSON 内容
         msg_content = json.dumps({
@@ -155,7 +163,68 @@ def receive_message_from_peer(data):
         return {'success': False, 'message': f'接收失败: {str(e)}'}
 
 
-def push_message_to_peer(recipient_email, sender_name, content, msg_type='chat'):
+def receive_private_reply_from_peer(data):
+    """接收 CN 私聊回复，注入到 SG 原有私聊对话"""
+    sender_email = data.get('sender_email', '').strip().lower()
+    recipient_email = data.get('recipient_email', '').strip().lower()
+    content = data.get('content', '')
+
+    if not sender_email or not recipient_email or not content:
+        return {'success': False, 'message': '缺少必要字段: sender_email, recipient_email, content'}
+
+    sender = User.query.filter(
+        db.func.lower(User.email) == sender_email,
+        User._is_active == True,
+    ).first()
+    recipient = User.query.filter(
+        db.func.lower(User.email) == recipient_email,
+        User._is_active == True,
+    ).first()
+
+    if not sender or not recipient:
+        logger.warning(f"私聊回复注入失败: sender={sender_email}({bool(sender)}), recipient={recipient_email}({bool(recipient)})")
+        return {'success': False, 'message': '用户未找到'}
+
+    # 找两人之间的私聊对话
+    sender_conv_ids = db.session.query(ChatParticipant.conversation_id).filter(
+        ChatParticipant.user_id == sender.id
+    ).subquery()
+    recipient_conv_ids = db.session.query(ChatParticipant.conversation_id).filter(
+        ChatParticipant.user_id == recipient.id
+    ).subquery()
+
+    conv = ChatConversation.query.filter(
+        ChatConversation.type == 'private',
+        ChatConversation.is_deleted == False,
+        ChatConversation.id.in_(sender_conv_ids),
+        ChatConversation.id.in_(recipient_conv_ids),
+    ).first()
+
+    if not conv:
+        logger.warning(f"未找到私聊对话: {sender_email} <-> {recipient_email}")
+        return {'success': False, 'message': '私聊对话未找到'}
+
+    try:
+        message = ChatMessage(
+            conversation_id=conv.id,
+            sender_id=sender.id,
+            content=content,
+            message_type='text',
+            source_language='zh',
+        )
+        db.session.add(message)
+        conv.updated_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        logger.info(f"私聊回复注入成功: conv_id={conv.id}, sender={sender_email}")
+        return {'success': True, 'message': '回复注入成功'}
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"私聊回复注入失败: {e}", exc_info=True)
+        return {'success': False, 'message': str(e)}
+
+
+def push_message_to_peer(recipient_email, sender_name, content, msg_type='chat', sender_email=None, reply_mode=False):
     """
     异步推送消息到对等端（SG → CN）。
 
@@ -165,7 +234,9 @@ def push_message_to_peer(recipient_email, sender_name, content, msg_type='chat')
         recipient_email: 接收者邮箱
         sender_name: 发送者显示名称
         content: 消息文本
-        msg_type: 'chat' 或 'task'
+        msg_type: 'chat' 或 'task' 或 'reply'
+        sender_email: 发送者邮箱（用于对端回复路由）
+        reply_mode: True 表示这是一条私聊回复（对端注入到原私聊对话）
     """
     if not is_cross_sync_enabled():
         return
@@ -185,12 +256,14 @@ def push_message_to_peer(recipient_email, sender_name, content, msg_type='chat')
                     'content': content,
                     'msg_type': msg_type,
                     'source_label': source_label,
+                    'sender_email': sender_email or '',
+                    'reply_mode': reply_mode,
                 },
                 headers={'X-API-Key': api_key, 'Content-Type': 'application/json'},
                 timeout=15,
             )
             if resp.status_code == 200:
-                logger.info(f"跨系统推送成功: {recipient_email}, type={msg_type}")
+                logger.info(f"跨系统推送成功: {recipient_email}, type={msg_type}, reply_mode={reply_mode}")
             else:
                 logger.warning(f"跨系统推送失败: status={resp.status_code}, body={resp.text[:200]}")
         except Exception as e:

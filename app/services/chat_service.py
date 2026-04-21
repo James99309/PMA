@@ -619,9 +619,36 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None):
                     if other_part:
                         other_user = User.query.get(other_part.user_id)
                         if other_user and other_user.email:
-                            push_message_to_peer(other_user.email, sender_display, content.strip())
+                            push_message_to_peer(
+                                other_user.email,
+                                sender_display,
+                                content.strip(),
+                                sender_email=sender_user.email if sender_user else None,
+                            )
             except Exception as ce:
                 logger.warning(f"跨系统推送失败: {ce}")
+
+        # 跨系统私聊回复推送（cross_system 对话 → 推回对端）
+        if conv and conv.type == 'cross_system':
+            try:
+                import json as _json
+                from app.services.cross_sync_service import is_cross_sync_enabled, push_message_to_peer
+                if is_cross_sync_enabled():
+                    metadata = _json.loads(conv.sync_metadata or '{}')
+                    peer_sender_email = metadata.get('peer_sender_email')
+                    if peer_sender_email:
+                        sender_user = User.query.get(sender_id)
+                        sender_display = (sender_user.real_name or sender_user.username) if sender_user else ''
+                        push_message_to_peer(
+                            recipient_email=peer_sender_email,
+                            sender_name=sender_display,
+                            content=content.strip(),
+                            msg_type='reply',
+                            sender_email=sender_user.email if sender_user else None,
+                            reply_mode=True,
+                        )
+            except Exception as ce:
+                logger.warning(f"跨系统私聊回复推送失败: {ce}")
 
         # 返回消息数据
         sender = User.query.get(sender_id)
