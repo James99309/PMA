@@ -200,6 +200,12 @@
         if (nameOptions) {
             html += '<div class="space-y-1"><p class="text-xs text-slate-500 mb-1">选择正式名称（点选后自动填入）</p>' + nameOptions + '</div>';
         }
+        if (data.industry && data.industry_label) {
+            html += '<div class="text-sm"><span class="text-slate-500 text-xs">行业</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + escHtml(data.industry_label) + '</p></div>';
+        }
+        if (data.company_type && data.company_type_label) {
+            html += '<div class="text-sm"><span class="text-slate-500 text-xs">企业类型</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + escHtml(data.company_type_label) + '</p></div>';
+        }
         if (data.address) {
             html += '<div class="text-sm"><span class="text-slate-500 text-xs">地址</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + escHtml(data.address) + '</p></div>';
         }
@@ -228,6 +234,14 @@
             if (data.country) {
                 var countryField = document.getElementById('country');
                 if (countryField) countryField.value = data.country;
+            }
+            if (data.industry) {
+                var industryField = document.getElementById('industry');
+                if (industryField) industryField.value = data.industry;
+            }
+            if (data.company_type) {
+                var companyTypeField = document.getElementById('company_type');
+                if (companyTypeField) companyTypeField.value = data.company_type;
             }
             if (data.description) {
                 var notesField = document.getElementById('notes');

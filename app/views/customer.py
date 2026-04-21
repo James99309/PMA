@@ -4296,6 +4296,18 @@ def ai_enrich_company():
     answer = search_result.get('answer', '') or ''
     search_text = f"Answer: {answer}\n\nSnippets:\n{snippets}"
 
+    industry_opts = (
+        'manufacturing(制造) / datacenter(数据中心) / energy(能源) / technology(科技) / '
+        'government(政府) / healthcare(医疗) / finance(金融) / real_estate(地产) / '
+        'education(教育) / retail(零售) / transportation(交通) / hospitality(酒店) / '
+        'shipbuilding(造船) / semiconductor(半导体) / chemical(化工) / '
+        'tunnel_underground(隧道地下) / other(其他)'
+    )
+    company_type_opts = (
+        'user(终端用户) / dealer(经销商) / integrator(系统集成商) / distributor(分销商) / '
+        'contractor(总包商) / designer(顾问设计院) / partner(合作伙伴) / '
+        'supplier(供应商) / other(其他)'
+    )
     prompt = (
         f'根据以下搜索结果，提取关于企业「{company_name}」的结构化信息。\n\n'
         f'搜索结果：\n{search_text}\n\n'
@@ -4304,7 +4316,9 @@ def ai_enrich_company():
         '  "official_names": ["正式名称候选1", "正式名称候选2"],\n'
         '  "address": "详细地址（中文）",\n'
         '  "country": "国家（英文，如 China / Singapore）",\n'
-        '  "description": "100字以内的企业简介（中文）"\n'
+        '  "description": "100字以内的企业简介（中文）",\n'
+        f'  "industry": "从以下选项中选最匹配的 key，只返回 key：{industry_opts}",\n'
+        f'  "company_type": "从以下选项中选最匹配的 key，只返回 key：{company_type_opts}"\n'
         '}\n\n'
         '只返回 JSON，不要任何其他文字。'
     )
@@ -4325,12 +4339,18 @@ def ai_enrich_company():
         current_app.logger.error(f'[ai_enrich] Claude 解析失败: {e}')
         return jsonify({'success': False, 'message': 'AI 解析失败，请稍后重试'}), 500
 
+    industry_key = parsed.get('industry') or ''
+    company_type_key = parsed.get('company_type') or ''
     return jsonify({
         'success': True,
         'official_names': parsed.get('official_names') or [],
         'address': parsed.get('address') or '',
         'country': parsed.get('country') or '',
         'description': parsed.get('description') or '',
+        'industry': industry_key,
+        'industry_label': INDUSTRY_LABELS.get(industry_key, {}).get('zh', ''),
+        'company_type': company_type_key,
+        'company_type_label': COMPANY_TYPE_LABELS.get(company_type_key, {}).get('zh', ''),
     })
 
 
