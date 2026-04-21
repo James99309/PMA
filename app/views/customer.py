@@ -4216,15 +4216,20 @@ def debug_normalize():
 @login_required
 @permission_required('customer', 'view')
 def similar_companies_api():
-    """实时相似企业查询，供创建表单防抖调用"""
+    """实时相似企业查询，全库查重（防止重复），按权限区分显示"""
     q = request.args.get('q', '').strip()
     if len(q) < 2:
         return jsonify({'results': []})
 
     try:
-        companies = get_viewable_data(
-            Company, current_user, [Company.is_deleted == False]
-        ).all()
+        from sqlalchemy.orm import joinedload
+        from app.utils.access_control import can_view_company
+
+        # 全库查重，不过滤权限——否则无权限的企业会被漏判为可创建
+        companies = (Company.query
+                     .filter(Company.is_deleted == False)
+                     .options(joinedload(Company.owner))
+                     .all())
 
         q_norm = normalize_company_name(q)
         results = []
@@ -4241,11 +4246,17 @@ def similar_companies_api():
                 score = difflib.SequenceMatcher(None, q_norm, c_norm).ratio()
 
             if score >= 0.5:
+                viewable = can_view_company(current_user, c)
+                owner_name = ''
+                if not viewable and c.owner:
+                    owner_name = c.owner.real_name or c.owner.username
                 results.append({
                     'id': c.id,
                     'name': c.company_name,
                     'score': round(score, 2),
-                    'url': url_for('customer.view_company', company_id=c.id),
+                    'viewable': viewable,
+                    'url': url_for('customer.view_company', company_id=c.id) if viewable else '',
+                    'owner_name': owner_name,
                 })
 
         results.sort(key=lambda x: x['score'], reverse=True)
