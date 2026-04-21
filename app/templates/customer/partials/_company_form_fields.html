@@ -127,6 +127,16 @@
 
 <script>
 (function () {
+    function escHtml(s) {
+        var d = document.createElement('div');
+        d.textContent = String(s || '');
+        return d.innerHTML;
+    }
+
+    function safeUrl(url) {
+        return /^https?:\/\//i.test(url) ? url : '#';
+    }
+
     const nameInput = document.getElementById('company_name');
     const similarList = document.getElementById('companySimilarList');
     const aiBtn = document.getElementById('aiEnrichBtn');
@@ -147,9 +157,9 @@
                 : r.score >= 0.7
                     ? '<span class="text-xs text-yellow-500 font-medium ml-1">相似</span>'
                     : '';
-            return '<a href="' + r.url + '" target="_blank"' +
+            return '<a href="' + safeUrl(r.url) + '" target="_blank"' +
                 ' class="flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-100 dark:border-slate-700 last:border-0">' +
-                '<span class="text-slate-800 dark:text-slate-200">' + r.name + badge + '</span>' +
+                '<span class="text-slate-800 dark:text-slate-200">' + escHtml(r.name) + badge + '</span>' +
                 '<span class="text-xs text-slate-400">查看</span>' +
                 '</a>';
         }).join('');
@@ -181,8 +191,8 @@
     function renderAiPanel(data) {
         var nameOptions = (data.official_names || []).map(function (n) {
             return '<label class="flex items-center gap-2 cursor-pointer">' +
-                '<input type="radio" name="ai_name_pick" value="' + n + '" class="text-primary">' +
-                '<span class="text-sm text-slate-800 dark:text-slate-200">' + n + '</span>' +
+                '<input type="radio" name="ai_name_pick" value="' + escHtml(n) + '" class="text-primary">' +
+                '<span class="text-sm text-slate-800 dark:text-slate-200">' + escHtml(n) + '</span>' +
                 '</label>';
         }).join('');
 
@@ -191,10 +201,10 @@
             html += '<div class="space-y-1"><p class="text-xs text-slate-500 mb-1">选择正式名称（点选后自动填入）</p>' + nameOptions + '</div>';
         }
         if (data.address) {
-            html += '<div class="text-sm"><span class="text-slate-500 text-xs">地址</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + data.address + '</p></div>';
+            html += '<div class="text-sm"><span class="text-slate-500 text-xs">地址</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + escHtml(data.address) + '</p></div>';
         }
         if (data.description) {
-            html += '<div class="text-sm"><span class="text-slate-500 text-xs">企业简介</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + data.description + '</p></div>';
+            html += '<div class="text-sm"><span class="text-slate-500 text-xs">企业简介</span><p class="text-slate-800 dark:text-slate-200 mt-0.5">' + escHtml(data.description) + '</p></div>';
         }
         html += '<div class="flex gap-2 pt-1"><button type="button" id="aiApplyBtn" class="flex-1 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 transition-colors">应用到表单</button></div>';
 
