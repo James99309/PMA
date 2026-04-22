@@ -996,114 +996,130 @@
         let projectSearchTimeout = null;
         const quotationId = {{ quotation.id }};
 
-        // ── Per-row item note state ──────────────────────────────────────────
-        // Keyed by item_id (string). Tracks live textarea values.
-        var _quotationNotesByItemId = {};
+        // ── 行备注列（弹窗模式）────────────────────────────────────────────────
+        var _qNotes = {};  // item_id -> note text
 
-        function _qEscHtml(str) {
-            var d = document.createElement('div');
-            d.appendChild(document.createTextNode(str || ''));
-            return d.innerHTML;
+        // 弹窗 HTML 注入（只注入一次）
+        (function() {
+            if (document.getElementById('rowNotePopup')) return;
+            var popup = document.createElement('div');
+            popup.id = 'rowNotePopup';
+            popup.style.cssText = 'display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10000;background:#fff;border-radius:10px;box-shadow:0 8px 32px rgba(0,0,0,0.18);padding:20px;width:340px;';
+            popup.innerHTML =
+                '<div style="font-size:14px;font-weight:600;color:#334155;margin-bottom:12px;">行备注</div>' +
+                '<textarea id="rowNoteTextarea" rows="4" style="width:100%;box-sizing:border-box;border:1px solid #e2e8f0;border-radius:6px;padding:8px 10px;font-size:13px;color:#334155;resize:vertical;outline:none;font-family:inherit;" placeholder="输入此行备注..."></textarea>' +
+                '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">' +
+                '<button id="rowNoteCancel" style="padding:6px 18px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;background:#fff;color:#64748b;font-size:13px;">取消</button>' +
+                '<button id="rowNoteConfirm" style="padding:6px 18px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;">确认</button>' +
+                '</div>';
+            document.body.appendChild(popup);
+
+            var backdrop = document.createElement('div');
+            backdrop.id = 'rowNoteBackdrop';
+            backdrop.style.cssText = 'display:none;position:fixed;inset:0;background:rgba(0,0,0,0.15);z-index:9999;';
+            document.body.appendChild(backdrop);
+        })();
+
+        var _rowNoteCurrentCallback = null;
+
+        function _openNotePopup(currentNote, onConfirm) {
+            var popup = document.getElementById('rowNotePopup');
+            var backdrop = document.getElementById('rowNoteBackdrop');
+            var textarea = document.getElementById('rowNoteTextarea');
+            if (!popup || !textarea) return;
+            textarea.value = currentNote || '';
+            popup.style.display = 'block';
+            backdrop.style.display = 'block';
+            textarea.focus();
+            _rowNoteCurrentCallback = onConfirm;
+
+            document.getElementById('rowNoteConfirm').onclick = function() {
+                var val = textarea.value;
+                popup.style.display = 'none';
+                backdrop.style.display = 'none';
+                if (_rowNoteCurrentCallback) _rowNoteCurrentCallback(val);
+                _rowNoteCurrentCallback = null;
+            };
+            document.getElementById('rowNoteCancel').onclick = function() {
+                popup.style.display = 'none';
+                backdrop.style.display = 'none';
+                _rowNoteCurrentCallback = null;
+            };
+            document.getElementById('rowNoteBackdrop').onclick = function() {
+                popup.style.display = 'none';
+                backdrop.style.display = 'none';
+                _rowNoteCurrentCallback = null;
+            };
         }
 
-        function _autoResize(ta) {
-            ta.style.height = 'auto';
-            ta.style.height = ta.scrollHeight + 'px';
-        }
-
-        function _updateChevronText(chevron, note, expanded) {
+        function _renderNoteCellContent(note) {
             if (!note) {
-                chevron.innerHTML = '<span class="opacity-40">&#9662; 添加备注</span>';
-                return;
+                return '<span style="color:#cbd5e1;font-size:18px;" class="material-symbols-outlined">chat_bubble_outline</span>';
             }
-            var preview = note.length > 32 ? note.substring(0, 32) + '…' : note;
-            chevron.innerHTML = (expanded ? '&#9652;' : '&#9662;') +
-                ' <span class="opacity-70">' + _qEscHtml(preview) + '</span>';
+            var preview = note.length > 20 ? note.substring(0, 20) + '…' : note;
+            var escaped = preview.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            return '<span style="color:#64748b;font-size:12px;word-break:break-all;">' + escaped + '</span>';
         }
 
-        function _injectQuotationNoteRows() {
+        function _injectNoteColumns() {
             var tbody = document.getElementById('quotationProductTableBody');
             if (!tbody) return;
 
-            // Remove previously injected note rows and chevrons
-            tbody.querySelectorAll('tr.q-note-row').forEach(function(r) { r.remove(); });
-            tbody.querySelectorAll('.q-note-chevron').forEach(function(c) { c.remove(); });
+            // 注入表头（只注入一次）
+            var thead = tbody.closest('table') && tbody.closest('table').querySelector('thead tr');
+            if (thead && !thead.querySelector('th.q-note-th')) {
+                var th = document.createElement('th');
+                th.className = 'q-note-th';
+                th.style.cssText = 'min-width:90px;width:90px;padding:8px 12px;font-weight:500;color:#475569;font-size:13px;';
+                th.textContent = '备注';
+                thead.appendChild(th);
+            }
 
-            var instance = window.EditableTable && window.EditableTable.instances && window.EditableTable.instances['quotationProductTable'];
+            // 移除旧注入的备注单元格
+            tbody.querySelectorAll('td.q-note-td').forEach(function(td) { td.remove(); });
+
+            var instance = window.EditableTable && window.EditableTable.instances &&
+                           window.EditableTable.instances['quotationProductTable'];
             if (!instance) return;
 
-            var mainRows = tbody.querySelectorAll('tr[data-row-id]');
-            mainRows.forEach(function(mainRow) {
+            tbody.querySelectorAll('tr[data-row-id]').forEach(function(mainRow) {
                 var rowId = String(mainRow.getAttribute('data-row-id'));
                 var rowObj = instance.rows.find(function(r) { return String(r.id) === rowId; });
-                if (!rowObj) return;
-                var itemId = rowObj.data.item_id ? String(rowObj.data.item_id) : '';
-                var note = itemId ? (_quotationNotesByItemId[itemId] || '') : '';
+                var itemId = rowObj && rowObj.data.item_id ? String(rowObj.data.item_id) : rowId;
+                var note = _qNotes[itemId] || '';
 
-                // Count columns for colspan (first td is the # column)
-                var colCount = mainRow.querySelectorAll('td').length;
-                var spanCount = colCount > 1 ? colCount - 1 : colCount;
-
-                // ── Inject chevron below product name cell (second td) ──────
-                var cells = mainRow.querySelectorAll('td');
-                var nameCell = cells.length > 1 ? cells[1] : cells[0];
-                if (nameCell && !nameCell.querySelector('.q-note-chevron')) {
-                    var chevron = document.createElement('div');
-                    chevron.className = 'q-note-chevron text-xs text-slate-400 dark:text-slate-500 cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 mt-0.5 select-none leading-tight';
-                    chevron.setAttribute('data-q-note-item-id', itemId);
-                    _updateChevronText(chevron, note, false);
-                    chevron.addEventListener('click', function(e) {
-                        e.stopPropagation();
-                        var id = this.getAttribute('data-q-note-item-id');
-                        var noteRow = tbody.querySelector('tr.q-note-row[data-q-note-item-id="' + id + '"]');
-                        if (!noteRow) return;
-                        var isHidden = noteRow.classList.contains('hidden');
-                        if (isHidden) {
-                            noteRow.classList.remove('hidden');
-                            var ta = noteRow.querySelector('textarea');
-                            if (ta) { ta.focus(); _autoResize(ta); }
-                            _updateChevronText(this, _quotationNotesByItemId[id] || '', true);
-                        } else {
-                            noteRow.classList.add('hidden');
-                            _updateChevronText(this, _quotationNotesByItemId[id] || '', false);
-                        }
+                var td = document.createElement('td');
+                td.className = 'q-note-td';
+                td.style.cssText = 'padding:8px 12px;vertical-align:middle;cursor:pointer;';
+                td.innerHTML = _renderNoteCellContent(note);
+                td.title = note || '点击添加备注';
+                td.addEventListener('click', function() {
+                    var currentNote = _qNotes[itemId] || '';
+                    _openNotePopup(currentNote, function(val) {
+                        _qNotes[itemId] = val;
+                        td.innerHTML = _renderNoteCellContent(val);
+                        td.title = val || '点击添加备注';
                     });
-                    nameCell.appendChild(chevron);
-                }
-
-                // ── Inject note sub-row ──────────────────────────────────────
-                var noteRow = document.createElement('tr');
-                noteRow.className = 'q-note-row' + (note ? '' : ' hidden');
-                noteRow.setAttribute('data-q-note-item-id', itemId);
-                noteRow.innerHTML = '<td class="p-0 pb-1"></td>' +
-                    '<td colspan="' + spanCount + '" class="px-3 pb-2 pt-0">' +
-                    '<textarea ' +
-                    'class="w-full text-xs text-slate-500 dark:text-slate-400 bg-transparent border-0 border-b border-slate-200 dark:border-slate-700 resize-none focus:outline-none focus:border-slate-400 dark:focus:border-slate-500 placeholder-slate-300 dark:placeholder-slate-600 leading-relaxed" ' +
-                    'rows="1" placeholder="输入此行备注..." ' +
-                    'data-q-note-item-id="' + _qEscHtml(itemId) + '">' + _qEscHtml(note) + '</textarea></td>';
-
-                var ta = noteRow.querySelector('textarea');
-                if (ta) {
-                    ta.addEventListener('input', function() {
-                        _autoResize(this);
-                        var id = this.getAttribute('data-q-note-item-id');
-                        _quotationNotesByItemId[id] = this.value;
-                        var ch = tbody.querySelector('.q-note-chevron[data-q-note-item-id="' + id + '"]');
-                        if (ch) _updateChevronText(ch, this.value, true);
-                    });
-                    setTimeout(function() { _autoResize(ta); }, 0);
-                }
-
-                mainRow.insertAdjacentElement('afterend', noteRow);
-
-                // If note exists, update chevron to show preview (collapsed state)
-                if (note) {
-                    var ch = nameCell.querySelector('.q-note-chevron');
-                    if (ch) _updateChevronText(ch, note, true);
-                }
+                });
+                mainRow.appendChild(td);
             });
         }
         // ── End note helpers ─────────────────────────────────────────────────
+
+        // MutationObserver：监听新行插入后重新注入备注列
+        (function() {
+            var _qTbody = document.getElementById('quotationProductTableBody');
+            if (_qTbody && window.MutationObserver) {
+                new MutationObserver(function(mutations) {
+                    var hasNew = mutations.some(function(m) {
+                        return Array.from(m.addedNodes).some(function(n) {
+                            return n.nodeType === 1 && n.tagName === 'TR' && n.hasAttribute('data-row-id') && !n.classList.contains('q-note-td');
+                        });
+                    });
+                    if (hasNew) _injectNoteColumns();
+                }).observe(_qTbody, { childList: true });
+            }
+        })();
 
         // 编辑模态框对象
         window.QuotationEditModal = {
@@ -1122,11 +1138,11 @@
 
                 if (existingDetails && existingDetails.length > 0) {
                     // Pre-populate notes map (must be done before setData/inject)
-                    _quotationNotesByItemId = {};
+                    _qNotes = {};
                     existingDetails.forEach(function(detail) {
                         var id = String(detail.item_id || detail.id || '');
                         if (id && detail.item_note) {
-                            _quotationNotesByItemId[id] = detail.item_note;
+                            _qNotes[id] = detail.item_note;
                         }
                     });
 
@@ -1159,17 +1175,17 @@
 
                     // 使用 EditableTable.setData() 加载数据（会自动调用 rebuildConfigurationRelationships）
                     window.EditableTable.setData('quotationProductTable', productData);
-                    _injectQuotationNoteRows();
+                    _injectNoteColumns();
                 } else {
                     // 清空并添加一个空行
-                    _quotationNotesByItemId = {};
+                    _qNotes = {};
                     const tbody = document.getElementById('quotationProductTableBody');
                     if (tbody) tbody.innerHTML = '';
                     const instance = window.EditableTable.instances['quotationProductTable'];
                     instance.rows = [];
                     instance.rowCounter = 0;
                     window.EditableTable.addRow('quotationProductTable');
-                    _injectQuotationNoteRows();
+                    _injectNoteColumns();
                 }
             },
 
@@ -1317,7 +1333,7 @@
                     }
                     // Merge item_note from the live notes map
                     var itemId = String(d.item_id || '');
-                    d.item_note = _quotationNotesByItemId[itemId] || '';
+                    d.item_note = _qNotes[itemId] || '';
                     totalAmount += parseFloat(d.total_price) || 0;
                 });
 
