@@ -603,14 +603,21 @@ def analyze_dxf_api(diagram_id):
         })
 
     except ImportError:
+        for p in [uploaded_path, locals().get('dxf_path')]:
+            if p and os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
         return jsonify({'success': False, 'message': 'matplotlib 未安装，无法渲染 DXF'}), 500
     except Exception as e:
         logger.error(f"DXF 导入失败: {e}")
-        if os.path.exists(uploaded_path):
-            try:
-                os.remove(uploaded_path)
-            except Exception:
-                pass
+        for p in [uploaded_path, locals().get('dxf_path')]:
+            if p and os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
