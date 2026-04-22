@@ -1202,7 +1202,8 @@ def create_quotation():
                     project_stage=project_stage,  # 从项目表获取最新阶段
                     project_type=project_type,    # 从项目表获取最新类型
                     currency=data.get('currency', Config.DEFAULT_CURRENCY),
-                    owner_id=current_user.id
+                    owner_id=current_user.id,
+                    notes=data.get('notes', '') or ''
                 )
                 db.session.add(quotation)
                 current_app.logger.debug(f"创建新报价单: {quotation.quotation_number}")
@@ -1335,7 +1336,8 @@ def create_quotation():
                             unit_price=unit_price,
                             total_price=total_price,
                             product_mn=product_mn_value,
-                            currency=data.get('currency', Config.DEFAULT_CURRENCY)  # 添加明细货币字段
+                            currency=data.get('currency', Config.DEFAULT_CURRENCY),  # 添加明细货币字段
+                            item_note=detail.get('item_note', '') or ''
                         )
 
                         # 处理动态规格配置字段（用于创建研发产品）

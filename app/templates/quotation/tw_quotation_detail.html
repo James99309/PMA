@@ -352,6 +352,14 @@
                 {% endfor %}
             {% endcall %}
 
+            <!-- 报价单备注 -->
+            {% if quotation.notes %}
+            <div class="mt-4 p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+                <h3 class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ _('备注') }}</h3>
+                <p class="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{{ quotation.notes }}</p>
+            </div>
+            {% endif %}
+
         {% endif %}
     {% endcall %}
     {% endif %}
