@@ -77,7 +77,8 @@ class PricingOrder(db.Model):
     
     # 货币字段
     currency = Column(String(10), default='CNY', comment='货币类型')
-    
+    notes = Column(Text, nullable=True, comment='批价单备注')
+
     # 关系定义
     project = relationship('Project', backref='pricing_orders')
     quotation = relationship('Quotation', backref='pricing_orders')
@@ -380,10 +381,10 @@ class SettlementOrder(db.Model):
 class PricingOrderDetail(db.Model):
     """批价单明细表"""
     __tablename__ = 'pricing_order_details'
-    
+
     id = Column(Integer, primary_key=True)
     pricing_order_id = Column(Integer, ForeignKey('pricing_orders.id'), nullable=False, comment='批价单ID')
-    
+
     # 产品信息
     product_name = Column(String(255), nullable=False, comment='产品名称')
     product_model = Column(String(128), nullable=True, comment='产品型号')
@@ -391,7 +392,8 @@ class PricingOrderDetail(db.Model):
     brand = Column(String(64), nullable=True, comment='品牌')
     unit = Column(String(16), nullable=True, comment='单位')
     product_mn = Column(String(64), nullable=True, comment='产品MN编码')
-    
+    item_note = Column(Text, nullable=True, comment='明细行备注')
+
     # 价格和数量
     market_price = Column(Float, nullable=False, comment='市场价')
     unit_price = Column(Float, nullable=False, comment='单价')

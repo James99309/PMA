@@ -109,7 +109,8 @@ class Quotation(db.Model):
     
     # 货币字段
     currency = db.Column(db.String(10), default='CNY')  # 货币类型
-    
+    notes = db.Column(db.Text, nullable=True, comment='报价单备注')
+
     created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(ZoneInfo('Asia/Shanghai')))
     updated_at = db.Column(db.DateTime, default=get_local_time)
     
@@ -467,6 +468,7 @@ class QuotationDetail(db.Model):
     
     # 货币字段
     currency = db.Column(db.String(10), default='CNY')  # 货币类型
+    item_note = db.Column(db.Text, nullable=True, comment='明细行备注')
 
     # 配置产品字段（使用已存在的parent_item_id和is_accessory字段）
     parent_item_id = db.Column(db.Integer, db.ForeignKey('quotation_details.id', ondelete='CASCADE'), nullable=True)  # 父级产品行ID
