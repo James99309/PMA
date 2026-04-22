@@ -988,6 +988,117 @@
         let projectSearchTimeout = null;
         const quotationId = {{ quotation.id }};
 
+        // ── Per-row item note state ──────────────────────────────────────────
+        // Keyed by item_id (string). Tracks live textarea values.
+        var _quotationNotesByItemId = {};
+
+        function _qEscHtml(str) {
+            var d = document.createElement('div');
+            d.appendChild(document.createTextNode(str || ''));
+            return d.innerHTML;
+        }
+
+        function _autoResize(ta) {
+            ta.style.height = 'auto';
+            ta.style.height = ta.scrollHeight + 'px';
+        }
+
+        function _updateChevronText(chevron, note, expanded) {
+            if (!note) {
+                chevron.innerHTML = '<span class="opacity-40">&#9662; 添加备注</span>';
+            } else if (expanded) {
+                var preview = note.length > 32 ? note.substring(0, 32) + '…' : note;
+                chevron.innerHTML = '&#9652; <span class="opacity-70">' + _qEscHtml(preview) + '</span>';
+            } else {
+                var preview = note.length > 32 ? note.substring(0, 32) + '…' : note;
+                chevron.innerHTML = '&#9662; <span class="opacity-70">' + _qEscHtml(preview) + '</span>';
+            }
+        }
+
+        function _injectQuotationNoteRows() {
+            var tbody = document.getElementById('quotationProductTableBody');
+            if (!tbody) return;
+
+            // Remove previously injected note rows and chevrons
+            tbody.querySelectorAll('tr.q-note-row').forEach(function(r) { r.remove(); });
+            tbody.querySelectorAll('.q-note-chevron').forEach(function(c) { c.remove(); });
+
+            var instance = window.EditableTable && window.EditableTable.instances && window.EditableTable.instances['quotationProductTable'];
+            if (!instance) return;
+
+            var mainRows = tbody.querySelectorAll('tr[data-row-id]');
+            mainRows.forEach(function(mainRow) {
+                var rowId = String(mainRow.getAttribute('data-row-id'));
+                var rowObj = instance.rows.find(function(r) { return String(r.id) === rowId; });
+                if (!rowObj) return;
+                var itemId = rowObj.data.item_id ? String(rowObj.data.item_id) : '';
+                var note = itemId ? (_quotationNotesByItemId[itemId] || '') : '';
+
+                // Count columns for colspan (first td is the # column)
+                var colCount = mainRow.querySelectorAll('td').length;
+                var spanCount = colCount > 1 ? colCount - 1 : colCount;
+
+                // ── Inject chevron below product name cell (second td) ──────
+                var cells = mainRow.querySelectorAll('td');
+                var nameCell = cells.length > 1 ? cells[1] : cells[0];
+                if (nameCell && !nameCell.querySelector('.q-note-chevron')) {
+                    var chevron = document.createElement('div');
+                    chevron.className = 'q-note-chevron text-xs text-slate-400 dark:text-slate-500 cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 mt-0.5 select-none leading-tight';
+                    chevron.setAttribute('data-q-note-item-id', itemId);
+                    _updateChevronText(chevron, note, false);
+                    chevron.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        var id = this.getAttribute('data-q-note-item-id');
+                        var noteRow = tbody.querySelector('tr.q-note-row[data-q-note-item-id="' + id + '"]');
+                        if (!noteRow) return;
+                        var isHidden = noteRow.classList.contains('hidden');
+                        if (isHidden) {
+                            noteRow.classList.remove('hidden');
+                            var ta = noteRow.querySelector('textarea');
+                            if (ta) { ta.focus(); _autoResize(ta); }
+                            _updateChevronText(this, _quotationNotesByItemId[id] || '', true);
+                        } else {
+                            noteRow.classList.add('hidden');
+                            _updateChevronText(this, _quotationNotesByItemId[id] || '', false);
+                        }
+                    });
+                    nameCell.appendChild(chevron);
+                }
+
+                // ── Inject note sub-row ──────────────────────────────────────
+                var noteRow = document.createElement('tr');
+                noteRow.className = 'q-note-row' + (note ? '' : ' hidden');
+                noteRow.setAttribute('data-q-note-item-id', itemId);
+                noteRow.innerHTML = '<td class="p-0 pb-1"></td>' +
+                    '<td colspan="' + spanCount + '" class="px-3 pb-2 pt-0">' +
+                    '<textarea ' +
+                    'class="w-full text-xs text-slate-500 dark:text-slate-400 bg-transparent border-0 border-b border-slate-200 dark:border-slate-700 resize-none focus:outline-none focus:border-slate-400 dark:focus:border-slate-500 placeholder-slate-300 dark:placeholder-slate-600 leading-relaxed" ' +
+                    'rows="1" placeholder="输入此行备注..." ' +
+                    'data-q-note-item-id="' + _qEscHtml(itemId) + '">' + _qEscHtml(note) + '</textarea></td>';
+
+                var ta = noteRow.querySelector('textarea');
+                if (ta) {
+                    ta.addEventListener('input', function() {
+                        _autoResize(this);
+                        var id = this.getAttribute('data-q-note-item-id');
+                        _quotationNotesByItemId[id] = this.value;
+                        var ch = tbody.querySelector('.q-note-chevron[data-q-note-item-id="' + id + '"]');
+                        if (ch) _updateChevronText(ch, this.value, true);
+                    });
+                    setTimeout(function() { _autoResize(ta); }, 0);
+                }
+
+                mainRow.insertAdjacentElement('afterend', noteRow);
+
+                // If note exists, update chevron to show preview (collapsed state)
+                if (note) {
+                    var ch = nameCell.querySelector('.q-note-chevron');
+                    if (ch) _updateChevronText(ch, note, true);
+                }
+            });
+        }
+        // ── End note helpers ─────────────────────────────────────────────────
+
         // 编辑模态框对象
         window.QuotationEditModal = {
             // 初始化产品表格并加载现有数据
@@ -1004,6 +1115,15 @@
                 console.log('[QuotationEditModal] existingDetails:', existingDetails.length, '条');
 
                 if (existingDetails && existingDetails.length > 0) {
+                    // Pre-populate notes map (must be done before setData/inject)
+                    _quotationNotesByItemId = {};
+                    existingDetails.forEach(function(detail) {
+                        var id = String(detail.item_id || detail.id || '');
+                        if (id && detail.item_note) {
+                            _quotationNotesByItemId[id] = detail.item_note;
+                        }
+                    });
+
                     // 转换数据格式
                     const productData = existingDetails.map(function(detail) {
                         return {
@@ -1026,20 +1146,24 @@
                             parent_item_id: detail.parent_item_id,
                             config_type: detail.config_type,
                             config_base_quantity: detail.config_base_quantity,
-                            quantity_synced: detail.quantity_synced
+                            quantity_synced: detail.quantity_synced,
+                            item_note: detail.item_note || ''
                         };
                     });
 
                     // 使用 EditableTable.setData() 加载数据（会自动调用 rebuildConfigurationRelationships）
                     window.EditableTable.setData('quotationProductTable', productData);
+                    _injectQuotationNoteRows();
                 } else {
                     // 清空并添加一个空行
+                    _quotationNotesByItemId = {};
                     const tbody = document.getElementById('quotationProductTableBody');
                     if (tbody) tbody.innerHTML = '';
                     const instance = window.EditableTable.instances['quotationProductTable'];
                     instance.rows = [];
                     instance.rowCounter = 0;
                     window.EditableTable.addRow('quotationProductTable');
+                    _injectQuotationNoteRows();
                 }
             },
 
@@ -1185,6 +1309,9 @@
                     if (d.discount !== undefined && d.discount_rate === undefined) {
                         d.discount_rate = d.discount;
                     }
+                    // Merge item_note from the live notes map
+                    var itemId = String(d.item_id || '');
+                    d.item_note = _quotationNotesByItemId[itemId] || '';
                     totalAmount += parseFloat(d.total_price) || 0;
                 });
 
