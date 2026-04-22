@@ -1121,10 +1121,97 @@ async function exportPDF(){
   img.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgData);
 }
 
+// ====== DWG EXPORT ======
+
+function currentFloorHasDwg() {
+  if (currentView === 'topology') return false;
+  const fp = typeof getFloorPlan === 'function' ? getFloorPlan(currentView) : null;
+  return !!(fp && fp.background && fp.background.bg_type === 'dxf' && fp.background.dxf_filename);
+}
+
+function updateDwgExportMenuItem() {
+  const item = document.getElementById('exportDwgItem');
+  if (!item) return;
+  item.style.display = currentFloorHasDwg() ? 'flex' : 'none';
+}
+
+async function exportDWG() {
+  if (!currentFloorHasDwg()) { showToast(_t('当前楼层无 DXF 底图')); return; }
+  const fp = getFloorPlan(currentView);
+  document.getElementById('exportMenu').style.display = 'none';
+
+  showToast(_t('准备导出 DWG...'));
+
+  try {
+    const { clone, w, h } = await prepareExportSVG(null, exportBlackMode);
+    const maxPixels = 25000000;
+    let scale = 1;
+    if (w * h > maxPixels) scale = Math.sqrt(maxPixels / (w * h));
+    const cw = Math.round(w * scale);
+    const ch = Math.round(h * scale);
+
+    const cvs = document.createElement('canvas');
+    cvs.width = cw; cvs.height = ch;
+    const ctx = cvs.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cw, ch);
+    if (scale !== 1) ctx.scale(scale, scale);
+
+    const svgData = new XMLSerializer().serializeToString(clone);
+    await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => { ctx.drawImage(img, 0, 0, w, h); resolve(); };
+      img.onerror = reject;
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgData);
+    });
+
+    const canvasPngB64 = cvs.toDataURL('image/png');
+
+    const aspectRatio = w / h;
+    const widthMm = 420;
+    const heightMm = widthMm / aspectRatio;
+
+    showToast(_t('生成 DWG 文件中...'));
+
+    const resp = await fetch(
+      (DIAGRAM_CONFIG.apiLoadBase || '') + DIAGRAM_CONFIG.diagramId + '/export-dwg',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': DIAGRAM_CONFIG.csrfToken },
+        body: JSON.stringify({
+          canvas_png: canvasPngB64,
+          dxf_filename: fp.background.dxf_filename,
+          canvas_width_mm: widthMm,
+          canvas_height_mm: heightMm,
+          diagram_name: document.getElementById('diagramNameInput')?.value || 'diagram',
+        })
+      }
+    );
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ message: resp.statusText }));
+      showToast(_t('导出失败') + ': ' + (err.message || resp.statusText));
+      return;
+    }
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const name = document.getElementById('diagramNameInput')?.value || 'diagram';
+    a.download = name + '.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(_t('已导出 DWG'));
+  } catch (err) {
+    showToast(_t('导出失败') + ': ' + err.message);
+  }
+}
+
 function toggleExportMenu(){
   const menu=document.getElementById('exportMenu');
   if(menu.style.display==='block'){menu.style.display='none'}
-  else{menu.style.display='block';setTimeout(()=>{document.addEventListener('click',function closeMenu(){menu.style.display='none';document.removeEventListener('click',closeMenu)})},0)}
+  else{menu.style.display='block';updateDwgExportMenuItem();setTimeout(()=>{document.addEventListener('click',function closeMenu(){menu.style.display='none';document.removeEventListener('click',closeMenu)})},0)}
 }
 
 function startCropExport(){
