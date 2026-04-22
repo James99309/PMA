@@ -1182,3 +1182,90 @@ def external_products(token):
         return jsonify({'success': False, 'message': _('请先验证邮箱')}), 401
 
     return jsonify({'success': True, 'categories': _get_products_data()})
+
+
+@system_diagram.route('/api/<int:diagram_id>/export-dwg', methods=['POST'])
+@login_required
+@permission_required('system_diagram', 'view')
+def export_dwg_api(diagram_id):
+    """将系统图画布叠加到原始 DXF 上，导出为 DWG 文件（ZIP 包）
+
+    请求体 (JSON):
+        canvas_png: base64 编码的画布截图 PNG（data URL 或纯 base64）
+        dxf_filename: fp.background.dxf_filename（服务端存储的 DXF 文件名）
+        canvas_width_mm: 画布实际宽度（毫米）
+        canvas_height_mm: 画布实际高度（毫米）
+        diagram_name: 用于输出文件命名
+
+    返回:
+        ZIP 文件（含 .dwg 或 .dxf + canvas_overlay.png）
+    """
+    import base64
+    import tempfile
+    import zipfile
+
+    diagram = SystemDiagram.query.get_or_404(diagram_id)
+    if diagram.is_deleted:
+        return jsonify({'success': False, 'message': _('系统图不存在')}), 404
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'message': _('无效请求')}), 400
+
+    canvas_png_b64 = data.get('canvas_png', '')
+    dxf_filename = data.get('dxf_filename', '')
+    canvas_width_mm = float(data.get('canvas_width_mm', 297))
+    canvas_height_mm = float(data.get('canvas_height_mm', 210))
+    diagram_name = data.get('diagram_name', 'system_diagram')
+
+    if not canvas_png_b64 or not dxf_filename:
+        return jsonify({'success': False, 'message': _('缺少参数')}), 400
+
+    upload_dir = _get_bg_upload_dir()
+    dxf_path = os.path.join(upload_dir, os.path.basename(dxf_filename))
+    if not os.path.exists(dxf_path):
+        return jsonify({'success': False, 'message': _('DXF 源文件不存在，请重新导入底图')}), 404
+
+    try:
+        from app.utils.dxf_converter import combine_dxf_with_image, convert_dxf_to_dwg
+        from flask import Response
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            if canvas_png_b64.startswith('data:'):
+                canvas_png_b64 = canvas_png_b64.split(',', 1)[1]
+            canvas_png_bytes = base64.b64decode(canvas_png_b64)
+            canvas_png_path = os.path.join(tmpdir, 'canvas_overlay.png')
+            with open(canvas_png_path, 'wb') as f:
+                f.write(canvas_png_bytes)
+
+            safe_name = ''.join(c for c in diagram_name if c.isalnum() or c in '-_ ')[:40].strip() or 'diagram'
+            combined_dxf_path = os.path.join(tmpdir, f"{safe_name}_combined.dxf")
+            combine_dxf_with_image(
+                dxf_path, canvas_png_path, combined_dxf_path,
+                canvas_width_mm, canvas_height_mm
+            )
+
+            dwg_path = convert_dxf_to_dwg(combined_dxf_path, tmpdir)
+            main_file = dwg_path if dwg_path else combined_dxf_path
+            main_ext = 'dwg' if dwg_path else 'dxf'
+
+            zip_name = f"{safe_name}.zip"
+            zip_path = os.path.join(tmpdir, zip_name)
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                zf.write(main_file, f"{safe_name}.{main_ext}")
+                zf.write(canvas_png_path, 'canvas_overlay.png')
+
+            zip_bytes = open(zip_path, 'rb').read()
+
+        return Response(
+            zip_bytes,
+            mimetype='application/zip',
+            headers={
+                'Content-Disposition': f'attachment; filename="{zip_name}"',
+                'Content-Length': len(zip_bytes),
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"导出 DWG 失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
