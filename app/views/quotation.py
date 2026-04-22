@@ -3728,6 +3728,7 @@ def save_quotation(id):
         # 更新报价单基本信息 - 直接使用前端传来的总金额
         quotation.amount = total_amount
         quotation.currency = data.get('currency', Config.DEFAULT_CURRENCY)  # 添加货币字段更新
+        quotation.notes = data.get('notes', '') or ''
         # 手动更新时间戳，确保updated_at字段正确
         quotation.updated_at = datetime.utcnow()
         current_app.logger.info(f'直接保存前端总金额到报价单: {total_amount}, 货币: {quotation.currency}')
