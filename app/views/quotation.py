@@ -1065,7 +1065,8 @@ def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CUR
                 configured_specs=configured_specs,
                 configured_mn=configured_mn,
                 price_adjustment_total=price_adjustment_total,
-                pending_product_creation=pending_product_creation
+                pending_product_creation=pending_product_creation,
+                item_note=detail.get('item_note', '') or ''
             )
 
             # 计算植入小计
@@ -3438,7 +3439,8 @@ def view_quotation(id):
                         'parent_item_id': getattr(detail, 'parent_item_id', None),
                         'config_type': str(getattr(detail, 'config_type', '') or ''),
                         'config_base_quantity': getattr(detail, 'config_base_quantity', None),
-                        'quantity_synced': bool(getattr(detail, 'quantity_synced', True) if getattr(detail, 'quantity_synced', None) is not None else True)
+                        'quantity_synced': bool(getattr(detail, 'quantity_synced', True) if getattr(detail, 'quantity_synced', None) is not None else True),
+                        'item_note': str(getattr(detail, 'item_note', '') or ''),
                     }
                     details_for_edit.append(detail_data)
                 except Exception as detail_err:
