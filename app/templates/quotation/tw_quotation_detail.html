@@ -1324,15 +1324,22 @@
                     details = window.EditableTable.getData('quotationProductTable');
                 }
 
+                // 按 tbody tr 顺序逐行合并行备注（兼容新增行无 item_id 的情况）
+                var _qTbodyEl = document.getElementById('quotationProductTableBody');
+                var _qTrs = _qTbodyEl ? Array.from(_qTbodyEl.querySelectorAll('tr[data-row-id]')) : [];
+                var _qInst = window.EditableTable && window.EditableTable.instances && window.EditableTable.instances['quotationProductTable'];
+
                 // 转换字段名以匹配后端期望的格式
                 let totalAmount = 0;
-                details.forEach(function(d) {
+                details.forEach(function(d, idx) {
                     // discount -> discount_rate (后端期望 discount_rate)
                     if (d.discount !== undefined && d.discount_rate === undefined) {
                         d.discount_rate = d.discount;
                     }
-                    // Merge item_note from the live notes map
-                    var itemId = String(d.item_id || '');
+                    // Merge item_note: resolve key via row's item_id or rowId fallback
+                    var rowId = _qTrs[idx] ? String(_qTrs[idx].getAttribute('data-row-id')) : '';
+                    var rowObj = rowId && _qInst ? _qInst.rows.find(function(r) { return String(r.id) === rowId; }) : null;
+                    var itemId = rowObj && rowObj.data && rowObj.data.item_id ? String(rowObj.data.item_id) : rowId;
                     d.item_note = _qNotes[itemId] || '';
                     totalAmount += parseFloat(d.total_price) || 0;
                 });
