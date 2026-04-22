@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gir1.2-pango-1.0 \
     fonts-noto-cjk \
     curl \
+    libredwg-tools \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
