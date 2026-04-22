@@ -318,6 +318,15 @@
                             <td class="p-3 whitespace-nowrap text-sm text-slate-700 dark:text-slate-300">{{ detail.product_mn or '-' }}</td>
                         </tr>
 
+                        {% if detail.item_note %}
+                        <tr data-note-row-for="{{ detail.id }}">
+                            <td class="p-3"></td>
+                            <td colspan="{{ product_columns|length }}" class="px-3 pb-2 pt-0">
+                                <p class="text-xs text-slate-500 dark:text-slate-400 whitespace-pre-wrap leading-relaxed border-l-2 border-slate-200 dark:border-slate-600 pl-2">{{ detail.item_note }}</p>
+                            </td>
+                        </tr>
+                        {% endif %}
+
                         {# 配置产品行：序号→产品名称→型号→规格→品牌→数量→单位→单价→总价→产品编码 #}
                         {% if detail.configurations %}
                             {% for config in detail.configurations %}
