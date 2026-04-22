@@ -2934,7 +2934,8 @@ def get_pricing_order_detail_api(order_id):
                 'discount_rate': detail.discount_rate,
                 'unit_price': detail.unit_price,
                 'quantity': detail.quantity,
-                'total_price': detail.total_price
+                'total_price': detail.total_price,
+                'item_note': detail.item_note or '',
             })
             pricing_total += detail.total_price or 0
             pricing_market_total += (detail.market_price or 0) * (detail.quantity or 0)
@@ -3011,6 +3012,7 @@ def get_pricing_order_detail_api(order_id):
             'distributor_name': pricing_order.distributor.company_name if pricing_order.distributor else None,
             'is_direct_contract': pricing_order.is_direct_contract or False,
             'is_factory_pickup': pricing_order.is_factory_pickup or False,
+            'notes': pricing_order.notes or '',
             # 明细数据
             'pricing_details': pricing_details,
             'settlement_details': settlement_details,
