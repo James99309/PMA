@@ -375,7 +375,8 @@
         title=_('提示'),
         message='',
         confirm_text=_('知道了'),
-        variant='warning'
+        variant='warning',
+        z_index='z-[70]'
     ) }}
     <script>
         (function() {
@@ -947,7 +948,7 @@
         const messageDiv = document.createElement('div');
         const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
 
-        messageDiv.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white ${bgColor} transition-opacity duration-300`;
+        messageDiv.className = `fixed top-4 right-4 z-[70] px-4 py-3 rounded-lg shadow-lg text-white ${bgColor} transition-opacity duration-300`;
         messageDiv.innerHTML = `
             <div class="flex items-center gap-2">
                 <span class="material-symbols-outlined text-xl">${type === 'success' ? 'check_circle' : type === 'error' ? 'error' : 'info'}</span>
