@@ -516,7 +516,8 @@ class PricingOrderService:
             
             # 从报价单复制产品明细到批价单
             PricingOrderService.copy_quotation_details_to_pricing(quotation, pricing_order)
-            
+            pricing_order.notes = quotation.notes or ''
+
             # 创建结算单（在明细复制完成后）
             settlement_order = PricingOrderService.create_settlement_order(pricing_order, current_user_id)
             
@@ -666,7 +667,8 @@ class PricingOrderService:
                 discount_rate=qd.discount,
                 source_type='quotation',
                 source_quotation_detail_id=qd.id,
-                currency=qd.currency or quotation.currency  # 继承货币
+                currency=qd.currency or quotation.currency,  # 继承货币
+                item_note=qd.item_note or ''
             )
             pricing_detail.calculate_prices()
             db.session.add(pricing_detail)
