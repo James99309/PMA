@@ -453,6 +453,17 @@
 
                 </div>
 
+                <!-- ==================== 固定区域：备注 ==================== -->
+                <div id="pricingOrderNotesBar" class="flex-shrink-0 px-6 pt-2 pb-0 bg-slate-50 dark:bg-slate-800/50 hidden">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{{ _('备注') }}</span>
+                        <textarea id="pricingOrderNotes" rows="1"
+                            class="flex-1 text-xs text-slate-600 dark:text-slate-300 bg-transparent border-0 border-b border-slate-200 dark:border-slate-700 resize-none focus:outline-none focus:border-slate-400 dark:focus:border-slate-500 placeholder-slate-300 dark:placeholder-slate-600 leading-relaxed"
+                            placeholder="{{ _('批价单备注信息...') }}"
+                            oninput="PricingOrderModal.onNotesInput(this)"></textarea>
+                    </div>
+                </div>
+
                 <!-- ==================== 固定区域：汇总信息 ==================== -->
                 <div class="flex-shrink-0 px-6 py-3 bg-slate-50 dark:bg-slate-800/50">
                     <!-- 批价单汇总 -->
@@ -729,6 +740,114 @@ window.PricingOrderModal = (function() {
     // 搜索延迟定时器
     let dealerSearchTimer = null;
     let distributorSearchTimer = null;
+
+    // ── Per-row item note state ──────────────────────────────────────────
+    // Keyed by detail ID (string). Tracks live textarea values.
+    var _pricingNotesByDetailId = {};
+
+    function _poEscHtml(str) {
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(str || ''));
+        return d.innerHTML;
+    }
+
+    function _poAutoResize(ta) {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+    }
+
+    function _poUpdateChevronText(chevron, note, expanded) {
+        if (!note) {
+            chevron.innerHTML = '<span class="opacity-40">&#9662; 添加备注</span>';
+            return;
+        }
+        var preview = note.length > 32 ? note.substring(0, 32) + '…' : note;
+        chevron.innerHTML = (expanded ? '&#9652;' : '&#9662;') +
+            ' <span class="opacity-70">' + _poEscHtml(preview) + '</span>';
+    }
+
+    function _injectPricingNoteRows() {
+        var tbody = document.getElementById('pricingDetailTableBody');
+        if (!tbody) return;
+
+        // Remove previously injected note rows and chevrons
+        tbody.querySelectorAll('tr.po-note-row').forEach(function(r) { r.remove(); });
+        tbody.querySelectorAll('.po-note-chevron').forEach(function(c) { c.remove(); });
+
+        var instance = window.EditableTable && window.EditableTable.instances && window.EditableTable.instances['pricingDetailTable'];
+        if (!instance) return;
+
+        var mainRows = tbody.querySelectorAll('tr[data-row-id]');
+        mainRows.forEach(function(mainRow) {
+            var rowId = String(mainRow.getAttribute('data-row-id'));
+            var rowObj = instance.rows.find(function(r) { return String(r.id) === rowId; });
+            if (!rowObj) return;
+            var detailId = rowObj.data.item_id ? String(rowObj.data.item_id) : '';
+            var note = detailId ? (_pricingNotesByDetailId[detailId] || '') : '';
+
+            var cells = mainRow.querySelectorAll('td');
+            var nameCell = cells.length > 1 ? cells[1] : cells[0];
+            var colCount = cells.length;
+            var spanCount = colCount > 1 ? colCount - 1 : colCount;
+
+            if (nameCell && !nameCell.querySelector('.po-note-chevron')) {
+                var chevron = document.createElement('div');
+                chevron.className = 'po-note-chevron text-xs text-slate-400 dark:text-slate-500 cursor-pointer hover:text-slate-600 dark:hover:text-slate-300 mt-0.5 select-none leading-tight';
+                chevron.setAttribute('data-po-note-detail-id', detailId);
+                _poUpdateChevronText(chevron, note, !!note);
+                chevron.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var id = this.getAttribute('data-po-note-detail-id');
+                    var noteRow = tbody.querySelector('tr.po-note-row[data-po-note-detail-id="' + id + '"]');
+                    if (!noteRow) return;
+                    var isHidden = noteRow.classList.contains('hidden');
+                    if (isHidden) {
+                        noteRow.classList.remove('hidden');
+                        var ta = noteRow.querySelector('textarea');
+                        if (ta) { ta.focus(); _poAutoResize(ta); }
+                        _poUpdateChevronText(this, _pricingNotesByDetailId[id] || '', true);
+                    } else {
+                        noteRow.classList.add('hidden');
+                        _poUpdateChevronText(this, _pricingNotesByDetailId[id] || '', false);
+                    }
+                });
+                nameCell.appendChild(chevron);
+            }
+
+            var noteRow = document.createElement('tr');
+            noteRow.className = 'po-note-row' + (note ? '' : ' hidden');
+            noteRow.setAttribute('data-po-note-detail-id', detailId);
+            noteRow.innerHTML = '<td class="p-0 pb-1"></td><td colspan="' + spanCount + '" class="px-3 pb-2 pt-0"><textarea ' +
+                'class="w-full text-xs text-slate-500 dark:text-slate-400 bg-transparent border-0 border-b border-slate-200 dark:border-slate-700 resize-none focus:outline-none focus:border-slate-400 dark:focus:border-slate-500 placeholder-slate-300 dark:placeholder-slate-600 leading-relaxed" ' +
+                'rows="1" placeholder="输入此行备注..." ' +
+                'data-po-note-detail-id="' + _poEscHtml(detailId) + '">' + _poEscHtml(note) + '</textarea></td>';
+
+            var ta = noteRow.querySelector('textarea');
+            if (ta) {
+                ta.addEventListener('input', function() {
+                    _poAutoResize(this);
+                    var id = this.getAttribute('data-po-note-detail-id');
+                    _pricingNotesByDetailId[id] = this.value;
+                    // Update chevron
+                    var ch = tbody.querySelector('.po-note-chevron[data-po-note-detail-id="' + id + '"]');
+                    if (ch) _poUpdateChevronText(ch, this.value, true);
+                    // Track as pending change
+                    state.isDirty = true;
+                    if (!state.pendingChanges.details[id]) state.pendingChanges.details[id] = {};
+                    state.pendingChanges.details[id].item_note = this.value;
+                });
+                setTimeout(function() { _poAutoResize(ta); }, 0);
+            }
+
+            mainRow.insertAdjacentElement('afterend', noteRow);
+
+            if (note) {
+                var ch2 = nameCell.querySelector('.po-note-chevron');
+                if (ch2) _poUpdateChevronText(ch2, note, true);
+            }
+        });
+    }
+    // ── End per-row note helpers ──────────────────────────────────────────
 
     // 状态映射
     const statusMap = {
@@ -1024,6 +1143,25 @@ window.PricingOrderModal = (function() {
             // 只读模式
             saveBtn?.classList.add('hidden');
             enableChannelEditing(false);
+        }
+
+        // 加载批价单整体备注
+        const notesEl = document.getElementById('pricingOrderNotes');
+        const notesBar = document.getElementById('pricingOrderNotesBar');
+        if (notesEl) {
+            notesEl.value = po.notes || '';
+            notesEl.disabled = !canEdit;
+            setTimeout(function() {
+                notesEl.style.height = 'auto';
+                notesEl.style.height = notesEl.scrollHeight + 'px';
+            }, 0);
+        }
+        if (notesBar) {
+            if (canEdit || po.notes) {
+                notesBar.classList.remove('hidden');
+            } else {
+                notesBar.classList.add('hidden');
+            }
         }
 
         // 显示内容
@@ -1513,7 +1651,8 @@ window.PricingOrderModal = (function() {
                             detail_id: parseInt(detailId),
                             discount_rate: changes.discount_rate,
                             unit_price: changes.unit_price,
-                            quantity: changes.quantity
+                            quantity: changes.quantity,
+                            item_note: changes.item_note
                         })
                     });
 
@@ -1583,6 +1722,16 @@ window.PricingOrderModal = (function() {
                 }
             }
 
+            // 5. Save overall pricing order notes
+            const notesEl = document.getElementById('pricingOrderNotes');
+            if (!hasError && notesEl && !notesEl.disabled) {
+                await fetch(`/pricing_order/${state.pricingOrderId}/update_notes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                    body: JSON.stringify({ notes: notesEl.value.trim() })
+                });
+            }
+
             if (!hasError) {
                 // 清空待保存状态
                 state.isDirty = false;
@@ -1646,14 +1795,24 @@ window.PricingOrderModal = (function() {
                 unit_price: unitPrice,
                 quantity: quantity,
                 total_price: totalPrice,
-                product_mn: d.product_mn || '-'
+                product_mn: d.product_mn || '-',
+                item_note: d.item_note || ''
             };
+        });
+
+        // Pre-populate per-row notes map and inject chevrons
+        _pricingNotesByDetailId = {};
+        (details || []).forEach(function(d) {
+            if (d.id && d.item_note) {
+                _pricingNotesByDetailId[String(d.id)] = d.item_note;
+            }
         });
 
         // 使用 EditableTable 组件设置数据
         if (window.EditableTable && window.EditableTable.setData) {
             window.EditableTable.setData('pricingDetailTable', tableData);
             window.EditableTable.setReadonly('pricingDetailTable', !canEdit);
+            _injectPricingNoteRows();
         }
     }
 
@@ -2506,6 +2665,15 @@ window.PricingOrderModal = (function() {
     }
 
     // 公开接口
+    /**
+     * 批价单整体备注输入回调
+     */
+    function onNotesInput(ta) {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+        state.isDirty = true;
+    }
+
     return {
         open,
         close,
@@ -2525,6 +2693,7 @@ window.PricingOrderModal = (function() {
         toggleFactoryPickup,
         updateTotalDiscount,
         onTotalDiscountKeyDown,
+        onNotesInput,
         // tw_editable_table 回调
         onDetailChange,
         onDetailDelete,
