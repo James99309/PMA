@@ -840,11 +840,6 @@ window.PricingOrderModal = (function() {
             }
 
             mainRow.insertAdjacentElement('afterend', noteRow);
-
-            if (note) {
-                var ch2 = nameCell.querySelector('.po-note-chevron');
-                if (ch2) _poUpdateChevronText(ch2, note, true);
-            }
         });
     }
     // ── End per-row note helpers ──────────────────────────────────────────
@@ -1725,11 +1720,18 @@ window.PricingOrderModal = (function() {
             // 5. Save overall pricing order notes
             const notesEl = document.getElementById('pricingOrderNotes');
             if (!hasError && notesEl && !notesEl.disabled) {
-                await fetch(`/pricing_order/${state.pricingOrderId}/update_notes`, {
+                const notesResp = await fetch(`/pricing_order/${state.pricingOrderId}/update_notes`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
                     body: JSON.stringify({ notes: notesEl.value.trim() })
                 });
+                const notesData = await notesResp.json();
+                if (!notesData.success) {
+                    hasError = true;
+                    if (!silentMode) {
+                        showToast(notesData.message || '{{ _("保存备注失败") }}', 'error');
+                    }
+                }
             }
 
             if (!hasError) {
