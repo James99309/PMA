@@ -2255,14 +2255,18 @@ async function uploadFloorBg(fpId){
   const fp=getFloorPlan(fpId);if(!fp)return;
 
   const input=document.createElement('input');
-  input.type='file';input.accept='image/png,image/jpeg,image/jpg,application/pdf';
+  input.type='file';input.accept='image/png,image/jpeg,image/jpg,application/pdf,.dxf,.dwg';
   input.onchange=async function(){
     const file=input.files[0];if(!file)return;
     if(file.size>12*1024*1024){showToast(_t('文件大小不能超过 12MB'));return}
 
-    const isPdf=file.name.toLowerCase().endsWith('.pdf');
-    if(isPdf){
+    const fname=file.name.toLowerCase();
+    if(fname.endsWith('.pdf')){
       await _handlePdfUpload(file,fpId);
+      return;
+    }
+    if(fname.endsWith('.dxf')||fname.endsWith('.dwg')){
+      await _handleDxfUpload(file,fpId);
       return;
     }
 
@@ -2326,6 +2330,9 @@ async function deleteFloorBg(fpId){
   } else {
     body.filename=fp.background.filename||'';
   }
+  if(fp.background.bg_type==='dxf'&&fp.background.dxf_filename){
+    body.dxf_filename=fp.background.dxf_filename;
+  }
 
   try{
     if(!DIAGRAM_CONFIG.diagramId){showToast(_t('请先保存系统图'));return}
@@ -2365,6 +2372,57 @@ function updateFloorBgButton(fpId){
   }else{
     if(icon)icon.textContent='image';
     label.textContent=_t('背景图');
+  }
+}
+
+// ====== DXF/DWG IMPORT ======
+
+async function _handleDxfUpload(file, fpId) {
+  if (!DIAGRAM_CONFIG.diagramId) {
+    await saveDiagram();
+    if (!DIAGRAM_CONFIG.diagramId) { showToast(_t('保存失败，无法上传')); return; }
+  }
+
+  const isDwg = file.name.toLowerCase().endsWith('.dwg');
+  showToast(isDwg ? _t('转换 DWG 中...') : _t('渲染 DXF 中...'));
+
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  formData.append('floor_id', fpId);
+
+  try {
+    const resp = await fetch(
+      DIAGRAM_CONFIG.apiFloorBgBase + DIAGRAM_CONFIG.diagramId + '/floor-plan/analyze-dxf',
+      { method: 'POST', headers: { 'X-CSRFToken': DIAGRAM_CONFIG.csrfToken }, body: formData }
+    );
+    const result = await resp.json();
+    if (!result.success) { showToast(result.message || _t('DXF 导入失败')); return; }
+
+    const fp = getFloorPlan(fpId);
+    if (!fp) return;
+    _cleanupOldBgFiles(fp);
+
+    fp.background = {
+      is_multi_res: true,
+      url: result.url,
+      width: result.width,
+      height: result.height,
+      resolutions: result.resolutions,
+      filenames: result.filenames,
+      offset_x: 0, offset_y: 0, opacity: 0.3,
+      bg_type: 'dxf',
+      dxf_filename: result.dxf_filename,
+    };
+
+    hasUnsavedChanges = true;
+    renderAll();
+    showFloorPlanProps(fpId);
+    showToast(_t('DXF 底图已导入'));
+    updateFloorBgButton(fpId);
+    updateDwgExportMenuItem();
+    if (!fp.calibration) _offerCalibrationInheritance(fpId);
+  } catch (err) {
+    showToast(_t('DXF 导入失败') + ': ' + err.message);
   }
 }
 
