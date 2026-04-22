@@ -46,17 +46,19 @@ def render_dxf_to_png(dxf_path, output_dir, base_name, max_dims=None):
     msp = doc.modelspace()
 
     fig = plt.figure(figsize=(20, 20))
-    ax = fig.add_axes([0, 0, 1, 1])
-    ctx = RenderContext(doc)
-    out = MatplotlibBackend(ax)
-    Frontend(ctx, out).draw_layout(msp, finalize=True)
+    try:
+        ax = fig.add_axes([0, 0, 1, 1])
+        ctx = RenderContext(doc)
+        out = MatplotlibBackend(ax)
+        Frontend(ctx, out).draw_layout(msp, finalize=True)
 
-    fig.canvas.draw()
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=100, bbox_inches='tight',
-                facecolor='white', edgecolor='none')
-    buf.seek(0)
-    plt.close(fig)
+        fig.canvas.draw()
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=100, bbox_inches='tight',
+                    facecolor='white', edgecolor='none')
+        buf.seek(0)
+    finally:
+        plt.close(fig)
 
     base_img = Image.open(buf)
     orig_w, orig_h = base_img.size
@@ -155,10 +157,12 @@ def combine_dxf_with_image(original_dxf_path, canvas_png_path,
         except Exception as e:
             logger.warning(f"跳过无法复制的实体 {entity.dxftype()}: {e}")
 
+    _PX_PER_MM = 96 / 25.4  # 96 DPI px/mm conversion
+
     png_abs = os.path.abspath(canvas_png_path)
     image_def = doc.add_image_def(
         filename=png_abs,
-        size_in_pixel=(int(canvas_width_mm * 3.78), int(canvas_height_mm * 3.78))
+        size_in_pixel=(int(canvas_width_mm * _PX_PER_MM), int(canvas_height_mm * _PX_PER_MM))
     )
     msp.add_image(
         insert=(0, 0, 0),
