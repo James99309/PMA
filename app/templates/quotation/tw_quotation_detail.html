@@ -1006,13 +1006,11 @@
         function _updateChevronText(chevron, note, expanded) {
             if (!note) {
                 chevron.innerHTML = '<span class="opacity-40">&#9662; 添加备注</span>';
-            } else if (expanded) {
-                var preview = note.length > 32 ? note.substring(0, 32) + '…' : note;
-                chevron.innerHTML = '&#9652; <span class="opacity-70">' + _qEscHtml(preview) + '</span>';
-            } else {
-                var preview = note.length > 32 ? note.substring(0, 32) + '…' : note;
-                chevron.innerHTML = '&#9662; <span class="opacity-70">' + _qEscHtml(preview) + '</span>';
+                return;
             }
+            var preview = note.length > 32 ? note.substring(0, 32) + '…' : note;
+            chevron.innerHTML = (expanded ? '&#9652;' : '&#9662;') +
+                ' <span class="opacity-70">' + _qEscHtml(preview) + '</span>';
         }
 
         function _injectQuotationNoteRows() {
