@@ -16,6 +16,98 @@
 window.QuotationModal = (function() {
     'use strict';
 
+    // 行备注：keyed by EditableTable row_id (string)
+    var _createNotesByRowId = {};
+
+    function _cmEscHtml(str) {
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(str || ''));
+        return d.innerHTML;
+    }
+
+    function _cmAutoResize(ta) {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+    }
+
+    function _cmUpdateChevronText(chevron, note, expanded) {
+        if (!note) {
+            chevron.innerHTML = '<span style="opacity:0.4">&#9662; 添加备注</span>';
+            return;
+        }
+        var preview = note.length > 32 ? note.substring(0, 32) + '…' : note;
+        chevron.innerHTML = (expanded ? '&#9652;' : '&#9662;') +
+            ' <span style="opacity:0.65">' + _cmEscHtml(preview) + '</span>';
+    }
+
+    function _injectCreateNoteRows() {
+        var tbody = document.getElementById('quotationProductTableBody');
+        if (!tbody) return;
+
+        tbody.querySelectorAll('tr.cm-note-row').forEach(function(r) { r.remove(); });
+        tbody.querySelectorAll('.cm-note-chevron').forEach(function(c) { c.remove(); });
+
+        var instance = window.EditableTable && window.EditableTable.instances &&
+                       window.EditableTable.instances['quotationProductTable'];
+        if (!instance) return;
+
+        tbody.querySelectorAll('tr[data-row-id]').forEach(function(mainRow) {
+            var rowId = String(mainRow.getAttribute('data-row-id'));
+            var note = _createNotesByRowId[rowId] || '';
+            var cells = mainRow.querySelectorAll('td');
+            var nameCell = cells.length > 1 ? cells[1] : cells[0];
+            var spanCount = cells.length > 1 ? cells.length - 1 : cells.length;
+
+            if (nameCell && !nameCell.querySelector('.cm-note-chevron')) {
+                var chevron = document.createElement('div');
+                chevron.className = 'cm-note-chevron';
+                chevron.style.cssText = 'font-size:11px;color:#94a3b8;cursor:pointer;margin-top:2px;line-height:1.2;user-select:none';
+                chevron.setAttribute('data-cm-row-id', rowId);
+                _cmUpdateChevronText(chevron, note, !!note);
+                chevron.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var id = this.getAttribute('data-cm-row-id');
+                    var noteRow = tbody.querySelector('tr.cm-note-row[data-cm-row-id="' + id + '"]');
+                    if (!noteRow) return;
+                    var hidden = noteRow.classList.contains('hidden');
+                    if (hidden) {
+                        noteRow.classList.remove('hidden');
+                        var ta = noteRow.querySelector('textarea');
+                        if (ta) { ta.focus(); _cmAutoResize(ta); }
+                        _cmUpdateChevronText(this, _createNotesByRowId[id] || '', true);
+                    } else {
+                        noteRow.classList.add('hidden');
+                        _cmUpdateChevronText(this, _createNotesByRowId[id] || '', false);
+                    }
+                });
+                nameCell.appendChild(chevron);
+            }
+
+            var noteRow = document.createElement('tr');
+            noteRow.className = 'cm-note-row' + (note ? '' : ' hidden');
+            noteRow.setAttribute('data-cm-row-id', rowId);
+            noteRow.innerHTML = '<td style="padding:0 0 4px 0"></td>' +
+                '<td colspan="' + spanCount + '" style="padding:0 12px 8px 12px">' +
+                '<textarea rows="1" placeholder="输入此行备注..." ' +
+                'data-cm-row-id="' + _cmEscHtml(rowId) + '" ' +
+                'style="width:100%;font-size:11px;color:#64748b;background:transparent;border:0;border-bottom:1px solid #e2e8f0;resize:none;outline:none;line-height:1.5">' +
+                _cmEscHtml(note) + '</textarea></td>';
+
+            var ta = noteRow.querySelector('textarea');
+            if (ta) {
+                ta.addEventListener('input', function() {
+                    _cmAutoResize(this);
+                    var id = this.getAttribute('data-cm-row-id');
+                    _createNotesByRowId[id] = this.value;
+                    var ch = tbody.querySelector('.cm-note-chevron[data-cm-row-id="' + id + '"]');
+                    if (ch) _cmUpdateChevronText(ch, this.value, true);
+                });
+                setTimeout(function() { _cmAutoResize(ta); }, 0);
+            }
+            mainRow.insertAdjacentElement('afterend', noteRow);
+        });
+    }
+
     // 默认配置
     let config = {
         i18n: {
@@ -91,6 +183,21 @@ window.QuotationModal = (function() {
         bindEvents();
         initialized = true;
         console.log('[QuotationModal] Initialized with config:', config);
+
+        // 监听产品表格新增行，自动注入备注 UI
+        var tbodyTarget = document.getElementById('quotationProductTableBody');
+        if (tbodyTarget && window.MutationObserver) {
+            var _noteObserver = new MutationObserver(function(mutations) {
+                var hasNewDataRow = mutations.some(function(m) {
+                    return Array.from(m.addedNodes).some(function(n) {
+                        return n.nodeType === 1 && n.tagName === 'TR' &&
+                               n.hasAttribute('data-row-id') && !n.classList.contains('cm-note-row');
+                    });
+                });
+                if (hasNewDataRow) { _injectCreateNoteRows(); }
+            });
+            _noteObserver.observe(tbodyTarget, { childList: true });
+        }
     }
 
     /**
@@ -111,8 +218,10 @@ window.QuotationModal = (function() {
             }
             instance.rows = [];
             instance.rowCounter = 0;
+            _createNotesByRowId = {};
             const newRow = window.EditableTable.addRow('quotationProductTable');
             console.log('[QuotationModal] Added row:', newRow);
+            _injectCreateNoteRows();
         } else {
             console.warn('[QuotationModal] EditableTable instance not found!');
         }
@@ -392,6 +501,18 @@ window.QuotationModal = (function() {
         let details = [];
         if (window.EditableTable) {
             details = window.EditableTable.getData('quotationProductTable');
+        }
+
+        // 合并行备注：按 tbody 中 tr[data-row-id] 顺序逐行匹配
+        var tbody = document.getElementById('quotationProductTableBody');
+        if (tbody) {
+            var mainRows = Array.from(tbody.querySelectorAll('tr[data-row-id]'));
+            mainRows.forEach(function(tr, idx) {
+                if (details[idx]) {
+                    var rowId = String(tr.getAttribute('data-row-id'));
+                    details[idx].item_note = _createNotesByRowId[rowId] || '';
+                }
+            });
         }
 
         // 计算总金额
