@@ -700,16 +700,16 @@ class PricingOrderService:
             db.session.add(settlement_detail)
     
     @staticmethod
-    def update_pricing_detail(pricing_order_id, detail_id, quantity=None, discount_rate=None, unit_price=None):
+    def update_pricing_detail(pricing_order_id, detail_id, quantity=None, discount_rate=None, unit_price=None, item_note=None):
         """更新批价单明细"""
         try:
             pricing_detail = PricingOrderDetail.query.filter_by(
                 pricing_order_id=pricing_order_id, id=detail_id
             ).first()
-            
+
             if not pricing_detail:
                 return False, "明细不存在"
-            
+
             if quantity is not None:
                 pricing_detail.quantity = quantity
             if discount_rate is not None:
@@ -719,6 +719,8 @@ class PricingOrderService:
                 # 根据单价反算折扣率
                 if pricing_detail.market_price and pricing_detail.market_price > 0:
                     pricing_detail.discount_rate = unit_price / pricing_detail.market_price
+            if item_note is not None:
+                pricing_detail.item_note = item_note
             
             pricing_detail.calculate_prices()
 

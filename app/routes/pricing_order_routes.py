@@ -468,9 +468,10 @@ def update_pricing_detail(order_id):
         quantity = data.get('quantity')
         discount_rate = data.get('discount_rate')
         unit_price = data.get('unit_price')  # 新增单价更新
-        
+        item_note = data.get('item_note')  # None means "no change", '' means "clear"
+
         success, error = PricingOrderService.update_pricing_detail(
-            order_id, detail_id, quantity=quantity, discount_rate=discount_rate, unit_price=unit_price
+            order_id, detail_id, quantity=quantity, discount_rate=discount_rate, unit_price=unit_price, item_note=item_note
         )
         
         if not success:
@@ -512,7 +513,8 @@ def update_pricing_detail(order_id):
                 'id': updated_detail.id,
                 'discount_rate': updated_detail.discount_rate,
                 'unit_price': updated_detail.unit_price,
-                'total_price': updated_detail.total_price
+                'total_price': updated_detail.total_price,
+                'item_note': updated_detail.item_note or '',
             } if updated_detail else None,
             'settlement_details': settlement_details_data
         })
@@ -523,6 +525,21 @@ def update_pricing_detail(order_id):
             'success': False,
             'message': f'更新失败: {str(e)}'
         })
+
+
+@pricing_order_bp.route('/<int:order_id>/update_notes', methods=['POST'])
+@login_required
+def update_pricing_notes(order_id):
+    """更新批价单整体备注"""
+    pricing_order = PricingOrder.query.get_or_404(order_id)
+    (can_edit_pricing, can_edit_settlement, is_approval_context,
+     can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
+    if not can_edit_pricing:
+        return jsonify({'success': False, 'message': '没有权限编辑批价单'})
+    data = request.get_json()
+    pricing_order.notes = data.get('notes', '') or ''
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 @pricing_order_bp.route('/<int:order_id>/update_settlement_detail', methods=['POST'])
