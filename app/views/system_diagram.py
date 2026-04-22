@@ -268,7 +268,7 @@ def api_delete(diagram_id):
 
 # ── 平面图背景 API ────────────────────────────────────────
 
-ALLOWED_BG_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
+ALLOWED_BG_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'dxf', 'dwg'}
 MAX_BG_SIZE = 12 * 1024 * 1024  # 12MB
 
 
@@ -371,6 +371,16 @@ def delete_floor_bg(diagram_id):
                 os.remove(file_path)
             except Exception as e:
                 logger.warning(f"删除背景文件失败: {e}")
+
+    # 同时删除关联的 DXF 文件（如果有）
+    dxf_filename = data.get('dxf_filename', '')
+    if dxf_filename:
+        dxf_path = os.path.join(upload_dir, os.path.basename(dxf_filename))
+        if os.path.exists(dxf_path):
+            try:
+                os.remove(dxf_path)
+            except Exception as e:
+                logger.warning(f"删除 DXF 文件失败: {e}")
 
     return jsonify({'success': True})
 
@@ -514,6 +524,93 @@ def render_pdf_pages(diagram_id):
         return jsonify({'success': False, 'message': 'PyMuPDF 未安装'}), 500
     except Exception as e:
         logger.error(f"渲染 PDF 页面失败: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@system_diagram.route('/api/<int:diagram_id>/floor-plan/analyze-dxf', methods=['POST'])
+@login_required
+@permission_required('system_diagram', 'edit')
+def analyze_dxf_api(diagram_id):
+    """上传 DWG/DXF 文件，转换并渲染为多分辨率 PNG 底图"""
+    diagram = SystemDiagram.query.get_or_404(diagram_id)
+    if diagram.is_deleted or not _can_edit_diagram(diagram):
+        return jsonify({'success': False, 'message': _('无权限')}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': _('请选择文件')}), 400
+
+    file = request.files['file']
+    floor_id = request.form.get('floor_id', '')
+    if not file.filename or not floor_id:
+        return jsonify({'success': False, 'message': _('缺少参数')}), 400
+
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if ext not in ('dxf', 'dwg'):
+        return jsonify({'success': False, 'message': _('仅支持 DXF/DWG 格式')}), 400
+
+    file.seek(0, 2)
+    file_size = file.tell()
+    file.seek(0)
+    if file_size > MAX_BG_SIZE:
+        return jsonify({'success': False, 'message': _('文件大小不能超过 12MB')}), 400
+
+    upload_dir = _get_bg_upload_dir()
+    uid = uuid.uuid4().hex[:8]
+    uploaded_path = os.path.join(upload_dir, f"{diagram_id}_{floor_id}_{uid}.{ext}")
+
+    try:
+        file.save(uploaded_path)
+
+        from app.utils.dxf_converter import render_dxf_to_png, convert_dwg_to_dxf
+
+        if ext == 'dwg':
+            try:
+                dxf_path = convert_dwg_to_dxf(uploaded_path, upload_dir)
+                os.remove(uploaded_path)
+            except FileNotFoundError:
+                return jsonify({
+                    'success': False,
+                    'message': _('服务器未安装 dwg2dxf，请先将 DWG 另存为 DXF 后上传')
+                }), 500
+        else:
+            dxf_path = uploaded_path
+
+        base_name = f"{diagram_id}_{floor_id}_{uid}"
+        resolutions = render_dxf_to_png(dxf_path, upload_dir, base_name,
+                                         max_dims=[1000, 2000, 4000])
+
+        res_with_urls = {}
+        all_png_filenames = []
+        for dim_key, info in resolutions.items():
+            res_with_urls[dim_key] = {
+                'url': url_for('system_diagram.serve_floor_bg', filename=info['filename']),
+                'width': info['width'],
+                'height': info['height'],
+            }
+            all_png_filenames.append(info['filename'])
+
+        default_res = res_with_urls.get('2000', list(res_with_urls.values())[0])
+        dxf_filename = os.path.basename(dxf_path)
+
+        return jsonify({
+            'success': True,
+            'url': default_res['url'],
+            'width': default_res['width'],
+            'height': default_res['height'],
+            'resolutions': res_with_urls,
+            'filenames': all_png_filenames,
+            'dxf_filename': dxf_filename,
+        })
+
+    except ImportError:
+        return jsonify({'success': False, 'message': 'matplotlib 未安装，无法渲染 DXF'}), 500
+    except Exception as e:
+        logger.error(f"DXF 导入失败: {e}")
+        if os.path.exists(uploaded_path):
+            try:
+                os.remove(uploaded_path)
+            except Exception:
+                pass
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
