@@ -177,8 +177,26 @@ def start_pricing_process(project_id):
             PricingOrder.status.in_(['draft', 'pending', 'rejected'])
         ).first()
 
-        # 如果有未完成的批价单，跳转到该批价单继续编辑
+        # 如果有未完成的批价单，同步报价单备注后跳转到该批价单继续编辑
         if existing_pending_order:
+            # 同步报价单整体备注（始终以报价单为准）
+            existing_pending_order.notes = quotation.notes or ''
+            # 同步各行备注：只更新 item_note 为空的行（避免覆盖用户在批价单里手动填写的备注）
+            from app.models.quotation import QuotationDetail as _QD
+            # 构建当前报价单明细的 id→note 和 product_name→note 映射
+            current_qd_by_id = {}
+            current_qd_by_name = {}
+            for qd in _QD.query.filter_by(quotation_id=quotation.id).all():
+                if qd.item_note:
+                    current_qd_by_id[qd.id] = qd.item_note
+                    current_qd_by_name[qd.product_name] = qd.item_note
+            for pod in existing_pending_order.pricing_details:
+                if not pod.item_note:
+                    note = (current_qd_by_id.get(pod.source_quotation_detail_id)
+                            or current_qd_by_name.get(pod.product_name))
+                    if note:
+                        pod.item_note = note
+            db.session.commit()
             return jsonify({
                 'success': True,
                 'pricing_order_id': existing_pending_order.id,
