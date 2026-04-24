@@ -27,6 +27,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto-cjk \
     curl \
     postgresql-client \
+    libreoffice-writer \
+    libreoffice-common \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
