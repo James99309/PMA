@@ -80,16 +80,6 @@ def check_pricing_edit_permission(pricing_order, current_user):
         from app.helpers.approval_helpers import is_current_approver
         if is_current_approver('pricing_order', pricing_order.id, current_user.id):
             is_approval_context = True
-        else:
-            # 方式2: 回退检查旧的 PricingOrderApprovalRecord（兼容历史数据）
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=pricing_order.current_approval_step,
-                approver_id=current_user.id
-            ).first()
-
-            if current_approval_record:
-                is_approval_context = True
 
     # 根据上下文选择权限检查方式
     can_edit_pricing = PricingOrderService.can_edit_pricing_details(
@@ -311,14 +301,7 @@ def edit_pricing_order(order_id):
                     except:
                         editable_fields = []
         
-        # 兼容V1系统的审批记录查询（如果还有遗留数据）
         current_approval_record = None
-        if pricing_order.status == 'pending':
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=pricing_order.current_approval_step,
-                approver_id=current_user.id
-            ).first()
         
         # 获取用户的折扣权限
         discount_limits = DiscountPermissionService.get_user_discount_limits(current_user)
@@ -918,15 +901,14 @@ def get_pricing_order_approval_flow(order_id):
         # 获取批价单（使用数据归属机制验证权限）
         from app.utils.access_control import get_viewable_data
 
-        viewable_orders = get_viewable_data(PricingOrder, current_user)
-        pricing_order = viewable_orders.filter(PricingOrder.id == order_id).first()
-
-        if not pricing_order:
+        from app.utils.access_control import can_view_pricing_order
+        pricing_order = PricingOrder.query.get(order_id)
+        if not pricing_order or not can_view_pricing_order(current_user, pricing_order):
             return jsonify({
                 'success': False,
                 'message': '批价单不存在或您没有权限查看'
             }), 404
-        
+
         # 获取统一审批流程数据
         from app.helpers.approval_helpers import get_object_approval_instance
         
@@ -2459,6 +2441,7 @@ def export_pdf(order_id, pdf_type):
 
         # 优先尝试使用Word模板生成PDF
         use_word_template = request.args.get('template', 'word') == 'word'
+        include_notes = request.args.get('include_notes') == '1'
         result = None
 
         if use_word_template:
@@ -2467,9 +2450,9 @@ def export_pdf(order_id, pdf_type):
                 word_generator = WordGenerator()
 
                 if pdf_type == 'pricing':
-                    result = word_generator.generate_pricing_order_pdf(pricing_order)
+                    result = word_generator.generate_pricing_order_pdf(pricing_order, include_notes=include_notes)
                 elif pdf_type == 'settlement':
-                    result = word_generator.generate_settlement_order_pdf(pricing_order)
+                    result = word_generator.generate_settlement_order_pdf(pricing_order, include_notes=include_notes)
                 else:
                     flash('无效的PDF类型', 'danger')
                     return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
@@ -2483,9 +2466,9 @@ def export_pdf(order_id, pdf_type):
             pdf_generator = PDFGenerator()
 
             if pdf_type == 'pricing':
-                result = pdf_generator.generate_pricing_order_pdf(pricing_order)
+                result = pdf_generator.generate_pricing_order_pdf(pricing_order, include_notes=include_notes)
             elif pdf_type == 'settlement':
-                result = pdf_generator.generate_settlement_order_pdf(pricing_order)
+                result = pdf_generator.generate_settlement_order_pdf(pricing_order, include_notes=include_notes)
             else:
                 flash('无效的PDF类型', 'danger')
                 return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
@@ -2530,15 +2513,16 @@ def export_word(order_id, doc_type):
             return redirect(url_for('pricing_order.list_pricing_orders'))
 
         # 生成Word文档
+        include_notes = request.args.get('include_notes') == '1'
         word_generator = WordGenerator()
         logger.info(f"[Word导出] WordGenerator 实例化成功, 模板目录: {word_generator.template_dir}")
 
         if doc_type == 'pricing':
-            logger.info("[Word导出] 调用 generate_pricing_order_word...")
-            result = word_generator.generate_pricing_order_word(pricing_order)
+            logger.info("[Word导出] 调用 generate_pricing_order_word_v2...")
+            result = word_generator.generate_pricing_order_word_v2(pricing_order, include_notes=include_notes)
         elif doc_type == 'settlement':
-            logger.info("[Word导出] 调用 generate_settlement_order_word...")
-            result = word_generator.generate_settlement_order_word(pricing_order)
+            logger.info("[Word导出] 调用 generate_settlement_order_word_v2...")
+            result = word_generator.generate_settlement_order_word_v2(pricing_order, include_notes=include_notes)
         else:
             flash('无效的文档类型', 'danger')
             return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
@@ -2890,13 +2874,9 @@ def get_pricing_order_by_quotation(quotation_id):
 def get_pricing_order_detail_api(order_id):
     """获取批价单详细信息 - 用于模态框展示"""
     try:
-        from app.utils.access_control import get_viewable_data
-
-        # 获取批价单
-        viewable_orders = get_viewable_data(PricingOrder, current_user)
-        pricing_order = viewable_orders.filter(PricingOrder.id == order_id).first()
-
-        if not pricing_order:
+        from app.utils.access_control import can_view_pricing_order
+        pricing_order = PricingOrder.query.get(order_id)
+        if not pricing_order or not can_view_pricing_order(current_user, pricing_order):
             return jsonify({
                 'success': False,
                 'message': '批价单不存在或您没有权限访问'

@@ -21,6 +21,10 @@ from typing import Iterator
 
 logger = logging.getLogger(__name__)
 
+# 模块级变量：记录当前活跃代理索引，在同一进程内跨请求保持状态
+# 当 index=0 的代理遇到 usage limit 429 后切到 1，后续请求直接从 1 开始
+_active_proxy_idx: int = 0
+
 
 class LLMClientError(RuntimeError):
     """所有 LLM 调用层的异常统一成这个"""
@@ -77,18 +81,144 @@ class ClaudeClient(BaseLLMClient):
             raise LLMClientError(
                 '未配置 ANTHROPIC_API_KEY 环境变量,无法调用 Claude API'
             )
-        kwargs = {'api_key': key}
-        url = base_url or os.environ.get('ANTHROPIC_BASE_URL', '').strip()
-        if url:
-            kwargs['base_url'] = url
-            logger.info(f'[CLI Agent LLM] Claude base_url={url}')
+        self.model = model or os.environ.get('CLI_AGENT_MODEL', self.DEFAULT_MODEL)
         # trust_env=False 绕开 macOS 系统代理(scutil --proxy)和 HTTP_PROXY 环境变量。
         # 我们的 Tailscale 100.64.0.0/10 网段不在 macOS 代理例外列表里,本地 dev 时
         # httpx 默认会把 Tailscale 流量也扔进 127.0.0.1:1082 的 ClashX/V2Ray 代理,
         # 导致 api.anthropic.com / SG NAS 反代 全部 503。
-        kwargs['http_client'] = httpx.Client(trust_env=False, timeout=600)
-        self._client = Anthropic(**kwargs)
-        self.model = model or os.environ.get('CLI_AGENT_MODEL', self.DEFAULT_MODEL)
+        http = httpx.Client(trust_env=False, timeout=600)
+
+        # 构建多代理客户端列表（支持 ANTHROPIC_BASE_URL + ANTHROPIC_BASE_URL_2 轮换）
+        urls: list[str | None] = []
+        u1 = base_url or os.environ.get('ANTHROPIC_BASE_URL', '').strip() or None
+        u2 = os.environ.get('ANTHROPIC_BASE_URL_2', '').strip() or None
+        if u1:
+            urls.append(u1)
+        if u2 and u2 != u1:
+            urls.append(u2)
+        if not urls:
+            urls = [None]  # 直连 api.anthropic.com
+
+        self._clients: list[Anthropic] = []
+        for u in urls:
+            kw: dict = {'api_key': key, 'http_client': http}
+            if u:
+                kw['base_url'] = u
+            self._clients.append(Anthropic(**kw))
+            logger.info(f'[CLI Agent LLM] 注册代理: {u or "api.anthropic.com (direct)"}')
+
+        # 向后兼容：保留 _client 指向当前活跃客户端
+        self._client = self._clients[0]
+
+    @staticmethod
+    def _is_usage_limit(e) -> bool:
+        """判断是否应该切换到下一个代理账号。
+        唯一不切换的情况：模型门禁伪 429（无 ratelimit 头 + message 为 "Error"）。
+        所有其他 429（账号限额、速率限制等）都切换——另一个账号有独立配额。
+        """
+        try:
+            headers: dict = {}
+            if hasattr(e, 'response') and e.response is not None:
+                headers = dict(e.response.headers)
+            has_ratelimit_headers = any(
+                k.lower().startswith('anthropic-ratelimit-') for k in headers
+            )
+            msg = ''
+            if hasattr(e, 'body') and isinstance(e.body, dict):
+                msg = e.body.get('error', {}).get('message', '')
+            # 模型门禁伪 429：无 ratelimit 头 且 message 恰好是 "Error"
+            if not has_ratelimit_headers and msg == 'Error':
+                return False
+            return True
+        except Exception:
+            return False
+
+    def _rotate_proxy(self) -> None:
+        global _active_proxy_idx
+        old = _active_proxy_idx
+        _active_proxy_idx = (_active_proxy_idx + 1) % len(self._clients)
+        logger.warning(
+            f'[CLI Agent LLM] 代理切换: index {old} → {_active_proxy_idx} '
+            f'(共 {len(self._clients)} 个)'
+        )
+
+    def _iter_stream_events(self, stream) -> Iterator[dict]:
+        """从 Anthropic stream 中提取标准化事件，供 stream() 复用。"""
+        import json as _json
+        current_block_type: str | None = None
+        current_tool_use: dict | None = None
+        current_tool_input_json: str = ''
+
+        for event in stream:
+            etype = getattr(event, 'type', '')
+
+            if etype == 'content_block_start':
+                block = getattr(event, 'content_block', None)
+                btype = getattr(block, 'type', None)
+                current_block_type = btype
+                if btype == 'tool_use':
+                    current_tool_use = {
+                        'id': getattr(block, 'id', ''),
+                        'name': getattr(block, 'name', ''),
+                    }
+                    current_tool_input_json = ''
+
+            elif etype == 'content_block_delta':
+                delta = getattr(event, 'delta', None)
+                dtype = getattr(delta, 'type', '')
+                if dtype == 'text_delta':
+                    text = getattr(delta, 'text', '')
+                    if text:
+                        yield {'type': 'text_delta', 'text': text}
+                elif dtype == 'input_json_delta':
+                    current_tool_input_json += getattr(delta, 'partial_json', '')
+
+            elif etype == 'content_block_stop':
+                if current_block_type == 'tool_use' and current_tool_use is not None:
+                    try:
+                        tool_input = (
+                            _json.loads(current_tool_input_json)
+                            if current_tool_input_json else {}
+                        )
+                    except _json.JSONDecodeError as e:
+                        logger.warning(
+                            f'[CLI Agent LLM] tool_use input JSON 解析失败: {e}, '
+                            f'raw={current_tool_input_json!r}'
+                        )
+                        tool_input = {}
+                    yield {
+                        'type': 'tool_use',
+                        'id': current_tool_use['id'],
+                        'name': current_tool_use['name'],
+                        'input': tool_input,
+                    }
+                    current_tool_use = None
+                    current_tool_input_json = ''
+                current_block_type = None
+
+        # 流结束，拿 stop_reason 和 usage
+        final = stream.get_final_message()
+        usage: dict = {}
+        if hasattr(final, 'usage') and final.usage is not None:
+            u = final.usage
+            usage = {
+                'input_tokens': getattr(u, 'input_tokens', 0) or 0,
+                'output_tokens': getattr(u, 'output_tokens', 0) or 0,
+                'cache_creation_input_tokens':
+                    getattr(u, 'cache_creation_input_tokens', 0) or 0,
+                'cache_read_input_tokens':
+                    getattr(u, 'cache_read_input_tokens', 0) or 0,
+            }
+        yield {
+            'type': 'message_stop',
+            'stop_reason': getattr(final, 'stop_reason', None),
+            'usage': usage,
+            'model': self.model,
+        }
+        logger.info(
+            f'[CLI Agent LLM] 完成 stop={getattr(final, "stop_reason", "?")} '
+            f'usage={usage}'
+        )
 
     def stream(
         self,
@@ -97,115 +227,51 @@ class ClaudeClient(BaseLLMClient):
         messages: list[dict],
         max_tokens: int = 4096,
     ) -> Iterator[dict]:
-        from anthropic import APIError
-
-        logger.info(
-            f'[CLI Agent LLM] 请求 model={self.model} '
-            f'msgs={len(messages)} tools={len(tools)} max_tokens={max_tokens}'
-        )
+        from anthropic import RateLimitError, APIError
 
         patched_system = [
             {'type': 'text', 'text': self.OAUTH_IDENTITY_PREFIX},
             *system_blocks,
         ]
+        n = len(self._clients)
 
-        try:
-            with self._client.messages.stream(
-                model=self.model,
-                max_tokens=max_tokens,
-                system=patched_system,
-                tools=tools if tools else None,
-                messages=messages,
-            ) as stream:
-                # SDK 的 text_stream 只处理文本增量,我们要细粒度事件
-                # 所以手动遍历 raw events
-                current_block_type: str | None = None
-                current_tool_use: dict | None = None
-                current_tool_input_json: str = ''
+        for attempt in range(n):
+            # 从模块级活跃索引开始，保证进程内跨请求记住上次切换结果
+            idx = _active_proxy_idx % n
+            client = self._clients[idx]
+            logger.info(
+                f'[CLI Agent LLM] 请求 model={self.model} msgs={len(messages)} '
+                f'tools={len(tools)} max_tokens={max_tokens} proxy={idx}'
+            )
+            try:
+                with client.messages.stream(
+                    model=self.model,
+                    max_tokens=max_tokens,
+                    system=patched_system,
+                    tools=tools if tools else None,
+                    messages=messages,
+                ) as stream:
+                    yield from self._iter_stream_events(stream)
+                return  # 成功，退出重试循环
 
-                for event in stream:
-                    etype = getattr(event, 'type', '')
+            except RateLimitError as e:
+                if attempt < n - 1 and self._is_usage_limit(e):
+                    logger.warning(f'[CLI Agent LLM] proxy={idx} usage limit，切换代理重试')
+                    self._rotate_proxy()
+                    continue
+                logger.exception('[CLI Agent LLM] RateLimitError（不可重试）')
+                yield {'type': 'error', 'message': f'Claude API 速率限制: {e}'}
+                return
 
-                    if etype == 'content_block_start':
-                        block = getattr(event, 'content_block', None)
-                        btype = getattr(block, 'type', None)
-                        current_block_type = btype
-                        if btype == 'tool_use':
-                            current_tool_use = {
-                                'id': getattr(block, 'id', ''),
-                                'name': getattr(block, 'name', ''),
-                            }
-                            current_tool_input_json = ''
+            except APIError as e:
+                logger.exception('[CLI Agent LLM] Anthropic APIError')
+                yield {'type': 'error', 'message': f'Claude API 错误: {e}'}
+                return
 
-                    elif etype == 'content_block_delta':
-                        delta = getattr(event, 'delta', None)
-                        dtype = getattr(delta, 'type', '')
-                        if dtype == 'text_delta':
-                            text = getattr(delta, 'text', '')
-                            if text:
-                                yield {'type': 'text_delta', 'text': text}
-                        elif dtype == 'input_json_delta':
-                            partial = getattr(delta, 'partial_json', '')
-                            current_tool_input_json += partial
-
-                    elif etype == 'content_block_stop':
-                        if current_block_type == 'tool_use' and current_tool_use is not None:
-                            # tool_use 输入全部收齐,parse JSON 并 yield
-                            import json
-                            try:
-                                tool_input = (
-                                    json.loads(current_tool_input_json)
-                                    if current_tool_input_json else {}
-                                )
-                            except json.JSONDecodeError as e:
-                                logger.warning(
-                                    f'[CLI Agent LLM] tool_use input JSON 解析失败: {e}, '
-                                    f'raw={current_tool_input_json!r}'
-                                )
-                                tool_input = {}
-                            yield {
-                                'type': 'tool_use',
-                                'id': current_tool_use['id'],
-                                'name': current_tool_use['name'],
-                                'input': tool_input,
-                            }
-                            current_tool_use = None
-                            current_tool_input_json = ''
-                        current_block_type = None
-
-                    elif etype == 'message_stop':
-                        pass  # 最终在外面用 get_final_message 拿 usage
-
-                # 流结束后,拿最终消息的 stop_reason 和 usage
-                final = stream.get_final_message()
-                usage = {}
-                if hasattr(final, 'usage') and final.usage is not None:
-                    u = final.usage
-                    usage = {
-                        'input_tokens': getattr(u, 'input_tokens', 0) or 0,
-                        'output_tokens': getattr(u, 'output_tokens', 0) or 0,
-                        'cache_creation_input_tokens':
-                            getattr(u, 'cache_creation_input_tokens', 0) or 0,
-                        'cache_read_input_tokens':
-                            getattr(u, 'cache_read_input_tokens', 0) or 0,
-                    }
-                yield {
-                    'type': 'message_stop',
-                    'stop_reason': getattr(final, 'stop_reason', None),
-                    'usage': usage,
-                    'model': self.model,
-                }
-                logger.info(
-                    f'[CLI Agent LLM] 完成 stop={getattr(final, "stop_reason", "?")} '
-                    f'usage={usage}'
-                )
-
-        except APIError as e:
-            logger.exception('[CLI Agent LLM] Anthropic APIError')
-            yield {'type': 'error', 'message': f'Claude API 错误: {e}'}
-        except Exception as e:
-            logger.exception('[CLI Agent LLM] 未预期错误')
-            yield {'type': 'error', 'message': f'LLM 调用失败: {e}'}
+            except Exception as e:
+                logger.exception('[CLI Agent LLM] 未预期错误')
+                yield {'type': 'error', 'message': f'LLM 调用失败: {e}'}
+                return
 
 
 # ─── OpenAI 实现 ────────────────────────────────────────────────────────

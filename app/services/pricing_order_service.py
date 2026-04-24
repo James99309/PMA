@@ -524,22 +524,6 @@ class PricingOrderService:
             # 创建结算单明细（基于批价单明细）
             PricingOrderService.create_settlement_details(pricing_order, settlement_order)
             
-            # 生成审批步骤
-            approval_steps = PricingOrderService.generate_approval_steps(
-                flow_type, project, has_dealer=bool(pricing_order.dealer_id)
-            )
-            
-            # 创建审批记录
-            for step in approval_steps:
-                approval_record = PricingOrderApprovalRecord(
-                    pricing_order_id=pricing_order.id,
-                    step_order=step['step_order'],
-                    step_name=step['step_name'],
-                    approver_role=step['approver_role'],
-                    approver_id=step['approver_id']
-                )
-                db.session.add(approval_record)
-            
             # 计算总额
             pricing_order.calculate_pricing_totals()
             pricing_order.calculate_settlement_totals()
@@ -639,16 +623,12 @@ class PricingOrderService:
     @staticmethod
     def copy_quotation_details_to_pricing(quotation, pricing_order):
         """从报价单复制产品明细到批价单"""
-        from app.models.product import Product
         from app.models.quotation import QuotationDetail
-        from sqlalchemy import case
-        
-        # 使用与报价单详情页面相同的排序逻辑
-        # 优先显示产品库中的产品（按Product.id排序），然后显示不在产品库中的产品（按QuotationDetail.id排序）
-        sorted_details = db.session.query(QuotationDetail)\
-            .outerjoin(Product, Product.product_name == QuotationDetail.product_name)\
-            .filter(QuotationDetail.quotation_id == quotation.id)\
-            .order_by(case((Product.id.is_(None), 1), else_=0), Product.id.asc(), QuotationDetail.id.asc())\
+
+        # 与报价单 details 关系保持相同顺序（按 QuotationDetail.id 即添加顺序）
+        sorted_details = QuotationDetail.query\
+            .filter_by(quotation_id=quotation.id)\
+            .order_by(QuotationDetail.id.asc())\
             .all()
         
         for qd in sorted_details:
@@ -900,13 +880,6 @@ class PricingOrderService:
             if not approval_instance:
                 db.session.rollback()
                 return False, "创建审批流程失败"
-            
-            # 清理旧的审批记录（V1系统的记录）
-            old_records = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id
-            ).all()
-            for record in old_records:
-                db.session.delete(record)
             
             # 更新状态为审批中（统一审批系统会自动处理步骤）
             pricing_order.status = 'pending'
@@ -1509,20 +1482,6 @@ class PricingOrderService:
                     logger.info(f"V2流程：批价单 {pricing_order_id} 审批实例 {approval_instance.id} 已召回")
                 else:
                     logger.warning(f"V2流程的批价单 {pricing_order_id} 没有找到审批实例")
-            else:
-                # V1流程：添加召回记录
-                recall_record = PricingOrderApprovalRecord(
-                    pricing_order_id=pricing_order_id,
-                    step_order=pricing_order.current_approval_step,
-                    step_name="召回操作",
-                    approver_role="发起人",
-                    approver_id=current_user_id,
-                    action='recall',
-                    comment=f"发起人召回批价单。原因：{reason}" if reason else "发起人召回批价单",
-                    approved_at=datetime.now()
-                )
-                db.session.add(recall_record)
-                logger.info(f"V1流程：批价单 {pricing_order_id} 已召回")
             
             # 更新批价单状态为草稿
             pricing_order.status = 'draft'
@@ -1607,20 +1566,9 @@ class PricingOrderService:
             pricing_order.project.vendor_sales_manager_id == current_user.id):
             return True
             
-        # 当前审批人可以查看
+        # 当前审批人可以查看（V2统一审批系统）
         if pricing_order.status == 'pending':
-            # V2统一审批系统：检查是否为当前审批人
             if PricingOrderService._is_current_approver_v2(pricing_order, current_user):
-                return True
-            
-            # 兼容V1系统（如果还有遗留数据）
-            from app.models.pricing_order import PricingOrderApprovalRecord
-            current_approval_record = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order.id,
-                step_order=pricing_order.current_approval_step,
-                approver_id=current_user.id
-            ).first()
-            if current_approval_record:
                 return True
         
         # 通过数据归属机制检查权限（pricing_order 模块的 system/company/department 级权限）
@@ -1832,15 +1780,7 @@ class PricingOrderService:
             from app import db
             from flask import current_app
             
-            # 1. 删除所有审批记录（清除痕迹）
-            approval_records = PricingOrderApprovalRecord.query.filter_by(
-                pricing_order_id=pricing_order_id
-            ).all()
-            
-            for record in approval_records:
-                db.session.delete(record)
-            
-            # 2. 重置批价单状态为草稿
+            # 1. 重置批价单状态为草稿
             pricing_order.status = 'draft'
             pricing_order.current_approval_step = 0
             pricing_order.approved_at = None

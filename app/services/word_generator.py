@@ -113,7 +113,7 @@ class WordGenerator:
             for run in paragraph.runs:
                 run.font.size = Pt(font_size)
 
-    def generate_pricing_order_word(self, pricing_order):
+    def generate_pricing_order_word(self, pricing_order, include_notes=False):
         """
         生成批价单Word文档
 
@@ -212,6 +212,13 @@ class WordGenerator:
             }
             self._replace_text_in_table(table4, replacements4)
 
+            # 备注（可选）：在文档末尾追加备注段落
+            if include_notes and pricing_order.notes:
+                doc.add_paragraph()
+                notes_para = doc.add_paragraph()
+                notes_para.add_run('备注：').bold = True
+                notes_para.add_run(pricing_order.notes)
+
             # 保存到内存
             output = BytesIO()
             doc.save(output)
@@ -233,7 +240,1209 @@ class WordGenerator:
             logger.error(f"生成批价单Word文档失败: {str(e)}")
             raise
 
-    def generate_settlement_order_word(self, pricing_order):
+    def generate_pricing_order_word_v2(self, pricing_order, include_notes=False):
+        """生成批价单Word文档（优化版样式，从零构建，不依赖 .docx 模板）"""
+        from docx.shared import RGBColor
+        from docx.enum.table import WD_ALIGN_VERTICAL
+
+        # ── 颜色常量 ────────────────────────────────────────────────────
+        C_DARK_BLUE  = RGBColor(0x1F, 0x3A, 0x5F)
+        C_GOLD       = RGBColor(0xB8, 0x95, 0x3F)
+        C_GRAY       = RGBColor(0x59, 0x59, 0x59)
+        C_TEXT       = RGBColor(0x1A, 0x1A, 0x1A)
+        C_WHITE      = RGBColor(0xFF, 0xFF, 0xFF)
+        C_GREEN      = RGBColor(0x1F, 0x7A, 0x4A)
+        C_LIGHT_BLUE = RGBColor(0xA8, 0xBE, 0xD8)
+
+        # ── 辅助函数 ─────────────────────────────────────────────────────
+
+        def set_cell_bg(cell, hex_color):
+            tcPr = cell._tc.get_or_add_tcPr()
+            for s in tcPr.findall(qn('w:shd')):
+                tcPr.remove(s)
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'), 'clear')
+            shd.set(qn('w:color'), 'auto')
+            shd.set(qn('w:fill'), hex_color)
+            tcPr.append(shd)
+
+        def set_cell_w(cell, dxa):
+            tcPr = cell._tc.get_or_add_tcPr()
+            for w in tcPr.findall(qn('w:tcW')):
+                tcPr.remove(w)
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'), str(dxa))
+            tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
+
+        def set_cell_valign(cell, val='center'):
+            tcPr = cell._tc.get_or_add_tcPr()
+            for v in tcPr.findall(qn('w:vAlign')):
+                tcPr.remove(v)
+            vAlign = OxmlElement('w:vAlign')
+            vAlign.set(qn('w:val'), val)
+            tcPr.append(vAlign)
+
+        def set_spacing(para, before_pt=0, after_pt=0):
+            pPr = para._p.get_or_add_pPr()
+            for s in pPr.findall(qn('w:spacing')):
+                pPr.remove(s)
+            sp = OxmlElement('w:spacing')
+            sp.set(qn('w:before'), str(int(before_pt * 20)))
+            sp.set(qn('w:after'), str(int(after_pt * 20)))
+            sp.set(qn('w:line'), '276')
+            sp.set(qn('w:lineRule'), 'auto')
+            pPr.append(sp)
+
+        FONT_NAME  = 'Microsoft YaHei'
+        LATIN_FONT = 'Arial'   # 拉丁字符专用（LibreOffice 可找到，Word 与 YaHei 拉丁效果一致）
+        MONEY_FONT = 'Arial'   # 金额数字专用字体
+
+        def set_run_font(run, fn=FONT_NAME):
+            rPr = run._r.get_or_add_rPr()
+            rFonts = rPr.find(qn('w:rFonts'))
+            if rFonts is None:
+                rFonts = OxmlElement('w:rFonts')
+                rPr.insert(0, rFonts)
+            if fn == FONT_NAME:
+                # 普通文字: 拉丁用 Arial（LibreOffice 可渲染），CJK 用微软雅黑
+                rFonts.set(qn('w:ascii'),    LATIN_FONT)
+                rFonts.set(qn('w:hAnsi'),    LATIN_FONT)
+                rFonts.set(qn('w:eastAsia'), FONT_NAME)
+                rFonts.set(qn('w:cs'),       FONT_NAME)
+            else:
+                # 金额/英文专用字体: 全部使用指定字体
+                for attr in ('w:ascii', 'w:eastAsia', 'w:hAnsi', 'w:cs'):
+                    rFonts.set(qn(attr), fn)
+
+        def add_run(para, text, size_pt, bold=False, color=None, fn=FONT_NAME):
+            run = para.add_run(str(text))
+            run.font.size = Pt(size_pt)
+            run.font.bold = bold
+            if color:
+                run.font.color.rgb = color
+            set_run_font(run, fn)
+            return run
+
+        def set_tbl_borders(table, color='CCCCCC', sz=4):
+            tblPr = table._tbl.tblPr
+            if tblPr is None:
+                tblPr = OxmlElement('w:tblPr')
+                table._tbl.insert(0, tblPr)
+            borders = OxmlElement('w:tblBorders')
+            for side in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+                b = OxmlElement(f'w:{side}')
+                b.set(qn('w:val'), 'single')
+                b.set(qn('w:sz'), str(sz))
+                b.set(qn('w:space'), '0')
+                b.set(qn('w:color'), color)
+                borders.append(b)
+            existing = tblPr.find(qn('w:tblBorders'))
+            if existing is not None:
+                tblPr.remove(existing)
+            tblPr.append(borders)
+            # 移除 tblLook（禁止 Word 自动叠加条纹底色）
+            look = tblPr.find(qn('w:tblLook'))
+            if look is not None:
+                tblPr.remove(look)
+
+        def set_tbl_width(table, dxa):
+            tblPr = table._tbl.tblPr
+            if tblPr is None:
+                tblPr = OxmlElement('w:tblPr')
+                table._tbl.insert(0, tblPr)
+            for w in tblPr.findall(qn('w:tblW')):
+                tblPr.remove(w)
+            tblW = OxmlElement('w:tblW')
+            tblW.set(qn('w:w'), str(dxa))
+            tblW.set(qn('w:type'), 'dxa')
+            tblPr.append(tblW)
+
+        def amount_to_chinese(amount):
+            digits = '零壹贰叁肆伍陆柒捌玖'
+            amount = round(float(amount or 0), 2)
+            int_part = int(amount)
+            dec = round((amount - int_part) * 100)
+            jiao, fen = dec // 10, dec % 10
+
+            def _int_cn(n):
+                if n == 0:
+                    return '零'
+                wan_u = ['', '万', '亿']
+                unit_u = ['', '拾', '佰', '仟']
+                groups = []
+                while n > 0:
+                    groups.append(n % 10000)
+                    n //= 10000
+                result = ''
+                for gi in range(len(groups) - 1, -1, -1):
+                    g = groups[gi]
+                    if g == 0:
+                        if result and result[-1] != '零':
+                            result += '零'
+                        continue
+                    g_str, need_zero = '', False
+                    for ui in range(3, -1, -1):
+                        d = (g // (10 ** ui)) % 10
+                        if d:
+                            if need_zero:
+                                g_str += '零'
+                                need_zero = False
+                            g_str += digits[d] + unit_u[ui]
+                        elif g_str:
+                            need_zero = True
+                    result += g_str + wan_u[gi]
+                return result
+
+            int_str = _int_cn(int_part) + '元'
+            if jiao == 0 and fen == 0:
+                dec_str = '整'
+            elif jiao == 0:
+                dec_str = '零' + digits[fen] + '分'
+            elif fen == 0:
+                dec_str = digits[jiao] + '角'
+            else:
+                dec_str = digits[jiao] + '角' + digits[fen] + '分'
+            return '人民币 ' + int_str + dec_str
+
+        def add_section_heading(doc, cn_text, en_text):
+            p = doc.add_paragraph()
+            set_spacing(p, before_pt=8, after_pt=3)
+            add_run(p, '■ ', 11, color=C_GOLD)
+            add_run(p, cn_text, 12, bold=True, color=C_DARK_BLUE)
+            add_run(p, f'   {en_text}', 8, color=C_GRAY)
+            return p
+
+        # ── 数据准备 ─────────────────────────────────────────────────────
+        try:
+            import os as _os
+            is_ovs    = Config.IS_OVS or _os.environ.get('WORD_RENDER_LOCALE') == 'ovs'
+            date_fmt  = '%d %b %Y' if is_ovs else '%Y年%m月%d日'
+
+            currency      = pricing_order.currency or Config.DEFAULT_CURRENCY
+            curr_sym      = self._get_currency_symbol(currency)
+            project       = pricing_order.project
+            project_name  = project.project_name if project else ''
+
+            valid_from    = pricing_order.approved_at or pricing_order.created_at
+            valid_to      = valid_from + timedelta(days=60) if valid_from else None
+            vf_str        = valid_from.strftime(date_fmt) if valid_from else ''
+            vt_str        = valid_to.strftime(date_fmt)   if valid_to   else ''
+            valid_days    = (valid_to - valid_from).days   if (valid_from and valid_to) else 0
+            if is_ovs:
+                valid_str = f'{vf_str}  to  {vt_str}    ({valid_days} days)' if vf_str else ''
+                scope_str = (f'This pricing applies exclusively to the [{project_name}] project. '
+                             f'Dealers must quote this order number when placing orders through designated channels.') if project_name else ''
+            else:
+                valid_str = f'{vf_str}  至  {vt_str}    (共 {valid_days} 天)' if vf_str else ''
+                scope_str = f'本批价仅适用于【{project_name}】项目，经销商通过指定分销渠道下单时参照执行。' if project_name else ''
+
+            dealer_name   = pricing_order.dealer.company_name      if pricing_order.dealer      else ('(Direct)'  if is_ovs else '（厂商直签）')
+            distrib_name  = pricing_order.distributor.company_name if pricing_order.distributor else ('(None)'    if is_ovs else '（无分销商）')
+            proj_mgr      = (project.owner.real_name if project and project.owner else '') or ''
+            sales_mgr     = ''
+            if project and getattr(project, 'vendor_sales_manager', None):
+                sales_mgr = project.vendor_sales_manager.real_name or ''
+
+            if is_ovs:
+                type_map = {'channel_follow': 'Channel Follow', 'sales_key': 'Key Account',
+                            'sales_opportunity': 'Sales Opportunity', 'sales_focus': 'Focus Sales'}
+                _status_en = {'draft': 'Draft', 'pending': 'Pending', 'approved': 'Approved', 'rejected': 'Rejected'}
+                status_label = _status_en.get(pricing_order.status, pricing_order.status or 'Unknown')
+            else:
+                type_map = {'channel_follow': '渠道跟进', 'sales_key': '销售重点',
+                            'sales_opportunity': '销售机会', 'sales_focus': '重点销售'}
+                status_label = self._get_status_label(pricing_order.status)
+            flow_label    = type_map.get(pricing_order.approval_flow_type, pricing_order.approval_flow_type or '')
+            status_color  = C_GREEN if pricing_order.status == 'approved' else C_DARK_BLUE
+            status_prefix = '✔ ' if pricing_order.status == 'approved' else ''
+
+            total_rate    = pricing_order.pricing_total_discount_rate or 1.0
+            discount_str  = f'{int(round(total_rate * 100))} %'
+            total_amount  = pricing_order.pricing_total_amount or 0
+            total_qty     = sum(d.quantity for d in pricing_order.pricing_details)
+
+            details       = list(pricing_order.pricing_details)
+            has_item_note = include_notes and any(getattr(d, 'item_note', None) for d in details)
+            has_notes     = include_notes and bool(pricing_order.notes and str(pricing_order.notes).strip())
+
+            TABLE_W = 15038  # A4横向 29.7cm - 左右边距各1.6cm ≈ 26.5cm → 15038 dxa
+
+            # ── 创建文档 ─────────────────────────────────────────────────
+            doc = Document()
+            section = doc.sections[0]
+            section.page_width    = Cm(29.7)
+            section.page_height   = Cm(21.0)
+            section.left_margin   = Cm(1.59)
+            section.right_margin  = Cm(1.59)
+            section.top_margin    = Cm(1.59)
+            section.bottom_margin = Cm(1.59)
+
+            # 默认段落间距清零
+            doc.styles['Normal'].paragraph_format.space_before = Pt(0)
+            doc.styles['Normal'].paragraph_format.space_after  = Pt(0)
+
+            # 设置文档级默认字体（Microsoft YaHei），匹配原版模板
+            styles_el = doc.styles.element
+            doc_defaults = styles_el.find(qn('w:docDefaults'))
+            if doc_defaults is None:
+                doc_defaults = OxmlElement('w:docDefaults')
+                styles_el.insert(0, doc_defaults)
+            rPr_default = doc_defaults.find(qn('w:rPrDefault'))
+            if rPr_default is None:
+                rPr_default = OxmlElement('w:rPrDefault')
+                doc_defaults.append(rPr_default)
+            rPr_def = rPr_default.find(qn('w:rPr'))
+            if rPr_def is None:
+                rPr_def = OxmlElement('w:rPr')
+                rPr_default.append(rPr_def)
+            rFonts_def = rPr_def.find(qn('w:rFonts'))
+            if rFonts_def is None:
+                rFonts_def = OxmlElement('w:rFonts')
+                rPr_def.insert(0, rFonts_def)
+            rFonts_def.set(qn('w:ascii'),    LATIN_FONT)   # 拉丁字符用 Arial
+            rFonts_def.set(qn('w:hAnsi'),    LATIN_FONT)
+            rFonts_def.set(qn('w:eastAsia'), FONT_NAME)    # CJK 用微软雅黑
+            rFonts_def.set(qn('w:cs'),       FONT_NAME)
+            for tag, val in (('w:sz', '20'), ('w:szCs', '20')):
+                el = rPr_def.find(qn(tag))
+                if el is None:
+                    el = OxmlElement(tag)
+                    rPr_def.append(el)
+                el.set(qn('w:val'), val)
+
+            # ── 标题区 ───────────────────────────────────────────────────
+            p0 = doc.add_paragraph()
+            p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            set_spacing(p0, 0, 2)
+            add_run(p0, 'APPROVED  PRICING  SHEET' if is_ovs else '批  价  确  认  单', 22, bold=True, color=C_DARK_BLUE)
+
+            p1 = doc.add_paragraph()
+            p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            set_spacing(p1, 0, 2)
+            add_run(p1, '' if is_ovs else 'APPROVED PRICING SHEET', 10, color=C_GRAY)
+
+            p2 = doc.add_paragraph()
+            p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            set_spacing(p2, 0, 6)
+            add_run(p2, '◆  ◆  ◆', 8, color=C_GOLD)
+
+            # ── Table 0: 基本信息（4行×6列）───────────────────────────────
+            t0 = doc.add_table(rows=4, cols=6)
+            set_tbl_borders(t0, color='CCCCCC', sz=4)
+            set_tbl_width(t0, TABLE_W)
+
+            LBL_W, VAL_W = 1400, 3613
+
+            def fill_info_row(row_idx, triples):
+                """triples: [(label, value, val_color, val_bold), ...]"""
+                row = t0.rows[row_idx]
+                for i, (lbl, val, vc, vb) in enumerate(triples):
+                    lc = row.cells[i * 2]
+                    vc_ = row.cells[i * 2 + 1]
+                    set_cell_bg(lc, 'E8EEF5')
+                    set_cell_w(lc, LBL_W)
+                    set_cell_w(vc_, VAL_W)
+                    set_cell_valign(lc)
+                    set_cell_valign(vc_)
+                    lp = lc.paragraphs[0]; set_spacing(lp, 2, 2)
+                    add_run(lp, lbl, 9, bold=True, color=C_DARK_BLUE)
+                    vp = vc_.paragraphs[0]; set_spacing(vp, 2, 2)
+                    add_run(vp, val, 10, bold=vb, color=vc)
+
+            created_date = (pricing_order.approved_at or pricing_order.created_at)
+            date_str = created_date.strftime(date_fmt) if created_date else ''
+
+            if is_ovs:
+                _L0 = [('Order No.', pricing_order.order_number, C_GOLD, True),
+                        ('Date',     date_str,                    C_TEXT, False),
+                        ('Status',   status_prefix + status_label, status_color, True)]
+                _L1 = [('Project',    project_name, C_TEXT, True),
+                        ('Type',      flow_label,   C_TEXT, False),
+                        ('Disc. Rate', discount_str, C_GOLD, True)]
+                _lbl_valid = 'Valid Period'
+                _lbl_scope = 'Scope'
+            else:
+                _L0 = [('批价单号', pricing_order.order_number, C_GOLD, True),
+                        ('批价日期', date_str,                   C_TEXT, False),
+                        ('批价状态', status_prefix + status_label, status_color, True)]
+                _L1 = [('项目名称', project_name, C_TEXT, True),
+                        ('项目类型', flow_label,   C_TEXT, False),
+                        ('总折扣率', discount_str, C_GOLD, True)]
+                _lbl_valid = '价格有效期'
+                _lbl_scope = '适用范围'
+
+            fill_info_row(0, _L0)
+            fill_info_row(1, _L1)
+
+            # 有效期行（合并 col 1-5）
+            lc2 = t0.rows[2].cells[0]
+            set_cell_bg(lc2, 'E8EEF5'); set_cell_w(lc2, LBL_W); set_cell_valign(lc2)
+            lp2 = lc2.paragraphs[0]; set_spacing(lp2, 2, 2)
+            add_run(lp2, _lbl_valid, 9, bold=True, color=C_DARK_BLUE)
+            vc2 = t0.cell(2, 1).merge(t0.cell(2, 5))
+            set_cell_valign(vc2)
+            vp2 = vc2.paragraphs[0]; set_spacing(vp2, 2, 2)
+            add_run(vp2, valid_str, 10, color=C_TEXT)
+
+            # 适用范围行（合并 col 1-5）
+            lc3 = t0.rows[3].cells[0]
+            set_cell_bg(lc3, 'E8EEF5'); set_cell_w(lc3, LBL_W); set_cell_valign(lc3)
+            lp3 = lc3.paragraphs[0]; set_spacing(lp3, 2, 2)
+            add_run(lp3, _lbl_scope, 9, bold=True, color=C_DARK_BLUE)
+            vc3 = t0.cell(3, 1).merge(t0.cell(3, 5))
+            set_cell_valign(vc3)
+            vp3 = vc3.paragraphs[0]; set_spacing(vp3, 2, 2)
+            add_run(vp3, scope_str, 10, color=C_TEXT)
+
+            sp1 = doc.add_paragraph(); set_spacing(sp1, 0, 0)
+
+            # ── Table 1: 供应商 + 渠道信息（1行×2列）──────────────────────
+            t1 = doc.add_table(rows=1, cols=2)
+            set_tbl_borders(t1, color='DDDDDD', sz=4)
+            set_tbl_width(t1, TABLE_W)
+            half = TABLE_W // 2
+
+            def fill_info_card(cell, title_cn, title_en, fields):
+                set_cell_bg(cell, 'FBFCFD')
+                set_cell_valign(cell, 'top')
+                set_cell_w(cell, half)
+                # 标题
+                p = cell.paragraphs[0]; set_spacing(p, 3, 3)
+                add_run(p, title_cn, 11, bold=True, color=C_DARK_BLUE)
+                add_run(p, f'  {title_en}', 8, color=C_GRAY)
+                # 字段
+                for lbl, val in fields:
+                    fp = cell.add_paragraph(); set_spacing(fp, 1, 1)
+                    add_run(fp, lbl, 9, color=C_GRAY)
+                    add_run(fp, val, 10, color=C_TEXT)
+
+            if is_ovs:
+                fill_info_card(t1.rows[0].cells[0], 'SUPPLIER', '', [
+                    ('Company :  ', 'Evertac Solutions Singaproe Pte Ltd.'),
+                    ('Website :  ', 'http://www.evertacsolutions.com'),
+                ])
+                fill_info_card(t1.rows[0].cells[1], 'CHANNEL', '', [
+                    ('Dealer :  ',      dealer_name),
+                    ('Distributor :  ', distrib_name),
+                    ('Project Mgr :  ', proj_mgr),
+                    ('Sales Mgr :  ',   sales_mgr),
+                ])
+            else:
+                fill_info_card(t1.rows[0].cells[0], '供应商信息', 'SUPPLIER', [
+                    ('企业名称 :  ', '和源通信(上海)股份有限公司'),
+                    ('办公地址 :  ', '上海市普陀区武威路88号19楼6楼'),
+                    ('联系电话 :  ', '021-62596028'),
+                    ('官方网址 :  ', 'http://www.evertac.net'),
+                ])
+                fill_info_card(t1.rows[0].cells[1], '渠道信息', 'CHANNEL', [
+                    ('经 销 商 :  ', dealer_name),
+                    ('分 销 商 :  ', distrib_name),
+                    ('项目负责人 :  ', proj_mgr),
+                    ('销售负责人 :  ', sales_mgr),
+                ])
+
+            # ── 明细表格 ─────────────────────────────────────────────────
+            if is_ovs:
+                add_section_heading(doc, 'APPROVED PRICE DETAILS', '')
+            else:
+                add_section_heading(doc, '批准价格明细', 'APPROVED PRICE DETAILS')
+
+            # 列宽：有行备注时缩减型号和小计列
+            if has_item_note:
+                col_w = [540, 1500, 1200, 2600, 700, 1100, 620, 1380, 800, 1400, 1798, 1400]
+                if is_ovs:
+                    headers = ['No.', 'Product Name', 'Model', 'Specifications', 'Brand', 'Code',
+                               'Qty', 'List Price', 'Disc.', 'Unit Price', 'Amount', 'Remarks']
+                else:
+                    headers = ['序号', '产品名称', '型号', '规格参数', '品牌', '产品编码',
+                               '数量', '零售单价', '折扣率', '批准单价', '小计金额', '备注']
+            else:
+                col_w = [540, 1500, 1500, 3200, 700, 1100, 620, 1380, 800, 1400, 2298]
+                if is_ovs:
+                    headers = ['No.', 'Product Name', 'Model', 'Specifications', 'Brand', 'Code',
+                               'Qty', 'List Price', 'Disc.', 'Unit Price', 'Amount']
+                else:
+                    headers = ['序号', '产品名称', '型号', '规格参数', '品牌', '产品编码',
+                               '数量', '零售单价', '折扣率', '批准单价', '小计金额']
+            n_cols = len(headers)
+
+            t2 = doc.add_table(rows=1 + len(details) + 1, cols=n_cols)
+            set_tbl_borders(t2, color='CCCCCC', sz=4)
+            set_tbl_width(t2, TABLE_W)
+
+            # 表头
+            hdr_aligns = [WD_ALIGN_PARAGRAPH.CENTER] * n_cols
+            hdr_aligns[3] = WD_ALIGN_PARAGRAPH.LEFT  # 规格参数左对齐
+            for ci, (hdr, w) in enumerate(zip(headers, col_w)):
+                cell = t2.rows[0].cells[ci]
+                set_cell_bg(cell, '1F3A5F')
+                set_cell_w(cell, w)
+                set_cell_valign(cell)
+                p = cell.paragraphs[0]
+                p.alignment = hdr_aligns[ci]
+                set_spacing(p, 2, 2)
+                add_run(p, hdr, 9, bold=True, color=C_WHITE)
+
+            # 数据行对齐方式
+            data_aligns = [
+                WD_ALIGN_PARAGRAPH.CENTER,  # 序号
+                WD_ALIGN_PARAGRAPH.LEFT,    # 产品名称
+                WD_ALIGN_PARAGRAPH.LEFT,    # 型号
+                WD_ALIGN_PARAGRAPH.LEFT,    # 规格参数
+                WD_ALIGN_PARAGRAPH.CENTER,  # 品牌
+                WD_ALIGN_PARAGRAPH.CENTER,  # 产品编码
+                WD_ALIGN_PARAGRAPH.CENTER,  # 数量
+                WD_ALIGN_PARAGRAPH.RIGHT,   # 零售单价
+                WD_ALIGN_PARAGRAPH.CENTER,  # 折扣率
+                WD_ALIGN_PARAGRAPH.RIGHT,   # 批准单价
+                WD_ALIGN_PARAGRAPH.RIGHT,   # 小计金额
+            ]
+            if has_item_note:
+                data_aligns.append(WD_ALIGN_PARAGRAPH.LEFT)  # 备注
+
+            for di, detail in enumerate(details):
+                row_bg = 'F7F9FC' if di % 2 == 1 else None
+                disc_pct = f'{int(round(detail.discount_rate * 100))} %'
+                values = [
+                    (str(di + 1),                                              9,  False, C_TEXT,       FONT_NAME),
+                    (detail.product_name or '',                                9,  True,  C_TEXT,       FONT_NAME),
+                    (detail.product_model or '',                               9,  False, C_TEXT,       FONT_NAME),
+                    (detail.product_desc or '',                                8,  False, C_GRAY,       FONT_NAME),
+                    (detail.brand or '',                                       9,  False, C_TEXT,       FONT_NAME),
+                    (getattr(detail, 'product_mn', '') or '',                  8,  False, C_TEXT,       FONT_NAME),
+                    (str(detail.quantity),                                     9,  True,  C_TEXT,       FONT_NAME),
+                    (f'{curr_sym}{detail.market_price:,.2f}',                  9,  False, C_GRAY,       MONEY_FONT),
+                    (disc_pct,                                                 9,  True,  C_GOLD,       FONT_NAME),
+                    (f'{curr_sym}{detail.unit_price:,.2f}',                    9,  True,  C_TEXT,       MONEY_FONT),
+                    (f'{curr_sym}{detail.total_price:,.2f}',                   9,  True,  C_DARK_BLUE,  MONEY_FONT),
+                ]
+                if has_item_note:
+                    values.append((getattr(detail, 'item_note', '') or '', 8, False, C_GRAY, FONT_NAME))
+
+                row = t2.rows[1 + di]
+                for ci, (val, sz, bold, color, font) in enumerate(values):
+                    cell = row.cells[ci]
+                    if row_bg:
+                        set_cell_bg(cell, row_bg)
+                    set_cell_w(cell, col_w[ci])
+                    set_cell_valign(cell)
+                    p = cell.paragraphs[0]
+                    p.alignment = data_aligns[ci]
+                    set_spacing(p, 2, 2)
+                    add_run(p, val, sz, bold=bold, color=color, fn=font)
+
+            # 小计行（合并前6列）
+            sub_ri = 1 + len(details)
+            merged_w = sum(col_w[:6])
+            sub_lbl = t2.cell(sub_ri, 0).merge(t2.cell(sub_ri, 5))
+            set_cell_bg(sub_lbl, 'E8EEF5')
+            set_cell_w(sub_lbl, merged_w)
+            set_cell_valign(sub_lbl)
+            p = sub_lbl.paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            set_spacing(p, 2, 2)
+            add_run(p, 'Subtotal' if is_ovs else '小      计', 10, bold=True, color=C_DARK_BLUE)
+
+            sub_right = [
+                (6,  str(int(total_qty)),                    WD_ALIGN_PARAGRAPH.CENTER, 10, True,  C_DARK_BLUE, FONT_NAME),
+                (7,  '—',                                    WD_ALIGN_PARAGRAPH.CENTER, 9,  False, C_GRAY,      FONT_NAME),
+                (8,  '—',                                    WD_ALIGN_PARAGRAPH.CENTER, 9,  False, C_GRAY,      FONT_NAME),
+                (9,  '—',                                    WD_ALIGN_PARAGRAPH.CENTER, 9,  False, C_GRAY,      FONT_NAME),
+                (10, f'{curr_sym}{total_amount:,.2f}',        WD_ALIGN_PARAGRAPH.RIGHT,  10, True,  C_DARK_BLUE, MONEY_FONT),
+            ]
+            if has_item_note:
+                sub_right.append((11, '', WD_ALIGN_PARAGRAPH.LEFT, 9, False, C_GRAY, FONT_NAME))
+
+            for ci, val, align, sz, bold, color, font in sub_right:
+                cell = t2.cell(sub_ri, ci)
+                set_cell_bg(cell, 'E8EEF5')
+                set_cell_w(cell, col_w[ci])
+                set_cell_valign(cell)
+                p = cell.paragraphs[0]
+                p.alignment = align
+                set_spacing(p, 2, 2)
+                add_run(p, val, sz, bold=bold, color=color, fn=font)
+
+            sp2 = doc.add_paragraph(); set_spacing(sp2, 0, 0)
+
+            # ── Table 3: 批准总金额（1行×3列）────────────────────────────
+            t3 = doc.add_table(rows=1, cols=3)
+            set_tbl_borders(t3, color='1F3A5F', sz=6)
+            set_tbl_width(t3, TABLE_W)
+            t3_ws = [3500, 7500, 4038]
+            t3_row = t3.rows[0]
+
+            # 左：批准总金额标题
+            c0 = t3_row.cells[0]
+            set_cell_bg(c0, '1F3A5F'); set_cell_w(c0, t3_ws[0]); set_cell_valign(c0)
+            p = c0.paragraphs[0]; set_spacing(p, 4, 2)
+            add_run(p, 'APPROVED TOTAL' if is_ovs else '批准总金额', 11, bold=True, color=C_WHITE)
+            p2 = c0.add_paragraph(); set_spacing(p2, 2, 4)
+            add_run(p2, '' if is_ovs else 'APPROVED TOTAL', 7, color=C_LIGHT_BLUE)
+
+            # 中：大写金额（中文，YaHei）
+            c1 = t3_row.cells[1]
+            set_cell_bg(c1, '1F3A5F'); set_cell_w(c1, t3_ws[1]); set_cell_valign(c1)
+            p = c1.paragraphs[0]; set_spacing(p, 4, 2)
+            add_run(p, 'Amount in Words' if is_ovs else '金额大写(RMB in Capital)', 7, color=C_LIGHT_BLUE)
+            p2 = c1.add_paragraph(); set_spacing(p2, 2, 4)
+            cn_amount = amount_to_chinese(total_amount) if (currency == 'CNY' and not is_ovs) else f'N/A ({currency})'
+            add_run(p2, cn_amount, 12, bold=True, color=C_WHITE)
+
+            # 右：小写金额（Arial）
+            c2 = t3_row.cells[2]
+            set_cell_bg(c2, '1F3A5F'); set_cell_w(c2, t3_ws[2]); set_cell_valign(c2)
+            p = c2.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.RIGHT; set_spacing(p, 4, 2)
+            add_run(p, 'Amount' if is_ovs else '小写金额(Amount)', 7, color=C_LIGHT_BLUE)
+            p2 = c2.add_paragraph(); p2.alignment = WD_ALIGN_PARAGRAPH.RIGHT; set_spacing(p2, 2, 4)
+            add_run(p2, f'{curr_sym}{total_amount:,.2f}', 16, bold=True, color=C_WHITE, fn=MONEY_FONT)
+
+            # ── Table 4: 价格条款（6行×2列）──────────────────────────────
+            if is_ovs:
+                add_section_heading(doc, 'PRICING TERMS', '')
+            else:
+                add_section_heading(doc, '价格条款', 'PRICING TERMS')
+            t4 = doc.add_table(rows=6, cols=2)
+            set_tbl_borders(t4, color='DDDDDD', sz=4)
+            set_tbl_width(t4, TABLE_W)
+            TERM_LBL_W = 2200
+
+            if is_ovs:
+                terms = [
+                    ('Price Lock',    'Approved prices remain fixed for the validity period regardless of market fluctuations.'),
+                    ('Qty Adjustment','Actual order quantities may vary within ±20% of the approved quantity; excess requires re-approval.'),
+                    ('Order Process', 'Dealers must quote this Pricing Order No. when placing orders to ensure approved pricing applies.'),
+                    ('Payment',       'Payment terms follow the company standard channel payment policy (as confirmed in the formal order).'),
+                    ('Delivery',      'Delivery date is subject to the confirmed purchase order.'),
+                    ('Extension',     'To extend the validity period, apply at least 5 working days before expiry and obtain approval.'),
+                ]
+            else:
+                terms = [
+                    ('价格锁定',  '在有效期内，上述批准价格保持不变，不受市场价格波动影响。'),
+                    ('数量调整',  '实际订单数量可在批价数量的 ±20% 范围内调整，超出部分需重新审批。'),
+                    ('下单方式',  '经销商下单时须注明本批价单号，以便按批准价格执行。'),
+                    ('付款条款',  '按公司标准渠道付款政策执行（具体以正式订单为准）。'),
+                    ('交货安排',  '以正式采购订单确认的交货日期为准。'),
+                    ('有效期延期', '如需延长价格有效期，须在到期前 5 个工作日内提交申请并获得审批。'),
+                ]
+            for ri, (term_name, term_content) in enumerate(terms):
+                lc = t4.rows[ri].cells[0]
+                vc = t4.rows[ri].cells[1]
+                set_cell_bg(lc, 'E8EEF5'); set_cell_w(lc, TERM_LBL_W); set_cell_valign(lc)
+                set_cell_w(vc, TABLE_W - TERM_LBL_W); set_cell_valign(vc)
+                lp = lc.paragraphs[0]; lp.alignment = WD_ALIGN_PARAGRAPH.CENTER; set_spacing(lp, 2, 2)
+                add_run(lp, term_name, 10, bold=True, color=C_DARK_BLUE)
+                vp = vc.paragraphs[0]; set_spacing(vp, 2, 2)
+                add_run(vp, term_content, 10, color=C_TEXT)
+
+            # ── 备注说明 ──────────────────────────────────────────────────
+            if is_ovs:
+                add_section_heading(doc, 'REMARKS', '')
+            else:
+                add_section_heading(doc, '备注说明', 'REMARKS')
+
+            # 整体备注（按需显示）
+            if has_notes:
+                pn = doc.add_paragraph(); set_spacing(pn, 1, 3)
+                add_run(pn, 'Notes: ' if is_ovs else '批价备注：', 10, bold=True, color=C_DARK_BLUE)
+                add_run(pn, str(pricing_order.notes).strip(), 10, color=C_TEXT)
+
+            # 固定条款
+            if is_ovs:
+                fixed = [
+                    'This Pricing Sheet is for price approval purposes only and does not constitute a formal purchase contract.',
+                    'A formal purchase order must be issued separately; its terms shall prevail.',
+                    'Product specifications are subject to change; the latest product datasheet shall govern.',
+                    'This Pricing Sheet is issued in duplicate, one copy each for the supplier and the dealer.',
+                ]
+            else:
+                fixed = [
+                    '本批价单仅作为价格审批依据，不构成正式采购合同。',
+                    '正式订单须另行签订，届时以正式订单条款为准。',
+                    '本批价单所列产品规格如有变更，以最新产品规格书为准。',
+                    '批价单一式两份，供应商与经销商各执一份。',
+                ]
+            for note in fixed:
+                pf = doc.add_paragraph(); set_spacing(pf, 1, 1)
+                add_run(pf, note, 10, color=C_TEXT)
+
+            # ── 保存 ─────────────────────────────────────────────────────
+            output = BytesIO()
+            doc.save(output)
+            output.seek(0)
+
+            safe_name = ''.join(c for c in project_name if c.isalnum() or c in ' -_（）【】').rstrip()
+            filename = f'{pricing_order.order_number} & {safe_name}.docx'
+            logger.info(f'生成批价单Word(v2): {filename}')
+            return {'content': output.getvalue(), 'filename': filename}
+
+        except Exception as e:
+            logger.error(f'生成批价单Word(v2)失败: {e}')
+            raise
+
+    def generate_settlement_order_word_v2(self, pricing_order, include_notes=False):
+        """生成结算单Word文档（优化版样式，A4竖向，与批价单 v2 风格一致）"""
+        from docx.shared import RGBColor
+        from docx.enum.table import WD_ALIGN_VERTICAL
+        from app.models.pricing_order import SettlementOrder
+
+        C_DARK_BLUE  = RGBColor(0x1F, 0x3A, 0x5F)
+        C_GOLD       = RGBColor(0xB8, 0x95, 0x3F)
+        C_GRAY       = RGBColor(0x59, 0x59, 0x59)
+        C_TEXT       = RGBColor(0x1A, 0x1A, 0x1A)
+        C_WHITE      = RGBColor(0xFF, 0xFF, 0xFF)
+        C_GREEN      = RGBColor(0x1F, 0x7A, 0x4A)
+        C_LIGHT_BLUE = RGBColor(0xA8, 0xBE, 0xD8)
+
+        FONT_NAME  = 'Microsoft YaHei'
+        LATIN_FONT = 'Arial'   # 拉丁字符专用（LibreOffice 可找到，Word 与 YaHei 拉丁效果一致）
+        MONEY_FONT = 'Arial'   # 金额数字专用字体
+
+        def set_run_font(run, fn=FONT_NAME):
+            rPr = run._r.get_or_add_rPr()
+            rFonts = rPr.find(qn('w:rFonts'))
+            if rFonts is None:
+                rFonts = OxmlElement('w:rFonts')
+                rPr.insert(0, rFonts)
+            if fn == FONT_NAME:
+                # 普通文字: 拉丁用 Arial（LibreOffice 可渲染），CJK 用微软雅黑
+                rFonts.set(qn('w:ascii'),    LATIN_FONT)
+                rFonts.set(qn('w:hAnsi'),    LATIN_FONT)
+                rFonts.set(qn('w:eastAsia'), FONT_NAME)
+                rFonts.set(qn('w:cs'),       FONT_NAME)
+            else:
+                # 金额/英文专用字体: 全部使用指定字体
+                for attr in ('w:ascii', 'w:eastAsia', 'w:hAnsi', 'w:cs'):
+                    rFonts.set(qn(attr), fn)
+
+        def set_cell_bg(cell, hex_color):
+            tcPr = cell._tc.get_or_add_tcPr()
+            for s in tcPr.findall(qn('w:shd')):
+                tcPr.remove(s)
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'), 'clear'); shd.set(qn('w:color'), 'auto')
+            shd.set(qn('w:fill'), hex_color)
+            tcPr.append(shd)
+
+        def set_cell_w(cell, dxa):
+            tcPr = cell._tc.get_or_add_tcPr()
+            for w in tcPr.findall(qn('w:tcW')):
+                tcPr.remove(w)
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'), str(dxa)); tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
+
+        def set_cell_valign(cell, val='center'):
+            tcPr = cell._tc.get_or_add_tcPr()
+            for v in tcPr.findall(qn('w:vAlign')):
+                tcPr.remove(v)
+            el = OxmlElement('w:vAlign'); el.set(qn('w:val'), val)
+            tcPr.append(el)
+
+        def set_spacing(para, before_pt=0, after_pt=0):
+            pPr = para._p.get_or_add_pPr()
+            for s in pPr.findall(qn('w:spacing')):
+                pPr.remove(s)
+            sp = OxmlElement('w:spacing')
+            sp.set(qn('w:before'), str(int(before_pt * 20)))
+            sp.set(qn('w:after'), str(int(after_pt * 20)))
+            sp.set(qn('w:line'), '276'); sp.set(qn('w:lineRule'), 'auto')
+            pPr.append(sp)
+
+        def add_run(para, text, size_pt, bold=False, color=None, fn=FONT_NAME):
+            run = para.add_run(str(text))
+            run.font.size = Pt(size_pt); run.font.bold = bold
+            if color:
+                run.font.color.rgb = color
+            set_run_font(run, fn)
+            return run
+
+        def set_tbl_borders(table, color='CCCCCC', sz=4):
+            tblPr = table._tbl.tblPr
+            if tblPr is None:
+                tblPr = OxmlElement('w:tblPr'); table._tbl.insert(0, tblPr)
+            borders = OxmlElement('w:tblBorders')
+            for side in ('top', 'left', 'bottom', 'right', 'insideH', 'insideV'):
+                b = OxmlElement(f'w:{side}')
+                b.set(qn('w:val'), 'single'); b.set(qn('w:sz'), str(sz))
+                b.set(qn('w:space'), '0'); b.set(qn('w:color'), color)
+                borders.append(b)
+            for el in (tblPr.find(qn('w:tblBorders')), tblPr.find(qn('w:tblLook'))):
+                if el is not None:
+                    tblPr.remove(el)
+            tblPr.append(borders)
+
+        def set_tbl_width(table, dxa):
+            tblPr = table._tbl.tblPr
+            if tblPr is None:
+                tblPr = OxmlElement('w:tblPr'); table._tbl.insert(0, tblPr)
+            for w in tblPr.findall(qn('w:tblW')):
+                tblPr.remove(w)
+            tblW = OxmlElement('w:tblW')
+            tblW.set(qn('w:w'), str(dxa)); tblW.set(qn('w:type'), 'dxa')
+            tblPr.append(tblW)
+
+        def amount_to_chinese(amount):
+            digits = '零壹贰叁肆伍陆柒捌玖'
+            amount = round(float(amount or 0), 2)
+            int_part = int(amount)
+            dec = round((amount - int_part) * 100)
+            jiao, fen = dec // 10, dec % 10
+            def _int_cn(n):
+                if n == 0: return '零'
+                wan_u = ['', '万', '亿']; unit_u = ['', '拾', '佰', '仟']
+                groups = []
+                while n > 0:
+                    groups.append(n % 10000); n //= 10000
+                result = ''
+                for gi in range(len(groups)-1, -1, -1):
+                    g = groups[gi]
+                    if g == 0:
+                        if result and result[-1] != '零': result += '零'
+                        continue
+                    g_str, need_zero = '', False
+                    for ui in range(3, -1, -1):
+                        d = (g // (10**ui)) % 10
+                        if d:
+                            if need_zero: g_str += '零'; need_zero = False
+                            g_str += digits[d] + unit_u[ui]
+                        elif g_str: need_zero = True
+                    result += g_str + wan_u[gi]
+                return result
+            int_str = _int_cn(int_part) + '元'
+            if jiao == 0 and fen == 0: dec_str = '整'
+            elif jiao == 0: dec_str = '零' + digits[fen] + '分'
+            elif fen == 0: dec_str = digits[jiao] + '角'
+            else: dec_str = digits[jiao] + '角' + digits[fen] + '分'
+            return '人民币 ' + int_str + dec_str
+
+        def add_section_heading(doc, cn_text, en_text):
+            p = doc.add_paragraph(); set_spacing(p, before_pt=8, after_pt=3)
+            add_run(p, '■ ', 11, color=C_GOLD)
+            add_run(p, cn_text, 12, bold=True, color=C_DARK_BLUE)
+            add_run(p, f'   {en_text}', 8, color=C_GRAY)
+            return p
+
+        # ── 数据准备 ─────────────────────────────────────────────────────
+        try:
+            settlement_order = SettlementOrder.query.filter_by(
+                pricing_order_id=pricing_order.id
+            ).first()
+            if not settlement_order:
+                from app.services.pricing_order_service import PricingOrderService
+                from app import db
+                settlement_order = PricingOrderService.create_settlement_order(
+                    pricing_order, pricing_order.created_by)
+                PricingOrderService.create_settlement_details(pricing_order, settlement_order)
+                db.session.commit()
+
+            import os as _os
+            is_ovs    = Config.IS_OVS or _os.environ.get('WORD_RENDER_LOCALE') == 'ovs'
+            date_fmt  = '%d %b %Y' if is_ovs else '%Y年%m月%d日'
+
+            currency     = pricing_order.currency or Config.DEFAULT_CURRENCY
+            curr_sym     = self._get_currency_symbol(currency)
+            project      = pricing_order.project
+            project_name = project.project_name if project else ''
+
+            created_date = pricing_order.approved_at or pricing_order.created_at
+            date_str     = created_date.strftime(date_fmt) if created_date else ''
+
+            distributor_name = pricing_order.distributor.company_name if pricing_order.distributor else ('(None)'   if is_ovs else '（无分销商）')
+            dealer_name      = pricing_order.dealer.company_name      if pricing_order.dealer      else ('(Direct)' if is_ovs else '（厂商直签）')
+            proj_mgr = (project.owner.real_name if project and project.owner else '') or ''
+            sales_mgr = ''
+            if project and getattr(project, 'vendor_sales_manager', None):
+                sales_mgr = project.vendor_sales_manager.real_name or ''
+
+            if is_ovs:
+                type_map = {'channel_follow': 'Channel Follow', 'sales_key': 'Key Account',
+                            'sales_opportunity': 'Sales Opportunity', 'sales_focus': 'Focus Sales'}
+                _status_en = {'draft': 'Draft', 'pending': 'Pending', 'approved': 'Approved', 'rejected': 'Rejected'}
+                status_label = _status_en.get(pricing_order.status, pricing_order.status or 'Unknown')
+            else:
+                type_map = {'channel_follow': '渠道跟进', 'sales_key': '销售重点',
+                            'sales_opportunity': '销售机会', 'sales_focus': '重点销售'}
+                status_label = self._get_status_label(pricing_order.status)
+            flow_label   = type_map.get(pricing_order.approval_flow_type, pricing_order.approval_flow_type or '')
+            status_color = C_GREEN if pricing_order.status == 'approved' else C_DARK_BLUE
+            status_prefix = '✔ ' if pricing_order.status == 'approved' else ''
+
+            total_rate   = pricing_order.settlement_total_discount_rate or 1.0
+            discount_str = f'{int(round(total_rate * 100))} %'
+            total_amount = pricing_order.settlement_total_amount or 0
+
+            details      = list(pricing_order.settlement_details)
+            total_qty    = sum(d.quantity for d in details)
+            has_item_note = include_notes and any(getattr(d, 'item_note', None) for d in details)
+            has_notes     = include_notes and bool(pricing_order.notes and str(pricing_order.notes).strip())
+
+            # A4 横向可用宽度: 29.7 - 1.59*2 = 26.52cm → 15038 dxa
+            TABLE_W = 15038
+
+            # ── 创建文档（A4 横向）──────────────────────────────────────
+            doc = Document()
+            section = doc.sections[0]
+            section.page_width    = Cm(29.7)
+            section.page_height   = Cm(21.0)
+            section.left_margin   = Cm(1.59)
+            section.right_margin  = Cm(1.59)
+            section.top_margin    = Cm(1.59)
+            section.bottom_margin = Cm(1.59)
+            doc.styles['Normal'].paragraph_format.space_before = Pt(0)
+            doc.styles['Normal'].paragraph_format.space_after  = Pt(0)
+
+            # docDefaults 字体
+            styles_el = doc.styles.element
+            dd = styles_el.find(qn('w:docDefaults'))
+            if dd is None:
+                dd = OxmlElement('w:docDefaults'); styles_el.insert(0, dd)
+            rPrD = dd.find(qn('w:rPrDefault'))
+            if rPrD is None:
+                rPrD = OxmlElement('w:rPrDefault'); dd.append(rPrD)
+            rPr_d = rPrD.find(qn('w:rPr'))
+            if rPr_d is None:
+                rPr_d = OxmlElement('w:rPr'); rPrD.append(rPr_d)
+            rF = rPr_d.find(qn('w:rFonts'))
+            if rF is None:
+                rF = OxmlElement('w:rFonts'); rPr_d.insert(0, rF)
+            rF.set(qn('w:ascii'),    LATIN_FONT)   # 拉丁字符用 Arial
+            rF.set(qn('w:hAnsi'),    LATIN_FONT)
+            rF.set(qn('w:eastAsia'), FONT_NAME)    # CJK 用微软雅黑
+            rF.set(qn('w:cs'),       FONT_NAME)
+            for tag, val in (('w:sz', '20'), ('w:szCs', '20')):
+                el = rPr_d.find(qn(tag))
+                if el is None:
+                    el = OxmlElement(tag); rPr_d.append(el)
+                el.set(qn('w:val'), val)
+
+            # ── 标题区 ───────────────────────────────────────────────────
+            p0 = doc.add_paragraph()
+            p0.alignment = WD_ALIGN_PARAGRAPH.CENTER; set_spacing(p0, 0, 2)
+            add_run(p0, 'SETTLEMENT  SHEET' if is_ovs else '结 算 确 认 单', 22, bold=True, color=C_DARK_BLUE)
+
+            p1 = doc.add_paragraph()
+            p1.alignment = WD_ALIGN_PARAGRAPH.CENTER; set_spacing(p1, 0, 2)
+            add_run(p1, '' if is_ovs else 'SETTLEMENT SHEET', 10, color=C_GRAY)
+
+            p2 = doc.add_paragraph()
+            p2.alignment = WD_ALIGN_PARAGRAPH.CENTER; set_spacing(p2, 0, 6)
+            add_run(p2, '◆  ◆  ◆', 8, color=C_GOLD)
+
+            # ── Table 0: 基本信息（4行×6列）──────────────────────────────
+            # landscape 6 列: LBL=1400, VAL=3613 → 3*(1400+3613)=15039≈15038
+            LBL_W, VAL_W = 1400, 3613
+            t0 = doc.add_table(rows=4, cols=6)
+            set_tbl_borders(t0); set_tbl_width(t0, TABLE_W)
+
+            def fill_info_row(row_idx, triples):
+                row = t0.rows[row_idx]
+                for i, (lbl, val, vc, vb) in enumerate(triples):
+                    lc = row.cells[i * 2]; vc_ = row.cells[i * 2 + 1]
+                    set_cell_bg(lc, 'E8EEF5')
+                    set_cell_w(lc, LBL_W); set_cell_w(vc_, VAL_W)
+                    set_cell_valign(lc); set_cell_valign(vc_)
+                    lp = lc.paragraphs[0]; set_spacing(lp, 2, 2)
+                    add_run(lp, lbl, 9, bold=True, color=C_DARK_BLUE)
+                    vp = vc_.paragraphs[0]; set_spacing(vp, 2, 2)
+                    add_run(vp, val, 10, bold=vb, color=vc)
+
+            if is_ovs:
+                _S0 = [('Order No.',      settlement_order.order_number, C_GOLD, True),
+                        ('Date',           date_str,                      C_TEXT, False),
+                        ('Pricing Order',  pricing_order.order_number,    C_TEXT, False)]
+                _S1 = [('Project',         project_name, C_TEXT, True),
+                        ('Type',           flow_label,   C_TEXT, False),
+                        ('Disc. Rate',     discount_str, C_GOLD, True)]
+                _lbl_entity = 'Settle To'
+                _lbl_note   = 'Note'
+                _settle_note = ('This Settlement Sheet is the distributor pickup settlement voucher, '
+                                'executed at distributor price, managed separately from the Pricing Sheet (dealer price).')
+            else:
+                _S0 = [('结算单号',   settlement_order.order_number, C_GOLD, True),
+                        ('结算日期',  date_str,                      C_TEXT, False),
+                        ('关联批价单', pricing_order.order_number,   C_TEXT, False)]
+                _S1 = [('项目名称', project_name, C_TEXT, True),
+                        ('项目类型', flow_label,   C_TEXT, False),
+                        ('总折扣率', discount_str, C_GOLD, True)]
+                _lbl_entity = '结算对象'
+                _lbl_note   = '结算说明'
+                _settle_note = '本结算单为分销商提货结算凭证，按分销价格执行，与批价单（经销商价格）分开管理。'
+
+            fill_info_row(0, _S0)
+            fill_info_row(1, _S1)
+
+            # Row 2: 结算对象（label + 合并 col 1-5）
+            lc2 = t0.rows[2].cells[0]
+            set_cell_bg(lc2, 'E8EEF5'); set_cell_w(lc2, LBL_W); set_cell_valign(lc2)
+            lp2 = lc2.paragraphs[0]; set_spacing(lp2, 2, 2)
+            add_run(lp2, _lbl_entity, 9, bold=True, color=C_DARK_BLUE)
+            vc2 = t0.cell(2, 1).merge(t0.cell(2, 5))
+            set_cell_valign(vc2)
+            vp2 = vc2.paragraphs[0]; set_spacing(vp2, 2, 2)
+            add_run(vp2, distributor_name, 10, color=C_TEXT)
+
+            # Row 3: 结算说明（label + 合并 col 1-5，固定说明文字）
+            lc3 = t0.rows[3].cells[0]
+            set_cell_bg(lc3, 'E8EEF5'); set_cell_w(lc3, LBL_W); set_cell_valign(lc3)
+            lp3 = lc3.paragraphs[0]; set_spacing(lp3, 2, 2)
+            add_run(lp3, _lbl_note, 9, bold=True, color=C_DARK_BLUE)
+            vc3 = t0.cell(3, 1).merge(t0.cell(3, 5))
+            set_cell_valign(vc3)
+            vp3 = vc3.paragraphs[0]; set_spacing(vp3, 2, 2)
+            add_run(vp3, _settle_note, 9, color=C_TEXT)
+
+            sp1 = doc.add_paragraph(); set_spacing(sp1, 0, 0)
+
+            # ── Table 1: 供应商 + 渠道信息 ────────────────────────────────
+            t1 = doc.add_table(rows=1, cols=2)
+            set_tbl_borders(t1, color='DDDDDD'); set_tbl_width(t1, TABLE_W)
+            half = 7519  # 15038 // 2
+
+            def fill_info_card(cell, title_cn, title_en, fields):
+                set_cell_bg(cell, 'FBFCFD')
+                set_cell_valign(cell, 'top'); set_cell_w(cell, half)
+                p = cell.paragraphs[0]; set_spacing(p, 3, 3)
+                add_run(p, title_cn, 11, bold=True, color=C_DARK_BLUE)
+                add_run(p, f'  {title_en}', 8, color=C_GRAY)
+                for lbl, val in fields:
+                    fp = cell.add_paragraph(); set_spacing(fp, 1, 1)
+                    add_run(fp, lbl, 9, color=C_GRAY)
+                    add_run(fp, val, 10, color=C_TEXT)
+
+            if is_ovs:
+                fill_info_card(t1.rows[0].cells[0], 'SUPPLIER', '', [
+                    ('Company :  ', 'Evertac Solutions Singaproe Pte Ltd.'),
+                    ('Website :  ', 'http://www.evertacsolutions.com'),
+                ])
+                fill_info_card(t1.rows[0].cells[1], 'CHANNEL', '', [
+                    ('Distributor :  ', distributor_name),
+                    ('Dealer :  ',      dealer_name),
+                    ('Project Mgr :  ', proj_mgr),
+                    ('Sales Mgr :  ',   sales_mgr),
+                ])
+            else:
+                fill_info_card(t1.rows[0].cells[0], '供应商信息', 'SUPPLIER', [
+                    ('企业名称 :  ', '和源通信(上海)股份有限公司'),
+                    ('办公地址 :  ', '上海市普陀区武威路88号19楼6楼'),
+                    ('联系电话 :  ', '021-62596028'),
+                    ('官方网址 :  ', 'http://www.evertac.net'),
+                ])
+                fill_info_card(t1.rows[0].cells[1], '渠道信息', 'CHANNEL', [
+                    ('分 销 商 :  ', distributor_name),
+                    ('经 销 商 :  ', dealer_name),
+                    ('项目负责人 :  ', proj_mgr),
+                    ('销售负责人 :  ', sales_mgr),
+                ])
+
+            # ── 结算明细表格 ──────────────────────────────────────────────
+            if is_ovs:
+                add_section_heading(doc, 'SETTLEMENT PRICE DETAILS', '')
+            else:
+                add_section_heading(doc, '结算价格明细', 'SETTLEMENT PRICE DETAILS')
+
+            if has_item_note:
+                col_w = [500, 1600, 1400, 2200, 720, 1280, 720, 1320, 1000, 1320, 1678, 1300]
+                if is_ovs:
+                    headers = ['No.', 'Product Name', 'Model', 'Specifications', 'Brand', 'Code',
+                               'Qty', 'List Price', 'Disc.', 'Unit Price', 'Amount', 'Remarks']
+                else:
+                    headers = ['序号','产品名称','型号','规格参数','品牌','产品编码',
+                               '数量','零售单价','折扣率','结算单价','结算总价','备注']
+            else:
+                col_w = [500, 1600, 1400, 2900, 720, 1280, 720, 1320, 1000, 1320, 2278]
+                if is_ovs:
+                    headers = ['No.', 'Product Name', 'Model', 'Specifications', 'Brand', 'Code',
+                               'Qty', 'List Price', 'Disc.', 'Unit Price', 'Amount']
+                else:
+                    headers = ['序号','产品名称','型号','规格参数','品牌','产品编码',
+                               '数量','零售单价','折扣率','结算单价','结算总价']
+            # 确保列宽总和等于 TABLE_W（以规格参数列吸收误差）
+            diff = TABLE_W - sum(col_w)
+            col_w[3] += diff
+            n_cols = len(headers)
+
+            t2 = doc.add_table(rows=1 + len(details) + 1, cols=n_cols)
+            set_tbl_borders(t2); set_tbl_width(t2, TABLE_W)
+
+            hdr_aligns = [WD_ALIGN_PARAGRAPH.CENTER] * n_cols
+            hdr_aligns[3] = WD_ALIGN_PARAGRAPH.LEFT
+            for ci, (hdr, w) in enumerate(zip(headers, col_w)):
+                cell = t2.rows[0].cells[ci]
+                set_cell_bg(cell, '1F3A5F'); set_cell_w(cell, w); set_cell_valign(cell)
+                p = cell.paragraphs[0]; p.alignment = hdr_aligns[ci]; set_spacing(p, 2, 2)
+                add_run(p, hdr, 9, bold=True, color=C_WHITE)
+
+            data_aligns = [
+                WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.LEFT,
+                WD_ALIGN_PARAGRAPH.LEFT,   WD_ALIGN_PARAGRAPH.LEFT,
+                WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.CENTER,
+                WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT,
+                WD_ALIGN_PARAGRAPH.CENTER, WD_ALIGN_PARAGRAPH.RIGHT,
+                WD_ALIGN_PARAGRAPH.RIGHT,
+            ]
+            if has_item_note:
+                data_aligns.append(WD_ALIGN_PARAGRAPH.LEFT)
+
+            for di, detail in enumerate(details):
+                row_bg = 'F7F9FC' if di % 2 == 1 else None
+                disc_pct = f'{int(round(detail.discount_rate * 100))} %'
+                values = [
+                    (str(di + 1),                               9,  False, C_TEXT,       FONT_NAME),
+                    (detail.product_name or '',                 9,  True,  C_TEXT,       FONT_NAME),
+                    (detail.product_model or '',                9,  False, C_TEXT,       FONT_NAME),
+                    (detail.product_desc or '',                 8,  False, C_GRAY,       FONT_NAME),
+                    (detail.brand or '',                        9,  False, C_TEXT,       FONT_NAME),
+                    (getattr(detail, 'product_mn', '') or '',   8,  False, C_TEXT,       FONT_NAME),
+                    (str(detail.quantity),                      9,  True,  C_TEXT,       FONT_NAME),
+                    (f'{curr_sym}{detail.market_price:,.2f}',   9,  False, C_GRAY,       MONEY_FONT),
+                    (disc_pct,                                  9,  True,  C_GOLD,       FONT_NAME),
+                    (f'{curr_sym}{detail.unit_price:,.2f}',     9,  True,  C_TEXT,       MONEY_FONT),
+                    (f'{curr_sym}{detail.total_price:,.2f}',    9,  True,  C_DARK_BLUE,  MONEY_FONT),
+                ]
+                if has_item_note:
+                    values.append((getattr(detail, 'item_note', '') or '', 8, False, C_GRAY, FONT_NAME))
+
+                row = t2.rows[1 + di]
+                for ci, (val, sz, bold, color, font) in enumerate(values):
+                    cell = row.cells[ci]
+                    if row_bg: set_cell_bg(cell, row_bg)
+                    set_cell_w(cell, col_w[ci]); set_cell_valign(cell)
+                    p = cell.paragraphs[0]; p.alignment = data_aligns[ci]; set_spacing(p, 2, 2)
+                    add_run(p, val, sz, bold=bold, color=color, fn=font)
+
+            # 小计行
+            sub_ri = 1 + len(details)
+            merged_w = sum(col_w[:6])
+            sub_lbl = t2.cell(sub_ri, 0).merge(t2.cell(sub_ri, 5))
+            set_cell_bg(sub_lbl, 'E8EEF5'); set_cell_w(sub_lbl, merged_w); set_cell_valign(sub_lbl)
+            p = sub_lbl.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.RIGHT; set_spacing(p, 2, 2)
+            add_run(p, 'Subtotal' if is_ovs else '小      计', 10, bold=True, color=C_DARK_BLUE)
+
+            sub_right = [
+                (6,  str(int(total_qty)),                   WD_ALIGN_PARAGRAPH.CENTER, 10, True,  C_DARK_BLUE, FONT_NAME),
+                (7,  '—',                                   WD_ALIGN_PARAGRAPH.CENTER, 9,  False, C_GRAY,      FONT_NAME),
+                (8,  '—',                                   WD_ALIGN_PARAGRAPH.CENTER, 9,  False, C_GRAY,      FONT_NAME),
+                (9,  '—',                                   WD_ALIGN_PARAGRAPH.CENTER, 9,  False, C_GRAY,      FONT_NAME),
+                (10, f'{curr_sym}{total_amount:,.2f}',       WD_ALIGN_PARAGRAPH.RIGHT,  10, True,  C_DARK_BLUE, MONEY_FONT),
+            ]
+            if has_item_note:
+                sub_right.append((11, '', WD_ALIGN_PARAGRAPH.LEFT, 9, False, C_GRAY, FONT_NAME))
+            for ci, val, align, sz, bold, color, font in sub_right:
+                cell = t2.cell(sub_ri, ci)
+                set_cell_bg(cell, 'E8EEF5'); set_cell_w(cell, col_w[ci]); set_cell_valign(cell)
+                p = cell.paragraphs[0]; p.alignment = align; set_spacing(p, 2, 2)
+                add_run(p, val, sz, bold=bold, color=color, fn=font)
+
+            sp2 = doc.add_paragraph(); set_spacing(sp2, 0, 0)
+
+            # ── Table 3: 结算总金额 ───────────────────────────────────────
+            t3 = doc.add_table(rows=1, cols=3)
+            set_tbl_borders(t3, color='1F3A5F', sz=6); set_tbl_width(t3, TABLE_W)
+            t3_ws = [3500, 7500, 4038]  # sum=15038
+
+            c0 = t3.rows[0].cells[0]
+            set_cell_bg(c0, '1F3A5F'); set_cell_w(c0, t3_ws[0]); set_cell_valign(c0)
+            p = c0.paragraphs[0]; set_spacing(p, 4, 2)
+            add_run(p, 'SETTLEMENT TOTAL' if is_ovs else '结算总金额', 11, bold=True, color=C_WHITE)
+            p2 = c0.add_paragraph(); set_spacing(p2, 2, 4)
+            add_run(p2, '' if is_ovs else 'SETTLEMENT TOTAL', 7, color=C_LIGHT_BLUE)
+
+            c1 = t3.rows[0].cells[1]
+            set_cell_bg(c1, '1F3A5F'); set_cell_w(c1, t3_ws[1]); set_cell_valign(c1)
+            p = c1.paragraphs[0]; set_spacing(p, 4, 2)
+            add_run(p, 'Amount in Words' if is_ovs else '金额大写(RMB in Capital)', 7, color=C_LIGHT_BLUE)
+            p2 = c1.add_paragraph(); set_spacing(p2, 2, 4)
+            cn_amount = amount_to_chinese(total_amount) if (currency == 'CNY' and not is_ovs) else f'N/A ({currency})'
+            add_run(p2, cn_amount, 11, bold=True, color=C_WHITE)
+
+            c2 = t3.rows[0].cells[2]
+            set_cell_bg(c2, '1F3A5F'); set_cell_w(c2, t3_ws[2]); set_cell_valign(c2)
+            p = c2.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.RIGHT; set_spacing(p, 4, 2)
+            add_run(p, 'Amount' if is_ovs else '小写金额(Amount)', 7, color=C_LIGHT_BLUE)
+            p2 = c2.add_paragraph(); p2.alignment = WD_ALIGN_PARAGRAPH.RIGHT; set_spacing(p2, 2, 4)
+            add_run(p2, f'{curr_sym}{total_amount:,.2f}', 14, bold=True, color=C_WHITE, fn=MONEY_FONT)
+
+            # ── Table 4: 结算条款 ─────────────────────────────────────────
+            if is_ovs:
+                add_section_heading(doc, 'SETTLEMENT TERMS', '')
+            else:
+                add_section_heading(doc, '结算条款', 'SETTLEMENT TERMS')
+            t4 = doc.add_table(rows=6, cols=2)
+            set_tbl_borders(t4, color='DDDDDD'); set_tbl_width(t4, TABLE_W)
+            TERM_LBL_W = 2200
+
+            if is_ovs:
+                terms = [
+                    ('Settlement Basis', f'This Settlement Sheet is executed per the referenced Pricing Order ({pricing_order.order_number}); settlement price is the distributor pickup price.'),
+                    ('Payment Method',   'Telegraphic Transfer (T/T); goods shipped upon receipt of payment.'),
+                    ('Payment Due',      'Please complete payment within 7 working days of settlement confirmation.'),
+                    ('Invoice Type',     'VAT invoice or standard commercial invoice as applicable.'),
+                    ('Delivery Terms',   'EXW (distributor self-collect or nominated carrier).'),
+                    ('Lead Time',        'Goods will be dispatched within 5 working days after payment is received.'),
+                ]
+            else:
+                terms = [
+                    ('结算依据',  f'本结算单依据关联批价单（{pricing_order.order_number}）执行，结算价格为分销商提货价。'),
+                    ('付款方式',  '电汇（T/T），款到发货。'),
+                    ('付款期限',  '请于结算单确认后 7 个工作日内完成付款。'),
+                    ('发票类型',  '增值税专用发票（13%）。'),
+                    ('交货方式',  'EXW 上海（分销商自提或指定物流）。'),
+                    ('交货时间',  '款到后 5 个工作日内安排发货。'),
+                ]
+            for ri, (term_name, term_content) in enumerate(terms):
+                lc = t4.rows[ri].cells[0]; vc = t4.rows[ri].cells[1]
+                set_cell_bg(lc, 'E8EEF5'); set_cell_w(lc, TERM_LBL_W); set_cell_valign(lc)
+                set_cell_w(vc, TABLE_W - TERM_LBL_W); set_cell_valign(vc)
+                lp = lc.paragraphs[0]; lp.alignment = WD_ALIGN_PARAGRAPH.CENTER; set_spacing(lp, 2, 2)
+                add_run(lp, term_name, 10, bold=True, color=C_DARK_BLUE)
+                vp = vc.paragraphs[0]; set_spacing(vp, 2, 2)
+                add_run(vp, term_content, 10, color=C_TEXT)
+
+            # ── 备注说明 ──────────────────────────────────────────────────
+            if is_ovs:
+                add_section_heading(doc, 'REMARKS', '')
+            else:
+                add_section_heading(doc, '备注说明', 'REMARKS')
+
+            if has_notes:
+                pn = doc.add_paragraph(); set_spacing(pn, 1, 3)
+                add_run(pn, 'Notes: ' if is_ovs else '结算备注：', 10, bold=True, color=C_DARK_BLUE)
+                add_run(pn, str(pricing_order.notes).strip(), 10, color=C_TEXT)
+
+            if is_ovs:
+                fixed = [
+                    'This Settlement Sheet is the settlement voucher between the supplier and distributor, managed separately from the Pricing Sheet (supplier–dealer).',
+                    'The distributor pays the supplier at the settlement price and supplies the dealer at the pricing order price.',
+                    'Please quote the Settlement Order No. when making payment for reconciliation purposes.',
+                    'This Settlement Sheet is issued in duplicate, one copy each for the supplier and the distributor.',
+                ]
+            else:
+                fixed = [
+                    '本结算单为厂商与分销商之间的结算凭证，与批价单（厂商与经销商）分开管理。',
+                    '分销商按本结算价格向厂商付款提货，再按批价单价格向经销商供货。',
+                    '付款时请注明结算单号，以便核销。',
+                    '结算单一式两份，供应商与分销商各执一份。',
+                ]
+            for note in fixed:
+                pf = doc.add_paragraph(); set_spacing(pf, 1, 1)
+                add_run(pf, note, 10, color=C_TEXT)
+
+            # ── 保存 ─────────────────────────────────────────────────────
+            output = BytesIO()
+            doc.save(output); output.seek(0)
+
+            safe_name = ''.join(c for c in project_name if c.isalnum() or c in ' -_（）【】').rstrip()
+            filename = f'{settlement_order.order_number} & {safe_name}.docx'
+            logger.info(f'生成结算单Word(v2): {filename}')
+            return {'content': output.getvalue(), 'filename': filename}
+
+        except Exception as e:
+            logger.error(f'生成结算单Word(v2)失败: {e}')
+            raise
+
+    def generate_settlement_order_word(self, pricing_order, include_notes=False):
         """
         生成结算单Word文档
 
@@ -466,7 +1675,7 @@ class WordGenerator:
                 os.unlink(tmp_pdf_path)
             raise
 
-    def generate_pricing_order_pdf(self, pricing_order):
+    def generate_pricing_order_pdf(self, pricing_order, include_notes=False):
         """
         使用Word模板生成批价单PDF
 
@@ -476,8 +1685,8 @@ class WordGenerator:
         Returns:
             dict: {'content': bytes, 'filename': str}
         """
-        # 先生成Word
-        word_result = self.generate_pricing_order_word(pricing_order)
+        # 先生成Word（使用优化版生成器）
+        word_result = self.generate_pricing_order_word_v2(pricing_order, include_notes=include_notes)
 
         # 转换为PDF
         pdf_result = self.convert_word_to_pdf(
@@ -487,7 +1696,7 @@ class WordGenerator:
 
         return pdf_result
 
-    def generate_settlement_order_pdf(self, pricing_order):
+    def generate_settlement_order_pdf(self, pricing_order, include_notes=False):
         """
         使用Word模板生成结算单PDF
 
@@ -498,7 +1707,7 @@ class WordGenerator:
             dict: {'content': bytes, 'filename': str}
         """
         # 先生成Word
-        word_result = self.generate_settlement_order_word(pricing_order)
+        word_result = self.generate_settlement_order_word_v2(pricing_order, include_notes=include_notes)
 
         # 转换为PDF
         pdf_result = self.convert_word_to_pdf(
@@ -1217,14 +2426,14 @@ word_generator = WordGenerator()
 
 
 # 便捷函数
-def generate_pricing_order_word(pricing_order):
+def generate_pricing_order_word(pricing_order, include_notes=False):
     """生成批价单Word文档的便捷函数"""
-    return word_generator.generate_pricing_order_word(pricing_order)
+    return word_generator.generate_pricing_order_word_v2(pricing_order, include_notes=include_notes)
 
 
 def generate_settlement_order_word(pricing_order):
     """生成结算单Word文档的便捷函数"""
-    return word_generator.generate_settlement_order_word(pricing_order)
+    return word_generator.generate_settlement_order_word_v2(pricing_order)
 
 
 def generate_pricing_order_pdf_from_word(pricing_order):

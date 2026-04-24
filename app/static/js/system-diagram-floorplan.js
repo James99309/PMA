@@ -103,7 +103,7 @@ const BUILDING_COLORS=['#3b82f6','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec489
 function getFloorPlansForSave(){
   return floorPlans.map(fp=>({
     id:fp.id, label:fp.label, sort_order:fp.sort_order, building_id:fp.building_id||null,
-    background:fp.background?Object.assign({url:fp.background.url,width:fp.background.width,height:fp.background.height,offset_x:fp.background.offset_x||0,offset_y:fp.background.offset_y||0,opacity:fp.background.opacity||0.3},fp.background.is_multi_res?{is_multi_res:true,resolutions:fp.background.resolutions,filenames:fp.background.filenames}:{filename:fp.background.filename||''}):null,
+    background:fp.background?Object.assign({url:fp.background.url,width:fp.background.width,height:fp.background.height,offset_x:fp.background.offset_x||0,offset_y:fp.background.offset_y||0,opacity:fp.background.opacity||0.3},fp.background.is_multi_res?{is_multi_res:true,resolutions:fp.background.resolutions,filenames:fp.background.filenames}:{filename:fp.background.filename||''},fp.background.bg_type?{bg_type:fp.background.bg_type}:{},fp.background.dxf_filename?{dxf_filename:fp.background.dxf_filename}:{}):null,
     calibration:fp.calibration||null,
     placements:fp.placements.map(p=>({node_id:p.node_id,x:p.x,y:p.y,locked:p.locked||false,rotation:p.rotation||0,qty:p.qty||1,labelPosition:p.labelPosition||null})),
     routes:(fp.routes||[]).map(r=>{const o={id:r.id,sourceNodeId:r.sourceNodeId,targetNodeId:r.targetNodeId,sourcePort:r.sourcePort,targetPort:r.targetPort,cableType:r.cableType,routeMode:r.routeMode,midPos:r.midPos,color:r.color,width:r.width,dash:r.dash,label:r.label,hideLabel:r.hideLabel||false,linked_edge_id:r.linked_edge_id||null,_userPorts:r._userPorts||false};if(r.waypoints&&r.waypoints.length)o.waypoints=r.waypoints;return o}),
@@ -137,6 +137,32 @@ function restoreFloorPlans(data){
     viewX:fp.viewX||0, viewY:fp.viewY||0, scale:fp.scale||1
   }));
   rebuildViewTabs();
+  _recoverMissingDxfFilenames();
+}
+
+/**
+ * Recover fp.background.dxf_filename for diagrams saved before the field was persisted.
+ * Detects DXF backgrounds heuristically (is_multi_res + multiple PNG resolutions) and
+ * asks the server to find the original DXF file.
+ */
+async function _recoverMissingDxfFilenames(){
+  if(!DIAGRAM_CONFIG.diagramId)return;
+  for(const fp of floorPlans){
+    const bg=fp.background;
+    if(!bg||!bg.is_multi_res||bg.dxf_filename)continue;
+    try{
+      const resp=await fetch(
+        DIAGRAM_CONFIG.apiFloorBgBase+DIAGRAM_CONFIG.diagramId+'/floor-plan/find-dxf?floor_id='+encodeURIComponent(fp.id),
+        {headers:{'X-CSRFToken':DIAGRAM_CONFIG.csrfToken}}
+      );
+      const result=await resp.json();
+      if(result.success&&result.dxf_filename){
+        bg.dxf_filename=result.dxf_filename;
+        bg.bg_type='dxf';
+      }
+    }catch(e){}
+  }
+  if(typeof updateDwgExportMenuItem==='function')updateDwgExportMenuItem();
 }
 
 // ====== BUILDING CRUD ======
@@ -2384,11 +2410,99 @@ async function _handleDxfUpload(file, fpId) {
   }
 
   const isDwg = file.name.toLowerCase().endsWith('.dwg');
-  showToast(isDwg ? _t('转换 DWG 中...') : _t('渲染 DXF 中...'));
+  showToast(isDwg ? _t('转换 DWG 中...') : _t('读取图层中...'));
 
   const formData = new FormData();
   formData.append('file', file, file.name);
   formData.append('floor_id', fpId);
+
+  try {
+    const resp = await fetch(
+      DIAGRAM_CONFIG.apiFloorBgBase + DIAGRAM_CONFIG.diagramId + '/floor-plan/extract-dxf-layers',
+      { method: 'POST', headers: { 'X-CSRFToken': DIAGRAM_CONFIG.csrfToken }, body: formData }
+    );
+    const result = await resp.json();
+    if (!result.success) { showToast(result.message || _t('DXF 读取失败')); return; }
+
+    _showDxfLayerSelector(result.layers, result.temp_dxf, fpId);
+  } catch (err) {
+    showToast(_t('DXF 读取失败') + ': ' + err.message);
+  }
+}
+
+function _showDxfLayerSelector(layers, tempDxf, fpId) {
+  const base = layers.filter(l => l.category === 'base');
+  const equip = layers.filter(l => l.category === 'equipment');
+
+  function layerRow(l) {
+    const checked = l.selected ? 'checked' : '';
+    const cnt = l.entity_count > 0 ? ` <span style="color:#9ca3af;font-size:11px">(${l.entity_count})</span>` : '';
+    return `<label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer">
+      <input type="checkbox" class="dxf-layer-cb" data-cat="${l.category}" value="${_escHtml(l.name)}" ${checked} style="flex-shrink:0">
+      <span style="font-size:13px">${_escHtml(l.name)}${cnt}</span>
+    </label>`;
+  }
+
+  const baseHtml = base.length ? `
+    <div style="margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:12px;font-weight:600;color:#374151">🏗 ${_t('基础建筑图层')}（${_t('建议保留')}）</span>
+        <span>
+          <button onclick="_dxfLayerSelectAll(true,true)" style="font-size:11px;color:#3b82f6;background:none;border:none;cursor:pointer">${_t('全选')}</button>
+          <button onclick="_dxfLayerSelectAll(true,false)" style="font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer">${_t('全不选')}</button>
+        </span>
+      </div>
+      ${base.map(layerRow).join('')}
+    </div>` : '';
+
+  const equipHtml = equip.length ? `
+    <div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:12px;font-weight:600;color:#374151">🔧 ${_t('设备/叠加图层')}（${_t('可选')}）</span>
+        <span>
+          <button onclick="_dxfLayerSelectAll(false,true)" style="font-size:11px;color:#3b82f6;background:none;border:none;cursor:pointer">${_t('全选')}</button>
+          <button onclick="_dxfLayerSelectAll(false,false)" style="font-size:11px;color:#6b7280;background:none;border:none;cursor:pointer">${_t('全不选')}</button>
+        </span>
+      </div>
+      ${equip.map(layerRow).join('')}
+    </div>` : '';
+
+  const modal = document.createElement('div');
+  modal.id = 'dxfLayerModal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5)';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:10px;width:360px;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="padding:16px 20px;border-bottom:1px solid #e5e7eb;font-size:15px;font-weight:600">${_t('选择要导入的图层')}</div>
+      <div style="padding:16px 20px;overflow-y:auto;flex:1">${baseHtml}${equipHtml}</div>
+      <div style="padding:12px 20px;border-top:1px solid #e5e7eb;display:flex;gap:8px;justify-content:flex-end">
+        <button onclick="document.getElementById('dxfLayerModal').remove()" style="padding:7px 16px;border:1px solid #d1d5db;border-radius:6px;background:#fff;cursor:pointer;font-size:13px">${_t('取消')}</button>
+        <button id="dxfLayerImportBtn" style="padding:7px 16px;border:none;border-radius:6px;background:#3b82f6;color:#fff;cursor:pointer;font-size:13px;font-weight:500">${_t('确认导入')}</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+
+  document.getElementById('dxfLayerImportBtn').onclick = async () => {
+    const selected = [...modal.querySelectorAll('.dxf-layer-cb:checked')].map(cb => cb.value);
+    if (!selected.length) { showToast(_t('请至少选择一个图层')); return; }
+    modal.remove();
+    await _renderDxfWithLayers(tempDxf, selected, fpId);
+  };
+}
+
+window._dxfLayerSelectAll = function(isBase, checked) {
+  const modal = document.getElementById('dxfLayerModal');
+  if (!modal) return;
+  const cat = isBase ? 'base' : 'equipment';
+  modal.querySelectorAll(`.dxf-layer-cb[data-cat="${cat}"]`).forEach(cb => { cb.checked = checked; });
+};
+
+async function _renderDxfWithLayers(tempDxf, selectedLayers, fpId) {
+  showToast(_t('渲染中...'));
+  const formData = new FormData();
+  formData.append('floor_id', fpId);
+  formData.append('temp_dxf', tempDxf);
+  formData.append('include_layers', JSON.stringify(selectedLayers));
 
   try {
     const resp = await fetch(
@@ -2424,6 +2538,10 @@ async function _handleDxfUpload(file, fpId) {
   } catch (err) {
     showToast(_t('DXF 导入失败') + ': ' + err.message);
   }
+}
+
+function _escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ====== PDF IMPORT ======

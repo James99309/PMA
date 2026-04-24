@@ -527,11 +527,11 @@ def render_pdf_pages(diagram_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@system_diagram.route('/api/<int:diagram_id>/floor-plan/analyze-dxf', methods=['POST'])
+@system_diagram.route('/api/<int:diagram_id>/floor-plan/extract-dxf-layers', methods=['POST'])
 @login_required
 @permission_required('system_diagram', 'edit')
-def analyze_dxf_api(diagram_id):
-    """上传 DWG/DXF 文件，转换并渲染为多分辨率 PNG 底图"""
+def extract_dxf_layers_api(diagram_id):
+    """上传 DWG/DXF，提取图层列表（不渲染），供前端显示图层选择器"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
     if diagram.is_deleted or not _can_edit_diagram(diagram):
         return jsonify({'success': False, 'message': _('无权限')}), 403
@@ -541,43 +541,172 @@ def analyze_dxf_api(diagram_id):
 
     file = request.files['file']
     floor_id = request.form.get('floor_id', '')
-    if not file.filename or not floor_id:
+    if not file.filename:
         return jsonify({'success': False, 'message': _('缺少参数')}), 400
 
     ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
     if ext not in ('dxf', 'dwg'):
         return jsonify({'success': False, 'message': _('仅支持 DXF/DWG 格式')}), 400
 
-    file.seek(0, 2)
-    file_size = file.tell()
-    file.seek(0)
-    if file_size > MAX_BG_SIZE:
-        return jsonify({'success': False, 'message': _('文件大小不能超过 12MB')}), 400
-
     upload_dir = _get_bg_upload_dir()
     uid = uuid.uuid4().hex[:8]
-    uploaded_path = os.path.join(upload_dir, f"{diagram_id}_{floor_id}_{uid}.{ext}")
+    temp_path = os.path.join(upload_dir, f"_layers_{diagram_id}_{uid}.{ext}")
 
     try:
-        file.save(uploaded_path)
+        file.save(temp_path)
 
-        from app.utils.dxf_converter import render_dxf_to_png, convert_dwg_to_dxf
+        from app.utils.dxf_converter import extract_dxf_layers, convert_dwg_to_dxf
 
         if ext == 'dwg':
             try:
-                dxf_path = convert_dwg_to_dxf(uploaded_path, upload_dir)
-                os.remove(uploaded_path)
+                dxf_path = convert_dwg_to_dxf(temp_path, upload_dir)
+                os.remove(temp_path)
             except FileNotFoundError:
                 return jsonify({
                     'success': False,
                     'message': _('服务器未安装 dwg2dxf，请先将 DWG 另存为 DXF 后上传')
                 }), 500
         else:
-            dxf_path = uploaded_path
+            dxf_path = temp_path
+
+        layers = extract_dxf_layers(dxf_path)
+        temp_dxf_name = os.path.basename(dxf_path)
+
+        return jsonify({
+            'success': True,
+            'layers': layers,
+            'temp_dxf': temp_dxf_name,
+        })
+
+    except Exception as e:
+        logger.error(f"提取 DXF 图层失败: {e}")
+        for p in [temp_path, locals().get('dxf_path')]:
+            if p and os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@system_diagram.route('/api/<int:diagram_id>/floor-plan/find-dxf', methods=['GET'])
+@login_required
+@permission_required('system_diagram', 'view')
+def find_dxf_api(diagram_id):
+    """为丢失 dxf_filename 字段的旧图恢复 DXF 文件名。
+
+    查找顺序：
+    1. 精确匹配 {diagram_id}_{floor_id}_*.dxf （直接上传的 DXF）
+    2. 匹配 _layers_{diagram_id}_*.dxf （经过图层选择流程的 DXF，按 mtime 最新的）
+
+    请求参数: floor_id (可选)
+    返回: {success, dxf_filename} 或 {success: false}
+    """
+    floor_id = request.args.get('floor_id', '')
+    upload_dir = _get_bg_upload_dir()
+    try:
+        entries = os.listdir(upload_dir)
+    except Exception:
+        return jsonify({'success': False}), 200
+
+    candidates = []  # list of (mtime, filename)
+    for fn in entries:
+        if not fn.lower().endswith('.dxf'):
+            continue
+        # Pattern 1: direct upload {id}_{floor}_{uid}.dxf
+        if floor_id and fn.startswith(f'{diagram_id}_{floor_id}_'):
+            try:
+                mtime = os.path.getmtime(os.path.join(upload_dir, fn))
+                candidates.append((mtime, fn, 1))  # priority 1
+            except OSError:
+                pass
+        # Pattern 2: layer-selection flow _layers_{id}_{uid}.dxf
+        elif fn.startswith(f'_layers_{diagram_id}_'):
+            try:
+                mtime = os.path.getmtime(os.path.join(upload_dir, fn))
+                candidates.append((mtime, fn, 2))  # priority 2
+            except OSError:
+                pass
+
+    if not candidates:
+        return jsonify({'success': False}), 200
+
+    # Prefer higher-priority (lower number) matches, then most recent
+    candidates.sort(key=lambda x: (x[2], -x[0]))
+    return jsonify({'success': True, 'dxf_filename': candidates[0][1]})
+
+
+@system_diagram.route('/api/<int:diagram_id>/floor-plan/analyze-dxf', methods=['POST'])
+@login_required
+@permission_required('system_diagram', 'edit')
+def analyze_dxf_api(diagram_id):
+    """上传 DWG/DXF 文件，转换并渲染为多分辨率 PNG 底图"""
+    diagram = SystemDiagram.query.get_or_404(diagram_id)
+    if diagram.is_deleted or not _can_edit_diagram(diagram):
+        return jsonify({'success': False, 'message': _('无权限')}), 403
+
+    # Support two modes:
+    # 1. Direct upload (file in request) — original flow
+    # 2. Re-use temp DXF from extract-dxf-layers step (temp_dxf in form, no file)
+    import json as _json
+    floor_id = request.form.get('floor_id', '')
+    temp_dxf_name = request.form.get('temp_dxf', '')
+    include_layers_json = request.form.get('include_layers', '')
+    include_layers = set(_json.loads(include_layers_json)) if include_layers_json else None
+
+    upload_dir = _get_bg_upload_dir()
+    uid = uuid.uuid4().hex[:8]
+
+    if temp_dxf_name:
+        # Re-use previously uploaded temp DXF (from extract-dxf-layers)
+        safe_name = os.path.basename(temp_dxf_name)
+        uploaded_path = None
+        dxf_path = os.path.join(upload_dir, safe_name)
+        if not os.path.exists(dxf_path):
+            return jsonify({'success': False, 'message': _('临时文件已过期，请重新上传')}), 400
+        if not floor_id:
+            floor_id = 'fp'
+    else:
+        file = request.files.get('file')
+        if not file or not file.filename or not floor_id:
+            return jsonify({'success': False, 'message': _('缺少参数')}), 400
+
+        ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+        if ext not in ('dxf', 'dwg'):
+            return jsonify({'success': False, 'message': _('仅支持 DXF/DWG 格式')}), 400
+
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
+        if file_size > MAX_BG_SIZE:
+            return jsonify({'success': False, 'message': _('文件大小不能超过 12MB')}), 400
+
+        uploaded_path = os.path.join(upload_dir, f"{diagram_id}_{floor_id}_{uid}.{ext}")
+        file.save(uploaded_path)
+        dxf_path = None
+
+    try:
+        from app.utils.dxf_converter import render_dxf_to_png, convert_dwg_to_dxf
+
+        if dxf_path is None:
+            ext = os.path.splitext(uploaded_path)[1].lstrip('.').lower()
+            if ext == 'dwg':
+                try:
+                    dxf_path = convert_dwg_to_dxf(uploaded_path, upload_dir)
+                    os.remove(uploaded_path)
+                    uploaded_path = None
+                except FileNotFoundError:
+                    return jsonify({
+                        'success': False,
+                        'message': _('服务器未安装 dwg2dxf，请先将 DWG 另存为 DXF 后上传')
+                    }), 500
+            else:
+                dxf_path = uploaded_path
 
         base_name = f"{diagram_id}_{floor_id}_{uid}"
         resolutions = render_dxf_to_png(dxf_path, upload_dir, base_name,
-                                         max_dims=[1000, 2000, 4000])
+                                         max_dims=[1000, 2000, 4000, 8000],
+                                         include_layers=include_layers)
 
         res_with_urls = {}
         all_png_filenames = []
@@ -611,6 +740,9 @@ def analyze_dxf_api(diagram_id):
                     pass
         return jsonify({'success': False, 'message': 'matplotlib 未安装，无法渲染 DXF'}), 500
     except Exception as e:
+        import traceback, sys
+        print(f"[DXF ERROR] {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
         logger.error(f"DXF 导入失败: {e}")
         for p in [uploaded_path, locals().get('dxf_path')]:
             if p and os.path.exists(p):
@@ -1188,21 +1320,22 @@ def external_products(token):
 @login_required
 @permission_required('system_diagram', 'view')
 def export_dwg_api(diagram_id):
-    """将系统图画布叠加到原始 DXF 上，导出为 DWG 文件（ZIP 包）
+    """导出 CAD 文件：原 DXF + SYSTEM_DESIGN 图层（设备/连线/区域作为原生矢量实体）
 
     请求体 (JSON):
-        canvas_png: base64 编码的画布截图 PNG（data URL 或纯 base64）
-        dxf_filename: fp.background.dxf_filename（服务端存储的 DXF 文件名）
-        canvas_width_mm: 画布实际宽度（毫米）
-        canvas_height_mm: 画布实际高度（毫米）
-        diagram_name: 用于输出文件命名
+        elements: {
+            bg_width_px, bg_height_px, offset_x, offset_y,
+            nodes: [{id,x,y,w,h,label,model,qty,coverage}],
+            routes: [{sourceNodeId,targetNodeId,waypoints,label,...}],
+            areas: [{x,y,width,height,label}]
+        }
+        dxf_filename: fp.background.dxf_filename（服务端存储的原 DXF）
+        diagram_name: 输出文件命名
 
     返回:
-        ZIP 文件（含 .dwg 或 .dxf + canvas_overlay.png）
+        .dxf 文件（保留原有所有实体，仅增加 SYSTEM_DESIGN* 图层）
     """
-    import base64
     import tempfile
-    import zipfile
 
     diagram = SystemDiagram.query.get_or_404(diagram_id)
     if diagram.is_deleted:
@@ -1212,14 +1345,12 @@ def export_dwg_api(diagram_id):
     if not data:
         return jsonify({'success': False, 'message': _('无效请求')}), 400
 
-    canvas_png_b64 = data.get('canvas_png', '')
+    elements = data.get('elements') or {}
     dxf_filename = data.get('dxf_filename', '')
-    canvas_width_mm = float(data.get('canvas_width_mm', 297))
-    canvas_height_mm = float(data.get('canvas_height_mm', 210))
     diagram_name = data.get('diagram_name', 'system_diagram')
 
-    if not canvas_png_b64 or not dxf_filename:
-        return jsonify({'success': False, 'message': _('缺少参数')}), 400
+    if not dxf_filename:
+        return jsonify({'success': False, 'message': _('缺少 DXF 底图信息')}), 400
 
     upload_dir = _get_bg_upload_dir()
     dxf_path = os.path.join(upload_dir, os.path.basename(dxf_filename))
@@ -1227,45 +1358,30 @@ def export_dwg_api(diagram_id):
         return jsonify({'success': False, 'message': _('DXF 源文件不存在，请重新导入底图')}), 404
 
     try:
-        from app.utils.dxf_converter import combine_dxf_with_image, convert_dxf_to_dwg
+        from app.utils.dxf_converter import overlay_system_design_on_dxf
         from flask import Response
 
+        safe_name = ''.join(c for c in diagram_name if c.isalnum() or c in '-_ ')[:40].strip() or 'diagram'
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            if canvas_png_b64.startswith('data:'):
-                canvas_png_b64 = canvas_png_b64.split(',', 1)[1]
-            canvas_png_bytes = base64.b64decode(canvas_png_b64)
-            canvas_png_path = os.path.join(tmpdir, 'canvas_overlay.png')
-            with open(canvas_png_path, 'wb') as f:
-                f.write(canvas_png_bytes)
+            out_dxf_path = os.path.join(tmpdir, f"{safe_name}.dxf")
+            overlay_system_design_on_dxf(dxf_path, out_dxf_path, elements)
 
-            safe_name = ''.join(c for c in diagram_name if c.isalnum() or c in '-_ ')[:40].strip() or 'diagram'
-            combined_dxf_path = os.path.join(tmpdir, f"{safe_name}_combined.dxf")
-            combine_dxf_with_image(
-                dxf_path, canvas_png_path, combined_dxf_path,
-                canvas_width_mm, canvas_height_mm
-            )
+            with open(out_dxf_path, 'rb') as f:
+                file_bytes = f.read()
 
-            dwg_path = convert_dxf_to_dwg(combined_dxf_path, tmpdir)
-            main_file = dwg_path if dwg_path else combined_dxf_path
-            main_ext = 'dwg' if dwg_path else 'dxf'
-
-            zip_name = f"{safe_name}.zip"
-            zip_path = os.path.join(tmpdir, zip_name)
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-                zf.write(main_file, f"{safe_name}.{main_ext}")
-                zf.write(canvas_png_path, 'canvas_overlay.png')
-
-            zip_bytes = open(zip_path, 'rb').read()
-
+        download_name = f"{safe_name}.dxf"
         return Response(
-            zip_bytes,
-            mimetype='application/zip',
+            file_bytes,
+            mimetype='application/dxf',
             headers={
-                'Content-Disposition': f'attachment; filename="{zip_name}"',
-                'Content-Length': len(zip_bytes),
+                'Content-Disposition': f'attachment; filename="{download_name}"',
+                'Content-Length': len(file_bytes),
             }
         )
 
     except Exception as e:
-        logger.error(f"导出 DWG 失败: {e}")
+        logger.error(f"导出 DXF 失败: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'success': False, 'message': str(e)}), 500

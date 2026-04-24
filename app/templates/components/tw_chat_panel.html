@@ -556,7 +556,7 @@
 
                     <!-- ====== 跨系统消息 ====== -->
                     <template x-if="msg.message_type === 'cross_system'">
-                    <div class="py-1">
+                    <div class="py-1 flex justify-end">
                         <div class="max-w-[85%] rounded-2xl px-4 py-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50">
                             <!-- 发送者 + 时间 -->
                             <div class="flex items-center gap-2 mb-1.5">
@@ -1262,22 +1262,6 @@
                 </div>
             </div>
 
-            <!-- 跨系统信息提示条（可回复） -->
-            <template x-if="activeConv && activeConv.type === 'cross_system'">
-            <div class="px-4 pt-2">
-                <div class="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/50 rounded-xl px-3 py-2 flex items-center justify-between gap-2">
-                    <span class="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
-                        <span class="material-symbols-outlined text-sm">language</span>
-                        {{ _('来自 SG PMA · 可直接回复') }}
-                    </span>
-                    <a href="https://sg-pma.jamesgpone.win" target="_blank" rel="noopener"
-                       class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex-shrink-0">
-                        <span class="material-symbols-outlined text-xs">open_in_new</span>
-                        {{ _('打开 SG PMA') }}
-                    </a>
-                </div>
-            </div>
-            </template>
 
             <!-- 跨系统群提示条 -->
             <template x-if="activeConv && activeConv.type === 'cross_system_group'">
@@ -2091,8 +2075,9 @@ document.addEventListener('alpine:init', () => {
             }
         });
 
-        // 初始拉取未读数
+        // 初始拉取未读数，并开启后台轮询（面板关闭时也持续更新 badge）
         Alpine.store('chat').fetchUnreadCount();
+        setInterval(() => Alpine.store('chat').fetchUnreadCount(), 10000);
     }
 });
 
@@ -2670,8 +2655,6 @@ function chatPanel() {
 
         // ----- 发送消息 -----
         async sendMessage() {
-            // 跨系统对话：只读，不能发送
-            if (this.activeConv && this.activeConv.type === 'cross_system') return;
             // 上下文耗尽：阻止发送，引导新建对话
             if (this.contextExhausted) {
                 this.startNewChat();
@@ -3728,7 +3711,7 @@ function chatPanel() {
         startUnreadPolling() {
             this.stopUnreadPolling();
             this.unreadPollTimer = setInterval(() => {
-                if (this.chatOpen && Alpine.store('chat')) {
+                if (Alpine.store('chat')) {
                     Alpine.store('chat').fetchUnreadCount();
                 }
             }, 10000);

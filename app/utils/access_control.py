@@ -1606,6 +1606,38 @@ def can_view_pricing_order(user, pricing_order):
             logger.debug(f"[权限检查] 厂商销售负责人权限 - 允许访问")
             return True
 
+    # 审批人权限：检查 V2 审批系统
+    if pricing_order.status in ('pending', 'approved', 'rejected', 'recalled'):
+        try:
+            from app.models.approval import ApprovalInstance, ApprovalStatus, ApprovalRecord
+            from app.helpers.approval_helpers import get_step_actual_approver
+
+            # 当前待审批人
+            v2_instance = ApprovalInstance.query.filter_by(
+                object_type='pricing_order',
+                object_id=pricing_order.id,
+                status=ApprovalStatus.PENDING
+            ).first()
+            if v2_instance:
+                current_step_info = v2_instance.get_current_step_info()
+                if current_step_info:
+                    approver = get_step_actual_approver(current_step_info, v2_instance)
+                    if approver and approver.id == user.id:
+                        logger.debug(f"[权限检查] V2当前审批人权限 - 允许访问")
+                        return True
+
+            # 历史审批人（已完结实例）
+            v2_past = ApprovalRecord.query.join(ApprovalInstance).filter(
+                ApprovalInstance.object_type == 'pricing_order',
+                ApprovalInstance.object_id == pricing_order.id,
+                ApprovalRecord.approver_id == user.id
+            ).first()
+            if v2_past:
+                logger.debug(f"[权限检查] V2历史审批人权限 - 允许访问")
+                return True
+        except Exception as e:
+            logger.debug(f"[权限检查] V2审批系统检查出错: {str(e)}")
+
     logger.debug(f"[权限检查] 所有权限检查失败 - 拒绝访问")
     return False
 

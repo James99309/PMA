@@ -477,9 +477,14 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
         if not participant:
             return {'success': False, 'message': '您不是该对话的参与者'}
 
-        # 获取查看者语言偏好
+        # 获取查看者语言偏好，无设置时回落到系统语言（sp8d→zh，ovs→en）
         viewer = User.query.get(user_id)
-        viewer_lang = viewer.language_preference if viewer else 'zh'
+        if viewer and viewer.language_preference:
+            viewer_lang = viewer.language_preference
+        else:
+            import os as _os
+            _db_type = _os.environ.get('PMA_DB_TYPE') or _os.environ.get('SUPABASE_DB_TYPE', '')
+            viewer_lang = 'en' if _db_type == 'ovs' else 'zh'
 
         # 构建查询
         query = ChatMessage.query.filter(
@@ -488,12 +493,13 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
         )
 
         # 增量拉取：只获取 since 时间之后的消息
+        # DB 存储 naive UTC，since 参数去掉时区后直接比较，避免 aware vs naive 偏差
         since_dt = None
         if since:
             if isinstance(since, str):
-                since_dt = datetime.fromisoformat(since.replace('Z', '+00:00'))
+                since_dt = datetime.fromisoformat(since.replace('Z', '').replace('+00:00', ''))
             else:
-                since_dt = since
+                since_dt = since.replace(tzinfo=None) if hasattr(since, 'tzinfo') else since
             query = query.filter(ChatMessage.created_at > since_dt)
 
         # 按时间正序排列，最新的在最后
@@ -624,6 +630,7 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None):
                                 sender_display,
                                 content.strip(),
                                 sender_email=sender_user.email if sender_user else None,
+                                source_lang=source_lang,
                             )
             except Exception as ce:
                 logger.warning(f"跨系统推送失败: {ce}")

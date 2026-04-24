@@ -150,15 +150,17 @@ def receive_message_from_peer(data):
 
         # 更新对话时间戳
         conv.updated_at = datetime.now(timezone.utc)
+        db.session.flush()  # 获取 message.id，暂不提交（避免翻译前消息可见）
+
+        # 翻译原始文本（在 commit 前加入 session，确保消息+翻译原子可见）
+        _add_cross_system_translation(message.id, content, source_lang)
+
         db.session.commit()
 
         logger.info(
             f"跨系统消息接收成功: conv_id={conv.id}, recipient={recipient_email}, "
             f"sender={sender_name}, type={msg_type}"
         )
-
-        # 翻译原始文本（不翻译 JSON 包装）
-        _trigger_cross_system_translation(message.id, content, source_lang, conv.id)
 
         return {'success': True, 'message': '消息接收成功'}
 
@@ -219,16 +221,14 @@ def receive_private_reply_from_peer(data):
         )
         db.session.add(message)
         conv.updated_at = datetime.now(timezone.utc)
+        db.session.flush()  # 获取 message.id，不提交
+
+        # 翻译（SG=en 时翻译 zh→en），commit 前加入 session
+        _add_cross_system_translation(message.id, content, 'zh')
+
         db.session.commit()
 
         logger.info(f"私聊回复注入成功: conv_id={conv.id}, sender={sender_email}")
-
-        # 为 SG 英文用户触发中→英翻译
-        try:
-            from app.services.chat_service import _trigger_translation
-            _trigger_translation(message.id, 'zh', conv.id)
-        except Exception as te:
-            logger.warning(f"私聊回复翻译失败: {te}")
 
         return {'success': True, 'message': '回复注入成功'}
     except Exception as e:
@@ -296,6 +296,9 @@ def push_group_to_peer(sg_group_id, group_name, sender_name, sender_email, conte
     if not peer_url:
         return
 
+    # 检测实际文本语言，避免把中文消息标记为 'en'
+    actual_source_lang = _detect_text_lang(content)
+
     def _do_push():
         import requests
         try:
@@ -309,7 +312,7 @@ def push_group_to_peer(sg_group_id, group_name, sender_name, sender_email, conte
                     'sender_email': sender_email,
                     'content': content,
                     'recipient_emails': recipient_emails,
-                    'source_lang': 'en',
+                    'source_lang': actual_source_lang,
                 },
                 timeout=10,
             )
@@ -426,12 +429,14 @@ def receive_group_message_from_peer(data):
         )
         db.session.add(message)
         mirror_conv.updated_at = datetime.now(timezone.utc)
+        db.session.flush()  # 获取 message.id，不提交
+
+        # 翻译原始文本（commit 前加入 session）
+        _add_cross_system_translation(message.id, content, source_lang)
+
         db.session.commit()
 
         logger.info(f"群聊消息写入成功: conv_id={mirror_conv.id}, sender={sender_name}")
-
-        # 翻译原始文本（不翻译 JSON 包装）
-        _trigger_cross_system_translation(message.id, content, source_lang, mirror_conv.id)
 
         return {'success': True}
 
@@ -479,19 +484,14 @@ def receive_group_reply_from_peer(data):
             )
         db.session.add(message)
         conv.updated_at = datetime.now(timezone.utc)
+        db.session.flush()  # 获取 message.id，不提交
+
+        # 翻译（SG=en 时翻译 zh→en），commit 前加入 session
+        _add_cross_system_translation(message.id, content, 'zh')
+
         db.session.commit()
 
         logger.info(f"群聊回复注入成功: conv_id={sg_group_id}, sender={sender_email}")
-
-        # 为 SG 英文用户触发中→英翻译
-        try:
-            if sender:
-                from app.services.chat_service import _trigger_translation
-                _trigger_translation(message.id, 'zh', conv.id)
-            else:
-                _trigger_cross_system_translation(message.id, content, 'zh', conv.id)
-        except Exception as te:
-            logger.warning(f"群聊回复翻译失败: {te}")
 
         return {'success': True}
     except Exception as e:
@@ -500,32 +500,44 @@ def receive_group_reply_from_peer(data):
         return {'success': False, 'message': str(e)}
 
 
-def _trigger_cross_system_translation(message_id, original_text, source_lang, conv_id):
-    """为跨系统消息触发翻译（翻译原始文本，而非 JSON 包装后的内容）"""
+def _get_system_lang():
+    """根据 PMA_DB_TYPE 返回本系统语言（sp8d → zh，ovs → en）"""
+    db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', '')
+    return 'en' if db_type == 'ovs' else 'zh'
+
+
+def _detect_text_lang(text):
+    """简单语言检测：含 CJK 字符返回 'zh'，否则 'en'。"""
+    if not text:
+        return 'en'
+    for ch in text:
+        if '一' <= ch <= '鿿':
+            return 'zh'
+    return 'en'
+
+
+def _add_cross_system_translation(message_id, original_text, source_lang):
+    """为跨系统消息添加翻译到 session（不 commit，由调用方提交）。
+    翻译规则：实际文本语言与本系统语言不同时才翻译（en→zh 或 zh→en）。
+    调用方必须在此函数之前 flush() 以获取 message_id，之后再 commit()。
+    """
+    system_lang = _get_system_lang()
+    # 以实际文本语言为准（忽略发送方可能传错的 source_lang）
+    actual_lang = _detect_text_lang(original_text)
+    if actual_lang == system_lang:
+        return  # 文本已是本系统语言，无需翻译
+
     try:
-        participants = ChatParticipant.query.filter_by(conversation_id=conv_id).all()
-        target_langs = set()
-        for part in participants:
-            user = User.query.get(part.user_id)
-            if user and user.language_preference and user.language_preference != source_lang:
-                target_langs.add(user.language_preference)
-
-        if not target_langs:
-            return
-
         from app.services.chat_translation_service import translate_text
-        for target_lang in target_langs:
-            translated = translate_text(original_text, source_lang, target_lang)
-            if translated:
-                db.session.add(ChatTranslation(
-                    message_id=message_id,
-                    target_language=target_lang,
-                    translated_content=translated,
-                ))
-        db.session.commit()
-        logger.info(f"跨系统消息翻译完成: msg_id={message_id}, {source_lang}→{target_langs}")
+        translated = translate_text(original_text, actual_lang, system_lang)
+        if translated:
+            db.session.add(ChatTranslation(
+                message_id=message_id,
+                target_language=system_lang,
+                translated_content=translated,
+            ))
+            logger.info(f"跨系统消息翻译完成: msg_id={message_id}, {actual_lang}→{system_lang}")
     except Exception as e:
-        db.session.rollback()
         logger.warning(f"跨系统消息翻译失败: {e}")
 
 

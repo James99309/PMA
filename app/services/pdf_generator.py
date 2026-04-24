@@ -163,18 +163,19 @@ class PDFGenerator:
             logger.error(f"❌ 获取公司Logo失败: {e}")
             return None
     
-    def generate_pricing_order_pdf(self, pricing_order):
+    def generate_pricing_order_pdf(self, pricing_order, include_notes=False):
         """生成批价单PDF"""
         try:
             # 获取当前系统的字体配置
             font_family = self._get_system_font_family()
-            
+
             # 渲染HTML模板
             html_content = render_template(
                 'pdf/pricing_order_template.html',
                 pricing_order=pricing_order,
                 generated_at=datetime.now(),
-                font_family=font_family
+                font_family=font_family,
+                include_notes=include_notes
             )
             
             # 生成PDF文件名：批价单编号 & 项目名称
@@ -195,7 +196,7 @@ class PDFGenerator:
             logger.error(f"生成批价单PDF失败: {str(e)}")
             raise
     
-    def generate_settlement_order_pdf(self, pricing_order):
+    def generate_settlement_order_pdf(self, pricing_order, include_notes=False):
         """生成结算单PDF"""
         try:
             # 获取关联的结算单
@@ -229,7 +230,8 @@ class PDFGenerator:
                 pricing_order=pricing_order,
                 settlement_order=settlement_order,
                 generated_at=datetime.now(),
-                font_family=font_family
+                font_family=font_family,
+                include_notes=include_notes
             )
             
             # 生成PDF文件名：结算单编号 & 项目名称
