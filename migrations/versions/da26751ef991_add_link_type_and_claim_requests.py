@@ -27,7 +27,7 @@ def upgrade():
     bind = op.get_bind()
     insp = inspect(bind)
 
-    # 1. prospect_projects.link_type (skip if already present)
+    # 1. prospect_projects.link_type
     pp_cols = [c['name'] for c in insp.get_columns('prospect_projects')]
     if 'link_type' not in pp_cols:
         with op.batch_alter_table('prospect_projects', schema=None) as batch_op:
@@ -39,36 +39,44 @@ def upgrade():
                 'ix_prospect_projects_link_type', ['link_type'], unique=False
             )
 
-    # 2. prospect_claim_requests (skip if already present from db.create_all)
-    if insp.has_table('prospect_claim_requests'):
-        return
+    # 2. prospect_claim_requests table
+    if not insp.has_table('prospect_claim_requests'):
+        op.create_table(
+            'prospect_claim_requests',
+            sa.Column('id', sa.Integer(), nullable=False),
+            sa.Column('project_id', sa.Integer(), nullable=False),
+            sa.Column('applicant_id', sa.Integer(), nullable=False),
+            sa.Column('reason', sa.Text(), nullable=False),
+            sa.Column('status', sa.String(length=20), nullable=False,
+                      server_default='pending'),
+            sa.Column('created_at', sa.DateTime(), nullable=False),
+            sa.ForeignKeyConstraint(['applicant_id'], ['users.id']),
+            sa.ForeignKeyConstraint(['project_id'], ['projects.id']),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('project_id', 'applicant_id',
+                                name='uq_claim_project_applicant'),
+        )
 
-    op.create_table(
-        'prospect_claim_requests',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('applicant_id', sa.Integer(), nullable=False),
-        sa.Column('reason', sa.Text(), nullable=False),
-        sa.Column('status', sa.String(length=20), nullable=False,
-                  server_default='pending'),
-        sa.Column('created_at', sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(['applicant_id'], ['users.id']),
-        sa.ForeignKeyConstraint(['project_id'], ['projects.id']),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('project_id', 'applicant_id',
-                            name='uq_claim_project_applicant'),
-    )
-    op.create_index('ix_claim_project', 'prospect_claim_requests',
-                    ['project_id'], unique=False)
-    op.create_index('ix_claim_applicant', 'prospect_claim_requests',
-                    ['applicant_id'], unique=False)
+    # 3. Per-index existence (handles case where table existed from db.create_all
+    #    but our named indexes weren't created)
+    existing_idx = {i['name'] for i in insp.get_indexes('prospect_claim_requests')}
+    if 'ix_claim_applicant' not in existing_idx:
+        op.create_index('ix_claim_applicant', 'prospect_claim_requests',
+                        ['applicant_id'], unique=False)
 
 
 def downgrade():
-    op.drop_index('ix_claim_applicant', table_name='prospect_claim_requests')
-    op.drop_index('ix_claim_project', table_name='prospect_claim_requests')
-    op.drop_table('prospect_claim_requests')
+    bind = op.get_bind()
+    insp = inspect(bind)
 
-    with op.batch_alter_table('prospect_projects', schema=None) as batch_op:
-        batch_op.drop_index('ix_prospect_projects_link_type')
-        batch_op.drop_column('link_type')
+    if insp.has_table('prospect_claim_requests'):
+        existing_idx = {i['name'] for i in insp.get_indexes('prospect_claim_requests')}
+        if 'ix_claim_applicant' in existing_idx:
+            op.drop_index('ix_claim_applicant', table_name='prospect_claim_requests')
+        op.drop_table('prospect_claim_requests')
+
+    pp_cols = [c['name'] for c in insp.get_columns('prospect_projects')]
+    if 'link_type' in pp_cols:
+        with op.batch_alter_table('prospect_projects', schema=None) as batch_op:
+            batch_op.drop_index('ix_prospect_projects_link_type')
+            batch_op.drop_column('link_type')

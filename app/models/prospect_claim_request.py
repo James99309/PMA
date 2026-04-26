@@ -26,6 +26,5 @@ class ProspectClaimRequest(db.Model):
     __table_args__ = (
         UniqueConstraint('project_id', 'applicant_id',
                          name='uq_claim_project_applicant'),
-        Index('ix_claim_project', 'project_id'),
         Index('ix_claim_applicant', 'applicant_id'),
     )
