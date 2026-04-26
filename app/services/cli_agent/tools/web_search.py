@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-web_search 工具:使用 Tavily API 搜索公网公开信息
+web_search 工具:Anthropic 内置 server-side web_search
+
+工作方式:
+    - schema 返回 {type:'web_search_20250305', name:'web_search', max_uses}
+    - Anthropic 服务端自己执行搜索,客户端收到 server_tool_use + web_search_tool_result 事件
+    - execute() 永远不会被调用(server tool 不需要客户端执行)
+    - 用量计入 OAuth 订阅 quota,无 Tavily 依赖
 
 用途:
     补充 PMA 数据库里没有的公开信息,比如:
@@ -13,11 +19,7 @@ web_search 工具:使用 Tavily API 搜索公网公开信息
     - PMA 内部业务数据查询(这些请用 query_pma_database)
     - 闲聊、笑话、情感、创作(CLI 角色不做这些)
 
-依赖:
-    pip install tavily-python
-    环境变量 TAVILY_API_KEY
-
-注册:在 tools/__init__.py 的 get_default_registry() 里按需加入
+注册:在 tools/__init__.py 的 get_default_registry() 里默认加入
 """
 from __future__ import annotations
 
@@ -26,104 +28,57 @@ import os
 from typing import Any
 
 from app.services.cli_agent.tools import BaseTool
-from app.services.cli_agent.config import CLI_TOOL_RESULT_MAX_TOKENS
 
 logger = logging.getLogger(__name__)
+
+
+# Anthropic web_search 服务端工具版本(2025-03-05)
+_WEB_SEARCH_TOOL_TYPE = 'web_search_20250305'
+
+# 单次会话最多搜索次数(防止 agent loop 失控烧 quota)
+_DEFAULT_MAX_USES = int(os.environ.get('WEB_SEARCH_MAX_USES', '5'))
 
 
 class WebSearchTool(BaseTool):
     name = 'web_search'
     description = (
-        '搜索公网公开信息。用于查询 PMA 数据库里没有的公开数据,'
+        '搜索公网公开信息(由 Anthropic 服务端执行)。用于查询 PMA 数据库里没有的公开数据,'
         '例如:客户公司的最新动态/注册地/行业背景、项目所在地政策、'
-        '竞品信息、行业标准、事实性问题(天气/新闻/汇率/地理等)。\n'
-        '返回搜索结果的摘要 + Tavily 自动生成的答案(如果 include_answer=true)。\n'
-        '**不要用于**查询 PMA 内部业务数据(客户/项目/报价等)——那些用 query_pma_database。'
+        '竞品信息、行业标准、事实性问题(天气/新闻/汇率/地理等)。'
     )
-    input_schema = {
-        'type': 'object',
-        'properties': {
-            'query': {
-                'type': 'string',
-                'description': '自然语言搜索查询,用目标信息的语言(中文问题用中文查)',
-            },
-            'search_depth': {
-                'type': 'string',
-                'enum': ['basic', 'advanced'],
-                'description': 'basic 速度快(默认),advanced 更全面但慢一倍。一般用 basic',
-            },
-            'max_results': {
-                'type': 'integer',
-                'description': '返回的结果数,1-10,默认 5',
-                'minimum': 1,
-                'maximum': 10,
-            },
-        },
-        'required': ['query'],
-    }
+    # Anthropic server tool 不需要客户端 input_schema,这里只为兼容 BaseTool 接口
+    input_schema: dict = {}
+
+    def to_anthropic_schema(self, enable_cache: bool = False) -> dict:
+        """覆盖 BaseTool 的默认实现,返回 Anthropic server tool 规范的 schema。
+
+        与普通客户端工具的区别:
+            普通工具:{name, description, input_schema}
+            server  工具:{type, name, max_uses}
+        """
+        schema: dict = {
+            'type': _WEB_SEARCH_TOOL_TYPE,
+            'name': self.name,
+            'max_uses': _DEFAULT_MAX_USES,
+        }
+        if enable_cache:
+            schema['cache_control'] = {'type': 'ephemeral'}
+        return schema
 
     def execute(self, tool_input: dict, context: dict) -> Any:
-        api_key = os.environ.get('TAVILY_API_KEY', '').strip()
-        if not api_key:
-            return {
-                'error': (
-                    '未配置 TAVILY_API_KEY 环境变量。'
-                    '请管理员在 .env.local 添加 TAVILY_API_KEY=tvly-xxxxx 并重启服务。'
-                )
-            }
+        """理论上永远不会被调用——Anthropic 服务端执行搜索后通过
+        server_tool_use / web_search_tool_result 事件返回结果,
+        客户端 agent loop 不会收到 tool_use 事件,自然不会路由到 execute()。
 
-        query = (tool_input or {}).get('query', '').strip()
-        if not query:
-            return {'error': 'query 参数不能为空'}
-
-        search_depth = (tool_input or {}).get('search_depth', 'basic')
-        max_results = int((tool_input or {}).get('max_results', 5))
-        max_results = max(1, min(max_results, 10))
-
-        try:
-            from tavily import TavilyClient
-            client = TavilyClient(api_key=api_key)
-            response = client.search(
-                query=query,
-                search_depth=search_depth,
-                max_results=max_results,
-                include_answer=True,
-                include_raw_content=False,
-                include_images=False,
-            )
-        except Exception as e:
-            logger.exception('[CLI Agent] web_search Tavily 调用失败')
-            return {'error': f'web_search 调用失败: {e}'}
-
-        # 整理结果:保留 answer 和精简的 result 列表
-        answer = response.get('answer') or ''
-        results = []
-        for r in response.get('results', [])[:max_results]:
-            results.append({
-                'title': r.get('title', ''),
-                'url': r.get('url', ''),
-                'snippet': (r.get('content', '') or '')[:500],
-                'score': r.get('score'),
-            })
-
-        output: dict = {
-            'query': query,
-            'answer': answer,
-            'results': results,
-            'result_count': len(results),
-        }
-
-        # token 安全:过大则截断 results 的 snippet
-        import json
-        estimated_tokens = len(json.dumps(output, ensure_ascii=False)) // 3
-        if estimated_tokens > CLI_TOOL_RESULT_MAX_TOKENS:
-            for r in results:
-                r['snippet'] = (r.get('snippet', '') or '')[:200]
-            output['truncated'] = True
-            output['hint'] = '结果较大已截断 snippet 为前 200 字符'
-
-        logger.info(
-            f'[CLI Agent] web_search query={query!r} → {len(results)} 条,'
-            f'answer_chars={len(answer)}'
+        如果意外被调用,返回明确错误避免静默 fallback。
+        """
+        logger.error(
+            '[CLI Agent] web_search.execute() 被调用了,这不应该发生。'
+            'Anthropic server tool 由服务端执行,客户端不应路由到这里。'
         )
-        return output
+        return {
+            'error': (
+                'web_search 是 Anthropic 服务端工具,不应在客户端执行。'
+                '请检查 _iter_stream_events 是否错误地把 server_tool_use yield 成了 tool_use。'
+            )
+        }

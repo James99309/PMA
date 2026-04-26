@@ -119,10 +119,8 @@ def get_default_registry() -> ToolRegistry:
         from app.services.cli_agent.tools.export_quotation_to_excel import ExportQuotationToExcelTool
         _default_registry.register(ExportQuotationToExcelTool())
 
-        # 注册 web_search(只在配置了 TAVILY_API_KEY 时)
-        import os
-        if os.environ.get('TAVILY_API_KEY', '').strip():
-            from app.services.cli_agent.tools.web_search import WebSearchTool
-            _default_registry.register(WebSearchTool())
+        # 注册 web_search(Anthropic 内置 server-side 工具,不需要外部 API key)
+        from app.services.cli_agent.tools.web_search import WebSearchTool
+        _default_registry.register(WebSearchTool())
 
     return _default_registry
