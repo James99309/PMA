@@ -37,6 +37,7 @@ class ProspectProject(db.Model):
     stage = Column(String(20), nullable=False, default='planning')
     total_investment = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
+    progress = Column(Text, nullable=True)
     keywords = Column(JSON, nullable=True)
     source = Column(String(20), nullable=True)
     # link_type: 标识 prospect 与 project 的关联语义

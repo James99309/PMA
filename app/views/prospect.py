@@ -9,6 +9,7 @@ from app.models.user import User
 from app.permissions import admin_required, permission_required, is_admin_or_ceo
 from app.utils.dictionary_helpers import get_industry_options
 from sqlalchemy import or_, func
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 import logging
 
@@ -220,6 +221,7 @@ def _can_see_lost_sensitive(user, project):
 
 @prospect_bp.route('/lost/<int:project_id>')
 @login_required
+@permission_required('project', 'view')
 def lost_detail(project_id):
     """流失项目公开详情页（Phase 4 提供模板，Phase 3 仅落路由）。"""
     from app.models.prospect_claim_request import ProspectClaimRequest
@@ -254,6 +256,7 @@ def lost_detail(project_id):
 
 @prospect_bp.route('/lost/<int:project_id>/apply', methods=['POST'])
 @login_required
+@permission_required('project', 'view')
 def lost_apply(project_id):
     """申请参与流失项目：创建 ProspectClaimRequest + 通知项目原负责人/管理员。"""
     from app.models.prospect_claim_request import ProspectClaimRequest
@@ -316,36 +319,29 @@ def lost_apply(project_id):
         )
         db.session.add(msg)
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify(success=False, message='您已申请过此项目，等待负责人处理'), 409
+
     return jsonify(success=True, message='申请已提交，等待负责人处理')
-
-
-def _run_lost_project_research(project):
-    """触发对已存在 Project 的 AI 调研。
-
-    PMA 的 AIResearchService 直接把结构化结果写到 project.ai_research_data
-    （JSON 列）并在后台线程中异步执行。本函数只负责非阻塞地启动该流程，
-    返回一个 dict 供路由层决定后续处理。
-
-    返回 {'mode': 'async'} 表示已成功触发后台调研；调用方不需要直接更新
-    ProspectProject 的字段（数据将持久化到 Project.ai_research_data）。
-    """
-    from app.services.ai_research_service import AIResearchService
-
-    AIResearchService.trigger_project_research(project.id)
-    return {'mode': 'async'}
 
 
 @prospect_bp.route('/lost/<int:project_id>/ai-research', methods=['POST'])
 @login_required
+@permission_required('project', 'view')
 def lost_ai_research(project_id):
-    """触发流失项目的 AI 调研。
+    """触发流失项目的 AI 调研（同步）。
 
-    会确保存在一条 link_type='research' 的 ProspectProject 占位记录（用于
-    在情报视图侧标记此项目已纳入调研），并触发 AIResearchService 后台调研，
-    结果写入 project.ai_research_data。
+    AI 调研结果只写入 prospect_projects（link_type='research'）+
+    prospect_stakeholders 两张表，**不会**回写到 projects.ai_research_data，
+    以保持"AI 可以补全，但不会同步回项目"的设计意图。
     """
     from app.utils.access_control import can_view_project
+    from app.services.claude_research_provider import send_claude_research_request
+    import json
+    import re
 
     project = Project.query.filter_by(id=project_id, is_deleted=False).first_or_404()
 
@@ -370,12 +366,103 @@ def lost_ai_research(project_id):
         db.session.add(research)
         db.session.flush()
 
+    prompt = (
+        f"请对以下项目做调研，输出严格 JSON：\n\n"
+        f"项目名称：{project.project_name}\n"
+        f"行业：{project.industry or '未知'}\n"
+        f"地区：{project.region or '未知'}\n"
+        f"投资规模：{project.total_investment or '未知'}\n\n"
+        "请输出如下 JSON 结构：\n"
+        "{\n"
+        '  "description": "项目详细描述（2~5 句）",\n'
+        '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
+        '  "stakeholders": [\n'
+        '    {\n'
+        '      "stakeholder_type": "owner|design|epc|construction|other",\n'
+        '      "company_name": "公司全称",\n'
+        '      "department": "部门/null",\n'
+        '      "address": "公司地址/null",\n'
+        '      "phone": "电话/null",\n'
+        '      "contact_person": "联系人/null",\n'
+        '      "email": "邮箱/null",\n'
+        '      "website": "官网/null",\n'
+        '      "business_scope": "业务范围/null",\n'
+        '      "notes": "其他/null"\n'
+        '    }\n'
+        "  ]\n"
+        "}\n\n"
+        "找不到的字段设为 null。stakeholder_type 必须是上述五种枚举之一。"
+    )
+
     try:
-        _run_lost_project_research(project)
+        raw = send_claude_research_request(prompt, timeout=180)
+
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not m:
+            return jsonify(success=False, message='AI 未返回有效结果'), 500
+
+        data = json.loads(m.group())
+
+        # 更新调研记录主字段
+        desc = data.get('description')
+        if isinstance(desc, str) and desc.strip():
+            research.description = desc.strip()
+        prog = data.get('progress')
+        if isinstance(prog, str) and prog.strip():
+            research.progress = prog.strip()
         research.info_updated_at = datetime.utcnow()
         research.info_updated_by = current_user.username
+
+        # 替换利益相关方
+        ProspectStakeholder.query.filter_by(prospect_id=research.id).delete(
+            synchronize_session=False
+        )
+
+        valid_types = set(STAKEHOLDER_TYPES.keys())
+        stakeholders_payload = data.get('stakeholders') or []
+        if not isinstance(stakeholders_payload, list):
+            stakeholders_payload = []
+
+        def _clean(v):
+            """把 None / 'null' / 空串统一成 None；列表压平为换行字符串。"""
+            if v is None:
+                return None
+            if isinstance(v, list):
+                joined = '\n'.join(str(x).strip() for x in v if x)
+                return joined or None
+            s = str(v).strip()
+            if not s or s.lower() in ('null', 'none'):
+                return None
+            return s
+
+        added = 0
+        for entry in stakeholders_payload:
+            if not isinstance(entry, dict):
+                continue
+            company_name = _clean(entry.get('company_name'))
+            if not company_name:
+                continue
+            stype = (entry.get('stakeholder_type') or 'other').strip().lower()
+            if stype not in valid_types:
+                stype = 'other'
+            sk = ProspectStakeholder(
+                prospect_id=research.id,
+                stakeholder_type=stype,
+                company_name=company_name[:200],
+                department=_clean(entry.get('department')),
+                address=_clean(entry.get('address')),
+                phone=_clean(entry.get('phone')),
+                contact_person=_clean(entry.get('contact_person')),
+                email=_clean(entry.get('email')),
+                website=_clean(entry.get('website')),
+                business_scope=_clean(entry.get('business_scope')),
+                notes=_clean(entry.get('notes')),
+            )
+            db.session.add(sk)
+            added += 1
+
         db.session.commit()
-        return jsonify(success=True, message='AI 调研已触发，请稍后刷新查看结果')
+        return jsonify(success=True, message='AI 调研完成', stakeholders_count=added)
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Lost-project AI research failed")
