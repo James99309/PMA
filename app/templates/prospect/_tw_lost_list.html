@@ -11,7 +11,7 @@
 {# ── TABLE TITLE BAR (sticky) ─────────────────────────────── #}
 <div class="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8">
     <div class="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 px-4 py-3">
-        <h3 class="text-sm font-medium text-slate-900 dark:text-white">{{ _('流失项目列表') }}</h3>
+        <h3 class="text-sm font-medium text-slate-900 dark:text-white">{{ _('公共项目池') }}</h3>
         {% if region or industry or stage %}
         <span class="flex items-center gap-1 text-xs text-slate-400">
             <span class="material-symbols-outlined" style="font-size:13px;">filter_alt</span>
@@ -45,7 +45,7 @@
     min_height='400px',
     min_width='900px',
     no_top_radius=true,
-    empty_text=_('暂无流失项目'),
+    empty_text=_('暂无公共项目'),
     empty_icon='person_off'
 ) %}
 

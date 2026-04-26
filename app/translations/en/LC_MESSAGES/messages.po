@@ -18856,24 +18856,24 @@ msgid "无拥有者"
 msgstr "No Owner"
 
 #: app/templates/prospect/_tw_lost_list.html:80
-msgid "暂无流失项目"
-msgstr "No lost projects"
+msgid "暂无公共项目"
+msgstr "No public projects"
 
 #: app/templates/prospect/tw_list.html:112
 msgid "市场情报"
 msgstr "Market Intel"
 
 #: app/templates/prospect/tw_list.html:118
-msgid "流失项目"
-msgstr "Lost Projects"
+msgid "公共项目池"
+msgstr "Project Pool"
 
 #: app/templates/prospect/tw_lost_detail.html:11
-msgid "流失项目详情"
-msgstr "Lost Project Details"
+msgid "公共项目池详情"
+msgstr "Project Pool Details"
 
 #: app/templates/prospect/tw_lost_detail.html:59
-msgid "返回流失项目列表"
-msgstr "Back to Lost Projects"
+msgid "返回公共项目池"
+msgstr "Back to Project Pool"
 
 #: app/templates/prospect/tw_lost_detail.html:66
 msgid "AI 调研补全"

@@ -243,7 +243,7 @@ def lost_detail(project_id):
 
     if (project.activity_status != 'churned'
             or project.current_stage in FROZEN_STAGES):
-        flash('该项目当前不属于流失项目', 'warning')
+        flash('该项目当前不在公共项目池', 'warning')
         return redirect(url_for('prospect.list_view', tab='lost'))
 
     research = ProspectProject.query.filter_by(
@@ -316,7 +316,7 @@ def lost_apply(project_id):
         recipient_ids = [u.id for u in admins]
 
     applicant_name = current_user.real_name or current_user.username
-    title = f'{applicant_name} 申请参与流失项目《{project.project_name}》'
+    title = f'{applicant_name} 申请参与公共项目《{project.project_name}》'
 
     for rid in recipient_ids:
         msg = Message(
