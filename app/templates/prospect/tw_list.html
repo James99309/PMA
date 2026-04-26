@@ -102,6 +102,28 @@
     {# ── CONTENT ──────────────────────────────────────────────── #}
     {% elif page_slot == 'content' %}
 
+    {# ── TAB SWITCHER (intel / lost) ──────────────────────────── #}
+    <div class="border-b border-slate-200 dark:border-slate-700 mb-4">
+      <nav class="flex gap-6" aria-label="Tabs">
+        <a href="{{ url_for('prospect.list_view') }}"
+           class="py-3 px-1 border-b-2 text-sm font-medium transition-colors
+                  {% if tab != 'lost' %}border-blue-600 text-blue-600
+                  {% else %}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">
+          {{ _('市场情报') }}
+        </a>
+        <a href="{{ url_for('prospect.list_view', tab='lost') }}"
+           class="py-3 px-1 border-b-2 text-sm font-medium transition-colors
+                  {% if tab == 'lost' %}border-blue-600 text-blue-600
+                  {% else %}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">
+          {{ _('流失项目') }}
+        </a>
+      </nav>
+    </div>
+
+    {% if tab == 'lost' %}
+    {% include 'prospect/_tw_lost_list.html' %}
+    {% else %}
+
     {# ── FILTER BAR ───────────────────────────────────────────── #}
     <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-4">
         <form id="prospectFilterForm" method="GET" action="{{ url_for('prospect.list_view') }}">
@@ -370,6 +392,8 @@
     {% endfor %}
 
     {% endcall %}{# render_tw_data_table #}
+
+    {% endif %}{# tab == 'lost' #}
 
     {% endif %}{# page_slot #}
     {% endcall %}{# render_tw_fixed_page #}

@@ -1,0 +1,86 @@
+{# 流失项目列表 — 由 prospect/tw_list.html 在 tab='lost' 时 include #}
+{# 上下文: lost_projects = [Project, ...]，每个 Project 可能附加 _research (ProspectProject) #}
+<div class="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden border border-slate-200 dark:border-slate-700">
+  <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+    <thead class="bg-slate-50 dark:bg-slate-900">
+      <tr class="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <th class="px-4 py-3">{{ _('项目名称') }}</th>
+        <th class="px-4 py-3">{{ _('阶段') }}</th>
+        <th class="px-4 py-3">{{ _('行业') }}</th>
+        <th class="px-4 py-3">{{ _('地区') }}</th>
+        <th class="px-4 py-3">{{ _('投资规模') }}</th>
+        <th class="px-4 py-3">{{ _('关联方') }}</th>
+        <th class="px-4 py-3">{{ _('申领人') }}</th>
+        <th class="px-4 py-3">{{ _('活跃度') }}</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100 dark:divide-slate-700/40 bg-white dark:bg-slate-800">
+      {% set type_labels = {
+          'owner': _('建设单位'),
+          'design': _('设计院'),
+          'epc': 'EPC',
+          'construction': _('总包'),
+          'other': _('其他')
+      } %}
+      {% for p in lost_projects %}
+        {% set research = p._research if p._research is defined else None %}
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
+            onclick="window.location='{{ url_for('prospect.lost_detail', project_id=p.id) }}'">
+          <td class="px-4 py-3 text-sm">
+            <a href="{{ url_for('prospect.lost_detail', project_id=p.id) }}"
+               class="font-medium text-blue-600 hover:underline"
+               onclick="event.stopPropagation();">{{ p.project_name }}</a>
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
+            {{ p.current_stage or _('未知') }}
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
+            {{ p.industry or _('未分类') }}
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
+            {{ p.region or '-' }}
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
+            {% if research and research.total_investment %}
+              {{ research.total_investment }}
+            {% else %}-{% endif %}
+          </td>
+          <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
+            {% if research and research.stakeholders.count() > 0 %}
+              {%- set type_counts = {} -%}
+              {%- for s in research.stakeholders -%}
+                {%- set _ = type_counts.update({s.stakeholder_type: type_counts.get(s.stakeholder_type, 0) + 1}) -%}
+              {%- endfor -%}
+              {% for tcode, count in type_counts.items() %}
+                {{ type_labels.get(tcode, tcode) }} {{ count }}{% if not loop.last %} · {% endif %}
+              {% endfor %}
+            {% else %}—{% endif %}
+          </td>
+          <td class="px-4 py-3 text-sm">
+            {% if p.owner %}
+              <span class="text-slate-700 dark:text-slate-300">{{ p.owner.real_name or p.owner.username }}</span>
+              <span class="text-xs text-slate-500 ml-1">({{ _('销售') }})</span>
+            {% else %}
+              <span class="text-rose-500 dark:text-rose-400 text-xs">{{ _('无负责人') }}</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-3 text-sm">
+            <span class="inline-flex items-center rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 text-xs font-medium"
+                  title="{{ p.activity_reason or '' }}">
+              {{ _('流失') }}
+            </span>
+            {% if p.activity_reason %}
+              <div class="text-xs text-slate-500 mt-0.5">{{ p.activity_reason }}</div>
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">
+            {{ _('暂无流失项目') }}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>

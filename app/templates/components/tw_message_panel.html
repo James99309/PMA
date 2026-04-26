@@ -564,7 +564,9 @@ function messagePanel() {
                 'wiki_compile_error': 'error',
                 'wiki_promotion_request': 'arrow_upward',
                 'wiki_promotion_submitted': 'send',
-                'wiki_promotion_result': 'verified'
+                'wiki_promotion_result': 'verified',
+                // 流失项目申请
+                'prospect_claim_request': 'group_add'
             };
             return icons[item.message_type] || 'notifications';
         },
@@ -596,7 +598,9 @@ function messagePanel() {
                 'wiki_compile_error': 'bg-red-100 dark:bg-red-900/30',
                 'wiki_promotion_request': 'bg-amber-100 dark:bg-amber-900/30',
                 'wiki_promotion_submitted': 'bg-violet-100 dark:bg-violet-900/30',
-                'wiki_promotion_result': 'bg-green-100 dark:bg-green-900/30'
+                'wiki_promotion_result': 'bg-green-100 dark:bg-green-900/30',
+                // 流失项目申请
+                'prospect_claim_request': 'bg-rose-100 dark:bg-rose-900/30'
             };
             return colors[item.message_type] || 'bg-blue-100 dark:bg-blue-900/30';
         },
@@ -628,7 +632,9 @@ function messagePanel() {
                 'wiki_compile_error': 'text-red-600 dark:text-red-400',
                 'wiki_promotion_request': 'text-amber-600 dark:text-amber-400',
                 'wiki_promotion_submitted': 'text-violet-600 dark:text-violet-400',
-                'wiki_promotion_result': 'text-green-600 dark:text-green-400'
+                'wiki_promotion_result': 'text-green-600 dark:text-green-400',
+                // 流失项目申请
+                'prospect_claim_request': 'text-rose-600 dark:text-rose-400'
             };
             return colors[item.message_type] || 'text-blue-600 dark:text-blue-400';
         },
@@ -747,6 +753,12 @@ function messagePanel() {
             // Wiki 编译完成通知 → 打开文章
             if (item.message_type === 'wiki_compile' && item.related_object_id) {
                 window.location.href = `/wiki?article=${item.related_object_id}`;
+                return;
+            }
+
+            // 流失项目申请参与 → 打开项目详情页（项目负责人在那里处理）
+            if (item.message_type === 'prospect_claim_request' && item.related_object_id) {
+                window.location.href = `/project/view/${item.related_object_id}`;
                 return;
             }
 
