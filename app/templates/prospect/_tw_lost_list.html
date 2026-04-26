@@ -113,7 +113,7 @@
         {# 拥有者 #}
         <td class="p-3 whitespace-nowrap">
             {% if p.owner %}
-                {{ render_tw_owner_badge(p.owner, show_name=true) }}
+                {{ render_tw_owner_badge(p.owner) }}
             {% else %}
             <span class="inline-flex items-center gap-1 text-xs font-medium text-rose-600 dark:text-rose-400">
                 <span class="material-symbols-outlined" style="font-size:13px;">person_off</span>
