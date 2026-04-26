@@ -81,6 +81,10 @@ class ProspectStakeholder(db.Model):
     address = Column(String(300), nullable=True)
     phone = Column(String(50), nullable=True)
     contact_person = Column(String(50), nullable=True)
+    email = Column(String(200), nullable=True)
+    website = Column(String(300), nullable=True)
+    business_scope = Column(Text, nullable=True)
+    alternative_addresses = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
 
     @property

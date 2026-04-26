@@ -814,7 +814,23 @@
     let _enrichActive  = null; // { prospectId, sid, controller }
     let _enrichResults = {};   // key: "pid-sid" → server response data
 
-    const _FIELD_LABELS = { contact_person:'联系人', phone:'电话', address:'地址', notes:'备注' };
+    const _FIELD_LABELS = {
+        department:            '部门',
+        contact_person:        '联系人',
+        phone:                 '电话',
+        email:                 '邮箱',
+        address:               '主地址',
+        alternative_addresses: '备选地址',
+        website:               '官网',
+        business_scope:        '营业范围',
+        notes:                 '备注',
+    };
+    // 字段渲染顺序（决定模态框中显示的先后）
+    const _FIELD_ORDER = [
+        'department', 'contact_person', 'phone', 'email',
+        'address', 'alternative_addresses', 'website',
+        'business_scope', 'notes',
+    ];
     const _CONF_COLOR = {
         high:   'text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700',
         medium: 'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-700',
@@ -866,7 +882,8 @@
                 return;
             }
             const fields = data.fields || {};
-            if (Object.keys(fields).length === 0) {
+            const additional = data.additional || [];
+            if (Object.keys(fields).length === 0 && additional.length === 0) {
                 showToast(`${data.company_name}：未找到新联系方式`, 'info');
                 _setEnrichBtn(key, 'idle');
                 return;
@@ -919,16 +936,23 @@
     // ── Enrich result modal ─────────────────────────────────────
     let _enrichResultKey = null;
 
+    function _escapeHtml(s) {
+        return String(s || '').replace(/[&<>"']/g, c =>
+            ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
     function openEnrichResultModal(key) {
         _enrichResultKey = key;
-        const data   = _enrichResults[key];
-        const fields = data.fields || {};
-        const conf   = data.confidence || 'medium';
-        const keys   = Object.keys(fields);
-        const confLabel = {high:'高可信度', medium:'中等可信度', low:'低可信度'};
+        const data       = _enrichResults[key];
+        const fields     = data.fields || {};
+        const additional = data.additional || [];
+        const conf       = data.confidence || 'medium';
+        const fieldKeys  = _FIELD_ORDER.filter(f => fields[f]);
+        const totalCount = fieldKeys.length + additional.length;
+        const confLabel  = {high:'高可信度', medium:'中等可信度', low:'低可信度'};
 
         document.getElementById('enrich-result-subtitle').textContent =
-            `${data.company_name || ''} · 发现 ${keys.length} 个字段`;
+            `${data.company_name || ''} · 发现 ${totalCount} 项可保存内容`;
 
         let html = `
             <div class="flex items-center gap-2 mb-4 mt-1">
@@ -936,39 +960,74 @@
                     <span class="material-symbols-outlined" style="font-size:12px;">verified</span>
                     ${confLabel[conf] || '中等可信度'}
                 </span>
-            </div>
-            <div class="space-y-3">`;
+            </div>`;
 
-        keys.forEach(field => {
-            const f   = fields[field];
-            const cls = f.is_new
-                ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10'
-                : 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10';
-            const badge = f.is_new
-                ? '<span class="text-xs text-emerald-600 dark:text-emerald-400">· 新增</span>'
-                : `<span class="text-xs text-amber-600 dark:text-amber-400">· 替换「${f.existing}」</span>`;
+        // Section 1: primary fields
+        if (fieldKeys.length) {
             html += `
-                <div class="p-3 rounded-lg border ${cls}">
-                    <label class="flex items-start gap-3 cursor-pointer">
-                        <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                            data-enrich-result-field="${field}" checked onchange="updateEnrichResultCount()">
-                        <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-2 mb-1">
-                                <span class="text-xs font-semibold text-slate-600 dark:text-slate-300">${_FIELD_LABELS[field] || field}</span>
-                                ${badge}
+                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                    主联系单位字段
+                </div>
+                <div class="space-y-3">`;
+            fieldKeys.forEach(field => {
+                const f   = fields[field];
+                const cls = f.is_new
+                    ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10'
+                    : 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10';
+                const badge = f.is_new
+                    ? '<span class="text-xs text-emerald-600 dark:text-emerald-400">· 新增</span>'
+                    : `<span class="text-xs text-amber-600 dark:text-amber-400">· 替换「${_escapeHtml(f.existing)}」</span>`;
+                html += `
+                    <div class="p-3 rounded-lg border ${cls}">
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                data-enrich-result-field="${field}" checked onchange="updateEnrichResultCount()">
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-semibold text-slate-600 dark:text-slate-300">${_FIELD_LABELS[field] || field}</span>
+                                    ${badge}
+                                </div>
+                                <p class="text-sm text-slate-800 dark:text-slate-200 font-medium whitespace-pre-line">${_escapeHtml(f.suggested)}</p>
                             </div>
-                            <p class="text-sm text-slate-800 dark:text-slate-200 font-medium">${f.suggested}</p>
-                        </div>
-                    </label>
-                </div>`;
-        });
-        html += '</div>';
+                        </label>
+                    </div>`;
+            });
+            html += '</div>';
+        }
+
+        // Section 2: additional contacts (each becomes a new ProspectStakeholder row)
+        if (additional.length) {
+            html += `
+                <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 mt-5">
+                    新增联系人 <span class="text-emerald-500 ml-1">(每条勾选会创建一行同公司联系人)</span>
+                </div>
+                <div class="space-y-3">`;
+            additional.forEach((c, idx) => {
+                const summary = [c.department, c.contact_person, c.phone].filter(Boolean).join(' · ');
+                html += `
+                    <div class="p-3 rounded-lg border border-sky-200 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-900/10">
+                        <label class="flex items-start gap-3 cursor-pointer">
+                            <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                data-enrich-result-additional="${idx}" checked onchange="updateEnrichResultCount()">
+                            <div class="min-w-0 flex-1 space-y-1">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-semibold text-sky-700 dark:text-sky-300">${_escapeHtml(summary || '联系人')}</span>
+                                    <span class="text-xs text-sky-600 dark:text-sky-400">· 新增行</span>
+                                </div>
+                                ${c.email ? `<p class="text-xs text-slate-600 dark:text-slate-400">📧 ${_escapeHtml(c.email)}</p>` : ''}
+                                ${c.role_description ? `<p class="text-xs text-slate-500 dark:text-slate-400">${_escapeHtml(c.role_description)}</p>` : ''}
+                            </div>
+                        </label>
+                    </div>`;
+            });
+            html += '</div>';
+        }
 
         if (data.sources && data.sources.length) {
             html += `<div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
                 <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">信息来源</p><ul class="space-y-0.5">`;
             data.sources.forEach(s => {
-                html += `<li class="text-xs text-slate-400 dark:text-slate-500 truncate">· ${s}</li>`;
+                html += `<li class="text-xs text-slate-400 dark:text-slate-500 truncate">· ${_escapeHtml(s)}</li>`;
             });
             html += '</ul></div>';
         }
@@ -980,14 +1039,17 @@
     }
 
     function updateEnrichResultCount() {
-        const n = document.querySelectorAll('#enrich-result-body input[data-enrich-result-field]:checked').length;
-        document.getElementById('enrich-result-save-label').textContent = n > 0 ? `保存选中 (${n})` : '保存选中';
-        document.getElementById('enrich-result-save-btn').disabled = n === 0;
+        const fieldsN     = document.querySelectorAll('#enrich-result-body input[data-enrich-result-field]:checked').length;
+        const additionalN = document.querySelectorAll('#enrich-result-body input[data-enrich-result-additional]:checked').length;
+        const total       = fieldsN + additionalN;
+        document.getElementById('enrich-result-save-label').textContent = total > 0 ? `保存选中 (${total})` : '保存选中';
+        document.getElementById('enrich-result-save-btn').disabled = total === 0;
     }
 
     function saveEnrichSelected() {
-        const data   = _enrichResults[_enrichResultKey];
-        const fields = data ? (data.fields || {}) : {};
+        const data       = _enrichResults[_enrichResultKey];
+        const fields     = data ? (data.fields || {}) : {};
+        const additional = data ? (data.additional || []) : [];
         const [prospectId, sid] = _enrichResultKey.split('-').map(Number);
         const btn = document.getElementById('enrich-result-save-btn');
 
@@ -1000,31 +1062,41 @@
             if (fields[f]) toSave[f] = fields[f].suggested;
         });
 
+        const toCreate = [];
+        document.querySelectorAll('#enrich-result-body input[data-enrich-result-additional]:checked').forEach(cb => {
+            const idx = parseInt(cb.dataset.enrichResultAdditional, 10);
+            if (additional[idx]) toCreate.push(additional[idx]);
+        });
+
         fetch(`/prospect/${prospectId}/stakeholder/${sid}/update-fields`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
             },
-            body: JSON.stringify({ fields: toSave })
+            body: JSON.stringify({ fields: toSave, additional_contacts: toCreate })
         })
         .then(r => r.json())
         .then(resp => {
             if (resp.success) {
-                // Clear done state for this key
                 delete _enrichResults[_enrichResultKey];
                 _setEnrichBtn(_enrichResultKey, 'idle');
                 document.getElementById('enrich-result-save-btn').classList.add('hidden');
+                const updatedN = (resp.updated || []).length;
+                const createdN = (resp.created_ids || []).length;
+                const parts = [];
+                if (updatedN) parts.push(`更新 ${updatedN} 个字段`);
+                if (createdN) parts.push(`新增 ${createdN} 位联系人`);
                 document.getElementById('enrich-result-body').innerHTML = `
                     <div class="flex flex-col items-center justify-center py-10 text-center">
                         <span class="material-symbols-outlined text-emerald-500 mb-3" style="font-size:40px;">check_circle</span>
                         <p class="text-base font-semibold text-slate-800 dark:text-slate-200">保存成功</p>
-                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">已更新 ${resp.updated.length} 个字段</p>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${parts.join('，') || '未变更'}</p>
                     </div>`;
                 setTimeout(() => {
                     closeEnrichResultModal();
                     if (_currentProspectId == prospectId) openProspectDetail(prospectId);
-                }, 1100);
+                }, 1200);
             } else {
                 showToast(resp.message || '保存失败', 'error');
                 btn.disabled = false;

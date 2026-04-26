@@ -345,18 +345,36 @@ def stakeholder_ai_enrich(id, sid):
         known.append(f"已知电话：{s.phone}")
 
     prompt = (
-        "你是商务情报调研助手。请通过网络搜索，调研下列企业的联系方式，用于商业拜访。\n\n"
+        "你是商务情报调研助手。请通过网络搜索，调研下列企业的结构化联系信息，用于商业拜访。\n\n"
         "背景：\n" + "\n".join(ctx) + "\n\n"
         f"调研对象：{s.company_name}（角色：{type_name}）\n"
         + ("\n".join(known) + "\n" if known else "")
-        + "\n请搜索该企业官网、招聘平台、企查查等，找出：\n"
-        "1. 关键联系人（技术/采购/项目负责人）及电话\n"
-        "2. 企业详细地址\n"
-        "3. 其他有价值的商务信息（官网、邮箱、主要业务）\n\n"
-        "返回严格 JSON，不含其他文字：\n"
-        '{"contact_person":"联系人姓名职位","phone":"电话","address":"详细地址",'
-        '"notes":"其他信息","confidence":"high/medium/low","sources":["来源"]}\n'
-        "找不到的字段设为 null。"
+        + "\n请搜索官网、招聘平台、企查查、招标公告等，尽量找出：\n"
+        "1. 关键对口部门及负责人（招标/采购/技术/项目/电信仪表 等），"
+           "如果存在多个部门联系人，全部返回\n"
+        "2. 企业主地址 + 备选地址（官网登记 vs 工商登记可能不同，都要列出）\n"
+        "3. 官网 URL、对外邮箱（招聘/招标）、主营业务范围\n\n"
+        "返回严格 JSON，不含其他文字，结构如下：\n"
+        '{\n'
+        '  "primary": {\n'
+        '    "department": "对口部门名(选最相关的一个)",\n'
+        '    "contact_person": "姓名(可附职位)",\n'
+        '    "phone": "电话",\n'
+        '    "email": "邮箱",\n'
+        '    "address": "最权威的主地址",\n'
+        '    "alternative_addresses": ["备选地址1", "备选地址2"],\n'
+        '    "website": "官网URL",\n'
+        '    "business_scope": "主营业务/营业范围",\n'
+        '    "notes": "其他补充信息(招标平台/招聘邮箱/总机等)"\n'
+        '  },\n'
+        '  "additional_contacts": [\n'
+        '    {"department":"另一个部门","contact_person":"姓名","phone":"...","email":"...","role_description":"职责说明"}\n'
+        '  ],\n'
+        '  "confidence": "high|medium|low",\n'
+        '  "sources": ["来源URL或平台"]\n'
+        '}\n'
+        '说明：找不到的字段设为 null（数组找不到设为空数组 []）。'
+        'additional_contacts 仅放与 primary 不同部门/不同人的联系人，避免重复。'
     )
 
     try:
@@ -370,16 +388,37 @@ def stakeholder_ai_enrich(id, sid):
             return jsonify({'success': False, 'message': 'AI未返回有效结果'}), 500
 
         sug = json.loads(m.group())
+        primary = sug.get('primary') or {}
 
+        # 兼容旧 prompt 形态：如果没有 primary 包装，把顶层视作 primary
+        if not primary and any(k in sug for k in ('contact_person', 'phone', 'address')):
+            primary = {k: sug.get(k) for k in (
+                'contact_person', 'phone', 'address', 'notes',
+                'email', 'website', 'business_scope', 'department',
+            ) if sug.get(k)}
+            alt = sug.get('alternative_addresses')
+            if alt:
+                primary['alternative_addresses'] = alt
+
+        # primary 字段对照现有值
         existing = {
-            'contact_person': s.contact_person or '',
-            'phone':          s.phone or '',
-            'address':        s.address or '',
-            'notes':          s.notes or '',
+            'department':            s.department or '',
+            'contact_person':        s.contact_person or '',
+            'phone':                 s.phone or '',
+            'email':                 s.email or '',
+            'address':               s.address or '',
+            'alternative_addresses': s.alternative_addresses or '',
+            'website':               s.website or '',
+            'business_scope':        s.business_scope or '',
+            'notes':                 s.notes or '',
         }
+
         fields = {}
-        for field in ('contact_person', 'phone', 'address', 'notes'):
-            val = sug.get(field)
+        for field in existing.keys():
+            val = primary.get(field)
+            # alternative_addresses 是数组，转成换行字符串
+            if field == 'alternative_addresses' and isinstance(val, list):
+                val = '\n'.join(str(x).strip() for x in val if x)
             if val and str(val).strip().lower() not in ('', 'null', 'none'):
                 fields[field] = {
                     'suggested': str(val).strip(),
@@ -387,11 +426,33 @@ def stakeholder_ai_enrich(id, sid):
                     'is_new':    not existing[field],
                 }
 
+        # 过滤 additional_contacts：去掉空记录和与 primary 重复的
+        primary_person = (primary.get('contact_person') or '').strip()
+        additional = []
+        for item in (sug.get('additional_contacts') or []):
+            if not isinstance(item, dict):
+                continue
+            person = (item.get('contact_person') or '').strip()
+            phone  = (item.get('phone') or '').strip()
+            dept   = (item.get('department') or '').strip()
+            if not (person or phone or dept):
+                continue
+            if person and person == primary_person:
+                continue
+            additional.append({
+                'department':       dept,
+                'contact_person':   person,
+                'phone':            phone,
+                'email':            (item.get('email') or '').strip(),
+                'role_description': (item.get('role_description') or '').strip(),
+            })
+
         return jsonify({
             'success':        True,
             'stakeholder_id': sid,
             'company_name':   s.company_name,
             'fields':         fields,
+            'additional':     additional,
             'confidence':     sug.get('confidence', 'medium'),
             'sources':        sug.get('sources', []),
         })
@@ -410,7 +471,12 @@ def stakeholder_update_fields(id, sid):
 
     data    = request.json or {}
     fields  = data.get('fields', {})
-    allowed = {'contact_person', 'phone', 'address', 'notes'}
+    additional = data.get('additional_contacts', []) or []
+    allowed = {
+        'department', 'contact_person', 'phone', 'email',
+        'address', 'alternative_addresses', 'website',
+        'business_scope', 'notes',
+    }
     updated = []
 
     for field, value in fields.items():
@@ -418,12 +484,41 @@ def stakeholder_update_fields(id, sid):
             setattr(s, field, str(value).strip() if value else None)
             updated.append(field)
 
-    if updated:
+    # 为每个被勾选的 additional contact 创建一个新的 ProspectStakeholder 行
+    # 同 prospect_id、同 company_name、同 stakeholder_type，department/contact_person 区分
+    created_ids = []
+    for item in additional:
+        if not isinstance(item, dict):
+            continue
+        person = (item.get('contact_person') or '').strip()
+        phone  = (item.get('phone') or '').strip()
+        dept   = (item.get('department') or '').strip()
+        if not (person or phone or dept):
+            continue
+        new_row = ProspectStakeholder(
+            prospect_id=p.id,
+            stakeholder_type=s.stakeholder_type,
+            company_name=s.company_name,
+            department=dept or None,
+            contact_person=person or None,
+            phone=phone or None,
+            email=(item.get('email') or '').strip() or None,
+            notes=(item.get('role_description') or '').strip() or None,
+        )
+        db.session.add(new_row)
+        db.session.flush()
+        created_ids.append(new_row.id)
+
+    if updated or created_ids:
         p.info_updated_at = datetime.utcnow()
         p.info_updated_by = f'AI调研 ({current_user.real_name or current_user.username})'
         db.session.commit()
 
-    return jsonify({'success': True, 'updated': updated})
+    return jsonify({
+        'success': True,
+        'updated': updated,
+        'created_ids': created_ids,
+    })
 
 
 # ─── 管理员 CRUD ───────────────────────────────────────────────

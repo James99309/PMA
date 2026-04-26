@@ -131,9 +131,30 @@
                             {{ s.address }}
                         </span>
                         {% endif %}
+                        {% if s.email %}
+                        <span class="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                            <span class="material-symbols-outlined" style="font-size:12px;">mail</span>
+                            {{ s.email }}
+                        </span>
+                        {% endif %}
+                        {% if s.website %}
+                        <a href="{{ s.website }}" target="_blank" rel="noopener" onclick="event.stopPropagation();"
+                           class="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline truncate max-w-[180px]" title="{{ s.website }}">
+                            <span class="material-symbols-outlined" style="font-size:12px;">language</span>
+                            {{ s.website }}
+                        </a>
+                        {% endif %}
                     </div>
+                    {% if s.alternative_addresses %}
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 whitespace-pre-line">备选地址：{{ s.alternative_addresses }}</p>
+                    {% endif %}
+                    {% if s.business_scope %}
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2" title="{{ s.business_scope }}">
+                        营业范围：{{ s.business_scope }}
+                    </p>
+                    {% endif %}
                     {% if s.notes %}
-                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 italic">{{ s.notes }}</p>
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 italic line-clamp-3">{{ s.notes }}</p>
                     {% endif %}
                     {# AI enrich button — state managed by JS #}
                     <div class="flex justify-end mt-2">
