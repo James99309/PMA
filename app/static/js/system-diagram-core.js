@@ -488,8 +488,8 @@ function addNode(sub,x,y){
     products:products,
     x:Math.round(x/10)*10,y:Math.round(y/10)*10,w:NODE_SIZE,h:NODE_SIZE,qty:1,label:'',hideLabel:false,
     floor_id:null, area_label:'', floor_label:'',
-    // 楼栋归属：null = 中央机房（共享），跨楼栋设备
-    building_id:null,
+    // 三态归属：building_id 有值=已指定；null+is_shared=true=显式公共；null+is_shared=false=未指定（自动布局会高亮警告）
+    building_id:null, is_shared:false,
     // 是否出现在系统图。系统图直接添加默认 true；平面图新建默认 false（要点同步按钮才进系统图）
     in_topology:true
   };
@@ -606,30 +606,12 @@ svg.addEventListener('mousedown',e=>{if(e.target===svg||(e.target.tagName==='rec
     isPanning=true;panStartX=e.clientX;panStartY=e.clientY;panViewX=viewX;panViewY=viewY;
     if(isSpaceDown)document.getElementById('diagramCanvas').style.cursor='grabbing';
   }
-  if(!isConnecting&&!isBoxSelecting){const isAreaClick=e.target.closest&&e.target.closest('.floor-area');if(!e.shiftKey&&!isAreaClick){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedAreaId!=='undefined')selectedAreaId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;renderAll();hideProps();if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}}}});
+  if(!isConnecting&&!isBoxSelecting){const isAreaClick=e.target.closest&&e.target.closest('.floor-area');if(!e.shiftKey&&!isAreaClick){selectedNodeIds=new Set();selectedEdgeIds=new Set();selectedNodeId=null;selectedEdgeId=null;if(typeof selectedAreaId!=='undefined')selectedAreaId=null;if(typeof selectedRouteId!=='undefined')selectedRouteId=null;if(typeof _focusedFloorAreaId!=='undefined'&&_focusedFloorAreaId){_focusedFloorAreaId=null;if(typeof rebuildViewTabs==='function')rebuildViewTabs()}renderAll();hideProps();if(typeof highlightConnectedInPanel==='function')highlightConnectedInPanel(null)}}}});
 svg.addEventListener('wheel',e=>{e.preventDefault();zoomCanvas(e.deltaY>0?1/1.06:1.06,e.clientX,e.clientY)},{passive:false});
 
 function getZoomLimits(){
-  if(typeof getFloorPlan!=='function'||typeof currentView==='undefined')return{min:0.05,max:5};
-  const fp=getFloorPlan(currentView);
-  if(!fp||!fp.background)return{min:0.05,max:5};
-  // 已标定的楼层：背景已在物理比例，限制最大缩放为150%
-  if(fp.calibration&&fp.calibration.px_per_meter){
-    const minZoom=Math.max(0.02,600/fp.background.width);
-    return{min:minZoom,max:1.5};
-  }
-  // 未标定：保持原有逻辑
-  const bgW=fp.background.width;
-  if(fp.background.is_multi_res&&fp.background.resolutions){
-    const best=fp.background.resolutions['8000']||fp.background.resolutions['4000'];
-    if(best){
-      const highestRes=Math.max(best.width,best.height);
-      const maxZoom=Math.max(7,(highestRes*1.5)/bgW);
-      const minZoom=Math.max(0.02,600/bgW);
-      return{min:minZoom,max:Math.max(maxZoom,minZoom+0.01)};
-    }
-  }
-  return{min:0.05,max:5};
+  // 统一缩放范围：min 10%, max 150%。确保不同物理尺寸的底图有相同的缩放颗粒度
+  return{min:0.1,max:1.5};
 }
 function zoomCanvas(f,cx,cy){const old=scale;const limits=getZoomLimits();scale=Math.max(limits.min,Math.min(limits.max,scale*f));if(cx!==undefined){const r=wrapper.getBoundingClientRect();const mx=cx-r.left,my=cy-r.top;viewX=mx-(mx-viewX)*(scale/old);viewY=my-(my-viewY)*(scale/old)}updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale)}
 let _fitViewRetries=0;
@@ -657,7 +639,23 @@ function fitView(){
   const dw=x2-x1+pad*2,dh=y2-y1+pad*2;const limits=getZoomLimits();scale=Math.max(limits.min,Math.min(cw/dw,ch/dh,limits.max));viewX=(cw-dw*scale)/2-x1*scale+pad*scale;viewY=(ch-dh*scale)/2-y1*scale+pad*scale;updateTransform();document.getElementById('zoomLevel').textContent=Math.round(scale*100)+'%';if(typeof onScaleChanged==='function')onScaleChanged(scale);
 }
 function resetZoom(){scale=1;viewX=0;viewY=0;updateTransform();document.getElementById('zoomLevel').textContent='100%';if(typeof onScaleChanged==='function')onScaleChanged(scale)}
-function updateTransform(){document.getElementById('canvasGroup').setAttribute('transform',`translate(${viewX},${viewY}) scale(${scale})`);updateMinimap()}
+// 居中到某个 area（用于点击虚拟楼层 tab 时把该区域定位到画布中心）
+function centerOnArea(area, padFactor=1.15){
+  if(!area||!wrapper)return;
+  const cw=wrapper.clientWidth, ch=wrapper.clientHeight;
+  const w=Math.max(area.width,1)*padFactor, h=Math.max(area.height,1)*padFactor;
+  const limits=getZoomLimits();
+  scale=Math.max(limits.min, Math.min(cw/w, ch/h, limits.max));
+  const acx=area.x+area.width/2, acy=area.y+area.height/2;
+  viewX=cw/2 - acx*scale;
+  viewY=ch/2 - acy*scale;
+  updateTransform();
+  const zl=document.getElementById('zoomLevel');if(zl)zl.textContent=Math.round(scale*100)+'%';
+  if(typeof onScaleChanged==='function')onScaleChanged(scale);
+}
+// 当前聚光灯锁定的 floor area id（仅由楼层 tab 点击触发；空白点击/切 tab/切视图清除）
+let _focusedFloorAreaId=null;
+function updateTransform(){document.getElementById('canvasGroup').setAttribute('transform',`translate(${viewX},${viewY}) scale(${scale})`);updateMinimap();if(typeof _focusedFloorAreaId!=='undefined'&&_focusedFloorAreaId&&typeof getFloorPlan==='function'&&typeof positionSpotlightMask==='function'){const _fp=getFloorPlan(currentView);if(_fp){const _a=(_fp.areas||[]).find(a=>a.id===_focusedFloorAreaId);if(_a)positionSpotlightMask(_a)}}}
 function updateInfo(){document.getElementById('canvasInfo').textContent=`${_t('节点')}: ${nodes.length} | ${_t('连线')}: ${edges.length}`}
 function updateMinimap(){const mn=document.getElementById('minimapNodes');mn.innerHTML='';nodes.forEach(n=>{const r=document.createElementNS('http://www.w3.org/2000/svg','rect');r.setAttribute('x',n.x);r.setAttribute('y',n.y);r.setAttribute('width',n.w);r.setAttribute('height',n.h);r.setAttribute('fill',n.color);r.setAttribute('opacity',.6);r.setAttribute('rx',4);mn.appendChild(r)});edges.forEach(edge=>{const s=nodes.find(n=>n.id===edge.sourceId),t=nodes.find(n=>n.id===edge.targetId);if(!s||!t)return;const l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('x1',s.x+s.w/2);l.setAttribute('y1',s.y+s.h/2);l.setAttribute('x2',t.x+t.w/2);l.setAttribute('y2',t.y+t.h/2);l.setAttribute('stroke',edge.color);l.setAttribute('stroke-width',Math.max(edge.width||2,2));l.setAttribute('opacity',.4);mn.appendChild(l)});const cw=wrapper.clientWidth,ch=wrapper.clientHeight,vp=document.getElementById('minimapViewport');vp.setAttribute('x',-viewX/scale);vp.setAttribute('y',-viewY/scale);vp.setAttribute('width',cw/scale);vp.setAttribute('height',ch/scale)}
 
@@ -669,7 +667,7 @@ function snapshotState(){
       name:n.name,model:n.model,category:n.category,color:n.color,
       x:n.x,y:n.y,w:n.w,h:n.h,qty:n.qty,label:n.label,hideLabel:n.hideLabel||false,
       floor_id:n.floor_id||null,area_label:n.area_label||'',floor_label:n.floor_label||'',
-      building_id:n.building_id||null,
+      building_id:n.building_id||null, is_shared:n.is_shared===true,
       in_topology:n.in_topology!==false,
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
       labelPosition:n.labelPosition||null,locked:n.locked||false,
@@ -1086,19 +1084,84 @@ async function prepareExportSVG(cropBounds,blackMode){
     if(bgRect){bgRect.setAttribute('x',x1-pad);bgRect.setAttribute('y',y1-pad);bgRect.setAttribute('width',w);bgRect.setAttribute('height',h);bgRect.setAttribute('fill',v('--bg-canvas'))}
   }else if(nodes.length){
     let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
-    nodes.forEach(n=>{x1=Math.min(x1,n.x-30);y1=Math.min(y1,n.y-30);x2=Math.max(x2,n.x+n.w+30);y2=Math.max(y2,n.y+n.h+50)});
+    nodes.forEach(n=>{
+      if(n.in_topology===false)return;
+      x1=Math.min(x1,n.x-30);y1=Math.min(y1,n.y-30);x2=Math.max(x2,n.x+n.w+30);y2=Math.max(y2,n.y+n.h+50);
+    });
     edges.forEach(edge=>{
       if(!edge.label||edge.hideLabel)return;
       const result=buildEdgePath(edge);if(!result)return;
       const mid=getPathMidpoint(result,edge);
       x1=Math.min(x1,mid.x-60);y1=Math.min(y1,mid.y-20);x2=Math.max(x2,mid.x+60);y2=Math.max(y2,mid.y+20);
     });
-    const pad=40;w=x2-x1+pad*2;h=y2-y1+pad*2;
-    clone.setAttribute('viewBox',`${x1-pad} ${y1-pad} ${w} ${h}`);
+    // 包含楼栋标签（在节点最顶 -60 处，字号 56px）
+    if(typeof buildings!=='undefined'&&buildings.length){
+      buildings.forEach(b=>{
+        const bNodes=nodes.filter(n=>n.building_id===b.id&&n.floor_id&&n.in_topology!==false);
+        if(!bNodes.length)return;
+        const bMinY=Math.min(...bNodes.map(n=>n.y));
+        const bXs=bNodes.map(n=>n.x+(n.w||NODE_SIZE)/2).sort((a,b)=>a-b);
+        const bCenterX=bXs[Math.floor(bXs.length/2)];
+        const labelW=(b.name||'').length*32+40;
+        x1=Math.min(x1, bCenterX-labelW/2-10);
+        x2=Math.max(x2, bCenterX+labelW/2+10);
+        y1=Math.min(y1, bMinY-60-56-10);  // labelY - fontSize - margin
+      });
+    }
+    // 包含 topo areas（中央机房等）
+    if(typeof topoAreas!=='undefined'&&topoAreas.length){
+      topoAreas.forEach(a=>{
+        x1=Math.min(x1,a.x-10);y1=Math.min(y1,a.y-10);
+        x2=Math.max(x2,a.x+a.width+10);y2=Math.max(y2,a.y+a.height+10);
+      });
+    }
+    // 留白区域 + 底部项目名称标题 + 下划线
+    const pad=80;          // 四周留白（更宽以让图纸更规范）
+    const footerH=140;     // 底部标题区域高度（含间距 + 字号 + 下划线）
+    w=x2-x1+pad*2;h=y2-y1+pad*2+footerH;
+    const vbX=x1-pad, vbY=y1-pad;
+    clone.setAttribute('viewBox',`${vbX} ${vbY} ${w} ${h}`);
     clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
     const cg=clone.querySelector('#canvasGroup');if(cg)cg.setAttribute('transform','translate(0,0) scale(1)');
     const bgRect=clone.querySelector(':scope > rect');
-    if(bgRect){bgRect.setAttribute('x',x1-pad);bgRect.setAttribute('y',y1-pad);bgRect.setAttribute('width',w);bgRect.setAttribute('height',h);bgRect.setAttribute('fill',v('--bg-canvas'))}
+    if(bgRect){bgRect.setAttribute('x',vbX);bgRect.setAttribute('y',vbY);bgRect.setAttribute('width',w);bgRect.setAttribute('height',h);bgRect.setAttribute('fill',v('--bg-canvas'))}
+    // 底部标题：项目名 + 系统图（基线居中），下方画一条下划线
+    {
+      const _diagEl=document.getElementById('diagramNameInput');
+      const _baseName=((_diagEl&&(_diagEl.value||_diagEl.textContent))||'').trim()||_t('系统图');
+      const _titleText=_baseName.endsWith(_t('系统图'))?_baseName:(_baseName+' · '+_t('系统图'));
+      const _titleY=y2+pad+50;       // 标题基线 Y
+      const _underlineY=_titleY+20;  // 下划线 Y
+      const _centerX=(x1+x2)/2;
+      const _NS='http://www.w3.org/2000/svg';
+      const _title=document.createElementNS(_NS,'text');
+      _title.setAttribute('x',_centerX);
+      _title.setAttribute('y',_titleY);
+      _title.setAttribute('text-anchor','middle');
+      _title.setAttribute('font-size','42');
+      _title.setAttribute('font-weight','600');
+      _title.setAttribute('fill',blackMode?'#000':'#1f2937');
+      _title.setAttribute('font-family',"-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC',sans-serif");
+      _title.textContent=_titleText;
+      clone.appendChild(_title);
+      // 估算标题宽度：中英文混合，中文按 1em，· 和空格按 0.5em；font-size=42
+      const _titleW=_titleText.length*42*0.85;
+      const _lineMargin=60;  // 标题两侧延伸长度
+      const _lineX1=_centerX-_titleW/2-_lineMargin;
+      const _lineX2=_centerX+_titleW/2+_lineMargin;
+      const _strokeColor=blackMode?'#000':'#6b7280';
+      // 双划线：上下两条平行线，间距 5px
+      [0,5].forEach(_off=>{
+        const _line=document.createElementNS(_NS,'line');
+        _line.setAttribute('x1',_lineX1);
+        _line.setAttribute('y1',_underlineY+_off);
+        _line.setAttribute('x2',_lineX2);
+        _line.setAttribute('y2',_underlineY+_off);
+        _line.setAttribute('stroke',_strokeColor);
+        _line.setAttribute('stroke-width','1.5');
+        clone.appendChild(_line);
+      });
+    }
   }
   clone.setAttribute('width',w);clone.setAttribute('height',h);
   return {clone,w,h};
@@ -1108,7 +1171,9 @@ function getExportName(){
   const el=document.getElementById('diagramNameInput');
   const base=(el.value||el.textContent||'').trim()||_t('系统图');
   if(currentView!=='topology'){const fp=getFloorPlan(currentView);if(fp)return base+'_'+fp.label}
-  return base;
+  // 系统图视图：base 后追加 "_系统图" 后缀（防重复）
+  const sysSuffix=_t('系统图');
+  return base.endsWith(sysSuffix)?base:(base+'_'+sysSuffix);
 }
 
 async function exportSVG(){
@@ -1190,6 +1255,14 @@ function updateDwgExportMenuItem() {
   item.style.display = currentFloorHasDwg() ? 'flex' : 'none';
 }
 
+// 虚拟楼层（聚光灯模式）下整体隐藏导出按钮 —— 只对真实底图开放导出
+function updateExportBtnVisibility() {
+  const wrap = document.getElementById('exportBtnWrap');
+  if (!wrap) return;
+  const onVirtualFloor = (typeof _focusedFloorAreaId !== 'undefined' && _focusedFloorAreaId);
+  wrap.style.display = onVirtualFloor ? 'none' : '';
+}
+
 async function exportDWG() {
   if (!currentFloorHasDwg()) { showToast(_t('当前楼层无 DXF 底图')); return; }
   const fp = getFloorPlan(currentView);
@@ -1245,7 +1318,8 @@ async function exportDWG() {
       let coverage = null;
       if (n) {
         const coverageMode = displaySettings.showCoverage;
-        const isAntenna = (typeof getNodeIconKey === 'function') && getNodeIconKey(n) === 'antenna_indoor';
+        const iconKey = (typeof getNodeIconKey === 'function') ? getNodeIconKey(n) : '';
+        const isAntenna = iconKey === 'antenna_indoor';
         const shouldShowCov = isAntenna && (
           coverageMode === 'all' ||
           (coverageMode === 'individual' && n.showCoverage === true)
@@ -1259,6 +1333,10 @@ async function exportDWG() {
             const exportVis = [0, 1].map(i => vis[i] !== false && displaySettings[ringKeys[i]] !== false);
             coverage = { radii: radii, visible: exportVis };
           }
+        }
+        // 诊断：天线类节点必报，看为什么不出 coverage
+        if (iconKey && iconKey.startsWith('antenna')) {
+          console.log(`[dxf-cov] node=${n.name} id=${n.id} iconKey=${iconKey} mode=${coverageMode} showCov=${n.showCoverage} radii=${JSON.stringify(n.coverageRadii)} coverageN=${n.coverageN} → ${coverage?'EXPORTED':'SKIPPED'}`);
         }
       }
       return {
@@ -1299,6 +1377,8 @@ async function exportDWG() {
       bg_height_px: bg.height || 0,
       offset_x: bg.offset_x || 0,
       offset_y: bg.offset_y || 0,
+      // 校准比例：编辑器每米对应的像素数。后端用它把覆盖圆的"米"换算到源 DXF 单位。
+      px_per_meter: (fp.calibration && fp.calibration.px_per_meter) || null,
       nodes: nodesArr,
       routes: routesArr,
       areas: areasArr,
@@ -1311,7 +1391,8 @@ async function exportDWG() {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': DIAGRAM_CONFIG.csrfToken },
         body: JSON.stringify({
           dxf_filename: fp.background.dxf_filename,
-          diagram_name: document.getElementById('diagramNameInput')?.value || 'diagram',
+          // 后端用此名构造 Content-Disposition；前端再用 fp.label + 平面图 兜底
+          diagram_name: (fp.label || document.getElementById('diagramNameInput')?.value || 'diagram') + '_' + _t('平面图'),
           elements: elements,
         })
       }
@@ -1324,24 +1405,43 @@ async function exportDWG() {
     }
 
     const blob = await resp.blob();
+    if (!blob || blob.size === 0) {
+      showToast(_t('导出失败：返回文件为空'));
+      return;
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const name = document.getElementById('diagramNameInput')?.value || 'diagram';
+    // 文件名 = 当前底图名 + "_平面图"
+    const fpLabel = (fp && fp.label) ? fp.label : (document.getElementById('diagramNameInput')?.value || 'diagram');
+    const name = fpLabel + '_' + _t('平面图');
     let ext = 'dxf';
     const cd = resp.headers.get('Content-Disposition') || '';
-    const m = cd.match(/filename="?([^"]+)"?/i);
-    if (m) {
-      const fn = m[1];
+    // 优先读 RFC 5987 的 filename*=UTF-8''...（含中文），降级到 filename="..."
+    let fn = '';
+    const m5987 = cd.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+    if (m5987) {
+      try { fn = decodeURIComponent(m5987[1].trim()); } catch (e) { fn = m5987[1]; }
+    } else {
+      const m = cd.match(/filename="?([^"]+)"?/i);
+      if (m) fn = m[1];
+    }
+    if (fn) {
       const dot = fn.lastIndexOf('.');
       if (dot > 0) ext = fn.slice(dot + 1);
     }
     a.download = name + '.' + ext;
+    // 部分浏览器要求 anchor 在 DOM 中才能触发下载
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 100);
     showToast(_t('已导出') + ' ' + ext.toUpperCase());
   } catch (err) {
-    showToast(_t('导出失败') + ': ' + err.message);
+    console.error('[exportDWG]', err);
+    showToast(_t('导出失败') + ': ' + (err.message || err));
   }
 }
 
@@ -1434,7 +1534,7 @@ function serializeDiagram(){
       name:n.name,model:n.model,category:n.category,color:n.color,
       x:n.x,y:n.y,w:n.w,h:n.h,qty:n.qty,label:n.label,hideLabel:n.hideLabel||false,
       floor_id:n.floor_id||null,area_label:n.area_label||'',floor_label:n.floor_label||'',
-      building_id:n.building_id||null,
+      building_id:n.building_id||null, is_shared:n.is_shared===true,
       in_topology:n.in_topology!==false,
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
       labelPosition:n.labelPosition||null,locked:n.locked||false,
@@ -1651,6 +1751,8 @@ function switchView(viewId){
     const fp=getFloorPlan(currentView);
     if(fp){fp.viewX=viewX;fp.viewY=viewY;fp.scale=scale}
   }
+  // 切视图时清除楼层聚焦
+  _focusedFloorAreaId=null;
   currentView=viewId;
   // Restore new view state
   let needsFitView=false;
@@ -1717,8 +1819,22 @@ function addFloorPlan(buildingId){
   // Count existing floors in this building for auto-labeling
   const bldFloors=buildingId?floorPlans.filter(fp=>fp.building_id===buildingId):floorPlans;
   const label=(bldFloors.length+1)+'F';
+  // 计算该楼栋下当前 tab 最大 tab_sort_order（含真实 fp 与虚拟 floor area），新 fp 排到末尾
+  let _maxSO=0;
+  floorPlans.forEach(fp=>{
+    if((fp.building_id||null)===(buildingId||null)){
+      const so=(fp.tab_sort_order!=null?fp.tab_sort_order:(fp.sort_order||0));
+      if(so>_maxSO)_maxSO=so;
+    }
+    (fp.areas||[]).forEach(a=>{
+      if(a.area_type==='floor'){
+        const aBld=a.building_id||fp.building_id||null;
+        if(aBld===(buildingId||null)&&(a.tab_sort_order||0)>_maxSO)_maxSO=a.tab_sort_order||0;
+      }
+    });
+  });
   floorPlans.push({
-    id:id,label:label,sort_order:floorPlans.length+1,
+    id:id,label:label,sort_order:floorPlans.length+1,tab_sort_order:_maxSO+1,
     building_id:buildingId||null,
     background:null,calibration:null,
     placements:[],routes:[],areas:[],
@@ -1752,6 +1868,28 @@ function renameFloorPlan(fpId,newLabel){
 let _activeBuildingFilter=null;
 // 记住每个楼栋最后一次查看的楼层，切楼栋时默认回到那个楼层
 let _lastFloorByBuilding={};
+
+// hex/named color → rgba(...) with alpha
+function _hexToRgba(c, a){
+  if(!c)return `rgba(100,116,139,${a})`;
+  c=String(c).trim();
+  if(c.startsWith('#')){
+    let h=c.slice(1);
+    if(h.length===3)h=h.split('').map(x=>x+x).join('');
+    if(h.length===6){
+      const r=parseInt(h.slice(0,2),16);
+      const g=parseInt(h.slice(2,4),16);
+      const b=parseInt(h.slice(4,6),16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+  }
+  // 已经是 rgb/rgba 格式 → 暴力替换 alpha
+  if(c.startsWith('rgb')){
+    const m=c.match(/\d+(\.\d+)?/g);
+    if(m&&m.length>=3)return `rgba(${m[0]},${m[1]},${m[2]},${a})`;
+  }
+  return c;
+}
 
 // 刷新后保持当前视图（按 diagram id 持久化到 localStorage）
 function _viewStateKey(){
@@ -1847,7 +1985,12 @@ function rebuildViewTabs(){
     bldRow.className='view-tabs-buildings';
     orderedBlds.forEach(bld=>{
       const pill=document.createElement('div');
-      pill.className='building-pill'+(activeFilter===bld.id?' active':'');
+      const isActive=activeFilter===bld.id;
+      pill.className='building-pill'+(isActive?' active':'');
+      // 用建筑色作为 pill 底色（与平面图上同名 area 的填充色一致）
+      // 不活跃 ~15% 透明度（接近 area 底色），活跃 ~28%（突出选中）
+      pill.style.backgroundColor=_hexToRgba(bld.color, isActive?0.28:0.12);
+      pill.style.color=bld.color;
       pill.innerHTML=`<span class="building-pill-color" style="background:${bld.color}"></span>${bld.name}`;
       pill.addEventListener('click',()=>_switchToBuildingDefaultFloor(bld.id));
       pill.addEventListener('dblclick',()=>{if(typeof showBuildingProps==='function')showBuildingProps(bld.id)});
@@ -1915,16 +2058,59 @@ function rebuildViewTabs(){
       :activeFilter==='ungrouped'
         ?ungrouped
         :fps.filter(fp=>fp.building_id===activeFilter);
-    filteredFloors.forEach(fp=>{
+    // 同组绑定：fp + 它的虚拟子楼层 = 一个 bundle，bundle 之间可整体拖排，虚拟楼层只在 bundle 内排序
+    // 渲染：按 fp 的 tab_sort_order 顺序，逐个 fp 渲染 fp tab + 紧跟其虚拟子楼层（虚拟子按各自 tab_sort_order）
+    const _orderedFps=filteredFloors.slice().sort((a,b)=>{
+      const sa=(a.tab_sort_order!=null?a.tab_sort_order:(a.sort_order||0));
+      const sb=(b.tab_sort_order!=null?b.tab_sort_order:(b.sort_order||0));
+      return sa-sb;
+    });
+    _orderedFps.forEach((fp,bundleIdx)=>{
+      const _virtualChildren=(fp.areas||[]).filter(a=>{
+        if(a.area_type!=='floor')return false;
+        const aBld=a.building_id||fp.building_id||null;
+        return (activeFilter==='ungrouped')?!aBld:(activeFilter===aBld);
+      }).sort((a,b)=>((a.tab_sort_order||0)-(b.tab_sort_order||0)));
+      const _hasChildren=_virtualChildren.length>0;
+      const _hasAnyVirtual=(fp.areas||[]).some(a=>a.area_type==='floor'||a.area_type==='building');
+
+      // bundle 之间加分隔线（不是第一个 bundle 时）
+      if(bundleIdx>0){
+        const sep=document.createElement('div');
+        sep.style.cssText='align-self:stretch;width:1px;background:var(--border, #e2e8f0);margin:4px 6px;flex-shrink:0;';
+        inner.appendChild(sep);
+      }
+
+      // fp tab
       const tab=document.createElement('div');
       tab.className='view-tab';
-      if(currentView===fp.id)tab.classList.add('active');
+      if(_hasAnyVirtual)tab.classList.add('view-tab-base');
+      if(currentView===fp.id&&!_focusedFloorAreaId)tab.classList.add('active');
       tab.dataset.view=fp.id;
       tab.dataset.fpId=fp.id;
       if(fp.building_id)tab.dataset.buildingId=fp.building_id;
-      tab.textContent=fp.label;
+      tab.textContent=_hasAnyVirtual?(_t('底图层')+'·'+fp.label):fp.label;
+      if(_hasAnyVirtual)tab.title=_t('底图全局视图（点击编辑底图属性 / 拖动整组排序）');
       tab.addEventListener('pointerdown',e=>_tabDragStart(e,fp.id));
       inner.appendChild(tab);
+
+      // 紧跟其虚拟子楼层（在同 bundle 内排序）
+      _virtualChildren.forEach(area=>{
+        const ctab=document.createElement('div');
+        const isActive=currentView===fp.id && _focusedFloorAreaId===area.id;
+        ctab.className='view-tab view-tab-area'+(isActive?' active':'');
+        ctab.dataset.view=fp.id;
+        ctab.dataset.fpId=fp.id;
+        ctab.dataset.areaId=area.id;
+        if(fp.building_id)ctab.dataset.buildingId=fp.building_id;
+        ctab.title=_t('楼层区域 - 点击聚焦该楼层 / 拖动在组内排序');
+        ctab.style.borderStyle='dashed';
+        ctab.style.borderWidth='1px';
+        if(!isActive)ctab.style.opacity='0.85';
+        ctab.textContent=area.label||_t('楼层');
+        ctab.addEventListener('pointerdown',e=>_tabDragStart(e,fp.id,area.id));
+        inner.appendChild(ctab);
+      });
     });
 
     if(!DIAGRAM_CONFIG.readOnly){
@@ -1972,6 +2158,8 @@ function rebuildViewTabs(){
       inner.appendChild(addBtn);
     }
   }
+  // tab 状态变化时同步刷新导出按钮可见性（虚拟楼层下整体隐藏）
+  if(typeof updateExportBtnVisibility==='function')updateExportBtnVisibility();
 }
 
 // ====== ADD FLOOR DROPDOWN ======
@@ -2041,20 +2229,33 @@ function _showAddFloorDropdown(anchor){
 
 // ====== TAB CLICK ======
 function onTabClick(viewId){
+  // 任何 fp/topology tab 点击 → 释放聚光灯（虚拟楼层焦点）
+  const _hadFocus=(typeof _focusedFloorAreaId!=='undefined'&&_focusedFloorAreaId);
+  if(_hadFocus)_focusedFloorAreaId=null;
   if(currentView===viewId){
+    // 同 fp 再次点击：若刚释放聚光灯，需要重渲染清除遮罩；否则只显示属性
+    if(_hadFocus){renderAll();rebuildViewTabs()}
     if(viewId==='topology')showTopologyProps();
     else if(typeof showFloorPlanProps==='function')showFloorPlanProps(viewId);
   } else {
     switchView(viewId);
+    // 切到含虚拟楼层/楼栋的"底图层"时，默认打开属性面板让用户编辑底图
+    if(viewId!=='topology'&&typeof getFloorPlan==='function'){
+      const _fp=getFloorPlan(viewId);
+      if(_fp&&(_fp.areas||[]).some(a=>a.area_type==='floor'||a.area_type==='building')){
+        if(typeof showFloorPlanProps==='function')showFloorPlanProps(viewId);
+      }
+    }
   }
 }
 
 // ====== TAB DRAG REORDER (pointer-based) ======
-let _tabDrag={active:false,fpId:null,el:null,ghost:null,startX:0,moved:false};
+let _tabDrag={active:false,fpId:null,areaId:null,el:null,ghost:null,startX:0,moved:false};
 
-function _tabDragStart(e,fpId){
+function _tabDragStart(e,fpId,areaId){
   if(e.button!==0)return;
-  _tabDrag.fpId=fpId;_tabDrag.el=e.currentTarget;_tabDrag.startX=e.clientX;_tabDrag.moved=false;_tabDrag.active=true;
+  _tabDrag.fpId=fpId;_tabDrag.areaId=areaId||null;
+  _tabDrag.el=e.currentTarget;_tabDrag.startX=e.clientX;_tabDrag.moved=false;_tabDrag.active=true;
   document.addEventListener('pointermove',_tabDragMove);
   document.addEventListener('pointerup',_tabDragEnd);
 }
@@ -2079,14 +2280,25 @@ function _tabDragMove(e){
   const rect=_tabDrag.el.getBoundingClientRect();
   _tabDrag.ghost.style.left=(rect.left+e.clientX-_tabDrag.startX)+'px';
 
-  // Find drop target - highlight nearest tab (restricted to same building)
+  // Find drop target - 同组绑定限制：fp-tab 只换 fp-tab；area-tab 只换同 fp 内的 area-tab
   const container=document.getElementById('viewTabs');
   const dragBldId=_tabDrag.el.dataset.buildingId||'';
+  const dragIsArea=!!_tabDrag.areaId;
+  const dragFpId=_tabDrag.fpId;
   const tabs=container.querySelectorAll('.view-tab[data-fp-id]');
   tabs.forEach(t=>t.classList.remove('drag-over'));
   for(const t of tabs){
     if(t===_tabDrag.el)continue;
-    if((t.dataset.buildingId||'')!==dragBldId)continue; // same building only
+    if((t.dataset.buildingId||'')!==dragBldId)continue;
+    const tIsArea=!!t.dataset.areaId;
+    if(dragIsArea){
+      // area 只能在同 fp 的 area 之间排序
+      if(!tIsArea)continue;
+      if(t.dataset.fpId!==String(dragFpId))continue;
+    } else {
+      // fp 只能与其他 fp 互换（整组拖排）
+      if(tIsArea)continue;
+    }
     const r=t.getBoundingClientRect();
     if(e.clientX>=r.left&&e.clientX<=r.right){
       t.classList.add('drag-over');break;
@@ -2103,34 +2315,77 @@ function _tabDragEnd(e){
   _tabDrag.el.style.opacity='';
 
   if(_tabDrag.moved){
-    // Find drop target (restricted to same building)
     const container=document.getElementById('viewTabs');
     const dragBldId=_tabDrag.el.dataset.buildingId||'';
+    const dragIsArea=!!_tabDrag.areaId;
+    const dragFpId=_tabDrag.fpId;
     const tabs=container.querySelectorAll('.view-tab[data-fp-id]');
-    let targetId=null;
+    let targetEl=null;
     for(const t of tabs){
       if(t===_tabDrag.el)continue;
       if((t.dataset.buildingId||'')!==dragBldId)continue;
+      const tIsArea=!!t.dataset.areaId;
+      if(dragIsArea){
+        if(!tIsArea)continue;
+        if(t.dataset.fpId!==String(dragFpId))continue;
+      } else {
+        if(tIsArea)continue;
+      }
       const r=t.getBoundingClientRect();
-      if(e.clientX>=r.left&&e.clientX<=r.right){targetId=t.dataset.fpId;break}
+      if(e.clientX>=r.left&&e.clientX<=r.right){targetEl=t;break;}
     }
     tabs.forEach(t=>t.classList.remove('drag-over'));
-    if(targetId&&targetId!==_tabDrag.fpId){
-      const fromIdx=floorPlans.findIndex(f=>f.id===_tabDrag.fpId);
-      const toIdx=floorPlans.findIndex(f=>f.id===targetId);
-      if(fromIdx>=0&&toIdx>=0){
-        const [moved]=floorPlans.splice(fromIdx,1);
-        floorPlans.splice(toIdx,0,moved);
-        floorPlans.forEach((f,i)=>f.sort_order=i+1);
-        hasUnsavedChanges=true;
-        rebuildViewTabs();
+    if(targetEl){
+      if(dragIsArea){
+        // 同 fp 内 area 重排
+        const fp=getFloorPlan(dragFpId);
+        if(fp){
+          const childAreas=(fp.areas||[]).filter(a=>a.area_type==='floor')
+            .sort((a,b)=>(a.tab_sort_order||0)-(b.tab_sort_order||0));
+          const fromIdx=childAreas.findIndex(a=>String(a.id)===String(_tabDrag.areaId));
+          const toIdx=childAreas.findIndex(a=>String(a.id)===String(targetEl.dataset.areaId));
+          if(fromIdx>=0&&toIdx>=0&&fromIdx!==toIdx){
+            const [moved]=childAreas.splice(fromIdx,1);
+            childAreas.splice(toIdx,0,moved);
+            childAreas.forEach((a,i)=>a.tab_sort_order=i+1);
+            hasUnsavedChanges=true;rebuildViewTabs();
+          }
+        }
+      } else {
+        // bundle 整组拖排：在该 building 下所有 fp 之间换位
+        const sameBldFps=floorPlans.filter(f=>(f.building_id||null)===(dragBldId||null))
+          .sort((a,b)=>{const sa=(a.tab_sort_order!=null?a.tab_sort_order:(a.sort_order||0));const sb=(b.tab_sort_order!=null?b.tab_sort_order:(b.sort_order||0));return sa-sb});
+        const fromIdx=sameBldFps.findIndex(f=>String(f.id)===String(dragFpId));
+        const toIdx=sameBldFps.findIndex(f=>String(f.id)===String(targetEl.dataset.fpId));
+        if(fromIdx>=0&&toIdx>=0&&fromIdx!==toIdx){
+          const [moved]=sameBldFps.splice(fromIdx,1);
+          sameBldFps.splice(toIdx,0,moved);
+          sameBldFps.forEach((f,i)=>f.tab_sort_order=i+1);
+          hasUnsavedChanges=true;rebuildViewTabs();
+        }
       }
     }
   } else {
     // No drag happened — treat as click
-    onTabClick(_tabDrag.fpId);
+    if(_tabDrag.areaId){
+      // 虚拟楼层 tab 单击 → 聚焦该 area
+      const aId=_tabDrag.areaId, fpId=_tabDrag.fpId;
+      let area=null;
+      const fp=getFloorPlan(fpId);
+      if(fp)area=(fp.areas||[]).find(a=>String(a.id)===String(aId));
+      if(area){
+        if(currentView!==fpId)switchView(fpId);
+        _focusedFloorAreaId=area.id;
+        if(typeof selectedAreaId!=='undefined')selectedAreaId=null;
+        if(typeof centerOnArea==='function')centerOnArea(area);
+        renderAll();
+        rebuildViewTabs();
+      }
+    } else {
+      onTabClick(_tabDrag.fpId);
+    }
   }
-  _tabDrag.active=false;_tabDrag.fpId=null;_tabDrag.el=null;
+  _tabDrag.active=false;_tabDrag.fpId=null;_tabDrag.areaId=null;_tabDrag.el=null;
 }
 
 function promptRenameFloor(fpId){

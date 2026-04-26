@@ -1360,22 +1360,27 @@ def export_dwg_api(diagram_id):
     try:
         from app.utils.dxf_converter import overlay_system_design_on_dxf
         from flask import Response
+        from urllib.parse import quote
 
-        safe_name = ''.join(c for c in diagram_name if c.isalnum() or c in '-_ ')[:40].strip() or 'diagram'
+        # 完整名（含中文，用于 RFC 5987）
+        safe_name = ''.join(c for c in diagram_name if c.isalnum() or c in '-_ ·')[:40].strip() or 'diagram'
+        # ASCII 回退名（兼容老浏览器，剥掉非 ASCII 字符）
+        ascii_name = ''.join(c if c.isascii() and (c.isalnum() or c in '-_ ') else '_' for c in safe_name).strip('_').strip() or 'diagram'
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            out_dxf_path = os.path.join(tmpdir, f"{safe_name}.dxf")
+            out_dxf_path = os.path.join(tmpdir, f"{ascii_name}.dxf")
             overlay_system_design_on_dxf(dxf_path, out_dxf_path, elements)
 
             with open(out_dxf_path, 'rb') as f:
                 file_bytes = f.read()
 
-        download_name = f"{safe_name}.dxf"
+        # RFC 5987：filename*=UTF-8''<percent-encoded> 让浏览器正确解码中文
+        utf8_quoted = quote(f"{safe_name}.dxf")
         return Response(
             file_bytes,
             mimetype='application/dxf',
             headers={
-                'Content-Disposition': f'attachment; filename="{download_name}"',
+                'Content-Disposition': f"attachment; filename=\"{ascii_name}.dxf\"; filename*=UTF-8''{utf8_quoted}",
                 'Content-Length': len(file_bytes),
             }
         )

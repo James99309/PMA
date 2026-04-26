@@ -969,6 +969,14 @@ def overlay_system_design_on_dxf(original_dxf_path, output_path, elements):
     px_to_mm_y = world_h / bg_h
     px_to_mm = (px_to_mm_x + px_to_mm_y) / 2
 
+    # 校准：编辑器中 1 米 = 多少像素。覆盖圆半径以"米"传入，需经 ppm × px_to_mm 转成源 DXF 单位
+    # 不同源 DXF 的真实物理范围可能差几个量级（130m vs 6cm），不能假设 1 源单位 = 1mm
+    px_per_meter = elements.get('px_per_meter')
+    try:
+        px_per_meter = float(px_per_meter) if px_per_meter else None
+    except (TypeError, ValueError):
+        px_per_meter = None
+
     # 3. 建 node_id → (world_x, world_y) 字典（连线会用）
     node_world_pos = {}
     node_half_h_mm = {}
@@ -1142,13 +1150,16 @@ def overlay_system_design_on_dxf(original_dxf_path, output_path, elements):
                 _add_text_unicode(f'x{qty}', wx + half_w, wy + half_h,
                                    9 * px_to_mm, L_LABEL, align_center=False)
 
-            # 覆盖圆（半径单位是米，需转为 mm）
+            # 覆盖圆（半径以"米"传入，需用校准 ppm × px_to_mm 转成源 DXF 单位）
             # 内圈 -65 dBm 强信号区：实线绿色；外圈 -85 dBm 上行边界：虚线浅绿
             cov = node.get('coverage')
+            logger.info(f"[dxf-export] node={node.get('label') or node.get('id')} cov={cov} wx={wx} wy={wy} ppm={px_per_meter} px_to_mm={px_to_mm:.3f}")
             if cov and cov.get('radii'):
                 visible = cov.get('visible') or [True, True]
                 raw_radii = cov['radii'][:2]
-                # 解析为 (index, r_mm) 并过滤无效值
+                # 米 → 源 DXF 单位的比例：优先用校准（ppm × px_to_mm），无校准时回退到 *1000（兼容老逻辑）
+                meter_to_source = (px_per_meter * px_to_mm) if px_per_meter else 1000.0
+                # 解析为 (index, r_source) 并过滤无效值
                 valid = []
                 for i, radius_m in enumerate(raw_radii):
                     try:
@@ -1157,7 +1168,7 @@ def overlay_system_design_on_dxf(original_dxf_path, output_path, elements):
                         continue
                     if i < len(visible) and not visible[i]:
                         continue
-                    r_mm = r_m * 1000
+                    r_mm = r_m * meter_to_source  # 变量名仍叫 r_mm，但实际是源 DXF 单位
                     if r_mm > 0:
                         valid.append((i, r_mm))
                 # 按半径大小排序：小的=内圈，大的=外圈
