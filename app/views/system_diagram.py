@@ -786,14 +786,37 @@ def _category_color(cat_name):
 
 
 def _get_products_data():
-    """获取产品列表（分享的内部路由和外部路由共用）"""
+    """获取产品列表（分享的内部路由和外部路由共用）
+
+    排序规则：通过 product_display_order 表按 分类→子分类→型号 三层显示顺序排列，
+    与产品列表 / 规格模板列表（spec_template.py）保持一致。
+    """
     from sqlalchemy.orm import joinedload
+    from sqlalchemy import func, and_
+    from app.models.product_display_order import ProductDisplayOrder
+
     products = Product.query.filter(
         Product.status == 'active'
     ).options(
         joinedload(Product.category_obj),
         joinedload(Product.subcategory_obj)
-    ).order_by(Product.category_id, Product.subcategory_id).all()
+    ).outerjoin(
+        ProductCategory, Product.category_id == ProductCategory.id
+    ).outerjoin(
+        ProductSubcategory, Product.subcategory_id == ProductSubcategory.id
+    ).outerjoin(
+        ProductDisplayOrder,
+        and_(
+            ProductCategory.code_letter == ProductDisplayOrder.category_code,
+            ProductSubcategory.code_letter == ProductDisplayOrder.subcategory_code,
+            Product.model == ProductDisplayOrder.model,
+        )
+    ).order_by(
+        func.coalesce(ProductDisplayOrder.category_order, 9999).asc(),
+        func.coalesce(ProductDisplayOrder.subcategory_order, 9999).asc(),
+        func.coalesce(ProductDisplayOrder.model_order, 9999).asc(),
+        Product.id.asc(),
+    ).all()
 
     categories = {}
     for p in products:
