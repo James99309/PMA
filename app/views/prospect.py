@@ -181,6 +181,18 @@ def _list_lost_projects():
             ProspectProject.converted_project_id.in_(ids),
         ).all()
         research_map = {r.converted_project_id: r for r in research_records}
+
+        # 预加载所有 research 记录的 stakeholders，避免模板里 lazy='dynamic' N+1 查询
+        if research_map:
+            research_ids = [r.id for r in research_map.values()]
+            stakeholders_map = {}
+            for s in ProspectStakeholder.query.filter(
+                ProspectStakeholder.prospect_id.in_(research_ids)
+            ).all():
+                stakeholders_map.setdefault(s.prospect_id, []).append(s)
+            for r in research_map.values():
+                r._stakeholder_list = stakeholders_map.get(r.id, [])
+
         for p in projects:
             p._research = research_map.get(p.id)
 

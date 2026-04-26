@@ -1,86 +1,147 @@
 {# 流失项目列表 — 由 prospect/tw_list.html 在 tab='lost' 时 include #}
-{# 上下文: lost_projects = [Project, ...]，每个 Project 可能附加 _research (ProspectProject) #}
-<div class="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden border border-slate-200 dark:border-slate-700">
-  <table class="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-    <thead class="bg-slate-50 dark:bg-slate-900">
-      <tr class="text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-        <th class="px-4 py-3">{{ _('项目名称') }}</th>
-        <th class="px-4 py-3">{{ _('阶段') }}</th>
-        <th class="px-4 py-3">{{ _('行业') }}</th>
-        <th class="px-4 py-3">{{ _('地区') }}</th>
-        <th class="px-4 py-3">{{ _('投资规模') }}</th>
-        <th class="px-4 py-3">{{ _('关联方') }}</th>
-        <th class="px-4 py-3">{{ _('申领人') }}</th>
-        <th class="px-4 py-3">{{ _('活跃度') }}</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-slate-100 dark:divide-slate-700/40 bg-white dark:bg-slate-800">
-      {% set type_labels = {
-          'owner': _('建设单位'),
-          'design': _('设计院'),
-          'epc': 'EPC',
-          'construction': _('总包'),
-          'other': _('其他')
-      } %}
-      {% for p in lost_projects %}
-        {% set research = p._research if p._research is defined else None %}
-        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-            onclick="window.location='{{ url_for('prospect.lost_detail', project_id=p.id) }}'">
-          <td class="px-4 py-3 text-sm">
-            <a href="{{ url_for('prospect.lost_detail', project_id=p.id) }}"
-               class="font-medium text-blue-600 hover:underline"
-               onclick="event.stopPropagation();">{{ p.project_name }}</a>
-          </td>
-          <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
-            {{ p.current_stage or _('未知') }}
-          </td>
-          <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
-            {{ p.industry or _('未分类') }}
-          </td>
-          <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
-            {{ p.region or '-' }}
-          </td>
-          <td class="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
-            {% if research and research.total_investment %}
-              {{ research.total_investment }}
-            {% else %}-{% endif %}
-          </td>
-          <td class="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
-            {% if research and research.stakeholders.count() > 0 %}
-              {%- set type_counts = {} -%}
-              {%- for s in research.stakeholders -%}
-                {%- set _ = type_counts.update({s.stakeholder_type: type_counts.get(s.stakeholder_type, 0) + 1}) -%}
-              {%- endfor -%}
-              {% for tcode, count in type_counts.items() %}
-                {{ type_labels.get(tcode, tcode) }} {{ count }}{% if not loop.last %} · {% endif %}
-              {% endfor %}
-            {% else %}—{% endif %}
-          </td>
-          <td class="px-4 py-3 text-sm">
-            {% if p.owner %}
-              <span class="text-slate-700 dark:text-slate-300">{{ p.owner.real_name or p.owner.username }}</span>
-              <span class="text-xs text-slate-500 ml-1">({{ _('销售') }})</span>
-            {% else %}
-              <span class="text-rose-500 dark:text-rose-400 text-xs">{{ _('无负责人') }}</span>
-            {% endif %}
-          </td>
-          <td class="px-4 py-3 text-sm">
-            <span class="inline-flex items-center rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 text-xs font-medium"
-                  title="{{ p.activity_reason or '' }}">
-              {{ _('流失') }}
-            </span>
-            {% if p.activity_reason %}
-              <div class="text-xs text-slate-500 mt-0.5">{{ p.activity_reason }}</div>
-            {% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr>
-          <td colspan="8" class="px-4 py-12 text-center text-sm text-slate-500">
-            {{ _('暂无流失项目') }}
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{# 上下文: lost_projects = [Project, ...]，每个 Project 可能附加 _research (ProspectProject)
+   _research._stakeholder_list 由 view 预加载，避免 lazy='dynamic' N+1 #}
+
+{# ── TABLE TITLE BAR (sticky) ─────────────────────────────── #}
+<div class="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8">
+    <div class="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 px-4 py-3">
+        <h3 class="text-sm font-medium text-slate-900 dark:text-white">{{ _('流失项目列表') }}</h3>
+        {% if region or industry or stage %}
+        <span class="flex items-center gap-1 text-xs text-slate-400">
+            <span class="material-symbols-outlined" style="font-size:13px;">filter_alt</span>
+            {{ _('已筛选') }}
+        </span>
+        {% endif %}
+        <span class="ml-auto text-sm text-slate-500 dark:text-slate-400">
+            <strong class="text-slate-900 dark:text-white">{{ lost_projects|length }}</strong> {{ _('条') }}
+        </span>
+    </div>
 </div>
+
+{# ── DATA TABLE ───────────────────────────────────────────── #}
+{% set columns = [
+    {'field': 'project_name',    'label': _('项目名称'),   'min_width': '240px'},
+    {'field': 'stage',           'label': _('阶段'),       'width': '90px',  'align': 'center'},
+    {'field': 'industry',        'label': _('行业'),       'width': '90px'},
+    {'field': 'region',          'label': _('地区'),       'width': '100px'},
+    {'field': 'total_investment','label': _('投资规模'),   'width': '100px'},
+    {'field': 'stakeholders',    'label': _('关联方'),     'width': '120px'},
+    {'field': 'owner',           'label': _('申领人'),     'width': '110px'},
+    {'field': 'activity',        'label': _('活跃度'),     'width': '110px', 'align': 'center'}
+] %}
+
+{% set industry_label = dict(industry_labels) %}
+
+{% call render_tw_data_table(
+    table_id='lostProjectsTable',
+    title='',
+    total_count=lost_projects|length,
+    columns=columns,
+    sort_field='last_activity_date',
+    sort_order='desc',
+    max_height='calc(100vh - 295px)',
+    min_height='400px',
+    min_width='1100px',
+    no_top_radius=true,
+    empty_text=_('暂无流失项目'),
+    empty_icon='person_off'
+) %}
+
+{% for p in lost_projects %}
+    {% set research = p._research if p._research is defined else None %}
+    {% set sh_list  = research._stakeholder_list if research and research._stakeholder_list is defined else [] %}
+    {% set owner_ct        = sh_list | selectattr('stakeholder_type', 'eq', 'owner') | list | length %}
+    {% set design_ct       = sh_list | selectattr('stakeholder_type', 'in', ['design','epc']) | list | length %}
+    {% set construction_ct = sh_list | selectattr('stakeholder_type', 'eq', 'construction') | list | length %}
+
+    <tr class="table-row-hover transition-colors cursor-pointer"
+        onclick="window.location='{{ url_for('prospect.lost_detail', project_id=p.id) }}'">
+
+        {# 项目名称 #}
+        <td class="p-3">
+            <div class="flex items-start gap-2">
+                <span class="mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-900 dark:text-white truncate max-w-xs"
+                       title="{{ p.project_name }}">{{ p.project_name }}</p>
+                    {% if p.activity_reason %}
+                    <p class="text-xs text-slate-400 truncate max-w-xs mt-0.5"
+                       title="{{ p.activity_reason }}">{{ p.activity_reason }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </td>
+
+        {# 阶段 #}
+        <td class="p-3 text-center whitespace-nowrap">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium
+                         text-slate-600 bg-slate-100 border border-slate-200
+                         dark:text-slate-300 dark:bg-slate-700 dark:border-slate-600">
+                {{ project_stage_label(p.current_stage, session.get('language', 'zh')) if p.current_stage else _('未知') }}
+            </span>
+        </td>
+
+        {# 行业 #}
+        <td class="p-3 whitespace-nowrap">
+            <span class="text-sm text-slate-600 dark:text-slate-400">
+                {{ industry_label.get(p.industry, p.industry or '—') }}
+            </span>
+        </td>
+
+        {# 地区 #}
+        <td class="p-3 whitespace-nowrap">
+            <span class="inline-flex items-center gap-0.5 text-sm text-slate-700 dark:text-slate-300">{% if p.city and p.region and p.city != p.region %}{{ p.city }}<span class="text-slate-400">/{{ p.region }}</span>{% else %}{{ p.city or p.region or '—' }}{% endif %}</span>
+        </td>
+
+        {# 投资规模 — 来自 _research #}
+        <td class="p-3 whitespace-nowrap">
+            {% set inv = research.total_investment if research else None %}
+            {% if inv %}
+            <span class="text-sm font-medium text-amber-600 dark:text-amber-400 max-w-[110px] truncate block"
+                  title="{{ inv }}">{{ inv }}</span>
+            {% else %}
+            <span class="text-sm text-slate-300 dark:text-slate-600">—</span>
+            {% endif %}
+        </td>
+
+        {# 关联方 — 聚合 stakeholders #}
+        <td class="p-3 whitespace-nowrap">
+            {% if sh_list %}
+            <div class="flex items-center gap-1.5">
+                {% if owner_ct > 0 %}<span class="px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-700">{{ _('建设') }} {{ owner_ct }}</span>{% endif %}
+                {% if design_ct > 0 %}<span class="px-1.5 py-0.5 rounded text-xs bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 border border-violet-200 dark:border-violet-700">{{ _('设计') }} {{ design_ct }}</span>{% endif %}
+                {% if construction_ct > 0 %}<span class="px-1.5 py-0.5 rounded text-xs bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-300 border border-orange-200 dark:border-orange-700">{{ _('总包') }} {{ construction_ct }}</span>{% endif %}
+            </div>
+            {% else %}
+            <span class="text-xs text-slate-300 dark:text-slate-600">—</span>
+            {% endif %}
+        </td>
+
+        {# 申领人 #}
+        <td class="p-3 whitespace-nowrap">
+            {% if p.owner %}
+            <span class="inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400">
+                <span class="material-symbols-outlined" style="font-size:13px;">person</span>
+                {{ p.owner.real_name or p.owner.username }}
+            </span>
+            {% else %}
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-rose-600 dark:text-rose-400">
+                <span class="material-symbols-outlined" style="font-size:13px;">person_off</span>
+                {{ _('无负责人') }}
+            </span>
+            {% endif %}
+        </td>
+
+        {# 活跃度 — 红色"流失"徽章 + 原因 tooltip #}
+        <td class="p-3 text-center whitespace-nowrap">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium
+                         text-rose-600 bg-rose-50 border border-rose-200
+                         dark:text-rose-300 dark:bg-rose-900/30 dark:border-rose-800"
+                  title="{{ p.activity_reason or '' }}">
+                {{ _('流失') }}
+            </span>
+        </td>
+    </tr>
+{% endfor %}
+
+{% endcall %}{# render_tw_data_table #}
