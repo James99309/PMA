@@ -95,7 +95,11 @@
                 </div>
                 <div>
                     <dt class="text-slate-500 dark:text-slate-400">{{ _('地区') }}</dt>
-                    <dd class="text-slate-900 dark:text-slate-100">{{ project.region or '-' }}</dd>
+                    <dd class="text-slate-900 dark:text-slate-100">
+                        {%- set d_city = project.city or (research.city if research else None) -%}
+                        {%- set d_region = project.region or (research.region if research else None) -%}
+                        {% if d_city and d_region and d_city != d_region %}{{ d_city }} / {{ d_region }}{% else %}{{ d_city or d_region or '-' }}{% endif %}
+                    </dd>
                 </div>
                 <div>
                     <dt class="text-slate-500 dark:text-slate-400">{{ _('投资规模') }}</dt>
@@ -105,15 +109,15 @@
                 </div>
                 <div>
                     <dt class="text-slate-500 dark:text-slate-400">{{ _('流失原因') }}</dt>
-                    <dd class="text-rose-600 dark:text-rose-400">{{ project.activity_reason or _('120天无活动') }}</dd>
+                    <dd class="text-rose-600 dark:text-rose-400">{{ project.activity_reason or '-' }}</dd>
                 </div>
                 <div>
-                    <dt class="text-slate-500 dark:text-slate-400">{{ _('申领人') }}</dt>
+                    <dt class="text-slate-500 dark:text-slate-400">{{ _('拥有者') }}</dt>
                     <dd>
                         {% if project.owner %}
                             <span class="text-slate-900 dark:text-slate-100">{{ project.owner.real_name or project.owner.username }}</span>
                         {% else %}
-                            <span class="text-rose-500 dark:text-rose-400">{{ _('无负责人') }}</span>
+                            <span class="text-rose-500 dark:text-rose-400">{{ _('无拥有者') }}</span>
                         {% endif %}
                     </dd>
                 </div>

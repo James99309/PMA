@@ -18832,7 +18832,7 @@ msgstr "Stakeholders"
 
 #: app/templates/prospect/_tw_lost_list.html:13
 #: app/templates/prospect/tw_lost_detail.html:111
-msgid "申领人"
+msgid "拥有者"
 msgstr "Owner"
 
 #: app/templates/prospect/_tw_lost_list.html:19
@@ -18852,7 +18852,7 @@ msgstr "EPC"
 
 #: app/templates/prospect/_tw_lost_list.html:64
 #: app/templates/prospect/tw_lost_detail.html:116
-msgid "无负责人"
+msgid "无拥有者"
 msgstr "No Owner"
 
 #: app/templates/prospect/_tw_lost_list.html:80
