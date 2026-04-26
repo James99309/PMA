@@ -1,0 +1,369 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ '编辑情报' if prospect else '新增情报' }} - 市场情报库</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" } } }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        {{ render_tw_fixed_header_styles() }}
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+{% call(slot) render_tw_layout(active_page='project') %}
+{% if slot == 'content' %}
+{% call(page_slot) render_tw_fixed_page() %}
+
+{# ── Header ─────────────────────────────────────── #}
+{% if page_slot == 'header' %}
+<div class="flex items-center gap-2">
+    <a href="{{ url_for('prospect.list_view') }}"
+        class="inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">
+        <span class="material-symbols-outlined" style="font-size:20px;">arrow_back</span>
+    </a>
+    <div>
+        <h1 class="text-xl font-bold text-slate-900 dark:text-white">{{ '编辑情报' if prospect else '新增情报' }}</h1>
+        {% if prospect %}<p class="text-xs text-slate-500 mt-0.5">ID #{{ prospect.id }}</p>{% endif %}
+    </div>
+</div>
+{% if prospect %}
+<form action="{{ url_for('prospect.admin_delete', id=prospect.id) }}" method="POST"
+      onsubmit="return confirm('确认删除？此操作不可撤销。')">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit"
+        class="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm transition-colors cursor-pointer">
+        <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+        删除
+    </button>
+</form>
+{% endif %}
+
+{# ── Content ─────────────────────────────────────── #}
+{% elif page_slot == 'content' %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+    {# Flash messages #}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    <div class="p-3 rounded-lg text-sm {{ 'bg-green-50 text-green-700 border border-green-200' if cat == 'success' else 'bg-red-50 text-red-700 border border-red-200' }}">
+        {{ msg }}
+    </div>
+    {% endfor %}
+    {% endwith %}
+
+    {# ── 基本信息表单 ─────────────────────────────── #}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+        <h2 class="text-base font-semibold text-slate-900 dark:text-white mb-5">基本信息</h2>
+        <form method="POST" action="{{ url_for('prospect.admin_edit', id=prospect.id) if prospect else url_for('prospect.admin_new') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="space-y-4">
+
+                {# 项目名称 #}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        项目名称 <span class="text-red-500">*</span>
+                    </label>
+                    <input type="text" name="project_name" required
+                        value="{{ prospect.project_name if prospect else '' }}"
+                        placeholder="如：茂名石化炼油转型升级及乙烯提质改造项目"
+                        class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+
+                {# 行业 + 阶段 #}
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">行业</label>
+                        <select name="industry"
+                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                            <option value="">— 未分类 —</option>
+                            {% for val, lbl in industry_options %}
+                            <option value="{{ val }}" {{ 'selected' if prospect and prospect.industry == val }}>{{ lbl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">项目阶段</label>
+                        <select name="stage"
+                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                            {% for val, lbl in stage_options.items() %}
+                            <option value="{{ val }}" {{ 'selected' if prospect and prospect.stage == val else ('selected' if not prospect and val == 'planning') }}>{{ lbl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                {# 省份 + 城市 #}
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">省份/地区</label>
+                        <input type="text" name="region"
+                            value="{{ prospect.region if prospect else '' }}"
+                            placeholder="如：广东"
+                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">城市</label>
+                        <input type="text" name="city"
+                            value="{{ prospect.city if prospect else '' }}"
+                            placeholder="如：茂名"
+                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                    </div>
+                </div>
+
+                {# 投资规模 + 情报来源 #}
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">投资规模</label>
+                        <input type="text" name="total_investment"
+                            value="{{ prospect.total_investment if prospect else '' }}"
+                            placeholder="如：300亿"
+                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">情报来源</label>
+                        <select name="source"
+                            class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                            <option value="">— 未标注 —</option>
+                            <option value="eia"    {{ 'selected' if prospect and prospect.source == 'eia' }}>环评公示</option>
+                            <option value="tender" {{ 'selected' if prospect and prospect.source == 'tender' }}>招标公告</option>
+                            <option value="ai"     {{ 'selected' if prospect and prospect.source == 'ai' }}>AI调研</option>
+                            <option value="manual" {{ 'selected' if prospect and prospect.source == 'manual' }}>人工录入</option>
+                        </select>
+                    </div>
+                </div>
+
+                {# 关键词 #}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                        关键词
+                        <span class="text-slate-400 font-normal ml-1">（逗号分隔）</span>
+                    </label>
+                    <input type="text" name="keywords"
+                        value="{{ prospect.keywords | join(', ') if prospect and prospect.keywords else '' }}"
+                        placeholder="如：石化, 乙烯, 改造, 对讲机"
+                        class="w-full h-10 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+
+                {# 项目简介 #}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">项目简介</label>
+                    <textarea name="description" rows="4"
+                        placeholder="项目背景、主要内容、工程规模等..."
+                        class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary resize-none">{{ prospect.description if prospect else '' }}</textarea>
+                </div>
+
+                <div class="flex justify-end pt-2">
+                    <button type="submit"
+                        class="inline-flex items-center gap-1.5 h-10 px-6 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:18px;">save</span>
+                        保存基本信息
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    {# ── 关联方管理（仅编辑时显示） ─────────────────── #}
+    {% if prospect %}
+    <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">关联方</h2>
+            <button type="button" onclick="document.getElementById('addStakeholderForm').classList.toggle('hidden')"
+                class="inline-flex items-center gap-1 h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+                添加关联方
+            </button>
+        </div>
+
+        {# 已有关联方列表 #}
+        <div id="stakeholderList" class="space-y-2 mb-4">
+            {% set type_colors = {
+                'owner': 'text-blue-600 bg-blue-50 border-blue-200',
+                'design': 'text-violet-600 bg-violet-50 border-violet-200',
+                'epc': 'text-indigo-600 bg-indigo-50 border-indigo-200',
+                'construction': 'text-orange-600 bg-orange-50 border-orange-200',
+                'other': 'text-slate-500 bg-slate-100 border-slate-200'
+            } %}
+            {% for s in stakeholders %}
+            <div id="stakeholder-{{ s.id }}" class="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span class="flex-shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-xs border {{ type_colors.get(s.stakeholder_type, type_colors['other']) }}">
+                    {{ stakeholder_types.get(s.stakeholder_type, s.stakeholder_type) }}
+                </span>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-slate-800 dark:text-slate-200">{{ s.company_name }}</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {% if s.department %}{{ s.department }}{% endif %}
+                        {% if s.contact_person %} · {{ s.contact_person }}{% endif %}
+                        {% if s.phone %} · {{ s.phone }}{% endif %}
+                    </p>
+                </div>
+                <button type="button" onclick="deleteStakeholder({{ s.id }})"
+                    class="flex-shrink-0 p-1 rounded text-slate-400 hover:text-red-500 transition-colors cursor-pointer" title="删除">
+                    <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+                </button>
+            </div>
+            {% else %}
+            <p id="noStakeholderMsg" class="text-sm text-slate-400 dark:text-slate-500 text-center py-4">暂无关联方，点击「添加关联方」开始录入</p>
+            {% endfor %}
+        </div>
+
+        {# 添加关联方表单 #}
+        <div id="addStakeholderForm" class="hidden border border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-4 space-y-3">
+            <p class="text-sm font-medium text-slate-700 dark:text-slate-300">添加关联方</p>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">类型</label>
+                    <select id="s_type"
+                        class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                        {% for val, lbl in stakeholder_types.items() %}
+                        <option value="{{ val }}">{{ lbl }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">公司名称 *</label>
+                    <input type="text" id="s_company" placeholder="公司全称"
+                        class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">部门</label>
+                    <input type="text" id="s_dept" placeholder="如：电气电信室"
+                        class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">联系人</label>
+                    <input type="text" id="s_contact" placeholder="姓名"
+                        class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">电话</label>
+                    <input type="text" id="s_phone" placeholder="总机或直线"
+                        class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-500 mb-1">地址</label>
+                    <input type="text" id="s_addr" placeholder="公司地址"
+                        class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-slate-500 mb-1">备注</label>
+                <input type="text" id="s_notes" placeholder="其他说明"
+                    class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary">
+            </div>
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="button" onclick="document.getElementById('addStakeholderForm').classList.add('hidden')"
+                    class="h-8 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-sm cursor-pointer">取消</button>
+                <button type="button" onclick="addStakeholder()"
+                    class="h-8 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium cursor-pointer">添加</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const PROSPECT_ID = {{ prospect.id }};
+    const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+    const TYPE_COLORS = {
+        owner: 'text-blue-600 bg-blue-50 border-blue-200',
+        design: 'text-violet-600 bg-violet-50 border-violet-200',
+        epc: 'text-indigo-600 bg-indigo-50 border-indigo-200',
+        construction: 'text-orange-600 bg-orange-50 border-orange-200',
+        other: 'text-slate-500 bg-slate-100 border-slate-200'
+    };
+    const TYPE_LABELS = {{ stakeholder_types | tojson }};
+
+    function addStakeholder() {
+        const company = document.getElementById('s_company').value.trim();
+        if (!company) { alert('公司名称必填'); return; }
+        const btn = event.target;
+        btn.disabled = true;
+        fetch('/prospect/admin/' + PROSPECT_ID + '/stakeholder/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+            body: JSON.stringify({
+                stakeholder_type: document.getElementById('s_type').value,
+                company_name:  company,
+                department:    document.getElementById('s_dept').value.trim(),
+                contact_person: document.getElementById('s_contact').value.trim(),
+                phone:         document.getElementById('s_phone').value.trim(),
+                address:       document.getElementById('s_addr').value.trim(),
+                notes:         document.getElementById('s_notes').value.trim(),
+            })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const stype = document.getElementById('s_type').value;
+                const dept  = document.getElementById('s_dept').value.trim();
+                const cont  = document.getElementById('s_contact').value.trim();
+                const phone = document.getElementById('s_phone').value.trim();
+                const color = TYPE_COLORS[stype] || TYPE_COLORS.other;
+                const label = TYPE_LABELS[stype] || stype;
+
+                document.getElementById('noStakeholderMsg')?.remove();
+                const list = document.getElementById('stakeholderList');
+                const div = document.createElement('div');
+                div.id = 'stakeholder-' + data.id;
+                div.className = 'flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700';
+                div.innerHTML = `
+                    <span class="flex-shrink-0 mt-0.5 px-1.5 py-0.5 rounded text-xs border ${color}">${label}</span>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-slate-800 dark:text-slate-200">${company}</p>
+                        <p class="text-xs text-slate-500 mt-0.5">${[dept, cont, phone].filter(Boolean).join(' · ')}</p>
+                    </div>
+                    <button type="button" onclick="deleteStakeholder(${data.id})"
+                        class="flex-shrink-0 p-1 rounded text-slate-400 hover:text-red-500 cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+                    </button>`;
+                list.appendChild(div);
+
+                // reset form
+                ['s_company','s_dept','s_contact','s_phone','s_addr','s_notes'].forEach(id => document.getElementById(id).value = '');
+                document.getElementById('addStakeholderForm').classList.add('hidden');
+            }
+            btn.disabled = false;
+        })
+        .catch(() => { btn.disabled = false; alert('添加失败，请重试'); });
+    }
+
+    function deleteStakeholder(sid) {
+        if (!confirm('确认删除此关联方？')) return;
+        fetch('/prospect/admin/stakeholder/' + sid + '/delete', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': CSRF }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('stakeholder-' + sid)?.remove();
+            }
+        });
+    }
+    </script>
+    {% endif %}
+
+</div>{# max-w-3xl #}
+{% endif %}{# page_slot #}
+{% endcall %}
+{% endif %}
+{% endcall %}
+{{ render_tw_layout_script() }}
+</body>
+</html>

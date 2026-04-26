@@ -1,0 +1,239 @@
+{#
+  prospect/tw_panel.html
+  这个文件不直接渲染为完整页面。
+  后端 prospect.detail_panel 路由调用各个 macro 并组合成 JSON 返回给前端。
+  每个 macro 输出一段 HTML 片段。
+#}
+
+{# ── stage badge ──────────────────────────────────────────── #}
+{% macro render_stage_badge(stage) %}
+{% set cfg = {
+    'planning':     ('规划中', 'text-blue-600 bg-blue-50 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-800', 'schedule'),
+    'designing':    ('设计中', 'text-violet-600 bg-violet-50 border border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-800', 'architecture'),
+    'construction': ('在建',   'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-800', 'construction'),
+    'completed':    ('竣工',   'text-green-700 bg-green-50 border border-green-200 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800', 'check_circle')
+} %}
+{% set c = cfg.get(stage, ('未知', 'text-slate-500 bg-slate-100 border border-slate-200 dark:text-slate-400 dark:bg-slate-700', 'help')) %}
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium {{ c[1] }}">
+    <span class="material-symbols-outlined" style="font-size:13px;">{{ c[2] }}</span>
+    {{ c[0] }}
+</span>
+{% endmacro %}
+
+
+{# ── body: overview + stakeholders ───────────────────────── #}
+{% macro render_body(p) %}
+{% set industry_label = {
+    'chemical':'化工','energy':'能源','manufacturing':'制造','datacenter':'数据中心',
+    'shipbuilding':'造船','semiconductor':'半导体','transportation':'交通',
+    'tunnel_underground':'隧道','real_estate':'地产','hospitality':'酒店',
+    'finance':'金融','retail':'零售','government':'政府',
+    'education':'教育','healthcare':'医疗','technology':'科技','other':'其他'
+} %}
+{% set source_label = {
+    'eia':'环评公示','tender':'招标公告','ai':'AI调研','manual':'人工录入'
+} %}
+<div class="space-y-5">
+
+    {# ── 基本信息 ──────────────────────────────────── #}
+    <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        {% if p.industry %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">行业</p>
+            <p class="text-slate-800 dark:text-slate-200">{{ industry_label.get(p.industry, p.industry) }}</p>
+        </div>
+        {% endif %}
+        {% if p.total_investment %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">投资规模</p>
+            <p class="font-medium text-amber-600 dark:text-amber-400">{{ p.total_investment }}</p>
+        </div>
+        {% endif %}
+        {% if p.source %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">情报来源</p>
+            <p class="text-slate-700 dark:text-slate-300">{{ source_label.get(p.source, p.source) }}</p>
+        </div>
+        {% endif %}
+        {% if p.info_updated_at or p.created_at %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">情报更新</p>
+            <p class="text-slate-700 dark:text-slate-300">
+                {{ (p.info_updated_at or p.created_at).strftime('%Y-%m-%d') }}
+                {% if p.info_updated_by %}
+                <span class="text-slate-400 ml-1">· {{ p.info_updated_by }}</span>
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+        {% if p.keywords %}
+        <div class="col-span-2">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">关键词</p>
+            <div class="flex flex-wrap gap-1.5">
+                {% for kw in p.keywords %}
+                <span class="px-2 py-0.5 rounded-full text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600">{{ kw }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# ── 项目简介 ──────────────────────────────────── #}
+    {% if p.description %}
+    <div>
+        <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">项目简介</p>
+        <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800 rounded-lg p-3">{{ p.description }}</p>
+    </div>
+    {% endif %}
+
+    {# ── 关联方 ───────────────────────────────────── #}
+    {% if p.stakeholders.count() %}
+    {% set type_cfg = {
+        'owner':        ('业主',   'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700', 'domain'),
+        'design':       ('设计院', 'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700', 'architecture'),
+        'epc':          ('EPC',    'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700', 'engineering'),
+        'construction': ('施工',   'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700', 'construction'),
+        'other':        ('其他',   'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600', 'group')
+    } %}
+    <div>
+        <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">关联方 ({{ p.stakeholders.count() }})</p>
+        <div class="space-y-2">
+            {% for s in p.stakeholders %}
+            {% set tc = type_cfg.get(s.stakeholder_type, type_cfg['other']) %}
+            <div class="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                {# type badge #}
+                <span class="flex-shrink-0 mt-0.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs border {{ tc[1] }}">
+                    <span class="material-symbols-outlined" style="font-size:11px;">{{ tc[2] }}</span>
+                    {{ tc[0] }}
+                </span>
+                {# info #}
+                <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{{ s.company_name }}</p>
+                    {% if s.department %}
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ s.department }}</p>
+                    {% endif %}
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                        {% if s.contact_person %}
+                        <span class="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                            <span class="material-symbols-outlined" style="font-size:12px;">person</span>
+                            {{ s.contact_person }}
+                        </span>
+                        {% endif %}
+                        {% if s.phone %}
+                        <span class="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                            <span class="material-symbols-outlined" style="font-size:12px;">call</span>
+                            {{ s.phone }}
+                        </span>
+                        {% endif %}
+                        {% if s.address %}
+                        <span class="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 truncate max-w-[200px]" title="{{ s.address }}">
+                            <span class="material-symbols-outlined" style="font-size:12px;">location_on</span>
+                            {{ s.address }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    {% if s.notes %}
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 italic">{{ s.notes }}</p>
+                    {% endif %}
+                    {# AI enrich button — state managed by JS #}
+                    <div class="flex justify-end mt-2">
+                        <button type="button"
+                            data-enrich-btn="{{ p.id }}-{{ s.id }}"
+                            onclick="enrichStakeholder({{ p.id }}, {{ s.id }}); event.stopPropagation();"
+                            class="inline-flex items-center gap-1 h-6 px-2 rounded text-xs font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined" style="font-size:12px;">auto_awesome</span>
+                            AI调研
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-sm text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg">
+        <span class="material-symbols-outlined block mb-1" style="font-size:24px;">group_off</span>
+        暂无关联方信息
+    </div>
+    {% endif %}
+
+    {# ── 已转化项目 ───────────────────────────────── #}
+    {% if p.converted_project %}
+    <div class="flex items-center gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-sm">
+        <span class="material-symbols-outlined text-green-600 dark:text-green-400" style="font-size:18px;">check_circle</span>
+        <span class="text-green-700 dark:text-green-300">已转化为项目：</span>
+        <a href="{{ url_for('project.view_project', project_id=p.converted_project_id) }}"
+           class="font-medium text-green-700 dark:text-green-300 hover:underline cursor-pointer"
+           onclick="event.stopPropagation()">
+            {{ p.converted_project.project_name }}
+        </a>
+    </div>
+    {% endif %}
+
+</div>
+{% endmacro %}
+
+
+{# ── footer left: claim status display ───────────────────── #}
+{% macro render_footer_left(p, current_user) %}
+{% if p.claimed_by %}
+    {% if p.claimed_by_id == current_user.id %}
+    <span class="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
+        <span class="material-symbols-outlined fill" style="font-size:16px;">person</span>
+        你已申领此项目
+    </span>
+    {% else %}
+    <span class="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+        <span class="material-symbols-outlined" style="font-size:16px;">person</span>
+        已由 <strong class="text-slate-700 dark:text-slate-300 mx-1">{{ p.claimed_by.real_name or p.claimed_by.username }}</strong> 申领
+    </span>
+    {% endif %}
+{% else %}
+<span class="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+    <span class="material-symbols-outlined" style="font-size:16px;">person_add</span>
+    暂无人申领
+</span>
+{% endif %}
+{% endmacro %}
+
+
+{# ── footer actions: claim / unclaim / admin edit ─────────── #}
+{% macro render_footer_actions(p, current_user) %}
+{% if p.claimed_by_id == current_user.id %}
+{# 我已申领 → 导入关联方 + 取消申领 + 转入项目 #}
+{% if p.stakeholders.count() > 0 %}
+<button type="button"
+    onclick="openImportModal({{ p.id }})"
+    class="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+    <span class="material-symbols-outlined" style="font-size:16px;">download</span>
+    导入关联方
+</button>
+{% endif %}
+<button type="button"
+    onclick="prospectUnclaim({{ p.id }})"
+    class="h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+    取消申领
+</button>
+<a href="{{ url_for('project.add_project') }}?from_prospect={{ p.id }}"
+    class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors cursor-pointer">
+    <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+    转入项目
+</a>
+{% elif not p.claimed_by %}
+{# 未申领 → 可申领 #}
+<button type="button"
+    onclick="prospectClaim({{ p.id }})"
+    class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition-colors cursor-pointer">
+    <span class="material-symbols-outlined" style="font-size:16px;">person_add</span>
+    申领
+</button>
+{% endif %}
+{% if current_user.role == 'admin' %}
+<a href="{{ url_for('prospect.admin_edit', id=p.id) }}"
+    class="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer"
+    onclick="event.stopPropagation()">
+    <span class="material-symbols-outlined" style="font-size:16px;">edit</span>
+    编辑
+</a>
+{% endif %}
+{% endmacro %}

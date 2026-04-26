@@ -487,7 +487,11 @@ function addNode(sub,x,y){
     iconData:sub.iconData||DEFAULT_DEVICE_ICONS.generic,
     products:products,
     x:Math.round(x/10)*10,y:Math.round(y/10)*10,w:NODE_SIZE,h:NODE_SIZE,qty:1,label:'',hideLabel:false,
-    floor_id:null, area_label:'', floor_label:''
+    floor_id:null, area_label:'', floor_label:'',
+    // 楼栋归属：null = 中央机房（共享），跨楼栋设备
+    building_id:null,
+    // 是否出现在系统图。系统图直接添加默认 true；平面图新建默认 false（要点同步按钮才进系统图）
+    in_topology:true
   };
   pushHistory();nodes.push(node);hasUnsavedChanges=true;renderAll();selectNode(node.id);return node;
 }
@@ -665,6 +669,8 @@ function snapshotState(){
       name:n.name,model:n.model,category:n.category,color:n.color,
       x:n.x,y:n.y,w:n.w,h:n.h,qty:n.qty,label:n.label,hideLabel:n.hideLabel||false,
       floor_id:n.floor_id||null,area_label:n.area_label||'',floor_label:n.floor_label||'',
+      building_id:n.building_id||null,
+      in_topology:n.in_topology!==false,
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
       labelPosition:n.labelPosition||null,locked:n.locked||false,
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
@@ -1273,6 +1279,10 @@ async function exportDWG() {
       id: r.id,
       sourceNodeId: r.sourceNodeId,
       targetNodeId: r.targetNodeId,
+      sourcePort: r.sourcePort,
+      targetPort: r.targetPort,
+      routeMode: r.routeMode,
+      midPos: r.midPos,
       waypoints: r.waypoints || [],
       label: r.label || '',
       dash: r.dash || false,
@@ -1424,6 +1434,8 @@ function serializeDiagram(){
       name:n.name,model:n.model,category:n.category,color:n.color,
       x:n.x,y:n.y,w:n.w,h:n.h,qty:n.qty,label:n.label,hideLabel:n.hideLabel||false,
       floor_id:n.floor_id||null,area_label:n.area_label||'',floor_label:n.floor_label||'',
+      building_id:n.building_id||null,
+      in_topology:n.in_topology!==false,
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
       labelPosition:n.labelPosition||null,locked:n.locked||false,
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
@@ -1472,7 +1484,28 @@ function deserializeDiagram(data){
   if(data.areaIdCounter&&typeof areaIdCounter!=='undefined')areaIdCounter=data.areaIdCounter;
   if(data.topoAreas)topoAreas=data.topoAreas;
   if(data.displaySettings){const ds=Object.assign({cableWidth:1,cableBlack:false,cableLabel:true,cableLength:true,iconWidth:1,iconBlack:false,iconLabel:true,iconModel:true,showCoverage:'individual',showCoverageInner:true,showCoverageMid:true,coverageFill:true,coverageMode:'circles'},data.displaySettings);delete ds.coverageN;delete ds.showCoverageOuter;if(ds.showCoverage===true)ds.showCoverage='individual';if(ds.showCoverage===false)ds.showCoverage='off';displaySettings=ds;}
+
+  // ── 老格式兼容：补 in_topology / building_id 字段 ──
+  // 如果整个 diagram 任何节点都没有 in_topology 字段 → 老格式 → 全部默认 true（保持旧行为）
+  const _isLegacyDiagram=nodes.length>0&&nodes.every(n=>n.in_topology===undefined);
+  nodes.forEach(n=>{
+    if(n.in_topology===undefined){
+      n.in_topology=_isLegacyDiagram?true:(n.floor_id?false:true);
+    }
+    if(n.building_id===undefined){
+      // 根据 floor_id 反查 fp.building_id，无 floor_id → null（中央机房）
+      if(n.floor_id&&typeof floorPlans!=='undefined'){
+        const fp=floorPlans.find(f=>f.id===n.floor_id);
+        n.building_id=fp?(fp.building_id||null):null;
+      }else{
+        n.building_id=null;
+      }
+    }
+  });
+
   updateTransform();renderAll();
+  // 从 localStorage 恢复刷新前的视图（楼栋 / 楼层）
+  _restoreViewState();
 }
 
 async function saveDiagram(){
@@ -1648,6 +1681,8 @@ function switchView(viewId){
   if(viewId!=='topology'&&typeof updateFloorBgButton==='function')updateFloorBgButton(viewId);
   const btnRelayout=document.getElementById('btnRelayout');
   if(btnRelayout)btnRelayout.style.display=viewId==='topology'?'':'none';
+  const btnSyncFromFloor=document.getElementById('btnSyncFromFloor');
+  if(btnSyncFromFloor)btnSyncFromFloor.style.display=viewId==='topology'?'':'none';
   // Update lock button icon
   if(typeof _updateLockBtnIcon==='function'){
     let allLocked=false;
@@ -1666,6 +1701,7 @@ function switchView(viewId){
   // Fit view on first visit to a floor plan
   if(needsFitView)requestAnimationFrame(()=>fitView());
   if(typeof buildExistingDevicesPanel==='function')buildExistingDevicesPanel();
+  _saveViewState();
 }
 
 // ====== FLOOR PLAN CRUD ======
@@ -1714,6 +1750,67 @@ function renameFloorPlan(fpId,newLabel){
 }
 
 let _activeBuildingFilter=null;
+// 记住每个楼栋最后一次查看的楼层，切楼栋时默认回到那个楼层
+let _lastFloorByBuilding={};
+
+// 刷新后保持当前视图（按 diagram id 持久化到 localStorage）
+function _viewStateKey(){
+  const id=(typeof DIAGRAM_CONFIG!=='undefined'&&DIAGRAM_CONFIG.diagramId)?DIAGRAM_CONFIG.diagramId:'__new__';
+  return 'pma_sd_view_'+id;
+}
+function _saveViewState(){
+  try{
+    const state={
+      currentView:currentView,
+      activeBuildingFilter:_activeBuildingFilter,
+      lastFloorByBuilding:_lastFloorByBuilding,
+    };
+    localStorage.setItem(_viewStateKey(),JSON.stringify(state));
+  }catch(e){/* localStorage 不可用 */}
+}
+function _restoreViewState(){
+  try{
+    const raw=localStorage.getItem(_viewStateKey());
+    if(!raw)return;
+    const s=JSON.parse(raw);
+    if(s.lastFloorByBuilding&&typeof s.lastFloorByBuilding==='object'){_lastFloorByBuilding=s.lastFloorByBuilding}
+    if(s.activeBuildingFilter)_activeBuildingFilter=s.activeBuildingFilter;
+    // 校验 currentView 仍然有效
+    if(s.currentView==='topology'){
+      switchView('topology');
+    }else if(s.currentView&&typeof floorPlans!=='undefined'&&floorPlans.find(f=>f.id===s.currentView)){
+      switchView(s.currentView);
+    }
+  }catch(e){}
+}
+
+function _switchToBuildingDefaultFloor(bldFilter){
+  // bldFilter: 楼栋 id 或 'ungrouped'
+  // 副作用：记住当前楼层（若属于前一个楼栋），然后 currentView 跳到目标楼栋的默认楼层
+  if(typeof floorPlans==='undefined')return;
+  // 记住当前楼层归属的楼栋
+  if(currentView!=='topology'){
+    const curFp=floorPlans.find(f=>f.id===currentView);
+    if(curFp){
+      const key=curFp.building_id||'ungrouped';
+      _lastFloorByBuilding[key]=curFp.id;
+    }
+  }
+  _activeBuildingFilter=bldFilter;
+  // 选目标楼层：优先"上次看过的"，否则楼栋内第一个
+  const bFloors=bldFilter==='ungrouped'
+    ?floorPlans.filter(f=>!f.building_id||(typeof buildings!=='undefined'&&!buildings.find(b=>b.id===f.building_id)))
+    :floorPlans.filter(f=>f.building_id===bldFilter);
+  let target=_lastFloorByBuilding[bldFilter];
+  if(!target||!bFloors.find(f=>f.id===target)){
+    target=bFloors.length>0?bFloors[0].id:null;
+  }
+  if(target&&target!==currentView){
+    switchView(target); // 这个函数内部会 rebuildViewTabs
+  }else{
+    rebuildViewTabs();
+  }
+}
 
 function _resolveActiveBuildingFilter(){
   const hasBlds=typeof buildings!=='undefined'&&buildings.length>0;
@@ -1752,7 +1849,7 @@ function rebuildViewTabs(){
       const pill=document.createElement('div');
       pill.className='building-pill'+(activeFilter===bld.id?' active':'');
       pill.innerHTML=`<span class="building-pill-color" style="background:${bld.color}"></span>${bld.name}`;
-      pill.addEventListener('click',()=>{_activeBuildingFilter=bld.id;rebuildViewTabs()});
+      pill.addEventListener('click',()=>_switchToBuildingDefaultFloor(bld.id));
       pill.addEventListener('dblclick',()=>{if(typeof showBuildingProps==='function')showBuildingProps(bld.id)});
       bldRow.appendChild(pill);
     });
@@ -1760,7 +1857,7 @@ function rebuildViewTabs(){
       const pill=document.createElement('div');
       pill.className='building-pill'+(activeFilter==='ungrouped'?' active':'');
       pill.textContent=_t('独立楼层');
-      pill.addEventListener('click',()=>{_activeBuildingFilter='ungrouped';rebuildViewTabs()});
+      pill.addEventListener('click',()=>_switchToBuildingDefaultFloor('ungrouped'));
       bldRow.appendChild(pill);
     }
     if(!DIAGRAM_CONFIG.readOnly){

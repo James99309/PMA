@@ -267,6 +267,7 @@ def create_app(config_class=Config):
         PerformanceFormulaTemplate, RolePerformanceAccess
     )
     from app.models.data_source_config import DataTableConfig, DataFieldConfig, FormulaTemplate
+    from app.models.prospect_project import ProspectProject, ProspectStakeholder
     from app.models.chat import ChatConversation, ChatParticipant, ChatMessage, ChatTranslation
 
     # 导入所有视图
@@ -938,6 +939,9 @@ def create_app(config_class=Config):
     app.register_blueprint(system_diagram_bp)
     csrf.exempt(system_diagram_bp)
 
+    # 注册市场情报库蓝图
+    from app.views.prospect import prospect_bp
+    app.register_blueprint(prospect_bp, url_prefix='/prospect')
 
     # 添加审批相关函数到模板上下文
     from app.context_processors import inject_approval_functions

@@ -972,6 +972,7 @@ def overlay_system_design_on_dxf(original_dxf_path, output_path, elements):
     # 3. 建 node_id → (world_x, world_y) 字典（连线会用）
     node_world_pos = {}
     node_half_h_mm = {}
+    node_half_w_mm = {}
 
     def _add_text_unicode(txt, x, y, height, layer, align_center=True):
         """把文字转为 LWPOLYLINE 矢量轮廓（text2path），彻底摆脱 CAD 阅读器字体依赖。
@@ -1114,6 +1115,7 @@ def overlay_system_design_on_dxf(original_dxf_path, output_path, elements):
             half_h = float(node.get('h', 32)) / 2 * px_to_mm_y
             node_world_pos[node.get('id')] = (wx, wy)
             node_half_h_mm[node.get('id')] = half_h
+            node_half_w_mm[node.get('id')] = half_w
 
             # 设备符号（优先用节点的 SVG iconData 画矢量图标）
             size = max(half_w, half_h) * 2
@@ -1193,29 +1195,135 @@ def overlay_system_design_on_dxf(original_dxf_path, output_path, elements):
         except Exception as e:
             logger.warning(f'绘制节点 {node.get("id")} 失败: {e}')
 
-    # 5. 绘制连线：LWPOLYLINE（起点 + waypoints + 终点）
+    # 5. 绘制连线：严格匹配浏览器的端口锚点 + routeMode 逻辑
+    def _port_anchor(cx, cy, half_w, port, gap_mm):
+        """port = top/right/bottom/left/top-left/top-right/bottom-left/bottom-right。
+        浏览器 getPortPos 用 R = node.w/2 + 8px，所有 port 都用同一个 R（以 w 为基准）。
+        返回 CAD 世界坐标（Y 已翻转过）。"""
+        R = half_w + gap_mm
+        D = R * 0.7071
+        # 浏览器 Y 朝下，CAD Y 朝上 → 上下方向反转
+        if port == 'top':          return (cx, cy + R)
+        if port == 'bottom':       return (cx, cy - R)
+        if port == 'right':        return (cx + R, cy)
+        if port == 'left':         return (cx - R, cy)
+        if port == 'top-left':     return (cx - D, cy + D)
+        if port == 'top-right':    return (cx + D, cy + D)
+        if port == 'bottom-left':  return (cx - D, cy - D)
+        if port == 'bottom-right': return (cx + D, cy - D)
+        # 未指定 port → 回退到中心
+        return (cx, cy)
+
+    def _snap_direction_to_port(cx, cy, half_w, half_h, tx, ty):
+        """没有 port 信息时按朝向吸附到 4 主方向之一，返回 port 名。"""
+        dx = tx - cx; dy = ty - cy
+        if half_w <= 0: half_w = 1
+        if half_h <= 0: half_h = 1
+        if abs(dx) * half_h >= abs(dy) * half_w:
+            return 'right' if dx >= 0 else 'left'
+        # CAD Y 向上：dy > 0 → 目标在上方 → top 端口
+        return 'top' if dy >= 0 else 'bottom'
+
+    # midPos 在一个轴上（editor 像素）转世界坐标（仅该轴有效）
+    def _midpos_to_world(mid_pos, is_horizontal):
+        if mid_pos is None:
+            return None
+        try:
+            v = float(mid_pos)
+        except (TypeError, ValueError):
+            return None
+        if is_horizontal:
+            return x_min + (v - off_x) / bg_w * world_w  # midX
+        return y_max - (v - off_y) / bg_h * world_h      # midY (Y 翻转)
+
+    port_gap_mm = 8 * px_to_mm  # 浏览器 +8 px 端口间距
+
     for route in elements.get('routes', []):
         try:
-            s = node_world_pos.get(route.get('sourceNodeId'))
-            t = node_world_pos.get(route.get('targetNodeId'))
-            if not s or not t:
+            src_id = route.get('sourceNodeId')
+            tgt_id = route.get('targetNodeId')
+            s_center = node_world_pos.get(src_id)
+            t_center = node_world_pos.get(tgt_id)
+            if not s_center or not t_center:
                 continue
-            pts = [s]
+
+            # 解析 waypoints
+            waypoints = []
             for wp in route.get('waypoints') or []:
                 try:
-                    pts.append(to_world(float(wp['x']), float(wp['y'])))
+                    waypoints.append(to_world(float(wp['x']), float(wp['y'])))
                 except (KeyError, TypeError, ValueError):
                     continue
-            pts.append(t)
-            if len(pts) >= 3:
-                # 3+ 个点 → 用 B 样条拟合过 waypoints，还原编辑器里的贝塞尔曲线外观
-                try:
-                    msp.add_spline(fit_points=pts, dxfattribs={'layer': L_ROUTE})
-                except Exception:
-                    msp.add_lwpolyline(pts, dxfattribs={'layer': L_ROUTE})
-            elif len(pts) == 2:
-                # 两点直线
+
+            src_port = route.get('sourcePort')
+            tgt_port = route.get('targetPort')
+            s_hw = node_half_w_mm.get(src_id, 0)
+            s_hh = node_half_h_mm.get(src_id, 0)
+            t_hw = node_half_w_mm.get(tgt_id, 0)
+            t_hh = node_half_h_mm.get(tgt_id, 0)
+
+            # 若没有 port 数据，按朝向推算
+            if not src_port:
+                ref = waypoints[0] if waypoints else t_center
+                src_port = _snap_direction_to_port(s_center[0], s_center[1], s_hw, s_hh, ref[0], ref[1])
+            if not tgt_port:
+                ref = waypoints[-1] if waypoints else s_center
+                tgt_port = _snap_direction_to_port(t_center[0], t_center[1], t_hw, t_hh, ref[0], ref[1])
+
+            s_anchor = _port_anchor(s_center[0], s_center[1], s_hw, src_port, port_gap_mm)
+            t_anchor = _port_anchor(t_center[0], t_center[1], t_hw, tgt_port, port_gap_mm)
+
+            # 生成 pts —— 严格匹配浏览器 buildEdgePath 逻辑
+            route_mode = (route.get('routeMode') or 'bezier').lower()
+            is_h_port = src_port in ('left', 'right', 'top-left', 'top-right', 'bottom-left', 'bottom-right')
+
+            if waypoints:
+                # 有显式 waypoints → 起点 + waypoints + 终点 的折线（90° 直角路径，不做 spline 平滑）
+                pts = [s_anchor] + waypoints + [t_anchor]
                 msp.add_lwpolyline(pts, dxfattribs={'layer': L_ROUTE})
+            elif route_mode == 'straight':
+                pts = [s_anchor, t_anchor]
+                msp.add_lwpolyline(pts, dxfattribs={'layer': L_ROUTE})
+            elif route_mode == 'ortho2':
+                # L 形 1 个拐角
+                corner = (t_anchor[0], s_anchor[1]) if is_h_port else (s_anchor[0], t_anchor[1])
+                pts = [s_anchor, corner, t_anchor]
+                msp.add_lwpolyline(pts, dxfattribs={'layer': L_ROUTE})
+            elif route_mode == 'ortho3':
+                # S 形 2 个拐角
+                mid = _midpos_to_world(route.get('midPos'), is_h_port)
+                if is_h_port:
+                    mid_x = mid if mid is not None else (s_anchor[0] + t_anchor[0]) / 2
+                    pts = [s_anchor, (mid_x, s_anchor[1]), (mid_x, t_anchor[1]), t_anchor]
+                else:
+                    mid_y = mid if mid is not None else (s_anchor[1] + t_anchor[1]) / 2
+                    pts = [s_anchor, (s_anchor[0], mid_y), (t_anchor[0], mid_y), t_anchor]
+                msp.add_lwpolyline(pts, dxfattribs={'layer': L_ROUTE})
+            else:
+                # bezier 或未知模式 → 用端口方向生成控制点，导出三次贝塞尔 spline
+                def _port_dir_world(port):
+                    tbl = {
+                        'top':    (0, 1), 'bottom': (0, -1),
+                        'right':  (1, 0), 'left':   (-1, 0),
+                        'top-left':    (-0.707, 0.707), 'top-right':    (0.707, 0.707),
+                        'bottom-left': (-0.707, -0.707),'bottom-right': (0.707, -0.707),
+                    }
+                    return tbl.get(port or '', (0, 0))
+                sd = _port_dir_world(src_port); td = _port_dir_world(tgt_port)
+                tension = max(40 * px_to_mm,
+                              min(abs(t_anchor[0] - s_anchor[0]),
+                                  abs(t_anchor[1] - s_anchor[1]),
+                                  120 * px_to_mm) * 0.5)
+                cp1 = (s_anchor[0] + sd[0] * tension, s_anchor[1] + sd[1] * tension)
+                cp2 = (t_anchor[0] + td[0] * tension, t_anchor[1] + td[1] * tension)
+                try:
+                    msp.add_spline(control_points=[s_anchor, cp1, cp2, t_anchor],
+                                   degree=3,
+                                   dxfattribs={'layer': L_ROUTE})
+                except Exception:
+                    msp.add_lwpolyline([s_anchor, t_anchor], dxfattribs={'layer': L_ROUTE})
+                # 标签定位：用 4 个控制点中段
+                pts = [s_anchor, cp1, cp2, t_anchor]
 
             # 连线标签：放在中段
             lbl = (route.get('label') or '').strip()

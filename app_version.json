@@ -1,7 +1,7 @@
 {
-  "app_version": "1.30.1",
+  "app_version": "1.30.2",
   "environment": "production",
-  "timestamp": "2026-04-24 11:05:35",
+  "timestamp": "2026-04-26 11:03:52",
   "modules": {
     "user": {
       "files": {
@@ -40,8 +40,8 @@
     "project": {
       "files": {
         "app/views/project.py": {
-          "hash": "db6da99f214403c3e74cebd32e14224a",
-          "last_modified": "2026-04-21 15:38:10"
+          "hash": "cddd7982e9c0636bd7010863fa4e257e",
+          "last_modified": "2026-04-26 00:43:01"
         },
         "app/models/project.py": {
           "hash": "1c4bb4362c074cd90311f3323358c75e",

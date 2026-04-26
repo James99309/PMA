@@ -2876,6 +2876,69 @@ function computeNextTopoPosition(){
   return {x:minX+col*gap, y:maxY+80+row*gap};
 }
 
+// 平面图 → 系统图 单向同步：把所有 placements 对应的 node 标 in_topology=true
+// 同时同步 building_id / floor_id；首次进系统图的节点会调用自动布局排序
+// 已经在系统图里的节点保留用户调过的位置
+function syncFromFloorplan(){
+  if(DIAGRAM_CONFIG.readOnly){return}
+  if(typeof currentView!=='undefined'&&currentView!=='topology'){
+    showToast(_t('请切换到系统图视图后再同步'));
+    return;
+  }
+  const allPlacedIds=new Set();
+  floorPlans.forEach(fp=>{(fp.placements||[]).forEach(p=>allPlacedIds.add(p.node_id))});
+
+  pushHistory();
+  const newlyImported=[];
+  let updatedCount=0;
+  nodes.forEach(n=>{
+    if(allPlacedIds.has(n.id)){
+      // 找到该节点所在的楼层（取第一个出现的 placement）
+      let owningFp=null;
+      for(const fp of floorPlans){
+        if((fp.placements||[]).some(p=>p.node_id===n.id)){owningFp=fp;break}
+      }
+      const wasInTopo=n.in_topology===true;
+      n.in_topology=true;
+      // 同步归属
+      if(owningFp){
+        n.floor_id=owningFp.id;
+        n.floor_label=owningFp.label||'';
+        n.building_id=owningFp.building_id||null;
+      }
+      if(!wasInTopo){newlyImported.push(n.id)}
+      updatedCount++;
+    }
+  });
+
+  // 在系统图里但平面图找不到对应 placement 的节点 = 平面图删了
+  const orphans=nodes.filter(n=>n.in_topology===true&&n._floorCreated&&!allPlacedIds.has(n.id));
+  let removedCount=0;
+  if(orphans.length){
+    const ok=confirm(_t('以下 ')+orphans.length+_t(' 个节点在平面图已被删除，是否从系统图也移除？'));
+    if(ok){
+      const orphanIds=new Set(orphans.map(n=>n.id));
+      nodes=nodes.filter(n=>!orphanIds.has(n.id));
+      edges=edges.filter(e=>!orphanIds.has(e.sourceId)&&!orphanIds.has(e.targetId));
+      removedCount=orphans.length;
+    }
+  }
+
+  // 若有新导入节点，调用自动布局重排
+  if(newlyImported.length&&typeof relayoutFloorNodesTopo==='function'){
+    relayoutFloorNodesTopo();
+  }
+
+  hasUnsavedChanges=true;
+  renderAll();
+  const parts=[];
+  if(newlyImported.length)parts.push(_t('新导入')+' '+newlyImported.length);
+  if(updatedCount-newlyImported.length>0)parts.push(_t('已更新')+' '+(updatedCount-newlyImported.length));
+  if(removedCount)parts.push(_t('移除')+' '+removedCount);
+  if(!parts.length)parts.push(_t('无变化'));
+  showToast(_t('同步完成')+'：'+parts.join('，'));
+}
+
 // Re-layout all floor-plan nodes to compact grid positions in topology view
 // Only nodes with actual placements on floor plans participate;
 // topology-only devices (主机, 合路平台 etc.) are excluded.
@@ -2883,6 +2946,21 @@ function relayoutFloorNodesTopo(){
   // Build authoritative set from actual placements (not stale floor_id)
   const placedNodeIds=new Set();
   floorPlans.forEach(fp=>{fp.placements.forEach(p=>placedNodeIds.add(p.node_id))});
+
+  // ── 新模型：把有 building_id 但没 placement 的 topo-only 节点也纳入布局 ──
+  // 推断 floor_id：优先用节点本身的 floor_id；没有则用其所属楼栋的第一个楼层
+  // 这样 BFS 链式算法能把它们和该楼层的天线一起排
+  nodes.forEach(n=>{
+    if(placedNodeIds.has(n.id))return;
+    if(n.in_topology===false)return;
+    if(!n.building_id&&!n.floor_id)return; // 中央机房（共享）→ 不参与楼层分组，保留原位置
+    if(!n.floor_id&&n.building_id){
+      const firstFp=floorPlans.find(f=>f.building_id===n.building_id);
+      if(firstFp){n.floor_id=firstFp.id;n.floor_label=firstFp.label||''}
+    }
+    if(n.floor_id)placedNodeIds.add(n.id);
+  });
+
   const floorNodes=nodes.filter(n=>placedNodeIds.has(n.id));
   if(!floorNodes.length)return;
 
@@ -3388,6 +3466,10 @@ function addNodeToFloorPlan(sub,x,y){
   // Add placement to floor plan (placement has its own coords)
   node.floor_id=fpId;
   node.floor_label=fp.label;
+  // 写入楼栋归属（继承所在楼层的 building_id；可能为 null = 独立楼层）
+  node.building_id=fp.building_id||null;
+  // 平面图新建的节点默认不出现在系统图，要等用户点同步按钮才进
+  node.in_topology=false;
   fp.placements.push({node_id:node.id,x:x,y:y,locked:false,rotation:0});
 
   syncFloorAreaLabels();
@@ -3428,6 +3510,7 @@ function placeExistingNodeOnFloor(nodeId,x,y){
   }else{
     fp.placements.push({node_id:nodeId,x:Math.round(x/10)*10,y:Math.round(y/10)*10,locked:false,rotation:0,qty:1});
     n.floor_id=fp.id;n.floor_label=fp.label;
+    n.building_id=fp.building_id||null;  // 同步楼栋归属
     showToast(_t('已放置到楼层'));
   }
   syncFloorAreaLabels();

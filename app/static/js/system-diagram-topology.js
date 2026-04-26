@@ -22,7 +22,11 @@ function renderTopologyView(){
 
 function renderNodes(){
   const layer=document.getElementById('nodesLayer');layer.innerHTML='';
-  nodes.forEach(n=>{
+  // 系统图只渲染 in_topology !== false 的节点（平面图新建节点要显式同步才进系统图）
+  // 老格式兼容：所有节点都没 in_topology 字段 → 全部显示
+  const _legacyAll=nodes.length>0&&nodes.every(n=>n.in_topology===undefined);
+  const _renderable=_legacyAll?nodes:nodes.filter(n=>n.in_topology!==false);
+  _renderable.forEach(n=>{
     const isSel=selectedNodeIds.has(n.id);
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class',`node-group ${isSel?'selected':''}`);g.setAttribute('transform',`translate(${n.x},${n.y})`);g.dataset.nodeId=n.id;
     const glow=document.createElementNS('http://www.w3.org/2000/svg','circle');glow.setAttribute('class','node-glow');glow.setAttribute('cx',n.w/2);glow.setAttribute('cy',n.h/2);glow.setAttribute('r',n.w/2+8);glow.setAttribute('fill',n.color);glow.setAttribute('opacity',isSel?'0.15':'0');glow.style.transition='opacity .2s';g.appendChild(glow);
@@ -60,8 +64,12 @@ function renderEdges(){
   const layer=document.getElementById('edgesLayer');layer.innerHTML='';
   const hitLayer=document.getElementById('edgeHitLayer');hitLayer.innerHTML='';
   const labelEls=[];
+  // 同步 renderNodes 的可见集：连接到隐藏节点的连线也跳过
+  const _legacyAll=nodes.length>0&&nodes.every(n=>n.in_topology===undefined);
+  const _visibleNodeIds=new Set(_legacyAll?nodes.map(n=>n.id):nodes.filter(n=>n.in_topology!==false).map(n=>n.id));
   edges.forEach(edge=>{
     if(edge._hidden)return;
+    if(!_visibleNodeIds.has(edge.sourceId)||!_visibleNodeIds.has(edge.targetId))return;
     const result=buildEdgePath(edge);if(!result||!result.path)return;
     const w=getEffectiveCableWidth(edge.width);const isSelected=selectedEdgeId===edge.id||selectedEdgeIds.has(edge.id);const ec=getEffectiveCableColor(edge.color);
     const edgeClickHandler=e=>{e.stopPropagation();if(e.shiftKey||e.metaKey||e.ctrlKey){toggleEdgeSelection(edge.id)}else{selectEdge(edge.id)}};
@@ -571,15 +579,59 @@ function showNodeProps(id){
     </div>`;
   }
 
+  // ── 楼栋/楼层归属 picker ──
+  let bldOpts=`<option value="">${_t('中央机房（共享）')}</option>`;
+  if(typeof buildings!=='undefined'){
+    buildings.slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).forEach(b=>{
+      bldOpts+=`<option value="${b.id}" ${n.building_id===b.id?'selected':''}>${b.name}</option>`;
+    });
+  }
+  let floorOpts=`<option value="">${_t('楼栋公共（不指定楼层）')}</option>`;
+  if(n.building_id&&typeof floorPlans!=='undefined'){
+    floorPlans.filter(fp=>fp.building_id===n.building_id).forEach(fp=>{
+      floorOpts+=`<option value="${fp.id}" ${n.floor_id===fp.id?'selected':''}>${fp.label||fp.id}</option>`;
+    });
+  }
+  const ownershipHtml=`
+    <div class="props-field"><span class="props-label">${_t('归属楼栋')}</span><select class="props-select" onchange="updateNodeBuilding(${id},this.value)">${bldOpts}</select></div>
+    ${n.building_id?`<div class="props-field"><span class="props-label">${_t('归属楼层')}</span><select class="props-select" onchange="updateNodeFloor(${id},this.value)">${floorOpts}</select></div>`:''}`;
+
   document.getElementById('propsContent').innerHTML=`
     <div class="props-field"><span class="props-label">${_t('子分类')}</span><input class="props-input" value="${n.name}" disabled></div>
     ${modelHtml}
     ${productCard}
+    ${ownershipHtml}
     <div class="props-field"><span class="props-label">${_t('位置标签')}</span><input class="props-input" value="${n.label||''}" placeholder="${_t('如：1F-A区')}" oninput="updateNodeProp(${id},'label',this.value)"></div>
     <div class="props-field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" ${n.hideLabel?'checked':''} onchange="updateNodeProp(${id},'hideLabel',this.checked)"><span class="props-label" style="margin:0;">${_t('隐藏标签')}</span></label></div>
     <div class="props-field"><span class="props-label">${_t('数量')}</span><input class="props-input" type="number" min="1" value="${n.qty}" oninput="updateNodeProp(${id},'qty',parseInt(this.value)||1)"></div>
     ${typeof buildCoveragePropsHTML==='function'?buildCoveragePropsHTML(id):''}
     <button class="btn-delete" onclick="deleteSelected()">${_t('删除节点')}</button>`;
+}
+
+function updateNodeBuilding(nodeId, bldIdStr){
+  const n=nodes.find(n=>n.id===nodeId);if(!n)return;
+  pushHistory();
+  n.building_id=bldIdStr||null;
+  // 楼栋变了，原来的 floor_id 多半失效，清掉让用户重新选
+  if(!n.building_id||(n.floor_id&&!floorPlans.find(f=>f.id===n.floor_id&&f.building_id===n.building_id))){
+    n.floor_id=null;
+    n.floor_label='';
+  }
+  hasUnsavedChanges=true;renderAll();showNodeProps(nodeId);
+}
+
+function updateNodeFloor(nodeId, floorIdStr){
+  const n=nodes.find(n=>n.id===nodeId);if(!n)return;
+  pushHistory();
+  n.floor_id=floorIdStr||null;
+  if(n.floor_id){
+    const fp=floorPlans.find(f=>f.id===n.floor_id);
+    n.floor_label=fp?(fp.label||''):'';
+    if(fp&&fp.building_id&&n.building_id!==fp.building_id)n.building_id=fp.building_id;
+  }else{
+    n.floor_label='';
+  }
+  hasUnsavedChanges=true;renderAll();showNodeProps(nodeId);
 }
 
 function updateNodeModel(nodeId, productIdStr){

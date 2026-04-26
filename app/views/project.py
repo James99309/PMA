@@ -45,6 +45,7 @@ from app.utils.query_filters import (
     extract_filter_params, apply_filters_to_query, extract_sort_params,
     extract_pagination_params, build_list_query, build_ajax_response
 )
+from app.models.prospect_project import ProspectProject
 
 # ============================================================
 # 项目管理筛选配置
@@ -1497,6 +1498,17 @@ def add_project():
             except Exception as score_err:
                 current_app.logger.warning(f"项目更新后评分重新计算失败: {str(score_err)}")
 
+            # 如果来自潜在项目，标记已转化
+            from_prospect_id = request.form.get('from_prospect_id', type=int)
+            if from_prospect_id:
+                try:
+                    prospect = ProspectProject.query.get(from_prospect_id)
+                    if prospect and not prospect.is_deleted:
+                        prospect.converted_project_id = project.id
+                        db.session.commit()
+                except Exception as pe:
+                    logger.warning(f"标记潜在项目转化失败: {pe}")
+
             flash('项目添加成功！', 'success')
             return redirect(url_for('project.view_project', project_id=project.id))
         except Exception as e:
@@ -1505,8 +1517,23 @@ def add_project():
             flash(f'保存失败：{str(e)}', 'danger')
             return render_template('project/add.html', **get_project_form_data())
     
+    # 从潜在项目预填
+    prospect_prefill = {}
+    from_prospect_id = request.args.get('from_prospect', type=int)
+    if from_prospect_id:
+        prospect = ProspectProject.query.filter_by(id=from_prospect_id, is_deleted=False).first()
+        if prospect:
+            prospect_prefill['project_name'] = prospect.project_name
+            prospect_prefill['industry'] = prospect.industry or ''
+            # 找建设单位作为 end_user 参考
+            owner_sh = prospect.stakeholders.filter_by(stakeholder_type='owner').first()
+            if owner_sh:
+                prospect_prefill['owner_company'] = owner_sh.company_name
+
     return render_template(
         'project/add.html',
+        from_prospect_id=from_prospect_id,
+        prospect_prefill=prospect_prefill,
         **get_project_form_data()
     )
 

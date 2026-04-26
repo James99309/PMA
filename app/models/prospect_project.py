@@ -1,0 +1,88 @@
+from app import db
+from datetime import datetime
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy.orm import relationship
+
+PROSPECT_STAGES = {
+    'planning': '规划中',
+    'designing': '设计中',
+    'construction': '在建',
+    'completed': '竣工',
+}
+
+STAKEHOLDER_TYPES = {
+    'owner': '建设单位',
+    'design': '设计院',
+    'epc': 'EPC承包商',
+    'construction': '施工单位',
+    'other': '其他',
+}
+
+INFO_SOURCES = {
+    'eia': '环评公示',
+    'tender': '招标公告',
+    'ai': 'AI调研',
+    'manual': '人工录入',
+}
+
+
+class ProspectProject(db.Model):
+    __tablename__ = 'prospect_projects'
+
+    id = Column(Integer, primary_key=True)
+    project_name = Column(String(200), nullable=False, index=True)
+    industry = Column(String(50), nullable=True)
+    region = Column(String(100), nullable=True)
+    city = Column(String(100), nullable=True)
+    stage = Column(String(20), nullable=False, default='planning')
+    total_investment = Column(String(50), nullable=True)
+    description = Column(Text, nullable=True)
+    keywords = Column(JSON, nullable=True)
+    source = Column(String(20), nullable=True)
+
+    claimed_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    claimed_at = Column(DateTime, nullable=True)
+
+    converted_project_id = Column(Integer, ForeignKey('projects.id'), nullable=True)
+
+    info_updated_at = Column(DateTime, nullable=True)
+    info_updated_by = Column(String(50), nullable=True)
+
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    claimed_by = relationship('User', foreign_keys=[claimed_by_id])
+    converted_project = relationship('Project', foreign_keys=[converted_project_id])
+    stakeholders = relationship('ProspectStakeholder', backref='prospect',
+                                cascade='all, delete-orphan', lazy='dynamic')
+
+    @property
+    def stage_label(self):
+        return PROSPECT_STAGES.get(self.stage, self.stage)
+
+    @property
+    def is_claimed(self):
+        return self.claimed_by_id is not None
+
+    @property
+    def is_converted(self):
+        return self.converted_project_id is not None
+
+
+class ProspectStakeholder(db.Model):
+    __tablename__ = 'prospect_stakeholders'
+
+    id = Column(Integer, primary_key=True)
+    prospect_id = Column(Integer, ForeignKey('prospect_projects.id'), nullable=False, index=True)
+    stakeholder_type = Column(String(20), nullable=False)
+    company_name = Column(String(200), nullable=False)
+    department = Column(String(100), nullable=True)
+    address = Column(String(300), nullable=True)
+    phone = Column(String(50), nullable=True)
+    contact_person = Column(String(50), nullable=True)
+    notes = Column(Text, nullable=True)
+
+    @property
+    def type_label(self):
+        return STAKEHOLDER_TYPES.get(self.stakeholder_type, self.stakeholder_type)

@@ -1,0 +1,1096 @@
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_fixed_header_page.html' import render_tw_fixed_header_styles, render_tw_fixed_page with context %}
+{% from 'components/tw_data_table.html' import render_tw_data_table, render_tw_data_table_styles, render_tw_data_table_script with context %}
+{% from 'components/tw_table_cells.html' import tw_cell_link, tw_cell_text, tw_cell_badge, tw_cell_date, tw_cell_optional with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>市场情报库</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
+                    },
+                    fontFamily: { "display": ["Inter", "sans-serif"] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
+        {{ render_tw_fixed_header_styles() }}
+        /* 覆盖 resizable-table 对 td span 的 display:block，让地区等列保持内联 */
+        #prospectTable td .inline-flex span,
+        #prospectTable td .inline-flex {
+            display: inline-flex !important;
+            overflow: visible !important;
+        }
+    </style>
+    {{ render_tw_data_table_styles() }}
+</head>
+
+<body class="bg-background-light dark:bg-background-dark">
+    {% call(slot) render_tw_layout(active_page='project') %}
+    {% if slot == 'content' %}
+    {% call(page_slot) render_tw_fixed_page() %}
+
+    {# ── HEADER ──────────────────────────────────────────────── #}
+    {% if page_slot == 'header' %}
+        <div class="flex items-center gap-2">
+            <button onclick="window.location.href='{{ url_for('project.list_projects') }}'"
+                class="inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer">
+                <span class="material-symbols-outlined" style="font-size:20px;">arrow_back</span>
+            </button>
+            <div>
+                <h1 class="text-xl font-bold text-slate-900 dark:text-white">市场情报库</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">潜在工程机会 · 共 {{ total_count }} 条</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            {# Stage summary pills #}
+            <div class="hidden md:flex items-center gap-1.5">
+                {% for stg, label, color in [
+                    ('construction','在建','text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-900/30 dark:border-orange-800'),
+                    ('designing','设计中','text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-400 dark:bg-violet-900/30 dark:border-violet-800'),
+                    ('planning','规划中','text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-900/30 dark:border-blue-800')
+                ] %}
+                <a href="{{ url_for('prospect.list_view', stage=stg) }}"
+                   class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border font-medium cursor-pointer {{ color }}">
+                    {{ label }} {{ stage_counts.get(stg, 0) }}
+                </a>
+                {% endfor %}
+            </div>
+
+            {% if current_user.role == 'admin' %}
+            <a href="{{ url_for('prospect.admin_new') }}"
+                class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors cursor-pointer">
+                <span class="material-symbols-outlined" style="font-size:18px;">add</span>
+                <span class="hidden sm:inline">新增情报</span>
+            </a>
+            {% endif %}
+        </div>
+
+    {# ── CONTENT ──────────────────────────────────────────────── #}
+    {% elif page_slot == 'content' %}
+
+    {# ── FILTER BAR ───────────────────────────────────────────── #}
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-4">
+        <form id="prospectFilterForm" method="GET" action="{{ url_for('prospect.list_view') }}">
+            <div class="p-3 sm:p-4 space-y-3">
+
+                {# Row 1: keyword search #}
+                <div class="flex gap-2">
+                    <div class="relative flex-1">
+                        <span class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                            <span class="material-symbols-outlined text-slate-400" style="font-size:17px;">search</span>
+                        </span>
+                        <input type="text" name="search" value="{{ search or '' }}"
+                            placeholder="项目名称、关键词、地区、业主..."
+                            class="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm placeholder-slate-400 focus:border-primary focus:ring-1 focus:ring-primary">
+                    </div>
+                    <button type="submit"
+                        class="h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors cursor-pointer">
+                        搜索
+                    </button>
+                    {% if search or industry or region or stage or claimed %}
+                    <a href="{{ url_for('prospect.list_view') }}"
+                        class="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:15px;">close</span>
+                        重置
+                    </a>
+                    {% endif %}
+                </div>
+
+                {# Row 2: dropdowns + claimed toggle #}
+                <div class="flex flex-wrap items-end gap-2">
+                    {# Industry #}
+                    <div class="min-w-[110px]">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">行业</label>
+                        <select name="industry" onchange="this.form.submit()"
+                            class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                            <option value="">全部行业</option>
+                            {% for val, lbl in industry_labels %}
+                            <option value="{{ val }}" {% if industry==val %}selected{% endif %}>{{ lbl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {# Region #}
+                    <div class="min-w-[100px]">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">地区</label>
+                        <select name="region" onchange="this.form.submit()"
+                            class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                            <option value="">全部地区</option>
+                            {% for r in regions %}
+                            <option value="{{ r }}" {% if region==r %}selected{% endif %}>{{ r }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    {# Stage #}
+                    <div class="min-w-[100px]">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">阶段</label>
+                        <select name="stage" onchange="this.form.submit()"
+                            class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                            <option value="">全部阶段</option>
+                            <option value="planning"     {% if stage=='planning'     %}selected{% endif %}>规划中</option>
+                            <option value="designing"    {% if stage=='designing'    %}selected{% endif %}>设计中</option>
+                            <option value="construction" {% if stage=='construction' %}selected{% endif %}>在建</option>
+                            <option value="completed"    {% if stage=='completed'    %}selected{% endif %}>竣工</option>
+                        </select>
+                    </div>
+
+                    {# Sort #}
+                    <div class="min-w-[130px]">
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">排序</label>
+                        <select name="sort" onchange="this.form.submit()"
+                            class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
+                            <option value="updated_desc" {% if not sort or sort=='updated_desc' %}selected{% endif %}>情报更新 · 最新</option>
+                            <option value="updated_asc"  {% if sort=='updated_asc'  %}selected{% endif %}>情报更新 · 最早</option>
+                            <option value="stage_hot"    {% if sort=='stage_hot'    %}selected{% endif %}>阶段 · 在建优先</option>
+                            <option value="created_desc" {% if sort=='created_desc' %}selected{% endif %}>录入时间 · 最新</option>
+                        </select>
+                    </div>
+
+                    {# Claimed toggle — three-way: all / unclaimed / mine #}
+                    <div class="ml-auto flex items-end">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">申领状态</label>
+                            <div class="flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden text-sm">
+                                {% for val, lbl in [('', '全部'), ('unclaimed', '未申领'), ('mine', '我的'), ('claimed', '已申领')] %}
+                                <a href="{{ url_for('prospect.list_view', search=search, industry=industry, region=region, stage=stage, sort=sort, claimed=val) }}"
+                                   class="inline-flex items-center justify-center h-9 px-3 transition-colors cursor-pointer
+                                   {% if (claimed or '') == val %}
+                                       bg-primary text-white font-medium
+                                   {% else %}
+                                       bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800
+                                   {% endif %}
+                                   {% if not loop.last %}border-r border-slate-300 dark:border-slate-600{% endif %}">
+                                    {{ lbl }}
+                                </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </form>
+    </div>
+
+    {# ── TABLE TITLE BAR (sticky) ─────────────────────────────── #}
+    <div class="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8">
+        <div class="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 px-4 py-3">
+            <h3 class="text-sm font-medium text-slate-900 dark:text-white">情报列表</h3>
+            {% if search or industry or region or stage or claimed %}
+            <span class="flex items-center gap-1 text-xs text-slate-400">
+                <span class="material-symbols-outlined" style="font-size:13px;">filter_alt</span>
+                已筛选
+            </span>
+            {% endif %}
+            <span class="ml-auto text-sm text-slate-500 dark:text-slate-400">
+                <strong class="text-slate-900 dark:text-white">{{ projects|length }}</strong> 条
+            </span>
+        </div>
+    </div>
+
+    {# ── DATA TABLE ───────────────────────────────────────────── #}
+    {% set columns = [
+        {'field': 'project_name',    'label': '项目名称',   'min_width': '240px'},
+        {'field': 'stage',           'label': '阶段',       'width': '90px',  'align': 'center'},
+        {'field': 'industry',        'label': '行业',       'width': '90px'},
+        {'field': 'region',          'label': '地区',       'width': '100px'},
+        {'field': 'total_investment','label': '投资规模',   'width': '100px'},
+        {'field': 'stakeholders',    'label': '关联方',     'width': '120px'},
+        {'field': 'claimed_by',      'label': '申领状态',   'width': '110px'},
+        {'field': 'info_updated_at', 'label': '情报更新',   'width': '100px', 'align': 'center'}
+    ] %}
+
+    {% call render_tw_data_table(
+        table_id='prospectTable',
+        title='',
+        total_count=projects|length,
+        columns=columns,
+        sort_field=sort_col or 'info_updated_at',
+        sort_order=sort_order_dir or 'desc',
+        max_height='calc(100vh - 295px)',
+        min_height='400px',
+        min_width='1100px',
+        no_top_radius=true,
+        empty_text='暂无情报数据',
+        empty_icon='travel_explore'
+    ) %}
+
+    {% set stage_cfg = {
+        'planning':     ('规划中', 'text-blue-600 bg-blue-50 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-800'),
+        'designing':    ('设计中', 'text-violet-600 bg-violet-50 border border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-800'),
+        'construction': ('在建',   'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-800'),
+        'completed':    ('竣工',   'text-green-700 bg-green-50 border border-green-200 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800')
+    } %}
+    {# 直接用 view 传入的 industry_labels dict 做行业显示，不重复维护 #}
+    {% set industry_label = dict(industry_labels) %}
+
+    {% for p in projects %}
+    {% set sc = stage_cfg.get(p.stage, ('未知', 'text-slate-500 bg-slate-100 border border-slate-200 dark:text-slate-400 dark:bg-slate-700')) %}
+    {% set owner_ct   = p.stakeholders | selectattr('stakeholder_type', 'eq', 'owner')  | list | length %}
+    {% set design_ct  = p.stakeholders | selectattr('stakeholder_type', 'in', ['design','epc']) | list | length %}
+
+    <tr class="table-row-hover transition-colors cursor-pointer"
+        onclick="openProspectDetail({{ p.id }})">
+
+        {# 项目名称 #}
+        <td class="p-3">
+            <div class="flex items-start gap-2">
+                {# Stage left-border indicator #}
+                <span class="mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full
+                    {% if p.stage == 'construction' %}bg-orange-500
+                    {% elif p.stage == 'designing' %}bg-violet-500
+                    {% elif p.stage == 'planning' %}bg-blue-500
+                    {% else %}bg-green-500{% endif %}">
+                </span>
+                <div class="min-w-0">
+                    <p class="text-sm font-medium text-slate-900 dark:text-white truncate max-w-xs" title="{{ p.project_name }}">
+                        {{ p.project_name }}
+                    </p>
+                    {% if p.keywords %}
+                    <p class="text-xs text-slate-400 truncate max-w-xs mt-0.5">
+                        {{ p.keywords[:3] | join(' · ') }}
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </td>
+
+        {# 阶段 #}
+        <td class="p-3 text-center whitespace-nowrap">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium {{ sc[1] }}">
+                {{ sc[0] }}
+            </span>
+        </td>
+
+        {# 行业 #}
+        <td class="p-3 whitespace-nowrap">
+            <span class="text-sm text-slate-600 dark:text-slate-400">
+                {{ industry_label.get(p.industry, p.industry or '—') }}
+            </span>
+        </td>
+
+        {# 地区 #}
+        <td class="p-3 whitespace-nowrap">
+            <span class="inline-flex items-center gap-0.5 text-sm text-slate-700 dark:text-slate-300">{% if p.city and p.region and p.city != p.region %}{{ p.city }}<span class="text-slate-400">/{{ p.region }}</span>{% else %}{{ p.city or p.region or '—' }}{% endif %}</span>
+        </td>
+
+        {# 投资规模 #}
+        <td class="p-3 whitespace-nowrap">
+            {% if p.total_investment %}
+            <span class="text-sm font-medium text-amber-600 dark:text-amber-400 max-w-[110px] truncate block" title="{{ p.total_investment }}">{{ p.total_investment }}</span>
+            {% else %}
+            <span class="text-sm text-slate-300 dark:text-slate-600">—</span>
+            {% endif %}
+        </td>
+
+        {# 关联方 #}
+        <td class="p-3 whitespace-nowrap">
+            {% if p.stakeholders %}
+            <div class="flex items-center gap-1.5">
+                {% if owner_ct > 0 %}
+                <span class="px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-700">建设 {{ owner_ct }}</span>
+                {% endif %}
+                {% if design_ct > 0 %}
+                <span class="px-1.5 py-0.5 rounded text-xs bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 border border-violet-200 dark:border-violet-700">设计 {{ design_ct }}</span>
+                {% endif %}
+            </div>
+            {% else %}
+            <span class="text-xs text-slate-300 dark:text-slate-600">—</span>
+            {% endif %}
+        </td>
+
+        {# 申领状态 #}
+        <td class="p-3 whitespace-nowrap">
+            {% if p.claimed_by %}
+                {% if p.claimed_by_id == current_user.id %}
+                <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                    <span class="material-symbols-outlined fill" style="font-size:13px;">person</span>
+                    我已申领
+                </span>
+                {% else %}
+                <span class="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                    <span class="material-symbols-outlined" style="font-size:13px;">person</span>
+                    {{ p.claimed_by.real_name or p.claimed_by.username }}
+                </span>
+                {% endif %}
+            {% else %}
+            <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                <span class="material-symbols-outlined" style="font-size:13px;">person_add</span>
+                可申领
+            </span>
+            {% endif %}
+        </td>
+
+        {# 情报更新 #}
+        <td class="p-3 text-center whitespace-nowrap">
+            {% set dt = p.info_updated_at or p.created_at %}
+            {% if dt %}
+            <span class="text-xs text-slate-500 dark:text-slate-400">{{ dt.strftime('%Y-%m-%d') }}</span>
+            {% else %}
+            <span class="text-xs text-slate-300 dark:text-slate-600">—</span>
+            {% endif %}
+        </td>
+
+    </tr>
+    {% endfor %}
+
+    {% endcall %}{# render_tw_data_table #}
+
+    {% endif %}{# page_slot #}
+    {% endcall %}{# render_tw_fixed_page #}
+    {% endif %}{# slot #}
+    {% endcall %}{# render_tw_layout #}
+
+    {# ── IMPORT SUB-MODAL ─────────────────────────────────────── #}
+    <div id="prospectImportModal" class="fixed inset-0 z-[60] hidden" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeImportModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-xl max-h-[88vh]">
+
+                {# header #}
+                <div class="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white">导入关联方到客户库</h3>
+                        <p id="im-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">检查重复中...</p>
+                    </div>
+                    <button type="button" onclick="closeImportModal()"
+                        class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+                    </button>
+                </div>
+
+                {# body #}
+                <div id="im-body" class="flex-1 overflow-y-auto px-6 py-4 space-y-3 min-h-[160px]">
+                    <div class="flex items-center justify-center h-24 text-slate-400">
+                        <span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span>
+                        <span class="text-sm">正在检查重复...</span>
+                    </div>
+                </div>
+
+                {# footer #}
+                <div class="flex-shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onclick="closeImportModal()"
+                        class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                        取消
+                    </button>
+                    <button type="button" id="im-confirm-btn" onclick="executeImport()" disabled
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:16px;">download</span>
+                        <span id="im-confirm-label">确认导入</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── AI ENRICH RESULT MODAL (shows after research completes) ── #}
+    <div id="prospectEnrichResultModal" class="fixed inset-0 z-[70] hidden" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="closeEnrichResultModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh]">
+                <div class="flex-shrink-0 flex items-center justify-between px-6 py-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-emerald-500" style="font-size:20px;">check_circle</span>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">调研结果</h3>
+                        </div>
+                        <p id="enrich-result-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"></p>
+                    </div>
+                    <button type="button" onclick="closeEnrichResultModal()"
+                        class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+                    </button>
+                </div>
+                <div id="enrich-result-body" class="flex-1 overflow-y-auto px-6 pb-2"></div>
+                <div class="flex-shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onclick="closeEnrichResultModal()"
+                        class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                        关闭
+                    </button>
+                    <button type="button" id="enrich-result-save-btn" onclick="saveEnrichSelected()" disabled
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:16px;">save</span>
+                        <span id="enrich-result-save-label">保存选中</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── DETAIL MODAL ─────────────────────────────────────────── #}
+    <div id="prospectDetailModal" class="fixed inset-0 z-50 hidden" role="dialog" aria-modal="true">
+        {# backdrop #}
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+             onclick="closeProspectDetail()"></div>
+        {# modal box #}
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[88vh]">
+                {# header #}
+                <div class="flex-shrink-0 flex items-start justify-between px-6 pt-5 pb-4">
+                    <div class="min-w-0 pr-4">
+                        <div id="pdm-stage-badge" class="mb-1.5"></div>
+                        <h2 id="pdm-title" class="text-lg font-semibold text-slate-900 dark:text-white leading-snug"></h2>
+                        <p id="pdm-location" class="text-sm text-slate-500 dark:text-slate-400 mt-0.5"></p>
+                    </div>
+                    <button type="button" onclick="closeProspectDetail()"
+                        class="flex-shrink-0 p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+                    </button>
+                </div>
+
+                {# scrollable body — injected via fetch #}
+                <div id="pdm-body" class="flex-1 overflow-y-auto px-6 py-4 min-h-[160px]">
+                    <div class="flex items-center justify-center h-24 text-slate-400">
+                        <span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span>
+                        <span class="text-sm">加载中...</span>
+                    </div>
+                </div>
+
+                {# footer actions #}
+                <div id="pdm-footer" class="flex-shrink-0 flex items-center justify-between gap-3 px-6 py-4">
+                    <div id="pdm-footer-left" class="flex items-center gap-2"></div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="closeProspectDetail()"
+                            class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                            关闭
+                        </button>
+                        <div id="pdm-footer-actions"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{ render_tw_layout_script() }}
+    {{ render_tw_data_table_script(table_id='prospectTable') }}
+    <script>
+    let _currentProspectId = null;
+
+    function openProspectDetail(id) {
+        _currentProspectId = id;
+        const modal = document.getElementById('prospectDetailModal');
+        const body  = document.getElementById('pdm-body');
+        const title = document.getElementById('pdm-title');
+        const loc   = document.getElementById('pdm-location');
+        const badge = document.getElementById('pdm-stage-badge');
+        const footerLeft    = document.getElementById('pdm-footer-left');
+        const footerActions = document.getElementById('pdm-footer-actions');
+
+        title.textContent = '';
+        loc.textContent   = '';
+        badge.innerHTML   = '';
+        footerLeft.innerHTML   = '';
+        footerActions.innerHTML = '';
+        body.innerHTML = '<div class="flex items-center justify-center h-24 text-slate-400"><span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span><span class="text-sm">加载中...</span></div>';
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        fetch('/prospect/' + id + '/panel', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            title.textContent = data.project_name || '';
+            loc.textContent   = [data.city, data.region].filter(Boolean).join(' · ');
+            badge.innerHTML   = data.stage_badge_html || '';
+            body.innerHTML    = data.body_html || '';
+            footerLeft.innerHTML    = data.footer_left_html || '';
+            footerActions.innerHTML = data.footer_actions_html || '';
+            _applyEnrichButtonStates();
+        })
+        .catch(() => {
+            body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">加载失败，请重试</p>';
+        });
+    }
+
+    function closeProspectDetail() {
+        document.getElementById('prospectDetailModal').classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            if (!document.getElementById('prospectEnrichResultModal').classList.contains('hidden')) {
+                closeEnrichResultModal();
+            } else if (!document.getElementById('prospectImportModal').classList.contains('hidden')) {
+                closeImportModal();
+            } else {
+                closeProspectDetail();
+            }
+        }
+    });
+
+    // ── Import flow ────────────────────────────────────────────
+    let _importProspectId = null;
+    let _importItems = [];  // built from UI selections
+
+    const STAKEHOLDER_TYPE_LABEL = {
+        owner: '业主', design: '设计院', epc: 'EPC',
+        construction: '施工', other: '其他'
+    };
+    const TYPE_COLOR = {
+        owner:        'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
+        design:       'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
+        epc:          'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700',
+        construction: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700',
+        other:        'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600',
+    };
+
+    function openImportModal(prospectId) {
+        _importProspectId = prospectId;
+        _importItems = [];
+        document.getElementById('prospectImportModal').classList.remove('hidden');
+        document.getElementById('im-subtitle').textContent = '正在检查重复...';
+        document.getElementById('im-body').innerHTML = `
+            <div class="flex items-center justify-center h-24 text-slate-400">
+                <span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span>
+                <span class="text-sm">正在检查重复...</span>
+            </div>`;
+        document.getElementById('im-confirm-btn').disabled = true;
+
+        fetch('/prospect/' + prospectId + '/check-import', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => renderImportResults(data.stakeholders))
+        .catch(() => {
+            document.getElementById('im-body').innerHTML =
+                '<p class="text-sm text-red-500 text-center py-8">加载失败，请重试</p>';
+        });
+    }
+
+    function renderImportResults(stakeholders) {
+        const needs = stakeholders.filter(s => s.company_status === 'similar' || s.contact_status === 'duplicate_name' || s.contact_status === 'duplicate_phone');
+        const clean = stakeholders.filter(s => s.company_status === 'new' && (s.contact_status === 'new' || s.contact_status === 'none'));
+        const exact = stakeholders.filter(s => s.company_status === 'exact');
+
+        let html = '';
+
+        // ── 需要确认 ──────────────────────────────────
+        if (needs.length) {
+            html += `<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">需要确认 (${needs.length})</p>`;
+            needs.forEach(s => { html += renderImportCard(s, true); });
+        }
+
+        // ── 可直接导入 ────────────────────────────────
+        if (clean.length) {
+            html += `<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mt-4 mb-2">可直接导入 (${clean.length})</p>`;
+            clean.forEach(s => { html += renderImportCard(s, false); });
+        }
+
+        // ── 已存在，仅联系人 ──────────────────────────
+        if (exact.length) {
+            html += `<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mt-4 mb-2">公司已存在 (${exact.length})</p>`;
+            exact.forEach(s => { html += renderImportCard(s, false); });
+        }
+
+        document.getElementById('im-body').innerHTML = html || '<p class="text-sm text-slate-400 text-center py-8">无可导入的关联方</p>';
+
+        const total = stakeholders.length;
+        document.getElementById('im-subtitle').textContent = `共 ${total} 个关联方 · 请确认导入选项`;
+        document.getElementById('im-confirm-btn').disabled = total === 0;
+        updateImportCount();
+    }
+
+    function renderImportCard(s, highlight) {
+        const typeLabel = STAKEHOLDER_TYPE_LABEL[s.stakeholder_type] || s.stakeholder_type;
+        const typeColor = TYPE_COLOR[s.stakeholder_type] || TYPE_COLOR.other;
+        const cardBorder = highlight
+            ? 'border-amber-200 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-900/10'
+            : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800';
+
+        let companySection = '';
+        if (s.company_status === 'exact') {
+            // 已精确匹配 → 强制 merge
+            const m = s.similar_companies[0];
+            companySection = `
+                <input type="hidden" data-sid="${s.id}" data-field="company_action" value="merge">
+                <input type="hidden" data-sid="${s.id}" data-field="merge_company_id" value="${m.id}">
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <span class="material-symbols-outlined align-text-bottom" style="font-size:13px;">check_circle</span>
+                    已存在于客户库，联系人将挂到此公司下
+                </p>`;
+        } else if (s.company_status === 'similar') {
+            const opts = s.similar_companies.map(m =>
+                `<option value="merge:${m.id}">${m.name} (${m.score}% 相似)</option>`
+            ).join('');
+            companySection = `
+                <div class="mt-2">
+                    <label class="text-xs font-medium text-amber-700 dark:text-amber-400">发现相似公司，请选择：</label>
+                    <select data-sid="${s.id}" data-field="company_choice" onchange="updateImportCount()"
+                        class="mt-1 w-full h-8 px-2 text-xs rounded border border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 cursor-pointer">
+                        <option value="new">新建公司「${s.company_name}」</option>
+                        ${opts}
+                    </select>
+                </div>`;
+        } else {
+            companySection = `
+                <input type="hidden" data-sid="${s.id}" data-field="company_action" value="new">
+                <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                    <span class="material-symbols-outlined align-text-bottom" style="font-size:13px;">add_circle</span>
+                    新建公司
+                </p>`;
+        }
+
+        let contactSection = '';
+        if (s.contact_person) {
+            if (s.contact_status === 'duplicate_name' || s.contact_status === 'duplicate_phone') {
+                const d = s.duplicate_contact;
+                const reason = s.contact_status === 'duplicate_name' ? '同名' : '同电话';
+                contactSection = `
+                    <div class="mt-2 p-2 rounded bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-xs">
+                        <p class="text-rose-600 dark:text-rose-400 font-medium">
+                            <span class="material-symbols-outlined align-text-bottom" style="font-size:13px;">warning</span>
+                            联系人「${s.contact_person}」与客户库中的「${d.name}」${reason}（${d.company_name}）
+                        </p>
+                        <div class="flex items-center gap-3 mt-1.5">
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="radio" name="contact_${s.id}" value="skip" checked data-sid="${s.id}" data-field="contact_action" onchange="updateImportCount()">
+                                <span class="text-slate-600 dark:text-slate-400">跳过联系人</span>
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer">
+                                <input type="radio" name="contact_${s.id}" value="create" data-sid="${s.id}" data-field="contact_action" onchange="updateImportCount()">
+                                <span class="text-slate-600 dark:text-slate-400">仍然创建</span>
+                            </label>
+                        </div>
+                    </div>`;
+            } else if (s.contact_status === 'new') {
+                contactSection = `
+                    <input type="hidden" data-sid="${s.id}" data-field="contact_action" value="create">
+                    <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                        <span class="material-symbols-outlined align-text-bottom" style="font-size:13px;">person_add</span>
+                        新建联系人「${s.contact_person}」${s.phone ? '· ' + s.phone : ''}${s.department ? '· ' + s.department : ''}
+                    </p>`;
+            }
+        }
+
+        return `
+        <div data-import-card="${s.id}" class="p-3 rounded-lg border ${cardBorder} transition-opacity">
+            <div class="flex items-start gap-2">
+                <label class="flex-shrink-0 mt-0.5 cursor-pointer">
+                    <input type="checkbox" data-sid="${s.id}" data-field="include" checked onchange="updateImportCount()"
+                        class="rounded border-slate-300 text-primary focus:ring-primary cursor-pointer">
+                </label>
+                <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs border ${typeColor}">${typeLabel}</span>
+                        <span class="text-sm font-medium text-slate-800 dark:text-slate-200">${s.company_name}</span>
+                    </div>
+                    ${companySection}
+                    ${contactSection}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function updateImportCount() {
+        const checks = document.querySelectorAll('#im-body input[data-field="include"]:checked');
+        const n = checks.length;
+        document.getElementById('im-confirm-label').textContent = n > 0 ? `确认导入 (${n} 条)` : '确认导入';
+        document.getElementById('im-confirm-btn').disabled = n === 0;
+    }
+
+    function executeImport() {
+        const btn = document.getElementById('im-confirm-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>导入中...';
+
+        // 收集所有选项
+        const items = [];
+        document.querySelectorAll('#im-body input[data-field="include"]').forEach(cb => {
+            const sid = cb.dataset.sid;
+            const include = cb.checked;
+
+            const getVal = field => {
+                const el = document.querySelector(`#im-body [data-sid="${sid}"][data-field="${field}"]`);
+                return el ? el.value : null;
+            };
+
+            // company choice dropdown
+            const choiceEl = document.querySelector(`#im-body [data-sid="${sid}"][data-field="company_choice"]`);
+            let company_action = getVal('company_action') || 'new';
+            let merge_company_id = null;
+            if (choiceEl) {
+                const v = choiceEl.value;
+                if (v.startsWith('merge:')) {
+                    company_action = 'merge';
+                    merge_company_id = parseInt(v.split(':')[1]);
+                } else {
+                    company_action = 'new';
+                }
+            }
+
+            // contact action (radio or hidden)
+            const contactRadio = document.querySelector(`#im-body input[name="contact_${sid}"]:checked`);
+            const contact_action = contactRadio ? contactRadio.value : (getVal('contact_action') || 'skip');
+
+            items.push({
+                stakeholder_id: parseInt(sid),
+                skip: !include,
+                company_action,
+                merge_company_id,
+                contact_action,
+            });
+        });
+
+        fetch('/prospect/' + _importProspectId + '/import-stakeholders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ items })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const s = data.summary;
+                document.getElementById('im-body').innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-10 text-center">
+                        <span class="material-symbols-outlined text-emerald-500 mb-3" style="font-size:40px;">check_circle</span>
+                        <p class="text-base font-semibold text-slate-800 dark:text-slate-200">导入完成</p>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-2">
+                            新建公司 ${s.created_companies} 个 &nbsp;·&nbsp;
+                            合并 ${s.merged_companies} 个 &nbsp;·&nbsp;
+                            新建联系人 ${s.created_contacts} 个
+                        </p>
+                    </div>`;
+                document.getElementById('im-confirm-btn').classList.add('hidden');
+            } else {
+                document.getElementById('im-body').innerHTML =
+                    `<p class="text-sm text-red-500 text-center py-8">${data.message || '导入失败'}</p>`;
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">download</span> 重试';
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '重试';
+        });
+    }
+
+    function closeImportModal() {
+        document.getElementById('prospectImportModal').classList.add('hidden');
+        document.getElementById('im-confirm-btn').classList.remove('hidden');
+    }
+
+    // ── AI Enrich (background, button-state only) ──────────────
+    // States: idle → loading (spinning, click=cancel) → done (green, click=show results)
+    let _enrichActive  = null; // { prospectId, sid, controller }
+    let _enrichResults = {};   // key: "pid-sid" → server response data
+
+    const _FIELD_LABELS = { contact_person:'联系人', phone:'电话', address:'地址', notes:'备注' };
+    const _CONF_COLOR = {
+        high:   'text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700',
+        medium: 'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-700',
+        low:    'text-rose-600 bg-rose-50 border-rose-200 dark:text-rose-300 dark:bg-rose-900/30 dark:border-rose-700',
+    };
+
+    function enrichStakeholder(prospectId, sid) {
+        const key = `${prospectId}-${sid}`;
+
+        // ── clicking a loading button → cancel ──────────────────
+        if (_enrichActive && _enrichActive.prospectId == prospectId && _enrichActive.sid == sid) {
+            _enrichActive.controller.abort();
+            _enrichActive = null;
+            _setEnrichBtn(key, 'idle');
+            return;
+        }
+
+        // ── another research running → block ───────────────────
+        if (_enrichActive) {
+            showToast('已有调研进行中，请等待完成或点击旋转按钮取消', 'warning');
+            return;
+        }
+
+        // ── clicking a done button → show results modal ─────────
+        if (_enrichResults[key]) {
+            openEnrichResultModal(key);
+            return;
+        }
+
+        // ── start new research ──────────────────────────────────
+        const controller = new AbortController();
+        _enrichActive = { prospectId, sid, controller };
+        _setEnrichBtn(key, 'loading');
+
+        fetch(`/prospect/${prospectId}/stakeholder/${sid}/ai-enrich`, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            _enrichActive = null;
+            if (!data.success) {
+                showToast(data.message || 'AI调研失败', 'error');
+                _setEnrichBtn(key, 'idle');
+                return;
+            }
+            const fields = data.fields || {};
+            if (Object.keys(fields).length === 0) {
+                showToast(`${data.company_name}：未找到新联系方式`, 'info');
+                _setEnrichBtn(key, 'idle');
+                return;
+            }
+            _enrichResults[key] = data;
+            _setEnrichBtn(key, 'done');
+            showToast(`${data.company_name} 调研完成，点击按钮查看结果`, 'success');
+        })
+        .catch(err => {
+            _enrichActive = null;
+            if (err.name === 'AbortError') { _setEnrichBtn(key, 'idle'); return; }
+            showToast('调研请求失败，请重试', 'error');
+            _setEnrichBtn(key, 'idle');
+        });
+    }
+
+    function _setEnrichBtn(key, state) {
+        const btn = document.querySelector(`[data-enrich-btn="${key}"]`);
+        if (!btn) return;
+        if (state === 'loading') {
+            btn.innerHTML = `<span class="material-symbols-outlined animate-spin" style="font-size:12px;">progress_activity</span> 调研中`;
+            btn.className = btn.className
+                .replace(/text-violet-\S+/g, 'text-amber-600 dark:text-amber-400')
+                .replace(/bg-violet-\S+/g, 'bg-amber-50 dark:bg-amber-900/30')
+                .replace(/border-violet-\S+/g, 'border-amber-300 dark:border-amber-700');
+        } else if (state === 'done') {
+            btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px;">check_circle</span> 调研完成`;
+            btn.className = btn.className
+                .replace(/text-(?:violet|amber)-\S+/g, 'text-emerald-600 dark:text-emerald-400')
+                .replace(/bg-(?:violet|amber)-\S+/g, 'bg-emerald-50 dark:bg-emerald-900/30')
+                .replace(/border-(?:violet|amber)-\S+/g, 'border-emerald-300 dark:border-emerald-700');
+        } else {
+            btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px;">auto_awesome</span> AI调研`;
+            btn.className = btn.className
+                .replace(/text-(?:violet|amber|emerald)-\S+/g, 'text-violet-600 dark:text-violet-400')
+                .replace(/bg-(?:violet|amber|emerald)-\S+/g, 'bg-violet-50 dark:bg-violet-900/30')
+                .replace(/border-(?:violet|amber|emerald)-\S+/g, 'border-violet-200 dark:border-violet-700');
+        }
+    }
+
+    function _applyEnrichButtonStates() {
+        // Restore active spinner after panel re-renders
+        if (_enrichActive) {
+            _setEnrichBtn(`${_enrichActive.prospectId}-${_enrichActive.sid}`, 'loading');
+        }
+        // Restore done state for completed researches
+        Object.keys(_enrichResults).forEach(key => _setEnrichBtn(key, 'done'));
+    }
+
+    // ── Enrich result modal ─────────────────────────────────────
+    let _enrichResultKey = null;
+
+    function openEnrichResultModal(key) {
+        _enrichResultKey = key;
+        const data   = _enrichResults[key];
+        const fields = data.fields || {};
+        const conf   = data.confidence || 'medium';
+        const keys   = Object.keys(fields);
+        const confLabel = {high:'高可信度', medium:'中等可信度', low:'低可信度'};
+
+        document.getElementById('enrich-result-subtitle').textContent =
+            `${data.company_name || ''} · 发现 ${keys.length} 个字段`;
+
+        let html = `
+            <div class="flex items-center gap-2 mb-4 mt-1">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${_CONF_COLOR[conf] || _CONF_COLOR.medium}">
+                    <span class="material-symbols-outlined" style="font-size:12px;">verified</span>
+                    ${confLabel[conf] || '中等可信度'}
+                </span>
+            </div>
+            <div class="space-y-3">`;
+
+        keys.forEach(field => {
+            const f   = fields[field];
+            const cls = f.is_new
+                ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10'
+                : 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10';
+            const badge = f.is_new
+                ? '<span class="text-xs text-emerald-600 dark:text-emerald-400">· 新增</span>'
+                : `<span class="text-xs text-amber-600 dark:text-amber-400">· 替换「${f.existing}」</span>`;
+            html += `
+                <div class="p-3 rounded-lg border ${cls}">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            data-enrich-result-field="${field}" checked onchange="updateEnrichResultCount()">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="text-xs font-semibold text-slate-600 dark:text-slate-300">${_FIELD_LABELS[field] || field}</span>
+                                ${badge}
+                            </div>
+                            <p class="text-sm text-slate-800 dark:text-slate-200 font-medium">${f.suggested}</p>
+                        </div>
+                    </label>
+                </div>`;
+        });
+        html += '</div>';
+
+        if (data.sources && data.sources.length) {
+            html += `<div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">信息来源</p><ul class="space-y-0.5">`;
+            data.sources.forEach(s => {
+                html += `<li class="text-xs text-slate-400 dark:text-slate-500 truncate">· ${s}</li>`;
+            });
+            html += '</ul></div>';
+        }
+
+        document.getElementById('enrich-result-body').innerHTML = html;
+        document.getElementById('enrich-result-save-btn').classList.remove('hidden');
+        document.getElementById('prospectEnrichResultModal').classList.remove('hidden');
+        updateEnrichResultCount();
+    }
+
+    function updateEnrichResultCount() {
+        const n = document.querySelectorAll('#enrich-result-body input[data-enrich-result-field]:checked').length;
+        document.getElementById('enrich-result-save-label').textContent = n > 0 ? `保存选中 (${n})` : '保存选中';
+        document.getElementById('enrich-result-save-btn').disabled = n === 0;
+    }
+
+    function saveEnrichSelected() {
+        const data   = _enrichResults[_enrichResultKey];
+        const fields = data ? (data.fields || {}) : {};
+        const [prospectId, sid] = _enrichResultKey.split('-').map(Number);
+        const btn = document.getElementById('enrich-result-save-btn');
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>保存中...';
+
+        const toSave = {};
+        document.querySelectorAll('#enrich-result-body input[data-enrich-result-field]:checked').forEach(cb => {
+            const f = cb.dataset.enrichResultField;
+            if (fields[f]) toSave[f] = fields[f].suggested;
+        });
+
+        fetch(`/prospect/${prospectId}/stakeholder/${sid}/update-fields`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ fields: toSave })
+        })
+        .then(r => r.json())
+        .then(resp => {
+            if (resp.success) {
+                // Clear done state for this key
+                delete _enrichResults[_enrichResultKey];
+                _setEnrichBtn(_enrichResultKey, 'idle');
+                document.getElementById('enrich-result-save-btn').classList.add('hidden');
+                document.getElementById('enrich-result-body').innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-10 text-center">
+                        <span class="material-symbols-outlined text-emerald-500 mb-3" style="font-size:40px;">check_circle</span>
+                        <p class="text-base font-semibold text-slate-800 dark:text-slate-200">保存成功</p>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">已更新 ${resp.updated.length} 个字段</p>
+                    </div>`;
+                setTimeout(() => {
+                    closeEnrichResultModal();
+                    if (_currentProspectId == prospectId) openProspectDetail(prospectId);
+                }, 1100);
+            } else {
+                showToast(resp.message || '保存失败', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span> 重试';
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '重试';
+        });
+    }
+
+    function closeEnrichResultModal() {
+        document.getElementById('prospectEnrichResultModal').classList.add('hidden');
+        document.getElementById('enrich-result-save-btn').classList.remove('hidden');
+    }
+
+    // ── Toast notification ─────────────────────────────────────
+    function showToast(msg, type = 'info') {
+        const colors = { success:'bg-emerald-600', error:'bg-red-500', warning:'bg-amber-500', info:'bg-slate-700' };
+        const icons  = { success:'check_circle',   error:'error',      warning:'warning',      info:'info' };
+        const t = document.createElement('div');
+        t.className = `fixed bottom-5 right-5 z-[100] flex items-center gap-2 px-4 py-3 rounded-lg text-white text-sm shadow-xl ${colors[type]||colors.info} transition-opacity duration-300`;
+        t.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">${icons[type]||icons.info}</span><span>${msg}</span>`;
+        document.body.appendChild(t);
+        setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 4500);
+    }
+
+    // ── Claim / Unclaim ────────────────────────────────────────
+    function prospectClaim(id) {
+        fetch('/prospect/' + id + '/claim', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeProspectDetail();
+                location.reload();
+            } else {
+                alert(data.message || '申领失败');
+            }
+        });
+    }
+
+    function prospectUnclaim(id) {
+        fetch('/prospect/' + id + '/unclaim', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeProspectDetail();
+                location.reload();
+            } else {
+                alert(data.message || '取消失败');
+            }
+        });
+    }
+    </script>
+</body>
+</html>

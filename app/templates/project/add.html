@@ -195,13 +195,23 @@
 </style>
 {% endblock %}
 
+{% set prospect_prefill = prospect_prefill if prospect_prefill is defined else {} %}
 {% block content %}
 <div class="container mt-4 page-with-fixed-nav">
     <h2 class="mb-4">{{ _('添加项目') }}</h2>
 
+    {% if from_prospect_id %}
+    <div class="alert alert-info d-flex align-items-center gap-2 mb-3" role="alert">
+        <i class="fas fa-lightbulb"></i>
+        <span>已从<strong>市场情报库</strong>预填项目信息，请补充完整后保存。</span>
+    </div>
+    {% endif %}
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="page_open_time" id="pageOpenTime">
+        {% if from_prospect_id %}
+        <input type="hidden" name="from_prospect_id" value="{{ from_prospect_id }}">
+        {% endif %}
         <!-- 项目信息卡片 -->
         <div class="card mb-4">
             <div class="card-header">
@@ -212,8 +222,9 @@
                     <div class="col-md-6">
                         <label for="project_name" class="form-label mb-2">{{ get_form_label('project', 'project_name', '项目名称') }}</label>
                         <div class="project-name-wrapper position-relative">
-                            <input type="text" class="form-control" id="project_name" name="project_name" 
-                                   placeholder="{{ _('输入项目名称...') }}" autocomplete="off" required>
+                            <input type="text" class="form-control" id="project_name" name="project_name"
+                                   placeholder="{{ _('输入项目名称...') }}" autocomplete="off" required
+                                   value="{{ prospect_prefill.get('project_name', '') }}">
                             <div class="project-name-dropdown">
                                 <!-- 搜索建议将在这里显示 -->
                             </div>
@@ -281,7 +292,7 @@
                         <select class="form-select" id="industry" name="industry" required>
                             <option value="">{{ _('请选择项目行业') }}</option>
                             {% for k, v in INDUSTRY_OPTIONS %}
-                            <option value="{{ k }}">{{ v }}</option>
+                            <option value="{{ k }}" {% if prospect_prefill.get('industry') == k %}selected{% endif %}>{{ v }}</option>
                             {% endfor %}
                         </select>
                     </div>
