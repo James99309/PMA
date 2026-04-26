@@ -21,6 +21,18 @@ prospect_bp = Blueprint('prospect', __name__)
 @login_required
 @permission_required('project', 'view')
 def list_view():
+    """市场情报库列表（默认）+ 流失项目 tab。
+
+    通过 ?tab=lost 路由到流失项目子视图；其余 tab 值（含缺省）走原情报列表。
+    """
+    tab = request.args.get('tab', 'intel')
+    if tab == 'lost':
+        return _list_lost_projects()
+    return _list_intel()
+
+
+def _list_intel():
+    """市场情报列表 — 仅展示 link_type='converted' 的潜在项目记录。"""
     search  = request.args.get('search', '').strip()
     industry = request.args.get('industry', '')
     region  = request.args.get('region', '')
@@ -30,7 +42,10 @@ def list_view():
     sort_col = request.args.get('sort_col', '')
     sort_order_dir = request.args.get('order', 'desc')
 
-    query = ProspectProject.query.filter(ProspectProject.is_deleted == False)
+    query = ProspectProject.query.filter(
+        ProspectProject.is_deleted == False,
+        ProspectProject.link_type == 'converted',
+    )
 
     if search:
         query = query.filter(
@@ -114,6 +129,7 @@ def list_view():
 
     return render_template(
         'prospect/tw_list.html',
+        tab='intel',
         projects=projects,
         total_count=total_count,
         stage_counts=stage_counts,
@@ -128,6 +144,242 @@ def list_view():
         claimed=claimed,
         sort=sort,
     )
+
+
+# ─── 流失项目 tab ──────────────────────────────────────────────
+
+def _list_lost_projects():
+    """渲染流失项目列表（activity_status='churned' 且当前阶段未冻结）。"""
+    from app.utils.activity_tracker import FROZEN_STAGES
+
+    region   = (request.args.get('region') or '').strip()
+    industry = (request.args.get('industry') or '').strip()
+    stage    = (request.args.get('stage') or '').strip()
+
+    q = Project.query.filter(
+        Project.is_deleted == False,
+        Project.activity_status == 'churned',
+        ~Project.current_stage.in_(FROZEN_STAGES),
+    )
+    if region:
+        q = q.filter(Project.region.ilike(f'%{region}%'))
+    if industry == '__none__':
+        q = q.filter((Project.industry.is_(None)) | (Project.industry == ''))
+    elif industry:
+        q = q.filter(Project.industry == industry)
+    if stage:
+        q = q.filter(Project.current_stage == stage)
+
+    projects = q.order_by(Project.last_activity_date.desc().nullslast()).all()
+
+    # 附加 _research（link_type='research' 的 ProspectProject 记录）以便模板内联展示
+    if projects:
+        ids = [p.id for p in projects]
+        research_records = ProspectProject.query.filter(
+            ProspectProject.link_type == 'research',
+            ProspectProject.converted_project_id.in_(ids),
+        ).all()
+        research_map = {r.converted_project_id: r for r in research_records}
+        for p in projects:
+            p._research = research_map.get(p.id)
+
+    # 地区下拉：从流失项目集合中聚合
+    lost_regions = sorted({(p.region or '').strip() for p in projects if (p.region or '').strip()})
+
+    return render_template(
+        'prospect/tw_list.html',
+        tab='lost',
+        lost_projects=projects,
+        # 兼容现有 tw_list.html 共用部分（Phase 4 会替换为 lost-tab UI）
+        projects=[],
+        total_count=len(projects),
+        stage_counts={},
+        regions=lost_regions,
+        industry_labels=get_industry_options(),
+        search='',
+        industry=industry,
+        region=region,
+        sort_col='',
+        sort_order_dir='desc',
+        stage=stage,
+        claimed='',
+        sort='',
+    )
+
+
+# ─── 流失项目 详情 / 申请参与 / AI 调研 ────────────────────────
+
+def _can_see_lost_sensitive(user, project):
+    """是否可以查看流失项目中的敏感联系人/报价/跟进信息。
+
+    复用项目级权限阶梯（拥有人 / 共享 / 部门管理 / 管理员）。
+    """
+    from app.utils.access_control import can_view_project
+    return can_view_project(user, project)
+
+
+@prospect_bp.route('/lost/<int:project_id>')
+@login_required
+def lost_detail(project_id):
+    """流失项目公开详情页（Phase 4 提供模板，Phase 3 仅落路由）。"""
+    from app.models.prospect_claim_request import ProspectClaimRequest
+    from app.utils.activity_tracker import FROZEN_STAGES
+
+    project = Project.query.filter_by(id=project_id, is_deleted=False).first_or_404()
+
+    if (project.activity_status != 'churned'
+            or project.current_stage in FROZEN_STAGES):
+        flash('该项目当前不属于流失项目', 'warning')
+        return redirect(url_for('prospect.list_view', tab='lost'))
+
+    research = ProspectProject.query.filter_by(
+        converted_project_id=project.id,
+        link_type='research',
+    ).first()
+
+    can_view_sensitive = _can_see_lost_sensitive(current_user, project)
+    has_applied = ProspectClaimRequest.query.filter_by(
+        project_id=project.id,
+        applicant_id=current_user.id,
+    ).first() is not None
+
+    return render_template(
+        'prospect/tw_lost_detail.html',
+        project=project,
+        research=research,
+        can_view_sensitive=can_view_sensitive,
+        has_applied=has_applied,
+    )
+
+
+@prospect_bp.route('/lost/<int:project_id>/apply', methods=['POST'])
+@login_required
+def lost_apply(project_id):
+    """申请参与流失项目：创建 ProspectClaimRequest + 通知项目原负责人/管理员。"""
+    from app.models.prospect_claim_request import ProspectClaimRequest
+    from app.models.message import Message
+    from app.utils.activity_tracker import FROZEN_STAGES
+    from app.utils.access_control import can_view_project
+
+    project = Project.query.filter_by(id=project_id, is_deleted=False).first_or_404()
+
+    if project.activity_status != 'churned' or project.current_stage in FROZEN_STAGES:
+        return jsonify(success=False, message='项目不在流失状态'), 400
+
+    if can_view_project(current_user, project):
+        return jsonify(success=False, message='您已拥有此项目权限，无需申请'), 400
+
+    payload = request.get_json(silent=True) or request.form
+    reason = (payload.get('reason') or '').strip()
+    if len(reason) < 10:
+        return jsonify(success=False, message='申请理由至少 10 个字'), 400
+    if len(reason) > 500:
+        return jsonify(success=False, message='申请理由不超过 500 字'), 400
+
+    existing = ProspectClaimRequest.query.filter_by(
+        project_id=project.id, applicant_id=current_user.id
+    ).first()
+    if existing:
+        return jsonify(success=False, message='您已申请过此项目，等待负责人处理'), 409
+
+    cr = ProspectClaimRequest(
+        project_id=project.id,
+        applicant_id=current_user.id,
+        reason=reason,
+    )
+    db.session.add(cr)
+    db.session.flush()
+
+    # 接收人：优先项目负责人；若无负责人则发给所有 admin（启用账号）
+    if project.owner_id:
+        recipient_ids = [project.owner_id]
+    else:
+        admins = User.query.filter(
+            User.role == 'admin',
+            User._is_active == True,
+        ).all()
+        recipient_ids = [u.id for u in admins]
+
+    applicant_name = current_user.real_name or current_user.username
+    title = f'{applicant_name} 申请参与流失项目《{project.project_name}》'
+
+    for rid in recipient_ids:
+        msg = Message(
+            recipient_id=rid,
+            sender_id=current_user.id,
+            message_type='prospect_claim_request',
+            title=title,
+            content=reason,
+            related_object_type='project',
+            related_object_id=project.id,
+            extra_data={'claim_request_id': cr.id},
+        )
+        db.session.add(msg)
+
+    db.session.commit()
+    return jsonify(success=True, message='申请已提交，等待负责人处理')
+
+
+def _run_lost_project_research(project):
+    """触发对已存在 Project 的 AI 调研。
+
+    PMA 的 AIResearchService 直接把结构化结果写到 project.ai_research_data
+    （JSON 列）并在后台线程中异步执行。本函数只负责非阻塞地启动该流程，
+    返回一个 dict 供路由层决定后续处理。
+
+    返回 {'mode': 'async'} 表示已成功触发后台调研；调用方不需要直接更新
+    ProspectProject 的字段（数据将持久化到 Project.ai_research_data）。
+    """
+    from app.services.ai_research_service import AIResearchService
+
+    AIResearchService.trigger_project_research(project.id)
+    return {'mode': 'async'}
+
+
+@prospect_bp.route('/lost/<int:project_id>/ai-research', methods=['POST'])
+@login_required
+def lost_ai_research(project_id):
+    """触发流失项目的 AI 调研。
+
+    会确保存在一条 link_type='research' 的 ProspectProject 占位记录（用于
+    在情报视图侧标记此项目已纳入调研），并触发 AIResearchService 后台调研，
+    结果写入 project.ai_research_data。
+    """
+    from app.utils.access_control import can_view_project
+
+    project = Project.query.filter_by(id=project_id, is_deleted=False).first_or_404()
+
+    if not can_view_project(current_user, project):
+        return jsonify(success=False, message='无权限触发 AI 调研'), 403
+
+    research = ProspectProject.query.filter_by(
+        converted_project_id=project.id,
+        link_type='research',
+    ).first()
+
+    if not research:
+        research = ProspectProject(
+            project_name=project.project_name,
+            industry=project.industry,
+            region=project.region,
+            stage='planning',
+            converted_project_id=project.id,
+            link_type='research',
+            source='ai',
+        )
+        db.session.add(research)
+        db.session.flush()
+
+    try:
+        _run_lost_project_research(project)
+        research.info_updated_at = datetime.utcnow()
+        research.info_updated_by = current_user.username
+        db.session.commit()
+        return jsonify(success=True, message='AI 调研已触发，请稍后刷新查看结果')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception("Lost-project AI research failed")
+        return jsonify(success=False, message=f'调研失败：{str(e)[:200]}'), 500
 
 
 @prospect_bp.route('/<int:id>/panel')
