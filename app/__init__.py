@@ -268,6 +268,7 @@ def create_app(config_class=Config):
     )
     from app.models.data_source_config import DataTableConfig, DataFieldConfig, FormulaTemplate
     from app.models.prospect_project import ProspectProject, ProspectStakeholder
+    from app.models.prospect_claim_request import ProspectClaimRequest
     from app.models.chat import ChatConversation, ChatParticipant, ChatMessage, ChatTranslation
 
     # 导入所有视图

@@ -39,6 +39,11 @@ class ProspectProject(db.Model):
     description = Column(Text, nullable=True)
     keywords = Column(JSON, nullable=True)
     source = Column(String(20), nullable=True)
+    # link_type: 标识 prospect 与 project 的关联语义
+    #   'converted' = 该线索已转化为 converted_project_id 指向的项目（原用法）
+    #   'research'  = 该记录是为已存在项目反向调研产生的补全数据
+    link_type = Column(String(20), nullable=False, default='converted',
+                       server_default='converted', index=True)
 
     claimed_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     claimed_at = Column(DateTime, nullable=True)

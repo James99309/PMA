@@ -69,6 +69,7 @@ from app.models.user_cli_state import UserCliState
 from app.models.cli_skill import CliSkill
 from app.models.cli_memory import CliMemory
 from app.models.points import PointsBehaviorConfig, PointsTransaction, UserPointsSummary
+from app.models.prospect_claim_request import ProspectClaimRequest
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
