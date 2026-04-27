@@ -90,6 +90,14 @@
                 {% endfor %}
             </div>
 
+            {% if tab != 'lost' %}
+            <button type="button" id="btn-batch-research"
+                onclick="onBatchResearchBtnClick()"
+                class="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm transition-colors cursor-pointer">
+                <span class="material-symbols-outlined" style="font-size:16px;">travel_explore</span>
+                批量调研
+            </button>
+            {% endif %}
             {% if current_user.role == 'admin' %}
             <a href="{{ url_for('prospect.admin_new') }}"
                 class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors cursor-pointer">
@@ -101,6 +109,30 @@
 
     {# ── CONTENT ──────────────────────────────────────────────── #}
     {% elif page_slot == 'content' %}
+
+    {# ── TAB SWITCHER (intel / lost) ──────────────────────────── #}
+    <div class="border-b border-slate-200 dark:border-slate-700 mb-4">
+      <nav class="flex gap-6" aria-label="Tabs">
+        <a href="{{ url_for('prospect.list_view') }}"
+           class="py-3 px-1 border-b-2 text-sm font-medium transition-colors
+                  {% if tab != 'lost' %}border-blue-600 text-blue-600
+                  {% else %}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">
+          {{ _('市场情报') }}
+        </a>
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('prospect.list_view', tab='lost') }}"
+           class="py-3 px-1 border-b-2 text-sm font-medium transition-colors
+                  {% if tab == 'lost' %}border-blue-600 text-blue-600
+                  {% else %}border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300 dark:text-slate-400 dark:hover:text-slate-200{% endif %}">
+          {{ _('公共项目池') }}
+        </a>
+        {% endif %}
+      </nav>
+    </div>
+
+    {% if tab == 'lost' %}
+    {% include 'prospect/_tw_lost_list.html' %}
+    {% else %}
 
     {# ── FILTER BAR ───────────────────────────────────────────── #}
     <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-4">
@@ -132,13 +164,13 @@
 
                 {# Row 2: dropdowns + claimed toggle #}
                 <div class="flex flex-wrap items-end gap-2">
-                    {# Industry #}
+                    {# Industry — dynamic from actual library data #}
                     <div class="min-w-[110px]">
                         <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">行业</label>
                         <select name="industry" onchange="this.form.submit()"
                             class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
                             <option value="">全部行业</option>
-                            {% for val, lbl in industry_labels %}
+                            {% for val, lbl in industry_options %}
                             <option value="{{ val }}" {% if industry==val %}selected{% endif %}>{{ lbl }}</option>
                             {% endfor %}
                         </select>
@@ -156,16 +188,15 @@
                         </select>
                     </div>
 
-                    {# Stage #}
+                    {# Stage — dynamic from actual library data #}
                     <div class="min-w-[100px]">
                         <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">阶段</label>
                         <select name="stage" onchange="this.form.submit()"
                             class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
                             <option value="">全部阶段</option>
-                            <option value="planning"     {% if stage=='planning'     %}selected{% endif %}>规划中</option>
-                            <option value="designing"    {% if stage=='designing'    %}selected{% endif %}>设计中</option>
-                            <option value="construction" {% if stage=='construction' %}selected{% endif %}>在建</option>
-                            <option value="completed"    {% if stage=='completed'    %}selected{% endif %}>竣工</option>
+                            {% for val, lbl in stage_options %}
+                            <option value="{{ val }}" {% if stage==val %}selected{% endif %}>{{ lbl }}</option>
+                            {% endfor %}
                         </select>
                     </div>
 
@@ -256,8 +287,7 @@
         'construction': ('在建',   'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-800'),
         'completed':    ('竣工',   'text-green-700 bg-green-50 border border-green-200 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800')
     } %}
-    {# 直接用 view 传入的 industry_labels dict 做行业显示，不重复维护 #}
-    {% set industry_label = dict(industry_labels) %}
+    {% set industry_label = dict(industry_label_map) %}
 
     {% for p in projects %}
     {% set sc = stage_cfg.get(p.stage, ('未知', 'text-slate-500 bg-slate-100 border border-slate-200 dark:text-slate-400 dark:bg-slate-700')) %}
@@ -371,10 +401,52 @@
 
     {% endcall %}{# render_tw_data_table #}
 
+    {% endif %}{# tab == 'lost' #}
+
     {% endif %}{# page_slot #}
     {% endcall %}{# render_tw_fixed_page #}
     {% endif %}{# slot #}
     {% endcall %}{# render_tw_layout #}
+
+    {# ── 公共项目池 申请参与 MODAL ────────────────────────────── #}
+    <div id="lostApplyModal" class="fixed inset-0 z-[60] hidden" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeLostApplyModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white">申请参与项目</h3>
+                        <p id="lap-project-name" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-xs"></p>
+                    </div>
+                    <button type="button" onclick="closeLostApplyModal()"
+                        class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+                    </button>
+                </div>
+                <div class="px-6 py-4 space-y-3">
+                    <p class="text-sm text-slate-600 dark:text-slate-400">说明您希望参与此项目的理由，申请将发送给项目负责人处理。</p>
+                    <div>
+                        <textarea id="lap-reason" rows="4" maxlength="500"
+                            placeholder="请说明参与理由（至少 10 字）..."
+                            oninput="document.getElementById('lap-char-count').textContent = this.value.length + ' / 500'; document.getElementById('lap-submit-btn').disabled = this.value.trim().length < 10;"
+                            class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm placeholder-slate-400 focus:border-primary focus:ring-1 focus:ring-primary resize-none"></textarea>
+                        <p class="text-right text-xs text-slate-400 mt-1" id="lap-char-count">0 / 500</p>
+                    </div>
+                    <p id="lap-error" class="hidden text-sm text-red-500"></p>
+                </div>
+                <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onclick="closeLostApplyModal()"
+                        class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                        取消
+                    </button>
+                    <button type="button" id="lap-submit-btn" onclick="submitLostApply()" disabled
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
+                        提交申请
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     {# ── IMPORT SUB-MODAL ─────────────────────────────────────── #}
     <div id="prospectImportModal" class="fixed inset-0 z-[60] hidden" role="dialog" aria-modal="true">
@@ -412,6 +484,161 @@
                         class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
                         <span class="material-symbols-outlined" style="font-size:16px;">download</span>
                         <span id="im-confirm-label">确认导入</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── BATCH RESEARCH PARAM MODAL ──────────────────────────────── #}
+    <div id="batchResearchModal" class="fixed inset-0 z-[60] hidden" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeBatchResearchModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg max-h-[88vh]">
+                {# header #}
+                <div class="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-indigo-500" style="font-size:20px;">travel_explore</span>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">批量调研新项目</h3>
+                        </div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">选择省份（最多2个）和行业（最多2个），AI 将搜索工程项目商机</p>
+                    </div>
+                    <button type="button" onclick="closeBatchResearchModal()"
+                        class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+                    </button>
+                </div>
+                {# body #}
+                <div class="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+                    {# province selection #}
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            省份 <span class="text-xs text-slate-400 font-normal">（最多选 2 个）</span>
+                        </label>
+                        <div id="br-provinces" class="flex flex-wrap gap-1.5">
+                            {% for prov in ['广东','江苏','浙江','山东','广西','辽宁','上海','天津','四川','湖北','河南','陕西','新疆','宁夏','内蒙古','云南','贵州','湖南','安徽','河北','福建','黑龙江','吉林','江西'] %}
+                            <button type="button" data-br-province="{{ prov }}"
+                                onclick="toggleBrProvince('{{ prov }}')"
+                                class="br-province-btn px-2.5 py-1 rounded-full text-xs border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer">
+                                {{ prov }}
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {# industry selection #}
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            行业 <span class="text-xs text-slate-400 font-normal">（最多选 2 个）</span>
+                        </label>
+                        <div id="br-industries" class="flex flex-wrap gap-1.5">
+                            {% for key, label in [('chemical','石化化工'),('energy','能源'),('manufacturing','制造业'),('shipbuilding','造船'),('semiconductor','半导体'),('tunnel_underground','隧道/地下'),('transportation','交通'),('datacenter','数据中心')] %}
+                            <button type="button" data-br-industry="{{ key }}"
+                                onclick="toggleBrIndustry('{{ key }}')"
+                                class="br-industry-btn px-2.5 py-1 rounded-full text-xs border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer">
+                                {{ label }}
+                            </button>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <p id="br-error" class="hidden text-sm text-red-500"></p>
+                    {# quota notice for non-admin #}
+                    {% if current_user.role != 'admin' %}
+                    <p id="br-quota" class="text-xs text-slate-500 dark:text-slate-400">
+                        今日剩余批量调研次数：<span id="br-quota-num" class="font-medium text-indigo-600 dark:text-indigo-400">…</span> / 3
+                    </p>
+                    {% endif %}
+                </div>
+                {# footer #}
+                <div class="flex-shrink-0 flex items-center justify-end gap-2 px-6 pb-5 pt-3">
+                    <button type="button" onclick="closeBatchResearchModal()"
+                        class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                        取消
+                    </button>
+                    <button type="button" id="br-start-btn" onclick="startBatchResearch()"
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:16px;">search</span>
+                        开始调研
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── BATCH RESEARCH RESULT MODAL ─────────────────────────────── #}
+    <div id="batchResearchResultModal" class="fixed inset-0 z-[70] hidden" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeBatchResearchResultModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh]">
+                {# header #}
+                <div class="flex-shrink-0 flex items-center justify-between px-6 pt-5 pb-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-emerald-500" style="font-size:20px;">task_alt</span>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">调研结果</h3>
+                        </div>
+                        <p id="brr-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"></p>
+                    </div>
+                    <button type="button" onclick="closeBatchResearchResultModal()"
+                        class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+                    </button>
+                </div>
+                {# body #}
+                <div id="brr-body" class="flex-1 overflow-y-auto px-6 py-3 space-y-3"></div>
+                {# footer #}
+                <div class="flex-shrink-0 flex items-center justify-between gap-2 px-6 pb-5 pt-3">
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="brSelectAll(true)"
+                            class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">全选</button>
+                        <span class="text-slate-300 dark:text-slate-600">|</span>
+                        <button type="button" onclick="brSelectAll(false)"
+                            class="text-xs text-slate-500 dark:text-slate-400 hover:underline cursor-pointer">取消全选</button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="closeBatchResearchResultModal()"
+                            class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                            关闭
+                        </button>
+                        <button type="button" id="brr-save-btn" onclick="saveBatchResearch()"
+                            class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
+                            <span class="material-symbols-outlined" style="font-size:16px;">add_circle</span>
+                            <span id="brr-save-label">加入情报库</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ── PROJECT RESEARCH RESULT MODAL (project-level AI research preview) ── #}
+    <div id="projectResearchModal" class="fixed inset-0 z-[70] hidden" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="closeProjectResearchModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg max-h-[88vh]">
+                <div class="flex-shrink-0 flex items-center justify-between px-6 py-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="material-symbols-outlined text-violet-500" style="font-size:20px;">travel_explore</span>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">项目调研结果</h3>
+                        </div>
+                        <p id="prm-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"></p>
+                    </div>
+                    <button type="button" onclick="closeProjectResearchModal()"
+                        class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+                    </button>
+                </div>
+                <div id="prm-body" class="flex-1 overflow-y-auto px-6 pb-2"></div>
+                <div class="flex-shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onclick="closeProjectResearchModal()"
+                        class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                        关闭
+                    </button>
+                    <button type="button" id="prm-save-btn" onclick="saveProjectResearch()" disabled
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:16px;">save</span>
+                        <span id="prm-save-label">写入选中</span>
                     </button>
                 </div>
             </div>
@@ -497,7 +724,11 @@
     </div>
 
     {{ render_tw_layout_script() }}
+    {% if tab == 'lost' %}
+    {{ render_tw_data_table_script(table_id='lostProjectsTable') }}
+    {% else %}
     {{ render_tw_data_table_script(table_id='prospectTable') }}
+    {% endif %}
     <script>
     let _currentProspectId = null;
 
@@ -545,10 +776,18 @@
 
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
-            if (!document.getElementById('prospectEnrichResultModal').classList.contains('hidden')) {
+            if (!document.getElementById('batchResearchResultModal').classList.contains('hidden')) {
+                closeBatchResearchResultModal();
+            } else if (!document.getElementById('batchResearchModal').classList.contains('hidden')) {
+                closeBatchResearchModal();
+            } else if (!document.getElementById('projectResearchModal').classList.contains('hidden')) {
+                closeProjectResearchModal();
+            } else if (!document.getElementById('prospectEnrichResultModal').classList.contains('hidden')) {
                 closeEnrichResultModal();
             } else if (!document.getElementById('prospectImportModal').classList.contains('hidden')) {
                 closeImportModal();
+            } else if (!document.getElementById('lostApplyModal').classList.contains('hidden')) {
+                closeLostApplyModal();
             } else {
                 closeProspectDetail();
             }
@@ -1095,7 +1334,11 @@
                     </div>`;
                 setTimeout(() => {
                     closeEnrichResultModal();
-                    if (_currentProspectId == prospectId) openProspectDetail(prospectId);
+                    if (_currentLostProjectId) {
+                        openLostProjectDetail(_currentLostProjectId);
+                    } else if (_currentProspectId == prospectId) {
+                        openProspectDetail(prospectId);
+                    }
                 }, 1200);
             } else {
                 showToast(resp.message || '保存失败', 'error');
@@ -1123,6 +1366,324 @@
         t.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">${icons[type]||icons.info}</span><span>${msg}</span>`;
         document.body.appendChild(t);
         setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 4500);
+    }
+
+    // ── 公共项目池 面板 ────────────────────────────────────────
+    let _currentLostProjectId = null;
+
+    function openLostProjectDetail(projectId) {
+        _currentLostProjectId = projectId;
+        const modal = document.getElementById('prospectDetailModal');
+        const body  = document.getElementById('pdm-body');
+        const title = document.getElementById('pdm-title');
+        const loc   = document.getElementById('pdm-location');
+        const badge = document.getElementById('pdm-stage-badge');
+        const footerLeft    = document.getElementById('pdm-footer-left');
+        const footerActions = document.getElementById('pdm-footer-actions');
+
+        title.textContent = '';
+        loc.textContent   = '';
+        badge.innerHTML   = '';
+        footerLeft.innerHTML    = '';
+        footerActions.innerHTML = '';
+        body.innerHTML = '<div class="flex items-center justify-center h-24 text-slate-400"><span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span><span class="text-sm">加载中...</span></div>';
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        fetch('/prospect/lost/' + projectId + '/panel', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success === false) {
+                body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">' + (data.message || '加载失败') + '</p>';
+                return;
+            }
+            title.textContent = data.project_name || '';
+            loc.textContent   = [data.city, data.region].filter(Boolean).join(' · ');
+            badge.innerHTML   = data.stage_badge_html || '';
+            body.innerHTML    = data.body_html || '';
+            footerLeft.innerHTML    = data.footer_left_html || '';
+            footerActions.innerHTML = data.footer_actions_html || '';
+            _applyEnrichButtonStates();
+        })
+        .catch(() => {
+            body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">加载失败，请重试</p>';
+        });
+    }
+
+    // ── 项目级 AI 调研（公共项目池 + 情报库统一流程）─────────────
+
+    let _prmData      = null;   // 当前调研结果数据
+    let _prmProspectId = null;  // ProspectProject.id
+    let _prmReloadFn  = null;   // 写入成功后重新加载面板的函数
+
+    function triggerLostAiResearch(projectId) {
+        const btn = document.getElementById('lost-ai-btn-' + projectId);
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> 调研中...';
+        }
+        fetch('/prospect/lost/' + projectId + '/ai-research', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span> ' +
+                    (btn.dataset.hasResearch === '1' ? '重新调研' : 'AI 调研补全');
+            }
+            if (!data.success) { showToast(data.message || 'AI 调研失败', 'error'); return; }
+            _prmReloadFn = () => openLostProjectDetail(projectId);
+            openProjectResearchModal(data);
+        })
+        .catch(() => {
+            if (btn) { btn.disabled = false; }
+            showToast('调研请求失败，请重试', 'error');
+        });
+    }
+
+    function triggerIntelAiResearch(prospectId) {
+        const btn = document.getElementById('intel-ai-btn-' + prospectId);
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> 调研中...';
+        }
+        fetch('/prospect/' + prospectId + '/ai-research', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span> 重新调研';
+            }
+            if (!data.success) { showToast(data.message || 'AI 调研失败', 'error'); return; }
+            _prmReloadFn = () => openProspectDetail(prospectId);
+            openProjectResearchModal(data);
+        })
+        .catch(() => {
+            if (btn) { btn.disabled = false; }
+            showToast('调研请求失败，请重试', 'error');
+        });
+    }
+
+    function openProjectResearchModal(data) {
+        _prmData       = data;
+        _prmProspectId = data.prospect_id;
+
+        const hasDesc = !!(data.description);
+        const hasProg = !!(data.progress);
+        const shkCount = (data.stakeholders || []).length;
+        const total = (hasDesc ? 1 : 0) + (hasProg ? 1 : 0) + shkCount;
+        document.getElementById('prm-subtitle').textContent =
+            `${data.project_name || ''} · 发现 ${total} 项可保存内容`;
+
+        const TYPE_LABEL = { owner:'业主', design:'设计院', epc:'EPC', construction:'施工', other:'其他' };
+        const TYPE_COLOR = {
+            owner:        'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
+            design:       'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
+            epc:          'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700',
+            construction: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700',
+            other:        'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600',
+        };
+
+        let html = '';
+
+        if (hasDesc) {
+            html += `
+            <div class="mb-3 mt-1">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">项目简介</p>
+                <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
+                            data-prm-field="description" checked onchange="updatePrmCount()">
+                        <p class="text-sm text-slate-800 dark:text-slate-200 leading-relaxed">${_escapeHtml(data.description)}</p>
+                    </label>
+                </div>
+            </div>`;
+        }
+
+        if (hasProg) {
+            html += `
+            <div class="mb-3">
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">最新进展</p>
+                <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
+                            data-prm-field="progress" checked onchange="updatePrmCount()">
+                        <p class="text-sm text-slate-800 dark:text-slate-200 leading-relaxed">${_escapeHtml(data.progress)}</p>
+                    </label>
+                </div>
+            </div>`;
+        }
+
+        if (shkCount) {
+            html += `
+            <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+                    关联方 <span class="text-violet-500 ml-1">(${shkCount} 个，勾选后追加)</span>
+                </p>
+                <div class="space-y-2">`;
+            (data.stakeholders || []).forEach((s, idx) => {
+                const stype = s.stakeholder_type || 'other';
+                const color = TYPE_COLOR[stype] || TYPE_COLOR.other;
+                const label = TYPE_LABEL[stype] || '其他';
+                const details = [s.contact_person, s.phone, s.email].filter(Boolean).join(' · ');
+                html += `
+                <div class="p-3 rounded-lg border border-sky-200 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-900/10">
+                    <label class="flex items-start gap-3 cursor-pointer">
+                        <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
+                            data-prm-stakeholder="${idx}" checked onchange="updatePrmCount()">
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs border ${color}">${_escapeHtml(label)}</span>
+                                <span class="text-sm font-medium text-slate-800 dark:text-slate-200">${_escapeHtml(s.company_name || '')}</span>
+                            </div>
+                            ${details ? `<p class="text-xs text-slate-500 dark:text-slate-400">${_escapeHtml(details)}</p>` : ''}
+                            ${s.address ? `<p class="text-xs text-slate-400 dark:text-slate-500 truncate" title="${_escapeHtml(s.address)}">${_escapeHtml(s.address)}</p>` : ''}
+                        </div>
+                    </label>
+                </div>`;
+            });
+            html += '</div></div>';
+        }
+
+        document.getElementById('prm-body').innerHTML = html ||
+            '<p class="text-sm text-slate-400 text-center py-8">未找到可保存的内容</p>';
+        document.getElementById('prm-save-btn').classList.remove('hidden');
+        document.getElementById('projectResearchModal').classList.remove('hidden');
+        updatePrmCount();
+    }
+
+    function updatePrmCount() {
+        const n = document.querySelectorAll('#prm-body input[data-prm-field]:checked, #prm-body input[data-prm-stakeholder]:checked').length;
+        document.getElementById('prm-save-label').textContent = n > 0 ? `写入选中 (${n})` : '写入选中';
+        document.getElementById('prm-save-btn').disabled = n === 0;
+    }
+
+    function saveProjectResearch() {
+        const data = _prmData;
+        const btn  = document.getElementById('prm-save-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>保存中...';
+
+        const body = { stakeholders: [] };
+        if (document.querySelector('#prm-body input[data-prm-field="description"]:checked')) {
+            body.description = data.description;
+        }
+        if (document.querySelector('#prm-body input[data-prm-field="progress"]:checked')) {
+            body.progress = data.progress;
+        }
+        document.querySelectorAll('#prm-body input[data-prm-stakeholder]:checked').forEach(cb => {
+            const idx = parseInt(cb.dataset.prmStakeholder, 10);
+            if (data.stakeholders[idx]) body.stakeholders.push(data.stakeholders[idx]);
+        });
+
+        fetch('/prospect/ai-research/' + _prmProspectId + '/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify(body)
+        })
+        .then(r => r.json())
+        .then(resp => {
+            if (!resp.success) {
+                showToast(resp.message || '保存失败', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span><span id="prm-save-label">写入选中</span>';
+                return;
+            }
+            const parts = [];
+            if (body.description || body.progress) parts.push('更新项目信息');
+            if (resp.stakeholders_added) parts.push(`新增 ${resp.stakeholders_added} 个关联方`);
+            document.getElementById('prm-body').innerHTML = `
+                <div class="flex flex-col items-center justify-center py-10 text-center">
+                    <span class="material-symbols-outlined text-emerald-500 mb-3" style="font-size:40px;">check_circle</span>
+                    <p class="text-base font-semibold text-slate-800 dark:text-slate-200">写入成功</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${parts.join('，') || '未变更'}</p>
+                </div>`;
+            btn.classList.add('hidden');
+            setTimeout(() => {
+                closeProjectResearchModal();
+                if (_prmReloadFn) _prmReloadFn();
+            }, 1200);
+        })
+        .catch(() => {
+            showToast('保存请求失败', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span><span id="prm-save-label">写入选中</span>';
+        });
+    }
+
+    function closeProjectResearchModal() {
+        document.getElementById('projectResearchModal').classList.add('hidden');
+        document.getElementById('prm-save-btn').classList.remove('hidden');
+        _prmData = _prmProspectId = _prmReloadFn = null;
+    }
+
+    // ── 公共项目池 申请参与 ─────────────────────────────────────
+    let _lostApplyProjectId = null;
+
+    function openLostApplyModal(projectId) {
+        _lostApplyProjectId = projectId;
+        const projectName = document.getElementById('pdm-title').textContent;
+        document.getElementById('lap-project-name').textContent = projectName;
+        document.getElementById('lap-reason').value = '';
+        document.getElementById('lap-char-count').textContent = '0 / 500';
+        document.getElementById('lap-submit-btn').disabled = true;
+        document.getElementById('lap-error').classList.add('hidden');
+        document.getElementById('lostApplyModal').classList.remove('hidden');
+    }
+
+    function closeLostApplyModal() {
+        document.getElementById('lostApplyModal').classList.add('hidden');
+        _lostApplyProjectId = null;
+    }
+
+    function submitLostApply() {
+        const reason = document.getElementById('lap-reason').value.trim();
+        if (reason.length < 10) {
+            const err = document.getElementById('lap-error');
+            err.textContent = '申请理由至少 10 个字';
+            err.classList.remove('hidden');
+            return;
+        }
+        const btn = document.getElementById('lap-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>提交中...';
+
+        fetch('/prospect/lost/' + _lostApplyProjectId + '/apply', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ reason })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeLostApplyModal();
+                showToast('申请已提交，等待负责人处理', 'success');
+                openLostProjectDetail(_currentLostProjectId);
+            } else {
+                const err = document.getElementById('lap-error');
+                err.textContent = data.message || '提交失败';
+                err.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerHTML = '提交申请';
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '提交申请';
+        });
     }
 
     // ── Claim / Unclaim ────────────────────────────────────────
@@ -1161,6 +1722,317 @@
             } else {
                 alert(data.message || '取消失败');
             }
+        });
+    }
+
+    // ── Batch Research ─────────────────────────────────────────────
+    let _brProvinces  = [];
+    let _brIndustries = [];
+    let _brResults    = [];
+
+    const _BR_INDUSTRY_LABELS = {
+        chemical:          '石化化工',
+        energy:            '能源',
+        manufacturing:     '制造业',
+        shipbuilding:      '造船',
+        semiconductor:     '半导体',
+        tunnel_underground:'隧道/地下',
+        transportation:    '交通',
+        datacenter:        '数据中心',
+        other:             '其他',
+    };
+
+    function openBatchResearchModal() {
+        _brProvinces  = [];
+        _brIndustries = [];
+        // reset button states
+        document.querySelectorAll('.br-province-btn').forEach(btn => _brBtnOff(btn));
+        document.querySelectorAll('.br-industry-btn').forEach(btn => _brBtnOff(btn));
+        document.getElementById('br-error').classList.add('hidden');
+        const startBtn = document.getElementById('br-start-btn');
+        startBtn.disabled = false;
+        startBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">search</span> 开始调研';
+        document.getElementById('batchResearchModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        // fetch quota for non-admin
+        const quotaEl = document.getElementById('br-quota-num');
+        if (quotaEl) {
+            fetch('/prospect/batch-research/quota')
+                .then(r => r.json())
+                .then(d => {
+                    if (d.is_admin) { document.getElementById('br-quota').classList.add('hidden'); return; }
+                    quotaEl.textContent = d.remaining;
+                    if (d.remaining <= 0) {
+                        startBtn.disabled = true;
+                        document.getElementById('br-error').textContent = '今日批量调研次数已用完（3次），明日再试';
+                        document.getElementById('br-error').classList.remove('hidden');
+                    }
+                })
+                .catch(() => { document.getElementById('br-quota').classList.add('hidden'); });
+        }
+    }
+
+    function closeBatchResearchModal() {
+        document.getElementById('batchResearchModal').classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    function _brBtnOn(btn) {
+        btn.classList.remove('border-slate-300','dark:border-slate-600','text-slate-600','dark:text-slate-400');
+        btn.classList.add('border-indigo-500','bg-indigo-50','dark:bg-indigo-900/30','text-indigo-700','dark:text-indigo-300','font-medium');
+    }
+
+    function _brBtnOff(btn) {
+        btn.classList.remove('border-indigo-500','bg-indigo-50','dark:bg-indigo-900/30','text-indigo-700','dark:text-indigo-300','font-medium');
+        btn.classList.add('border-slate-300','dark:border-slate-600','text-slate-600','dark:text-slate-400');
+    }
+
+    function toggleBrProvince(val) {
+        const btn = document.querySelector(`[data-br-province="${val}"]`);
+        if (_brProvinces.includes(val)) {
+            _brProvinces = _brProvinces.filter(v => v !== val);
+            _brBtnOff(btn);
+        } else {
+            if (_brProvinces.length >= 2) {
+                document.getElementById('br-error').textContent = '最多选择 2 个省份';
+                document.getElementById('br-error').classList.remove('hidden');
+                return;
+            }
+            _brProvinces.push(val);
+            _brBtnOn(btn);
+        }
+        document.getElementById('br-error').classList.add('hidden');
+    }
+
+    function toggleBrIndustry(val) {
+        const btn = document.querySelector(`[data-br-industry="${val}"]`);
+        if (_brIndustries.includes(val)) {
+            _brIndustries = _brIndustries.filter(v => v !== val);
+            _brBtnOff(btn);
+        } else {
+            if (_brIndustries.length >= 2) {
+                document.getElementById('br-error').textContent = '最多选择 2 个行业';
+                document.getElementById('br-error').classList.remove('hidden');
+                return;
+            }
+            _brIndustries.push(val);
+            _brBtnOn(btn);
+        }
+        document.getElementById('br-error').classList.add('hidden');
+    }
+
+    // toolbar button state: 'idle' | 'loading' | 'done' | 'error'
+    let _brToolbarState = 'idle';
+    let _brResultData = null;
+
+    function onBatchResearchBtnClick() {
+        if (_brToolbarState === 'done') {
+            openBatchResearchResultModal(_brResultData);
+        } else if (_brToolbarState === 'idle' || _brToolbarState === 'error') {
+            openBatchResearchModal();
+        }
+        // 'loading' → ignore clicks
+    }
+
+    function _setBrToolbarState(state) {
+        _brToolbarState = state;
+        const btn = document.getElementById('btn-batch-research');
+        if (!btn) return;
+        if (state === 'loading') {
+            btn.className = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-400 dark:text-indigo-500 text-sm cursor-not-allowed opacity-70 transition-colors';
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> 调研中…';
+        } else if (state === 'done') {
+            btn.className = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-sm font-medium transition-colors cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/50';
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">task_alt</span> 查看结果';
+        } else if (state === 'error') {
+            btn.className = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 text-sm transition-colors cursor-pointer';
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">travel_explore</span> 批量调研';
+        } else {
+            btn.className = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm transition-colors cursor-pointer';
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">travel_explore</span> 批量调研';
+        }
+    }
+
+    function startBatchResearch() {
+        if (!_brProvinces.length || !_brIndustries.length) {
+            const err = document.getElementById('br-error');
+            err.textContent = '请至少选择一个省份和一个行业';
+            err.classList.remove('hidden');
+            return;
+        }
+
+        // close modal immediately and run in background
+        closeBatchResearchModal();
+        _setBrToolbarState('loading');
+
+        fetch('/prospect/batch-research', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ provinces: _brProvinces, industries: _brIndustries }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                _setBrToolbarState('error');
+                showToast(data.message || '批量调研失败', 'error');
+                return;
+            }
+            // update quota display if user re-opens modal
+            const quotaEl = document.getElementById('br-quota-num');
+            if (quotaEl && data.quota_remaining !== null && data.quota_remaining !== undefined) {
+                quotaEl.textContent = data.quota_remaining;
+            }
+            _brResultData = data;
+            _setBrToolbarState('done');
+            showToast(`调研完成，发现 ${(data.projects||[]).length} 个项目`, 'success');
+        })
+        .catch(() => {
+            _setBrToolbarState('error');
+            showToast('批量调研请求失败，请重试', 'error');
+        });
+    }
+
+    function openBatchResearchResultModal(data) {
+        _brResults = data.projects || [];
+        const total = _brResults.length;
+        const inLib = _brResults.filter(p => p.in_library).length;
+        const available = total - inLib;
+
+        document.getElementById('brr-subtitle').textContent =
+            `发现 ${total} 个项目` + (inLib > 0 ? `，${inLib} 个已在库` : '');
+
+        const body = document.getElementById('brr-body');
+        if (!total) {
+            body.innerHTML = '<p class="text-sm text-slate-400 text-center py-8">未找到新项目，请换省份/行业重试</p>';
+        } else {
+            body.innerHTML = _brResults.map((p, idx) => _renderBrCard(p, idx)).join('');
+        }
+
+        updateBrSaveCount();
+        document.getElementById('batchResearchResultModal').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function _renderBrCard(p, idx) {
+        const industryLabel = _BR_INDUSTRY_LABELS[p.industry] || p.industry || '其他';
+        const stakeCount = (p.stakeholders || []).length;
+        const isInLib = p.in_library;
+
+        const stageBadge = {
+            planning:     '<span class="px-1.5 py-0.5 rounded text-xs border border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300">规划中</span>',
+            designing:    '<span class="px-1.5 py-0.5 rounded text-xs border border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-700 dark:bg-violet-900/30 dark:text-violet-300">设计中</span>',
+            construction: '<span class="px-1.5 py-0.5 rounded text-xs border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300">在建</span>',
+            completed:    '<span class="px-1.5 py-0.5 rounded text-xs border border-green-200 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">竣工</span>',
+        }[p.stage] || '<span class="px-1.5 py-0.5 rounded text-xs border border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400">规划中</span>';
+
+        const cardOpacity = isInLib ? 'opacity-50' : '';
+        const checkDisabled = isInLib ? 'disabled' : '';
+        const checkChecked = isInLib ? '' : 'checked';
+
+        const inLibBadge = isInLib
+            ? '<span class="px-1.5 py-0.5 rounded text-xs bg-slate-100 border border-slate-200 text-slate-400 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-500">已在库</span>'
+            : '';
+
+        const location = [p.city, p.region].filter(Boolean).join(' / ');
+        const investText = p.total_investment
+            ? `<span class="text-xs text-amber-600 dark:text-amber-400 font-medium">${_escapeHtml(p.total_investment)}</span>`
+            : '';
+        const desc = p.description
+            ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">${_escapeHtml(p.description)}</p>`
+            : '';
+        const stakeInfo = stakeCount > 0
+            ? `<span class="text-xs text-slate-400 dark:text-slate-500">关联方 ${stakeCount} 个</span>`
+            : '';
+
+        return `
+        <div class="p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 ${cardOpacity}">
+            <div class="flex items-start gap-2">
+                <label class="flex-shrink-0 mt-0.5 cursor-pointer">
+                    <input type="checkbox" data-br-idx="${idx}" ${checkChecked} ${checkDisabled}
+                        onchange="updateBrSaveCount()"
+                        class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed">
+                </label>
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                        ${stageBadge}
+                        <span class="px-1.5 py-0.5 rounded text-xs border border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400">${_escapeHtml(industryLabel)}</span>
+                        ${inLibBadge}
+                    </div>
+                    <p class="text-sm font-medium text-slate-900 dark:text-white leading-snug">${_escapeHtml(p.project_name || '')}</p>
+                    <div class="flex flex-wrap items-center gap-2 mt-0.5">
+                        ${location ? `<span class="text-xs text-slate-500 dark:text-slate-400">${_escapeHtml(location)}</span>` : ''}
+                        ${investText}
+                        ${stakeInfo}
+                    </div>
+                    ${desc}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function brSelectAll(checked) {
+        document.querySelectorAll('#brr-body input[type="checkbox"]:not(:disabled)')
+            .forEach(cb => { cb.checked = checked; });
+        updateBrSaveCount();
+    }
+
+    function updateBrSaveCount() {
+        const n = document.querySelectorAll('#brr-body input[type="checkbox"]:checked:not(:disabled)').length;
+        const btn = document.getElementById('brr-save-btn');
+        document.getElementById('brr-save-label').textContent = n > 0 ? `加入情报库 (${n})` : '加入情报库';
+        btn.disabled = n === 0;
+    }
+
+    function closeBatchResearchResultModal() {
+        document.getElementById('batchResearchResultModal').classList.add('hidden');
+        document.body.style.overflow = '';
+        _brResults = [];
+        _brResultData = null;
+        _setBrToolbarState('idle');
+    }
+
+    function saveBatchResearch() {
+        const selected = [];
+        document.querySelectorAll('#brr-body input[type="checkbox"]:checked:not(:disabled)').forEach(cb => {
+            const idx = parseInt(cb.dataset.brIdx);
+            if (!isNaN(idx) && _brResults[idx]) {
+                selected.push(_brResults[idx]);
+            }
+        });
+
+        if (!selected.length) return;
+
+        const btn = document.getElementById('brr-save-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> 保存中...';
+
+        fetch('/prospect/batch-research/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ projects: selected }),
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeBatchResearchResultModal();
+                showToast(`成功加入 ${data.created} 个项目到情报库`, 'success');
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                showToast(data.message || '保存失败', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">add_circle</span> <span id="brr-save-label">加入情报库</span>';
+            }
+        })
+        .catch(() => {
+            showToast('请求失败，请重试', 'error');
+            btn.disabled = false;
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">add_circle</span> <span id="brr-save-label">加入情报库</span>';
         });
     }
     </script>

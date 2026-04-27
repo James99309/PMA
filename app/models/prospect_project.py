@@ -37,8 +37,14 @@ class ProspectProject(db.Model):
     stage = Column(String(20), nullable=False, default='planning')
     total_investment = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
+    progress = Column(Text, nullable=True)
     keywords = Column(JSON, nullable=True)
     source = Column(String(20), nullable=True)
+    # link_type: 标识 prospect 与 project 的关联语义
+    #   'converted' = 该线索已转化为 converted_project_id 指向的项目（原用法）
+    #   'research'  = 该记录是为已存在项目反向调研产生的补全数据
+    link_type = Column(String(20), nullable=False, default='converted',
+                       server_default='converted', index=True)
 
     claimed_by_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     claimed_at = Column(DateTime, nullable=True)
@@ -90,3 +96,17 @@ class ProspectStakeholder(db.Model):
     @property
     def type_label(self):
         return STAKEHOLDER_TYPES.get(self.stakeholder_type, self.stakeholder_type)
+
+
+class ProspectResearchLog(db.Model):
+    """调研任务日志 — 双用途：并发跟踪 + 批量调研每日配额。"""
+    __tablename__ = 'prospect_research_logs'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    job_type = Column(String(20), nullable=False)   # 'batch' | 'intel' | 'lost'
+    status = Column(String(20), nullable=False, default='running')  # 'running' | 'done' | 'failed'
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    completed_at = Column(DateTime, nullable=True)
+
+    user = relationship('User', foreign_keys=[user_id])

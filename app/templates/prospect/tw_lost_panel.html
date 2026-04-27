@@ -1,0 +1,283 @@
+{#
+  prospect/tw_lost_panel.html
+  公共项目池详情面板 — 布局与市场情报 tw_panel.html 一致。
+  Python 通过 jinja_env.get_template().module.render_*() 渲染各片段后以 JSON 返回。
+#}
+
+{# ── stage badge (project stage) ──────────────────────────── #}
+{% macro render_stage_badge(stage) %}
+{% set cfg = {
+    'discover':   ('发现商机', 'text-sky-600 bg-sky-50 border border-sky-200 dark:text-sky-300 dark:bg-sky-900/30 dark:border-sky-800', 'travel_explore'),
+    'embed':      ('进入阶段', 'text-emerald-600 bg-emerald-50 border border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-800', 'flag'),
+    'pre_tender': ('预招标',   'text-amber-600 bg-amber-50 border border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-800', 'event_note'),
+    'tendering':  ('招标中',   'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-800', 'gavel'),
+    'awarded':    ('中标',     'text-teal-600 bg-teal-50 border border-teal-200 dark:text-teal-300 dark:bg-teal-900/30 dark:border-teal-800', 'emoji_events'),
+    'quoted':     ('已报价',   'text-yellow-600 bg-yellow-50 border border-yellow-200 dark:text-yellow-300 dark:bg-yellow-900/30 dark:border-yellow-800', 'request_quote'),
+    'signed':     ('已签约',   'text-blue-600 bg-blue-50 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-800', 'task_alt'),
+    'lost':       ('已流失',   'text-red-600 bg-red-50 border border-red-200 dark:text-red-300 dark:bg-red-900/30 dark:border-red-800', 'cancel'),
+    'paused':     ('暂停',     'text-gray-600 bg-gray-50 border border-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:border-gray-600', 'pause_circle'),
+} %}
+{% set c = cfg.get(stage, ('未知', 'text-slate-500 bg-slate-100 border border-slate-200 dark:text-slate-400 dark:bg-slate-700', 'help')) %}
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium {{ c[1] }}">
+    <span class="material-symbols-outlined" style="font-size:13px;">{{ c[2] }}</span>
+    {{ c[0] }}
+</span>
+{% endmacro %}
+
+
+{# ── body: project info + research + stakeholders ─────────── #}
+{% macro render_body(project, research, can_view_sensitive, crm_companies=[]) %}
+{% set industry_label = {
+    'chemical':'化工','energy':'能源','manufacturing':'制造','datacenter':'数据中心',
+    'shipbuilding':'造船','semiconductor':'半导体','transportation':'交通',
+    'tunnel_underground':'隧道','real_estate':'地产','hospitality':'酒店',
+    'finance':'金融','retail':'零售','government':'政府',
+    'education':'教育','healthcare':'医疗','technology':'科技','other':'其他'
+} %}
+<div class="space-y-5">
+
+    {# ── 基本信息 ──────────────────────────────────── #}
+    <div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+        {% if project.industry %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">行业</p>
+            <p class="text-slate-800 dark:text-slate-200">{{ industry_label.get(project.industry, project.industry) }}</p>
+        </div>
+        {% endif %}
+        {% set city_val = project.city %}
+        {% set region_val = project.region %}
+        {% if city_val or region_val %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">地区</p>
+            <p class="text-slate-700 dark:text-slate-300">
+                {% if city_val and region_val and city_val != region_val %}{{ city_val }} / {{ region_val }}
+                {% else %}{{ city_val or region_val }}{% endif %}
+            </p>
+        </div>
+        {% endif %}
+        {% if project.last_activity_date %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">最后动态</p>
+            <p class="text-slate-700 dark:text-slate-300">{{ project.last_activity_date.strftime('%Y-%m-%d') }}</p>
+        </div>
+        {% endif %}
+        {% if project.created_at %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-0.5">创建时间</p>
+            <p class="text-slate-700 dark:text-slate-300">{{ project.created_at.strftime('%Y-%m-%d') }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {# ── 流失原因 — 仅当负责人当前确实离职时才显示 #}
+    {% set owner_resigned = project.owner and project.owner._is_active == False %}
+    {% if owner_resigned %}
+    <div class="flex items-start gap-2 p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800">
+        <span class="material-symbols-outlined text-rose-500 flex-shrink-0 mt-0.5" style="font-size:16px;">info</span>
+        <p class="text-sm text-rose-700 dark:text-rose-300">负责人已离职</p>
+    </div>
+    {% elif not project.owner %}
+    <div class="flex items-start gap-2 p-3 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800">
+        <span class="material-symbols-outlined text-rose-500 flex-shrink-0 mt-0.5" style="font-size:16px;">info</span>
+        <p class="text-sm text-rose-700 dark:text-rose-300">无负责人</p>
+    </div>
+    {% endif %}
+
+    {# ── CRM 关联企业 ─────────────────────────────── #}
+    {% if crm_companies %}
+    {% set ctype_cfg = {
+        'user':        ('用户',   'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700', 'domain'),
+        'designer':    ('顾问',   'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700', 'architecture'),
+        'contractor':  ('总包',   'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700', 'construction'),
+        'integrator':  ('集成',   'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700', 'engineering'),
+        'dealer':      ('经销',   'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-700', 'storefront'),
+        'distributor': ('分销',   'text-yellow-600 bg-yellow-50 border-yellow-200 dark:text-yellow-300 dark:bg-yellow-900/30 dark:border-yellow-700', 'local_shipping'),
+    } %}
+    <div>
+        <div class="flex items-center gap-2 mb-2">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">项目关联企业 ({{ crm_companies|length }})</p>
+            <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                <span class="material-symbols-outlined" style="font-size:11px;">verified</span>
+                CRM
+            </span>
+        </div>
+        <div class="space-y-1.5">
+            {% for assoc in crm_companies %}
+            {% set c = assoc.company %}
+            {% set tc = ctype_cfg.get(c.company_type, ('其他', 'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600', 'group')) %}
+            <div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                <span class="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs border {{ tc[1] }}">
+                    <span class="material-symbols-outlined" style="font-size:11px;">{{ tc[2] }}</span>
+                    {{ tc[0] }}
+                </span>
+                <p class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{{ c.company_name }}</p>
+                {% if c.city or c.region %}
+                <span class="ml-auto flex-shrink-0 text-xs text-slate-400 dark:text-slate-500">
+                    {{ c.city or c.region }}
+                </span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── AI 调研内容 ──────────────────────────────── #}
+    {% if research %}
+        {% if research.description %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">项目简介</p>
+            <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800 rounded-lg p-3">{{ research.description }}</p>
+        </div>
+        {% endif %}
+        {% if research.progress %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">最新进展</p>
+            <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-800 rounded-lg p-3">{{ research.progress }}</p>
+        </div>
+        {% endif %}
+
+        {# ── 关联方 ─────────────────────────────── #}
+        {% set stakeholder_list = research.stakeholders.all() %}
+        {% if stakeholder_list %}
+        {% set type_cfg = {
+            'owner':        ('业主',   'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700', 'domain'),
+            'design':       ('设计院', 'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700', 'architecture'),
+            'epc':          ('EPC',    'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700', 'engineering'),
+            'construction': ('施工',   'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700', 'construction'),
+            'other':        ('其他',   'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600', 'group')
+        } %}
+        <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">关联方 ({{ stakeholder_list|length }})</p>
+            <div class="space-y-2">
+                {% for s in stakeholder_list %}
+                {% set tc = type_cfg.get(s.stakeholder_type, type_cfg['other']) %}
+                <div class="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                    <span class="flex-shrink-0 mt-0.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs border {{ tc[1] }}">
+                        <span class="material-symbols-outlined" style="font-size:11px;">{{ tc[2] }}</span>
+                        {{ tc[0] }}
+                    </span>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{{ s.company_name }}</p>
+                        {% if s.department %}
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ s.department }}</p>
+                        {% endif %}
+                        <div class="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                            {% if s.contact_person %}
+                            <span class="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                <span class="material-symbols-outlined" style="font-size:12px;">person</span>
+                                {{ s.contact_person }}
+                            </span>
+                            {% endif %}
+                            {% if s.phone %}
+                            <span class="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                <span class="material-symbols-outlined" style="font-size:12px;">call</span>
+                                {{ s.phone }}
+                            </span>
+                            {% endif %}
+                            {% if s.address %}
+                            <span class="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 truncate max-w-[200px]" title="{{ s.address }}">
+                                <span class="material-symbols-outlined" style="font-size:12px;">location_on</span>
+                                {{ s.address }}
+                            </span>
+                            {% endif %}
+                            {% if s.email %}
+                            <span class="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                <span class="material-symbols-outlined" style="font-size:12px;">mail</span>
+                                {{ s.email }}
+                            </span>
+                            {% endif %}
+                            {% if s.website %}
+                            <a href="{{ s.website }}" target="_blank" rel="noopener" onclick="event.stopPropagation();"
+                               class="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline truncate max-w-[180px]">
+                                <span class="material-symbols-outlined" style="font-size:12px;">language</span>
+                                {{ s.website }}
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% if s.business_scope %}
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">营业范围：{{ s.business_scope }}</p>
+                        {% endif %}
+                        {% if s.notes %}
+                        <p class="text-xs text-slate-400 dark:text-slate-500 mt-1 italic line-clamp-3">{{ s.notes }}</p>
+                        {% endif %}
+                        {# 同款 AI 调研按钮 — 复用 enrichStakeholder() 流程 #}
+                        <div class="flex justify-end mt-2">
+                            <button type="button"
+                                data-enrich-btn="{{ research.id }}-{{ s.id }}"
+                                onclick="enrichStakeholder({{ research.id }}, {{ s.id }}); event.stopPropagation();"
+                                class="inline-flex items-center gap-1 h-6 px-2 rounded text-xs font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700 hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-colors cursor-pointer">
+                                <span class="material-symbols-outlined" style="font-size:12px;">auto_awesome</span>
+                                AI调研
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="text-center py-4 text-sm text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg">
+            <span class="material-symbols-outlined block mb-1" style="font-size:24px;">group_off</span>
+            暂无关联方信息
+        </div>
+        {% endif %}
+    {% else %}
+    {# 无 research 记录 #}
+    <div class="text-center py-6 text-sm text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800 rounded-lg">
+        <span class="material-symbols-outlined block mb-2" style="font-size:32px;">search</span>
+        暂无调研数据
+        {% if can_view_sensitive %}
+        <p class="mt-1 text-xs">可点击右下角「AI 调研补全」获取项目情报</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+{% endmacro %}
+
+
+{# ── footer left: 负责人信息 ──────────────────────────────── #}
+{% macro render_footer_left(project) %}
+{% if project.owner %}
+<span class="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+    <span class="material-symbols-outlined" style="font-size:16px;">person</span>
+    负责人：<strong class="text-slate-700 dark:text-slate-300 ml-1">{{ project.owner.real_name or project.owner.username }}</strong>
+</span>
+{% else %}
+<span class="inline-flex items-center gap-1.5 text-sm font-medium text-rose-500 dark:text-rose-400">
+    <span class="material-symbols-outlined" style="font-size:16px;">person_off</span>
+    无负责人
+</span>
+{% endif %}
+{% endmacro %}
+
+
+{# ── footer actions ───────────────────────────────────────── #}
+{# can_view_sensitive = True 表示 admin/ceo/owner，False 表示普通用户
+   AI 调研对所有人开放；申请参与仅对非 owner 用户显示 #}
+{% macro render_footer_actions(project_id, has_applied, can_view_sensitive, has_research) %}
+<button type="button"
+    id="lost-ai-btn-{{ project_id }}"
+    onclick="triggerLostAiResearch({{ project_id }})"
+    class="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/30 text-sm transition-colors cursor-pointer">
+    <span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span>
+    {% if has_research %}重新调研{% else %}AI 调研补全{% endif %}
+</button>
+{% if not can_view_sensitive %}
+    {% if has_applied %}
+    <button type="button" disabled
+        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 text-sm cursor-not-allowed">
+        <span class="material-symbols-outlined" style="font-size:16px;">check_circle</span>
+        已提交申请
+    </button>
+    {% else %}
+    <button type="button"
+        onclick="openLostApplyModal({{ project_id }})"
+        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors cursor-pointer">
+        <span class="material-symbols-outlined" style="font-size:16px;">person_add</span>
+        申请参与
+    </button>
+    {% endif %}
+{% endif %}
+{% endmacro %}

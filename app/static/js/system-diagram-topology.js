@@ -566,15 +566,21 @@ function showNodeProps(id){
   panel.classList.add('visible');
   document.getElementById('propsTitle').innerHTML=`<div style="display:flex;align-items:center;gap:8px;">${renderIconPanel(n.iconData).replace('<svg','<svg width="24" height="24"')} ${_t('节点属性')}</div>`;
 
+  // 同名型号分组：下拉按"型号名"去重，同名多个产品走详情卡左右切换
+  const groupKeyOf=p=>p.model||p.mn||p.productName||'';
+  const productGroups=new Map();
+  (n.products||[]).forEach(p=>{const k=groupKeyOf(p);if(!productGroups.has(k))productGroups.set(k,[]);productGroups.get(k).push(p)});
+
   let modelHtml='';
-  if(n.products&&n.products.length>1){
+  if(productGroups.size>1){
     let opts=`<option value="">${_t('-- 选择型号 --')}</option>`;
-    n.products.forEach(p=>{
-      opts+=`<option value="${p.id}" ${n.selectedProductId===p.id?'selected':''}>${p.model||p.mn||p.productName}</option>`;
+    productGroups.forEach((prods,key)=>{
+      const isSel=prods.some(p=>p.id===n.selectedProductId);
+      opts+=`<option value="${prods[0].id}" ${isSel?'selected':''}>${key}</option>`;
     });
     modelHtml=`<div class="props-field"><span class="props-label">${_t('选择产品')}</span><select class="props-select" onchange="updateNodeModel(${id},this.value)">${opts}</select></div>`;
-  } else if(n.products&&n.products.length===1){
-    modelHtml=`<div class="props-field"><span class="props-label">${_t('产品')}</span><input class="props-input" value="${n.products[0].model||n.products[0].mn||n.model}" disabled></div>`;
+  } else if(productGroups.size===1){
+    modelHtml=`<div class="props-field"><span class="props-label">${_t('产品')}</span><input class="props-input" value="${productGroups.keys().next().value}" disabled></div>`;
   }
 
   let productCard='';
@@ -582,8 +588,26 @@ function showNodeProps(id){
   if(selProduct){
     const esc=s=>(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
     const iconHtml=renderIconPanel(selProduct.iconData||n.iconData).replace('<svg','<svg width="48" height="48"');
+    // 同型号产品组内导航：左右间距处放 ‹ / ›，到头隐藏，剩余 ≥2 显示 « / »
+    const sameGroup=productGroups.get(groupKeyOf(selProduct))||[selProduct];
+    const gIdx=sameGroup.findIndex(p=>p.id===selProduct.id);
+    const gSize=sameGroup.length;
+    let leftBtn='',rightBtn='',idxBadge='';
+    if(gSize>1){
+      const aStyle='position:absolute;top:50%;transform:translateY(-50%);width:28px;height:28px;border:none;background:rgba(255,255,255,0.9);border-radius:50%;cursor:pointer;font-size:16px;line-height:1;color:var(--text-primary);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,0.15);z-index:2;';
+      if(gIdx>0){
+        const sym=gIdx>=2?'«':'‹';
+        leftBtn=`<button onclick="updateNodeModel(${id},'${sameGroup[gIdx-1].id}')" style="${aStyle}left:6px;" title="${_t('上一个')}">${sym}</button>`;
+      }
+      if(gIdx<gSize-1){
+        const sym=gIdx<=gSize-3?'»':'›';
+        rightBtn=`<button onclick="updateNodeModel(${id},'${sameGroup[gIdx+1].id}')" style="${aStyle}right:6px;" title="${_t('下一个')}">${sym}</button>`;
+      }
+      idxBadge=`<div style="position:absolute;bottom:4px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--text-muted);background:rgba(255,255,255,0.85);padding:1px 8px;border-radius:8px;z-index:2;">${gIdx+1} / ${gSize}</div>`;
+    }
     productCard=`<div style="margin:8px 0;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-canvas);overflow:hidden;">
-      <div style="margin:-10px -10px 8px;background:var(--bg-input);text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center;padding:12px;">
+      <div style="position:relative;margin:-10px -10px 8px;background:var(--bg-input);text-align:center;min-height:80px;display:flex;align-items:center;justify-content:center;padding:12px;">
+        ${leftBtn}${rightBtn}${idxBadge}
         ${selProduct.imageUrl
           ?`<img src="${selProduct.imageUrl}" alt="" style="max-width:100%;max-height:120px;object-fit:contain;" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div style="display:none;flex-direction:column;align-items:center;gap:4px;opacity:.5;">${iconHtml}<span style="font-size:10px;color:var(--text-muted);">${_t('暂无图片')}</span></div>`
           :`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;opacity:.5;">${iconHtml}<span style="font-size:10px;color:var(--text-muted);">${_t('暂无图片')}</span></div>`}
@@ -729,7 +753,7 @@ function replaceNodeIcon(nodeId){
   const n=nodes.find(n=>n.id===nodeId);if(!n)return;
   const p=n.selectedProductId?(n.products||[]).find(p=>p.id===n.selectedProductId):null;
   if(p&&p.iconData){
-    pushHistory();n.iconData=p.iconData;
+    pushHistory();n.iconData=p.iconData;n.iconSource='product';
     hasUnsavedChanges=true;renderAll();showNodeProps(nodeId);
   }
 }

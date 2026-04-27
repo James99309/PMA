@@ -907,6 +907,7 @@ def edit_user(user_id):
         old_company = user.company_name
         old_manager = user.is_department_manager
         old_role = user.role  # 记录旧角色
+        old_is_active = user.is_active  # 记录旧激活状态，用于触发项目活跃度重算
         
         user.real_name = real_name
         user.company_name = company
@@ -928,7 +929,20 @@ def edit_user(user_id):
         
         try:
             db.session.commit()
-            
+
+            # 用户激活状态变化时，刷新其名下项目的活跃度（离职/复职逻辑）
+            if old_is_active != is_active:
+                from app.utils.activity_tracker import recompute_projects_for_user
+                try:
+                    n = recompute_projects_for_user(user.id)
+                    current_app.logger.info(
+                        f"User {user.id} active state changed; recomputed {n} projects"
+                    )
+                except Exception as e:
+                    current_app.logger.exception(
+                        f"recompute_projects_for_user failed for user {user.id}: {e}"
+                    )
+
             # 记录变更历史
             try:
                 new_values = ChangeTracker.get_new_values(user, old_values.keys())

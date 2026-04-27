@@ -671,6 +671,7 @@ function snapshotState(){
       in_topology:n.in_topology!==false,
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
       labelPosition:n.labelPosition||null,locked:n.locked||false,
+      iconSource:n.iconSource||null,
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
     edges:edges.map(e=>({id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,
       cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,
@@ -691,8 +692,15 @@ function restoreSnapshot(snap){
   const data=JSON.parse(snap);
   nodes=data.nodes.map(n=>{
     const sub=SUBCATEGORIES[n.subcategoryId];
-    if(sub){n.iconData=sub.iconData;n.products=sub.products||[];
-      if(n.selectedProductId){const p=n.products.find(p=>p.id===n.selectedProductId);if(p&&p.iconData)n.iconData=p.iconData}
+    if(sub){
+      n.products=sub.products||[];
+      // 默认用子分类图标；只有用户显式点过"替换为产品图标"才取产品图标
+      let icon=sub.iconData;
+      if(n.iconSource==='product' && n.selectedProductId){
+        const p=n.products.find(p=>p.id===n.selectedProductId);
+        if(p&&p.iconData) icon=p.iconData;
+      }
+      n.iconData=icon;
     }else if(n.subcategoryId===null){n.iconData=n.is_riser_node?DEFAULT_DEVICE_ICONS.riser:DEFAULT_DEVICE_ICONS.text_note;n.products=[]}
     else{const product=PRODUCTS.find(p=>p.id===(n.selectedProductId||n.productId));n.iconData=product?product.iconData:DEFAULT_DEVICE_ICONS.generic;n.products=product?[product]:[]}
     return n;
@@ -1538,6 +1546,7 @@ function serializeDiagram(){
       in_topology:n.in_topology!==false,
       is_riser_node:n.is_riser_node||false,_floorCreated:n._floorCreated||false,
       labelPosition:n.labelPosition||null,locked:n.locked||false,
+      iconSource:n.iconSource||null,
       showCoverage:n.showCoverage,coverageRadii:n.coverageRadii,coverageVisible:n.coverageVisible,coverageN:n.coverageN})),
     edges:edges.map(e=>{const o={id:e.id,sourceId:e.sourceId,sourcePort:e.sourcePort,targetId:e.targetId,targetPort:e.targetPort,cableType:e.cableType,color:e.color,width:e.width,dash:e.dash,label:e.label,hideLabel:e.hideLabel||false,routeMode:e.routeMode,midPos:e.midPos};if(e.waypoints&&e.waypoints.length)o.waypoints=e.waypoints;if(e.selectedProductId)o.selectedProductId=e.selectedProductId;if(e.selectedProductName)o.selectedProductName=e.selectedProductName;if(e.selectedProductModel)o.selectedProductModel=e.selectedProductModel;if(e.selectedProductMn)o.selectedProductMn=e.selectedProductMn;return o}),
     viewX,viewY,scale,nodeIdCounter,edgeIdCounter,
@@ -1557,12 +1566,14 @@ function deserializeDiagram(data){
   nodes=data.nodes.map(n=>{
     const sub=SUBCATEGORIES[n.subcategoryId];
     if(sub){
-      n.iconData=sub.iconData;
       n.products=sub.products||[];
-      if(n.selectedProductId){
+      // 默认用子分类图标；只有用户显式点过"替换为产品图标"才取产品图标
+      let icon=sub.iconData;
+      if(n.iconSource==='product' && n.selectedProductId){
         const p=n.products.find(p=>p.id===n.selectedProductId);
-        if(p&&p.iconData)n.iconData=p.iconData;
+        if(p&&p.iconData) icon=p.iconData;
       }
+      n.iconData=icon;
     } else if(n.subcategoryId===null){
       n.iconData=n.is_riser_node?DEFAULT_DEVICE_ICONS.riser:DEFAULT_DEVICE_ICONS.text_note;
       n.products=[];

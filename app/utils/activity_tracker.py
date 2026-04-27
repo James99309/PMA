@@ -563,6 +563,12 @@ def calculate_project_activity_status(project_id):
         stage_label = PROJECT_STAGE_LABELS.get(project.current_stage, {}).get('zh', project.current_stage)
         return 'frozen', f'项目已{stage_label}，活跃度已冻结', project.last_activity_date
 
+    # 离职/无负责人规则（优先级仅次于 frozen）
+    if not project.owner_id:
+        return 'churned', '无负责人', project.last_activity_date
+    if project.owner is not None and not project.owner.is_active:
+        return 'churned', '负责人已离职', project.last_activity_date
+
     # 收集所有活动时间
     activities = []
 
@@ -741,3 +747,32 @@ def update_active_status(entity, days_threshold=None, commit=True):
         return new_status in ('highly_active', 'active', 'normal')
 
     return False
+
+
+def recompute_projects_for_user(user_id):
+    """用户停用/启用后，刷新该用户名下所有非 frozen 项目的活跃度。
+
+    供 admin 路由在切换 is_active 后同步调用。返回受影响的项目数。
+    """
+    from app.models.project import Project
+
+    projects = Project.query.filter(
+        Project.is_deleted == False,
+        Project.owner_id == user_id,
+        ~Project.current_stage.in_(FROZEN_STAGES),
+    ).all()
+
+    updated = 0
+    for p in projects:
+        new_status, reason, last_active = calculate_project_activity_status(p.id)
+        status_changed = p.activity_status != new_status
+        reason_changed = p.activity_reason != reason
+        if status_changed or reason_changed:
+            p.activity_status = new_status
+            p.activity_reason = reason
+            if last_active is not None:
+                p.last_activity_date = last_active
+            if status_changed:
+                updated += 1
+    db.session.commit()
+    return updated
