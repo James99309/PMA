@@ -1396,7 +1396,7 @@ msgstr "Draft"
 #: app/views/quotation.py:363 app/views/quotation.py:602
 #: app/views/quotation.py:608 app/views/user.py:222
 msgid "搜索"
-msgstr "Searching"
+msgstr "Search"
 
 #: app/routes/pricing_order_routes.py:1386
 #, fuzzy
@@ -1418,7 +1418,7 @@ msgstr "Quotation number or project name"
 #: app/views/quotation.py:458 app/views/star_graph.py:146
 #: app/views/star_graph.py:262 app/views/star_graph.py:505
 msgid "负责人"
-msgstr "Representative"
+msgstr "Owner"
 
 #: app/routes/pricing_order_routes.py:1393 app/routes/product.py:529
 #: app/templates/product_analysis/tw_analysis.html:398
@@ -1628,7 +1628,7 @@ msgstr "Total Products"
 #: app/views/user.py:259 app/views/user.py:267 app/views/user.py:275
 #: app/views/user.py:283
 msgid "个"
-msgstr "Items"
+msgstr ""
 
 #: app/routes/product.py:580
 #: app/templates/components/product/tw_product_modal.html:116
@@ -2345,7 +2345,7 @@ msgstr "Status"
 #: app/templates/spec_template/tw_edit.html:1459
 #: app/templates/worklog/tw_calendar.html:3281
 msgid "加载失败"
-msgstr "Loading Failed"
+msgstr "Load failed"
 
 #: app/templates/index.html:161
 msgid "点击重试"
@@ -2941,7 +2941,7 @@ msgstr "Failed to load replies"
 #: app/templates/quotation/create.html:816
 #: app/templates/worklog/tw_calendar.html:3484
 msgid "提交失败"
-msgstr "Submit failed"
+msgstr "Submission failed"
 
 #: app/templates/announcement/tw_list.html:599
 #: app/templates/backup/tw_index.html:457
@@ -3819,7 +3819,7 @@ msgstr "Please select target users"
 #: app/templates/worklog/tw_calendar.html:3074
 #: app/templates/worklog/tw_calendar.html:3422
 msgid "保存失败"
-msgstr "Save Failed"
+msgstr "Save failed"
 
 #: app/templates/announcement/tw_list.html:571
 #, fuzzy
@@ -7176,7 +7176,7 @@ msgstr "Stage Distribution"
 #: app/templates/components/tw_performance_dashboard.html:1222
 #: app/templates/components/tw_performance_dashboard.html:2898
 msgid "个项目"
-msgstr "projects"
+msgstr "project(s)"
 
 #: app/templates/components/tw_performance_dashboard.html:904
 #: app/templates/components/tw_performance_dashboard.html:1024
@@ -7557,7 +7557,7 @@ msgstr "Action Quality Trend"
 #: app/templates/project/tw_project_detail.html:2102
 #: app/views/product_analysis.py:1297
 msgid "发现"
-msgstr "Discovery"
+msgstr "Found"
 
 #: app/templates/components/tw_performance_dashboard.html:2831
 #: app/templates/project/statistics_dashboard_backup.html:176
@@ -9179,7 +9179,7 @@ msgstr "Task created successfully"
 #: app/templates/spec_template/tw_spec_config_matrix.html:2114
 #: app/templates/worklog/tw_calendar.html:3070
 msgid "保存成功"
-msgstr "Saved successfully"
+msgstr "Saved"
 
 #: app/templates/components/tw_user_selector_modal.html:143
 #: app/templates/macros/ui_helpers.html:6947
@@ -12730,7 +12730,7 @@ msgstr "Highly Similar"
 #: app/templates/customer/partials/_company_form_fields.html:156
 #: app/templates/project/partials/_project_form_fields.html:196
 msgid "相似"
-msgstr "Similar"
+msgstr "match"
 
 #: app/templates/customer/partials/_company_form_fields.html:158
 #: app/templates/project/partials/_project_form_fields.html:198
@@ -16019,7 +16019,7 @@ msgstr "Failed to load list, please refresh and retry"
 #: app/templates/macros/ui_helpers.html:8698
 #: app/templates/macros/ui_helpers.html:8776 app/views/product_analysis.py:1305
 msgid "暂停"
-msgstr "On Hold"
+msgstr "Paused"
 
 #: app/templates/macros/ui_helpers.html:8790
 msgid "已发送"
@@ -18290,7 +18290,7 @@ msgstr "Stage Trend Analysis"
 
 #: app/templates/project/tw_list.html:94
 msgid "市场情报库"
-msgstr ""
+msgstr "Market Intel Library"
 
 #: app/templates/project/tw_list.html:153 app/views/project.py:448
 msgid "项目列表"
@@ -18843,12 +18843,12 @@ msgstr "Owner"
 #: app/templates/prospect/_tw_lost_list.html:20
 #: app/templates/prospect/tw_lost_detail.html:151
 msgid "设计院"
-msgstr "Designer"
+msgstr "Design Institute"
 
 #: app/templates/prospect/_tw_lost_list.html:22
 #: app/templates/prospect/tw_lost_detail.html:153
 msgid "总包"
-msgstr "EPC"
+msgstr "Contractor"
 
 #: app/templates/prospect/_tw_lost_list.html:64
 #: app/templates/prospect/tw_lost_detail.html:116
@@ -18877,7 +18877,7 @@ msgstr "Back to Project Pool"
 
 #: app/templates/prospect/tw_lost_detail.html:66
 msgid "AI 调研补全"
-msgstr "AI Research"
+msgstr "AI Enrich"
 
 #: app/templates/prospect/tw_lost_detail.html:72
 msgid "申请参与"
@@ -20059,7 +20059,7 @@ msgstr "Please select a file"
 #: app/templates/spec_template/tw_spec_config_matrix.html:2339
 #, fuzzy
 msgid "导入中..."
-msgstr "Researching..."
+msgstr "Importing..."
 
 #: app/templates/spec_template/tw_configurations.html:920
 #: app/views/spec_template.py:1858
@@ -22784,7 +22784,7 @@ msgstr "Pre-tender"
 #: app/views/product_analysis.py:1301
 #, fuzzy
 msgid "已报价"
-msgstr "Quotation"
+msgstr "Quoted"
 
 #: app/views/product_analysis.py:1304
 msgid "丢失"
@@ -27988,3 +27988,558 @@ msgstr "Invalid feedback type."
 #~ msgid "自动"
 #~ msgstr "Auto"
 
+
+msgid "潜在工程机会"
+msgstr "Potential project opportunities"
+
+msgid "批量调研"
+msgstr "Batch Research"
+
+msgid "新增情报"
+msgstr "Add Intel"
+
+msgid "情报列表"
+msgstr "Intel List"
+
+msgid "情报更新"
+msgstr "Updated"
+
+msgid "情报更新 · 最新"
+msgstr "Updated · Latest"
+
+msgid "情报更新 · 最早"
+msgstr "Updated · Oldest"
+
+msgid "情报来源"
+msgstr "Source"
+
+msgid "录入时间 · 最新"
+msgstr "Created · Latest"
+
+msgid "申领状态"
+msgstr "Claim Status"
+
+msgid "申领"
+msgstr "Claim"
+
+msgid "申领失败"
+msgstr "Claim failed"
+
+msgid "我已申领"
+msgstr "Claimed by me"
+
+msgid "可申领"
+msgstr "Available"
+
+msgid "已申领"
+msgstr "Claimed"
+
+msgid "未申领"
+msgstr "Unclaimed"
+
+msgid "我的"
+msgstr "Mine"
+
+msgid "全部地区"
+msgstr "All Regions"
+
+msgid "项目名称、关键词、地区、业主..."
+msgstr "Project name, keywords, region, owner..."
+
+msgid "关键词"
+msgstr "Keywords"
+
+msgid "已筛选"
+msgstr "Filtered"
+
+msgid "个关联方"
+msgstr "stakeholders"
+
+msgid "个关联方 · 请确认导入选项"
+msgstr "stakeholders · please confirm import options"
+
+msgid "个字段"
+msgstr "field(s)"
+
+msgid "个已在库"
+msgstr "in library"
+
+msgid "个项目到情报库"
+msgstr "project(s) added to library"
+
+msgid "个，勾选后追加"
+msgstr "items, check to append"
+
+msgid "在建"
+msgstr "Under Construction"
+
+msgid "设计中"
+msgstr "Designing"
+
+msgid "规划中"
+msgstr "Planning"
+
+msgid "竣工"
+msgstr "Completed"
+
+msgid "发现商机"
+msgstr "Discovered"
+
+msgid "进入阶段"
+msgstr "Engaged"
+
+msgid "已签约"
+msgstr "Signed"
+
+msgid "已流失"
+msgstr "Lost"
+
+msgid "化工"
+msgstr "Chemical"
+
+msgid "能源"
+msgstr "Energy"
+
+msgid "制造"
+msgstr "Manufacturing"
+
+msgid "制造业"
+msgstr "Manufacturing"
+
+msgid "数据中心"
+msgstr "Data Center"
+
+msgid "造船"
+msgstr "Shipbuilding"
+
+msgid "半导体"
+msgstr "Semiconductor"
+
+msgid "交通"
+msgstr "Transportation"
+
+msgid "隧道"
+msgstr "Tunnel"
+
+msgid "隧道/地下"
+msgstr "Tunnel/Underground"
+
+msgid "地产"
+msgstr "Real Estate"
+
+msgid "酒店"
+msgstr "Hospitality"
+
+msgid "金融"
+msgstr "Finance"
+
+msgid "零售"
+msgstr "Retail"
+
+msgid "政府"
+msgstr "Government"
+
+msgid "教育"
+msgstr "Education"
+
+msgid "医疗"
+msgstr "Healthcare"
+
+msgid "科技"
+msgstr "Technology"
+
+msgid "石化化工"
+msgstr "Petrochemical"
+
+msgid "环评公示"
+msgstr "EIA Public Notice"
+
+msgid "招标公告"
+msgstr "Tender Announcement"
+
+msgid "AI调研"
+msgstr "AI Research"
+
+msgid "AI调研失败"
+msgstr "AI research failed"
+
+msgid "AI 调研失败"
+msgstr "AI research failed"
+
+msgid "人工录入"
+msgstr "Manual Entry"
+
+msgid "业主"
+msgstr "Owner"
+
+msgid "施工"
+msgstr "Construction"
+
+msgid "建设"
+msgstr "Construction"
+
+msgid "设计"
+msgstr "Design"
+
+msgid "顾问"
+msgstr "Consultant"
+
+msgid "集成"
+msgstr "Integrator"
+
+msgid "经销"
+msgstr "Dealer"
+
+msgid "分销"
+msgstr "Distributor"
+
+msgid "你已申领此项目"
+msgstr "You have claimed this project"
+
+msgid "已由"
+msgstr "Claimed by"
+
+msgid "暂无人申领"
+msgstr "Unclaimed"
+
+msgid "暂无情报数据"
+msgstr "No intel data"
+
+msgid "暂无关联方信息"
+msgstr "No stakeholder info"
+
+msgid "暂无调研数据"
+msgstr "No research data"
+
+msgid "无负责人"
+msgstr "No owner"
+
+msgid "负责人已离职"
+msgstr "Owner has resigned"
+
+msgid "项目关联企业"
+msgstr "Linked Companies"
+
+msgid "项目简介"
+msgstr "Project Overview"
+
+msgid "最后动态"
+msgstr "Last Activity"
+
+msgid "已转化为项目"
+msgstr "Converted to project"
+
+msgid "可点击右下角「AI 调研补全」获取项目情报"
+msgstr "Click 'AI Enrich' on the bottom right to fetch project intel"
+
+msgid "确认导入"
+msgstr "Confirm Import"
+
+msgid "导入完成"
+msgstr "Import Complete"
+
+msgid "导入关联方"
+msgstr "Import Stakeholders"
+
+msgid "导入关联方到客户库"
+msgstr "Import Stakeholders to CRM"
+
+msgid "正在检查重复..."
+msgstr "Checking duplicates..."
+
+msgid "检查重复中..."
+msgstr "Checking for duplicates..."
+
+msgid "需要确认"
+msgstr "Needs Confirmation"
+
+msgid "可直接导入"
+msgstr "Ready to Import"
+
+msgid "公司已存在"
+msgstr "Companies Exist"
+
+msgid "无可导入的关联方"
+msgstr "No stakeholders to import"
+
+msgid "已存在于客户库，联系人将挂到此公司下"
+msgstr "Already in CRM, contact will be linked to this company"
+
+msgid "发现相似公司，请选择："
+msgstr "Similar company found, please choose:"
+
+msgid "新建公司"
+msgstr "New Company"
+
+msgid "新建联系人"
+msgstr "New Contact"
+
+msgid "新增联系人"
+msgstr "Add Contact"
+
+msgid "新增行"
+msgstr "New Row"
+
+msgid "新增"
+msgstr "Added"
+
+msgid "替换"
+msgstr "Replace"
+
+msgid "同名"
+msgstr "Same Name"
+
+msgid "同电话"
+msgstr "Same Phone"
+
+msgid "与客户库中的"
+msgstr "with CRM record"
+
+msgid "跳过联系人"
+msgstr "Skip contact"
+
+msgid "仍然创建"
+msgstr "Create anyway"
+
+msgid "主地址"
+msgstr "Address"
+
+msgid "备选地址"
+msgstr "Alt. Address"
+
+msgid "官网"
+msgstr "Website"
+
+msgid "营业范围"
+msgstr "Business Scope"
+
+msgid "调研中"
+msgstr "Researching"
+
+msgid "调研中…"
+msgstr "Researching…"
+
+msgid "调研完成"
+msgstr "Done"
+
+msgid "调研完成，点击按钮查看结果"
+msgstr "research complete, click to view results"
+
+msgid "调研完成，发现"
+msgstr "Research complete, found"
+
+msgid "调研结果"
+msgstr "Research Result"
+
+msgid "调研请求失败，请重试"
+msgstr "Research request failed, please retry"
+
+msgid "未找到新联系方式"
+msgstr "No new contacts found"
+
+msgid "已有调研进行中，请等待完成或点击旋转按钮取消"
+msgstr "Research in progress, wait for completion or click the spinning button to cancel"
+
+msgid "高可信度"
+msgstr "High Confidence"
+
+msgid "中等可信度"
+msgstr "Medium Confidence"
+
+msgid "低可信度"
+msgstr "Low Confidence"
+
+msgid "主联系单位字段"
+msgstr "Primary Stakeholder Fields"
+
+msgid "(每条勾选会创建一行同公司联系人)"
+msgstr "(each checked item creates a contact under same company)"
+
+msgid "信息来源"
+msgstr "Sources"
+
+msgid "项可保存内容"
+msgstr "items savable"
+
+msgid "未找到可保存的内容"
+msgstr "No content to save"
+
+msgid "项目调研结果"
+msgstr "Project Research Result"
+
+msgid "写入选中"
+msgstr "Write Selected"
+
+msgid "写入成功"
+msgstr "Write Successful"
+
+msgid "更新项目信息"
+msgstr "Updated project info"
+
+msgid "新增 "
+msgstr "Added "
+
+msgid "位联系人"
+msgstr "contact(s)"
+
+msgid "保存选中"
+msgstr "Save Selected"
+
+msgid "保存请求失败"
+msgstr "Save request failed"
+
+msgid "未变更"
+msgstr "No changes"
+
+msgid "请求失败，请重试"
+msgstr "Request failed, please retry"
+
+msgid "申请已提交，等待负责人处理"
+msgstr "Application submitted, awaiting owner review"
+
+msgid "申请理由至少 10 个字"
+msgstr "Reason must be at least 10 characters"
+
+msgid "已提交申请"
+msgstr "Application Submitted"
+
+msgid "说明您希望参与此项目的理由，申请将发送给项目负责人处理。"
+msgstr "Explain why you want to join. The application will be sent to the project owner."
+
+msgid "请说明参与理由（至少 10 字）..."
+msgstr "Please explain reason (min 10 characters)..."
+
+msgid "取消申领"
+msgstr "Unclaim"
+
+msgid "取消失败"
+msgstr "Unclaim failed"
+
+msgid "转入项目"
+msgstr "Convert to Project"
+
+msgid "批量调研新项目"
+msgstr "Batch Research New Projects"
+
+msgid "批量调研失败"
+msgstr "Batch research failed"
+
+msgid "批量调研请求失败，请重试"
+msgstr "Batch research request failed, please retry"
+
+msgid "选择省份（最多2个）和行业（最多2个），AI 将搜索工程项目商机"
+msgstr "Choose up to 2 provinces and 2 industries; AI will search for project opportunities"
+
+msgid "省份"
+msgstr "Province"
+
+msgid "（最多选 2 个）"
+msgstr "(max 2)"
+
+msgid "今日剩余批量调研次数："
+msgstr "Batch research quota left today: "
+
+msgid "今日批量调研次数已用完（3次），明日再试"
+msgstr "Daily batch research quota exhausted (3); please try tomorrow"
+
+msgid "最多选择 2 个省份"
+msgstr "Choose at most 2 provinces"
+
+msgid "最多选择 2 个行业"
+msgstr "Choose at most 2 industries"
+
+msgid "请至少选择一个省份和一个行业"
+msgstr "Please select at least one province and one industry"
+
+msgid "开始调研"
+msgstr "Start Research"
+
+msgid "查看结果"
+msgstr "View Results"
+
+msgid "加入情报库"
+msgstr "Add to Library"
+
+msgid "已在库"
+msgstr "In Library"
+
+msgid "未找到新项目，请换省份/行业重试"
+msgstr "No new projects found, try different provinces/industries"
+
+msgid "成功加入"
+msgstr "Successfully added"
+
+msgid "广东"
+msgstr "Guangdong"
+
+msgid "江苏"
+msgstr "Jiangsu"
+
+msgid "浙江"
+msgstr "Zhejiang"
+
+msgid "山东"
+msgstr "Shandong"
+
+msgid "广西"
+msgstr "Guangxi"
+
+msgid "辽宁"
+msgstr "Liaoning"
+
+msgid "上海"
+msgstr "Shanghai"
+
+msgid "天津"
+msgstr "Tianjin"
+
+msgid "四川"
+msgstr "Sichuan"
+
+msgid "湖北"
+msgstr "Hubei"
+
+msgid "河南"
+msgstr "Henan"
+
+msgid "陕西"
+msgstr "Shaanxi"
+
+msgid "新疆"
+msgstr "Xinjiang"
+
+msgid "宁夏"
+msgstr "Ningxia"
+
+msgid "内蒙古"
+msgstr "Inner Mongolia"
+
+msgid "云南"
+msgstr "Yunnan"
+
+msgid "贵州"
+msgstr "Guizhou"
+
+msgid "湖南"
+msgstr "Hunan"
+
+msgid "安徽"
+msgstr "Anhui"
+
+msgid "河北"
+msgstr "Hebei"
+
+msgid "福建"
+msgstr "Fujian"
+
+msgid "黑龙江"
+msgstr "Heilongjiang"
+
+msgid "吉林"
+msgstr "Jilin"
+
+msgid "江西"
+msgstr "Jiangxi"
+
+msgid "阶段 · 在建优先"
+msgstr "Stage · Construction first"
