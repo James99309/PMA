@@ -69,6 +69,8 @@ from app.models.user_cli_state import UserCliState
 from app.models.cli_skill import CliSkill
 from app.models.cli_memory import CliMemory
 from app.models.points import PointsBehaviorConfig, PointsTransaction, UserPointsSummary
+# Claude AI 代理用量缓存（cliproxy 集成）
+from app.models.ai_proxy_usage import AIProxyUsage
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
@@ -108,4 +110,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'SystemDiagram', 'DiagramShareToken', 'DiagramExternalSession',
            'PerformanceManualEntry', 'PerformanceManualAttachment',
            'ProductDisplayOrder',
-           'CliSession', 'UserCliState', 'CliSkill']
+           'CliSession', 'UserCliState', 'CliSkill',
+           'AIProxyUsage']

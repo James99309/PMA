@@ -408,3 +408,151 @@ def send_password_reset_email(user, reset_token, reset_url):
     except Exception as e:
         logger.error(f"发送密码重置邮件异常: {str(e)}", exc_info=True)
         return False
+def send_claude_ai_token_email(user, token, is_reset=False):
+    """发送 Claude AI 代理 token 邮件给用户。
+
+    参数:
+        user: User 对象
+        token: 该用户的 cliproxy token
+        is_reset: 是否为重置操作（True 时邮件主题和正文略有不同）
+
+    返回值:
+        bool 发送成功返回 True
+    """
+    try:
+        import os
+        from flask import current_app
+
+        if not user or not user.email:
+            logger.warning(f'send_claude_ai_token_email: 用户邮箱缺失')
+            return False
+
+        public_url = (
+            os.environ.get('CLAUDE_AI_PROXY_PUBLIC_URL')
+            or current_app.config.get('CLAUDE_AI_PROXY_PUBLIC_URL', 'https://mac-proxy.jamesgpone.win')
+        )
+        default_quota_val = (
+            os.environ.get('CLAUDE_AI_DEFAULT_QUOTA')
+            or current_app.config.get('CLAUDE_AI_DEFAULT_QUOTA', 50_000_000)
+        )
+        quota = user.claude_ai_quota_tokens or int(default_quota_val)
+        quota_display = f'{int(quota):,}'
+
+        real_name = user.real_name or user.username
+        subject_action = '重置' if is_reset else '开通'
+        subject = f'PMA Claude AI 代理已{subject_action} - {real_name}'
+        action_zh = '重置 token' if is_reset else '开通 Claude AI 代理'
+        action_en = 'TOKEN RESET' if is_reset else 'CLAUDE AI ENABLED'
+
+        notice_text = (
+            '你之前的 token 已立即失效，请使用以下新 token 替换原有配置。'
+            if is_reset else
+            '你的 PMA 账号已被开通 Claude AI 代理使用权限。请按下方说明配置 Claude Desktop 或其他客户端。'
+        )
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="zh-CN">
+        <head>
+            <meta charset="utf-8"/>
+            <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 48px 24px;">
+                <div style="text-align: center; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid #a0a0a0;">
+                    <h1 style="font-size: 28px; font-weight: 300; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">PMA Claude AI 代理</h1>
+                    <p style="font-size: 16px; color: #545454; margin: 0; font-family: 'Roboto Mono', monospace; letter-spacing: -0.025em;">{action_en}</p>
+                </div>
+
+                <div style="text-align: center; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid #a0a0a0;">
+                    <p style="font-size: 18px; color: #404040; margin: 0; font-weight: 300;">
+                        尊敬的 <strong style="font-weight: 500;">{real_name}</strong>，{notice_text}
+                    </p>
+                </div>
+
+                <div style="margin-bottom: 32px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 24px;">
+                        <span style="font-size: 24px; font-weight: 300; color: #1a1a1a; margin-right: 12px;">I.</span>
+                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">你的凭证</h2>
+                    </div>
+                    <div style="border-bottom: 1px solid #e8e8e8; padding-bottom: 24px;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr>
+                                <td style="padding: 8px 0;">
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">代理地址 (Gateway URL)</span>
+                                    <span style="font-size: 14px; color: #2c2c2c; font-family: 'Roboto Mono', monospace;">{public_url}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0;">
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">API Key (Token)</span>
+                                    <span style="font-size: 14px; color: #2c2c2c; font-family: 'Roboto Mono', monospace; word-break: break-all;">{token}</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px 0;">
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">月度配额</span>
+                                    <span style="font-size: 14px; color: #2c2c2c;">{quota_display} tokens</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 32px;">
+                    <div style="display: flex; align-items: center; margin-bottom: 24px;">
+                        <span style="font-size: 24px; font-weight: 300; color: #1a1a1a; margin-right: 12px;">II.</span>
+                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">Claude Desktop 配置</h2>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr style="background-color: #e8e8e8;">
+                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">字段</td>
+                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">值</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e8e8e8;">
+                            <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #1a1a1a;">Connection</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #545454;">Gateway (Anthropic-compatible)</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e8e8e8;">
+                            <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #1a1a1a;">Gateway base URL</td>
+                            <td style="padding: 12px 16px; font-size: 13px; color: #545454; font-family: 'Roboto Mono', monospace;">{public_url}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e8e8e8;">
+                            <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #1a1a1a;">Gateway API key</td>
+                            <td style="padding: 12px 16px; font-size: 13px; color: #545454; font-family: 'Roboto Mono', monospace; word-break: break-all;">{token}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #e8e8e8;">
+                            <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #1a1a1a;">Gateway auth scheme</td>
+                            <td style="padding: 12px 16px; font-size: 14px; color: #545454;">bearer</td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div style="border: 1px solid #a0a0a0; padding: 24px; margin-bottom: 32px;">
+                    <h3 style="font-size: 16px; font-weight: 500; color: #2c2c2c; margin: 0 0 12px 0;">安全提醒</h3>
+                    <p style="font-size: 14px; color: #545454; margin: 0; line-height: 1.6;">
+                        Token 是你的唯一凭证，请勿外泄给他人或截图分享。如怀疑泄漏，请登录 PMA 在个人中心自助重置。
+                        管理员可随时查看你的使用记录。月度配额超限后请求会被暂停，直到下月 1 日重置。
+                    </p>
+                </div>
+
+                <div style="text-align: center; padding-top: 32px; border-top: 1px solid #a0a0a0;">
+                    <p style="font-size: 12px; color: #686868; margin: 0; font-family: 'Roboto Mono', monospace;">
+                        &copy; 2026 PMA系统管理团队. All rights reserved.
+                    </p>
+                    <p style="font-size: 11px; color: #a0a0a0; margin: 8px 0 0 0;">
+                        此邮件由系统自动发送，请勿直接回复
+                    </p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        logger.info(f'正在向 {user.username} 发送 Claude AI {subject_action} 邮件')
+        return send_email(subject, user.email, None, html=html_content)
+
+    except Exception as e:
+        logger.error(f'发送 Claude AI 邮件失败: {e}', exc_info=True)
+        return False
+

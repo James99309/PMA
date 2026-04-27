@@ -178,6 +178,9 @@
         {% if can_view_salary %}
         {% set tabs = tabs + [{'key': 'salary', 'label': _('薪资明细')}] %}
         {% endif %}
+        {% if can_edit_user %}
+        {% set tabs = tabs + [{'key': 'claude_ai', 'label': _('Claude AI 代理')}] %}
+        {% endif %}
         <div class="sticky top-0 z-20 bg-background-light dark:bg-black -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pt-2 [&>nav]:mb-0">
             {{ render_tw_tabs(tabs, 'base') }}
         </div>
@@ -674,6 +677,217 @@
                     </div>
 
                 </div>
+            </div>
+            {% endif %}
+
+            <!-- Claude AI 代理标签页 -->
+            {% if can_edit_user %}
+            <div id="tab-claude_ai" class="tab-panel hidden">
+                <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 space-y-6"
+                     x-data="claudeAiTab({{ user.id }}, '{{ url_for('user.api_claude_ai_get', user_id=user.id) }}')"
+                     x-init="load()">
+
+                    <!-- 头部状态卡片 -->
+                    <div class="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-700">
+                        <div class="space-y-1">
+                            <h3 class="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary">network_intelligence</span>
+                                {{ _('Claude AI 代理') }}
+                            </h3>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">
+                                {{ _('为该用户开通 Claude API 代理使用权限。勾选后会自动发送 token 到用户邮箱并同步到代理服务器。') }}
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span x-show="!data.enabled" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                                {{ _('未启用') }}
+                            </span>
+                            <span x-show="data.enabled" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                <span class="material-symbols-outlined text-sm">check_circle</span>
+                                {{ _('已启用') }}
+                            </span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" class="sr-only peer"
+                                       :checked="data.enabled"
+                                       @change="toggleEnable($event)"
+                                       :disabled="loading || !data.is_active || !data.has_email">
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 前置警告 -->
+                    <div x-show="!data.is_active" class="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-700 dark:text-amber-300">
+                        {{ _('用户尚未激活账户，请先发送激活邀请。') }}
+                    </div>
+                    <div x-show="data.is_active && !data.has_email" class="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 text-sm text-amber-700 dark:text-amber-300">
+                        {{ _('用户未填写邮箱，无法发送 token。') }}
+                    </div>
+
+                    <!-- Token 区域 -->
+                    <div x-show="data.has_token" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('Token (前 14 位)') }}</label>
+                            <p class="text-slate-900 dark:text-white font-mono text-sm mt-1" x-text="data.token_preview || '-'"></p>
+                        </div>
+                        <div>
+                            <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('启用时间') }}</label>
+                            <p class="text-slate-900 dark:text-white text-sm mt-1" x-text="data.enabled_at ? new Date(data.enabled_at).toLocaleString() : '-'"></p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <button type="button" @click="resetToken()" :disabled="loading"
+                                    class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 dark:text-amber-300 transition-colors disabled:opacity-50">
+                                <span class="material-symbols-outlined text-base">refresh</span>
+                                {{ _('重置 token（旧的立即失效）') }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 配额 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm text-slate-500 dark:text-slate-400 mb-1 block">{{ _('月度配额（tokens）') }}</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" min="0" step="1000000"
+                                       x-model.number="quotaInput"
+                                       class="flex-1 rounded-md border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white text-sm">
+                                <button type="button" @click="saveQuota()" :disabled="loading"
+                                        class="px-3 py-2 rounded-md text-sm font-medium bg-primary hover:bg-primary/90 text-white transition-colors disabled:opacity-50">
+                                    {{ _('保存') }}
+                                </button>
+                            </div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                <span x-show="data.quota === 0">{{ _('当前使用全局默认:') }} <span x-text="(data.default_quota || 0).toLocaleString()"></span> tokens</span>
+                                <span x-show="data.quota > 0">{{ _('自定义配额:') }} <span x-text="(data.quota || 0).toLocaleString()"></span> tokens</span>
+                                ｜ {{ _('填 0 = 使用全局默认') }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 用量统计 -->
+                    <div class="border-t border-slate-200 dark:border-slate-700 pt-4">
+                        <h4 class="text-base font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">monitoring</span>
+                            {{ _('用量统计') }}
+                        </h4>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('今日') }}</p>
+                                <p class="text-xl font-bold text-slate-900 dark:text-white" x-text="(data.usage?.today?.total || 0).toLocaleString()"></p>
+                                <p class="text-xs text-slate-400 dark:text-slate-500 mt-1"><span x-text="data.usage?.today?.requests || 0"></span> {{ _('次') }}</p>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('最近 7 天') }}</p>
+                                <p class="text-xl font-bold text-slate-900 dark:text-white" x-text="(data.usage?.last_7_days?.total || 0).toLocaleString()"></p>
+                                <p class="text-xs text-slate-400 dark:text-slate-500 mt-1"><span x-text="data.usage?.last_7_days?.requests || 0"></span> {{ _('次') }}</p>
+                            </div>
+                            <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mb-1">{{ _('最近 30 天') }}</p>
+                                <p class="text-xl font-bold text-slate-900 dark:text-white" x-text="(data.usage?.last_30_days?.total || 0).toLocaleString()"></p>
+                                <p class="text-xs text-slate-400 dark:text-slate-500 mt-1"><span x-text="data.usage?.last_30_days?.requests || 0"></span> {{ _('次') }}</p>
+                            </div>
+                            <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
+                                <p class="text-xs text-blue-600 dark:text-blue-400 mb-1">{{ _('本月已用 / 配额') }}</p>
+                                <p class="text-xl font-bold text-blue-700 dark:text-blue-300" x-text="(data.usage?.this_month?.total || 0).toLocaleString()"></p>
+                                <p class="text-xs text-blue-500 dark:text-blue-400 mt-1">/ <span x-text="(data.effective_quota || 0).toLocaleString()"></span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 状态消息 -->
+                    <div x-show="message" x-transition class="rounded-md p-3 text-sm"
+                         :class="messageType === 'error' ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'">
+                        <span x-text="message"></span>
+                    </div>
+                </div>
+
+                <script>
+                function claudeAiTab(userId, getUrl) {
+                    return {
+                        userId: userId,
+                        getUrl: getUrl,
+                        data: {enabled: false, has_token: false, quota: 0, default_quota: 0, effective_quota: 0, usage: {}, is_active: true, has_email: true},
+                        quotaInput: 0,
+                        loading: false,
+                        message: '',
+                        messageType: 'info',
+                        async load() {
+                            this.loading = true;
+                            try {
+                                const r = await fetch(this.getUrl);
+                                this.data = await r.json();
+                                this.quotaInput = this.data.quota || 0;
+                            } catch (e) {
+                                this.flash('加载失败: ' + e.message, 'error');
+                            } finally {
+                                this.loading = false;
+                            }
+                        },
+                        flash(msg, type) {
+                            this.message = msg;
+                            this.messageType = type || 'info';
+                            setTimeout(() => { this.message = ''; }, 4000);
+                        },
+                        async toggleEnable(ev) {
+                            this.loading = true;
+                            const turnOn = ev.target.checked;
+                            const url = `/user/api/${this.userId}/claude-ai/${turnOn ? 'enable' : 'disable'}`;
+                            try {
+                                const r = await fetch(url, {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({quota: this.quotaInput})
+                                });
+                                const d = await r.json();
+                                if (!d.success) throw new Error(d.message || '操作失败');
+                                let msg = turnOn ? '✓ 已启用' : '✓ 已禁用';
+                                if (d.email_sent) msg += '，邮件已发送';
+                                if (d.sync_ok === false) msg += '；Mac mini 推送失败 (将由定时任务兜底)';
+                                this.flash(msg, 'info');
+                                await this.load();
+                            } catch (e) {
+                                this.flash('失败: ' + e.message, 'error');
+                                ev.target.checked = !turnOn;
+                            } finally {
+                                this.loading = false;
+                            }
+                        },
+                        async resetToken() {
+                            if (!confirm('重置后旧 token 立即失效，用户需要重新配置客户端。确认继续？')) return;
+                            this.loading = true;
+                            try {
+                                const r = await fetch(`/user/api/${this.userId}/claude-ai/reset-token`, {method: 'POST'});
+                                const d = await r.json();
+                                if (!d.success) throw new Error(d.message || '重置失败');
+                                this.flash('✓ token 已重置，邮件已发送给用户', 'info');
+                                await this.load();
+                            } catch (e) {
+                                this.flash('失败: ' + e.message, 'error');
+                            } finally {
+                                this.loading = false;
+                            }
+                        },
+                        async saveQuota() {
+                            this.loading = true;
+                            try {
+                                const r = await fetch(`/user/api/${this.userId}/claude-ai/quota`, {
+                                    method: 'POST',
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: JSON.stringify({quota: this.quotaInput})
+                                });
+                                const d = await r.json();
+                                if (!d.success) throw new Error(d.message || '保存失败');
+                                this.flash('✓ 配额已保存', 'info');
+                                await this.load();
+                            } catch (e) {
+                                this.flash('失败: ' + e.message, 'error');
+                            } finally {
+                                this.loading = false;
+                            }
+                        }
+                    };
+                }
+                </script>
             </div>
             {% endif %}
         </div>

@@ -39,6 +39,11 @@ class User(db.Model, UserMixin):
     linked_company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)  # 关联外部用户到Company表(供应商/代理商/客户)
     storage_quota = db.Column(db.BigInteger, default=10737418240)  # 存储配额(字节), 默认10GB
     storage_used = db.Column(db.BigInteger, default=0)  # 已用存储(字节)
+    # Claude AI 代理（cliproxy 集成）
+    claude_ai_enabled = db.Column(db.Boolean, default=False, nullable=False)  # 是否启用 Claude AI 代理
+    claude_ai_token = db.Column(db.String(64), unique=True, nullable=True, index=True)  # 代理认证 token
+    claude_ai_quota_tokens = db.Column(db.BigInteger, default=0, nullable=False)  # 月度配额（0 = 用全局默认）
+    claude_ai_enabled_at = db.Column(db.DateTime, nullable=True)  # 启用时间，审计用
     created_at = db.Column(db.Float, default=time.time)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
     last_login = db.Column(db.Float)  # 最后登录时间
@@ -532,8 +537,37 @@ class User(db.Model, UserMixin):
         user_id = data.get('user_id')
         if not user_id:
             return None
-            
+
         return User.query.get(user_id)
+
+    # ── Claude AI 代理 ────────────────────────────────────────────────────
+
+    def generate_claude_ai_token(self):
+        """生成新的 Claude AI 代理 token，格式 cp-{user_id}-{random32}"""
+        import secrets
+        return f"cp-{self.id}-{secrets.token_urlsafe(24)}"
+
+    def enable_claude_ai(self, quota_tokens=None):
+        """启用 Claude AI 代理；返回 (token, is_new) 元组。已启用则不重发 token。"""
+        is_new = False
+        if not self.claude_ai_token:
+            self.claude_ai_token = self.generate_claude_ai_token()
+            is_new = True
+        self.claude_ai_enabled = True
+        if self.claude_ai_enabled_at is None:
+            self.claude_ai_enabled_at = datetime.utcnow()
+        if quota_tokens is not None:
+            self.claude_ai_quota_tokens = int(quota_tokens)
+        return self.claude_ai_token, is_new
+
+    def reset_claude_ai_token(self):
+        """重置 token（旧 token 立即失效）；返回新 token。"""
+        self.claude_ai_token = self.generate_claude_ai_token()
+        return self.claude_ai_token
+
+    def disable_claude_ai(self):
+        """禁用 Claude AI 代理（保留 token 不删除，便于审计）。"""
+        self.claude_ai_enabled = False
 
 
 class Permission(db.Model):

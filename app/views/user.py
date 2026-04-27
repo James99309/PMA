@@ -2626,3 +2626,104 @@ def profile():
     return render_template('user/tw_profile.html', user=user, permissions=permissions,
                           affiliations=affiliations, role_dict=ROLE_DICT, modules=MODULES,
                           currency_options=get_currency_type_options()) 
+
+# ==================== Claude AI 代理（cliproxy 集成）====================
+
+@user_bp.route('/api/<int:user_id>/claude-ai', methods=['GET'])
+@login_required
+@permission_required('user', 'view')
+def api_claude_ai_get(user_id):
+    """获取某用户的 Claude AI 代理状态 + 用量摘要"""
+    from app.services.ai_proxy_service import get_user_usage_summary, default_quota
+    user = User.query.get_or_404(user_id)
+    usage = get_user_usage_summary(user_id)
+    return jsonify({
+        'enabled': bool(user.claude_ai_enabled),
+        'has_token': bool(user.claude_ai_token),
+        'token_preview': (user.claude_ai_token[:14] + '…') if user.claude_ai_token else None,
+        'token': user.claude_ai_token if user.id == current_user.id else None,  # 仅本人可见明文
+        'quota': int(user.claude_ai_quota_tokens or 0),
+        'effective_quota': int(user.claude_ai_quota_tokens or default_quota()),
+        'default_quota': default_quota(),
+        'enabled_at': user.claude_ai_enabled_at.isoformat() if user.claude_ai_enabled_at else None,
+        'is_active': user.is_active,
+        'has_email': bool(user.email),
+        'usage': usage,
+    })
+
+
+@user_bp.route('/api/<int:user_id>/claude-ai/enable', methods=['POST'])
+@login_required
+@permission_required('user', 'edit')
+def api_claude_ai_enable(user_id):
+    """启用某用户的 Claude AI 代理（生成 token + 发邮件 + 推送 Mac mini）"""
+    from app.services.ai_proxy_service import enable_user
+    user = User.query.get_or_404(user_id)
+    payload = request.get_json(silent=True) or {}
+    quota = payload.get('quota')
+
+    try:
+        result = enable_user(user, quota_tokens=quota, send_email=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+    except Exception as e:
+        logger.exception('启用 Claude AI 代理失败')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+    return jsonify({
+        'success': True,
+        'is_new_token': result['is_new_token'],
+        'email_sent': result['email_sent'],
+        'sync_ok': result['push_ok'],
+        'sync_msg': result['push_msg'],
+    })
+
+
+@user_bp.route('/api/<int:user_id>/claude-ai/disable', methods=['POST'])
+@login_required
+@permission_required('user', 'edit')
+def api_claude_ai_disable(user_id):
+    """禁用 Claude AI 代理"""
+    from app.services.ai_proxy_service import disable_user
+    user = User.query.get_or_404(user_id)
+    push_ok, push_msg = disable_user(user)
+    return jsonify({'success': True, 'sync_ok': push_ok, 'sync_msg': push_msg})
+
+
+@user_bp.route('/api/<int:user_id>/claude-ai/reset-token', methods=['POST'])
+@login_required
+def api_claude_ai_reset_token(user_id):
+    """重置 token：管理员或用户本人可操作"""
+    from app.services.ai_proxy_service import reset_user_token
+    user = User.query.get_or_404(user_id)
+    # 鉴权：admin 或本人
+    if current_user.role != 'admin' and current_user.id != user_id:
+        return jsonify({'success': False, 'message': '无权限'}), 403
+    try:
+        new_token, email_sent, push_ok = reset_user_token(user, send_email=True)
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+    return jsonify({
+        'success': True,
+        'token': new_token if user.id == current_user.id else None,  # 仅本人能看明文
+        'token_preview': new_token[:14] + '…',
+        'email_sent': email_sent,
+        'sync_ok': push_ok,
+    })
+
+
+@user_bp.route('/api/<int:user_id>/claude-ai/quota', methods=['POST'])
+@login_required
+@permission_required('user', 'edit')
+def api_claude_ai_quota(user_id):
+    """设置某用户的月度配额（admin 操作）"""
+    from app.services.ai_proxy_service import update_user_quota
+    user = User.query.get_or_404(user_id)
+    payload = request.get_json(silent=True) or {}
+    quota = payload.get('quota', 0)
+    try:
+        quota = max(0, int(quota))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'message': '配额必须是非负整数'}), 400
+    push_ok, _ = update_user_quota(user, quota)
+    return jsonify({'success': True, 'quota': quota, 'sync_ok': push_ok})
