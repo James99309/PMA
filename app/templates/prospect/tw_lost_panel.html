@@ -254,8 +254,9 @@
 
 
 {# ── footer actions ───────────────────────────────────────── #}
+{# can_view_sensitive = True 表示 admin/ceo/owner，False 表示普通用户
+   AI 调研对所有人开放；申请参与仅对非 owner 用户显示 #}
 {% macro render_footer_actions(project_id, has_applied, can_view_sensitive, has_research) %}
-{% if can_view_sensitive %}
 <button type="button"
     id="lost-ai-btn-{{ project_id }}"
     onclick="triggerLostAiResearch({{ project_id }})"
@@ -263,7 +264,7 @@
     <span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span>
     {% if has_research %}重新调研{% else %}AI 调研补全{% endif %}
 </button>
-{% else %}
+{% if not can_view_sensitive %}
     {% if has_applied %}
     <button type="button" disabled
         class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 text-sm cursor-not-allowed">

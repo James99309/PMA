@@ -96,3 +96,17 @@ class ProspectStakeholder(db.Model):
     @property
     def type_label(self):
         return STAKEHOLDER_TYPES.get(self.stakeholder_type, self.stakeholder_type)
+
+
+class ProspectResearchLog(db.Model):
+    """调研任务日志 — 双用途：并发跟踪 + 批量调研每日配额。"""
+    __tablename__ = 'prospect_research_logs'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
+    job_type = Column(String(20), nullable=False)   # 'batch' | 'intel' | 'lost'
+    status = Column(String(20), nullable=False, default='running')  # 'running' | 'done' | 'failed'
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    completed_at = Column(DateTime, nullable=True)
+
+    user = relationship('User', foreign_keys=[user_id])

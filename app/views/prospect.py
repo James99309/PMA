@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from flask_babel import gettext as _
 from app import db
-from app.models.prospect_project import ProspectProject, ProspectStakeholder, PROSPECT_STAGES, STAKEHOLDER_TYPES
+from app.models.prospect_project import ProspectProject, ProspectStakeholder, ProspectResearchLog, PROSPECT_STAGES, STAKEHOLDER_TYPES
 from app.models.customer import Company, Contact
 from app.models.project import Project
 from app.models.user import User
@@ -10,10 +10,55 @@ from app.permissions import admin_required, permission_required, is_admin_or_ceo
 from app.utils.dictionary_helpers import get_industry_options
 from sqlalchemy import or_, func
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime
+from datetime import datetime, timedelta
+import threading
 import logging
 
 logger = logging.getLogger(__name__)
+
+# 全局并发限制：最多 2 个 AI 调研任务同时运行（适配单 worker Gunicorn）
+_research_semaphore = threading.Semaphore(2)
+_BATCH_DAILY_QUOTA = 3   # 非管理员每天批量调研最多 3 次
+_STALE_MINUTES = 30      # running 超过此时长视为僵尸，标记 failed
+
+
+def _recover_stale_logs():
+    """将超过 30 分钟仍 running 的日志标记为 failed（崩溃恢复）。"""
+    cutoff = datetime.utcnow() - timedelta(minutes=_STALE_MINUTES)
+    stale = ProspectResearchLog.query.filter(
+        ProspectResearchLog.status == 'running',
+        ProspectResearchLog.created_at < cutoff,
+    ).all()
+    for log in stale:
+        log.status = 'failed'
+        log.completed_at = datetime.utcnow()
+    if stale:
+        db.session.commit()
+
+
+def _batch_quota_remaining(user_id):
+    """返回今日剩余批量调研次数（UTC 日期）。"""
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    used = ProspectResearchLog.query.filter(
+        ProspectResearchLog.user_id == user_id,
+        ProspectResearchLog.job_type == 'batch',
+        ProspectResearchLog.created_at >= today_start,
+    ).count()
+    return max(0, _BATCH_DAILY_QUOTA - used)
+
+
+def _log_research(user_id, job_type):
+    """插入 running 日志，返回记录对象（调用方负责在结束后更新状态）。"""
+    log = ProspectResearchLog(user_id=user_id, job_type=job_type, status='running')
+    db.session.add(log)
+    db.session.commit()
+    return log
+
+
+def _finish_log(log, success):
+    log.status = 'done' if success else 'failed'
+    log.completed_at = datetime.utcnow()
+    db.session.commit()
 
 prospect_bp = Blueprint('prospect', __name__)
 
@@ -28,6 +73,8 @@ def list_view():
     """
     tab = request.args.get('tab', 'intel')
     if tab == 'lost':
+        if current_user.role != 'admin':
+            return redirect(url_for('prospect.list_view'))
         return _list_lost_projects()
     return _list_intel()
 
@@ -123,10 +170,29 @@ def _list_intel():
 
     total_count = ProspectProject.query.filter(ProspectProject.is_deleted == False).count()
 
-    # 地区选项（去重）
-    regions = [r[0] for r in db.session.query(ProspectProject.region)
-               .filter(ProspectProject.is_deleted == False, ProspectProject.region != None)
-               .distinct().order_by(ProspectProject.region).all()]
+    _base = ProspectProject.query.filter(
+        ProspectProject.is_deleted == False,
+        ProspectProject.link_type == 'converted',
+    )
+
+    # 动态行业选项：从库中实际存在的行业值构建（映射到中文标签）
+    _industry_label_map = dict(get_industry_options())
+    _raw_industries = [r[0] for r in _base.filter(ProspectProject.industry != None)
+                       .with_entities(ProspectProject.industry).distinct()
+                       .order_by(ProspectProject.industry).all()]
+    industry_options = [(v, _industry_label_map.get(v, v)) for v in _raw_industries]
+
+    # 动态地区选项
+    regions = [r[0] for r in _base.filter(ProspectProject.region != None)
+               .with_entities(ProspectProject.region).distinct()
+               .order_by(ProspectProject.region).all()]
+
+    # 动态阶段选项（保持固定顺序但仅显示库中存在的）
+    _stage_order = ['construction', 'designing', 'planning', 'completed']
+    _stage_labels = {'construction': '在建', 'designing': '设计中', 'planning': '规划中', 'completed': '竣工'}
+    _existing_stages = {r[0] for r in _base.filter(ProspectProject.stage != None)
+                        .with_entities(ProspectProject.stage).distinct().all()}
+    stage_options = [(s, _stage_labels[s]) for s in _stage_order if s in _existing_stages]
 
     return render_template(
         'prospect/tw_list.html',
@@ -135,7 +201,9 @@ def _list_intel():
         total_count=total_count,
         stage_counts=stage_counts,
         regions=regions,
-        industry_labels=get_industry_options(),
+        industry_options=industry_options,
+        industry_label_map=_industry_label_map,
+        stage_options=stage_options,
         search=search,
         industry=industry,
         region=region,
@@ -208,7 +276,9 @@ def _list_lost_projects():
         total_count=len(projects),
         stage_counts={},
         regions=lost_regions,
-        industry_labels=get_industry_options(),
+        industry_options=list(get_industry_options()),
+        industry_label_map=dict(get_industry_options()),
+        stage_options=[],
         search='',
         industry=industry,
         region=region,
@@ -350,15 +420,11 @@ def lost_ai_research(project_id):
     prospect_stakeholders 两张表，**不会**回写到 projects.ai_research_data，
     以保持"AI 可以补全，但不会同步回项目"的设计意图。
     """
-    from app.utils.access_control import can_view_project
     from app.services.claude_research_provider import send_claude_research_request
     import json
     import re
 
     project = Project.query.filter_by(id=project_id, is_deleted=False).first_or_404()
-
-    if not can_view_project(current_user, project):
-        return jsonify(success=False, message='无权限触发 AI 调研'), 403
 
     research = ProspectProject.query.filter_by(
         converted_project_id=project.id,
@@ -406,79 +472,403 @@ def lost_ai_research(project_id):
         "找不到的字段设为 null。stakeholder_type 必须是上述五种枚举之一。"
     )
 
+    _recover_stale_logs()
+    acquired = _research_semaphore.acquire(timeout=10)
+    if not acquired:
+        return jsonify(success=False, message='调研队列繁忙（最多2个并发），请稍后重试'), 429
+
+    log = _log_research(current_user.id, 'lost')
     try:
         raw = send_claude_research_request(prompt, timeout=180)
-
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m:
+            _finish_log(log, False)
             return jsonify(success=False, message='AI 未返回有效结果'), 500
-
         data = json.loads(m.group())
-
-        # 更新调研记录主字段
-        desc = data.get('description')
-        if isinstance(desc, str) and desc.strip():
-            research.description = desc.strip()
-        prog = data.get('progress')
-        if isinstance(prog, str) and prog.strip():
-            research.progress = prog.strip()
-        research.info_updated_at = datetime.utcnow()
-        research.info_updated_by = current_user.username
-
-        # 替换利益相关方
-        ProspectStakeholder.query.filter_by(prospect_id=research.id).delete(
-            synchronize_session=False
-        )
-
-        valid_types = set(STAKEHOLDER_TYPES.keys())
-        stakeholders_payload = data.get('stakeholders') or []
-        if not isinstance(stakeholders_payload, list):
-            stakeholders_payload = []
-
-        def _clean(v):
-            """把 None / 'null' / 空串统一成 None；列表压平为换行字符串。"""
-            if v is None:
-                return None
-            if isinstance(v, list):
-                joined = '\n'.join(str(x).strip() for x in v if x)
-                return joined or None
-            s = str(v).strip()
-            if not s or s.lower() in ('null', 'none'):
-                return None
-            return s
-
-        added = 0
-        for entry in stakeholders_payload:
-            if not isinstance(entry, dict):
-                continue
-            company_name = _clean(entry.get('company_name'))
-            if not company_name:
-                continue
-            stype = (entry.get('stakeholder_type') or 'other').strip().lower()
-            if stype not in valid_types:
-                stype = 'other'
-            sk = ProspectStakeholder(
-                prospect_id=research.id,
-                stakeholder_type=stype,
-                company_name=company_name[:200],
-                department=_clean(entry.get('department')),
-                address=_clean(entry.get('address')),
-                phone=_clean(entry.get('phone')),
-                contact_person=_clean(entry.get('contact_person')),
-                email=_clean(entry.get('email')),
-                website=_clean(entry.get('website')),
-                business_scope=_clean(entry.get('business_scope')),
-                notes=_clean(entry.get('notes')),
-            )
-            db.session.add(sk)
-            added += 1
-
-        db.session.commit()
-        return jsonify(success=True, message='AI 调研完成', stakeholders_count=added)
+        _finish_log(log, True)
+        return jsonify({
+            'success': True,
+            'prospect_id': research.id,
+            'project_name': project.project_name,
+            'description': (data.get('description') or '').strip(),
+            'progress': (data.get('progress') or '').strip(),
+            'stakeholders': data.get('stakeholders') or [],
+        })
     except Exception as e:
-        db.session.rollback()
+        _finish_log(log, False)
         current_app.logger.exception("Lost-project AI research failed")
         return jsonify(success=False, message=f'调研失败：{str(e)[:200]}'), 500
+    finally:
+        _research_semaphore.release()
+
+
+@prospect_bp.route('/<int:id>/ai-research', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def intel_ai_research(id):
+    """触发情报库项目的 AI 调研，只返回结果不写入，由前端预览后确认写入。"""
+    from app.services.claude_research_provider import send_claude_research_request
+    import json
+    import re
+
+    p = ProspectProject.query.filter_by(id=id, is_deleted=False).first_or_404()
+
+    prompt = (
+        f"请对以下市场情报项目做调研，输出严格 JSON：\n\n"
+        f"项目名称：{p.project_name}\n"
+        f"行业：{p.industry or '未知'}\n"
+        f"地区：{p.region or '未知'}\n\n"
+        "请输出如下 JSON 结构：\n"
+        "{\n"
+        '  "description": "项目详细描述（2~5 句）",\n'
+        '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
+        '  "stakeholders": [\n'
+        '    {\n'
+        '      "stakeholder_type": "owner|design|epc|construction|other",\n'
+        '      "company_name": "公司全称",\n'
+        '      "department": "部门/null",\n'
+        '      "address": "公司地址/null",\n'
+        '      "phone": "电话/null",\n'
+        '      "contact_person": "联系人/null",\n'
+        '      "email": "邮箱/null",\n'
+        '      "website": "官网/null",\n'
+        '      "business_scope": "业务范围/null",\n'
+        '      "notes": "其他/null"\n'
+        '    }\n'
+        "  ]\n"
+        "}\n\n"
+        "找不到的字段设为 null。stakeholder_type 必须是上述五种枚举之一。"
+    )
+
+    _recover_stale_logs()
+    acquired = _research_semaphore.acquire(timeout=10)
+    if not acquired:
+        return jsonify(success=False, message='调研队列繁忙（最多2个并发），请稍后重试'), 429
+
+    log = _log_research(current_user.id, 'intel')
+    try:
+        raw = send_claude_research_request(prompt, timeout=180)
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not m:
+            _finish_log(log, False)
+            return jsonify(success=False, message='AI 未返回有效结果'), 500
+        data = json.loads(m.group())
+        _finish_log(log, True)
+        return jsonify({
+            'success': True,
+            'prospect_id': p.id,
+            'project_name': p.project_name,
+            'description': (data.get('description') or '').strip(),
+            'progress': (data.get('progress') or '').strip(),
+            'stakeholders': data.get('stakeholders') or [],
+        })
+    except Exception as e:
+        _finish_log(log, False)
+        current_app.logger.exception("Intel AI research failed")
+        return jsonify(success=False, message=f'调研失败：{str(e)[:200]}'), 500
+    finally:
+        _research_semaphore.release()
+
+
+@prospect_bp.route('/batch-research', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def batch_research():
+    """批量调研：按省份+行业触发 AI 搜索，返回新项目列表供用户选择后批量入库。"""
+    from app.services.claude_research_provider import send_claude_research_request
+    import json
+    import re
+
+    body = request.get_json() or {}
+    provinces = body.get('provinces') or []
+    industries = body.get('industries') or []
+
+    if not provinces or not industries:
+        return jsonify(success=False, message='请至少选择一个省份和一个行业'), 400
+
+    provinces = provinces[:2]
+    industries = industries[:2]
+
+    current_year = datetime.now().year
+
+    industry_name_map = {
+        'chemical':          '石化化工（炼化/乙烯/PTA等大型装置）',
+        'energy':            '能源（火电厂/变电站/油气储运）',
+        'manufacturing':     '制造业（大型工厂/车间改造）',
+        'shipbuilding':      '造船（船厂/船坞/修船厂）',
+        'semiconductor':     '半导体（晶圆厂/封测厂）',
+        'tunnel_underground':'隧道/地下工程（铁路隧道/地铁/矿山）',
+        'transportation':    '交通（铁路/机场/港口）',
+        'datacenter':        '数据中心',
+    }
+    industry_zh = [industry_name_map.get(i, i) for i in industries]
+    province_str = '、'.join(provinces)
+    industry_str = '；'.join(industry_zh)
+
+    prompt = f"""你是工业通信系统（对讲机/调度系统）销售的情报分析师。
+使用 web_search 工具搜索以下省份和行业在 {current_year} 年的新建/改造大型工程项目。
+
+目标省份：{province_str}
+目标行业：{industry_str}
+
+【搜索策略 - 按顺序执行多次搜索】
+
+第1步：批量找项目（每个省份+行业组合分别搜索）
+- 搜索词：「{province_str} [行业关键词] 新建 改造 {current_year} 项目 建设单位」
+- 搜索词：「{province_str} [行业关键词] 环评公示 {current_year} 建设单位」
+- 搜索词：「{province_str} {current_year}年重大项目 [行业关键词]」
+
+第2步：找EPC承包商/设计院
+- 对找到的每个项目搜索：「[项目名称] EPC 中标 设计院」
+- 或：「[建设单位] [项目关键词] EPC 招标」
+
+第3步：找设计院电信/通信部门
+- 对找到的设计院搜索：「[设计院名] 电气电信室 联系方式」
+- 或：「[设计院名] 电信专业 工程师」
+- 招聘公告也能暴露部门名称：「[设计院名] 招聘 电信设计 岗位」
+
+【重点关注的联系部门】
+- 石化/化工项目：设计院的「电气电信室」或「仪表自控室」
+- 能源/发电项目：「电气专业室」「通信专业室」
+- 制造/船厂：「工程部」「电气部」
+
+【输出格式 - 严格 JSON，只输出 JSON 不输出其他文字】
+{{
+  "projects": [
+    {{
+      "project_name": "项目全称",
+      "region": "省份（如：广东）",
+      "city": "城市（如：茂名）或 null",
+      "industry": "industry key，只能是：chemical/energy/manufacturing/shipbuilding/semiconductor/tunnel_underground/transportation/datacenter/other",
+      "stage": "planning",
+      "total_investment": "投资额（如：50亿）或 null",
+      "description": "项目背景和规模描述（2~4句）",
+      "progress": "最新建设进展（含时间节点，1~3句）或 null",
+      "stakeholders": [
+        {{
+          "stakeholder_type": "owner/design/epc/construction/other",
+          "company_name": "公司全称",
+          "department": "部门名称（如：电气电信室）或 null",
+          "address": "地址或 null",
+          "phone": "电话或 null",
+          "contact_person": "联系人或 null",
+          "email": "邮箱或 null",
+          "website": "官网或 null",
+          "business_scope": "业务范围或 null",
+          "notes": "备注或 null"
+        }}
+      ]
+    }}
+  ]
+}}
+
+要求：
+1. 至少搜索 3~5 次才输出结果
+2. 每个省份+行业组合至少找 1~2 个项目（有条件找更多）
+3. 每个项目至少包含1个业主(owner)和1个设计院(design/epc)关联方
+4. 没有公开信息的字段设为 null，不要编造
+5. 输出完整合法的 JSON"""
+
+    _recover_stale_logs()
+
+    # 非管理员每日配额检查
+    if not is_admin_or_ceo(current_user):
+        remaining = _batch_quota_remaining(current_user.id)
+        if remaining <= 0:
+            return jsonify(success=False, message='今日批量调研次数已达上限（3次），明日再试'), 429
+
+    acquired = _research_semaphore.acquire(timeout=10)
+    if not acquired:
+        return jsonify(success=False, message='调研队列繁忙（最多2个并发），请稍后重试'), 429
+
+    log = _log_research(current_user.id, 'batch')
+    try:
+        raw = send_claude_research_request(prompt, timeout=300)
+        m = re.search(r'\{.*\}', raw, re.DOTALL)
+        if not m:
+            _finish_log(log, False)
+            return jsonify(success=False, message='AI 未返回有效 JSON'), 500
+        data = json.loads(m.group())
+        ai_projects = data.get('projects') or []
+
+        # 去重检查：与已有 ProspectProject（standalone intel）比对
+        existing = {
+            p.project_name.strip()
+            for p in ProspectProject.query.filter(
+                ProspectProject.is_deleted == False,
+                ProspectProject.link_type.is_(None),
+            ).all()
+        }
+
+        result = []
+        for proj in ai_projects:
+            if not isinstance(proj, dict):
+                continue
+            proj['in_library'] = proj.get('project_name', '').strip() in existing
+            result.append(proj)
+
+        _finish_log(log, True)
+        remaining_after = (
+            _batch_quota_remaining(current_user.id)
+            if not is_admin_or_ceo(current_user) else None
+        )
+        return jsonify(success=True, projects=result, quota_remaining=remaining_after)
+    except Exception as e:
+        _finish_log(log, False)
+        current_app.logger.exception("Batch research failed")
+        return jsonify(success=False, message=f'调研失败：{str(e)[:200]}'), 500
+    finally:
+        _research_semaphore.release()
+
+
+@prospect_bp.route('/batch-research/save', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def batch_research_save():
+    """将用户从批量调研结果中选中的项目批量写入情报库。"""
+    body = request.get_json() or {}
+    projects_to_save = body.get('projects') or []
+
+    def _clean(v):
+        if v is None:
+            return None
+        if isinstance(v, list):
+            joined = '\n'.join(str(x).strip() for x in v if x)
+            return joined or None
+        s = str(v).strip()
+        return None if not s or s.lower() in ('null', 'none') else s
+
+    valid_types = set(STAKEHOLDER_TYPES.keys())
+    created = 0
+
+    try:
+        for proj in projects_to_save:
+            if not isinstance(proj, dict):
+                continue
+            project_name = _clean(proj.get('project_name'))
+            if not project_name:
+                continue
+
+            p = ProspectProject(
+                project_name=project_name[:200],
+                industry=_clean(proj.get('industry')),
+                region=_clean(proj.get('region')),
+                city=_clean(proj.get('city')),
+                stage=proj.get('stage') or 'planning',
+                total_investment=_clean(proj.get('total_investment')),
+                description=_clean(proj.get('description')),
+                progress=_clean(proj.get('progress')),
+                link_type=None,
+                source='ai',
+                info_updated_by=f"{current_user.real_name or current_user.username} 调研",
+                info_updated_at=datetime.utcnow(),
+            )
+            db.session.add(p)
+            db.session.flush()
+
+            for entry in (proj.get('stakeholders') or []):
+                if not isinstance(entry, dict):
+                    continue
+                company_name = _clean(entry.get('company_name'))
+                if not company_name:
+                    continue
+                stype = (entry.get('stakeholder_type') or 'other').strip().lower()
+                if stype not in valid_types:
+                    stype = 'other'
+                sk = ProspectStakeholder(
+                    prospect_id=p.id,
+                    stakeholder_type=stype,
+                    company_name=company_name[:200],
+                    department=_clean(entry.get('department')),
+                    address=_clean(entry.get('address')),
+                    phone=_clean(entry.get('phone')),
+                    contact_person=_clean(entry.get('contact_person')),
+                    email=_clean(entry.get('email')),
+                    website=_clean(entry.get('website')),
+                    business_scope=_clean(entry.get('business_scope')),
+                    notes=_clean(entry.get('notes')),
+                )
+                db.session.add(sk)
+
+            created += 1
+
+        db.session.commit()
+        return jsonify(success=True, created=created)
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception("Batch research save failed")
+        return jsonify(success=False, message=str(e)[:200]), 500
+
+
+@prospect_bp.route('/ai-research/<int:prospect_id>/save', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def save_ai_research(prospect_id):
+    """将前端预览确认后的调研结果写入 ProspectProject + ProspectStakeholder。"""
+    p = ProspectProject.query.filter_by(id=prospect_id, is_deleted=False).first_or_404()
+    body = request.get_json() or {}
+
+    if body.get('description'):
+        p.description = body['description'].strip()
+    if body.get('progress'):
+        p.progress = body['progress'].strip()
+    p.info_updated_at = datetime.utcnow()
+    p.info_updated_by = current_user.username
+
+    def _clean(v):
+        if v is None:
+            return None
+        if isinstance(v, list):
+            joined = '\n'.join(str(x).strip() for x in v if x)
+            return joined or None
+        s = str(v).strip()
+        return None if not s or s.lower() in ('null', 'none') else s
+
+    valid_types = set(STAKEHOLDER_TYPES.keys())
+    added = 0
+    for entry in (body.get('stakeholders') or []):
+        if not isinstance(entry, dict):
+            continue
+        company_name = _clean(entry.get('company_name'))
+        if not company_name:
+            continue
+        stype = (entry.get('stakeholder_type') or 'other').strip().lower()
+        if stype not in valid_types:
+            stype = 'other'
+        sk = ProspectStakeholder(
+            prospect_id=p.id,
+            stakeholder_type=stype,
+            company_name=company_name[:200],
+            department=_clean(entry.get('department')),
+            address=_clean(entry.get('address')),
+            phone=_clean(entry.get('phone')),
+            contact_person=_clean(entry.get('contact_person')),
+            email=_clean(entry.get('email')),
+            website=_clean(entry.get('website')),
+            business_scope=_clean(entry.get('business_scope')),
+            notes=_clean(entry.get('notes')),
+        )
+        db.session.add(sk)
+        added += 1
+
+    try:
+        db.session.commit()
+        return jsonify(success=True, stakeholders_added=added)
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception("Save AI research failed")
+        return jsonify(success=False, message=str(e)[:200]), 500
+
+
+@prospect_bp.route('/batch-research/quota', methods=['GET'])
+@login_required
+@permission_required('project', 'view')
+def batch_research_quota():
+    """返回当前用户今日剩余批量调研次数。"""
+    if is_admin_or_ceo(current_user):
+        return jsonify(is_admin=True, remaining=None)
+    _recover_stale_logs()
+    return jsonify(is_admin=False, remaining=_batch_quota_remaining(current_user.id), daily_limit=_BATCH_DAILY_QUOTA)
 
 
 @prospect_bp.route('/<int:id>/panel')
