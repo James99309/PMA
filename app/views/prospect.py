@@ -251,7 +251,7 @@ def lost_detail(project_id):
         link_type='research',
     ).first()
 
-    can_view_sensitive = _can_see_lost_sensitive(current_user, project)
+    can_view_sensitive = is_admin_or_ceo() or (project.owner_id == current_user.id)
     has_applied = ProspectClaimRequest.query.filter_by(
         project_id=project.id,
         applicant_id=current_user.id,
@@ -383,7 +383,7 @@ def lost_ai_research(project_id):
         f"项目名称：{project.project_name}\n"
         f"行业：{project.industry or '未知'}\n"
         f"地区：{project.region or '未知'}\n"
-        f"投资规模：{project.total_investment or '未知'}\n\n"
+        f"阶段：{project.current_stage or '未知'}\n\n"
         "请输出如下 JSON 结构：\n"
         "{\n"
         '  "description": "项目详细描述（2~5 句）",\n'
@@ -498,6 +498,58 @@ def detail_panel(id):
         'project_name':        p.project_name,
         'city':                p.city or '',
         'region':              p.region or '',
+        'stage_badge_html':    stage_badge_html,
+        'body_html':           body_html,
+        'footer_left_html':    footer_left_html,
+        'footer_actions_html': footer_actions_html,
+    })
+
+
+@prospect_bp.route('/lost/<int:project_id>/panel')
+@login_required
+@permission_required('project', 'view')
+def lost_panel(project_id):
+    """返回 JSON 供公共项目池列表页 modal 注入，布局与市场情报面板一致。"""
+    from app.models.prospect_claim_request import ProspectClaimRequest
+    from app.utils.activity_tracker import FROZEN_STAGES
+    from app.models.project_customer_association import ProjectCustomerAssociation
+
+    project = Project.query.filter_by(id=project_id, is_deleted=False).first_or_404()
+
+    if project.activity_status != 'churned' or project.current_stage in FROZEN_STAGES:
+        return jsonify(success=False, message='项目不在公共项目池'), 400
+
+    research = ProspectProject.query.filter_by(
+        converted_project_id=project.id,
+        link_type='research',
+    ).first()
+
+    # CRM 关联企业（来自 ProjectCustomerAssociation，仅显示公司名+类型，不含联系人）
+    crm_companies = ProjectCustomerAssociation.get_active_associations(project.id)
+
+    # AI 调研权限：仅原负责人 + admin/ceo，避免 can_view_project 范围过宽
+    # 导致公司内所有有查看权的用户都看不到"申请参与"按钮
+    can_ai_research = is_admin_or_ceo() or (project.owner_id == current_user.id)
+    has_applied = ProspectClaimRequest.query.filter_by(
+        project_id=project.id,
+        applicant_id=current_user.id,
+    ).first() is not None
+
+    tmpl = current_app.jinja_env.get_template('prospect/tw_lost_panel.html')
+    stage_badge_html    = tmpl.module.render_stage_badge(project.current_stage)
+    body_html           = tmpl.module.render_body(project, research, can_ai_research, crm_companies)
+    footer_left_html    = tmpl.module.render_footer_left(project)
+    footer_actions_html = tmpl.module.render_footer_actions(
+        project.id, has_applied, can_ai_research, has_research=bool(research)
+    )
+
+    city  = project.city or (research.city if research else '') or ''
+    region = project.region or (research.region if research else '') or ''
+
+    return jsonify({
+        'project_name':        project.project_name,
+        'city':                city,
+        'region':              region,
         'stage_badge_html':    stage_badge_html,
         'body_html':           body_html,
         'footer_left_html':    footer_left_html,

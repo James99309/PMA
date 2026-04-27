@@ -31,7 +31,7 @@
     {'field': 'industry',     'label': _('行业'),      'width': '100px'},
     {'field': 'region',       'label': _('地区'),      'width': '120px'},
     {'field': 'stakeholders', 'label': _('关联方'),    'width': '140px'},
-    {'field': 'owner',        'label': _('拥有者'),    'width': '120px'}
+    {'field': 'owner',        'label': _('负责人'),    'width': '120px'}
 ] %}
 
 {% call render_tw_data_table(
@@ -57,7 +57,7 @@
     {% set construction_ct = sh_list | selectattr('stakeholder_type', 'eq', 'construction') | list | length %}
 
     <tr class="table-row-hover transition-colors cursor-pointer"
-        onclick="window.location='{{ url_for('prospect.lost_detail', project_id=p.id) }}'">
+        onclick="openLostProjectDetail({{ p.id }})">
 
         {# 项目名称 #}
         <td class="p-3">
@@ -66,10 +66,6 @@
                 <div class="min-w-0">
                     <p class="text-sm font-medium text-slate-900 dark:text-white truncate max-w-xs"
                        title="{{ p.project_name }}">{{ p.project_name }}</p>
-                    {% if p.activity_reason %}
-                    <p class="text-xs text-slate-400 truncate max-w-xs mt-0.5"
-                       title="{{ p.activity_reason }}">{{ p.activity_reason }}</p>
-                    {% endif %}
                 </div>
             </div>
         </td>
@@ -110,10 +106,18 @@
             {% endif %}
         </td>
 
-        {# 拥有者 #}
+        {# 负责人 — 底层 _is_active=False 时灰色头像 #}
         <td class="p-3 whitespace-nowrap">
             {% if p.owner %}
-                {{ render_tw_owner_badge(p.owner) }}
+                {% if p.owner._is_active == False %}
+                    {% set _name = p.owner.real_name or p.owner.username or '' %}
+                    <div class="w-8 h-8 bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500 font-bold rounded-full flex items-center justify-center text-xs"
+                         title="{{ _name }}（已离职）">
+                        {{ _name[:2]|upper if _name else '?' }}
+                    </div>
+                {% else %}
+                    {{ render_tw_owner_badge(p.owner) }}
+                {% endif %}
             {% else %}
             <span class="inline-flex items-center gap-1 text-xs font-medium text-rose-600 dark:text-rose-400">
                 <span class="material-symbols-outlined" style="font-size:13px;">person_off</span>

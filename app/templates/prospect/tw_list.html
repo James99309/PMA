@@ -400,6 +400,46 @@
     {% endif %}{# slot #}
     {% endcall %}{# render_tw_layout #}
 
+    {# ── 公共项目池 申请参与 MODAL ────────────────────────────── #}
+    <div id="lostApplyModal" class="fixed inset-0 z-[60] hidden" role="dialog" aria-modal="true">
+        <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeLostApplyModal()"></div>
+        <div class="fixed inset-0 flex items-center justify-center p-4">
+            <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
+                    <div>
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white">申请参与项目</h3>
+                        <p id="lap-project-name" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-xs"></p>
+                    </div>
+                    <button type="button" onclick="closeLostApplyModal()"
+                        class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
+                        <span class="material-symbols-outlined" style="font-size:20px;">close</span>
+                    </button>
+                </div>
+                <div class="px-6 py-4 space-y-3">
+                    <p class="text-sm text-slate-600 dark:text-slate-400">说明您希望参与此项目的理由，申请将发送给项目负责人处理。</p>
+                    <div>
+                        <textarea id="lap-reason" rows="4" maxlength="500"
+                            placeholder="请说明参与理由（至少 10 字）..."
+                            oninput="document.getElementById('lap-char-count').textContent = this.value.length + ' / 500'; document.getElementById('lap-submit-btn').disabled = this.value.trim().length < 10;"
+                            class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm placeholder-slate-400 focus:border-primary focus:ring-1 focus:ring-primary resize-none"></textarea>
+                        <p class="text-right text-xs text-slate-400 mt-1" id="lap-char-count">0 / 500</p>
+                    </div>
+                    <p id="lap-error" class="hidden text-sm text-red-500"></p>
+                </div>
+                <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
+                    <button type="button" onclick="closeLostApplyModal()"
+                        class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
+                        取消
+                    </button>
+                    <button type="button" id="lap-submit-btn" onclick="submitLostApply()" disabled
+                        class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
+                        提交申请
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {# ── IMPORT SUB-MODAL ─────────────────────────────────────── #}
     <div id="prospectImportModal" class="fixed inset-0 z-[60] hidden" role="dialog" aria-modal="true">
         <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick="closeImportModal()"></div>
@@ -577,6 +617,8 @@
                 closeEnrichResultModal();
             } else if (!document.getElementById('prospectImportModal').classList.contains('hidden')) {
                 closeImportModal();
+            } else if (!document.getElementById('lostApplyModal').classList.contains('hidden')) {
+                closeLostApplyModal();
             } else {
                 closeProspectDetail();
             }
@@ -1123,7 +1165,11 @@
                     </div>`;
                 setTimeout(() => {
                     closeEnrichResultModal();
-                    if (_currentProspectId == prospectId) openProspectDetail(prospectId);
+                    if (_currentLostProjectId) {
+                        openLostProjectDetail(_currentLostProjectId);
+                    } else if (_currentProspectId == prospectId) {
+                        openProspectDetail(prospectId);
+                    }
                 }, 1200);
             } else {
                 showToast(resp.message || '保存失败', 'error');
@@ -1151,6 +1197,145 @@
         t.innerHTML = `<span class="material-symbols-outlined" style="font-size:16px;">${icons[type]||icons.info}</span><span>${msg}</span>`;
         document.body.appendChild(t);
         setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 4500);
+    }
+
+    // ── 公共项目池 面板 ────────────────────────────────────────
+    let _currentLostProjectId = null;
+
+    function openLostProjectDetail(projectId) {
+        _currentLostProjectId = projectId;
+        const modal = document.getElementById('prospectDetailModal');
+        const body  = document.getElementById('pdm-body');
+        const title = document.getElementById('pdm-title');
+        const loc   = document.getElementById('pdm-location');
+        const badge = document.getElementById('pdm-stage-badge');
+        const footerLeft    = document.getElementById('pdm-footer-left');
+        const footerActions = document.getElementById('pdm-footer-actions');
+
+        title.textContent = '';
+        loc.textContent   = '';
+        badge.innerHTML   = '';
+        footerLeft.innerHTML    = '';
+        footerActions.innerHTML = '';
+        body.innerHTML = '<div class="flex items-center justify-center h-24 text-slate-400"><span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span><span class="text-sm">加载中...</span></div>';
+        modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+
+        fetch('/prospect/lost/' + projectId + '/panel', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success === false) {
+                body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">' + (data.message || '加载失败') + '</p>';
+                return;
+            }
+            title.textContent = data.project_name || '';
+            loc.textContent   = [data.city, data.region].filter(Boolean).join(' · ');
+            badge.innerHTML   = data.stage_badge_html || '';
+            body.innerHTML    = data.body_html || '';
+            footerLeft.innerHTML    = data.footer_left_html || '';
+            footerActions.innerHTML = data.footer_actions_html || '';
+            _applyEnrichButtonStates();
+        })
+        .catch(() => {
+            body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">加载失败，请重试</p>';
+        });
+    }
+
+    // ── 公共项目池 AI 调研补全 ──────────────────────────────────
+    function triggerLostAiResearch(projectId) {
+        const btn = document.getElementById('lost-ai-btn-' + projectId);
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> 调研中...';
+        }
+        fetch('/prospect/lost/' + projectId + '/ai-research', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast('AI 调研完成，共找到 ' + (data.stakeholders_count || 0) + ' 个关联方', 'success');
+                openLostProjectDetail(projectId);
+            } else {
+                showToast(data.message || 'AI 调研失败', 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span> AI 调研补全';
+                }
+            }
+        })
+        .catch(() => {
+            showToast('调研请求失败，请重试', 'error');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span> AI 调研补全';
+            }
+        });
+    }
+
+    // ── 公共项目池 申请参与 ─────────────────────────────────────
+    let _lostApplyProjectId = null;
+
+    function openLostApplyModal(projectId) {
+        _lostApplyProjectId = projectId;
+        const projectName = document.getElementById('pdm-title').textContent;
+        document.getElementById('lap-project-name').textContent = projectName;
+        document.getElementById('lap-reason').value = '';
+        document.getElementById('lap-char-count').textContent = '0 / 500';
+        document.getElementById('lap-submit-btn').disabled = true;
+        document.getElementById('lap-error').classList.add('hidden');
+        document.getElementById('lostApplyModal').classList.remove('hidden');
+    }
+
+    function closeLostApplyModal() {
+        document.getElementById('lostApplyModal').classList.add('hidden');
+        _lostApplyProjectId = null;
+    }
+
+    function submitLostApply() {
+        const reason = document.getElementById('lap-reason').value.trim();
+        if (reason.length < 10) {
+            const err = document.getElementById('lap-error');
+            err.textContent = '申请理由至少 10 个字';
+            err.classList.remove('hidden');
+            return;
+        }
+        const btn = document.getElementById('lap-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>提交中...';
+
+        fetch('/prospect/lost/' + _lostApplyProjectId + '/apply', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+            },
+            body: JSON.stringify({ reason })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeLostApplyModal();
+                showToast('申请已提交，等待负责人处理', 'success');
+                openLostProjectDetail(_currentLostProjectId);
+            } else {
+                const err = document.getElementById('lap-error');
+                err.textContent = data.message || '提交失败';
+                err.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerHTML = '提交申请';
+            }
+        })
+        .catch(() => {
+            btn.disabled = false;
+            btn.innerHTML = '提交申请';
+        });
     }
 
     // ── Claim / Unclaim ────────────────────────────────────────
