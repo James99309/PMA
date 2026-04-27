@@ -10,7 +10,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>市场情报库</title>
+    <title>{{ _('市场情报库') }}</title>
     <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
     <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
     <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -70,8 +70,8 @@
                 <span class="material-symbols-outlined" style="font-size:20px;">arrow_back</span>
             </button>
             <div>
-                <h1 class="text-xl font-bold text-slate-900 dark:text-white">市场情报库</h1>
-                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">潜在工程机会 · 共 {{ total_count }} 条</p>
+                <h1 class="text-xl font-bold text-slate-900 dark:text-white">{{ _('市场情报库') }}</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ _('潜在工程机会') }} · {{ _('共') }} {{ total_count }} {{ _('条') }}</p>
             </div>
         </div>
 
@@ -79,9 +79,9 @@
             {# Stage summary pills #}
             <div class="hidden md:flex items-center gap-1.5">
                 {% for stg, label, color in [
-                    ('construction','在建','text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-900/30 dark:border-orange-800'),
-                    ('designing','设计中','text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-400 dark:bg-violet-900/30 dark:border-violet-800'),
-                    ('planning','规划中','text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-900/30 dark:border-blue-800')
+                    ('construction',_('在建'),'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-400 dark:bg-orange-900/30 dark:border-orange-800'),
+                    ('designing',_('设计中'),'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-400 dark:bg-violet-900/30 dark:border-violet-800'),
+                    ('planning',_('规划中'),'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-400 dark:bg-blue-900/30 dark:border-blue-800')
                 ] %}
                 <a href="{{ url_for('prospect.list_view', stage=stg) }}"
                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border font-medium cursor-pointer {{ color }}">
@@ -95,14 +95,14 @@
                 onclick="onBatchResearchBtnClick()"
                 class="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm transition-colors cursor-pointer">
                 <span class="material-symbols-outlined" style="font-size:16px;">travel_explore</span>
-                批量调研
+                {{ _('批量调研') }}
             </button>
             {% endif %}
             {% if current_user.role == 'admin' %}
             <a href="{{ url_for('prospect.admin_new') }}"
                 class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors cursor-pointer">
                 <span class="material-symbols-outlined" style="font-size:18px;">add</span>
-                <span class="hidden sm:inline">新增情报</span>
+                <span class="hidden sm:inline">{{ _('新增情报') }}</span>
             </a>
             {% endif %}
         </div>
@@ -146,18 +146,18 @@
                             <span class="material-symbols-outlined text-slate-400" style="font-size:17px;">search</span>
                         </span>
                         <input type="text" name="search" value="{{ search or '' }}"
-                            placeholder="项目名称、关键词、地区、业主..."
+                            placeholder="{{ _('项目名称、关键词、地区、业主...') }}"
                             class="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm placeholder-slate-400 focus:border-primary focus:ring-1 focus:ring-primary">
                     </div>
                     <button type="submit"
                         class="h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors cursor-pointer">
-                        搜索
+                        {{ _('搜索') }}
                     </button>
                     {% if search or industry or region or stage or claimed %}
                     <a href="{{ url_for('prospect.list_view') }}"
                         class="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
                         <span class="material-symbols-outlined" style="font-size:15px;">close</span>
-                        重置
+                        {{ _('重置') }}
                     </a>
                     {% endif %}
                 </div>
@@ -166,10 +166,10 @@
                 <div class="flex flex-wrap items-end gap-2">
                     {# Industry — dynamic from actual library data #}
                     <div class="min-w-[110px]">
-                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">行业</label>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('行业') }}</label>
                         <select name="industry" onchange="this.form.submit()"
                             class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
-                            <option value="">全部行业</option>
+                            <option value="">{{ _('全部行业') }}</option>
                             {% for val, lbl in industry_options %}
                             <option value="{{ val }}" {% if industry==val %}selected{% endif %}>{{ lbl }}</option>
                             {% endfor %}
@@ -178,10 +178,10 @@
 
                     {# Region #}
                     <div class="min-w-[100px]">
-                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">地区</label>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('地区') }}</label>
                         <select name="region" onchange="this.form.submit()"
                             class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
-                            <option value="">全部地区</option>
+                            <option value="">{{ _('全部地区') }}</option>
                             {% for r in regions %}
                             <option value="{{ r }}" {% if region==r %}selected{% endif %}>{{ r }}</option>
                             {% endfor %}
@@ -190,10 +190,10 @@
 
                     {# Stage — dynamic from actual library data #}
                     <div class="min-w-[100px]">
-                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">阶段</label>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('阶段') }}</label>
                         <select name="stage" onchange="this.form.submit()"
                             class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
-                            <option value="">全部阶段</option>
+                            <option value="">{{ _('全部阶段') }}</option>
                             {% for val, lbl in stage_options %}
                             <option value="{{ val }}" {% if stage==val %}selected{% endif %}>{{ lbl }}</option>
                             {% endfor %}
@@ -202,22 +202,22 @@
 
                     {# Sort #}
                     <div class="min-w-[130px]">
-                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">排序</label>
+                        <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('排序') }}</label>
                         <select name="sort" onchange="this.form.submit()"
                             class="w-full h-9 px-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-sm focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer">
-                            <option value="updated_desc" {% if not sort or sort=='updated_desc' %}selected{% endif %}>情报更新 · 最新</option>
-                            <option value="updated_asc"  {% if sort=='updated_asc'  %}selected{% endif %}>情报更新 · 最早</option>
-                            <option value="stage_hot"    {% if sort=='stage_hot'    %}selected{% endif %}>阶段 · 在建优先</option>
-                            <option value="created_desc" {% if sort=='created_desc' %}selected{% endif %}>录入时间 · 最新</option>
+                            <option value="updated_desc" {% if not sort or sort=='updated_desc' %}selected{% endif %}>{{ _('情报更新 · 最新') }}</option>
+                            <option value="updated_asc"  {% if sort=='updated_asc'  %}selected{% endif %}>{{ _('情报更新 · 最早') }}</option>
+                            <option value="stage_hot"    {% if sort=='stage_hot'    %}selected{% endif %}>{{ _('阶段 · 在建优先') }}</option>
+                            <option value="created_desc" {% if sort=='created_desc' %}selected{% endif %}>{{ _('录入时间 · 最新') }}</option>
                         </select>
                     </div>
 
                     {# Claimed toggle — three-way: all / unclaimed / mine #}
                     <div class="ml-auto flex items-end">
                         <div>
-                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">申领状态</label>
+                            <label class="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ _('申领状态') }}</label>
                             <div class="flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden text-sm">
-                                {% for val, lbl in [('', '全部'), ('unclaimed', '未申领'), ('mine', '我的'), ('claimed', '已申领')] %}
+                                {% for val, lbl in [('', _('全部')), ('unclaimed', _('未申领')), ('mine', _('我的')), ('claimed', _('已申领'))] %}
                                 <a href="{{ url_for('prospect.list_view', search=search, industry=industry, region=region, stage=stage, sort=sort, claimed=val) }}"
                                    class="inline-flex items-center justify-center h-9 px-3 transition-colors cursor-pointer
                                    {% if (claimed or '') == val %}
@@ -241,29 +241,29 @@
     {# ── TABLE TITLE BAR (sticky) ─────────────────────────────── #}
     <div class="sticky top-0 z-20 -mx-6 lg:-mx-8 px-6 lg:px-8">
         <div class="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-t-xl border border-b-0 border-slate-200 dark:border-slate-700 px-4 py-3">
-            <h3 class="text-sm font-medium text-slate-900 dark:text-white">情报列表</h3>
+            <h3 class="text-sm font-medium text-slate-900 dark:text-white">{{ _('情报列表') }}</h3>
             {% if search or industry or region or stage or claimed %}
             <span class="flex items-center gap-1 text-xs text-slate-400">
                 <span class="material-symbols-outlined" style="font-size:13px;">filter_alt</span>
-                已筛选
+                {{ _('已筛选') }}
             </span>
             {% endif %}
             <span class="ml-auto text-sm text-slate-500 dark:text-slate-400">
-                <strong class="text-slate-900 dark:text-white">{{ projects|length }}</strong> 条
+                <strong class="text-slate-900 dark:text-white">{{ projects|length }}</strong> {{ _('条') }}
             </span>
         </div>
     </div>
 
     {# ── DATA TABLE ───────────────────────────────────────────── #}
     {% set columns = [
-        {'field': 'project_name',    'label': '项目名称',   'min_width': '240px'},
-        {'field': 'stage',           'label': '阶段',       'width': '90px',  'align': 'center'},
-        {'field': 'industry',        'label': '行业',       'width': '90px'},
-        {'field': 'region',          'label': '地区',       'width': '100px'},
-        {'field': 'total_investment','label': '投资规模',   'width': '100px'},
-        {'field': 'stakeholders',    'label': '关联方',     'width': '120px'},
-        {'field': 'claimed_by',      'label': '申领状态',   'width': '110px'},
-        {'field': 'info_updated_at', 'label': '情报更新',   'width': '100px', 'align': 'center'}
+        {'field': 'project_name',    'label': _('项目名称'), 'min_width': '240px'},
+        {'field': 'stage',           'label': _('阶段'),     'width': '90px',  'align': 'center'},
+        {'field': 'industry',        'label': _('行业'),     'width': '90px'},
+        {'field': 'region',          'label': _('地区'),     'width': '100px'},
+        {'field': 'total_investment','label': _('投资规模'), 'width': '100px'},
+        {'field': 'stakeholders',    'label': _('关联方'),   'width': '120px'},
+        {'field': 'claimed_by',      'label': _('申领状态'), 'width': '110px'},
+        {'field': 'info_updated_at', 'label': _('情报更新'), 'width': '100px', 'align': 'center'}
     ] %}
 
     {% call render_tw_data_table(
@@ -277,20 +277,20 @@
         min_height='400px',
         min_width='1100px',
         no_top_radius=true,
-        empty_text='暂无情报数据',
+        empty_text=_('暂无情报数据'),
         empty_icon='travel_explore'
     ) %}
 
     {% set stage_cfg = {
-        'planning':     ('规划中', 'text-blue-600 bg-blue-50 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-800'),
-        'designing':    ('设计中', 'text-violet-600 bg-violet-50 border border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-800'),
-        'construction': ('在建',   'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-800'),
-        'completed':    ('竣工',   'text-green-700 bg-green-50 border border-green-200 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800')
+        'planning':     (_('规划中'), 'text-blue-600 bg-blue-50 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-800'),
+        'designing':    (_('设计中'), 'text-violet-600 bg-violet-50 border border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-800'),
+        'construction': (_('在建'),   'text-orange-600 bg-orange-50 border border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-800'),
+        'completed':    (_('竣工'),   'text-green-700 bg-green-50 border border-green-200 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800')
     } %}
     {% set industry_label = dict(industry_label_map) %}
 
     {% for p in projects %}
-    {% set sc = stage_cfg.get(p.stage, ('未知', 'text-slate-500 bg-slate-100 border border-slate-200 dark:text-slate-400 dark:bg-slate-700')) %}
+    {% set sc = stage_cfg.get(p.stage, (_('未知'), 'text-slate-500 bg-slate-100 border border-slate-200 dark:text-slate-400 dark:bg-slate-700')) %}
     {% set owner_ct   = p.stakeholders | selectattr('stakeholder_type', 'eq', 'owner')  | list | length %}
     {% set design_ct  = p.stakeholders | selectattr('stakeholder_type', 'in', ['design','epc']) | list | length %}
 
@@ -353,10 +353,10 @@
             {% if p.stakeholders %}
             <div class="flex items-center gap-1.5">
                 {% if owner_ct > 0 %}
-                <span class="px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-700">建设 {{ owner_ct }}</span>
+                <span class="px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-700">{{ _('建设') }} {{ owner_ct }}</span>
                 {% endif %}
                 {% if design_ct > 0 %}
-                <span class="px-1.5 py-0.5 rounded text-xs bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 border border-violet-200 dark:border-violet-700">设计 {{ design_ct }}</span>
+                <span class="px-1.5 py-0.5 rounded text-xs bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 border border-violet-200 dark:border-violet-700">{{ _('设计') }} {{ design_ct }}</span>
                 {% endif %}
             </div>
             {% else %}
@@ -370,7 +370,7 @@
                 {% if p.claimed_by_id == current_user.id %}
                 <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">
                     <span class="material-symbols-outlined fill" style="font-size:13px;">person</span>
-                    我已申领
+                    {{ _('我已申领') }}
                 </span>
                 {% else %}
                 <span class="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
@@ -381,7 +381,7 @@
             {% else %}
             <span class="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                 <span class="material-symbols-outlined" style="font-size:13px;">person_add</span>
-                可申领
+                {{ _('可申领') }}
             </span>
             {% endif %}
         </td>
@@ -415,7 +415,7 @@
             <div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-full max-w-lg">
                 <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
                     <div>
-                        <h3 class="text-base font-semibold text-slate-900 dark:text-white">申请参与项目</h3>
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('申请参与项目') }}</h3>
                         <p id="lap-project-name" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-xs"></p>
                     </div>
                     <button type="button" onclick="closeLostApplyModal()"
@@ -424,10 +424,10 @@
                     </button>
                 </div>
                 <div class="px-6 py-4 space-y-3">
-                    <p class="text-sm text-slate-600 dark:text-slate-400">说明您希望参与此项目的理由，申请将发送给项目负责人处理。</p>
+                    <p class="text-sm text-slate-600 dark:text-slate-400">{{ _('说明您希望参与此项目的理由，申请将发送给项目负责人处理。') }}</p>
                     <div>
                         <textarea id="lap-reason" rows="4" maxlength="500"
-                            placeholder="请说明参与理由（至少 10 字）..."
+                            placeholder="{{ _('请说明参与理由（至少 10 字）...') }}"
                             oninput="document.getElementById('lap-char-count').textContent = this.value.length + ' / 500'; document.getElementById('lap-submit-btn').disabled = this.value.trim().length < 10;"
                             class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-sm placeholder-slate-400 focus:border-primary focus:ring-1 focus:ring-primary resize-none"></textarea>
                         <p class="text-right text-xs text-slate-400 mt-1" id="lap-char-count">0 / 500</p>
@@ -437,11 +437,11 @@
                 <div class="flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
                     <button type="button" onclick="closeLostApplyModal()"
                         class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
-                        取消
+                        {{ _('取消') }}
                     </button>
                     <button type="button" id="lap-submit-btn" onclick="submitLostApply()" disabled
                         class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
-                        提交申请
+                        {{ _('提交申请') }}
                     </button>
                 </div>
             </div>
@@ -457,8 +457,8 @@
                 {# header #}
                 <div class="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
                     <div>
-                        <h3 class="text-base font-semibold text-slate-900 dark:text-white">导入关联方到客户库</h3>
-                        <p id="im-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">检查重复中...</p>
+                        <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('导入关联方到客户库') }}</h3>
+                        <p id="im-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ _('检查重复中...') }}</p>
                     </div>
                     <button type="button" onclick="closeImportModal()"
                         class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
@@ -470,7 +470,7 @@
                 <div id="im-body" class="flex-1 overflow-y-auto px-6 py-4 space-y-3 min-h-[160px]">
                     <div class="flex items-center justify-center h-24 text-slate-400">
                         <span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span>
-                        <span class="text-sm">正在检查重复...</span>
+                        <span class="text-sm">{{ _('正在检查重复...') }}</span>
                     </div>
                 </div>
 
@@ -478,12 +478,12 @@
                 <div class="flex-shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
                     <button type="button" onclick="closeImportModal()"
                         class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
-                        取消
+                        {{ _('取消') }}
                     </button>
                     <button type="button" id="im-confirm-btn" onclick="executeImport()" disabled
                         class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
                         <span class="material-symbols-outlined" style="font-size:16px;">download</span>
-                        <span id="im-confirm-label">确认导入</span>
+                        <span id="im-confirm-label">{{ _('确认导入') }}</span>
                     </button>
                 </div>
             </div>
@@ -500,9 +500,9 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="material-symbols-outlined text-indigo-500" style="font-size:20px;">travel_explore</span>
-                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">批量调研新项目</h3>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('批量调研新项目') }}</h3>
                         </div>
-                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">选择省份（最多2个）和行业（最多2个），AI 将搜索工程项目商机</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ _('选择省份（最多2个）和行业（最多2个），AI 将搜索工程项目商机') }}</p>
                     </div>
                     <button type="button" onclick="closeBatchResearchModal()"
                         class="p-1.5 rounded-full text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer">
@@ -514,14 +514,14 @@
                     {# province selection #}
                     <div>
                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            省份 <span class="text-xs text-slate-400 font-normal">（最多选 2 个）</span>
+                            {{ _('省份') }} <span class="text-xs text-slate-400 font-normal">{{ _('（最多选 2 个）') }}</span>
                         </label>
                         <div id="br-provinces" class="flex flex-wrap gap-1.5">
                             {% for prov in ['广东','江苏','浙江','山东','广西','辽宁','上海','天津','四川','湖北','河南','陕西','新疆','宁夏','内蒙古','云南','贵州','湖南','安徽','河北','福建','黑龙江','吉林','江西'] %}
                             <button type="button" data-br-province="{{ prov }}"
                                 onclick="toggleBrProvince('{{ prov }}')"
                                 class="br-province-btn px-2.5 py-1 rounded-full text-xs border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer">
-                                {{ prov }}
+                                {{ _(prov) }}
                             </button>
                             {% endfor %}
                         </div>
@@ -529,10 +529,10 @@
                     {# industry selection #}
                     <div>
                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            行业 <span class="text-xs text-slate-400 font-normal">（最多选 2 个）</span>
+                            {{ _('行业') }} <span class="text-xs text-slate-400 font-normal">{{ _('（最多选 2 个）') }}</span>
                         </label>
                         <div id="br-industries" class="flex flex-wrap gap-1.5">
-                            {% for key, label in [('chemical','石化化工'),('energy','能源'),('manufacturing','制造业'),('shipbuilding','造船'),('semiconductor','半导体'),('tunnel_underground','隧道/地下'),('transportation','交通'),('datacenter','数据中心')] %}
+                            {% for key, label in [('chemical',_('石化化工')),('energy',_('能源')),('manufacturing',_('制造业')),('shipbuilding',_('造船')),('semiconductor',_('半导体')),('tunnel_underground',_('隧道/地下')),('transportation',_('交通')),('datacenter',_('数据中心'))] %}
                             <button type="button" data-br-industry="{{ key }}"
                                 onclick="toggleBrIndustry('{{ key }}')"
                                 class="br-industry-btn px-2.5 py-1 rounded-full text-xs border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer">
@@ -545,7 +545,7 @@
                     {# quota notice for non-admin #}
                     {% if current_user.role != 'admin' %}
                     <p id="br-quota" class="text-xs text-slate-500 dark:text-slate-400">
-                        今日剩余批量调研次数：<span id="br-quota-num" class="font-medium text-indigo-600 dark:text-indigo-400">…</span> / 3
+                        {{ _('今日剩余批量调研次数：') }}<span id="br-quota-num" class="font-medium text-indigo-600 dark:text-indigo-400">…</span> / 3
                     </p>
                     {% endif %}
                 </div>
@@ -553,12 +553,12 @@
                 <div class="flex-shrink-0 flex items-center justify-end gap-2 px-6 pb-5 pt-3">
                     <button type="button" onclick="closeBatchResearchModal()"
                         class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
-                        取消
+                        {{ _('取消') }}
                     </button>
                     <button type="button" id="br-start-btn" onclick="startBatchResearch()"
                         class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
                         <span class="material-symbols-outlined" style="font-size:16px;">search</span>
-                        开始调研
+                        {{ _('开始调研') }}
                     </button>
                 </div>
             </div>
@@ -575,7 +575,7 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="material-symbols-outlined text-emerald-500" style="font-size:20px;">task_alt</span>
-                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">调研结果</h3>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('调研结果') }}</h3>
                         </div>
                         <p id="brr-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"></p>
                     </div>
@@ -590,20 +590,20 @@
                 <div class="flex-shrink-0 flex items-center justify-between gap-2 px-6 pb-5 pt-3">
                     <div class="flex items-center gap-2">
                         <button type="button" onclick="brSelectAll(true)"
-                            class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">全选</button>
+                            class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer">{{ _('全选') }}</button>
                         <span class="text-slate-300 dark:text-slate-600">|</span>
                         <button type="button" onclick="brSelectAll(false)"
-                            class="text-xs text-slate-500 dark:text-slate-400 hover:underline cursor-pointer">取消全选</button>
+                            class="text-xs text-slate-500 dark:text-slate-400 hover:underline cursor-pointer">{{ _('取消全选') }}</button>
                     </div>
                     <div class="flex items-center gap-2">
                         <button type="button" onclick="closeBatchResearchResultModal()"
                             class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
-                            关闭
+                            {{ _('关闭') }}
                         </button>
                         <button type="button" id="brr-save-btn" onclick="saveBatchResearch()"
                             class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
                             <span class="material-symbols-outlined" style="font-size:16px;">add_circle</span>
-                            <span id="brr-save-label">加入情报库</span>
+                            <span id="brr-save-label">{{ _('加入情报库') }}</span>
                         </button>
                     </div>
                 </div>
@@ -620,7 +620,7 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="material-symbols-outlined text-violet-500" style="font-size:20px;">travel_explore</span>
-                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">项目调研结果</h3>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('项目调研结果') }}</h3>
                         </div>
                         <p id="prm-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"></p>
                     </div>
@@ -633,12 +633,12 @@
                 <div class="flex-shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
                     <button type="button" onclick="closeProjectResearchModal()"
                         class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
-                        关闭
+                        {{ _('关闭') }}
                     </button>
                     <button type="button" id="prm-save-btn" onclick="saveProjectResearch()" disabled
                         class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
                         <span class="material-symbols-outlined" style="font-size:16px;">save</span>
-                        <span id="prm-save-label">写入选中</span>
+                        <span id="prm-save-label">{{ _('写入选中') }}</span>
                     </button>
                 </div>
             </div>
@@ -654,7 +654,7 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="material-symbols-outlined text-emerald-500" style="font-size:20px;">check_circle</span>
-                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">调研结果</h3>
+                            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('调研结果') }}</h3>
                         </div>
                         <p id="enrich-result-subtitle" class="text-xs text-slate-500 dark:text-slate-400 mt-0.5"></p>
                     </div>
@@ -667,12 +667,12 @@
                 <div class="flex-shrink-0 flex items-center justify-end gap-2 px-6 py-4 border-t border-slate-200 dark:border-slate-700">
                     <button type="button" onclick="closeEnrichResultModal()"
                         class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
-                        关闭
+                        {{ _('关闭') }}
                     </button>
                     <button type="button" id="enrich-result-save-btn" onclick="saveEnrichSelected()" disabled
                         class="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors cursor-pointer">
                         <span class="material-symbols-outlined" style="font-size:16px;">save</span>
-                        <span id="enrich-result-save-label">保存选中</span>
+                        <span id="enrich-result-save-label">{{ _('保存选中') }}</span>
                     </button>
                 </div>
             </div>
@@ -704,7 +704,7 @@
                 <div id="pdm-body" class="flex-1 overflow-y-auto px-6 py-4 min-h-[160px]">
                     <div class="flex items-center justify-center h-24 text-slate-400">
                         <span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span>
-                        <span class="text-sm">加载中...</span>
+                        <span class="text-sm">{{ _('加载中...') }}</span>
                     </div>
                 </div>
 
@@ -714,7 +714,7 @@
                     <div class="flex items-center gap-2">
                         <button type="button" onclick="closeProspectDetail()"
                             class="h-9 px-4 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 text-sm transition-colors cursor-pointer">
-                            关闭
+                            {{ _('关闭') }}
                         </button>
                         <div id="pdm-footer-actions"></div>
                     </div>
@@ -747,7 +747,7 @@
         badge.innerHTML   = '';
         footerLeft.innerHTML   = '';
         footerActions.innerHTML = '';
-        body.innerHTML = '<div class="flex items-center justify-center h-24 text-slate-400"><span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span><span class="text-sm">加载中...</span></div>';
+        body.innerHTML = '<div class="flex items-center justify-center h-24 text-slate-400"><span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span><span class="text-sm">{{ _("加载中...") }}</span></div>';
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
 
@@ -765,7 +765,7 @@
             _applyEnrichButtonStates();
         })
         .catch(() => {
-            body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">加载失败，请重试</p>';
+            body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">{{ _("加载失败，请重试") }}</p>';
         });
     }
 
@@ -799,8 +799,8 @@
     let _importItems = [];  // built from UI selections
 
     const STAKEHOLDER_TYPE_LABEL = {
-        owner: '业主', design: '设计院', epc: 'EPC',
-        construction: '施工', other: '其他'
+        owner: '{{ _("业主") }}', design: '{{ _("设计院") }}', epc: 'EPC',
+        construction: '{{ _("施工") }}', other: '{{ _("其他") }}'
     };
     const TYPE_COLOR = {
         owner:        'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
@@ -814,11 +814,11 @@
         _importProspectId = prospectId;
         _importItems = [];
         document.getElementById('prospectImportModal').classList.remove('hidden');
-        document.getElementById('im-subtitle').textContent = '正在检查重复...';
+        document.getElementById('im-subtitle').textContent = '{{ _("正在检查重复...") }}';
         document.getElementById('im-body').innerHTML = `
             <div class="flex items-center justify-center h-24 text-slate-400">
                 <span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span>
-                <span class="text-sm">正在检查重复...</span>
+                <span class="text-sm">{{ _("正在检查重复...") }}</span>
             </div>`;
         document.getElementById('im-confirm-btn').disabled = true;
 
@@ -829,7 +829,7 @@
         .then(data => renderImportResults(data.stakeholders))
         .catch(() => {
             document.getElementById('im-body').innerHTML =
-                '<p class="text-sm text-red-500 text-center py-8">加载失败，请重试</p>';
+                '<p class="text-sm text-red-500 text-center py-8">{{ _("加载失败，请重试") }}</p>';
         });
     }
 
@@ -842,26 +842,26 @@
 
         // ── 需要确认 ──────────────────────────────────
         if (needs.length) {
-            html += `<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">需要确认 (${needs.length})</p>`;
+            html += `<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">{{ _("需要确认") }} (${needs.length})</p>`;
             needs.forEach(s => { html += renderImportCard(s, true); });
         }
 
         // ── 可直接导入 ────────────────────────────────
         if (clean.length) {
-            html += `<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mt-4 mb-2">可直接导入 (${clean.length})</p>`;
+            html += `<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mt-4 mb-2">{{ _("可直接导入") }} (${clean.length})</p>`;
             clean.forEach(s => { html += renderImportCard(s, false); });
         }
 
         // ── 已存在，仅联系人 ──────────────────────────
         if (exact.length) {
-            html += `<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mt-4 mb-2">公司已存在 (${exact.length})</p>`;
+            html += `<p class="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mt-4 mb-2">{{ _("公司已存在") }} (${exact.length})</p>`;
             exact.forEach(s => { html += renderImportCard(s, false); });
         }
 
-        document.getElementById('im-body').innerHTML = html || '<p class="text-sm text-slate-400 text-center py-8">无可导入的关联方</p>';
+        document.getElementById('im-body').innerHTML = html || '<p class="text-sm text-slate-400 text-center py-8">{{ _("无可导入的关联方") }}</p>';
 
         const total = stakeholders.length;
-        document.getElementById('im-subtitle').textContent = `共 ${total} 个关联方 · 请确认导入选项`;
+        document.getElementById('im-subtitle').textContent = `{{ _("共") }} ${total} {{ _("个关联方 · 请确认导入选项") }}`;
         document.getElementById('im-confirm-btn').disabled = total === 0;
         updateImportCount();
     }
@@ -882,18 +882,18 @@
                 <input type="hidden" data-sid="${s.id}" data-field="merge_company_id" value="${m.id}">
                 <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
                     <span class="material-symbols-outlined align-text-bottom" style="font-size:13px;">check_circle</span>
-                    已存在于客户库，联系人将挂到此公司下
+                    {{ _("已存在于客户库，联系人将挂到此公司下") }}
                 </p>`;
         } else if (s.company_status === 'similar') {
             const opts = s.similar_companies.map(m =>
-                `<option value="merge:${m.id}">${m.name} (${m.score}% 相似)</option>`
+                `<option value="merge:${m.id}">${m.name} (${m.score}% {{ _("相似") }})</option>`
             ).join('');
             companySection = `
                 <div class="mt-2">
-                    <label class="text-xs font-medium text-amber-700 dark:text-amber-400">发现相似公司，请选择：</label>
+                    <label class="text-xs font-medium text-amber-700 dark:text-amber-400">{{ _("发现相似公司，请选择：") }}</label>
                     <select data-sid="${s.id}" data-field="company_choice" onchange="updateImportCount()"
                         class="mt-1 w-full h-8 px-2 text-xs rounded border border-amber-300 dark:border-amber-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 cursor-pointer">
-                        <option value="new">新建公司「${s.company_name}」</option>
+                        <option value="new">{{ _("新建公司") }}「${s.company_name}」</option>
                         ${opts}
                     </select>
                 </div>`;
@@ -902,7 +902,7 @@
                 <input type="hidden" data-sid="${s.id}" data-field="company_action" value="new">
                 <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
                     <span class="material-symbols-outlined align-text-bottom" style="font-size:13px;">add_circle</span>
-                    新建公司
+                    {{ _("新建公司") }}
                 </p>`;
         }
 
@@ -910,21 +910,21 @@
         if (s.contact_person) {
             if (s.contact_status === 'duplicate_name' || s.contact_status === 'duplicate_phone') {
                 const d = s.duplicate_contact;
-                const reason = s.contact_status === 'duplicate_name' ? '同名' : '同电话';
+                const reason = s.contact_status === 'duplicate_name' ? '{{ _("同名") }}' : '{{ _("同电话") }}';
                 contactSection = `
                     <div class="mt-2 p-2 rounded bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-xs">
                         <p class="text-rose-600 dark:text-rose-400 font-medium">
                             <span class="material-symbols-outlined align-text-bottom" style="font-size:13px;">warning</span>
-                            联系人「${s.contact_person}」与客户库中的「${d.name}」${reason}（${d.company_name}）
+                            {{ _("联系人") }}「${s.contact_person}」{{ _("与客户库中的") }}「${d.name}」${reason}（${d.company_name}）
                         </p>
                         <div class="flex items-center gap-3 mt-1.5">
                             <label class="flex items-center gap-1 cursor-pointer">
                                 <input type="radio" name="contact_${s.id}" value="skip" checked data-sid="${s.id}" data-field="contact_action" onchange="updateImportCount()">
-                                <span class="text-slate-600 dark:text-slate-400">跳过联系人</span>
+                                <span class="text-slate-600 dark:text-slate-400">{{ _("跳过联系人") }}</span>
                             </label>
                             <label class="flex items-center gap-1 cursor-pointer">
                                 <input type="radio" name="contact_${s.id}" value="create" data-sid="${s.id}" data-field="contact_action" onchange="updateImportCount()">
-                                <span class="text-slate-600 dark:text-slate-400">仍然创建</span>
+                                <span class="text-slate-600 dark:text-slate-400">{{ _("仍然创建") }}</span>
                             </label>
                         </div>
                     </div>`;
@@ -933,7 +933,7 @@
                     <input type="hidden" data-sid="${s.id}" data-field="contact_action" value="create">
                     <p class="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
                         <span class="material-symbols-outlined align-text-bottom" style="font-size:13px;">person_add</span>
-                        新建联系人「${s.contact_person}」${s.phone ? '· ' + s.phone : ''}${s.department ? '· ' + s.department : ''}
+                        {{ _("新建联系人") }}「${s.contact_person}」${s.phone ? '· ' + s.phone : ''}${s.department ? '· ' + s.department : ''}
                     </p>`;
             }
         }
@@ -960,14 +960,14 @@
     function updateImportCount() {
         const checks = document.querySelectorAll('#im-body input[data-field="include"]:checked');
         const n = checks.length;
-        document.getElementById('im-confirm-label').textContent = n > 0 ? `确认导入 (${n} 条)` : '确认导入';
+        document.getElementById('im-confirm-label').textContent = n > 0 ? `{{ _("确认导入") }} (${n} {{ _("条") }})` : '{{ _("确认导入") }}';
         document.getElementById('im-confirm-btn').disabled = n === 0;
     }
 
     function executeImport() {
         const btn = document.getElementById('im-confirm-btn');
         btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>导入中...';
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>{{ _("导入中...") }}';
 
         // 收集所有选项
         const items = [];
@@ -1022,24 +1022,24 @@
                 document.getElementById('im-body').innerHTML = `
                     <div class="flex flex-col items-center justify-center py-10 text-center">
                         <span class="material-symbols-outlined text-emerald-500 mb-3" style="font-size:40px;">check_circle</span>
-                        <p class="text-base font-semibold text-slate-800 dark:text-slate-200">导入完成</p>
+                        <p class="text-base font-semibold text-slate-800 dark:text-slate-200">{{ _("导入完成") }}</p>
                         <p class="text-sm text-slate-500 dark:text-slate-400 mt-2">
-                            新建公司 ${s.created_companies} 个 &nbsp;·&nbsp;
-                            合并 ${s.merged_companies} 个 &nbsp;·&nbsp;
-                            新建联系人 ${s.created_contacts} 个
+                            {{ _("新建公司") }} ${s.created_companies} {{ _("个") }} &nbsp;·&nbsp;
+                            {{ _("合并") }} ${s.merged_companies} {{ _("个") }} &nbsp;·&nbsp;
+                            {{ _("新建联系人") }} ${s.created_contacts} {{ _("个") }}
                         </p>
                     </div>`;
                 document.getElementById('im-confirm-btn').classList.add('hidden');
             } else {
                 document.getElementById('im-body').innerHTML =
-                    `<p class="text-sm text-red-500 text-center py-8">${data.message || '导入失败'}</p>`;
+                    `<p class="text-sm text-red-500 text-center py-8">${data.message || '{{ _("导入失败") }}'}</p>`;
                 btn.disabled = false;
-                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">download</span> 重试';
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">download</span> {{ _("重试") }}';
             }
         })
         .catch(() => {
             btn.disabled = false;
-            btn.innerHTML = '重试';
+            btn.innerHTML = '{{ _("重试") }}';
         });
     }
 
@@ -1054,15 +1054,15 @@
     let _enrichResults = {};   // key: "pid-sid" → server response data
 
     const _FIELD_LABELS = {
-        department:            '部门',
-        contact_person:        '联系人',
-        phone:                 '电话',
-        email:                 '邮箱',
-        address:               '主地址',
-        alternative_addresses: '备选地址',
-        website:               '官网',
-        business_scope:        '营业范围',
-        notes:                 '备注',
+        department:            '{{ _("部门") }}',
+        contact_person:        '{{ _("联系人") }}',
+        phone:                 '{{ _("电话") }}',
+        email:                 '{{ _("邮箱") }}',
+        address:               '{{ _("主地址") }}',
+        alternative_addresses: '{{ _("备选地址") }}',
+        website:               '{{ _("官网") }}',
+        business_scope:        '{{ _("营业范围") }}',
+        notes:                 '{{ _("备注") }}',
     };
     // 字段渲染顺序（决定模态框中显示的先后）
     const _FIELD_ORDER = [
@@ -1089,7 +1089,7 @@
 
         // ── another research running → block ───────────────────
         if (_enrichActive) {
-            showToast('已有调研进行中，请等待完成或点击旋转按钮取消', 'warning');
+            showToast('{{ _("已有调研进行中，请等待完成或点击旋转按钮取消") }}', 'warning');
             return;
         }
 
@@ -1116,25 +1116,25 @@
         .then(data => {
             _enrichActive = null;
             if (!data.success) {
-                showToast(data.message || 'AI调研失败', 'error');
+                showToast(data.message || '{{ _("AI调研失败") }}', 'error');
                 _setEnrichBtn(key, 'idle');
                 return;
             }
             const fields = data.fields || {};
             const additional = data.additional || [];
             if (Object.keys(fields).length === 0 && additional.length === 0) {
-                showToast(`${data.company_name}：未找到新联系方式`, 'info');
+                showToast(`${data.company_name}：{{ _("未找到新联系方式") }}`, 'info');
                 _setEnrichBtn(key, 'idle');
                 return;
             }
             _enrichResults[key] = data;
             _setEnrichBtn(key, 'done');
-            showToast(`${data.company_name} 调研完成，点击按钮查看结果`, 'success');
+            showToast(`${data.company_name} {{ _("调研完成，点击按钮查看结果") }}`, 'success');
         })
         .catch(err => {
             _enrichActive = null;
             if (err.name === 'AbortError') { _setEnrichBtn(key, 'idle'); return; }
-            showToast('调研请求失败，请重试', 'error');
+            showToast('{{ _("调研请求失败，请重试") }}', 'error');
             _setEnrichBtn(key, 'idle');
         });
     }
@@ -1143,19 +1143,19 @@
         const btn = document.querySelector(`[data-enrich-btn="${key}"]`);
         if (!btn) return;
         if (state === 'loading') {
-            btn.innerHTML = `<span class="material-symbols-outlined animate-spin" style="font-size:12px;">progress_activity</span> 调研中`;
+            btn.innerHTML = `<span class="material-symbols-outlined animate-spin" style="font-size:12px;">progress_activity</span> {{ _("调研中") }}`;
             btn.className = btn.className
                 .replace(/text-violet-\S+/g, 'text-amber-600 dark:text-amber-400')
                 .replace(/bg-violet-\S+/g, 'bg-amber-50 dark:bg-amber-900/30')
                 .replace(/border-violet-\S+/g, 'border-amber-300 dark:border-amber-700');
         } else if (state === 'done') {
-            btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px;">check_circle</span> 调研完成`;
+            btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px;">check_circle</span> {{ _("调研完成") }}`;
             btn.className = btn.className
                 .replace(/text-(?:violet|amber)-\S+/g, 'text-emerald-600 dark:text-emerald-400')
                 .replace(/bg-(?:violet|amber)-\S+/g, 'bg-emerald-50 dark:bg-emerald-900/30')
                 .replace(/border-(?:violet|amber)-\S+/g, 'border-emerald-300 dark:border-emerald-700');
         } else {
-            btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px;">auto_awesome</span> AI调研`;
+            btn.innerHTML = `<span class="material-symbols-outlined" style="font-size:12px;">auto_awesome</span> {{ _("AI调研") }}`;
             btn.className = btn.className
                 .replace(/text-(?:violet|amber|emerald)-\S+/g, 'text-violet-600 dark:text-violet-400')
                 .replace(/bg-(?:violet|amber|emerald)-\S+/g, 'bg-violet-50 dark:bg-violet-900/30')
@@ -1188,16 +1188,16 @@
         const conf       = data.confidence || 'medium';
         const fieldKeys  = _FIELD_ORDER.filter(f => fields[f]);
         const totalCount = fieldKeys.length + additional.length;
-        const confLabel  = {high:'高可信度', medium:'中等可信度', low:'低可信度'};
+        const confLabel  = {high:'{{ _("高可信度") }}', medium:'{{ _("中等可信度") }}', low:'{{ _("低可信度") }}'};
 
         document.getElementById('enrich-result-subtitle').textContent =
-            `${data.company_name || ''} · 发现 ${totalCount} 项可保存内容`;
+            `${data.company_name || ''} · {{ _("发现") }} ${totalCount} {{ _("项可保存内容") }}`;
 
         let html = `
             <div class="flex items-center gap-2 mb-4 mt-1">
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs border ${_CONF_COLOR[conf] || _CONF_COLOR.medium}">
                     <span class="material-symbols-outlined" style="font-size:12px;">verified</span>
-                    ${confLabel[conf] || '中等可信度'}
+                    ${confLabel[conf] || '{{ _("中等可信度") }}'}
                 </span>
             </div>`;
 
@@ -1205,7 +1205,7 @@
         if (fieldKeys.length) {
             html += `
                 <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
-                    主联系单位字段
+                    {{ _("主联系单位字段") }}
                 </div>
                 <div class="space-y-3">`;
             fieldKeys.forEach(field => {
@@ -1214,8 +1214,8 @@
                     ? 'border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10'
                     : 'border-amber-200 bg-amber-50/50 dark:border-amber-800 dark:bg-amber-900/10';
                 const badge = f.is_new
-                    ? '<span class="text-xs text-emerald-600 dark:text-emerald-400">· 新增</span>'
-                    : `<span class="text-xs text-amber-600 dark:text-amber-400">· 替换「${_escapeHtml(f.existing)}」</span>`;
+                    ? '<span class="text-xs text-emerald-600 dark:text-emerald-400">· {{ _("新增") }}</span>'
+                    : `<span class="text-xs text-amber-600 dark:text-amber-400">· {{ _("替换") }}「${_escapeHtml(f.existing)}」</span>`;
                 html += `
                     <div class="p-3 rounded-lg border ${cls}">
                         <label class="flex items-start gap-3 cursor-pointer">
@@ -1238,7 +1238,7 @@
         if (additional.length) {
             html += `
                 <div class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2 mt-5">
-                    新增联系人 <span class="text-emerald-500 ml-1">(每条勾选会创建一行同公司联系人)</span>
+                    {{ _("新增联系人") }} <span class="text-emerald-500 ml-1">{{ _("(每条勾选会创建一行同公司联系人)") }}</span>
                 </div>
                 <div class="space-y-3">`;
             additional.forEach((c, idx) => {
@@ -1250,8 +1250,8 @@
                                 data-enrich-result-additional="${idx}" checked onchange="updateEnrichResultCount()">
                             <div class="min-w-0 flex-1 space-y-1">
                                 <div class="flex items-center gap-2">
-                                    <span class="text-xs font-semibold text-sky-700 dark:text-sky-300">${_escapeHtml(summary || '联系人')}</span>
-                                    <span class="text-xs text-sky-600 dark:text-sky-400">· 新增行</span>
+                                    <span class="text-xs font-semibold text-sky-700 dark:text-sky-300">${_escapeHtml(summary || '{{ _("联系人") }}')}</span>
+                                    <span class="text-xs text-sky-600 dark:text-sky-400">· {{ _("新增行") }}</span>
                                 </div>
                                 ${c.email ? `<p class="text-xs text-slate-600 dark:text-slate-400">📧 ${_escapeHtml(c.email)}</p>` : ''}
                                 ${c.role_description ? `<p class="text-xs text-slate-500 dark:text-slate-400">${_escapeHtml(c.role_description)}</p>` : ''}
@@ -1264,7 +1264,7 @@
 
         if (data.sources && data.sources.length) {
             html += `<div class="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
-                <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">信息来源</p><ul class="space-y-0.5">`;
+                <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">{{ _("信息来源") }}</p><ul class="space-y-0.5">`;
             data.sources.forEach(s => {
                 html += `<li class="text-xs text-slate-400 dark:text-slate-500 truncate">· ${_escapeHtml(s)}</li>`;
             });
@@ -1281,7 +1281,7 @@
         const fieldsN     = document.querySelectorAll('#enrich-result-body input[data-enrich-result-field]:checked').length;
         const additionalN = document.querySelectorAll('#enrich-result-body input[data-enrich-result-additional]:checked').length;
         const total       = fieldsN + additionalN;
-        document.getElementById('enrich-result-save-label').textContent = total > 0 ? `保存选中 (${total})` : '保存选中';
+        document.getElementById('enrich-result-save-label').textContent = total > 0 ? `{{ _("保存选中") }} (${total})` : '{{ _("保存选中") }}';
         document.getElementById('enrich-result-save-btn').disabled = total === 0;
     }
 
@@ -1293,7 +1293,7 @@
         const btn = document.getElementById('enrich-result-save-btn');
 
         btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>保存中...';
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>{{ _("保存中...") }}';
 
         const toSave = {};
         document.querySelectorAll('#enrich-result-body input[data-enrich-result-field]:checked').forEach(cb => {
@@ -1324,13 +1324,13 @@
                 const updatedN = (resp.updated || []).length;
                 const createdN = (resp.created_ids || []).length;
                 const parts = [];
-                if (updatedN) parts.push(`更新 ${updatedN} 个字段`);
-                if (createdN) parts.push(`新增 ${createdN} 位联系人`);
+                if (updatedN) parts.push(`{{ _("更新") }} ${updatedN} {{ _("个字段") }}`);
+                if (createdN) parts.push(`{{ _("新增") }} ${createdN} {{ _("位联系人") }}`);
                 document.getElementById('enrich-result-body').innerHTML = `
                     <div class="flex flex-col items-center justify-center py-10 text-center">
                         <span class="material-symbols-outlined text-emerald-500 mb-3" style="font-size:40px;">check_circle</span>
-                        <p class="text-base font-semibold text-slate-800 dark:text-slate-200">保存成功</p>
-                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${parts.join('，') || '未变更'}</p>
+                        <p class="text-base font-semibold text-slate-800 dark:text-slate-200">{{ _("保存成功") }}</p>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${parts.join('，') || '{{ _("未变更") }}'}</p>
                     </div>`;
                 setTimeout(() => {
                     closeEnrichResultModal();
@@ -1341,14 +1341,14 @@
                     }
                 }, 1200);
             } else {
-                showToast(resp.message || '保存失败', 'error');
+                showToast(resp.message || '{{ _("保存失败") }}', 'error');
                 btn.disabled = false;
-                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span> 重试';
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span> {{ _("重试") }}';
             }
         })
         .catch(() => {
             btn.disabled = false;
-            btn.innerHTML = '重试';
+            btn.innerHTML = '{{ _("重试") }}';
         });
     }
 
@@ -1386,7 +1386,7 @@
         badge.innerHTML   = '';
         footerLeft.innerHTML    = '';
         footerActions.innerHTML = '';
-        body.innerHTML = '<div class="flex items-center justify-center h-24 text-slate-400"><span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span><span class="text-sm">加载中...</span></div>';
+        body.innerHTML = '<div class="flex items-center justify-center h-24 text-slate-400"><span class="material-symbols-outlined animate-spin mr-2" style="font-size:20px;">progress_activity</span><span class="text-sm">{{ _("加载中...") }}</span></div>';
         modal.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
 
@@ -1396,7 +1396,7 @@
         .then(r => r.json())
         .then(data => {
             if (data.success === false) {
-                body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">' + (data.message || '加载失败') + '</p>';
+                body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">' + (data.message || '{{ _("加载失败") }}') + '</p>';
                 return;
             }
             title.textContent = data.project_name || '';
@@ -1408,7 +1408,7 @@
             _applyEnrichButtonStates();
         })
         .catch(() => {
-            body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">加载失败，请重试</p>';
+            body.innerHTML = '<p class="text-sm text-red-500 text-center py-8">{{ _("加载失败，请重试") }}</p>';
         });
     }
 
@@ -1422,7 +1422,7 @@
         const btn = document.getElementById('lost-ai-btn-' + projectId);
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> 调研中...';
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> {{ _("调研中...") }}';
         }
         fetch('/prospect/lost/' + projectId + '/ai-research', {
             method: 'POST',
@@ -1433,15 +1433,15 @@
             if (btn) {
                 btn.disabled = false;
                 btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span> ' +
-                    (btn.dataset.hasResearch === '1' ? '重新调研' : 'AI 调研补全');
+                    (btn.dataset.hasResearch === '1' ? '{{ _("重新调研") }}' : '{{ _("AI 调研补全") }}');
             }
-            if (!data.success) { showToast(data.message || 'AI 调研失败', 'error'); return; }
+            if (!data.success) { showToast(data.message || '{{ _("AI 调研失败") }}', 'error'); return; }
             _prmReloadFn = () => openLostProjectDetail(projectId);
             openProjectResearchModal(data);
         })
         .catch(() => {
             if (btn) { btn.disabled = false; }
-            showToast('调研请求失败，请重试', 'error');
+            showToast('{{ _("调研请求失败，请重试") }}', 'error');
         });
     }
 
@@ -1449,7 +1449,7 @@
         const btn = document.getElementById('intel-ai-btn-' + prospectId);
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> 调研中...';
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> {{ _("调研中...") }}';
         }
         fetch('/prospect/' + prospectId + '/ai-research', {
             method: 'POST',
@@ -1459,15 +1459,15 @@
         .then(data => {
             if (btn) {
                 btn.disabled = false;
-                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span> 重新调研';
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">auto_awesome</span> {{ _("重新调研") }}';
             }
-            if (!data.success) { showToast(data.message || 'AI 调研失败', 'error'); return; }
+            if (!data.success) { showToast(data.message || '{{ _("AI 调研失败") }}', 'error'); return; }
             _prmReloadFn = () => openProspectDetail(prospectId);
             openProjectResearchModal(data);
         })
         .catch(() => {
             if (btn) { btn.disabled = false; }
-            showToast('调研请求失败，请重试', 'error');
+            showToast('{{ _("调研请求失败，请重试") }}', 'error');
         });
     }
 
@@ -1480,9 +1480,9 @@
         const shkCount = (data.stakeholders || []).length;
         const total = (hasDesc ? 1 : 0) + (hasProg ? 1 : 0) + shkCount;
         document.getElementById('prm-subtitle').textContent =
-            `${data.project_name || ''} · 发现 ${total} 项可保存内容`;
+            `${data.project_name || ''} · {{ _("发现") }} ${total} {{ _("项可保存内容") }}`;
 
-        const TYPE_LABEL = { owner:'业主', design:'设计院', epc:'EPC', construction:'施工', other:'其他' };
+        const TYPE_LABEL = { owner:'{{ _("业主") }}', design:'{{ _("设计院") }}', epc:'EPC', construction:'{{ _("施工") }}', other:'{{ _("其他") }}' };
         const TYPE_COLOR = {
             owner:        'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
             design:       'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
@@ -1496,7 +1496,7 @@
         if (hasDesc) {
             html += `
             <div class="mb-3 mt-1">
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">项目简介</p>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{{ _("项目简介") }}</p>
                 <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10">
                     <label class="flex items-start gap-3 cursor-pointer">
                         <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
@@ -1510,7 +1510,7 @@
         if (hasProg) {
             html += `
             <div class="mb-3">
-                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">最新进展</p>
+                <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">{{ _("最新进展") }}</p>
                 <div class="p-3 rounded-lg border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10">
                     <label class="flex items-start gap-3 cursor-pointer">
                         <input type="checkbox" class="mt-0.5 rounded border-slate-300 text-violet-600 focus:ring-violet-500 cursor-pointer"
@@ -1525,13 +1525,13 @@
             html += `
             <div>
                 <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
-                    关联方 <span class="text-violet-500 ml-1">(${shkCount} 个，勾选后追加)</span>
+                    {{ _("关联方") }} <span class="text-violet-500 ml-1">(${shkCount} {{ _("个，勾选后追加") }})</span>
                 </p>
                 <div class="space-y-2">`;
             (data.stakeholders || []).forEach((s, idx) => {
                 const stype = s.stakeholder_type || 'other';
                 const color = TYPE_COLOR[stype] || TYPE_COLOR.other;
-                const label = TYPE_LABEL[stype] || '其他';
+                const label = TYPE_LABEL[stype] || '{{ _("其他") }}';
                 const details = [s.contact_person, s.phone, s.email].filter(Boolean).join(' · ');
                 html += `
                 <div class="p-3 rounded-lg border border-sky-200 bg-sky-50/50 dark:border-sky-800 dark:bg-sky-900/10">
@@ -1553,7 +1553,7 @@
         }
 
         document.getElementById('prm-body').innerHTML = html ||
-            '<p class="text-sm text-slate-400 text-center py-8">未找到可保存的内容</p>';
+            '<p class="text-sm text-slate-400 text-center py-8">{{ _("未找到可保存的内容") }}</p>';
         document.getElementById('prm-save-btn').classList.remove('hidden');
         document.getElementById('projectResearchModal').classList.remove('hidden');
         updatePrmCount();
@@ -1561,7 +1561,7 @@
 
     function updatePrmCount() {
         const n = document.querySelectorAll('#prm-body input[data-prm-field]:checked, #prm-body input[data-prm-stakeholder]:checked').length;
-        document.getElementById('prm-save-label').textContent = n > 0 ? `写入选中 (${n})` : '写入选中';
+        document.getElementById('prm-save-label').textContent = n > 0 ? `{{ _("写入选中") }} (${n})` : '{{ _("写入选中") }}';
         document.getElementById('prm-save-btn').disabled = n === 0;
     }
 
@@ -1569,7 +1569,7 @@
         const data = _prmData;
         const btn  = document.getElementById('prm-save-btn');
         btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>保存中...';
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>{{ _("保存中...") }}';
 
         const body = { stakeholders: [] };
         if (document.querySelector('#prm-body input[data-prm-field="description"]:checked')) {
@@ -1594,19 +1594,19 @@
         .then(r => r.json())
         .then(resp => {
             if (!resp.success) {
-                showToast(resp.message || '保存失败', 'error');
+                showToast(resp.message || '{{ _("保存失败") }}', 'error');
                 btn.disabled = false;
-                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span><span id="prm-save-label">写入选中</span>';
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span><span id="prm-save-label">{{ _("写入选中") }}</span>';
                 return;
             }
             const parts = [];
-            if (body.description || body.progress) parts.push('更新项目信息');
-            if (resp.stakeholders_added) parts.push(`新增 ${resp.stakeholders_added} 个关联方`);
+            if (body.description || body.progress) parts.push('{{ _("更新项目信息") }}');
+            if (resp.stakeholders_added) parts.push(`{{ _("新增") }} ${resp.stakeholders_added} {{ _("个关联方") }}`);
             document.getElementById('prm-body').innerHTML = `
                 <div class="flex flex-col items-center justify-center py-10 text-center">
                     <span class="material-symbols-outlined text-emerald-500 mb-3" style="font-size:40px;">check_circle</span>
-                    <p class="text-base font-semibold text-slate-800 dark:text-slate-200">写入成功</p>
-                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${parts.join('，') || '未变更'}</p>
+                    <p class="text-base font-semibold text-slate-800 dark:text-slate-200">{{ _("写入成功") }}</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">${parts.join('，') || '{{ _("未变更") }}'}</p>
                 </div>`;
             btn.classList.add('hidden');
             setTimeout(() => {
@@ -1615,9 +1615,9 @@
             }, 1200);
         })
         .catch(() => {
-            showToast('保存请求失败', 'error');
+            showToast('{{ _("保存请求失败") }}', 'error');
             btn.disabled = false;
-            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span><span id="prm-save-label">写入选中</span>';
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">save</span><span id="prm-save-label">{{ _("写入选中") }}</span>';
         });
     }
 
@@ -1650,13 +1650,13 @@
         const reason = document.getElementById('lap-reason').value.trim();
         if (reason.length < 10) {
             const err = document.getElementById('lap-error');
-            err.textContent = '申请理由至少 10 个字';
+            err.textContent = '{{ _("申请理由至少 10 个字") }}';
             err.classList.remove('hidden');
             return;
         }
         const btn = document.getElementById('lap-submit-btn');
         btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>提交中...';
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin mr-1" style="font-size:16px;">progress_activity</span>{{ _("提交中...") }}';
 
         fetch('/prospect/lost/' + _lostApplyProjectId + '/apply', {
             method: 'POST',
@@ -1670,19 +1670,19 @@
         .then(data => {
             if (data.success) {
                 closeLostApplyModal();
-                showToast('申请已提交，等待负责人处理', 'success');
+                showToast('{{ _("申请已提交，等待负责人处理") }}', 'success');
                 openLostProjectDetail(_currentLostProjectId);
             } else {
                 const err = document.getElementById('lap-error');
-                err.textContent = data.message || '提交失败';
+                err.textContent = data.message || '{{ _("提交失败") }}';
                 err.classList.remove('hidden');
                 btn.disabled = false;
-                btn.innerHTML = '提交申请';
+                btn.innerHTML = '{{ _("提交申请") }}';
             }
         })
         .catch(() => {
             btn.disabled = false;
-            btn.innerHTML = '提交申请';
+            btn.innerHTML = '{{ _("提交申请") }}';
         });
     }
 
@@ -1701,7 +1701,7 @@
                 closeProspectDetail();
                 location.reload();
             } else {
-                alert(data.message || '申领失败');
+                alert(data.message || '{{ _("申领失败") }}');
             }
         });
     }
@@ -1720,7 +1720,7 @@
                 closeProspectDetail();
                 location.reload();
             } else {
-                alert(data.message || '取消失败');
+                alert(data.message || '{{ _("取消失败") }}');
             }
         });
     }
@@ -1731,15 +1731,15 @@
     let _brResults    = [];
 
     const _BR_INDUSTRY_LABELS = {
-        chemical:          '石化化工',
-        energy:            '能源',
-        manufacturing:     '制造业',
-        shipbuilding:      '造船',
-        semiconductor:     '半导体',
-        tunnel_underground:'隧道/地下',
-        transportation:    '交通',
-        datacenter:        '数据中心',
-        other:             '其他',
+        chemical:          '{{ _("石化化工") }}',
+        energy:            '{{ _("能源") }}',
+        manufacturing:     '{{ _("制造业") }}',
+        shipbuilding:      '{{ _("造船") }}',
+        semiconductor:     '{{ _("半导体") }}',
+        tunnel_underground:'{{ _("隧道/地下") }}',
+        transportation:    '{{ _("交通") }}',
+        datacenter:        '{{ _("数据中心") }}',
+        other:             '{{ _("其他") }}',
     };
 
     function openBatchResearchModal() {
@@ -1751,7 +1751,7 @@
         document.getElementById('br-error').classList.add('hidden');
         const startBtn = document.getElementById('br-start-btn');
         startBtn.disabled = false;
-        startBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">search</span> 开始调研';
+        startBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">search</span> {{ _("开始调研") }}';
         document.getElementById('batchResearchModal').classList.remove('hidden');
         document.body.style.overflow = 'hidden';
         // fetch quota for non-admin
@@ -1764,7 +1764,7 @@
                     quotaEl.textContent = d.remaining;
                     if (d.remaining <= 0) {
                         startBtn.disabled = true;
-                        document.getElementById('br-error').textContent = '今日批量调研次数已用完（3次），明日再试';
+                        document.getElementById('br-error').textContent = '{{ _("今日批量调研次数已用完（3次），明日再试") }}';
                         document.getElementById('br-error').classList.remove('hidden');
                     }
                 })
@@ -1794,7 +1794,7 @@
             _brBtnOff(btn);
         } else {
             if (_brProvinces.length >= 2) {
-                document.getElementById('br-error').textContent = '最多选择 2 个省份';
+                document.getElementById('br-error').textContent = '{{ _("最多选择 2 个省份") }}';
                 document.getElementById('br-error').classList.remove('hidden');
                 return;
             }
@@ -1811,7 +1811,7 @@
             _brBtnOff(btn);
         } else {
             if (_brIndustries.length >= 2) {
-                document.getElementById('br-error').textContent = '最多选择 2 个行业';
+                document.getElementById('br-error').textContent = '{{ _("最多选择 2 个行业") }}';
                 document.getElementById('br-error').classList.remove('hidden');
                 return;
             }
@@ -1840,23 +1840,23 @@
         if (!btn) return;
         if (state === 'loading') {
             btn.className = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-400 dark:text-indigo-500 text-sm cursor-not-allowed opacity-70 transition-colors';
-            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> 调研中…';
+            btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> {{ _("调研中…") }}';
         } else if (state === 'done') {
             btn.className = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-emerald-400 dark:border-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-sm font-medium transition-colors cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/50';
-            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">task_alt</span> 查看结果';
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">task_alt</span> {{ _("查看结果") }}';
         } else if (state === 'error') {
             btn.className = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 text-sm transition-colors cursor-pointer';
-            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">travel_explore</span> 批量调研';
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">travel_explore</span> {{ _("批量调研") }}';
         } else {
             btn.className = 'inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 text-sm transition-colors cursor-pointer';
-            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">travel_explore</span> 批量调研';
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">travel_explore</span> {{ _("批量调研") }}';
         }
     }
 
     function startBatchResearch() {
         if (!_brProvinces.length || !_brIndustries.length) {
             const err = document.getElementById('br-error');
-            err.textContent = '请至少选择一个省份和一个行业';
+            err.textContent = '{{ _("请至少选择一个省份和一个行业") }}';
             err.classList.remove('hidden');
             return;
         }
@@ -1877,7 +1877,7 @@
         .then(data => {
             if (!data.success) {
                 _setBrToolbarState('error');
-                showToast(data.message || '批量调研失败', 'error');
+                showToast(data.message || '{{ _("批量调研失败") }}', 'error');
                 return;
             }
             // update quota display if user re-opens modal
@@ -1887,11 +1887,11 @@
             }
             _brResultData = data;
             _setBrToolbarState('done');
-            showToast(`调研完成，发现 ${(data.projects||[]).length} 个项目`, 'success');
+            showToast(`{{ _("调研完成，发现") }} ${(data.projects||[]).length} {{ _("个项目") }}`, 'success');
         })
         .catch(() => {
             _setBrToolbarState('error');
-            showToast('批量调研请求失败，请重试', 'error');
+            showToast('{{ _("批量调研请求失败，请重试") }}', 'error');
         });
     }
 
@@ -1902,11 +1902,11 @@
         const available = total - inLib;
 
         document.getElementById('brr-subtitle').textContent =
-            `发现 ${total} 个项目` + (inLib > 0 ? `，${inLib} 个已在库` : '');
+            `{{ _("发现") }} ${total} {{ _("个项目") }}` + (inLib > 0 ? `，${inLib} {{ _("个已在库") }}` : '');
 
         const body = document.getElementById('brr-body');
         if (!total) {
-            body.innerHTML = '<p class="text-sm text-slate-400 text-center py-8">未找到新项目，请换省份/行业重试</p>';
+            body.innerHTML = '<p class="text-sm text-slate-400 text-center py-8">{{ _("未找到新项目，请换省份/行业重试") }}</p>';
         } else {
             body.innerHTML = _brResults.map((p, idx) => _renderBrCard(p, idx)).join('');
         }
@@ -1917,23 +1917,23 @@
     }
 
     function _renderBrCard(p, idx) {
-        const industryLabel = _BR_INDUSTRY_LABELS[p.industry] || p.industry || '其他';
+        const industryLabel = _BR_INDUSTRY_LABELS[p.industry] || p.industry || '{{ _("其他") }}';
         const stakeCount = (p.stakeholders || []).length;
         const isInLib = p.in_library;
 
         const stageBadge = {
-            planning:     '<span class="px-1.5 py-0.5 rounded text-xs border border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300">规划中</span>',
-            designing:    '<span class="px-1.5 py-0.5 rounded text-xs border border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-700 dark:bg-violet-900/30 dark:text-violet-300">设计中</span>',
-            construction: '<span class="px-1.5 py-0.5 rounded text-xs border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300">在建</span>',
-            completed:    '<span class="px-1.5 py-0.5 rounded text-xs border border-green-200 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">竣工</span>',
-        }[p.stage] || '<span class="px-1.5 py-0.5 rounded text-xs border border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400">规划中</span>';
+            planning:     '<span class="px-1.5 py-0.5 rounded text-xs border border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-300">{{ _("规划中") }}</span>',
+            designing:    '<span class="px-1.5 py-0.5 rounded text-xs border border-violet-200 bg-violet-50 text-violet-600 dark:border-violet-700 dark:bg-violet-900/30 dark:text-violet-300">{{ _("设计中") }}</span>',
+            construction: '<span class="px-1.5 py-0.5 rounded text-xs border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-700 dark:bg-orange-900/30 dark:text-orange-300">{{ _("在建") }}</span>',
+            completed:    '<span class="px-1.5 py-0.5 rounded text-xs border border-green-200 bg-green-50 text-green-700 dark:border-green-700 dark:bg-green-900/30 dark:text-green-300">{{ _("竣工") }}</span>',
+        }[p.stage] || '<span class="px-1.5 py-0.5 rounded text-xs border border-slate-200 bg-slate-100 text-slate-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400">{{ _("规划中") }}</span>';
 
         const cardOpacity = isInLib ? 'opacity-50' : '';
         const checkDisabled = isInLib ? 'disabled' : '';
         const checkChecked = isInLib ? '' : 'checked';
 
         const inLibBadge = isInLib
-            ? '<span class="px-1.5 py-0.5 rounded text-xs bg-slate-100 border border-slate-200 text-slate-400 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-500">已在库</span>'
+            ? '<span class="px-1.5 py-0.5 rounded text-xs bg-slate-100 border border-slate-200 text-slate-400 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-500">{{ _("已在库") }}</span>'
             : '';
 
         const location = [p.city, p.region].filter(Boolean).join(' / ');
@@ -1944,7 +1944,7 @@
             ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">${_escapeHtml(p.description)}</p>`
             : '';
         const stakeInfo = stakeCount > 0
-            ? `<span class="text-xs text-slate-400 dark:text-slate-500">关联方 ${stakeCount} 个</span>`
+            ? `<span class="text-xs text-slate-400 dark:text-slate-500">{{ _("关联方") }} ${stakeCount} {{ _("个") }}</span>`
             : '';
 
         return `
@@ -1982,7 +1982,7 @@
     function updateBrSaveCount() {
         const n = document.querySelectorAll('#brr-body input[type="checkbox"]:checked:not(:disabled)').length;
         const btn = document.getElementById('brr-save-btn');
-        document.getElementById('brr-save-label').textContent = n > 0 ? `加入情报库 (${n})` : '加入情报库';
+        document.getElementById('brr-save-label').textContent = n > 0 ? `{{ _("加入情报库") }} (${n})` : '{{ _("加入情报库") }}';
         btn.disabled = n === 0;
     }
 
@@ -2007,7 +2007,7 @@
 
         const btn = document.getElementById('brr-save-btn');
         btn.disabled = true;
-        btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> 保存中...';
+        btn.innerHTML = '<span class="material-symbols-outlined animate-spin" style="font-size:16px;">progress_activity</span> {{ _("保存中...") }}';
 
         fetch('/prospect/batch-research/save', {
             method: 'POST',
@@ -2021,18 +2021,18 @@
         .then(data => {
             if (data.success) {
                 closeBatchResearchResultModal();
-                showToast(`成功加入 ${data.created} 个项目到情报库`, 'success');
+                showToast(`{{ _("成功加入") }} ${data.created} {{ _("个项目到情报库") }}`, 'success');
                 setTimeout(() => location.reload(), 1200);
             } else {
-                showToast(data.message || '保存失败', 'error');
+                showToast(data.message || '{{ _("保存失败") }}', 'error');
                 btn.disabled = false;
-                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">add_circle</span> <span id="brr-save-label">加入情报库</span>';
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">add_circle</span> <span id="brr-save-label">{{ _("加入情报库") }}</span>';
             }
         })
         .catch(() => {
-            showToast('请求失败，请重试', 'error');
+            showToast('{{ _("请求失败，请重试") }}', 'error');
             btn.disabled = false;
-            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">add_circle</span> <span id="brr-save-label">加入情报库</span>';
+            btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">add_circle</span> <span id="brr-save-label">{{ _("加入情报库") }}</span>';
         });
     }
     </script>
