@@ -511,28 +511,73 @@
                 </div>
                 {# body #}
                 <div class="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-                    {# province selection #}
+                    {# region selection — provinces (CN) or countries (SG) #}
                     <div>
                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            {{ _('省份') }} <span class="text-xs text-slate-400 font-normal">{{ _('（最多选 2 个）') }}</span>
+                            {% if is_ovs %}{{ _('国家') }}{% else %}{{ _('省份') }}{% endif %}
+                            <span class="text-xs text-slate-400 font-normal">{{ _('（最多选 2 个）') }}</span>
                         </label>
                         <div id="br-provinces" class="flex flex-wrap gap-1.5">
-                            {% for prov in ['广东','江苏','浙江','山东','广西','辽宁','上海','天津','四川','湖北','河南','陕西','新疆','宁夏','内蒙古','云南','贵州','湖南','安徽','河北','福建','黑龙江','吉林','江西'] %}
-                            <button type="button" data-br-province="{{ prov }}"
-                                onclick="toggleBrProvince('{{ prov }}')"
+                            {% if is_ovs %}
+                                {% set _regions = [
+                                    ('Singapore',   _('新加坡')),
+                                    ('Malaysia',    _('马来西亚')),
+                                    ('Indonesia',   _('印度尼西亚')),
+                                    ('Thailand',    _('泰国')),
+                                    ('Vietnam',     _('越南')),
+                                    ('Philippines', _('菲律宾')),
+                                    ('Cambodia',    _('柬埔寨')),
+                                    ('Myanmar',     _('缅甸'))
+                                ] %}
+                            {% else %}
+                                {% set _regions = [
+                                    ('广东', _('广东')),('江苏', _('江苏')),('浙江', _('浙江')),('山东', _('山东')),
+                                    ('广西', _('广西')),('辽宁', _('辽宁')),('上海', _('上海')),('天津', _('天津')),
+                                    ('四川', _('四川')),('湖北', _('湖北')),('河南', _('河南')),('陕西', _('陕西')),
+                                    ('新疆', _('新疆')),('宁夏', _('宁夏')),('内蒙古', _('内蒙古')),('云南', _('云南')),
+                                    ('贵州', _('贵州')),('湖南', _('湖南')),('安徽', _('安徽')),('河北', _('河北')),
+                                    ('福建', _('福建')),('黑龙江', _('黑龙江')),('吉林', _('吉林')),('江西', _('江西'))
+                                ] %}
+                            {% endif %}
+                            {% for val, lbl in _regions %}
+                            <button type="button" data-br-province="{{ val }}"
+                                onclick="toggleBrProvince('{{ val }}')"
                                 class="br-province-btn px-2.5 py-1 rounded-full text-xs border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer">
-                                {{ _(prov) }}
+                                {{ lbl }}
                             </button>
                             {% endfor %}
                         </div>
                     </div>
-                    {# industry selection #}
+                    {# industry selection — different shortlist by region #}
                     <div>
                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                             {{ _('行业') }} <span class="text-xs text-slate-400 font-normal">{{ _('（最多选 2 个）') }}</span>
                         </label>
                         <div id="br-industries" class="flex flex-wrap gap-1.5">
-                            {% for key, label in [('chemical',_('石化化工')),('energy',_('能源')),('manufacturing',_('制造业')),('shipbuilding',_('造船')),('semiconductor',_('半导体')),('tunnel_underground',_('隧道/地下')),('transportation',_('交通')),('datacenter',_('数据中心'))] %}
+                            {% if is_ovs %}
+                                {% set _industries = [
+                                    ('datacenter',     _('数据中心')),
+                                    ('hospitality',    _('酒店')),
+                                    ('healthcare',     _('医疗')),
+                                    ('manufacturing',  _('制造业')),
+                                    ('semiconductor',  _('半导体')),
+                                    ('transportation', _('交通')),
+                                    ('real_estate',    _('地产')),
+                                    ('shipbuilding',   _('造船'))
+                                ] %}
+                            {% else %}
+                                {% set _industries = [
+                                    ('chemical',          _('石化化工')),
+                                    ('energy',            _('能源')),
+                                    ('manufacturing',     _('制造业')),
+                                    ('shipbuilding',      _('造船')),
+                                    ('semiconductor',     _('半导体')),
+                                    ('tunnel_underground',_('隧道/地下')),
+                                    ('transportation',    _('交通')),
+                                    ('datacenter',        _('数据中心'))
+                                ] %}
+                            {% endif %}
+                            {% for key, label in _industries %}
                             <button type="button" data-br-industry="{{ key }}"
                                 onclick="toggleBrIndustry('{{ key }}')"
                                 class="br-industry-btn px-2.5 py-1 rounded-full text-xs border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer">
@@ -1739,8 +1784,14 @@
         tunnel_underground:'{{ _("隧道/地下") }}',
         transportation:    '{{ _("交通") }}',
         datacenter:        '{{ _("数据中心") }}',
+        hospitality:       '{{ _("酒店") }}',
+        healthcare:        '{{ _("医疗") }}',
+        real_estate:       '{{ _("地产") }}',
+        education:         '{{ _("教育") }}',
+        government:        '{{ _("政府") }}',
         other:             '{{ _("其他") }}',
     };
+    const _BR_IS_OVS = {{ 'true' if is_ovs else 'false' }};
 
     function openBatchResearchModal() {
         _brProvinces  = [];
@@ -1794,7 +1845,7 @@
             _brBtnOff(btn);
         } else {
             if (_brProvinces.length >= 2) {
-                document.getElementById('br-error').textContent = '{{ _("最多选择 2 个省份") }}';
+                document.getElementById('br-error').textContent = _BR_IS_OVS ? '{{ _("最多选择 2 个国家") }}' : '{{ _("最多选择 2 个省份") }}';
                 document.getElementById('br-error').classList.remove('hidden');
                 return;
             }
@@ -1856,7 +1907,7 @@
     function startBatchResearch() {
         if (!_brProvinces.length || !_brIndustries.length) {
             const err = document.getElementById('br-error');
-            err.textContent = '{{ _("请至少选择一个省份和一个行业") }}';
+            err.textContent = _BR_IS_OVS ? '{{ _("请至少选择一个国家和一个行业") }}' : '{{ _("请至少选择一个省份和一个行业") }}';
             err.classList.remove('hidden');
             return;
         }
@@ -1871,7 +1922,11 @@
                 'Content-Type': 'application/json',
                 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
             },
-            body: JSON.stringify({ provinces: _brProvinces, industries: _brIndustries }),
+            body: JSON.stringify(
+                _BR_IS_OVS
+                    ? { countries: _brProvinces, industries: _brIndustries }
+                    : { provinces: _brProvinces, industries: _brIndustries }
+            ),
         })
         .then(r => r.json())
         .then(data => {

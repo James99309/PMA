@@ -28543,3 +28543,36 @@ msgstr "Jiangxi"
 
 msgid "阶段 · 在建优先"
 msgstr "Stage · Construction first"
+
+msgid "新加坡"
+msgstr "Singapore"
+
+msgid "马来西亚"
+msgstr "Malaysia"
+
+msgid "印度尼西亚"
+msgstr "Indonesia"
+
+msgid "泰国"
+msgstr "Thailand"
+
+msgid "越南"
+msgstr "Vietnam"
+
+msgid "菲律宾"
+msgstr "Philippines"
+
+msgid "柬埔寨"
+msgstr "Cambodia"
+
+msgid "缅甸"
+msgstr "Myanmar"
+
+msgid "最多选择 2 个国家"
+msgstr "Choose at most 2 countries"
+
+msgid "请至少选择一个国家和一个行业"
+msgstr "Please select at least one country and one industry"
+
+msgid "Please select at least one country and one industry"
+msgstr "Please select at least one country and one industry"

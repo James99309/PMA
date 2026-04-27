@@ -421,7 +421,20 @@ class AIResearchService:
 
     @classmethod
     def _build_research_prompt(cls, search_name, search_term):
-        """构建完整调研的 AI 提示词"""
+        """构建完整调研的 AI 提示词 — 根据 IS_OVS 切换中/英文版本。"""
+        try:
+            from flask import current_app
+            is_ovs = bool(current_app.config.get('IS_OVS'))
+        except Exception:
+            is_ovs = False
+
+        if is_ovs:
+            return cls._build_research_prompt_sg(search_name, search_term)
+        return cls._build_research_prompt_cn(search_name, search_term)
+
+    @classmethod
+    def _build_research_prompt_cn(cls, search_name, search_term):
+        """中国大陆企业调研 prompt — 中文。"""
         return (
             f'请对"{search_name}"（搜索关键词：{search_term}）进行全面的企业调研。\n\n'
             f'请使用 web_search 工具搜索以下维度的信息：\n'
@@ -463,6 +476,63 @@ class AIResearchService:
             f'- risk_tag 用于标记高管的风险信息（如"被调查"、"已离职"），无风险则为 null\n'
             f'- sales_suggestions 请基于搜索结果中提到的真实业务方向给出建议\n'
             f'- **宁可留空也不要编造数据**'
+        )
+
+    @classmethod
+    def _build_research_prompt_sg(cls, search_name, search_term):
+        """SEA 企业调研 prompt — 英文，针对 SG/MY/ID/TH/VN 商业语境。"""
+        return (
+            f'Conduct a comprehensive corporate intelligence research on "{search_name}" '
+            f'(search keyword: {search_term}).\n\n'
+            f'Use the web_search tool to gather information across these dimensions:\n'
+            f'1. "{search_term}" company profile main business activities\n'
+            f'2. "{search_term}" recent projects awarded contracts\n'
+            f'3. "{search_term}" leadership executives directors\n'
+            f'4. "{search_term}" lawsuits litigation regulatory penalties compliance\n\n'
+            f'Useful regional registries / sources:\n'
+            f'- Singapore: ACRA, BCA, URA, EDB; Straits Times / Business Times\n'
+            f'- Malaysia: SSM, CIDB, MITI; The Edge / The Star\n'
+            f'- Indonesia: OSS / AHU, BKPM, PUPR; Bisnis.com / Kontan\n'
+            f'- Thailand: BOI, DBD; Bangkok Post / Nation\n'
+            f'- Vietnam: VIR / VN Express; provincial DPI portals\n'
+            f'- Philippines: SEC; Inquirer / BusinessWorld\n\n'
+            f'## Critical rule\n'
+            f'**DO NOT fabricate any information.** If a fact is not present in search results, leave the field empty '
+            f'(empty string "" or empty array []).\n'
+            f'- No placeholder names (no "John Doe", no generic titles).\n'
+            f'- Do not invent executive names, project names, contract values, or any data.\n'
+            f'- Only fill fields with verbatim facts from the search results.\n\n'
+            f'## Output format\n'
+            f'Return strict JSON only. No prose. Empty fields when not found.\n\n'
+            f'{{\n'
+            f'    "company_profile": {{\n'
+            f'        "founded": "",\n'
+            f'        "headquarters": "",\n'
+            f'        "positioning": "",\n'
+            f'        "main_business": [],\n'
+            f'        "revenue": "",\n'
+            f'        "strategy": ""\n'
+            f'    }},\n'
+            f'    "executives": [],\n'
+            f'    "active_projects": [],\n'
+            f'    "partners": {{\n'
+            f'        "general_contractors": [],\n'
+            f'        "ecosystem": [],\n'
+            f'        "key_customers": []\n'
+            f'    }},\n'
+            f'    "risk_alerts": [],\n'
+            f'    "sales_suggestions": []\n'
+            f'}}\n\n'
+            f'executives item format: {{"name": "real name", "title": "title", "background": "background", "risk_tag": null}}\n'
+            f'active_projects item format: {{"name": "project name", "amount": "value with currency", "type": "type", "partner": "partner", "status": "status", "detail": "description"}}\n'
+            f'risk_alerts item format: {{"level": "high/medium/low", "content": "description", "date": "date"}}\n\n'
+            f'Notes:\n'
+            f'- Extract only facts directly tied to "{search_name}".\n'
+            f'- risk_tag flags executive-level risk signals (e.g. "under investigation", "resigned"); use null when none.\n'
+            f'- sales_suggestions must reference real business areas mentioned in the search results — '
+            f'focus on opportunities for industrial communication systems (ELV / ICT / two-way radio / dispatch / IP intercom / PA).\n'
+            f'- All free-text fields must be in English.\n'
+            f'- **Prefer empty over fabricated.**'
         )
 
     # ═══ 项目 AI 调研 ═══════════════════════════════════════════
@@ -729,7 +799,20 @@ class AIResearchService:
 
     @classmethod
     def _build_project_research_prompt(cls, project_name, search_term=None):
-        """构建项目调研的 AI 提示词 — 8 个定向搜索维度（含智能化/弱电专项）"""
+        """构建项目调研的 AI 提示词 — 根据 IS_OVS 切换中/英文版本。"""
+        try:
+            from flask import current_app
+            is_ovs = bool(current_app.config.get('IS_OVS'))
+        except Exception:
+            is_ovs = False
+
+        if is_ovs:
+            return cls._build_project_research_prompt_sg(project_name, search_term)
+        return cls._build_project_research_prompt_cn(project_name, search_term)
+
+    @classmethod
+    def _build_project_research_prompt_cn(cls, project_name, search_term=None):
+        """中国大陆项目调研 prompt — 8 个定向搜索维度（含智能化/弱电专项）"""
         current_year = datetime.utcnow().year
         kw = search_term or project_name
         return (
@@ -793,4 +876,81 @@ class AIResearchService:
             f'- sales_suggestions 必须基于搜索到的**真实信息**，不要给通用建议\n'
             f'- 如果是非公开的小型项目搜不到信息，所有字段留空即可\n'
             f'- **宁可留空也不要编造数据**'
+        )
+
+    @classmethod
+    def _build_project_research_prompt_sg(cls, project_name, search_term=None):
+        """SEA 项目调研 prompt — 英文，使用本地术语 ELV / M&E / IBMS / BCA / URA。"""
+        current_year = datetime.utcnow().year
+        kw = search_term or project_name
+        return (
+            f'Conduct comprehensive public-domain research on the construction project "{project_name}".\n\n'
+            f'Use the web_search tool to run searches across the 8 dimensions below (one search per dimension):\n'
+            f'1. "{kw}" total investment GFA groundbreaking completion date\n'
+            f'2. "{kw}" developer main contractor M&E consultant\n'
+            f'3. "{kw}" planning approval BCA URA OSS BOI EIA permit\n'
+            f'4. "{kw}" {current_year} tender award progress milestone\n'
+            f'5. "{kw}" ELV ICT IBMS smart building communication two-way radio public address security tender award\n'
+            f'6. "{kw}" ELV consultant ICT specialist systems integrator specialist subcontractor\n'
+            f'7. "{kw}" developer investor authorized representative contact address email\n'
+            f'8. "{kw}" facility operator property management operations director\n\n'
+            f'Useful regional sources:\n'
+            f'- Singapore: BCA Construction Information Portal, URA, EDB, GeBIZ\n'
+            f'- Malaysia: CIDB, MyEPDM, MyGovernment tenders portal\n'
+            f'- Indonesia: PUPR, OSS, BKPM, LKPP\n'
+            f'- Thailand: BOI, e-GP, OneStart\n'
+            f'- Vietnam: National Public Procurement Network (muasamcong.mpi.gov.vn)\n'
+            f'- Philippines: PhilGEPS, DPWH\n\n'
+            f'## Critical rule\n'
+            f'**DO NOT fabricate any information.** If a fact is not present in search results, leave the field empty '
+            f'(empty string "" or empty array []).\n'
+            f'- Only fill fields with verbatim facts from the search results.\n'
+            f'- **Prefer empty over fabricated.**\n\n'
+            f'## Output format\n'
+            f'Return strict JSON only. No surrounding prose. Empty fields when not found.\n\n'
+            f'{{\n'
+            f'    "project_overview": {{\n'
+            f'        "description": "Project scope and built-form (English)",\n'
+            f'        "total_investment": "Total investment with currency (e.g. USD 800M, SGD 1.2B, RM 500M)",\n'
+            f'        "total_area": "GFA / total floor area",\n'
+            f'        "land_area": "Site area",\n'
+            f'        "start_date": "Groundbreaking date",\n'
+            f'        "completion_date": "Expected completion / TOP date",\n'
+            f'        "city": "City / district",\n'
+            f'        "address": "Full address",\n'
+            f'        "project_phase": "Current stage (Planning / Under Construction / Completed)"\n'
+            f'    }},\n'
+            f'    "stakeholders": {{\n'
+            f'        "investor": "Developer / owner entity",\n'
+            f'        "investor_address": "Developer registered address",\n'
+            f'        "investor_contact": "Developer contact (phone / email)",\n'
+            f'        "investor_legal_rep": "Authorized representative / managing director",\n'
+            f'        "key_contacts": [\n'
+            f'            {{"name": "name", "role": "role", "contact": "contact info"}}\n'
+            f'        ],\n'
+            f'        "general_contractor": "Main contractor",\n'
+            f'        "design_institute": "Lead M&E consultant / engineering consultancy",\n'
+            f'        "smart_systems_consultant": "ELV / ICT / IBMS consultant (if any)",\n'
+            f'        "smart_systems_integrator": "ELV / smart-building systems integrator (if any)",\n'
+            f'        "operator": "Facility operator / property management",\n'
+            f'        "operator_contact": "Operator contact and lead person (if any)",\n'
+            f'        "subcontractors": ["Other known specialist subcontractors"]\n'
+            f'    }},\n'
+            f'    "smart_systems_procurement": {{\n'
+            f'        "status": "ELV / ICT package status: Tendered / Tendering / Not Started / Unknown",\n'
+            f'        "bid_records": [\n'
+            f'            {{"project": "Sub-package name", "winner": "Awarded company", "amount": "Awarded value with currency", "date": "Tender / award date"}}\n'
+            f'        ]\n'
+            f'    }},\n'
+            f'    "recent_updates": [\n'
+            f'        {{"date": "YYYY-MM-DD", "content": "Update description (English)", "type": "Tender / Award / Groundbreaking / Approval / Notice / Completion"}}\n'
+            f'    ],\n'
+            f'    "sales_suggestions": ["Sales angle based on real search findings — focus on industrial communication systems (two-way radio, dispatch console, IP intercom, public address)"]\n'
+            f'}}\n\n'
+            f'Notes:\n'
+            f'- Sort recent_updates by date descending (newest first).\n'
+            f'- sales_suggestions must reference **real findings** from search results — no generic advice.\n'
+            f'- If the project is small or non-public and nothing is found, leave all fields empty.\n'
+            f'- All free-text fields must be in English.\n'
+            f'- **Prefer empty over fabricated.**'
         )

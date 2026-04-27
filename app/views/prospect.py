@@ -570,27 +570,8 @@ def intel_ai_research(id):
         _research_semaphore.release()
 
 
-@prospect_bp.route('/batch-research', methods=['POST'])
-@login_required
-@permission_required('project', 'view')
-def batch_research():
-    """批量调研：按省份+行业触发 AI 搜索，返回新项目列表供用户选择后批量入库。"""
-    from app.services.claude_research_provider import send_claude_research_request
-    import json
-    import re
-
-    body = request.get_json() or {}
-    provinces = body.get('provinces') or []
-    industries = body.get('industries') or []
-
-    if not provinces or not industries:
-        return jsonify(success=False, message='请至少选择一个省份和一个行业'), 400
-
-    provinces = provinces[:2]
-    industries = industries[:2]
-
-    current_year = datetime.now().year
-
+def _build_batch_prompt_cn(provinces, industries, current_year):
+    """中国大陆批量调研 prompt — 中文 + 省份。"""
     industry_name_map = {
         'chemical':          '石化化工（炼化/乙烯/PTA等大型装置）',
         'energy':            '能源（火电厂/变电站/油气储运）',
@@ -605,7 +586,7 @@ def batch_research():
     province_str = '、'.join(provinces)
     industry_str = '；'.join(industry_zh)
 
-    prompt = f"""你是工业通信系统（对讲机/调度系统）销售的情报分析师。
+    return f"""你是工业通信系统（对讲机/调度系统）销售的情报分析师。
 使用 web_search 工具搜索以下省份和行业在 {current_year} 年的新建/改造大型工程项目。
 
 目标省份：{province_str}
@@ -669,17 +650,137 @@ def batch_research():
 4. 没有公开信息的字段设为 null，不要编造
 5. 输出完整合法的 JSON"""
 
+
+def _build_batch_prompt_sg(countries, industries, current_year):
+    """SEA 批量调研 prompt — 英文 + 国家 + ELV/M&E 术语。"""
+    industry_name_map = {
+        'datacenter':        'Data Center (hyperscale / colocation / AI compute campus)',
+        'hospitality':       'Hotel & Resort (5-star hotels, integrated resorts, serviced apartments)',
+        'healthcare':        'Healthcare (hospitals, medical centers, specialty clinics)',
+        'manufacturing':     'Manufacturing (industrial plants, EV/battery factories, large workshops)',
+        'semiconductor':     'Semiconductor (wafer fab, OSAT, advanced packaging)',
+        'transportation':    'Transportation (port, airport, MRT, rail, expressway)',
+        'real_estate':       'Commercial Real Estate (mixed-use, Grade-A office, retail mall)',
+        'shipbuilding':      'Shipbuilding & Marine (shipyard, dry dock, offshore yard)',
+        'energy':            'Energy (power plant, LNG terminal, solar/renewable)',
+        'education':         'Education (university campus, international school)',
+        'government':        'Government (public infrastructure, civic complex)',
+    }
+    industry_en = [industry_name_map.get(i, i) for i in industries]
+    country_str = ' / '.join(countries)
+    industry_str = ' | '.join(industry_en)
+
+    return f"""You are an intelligence analyst for an industrial communication systems vendor (two-way radios, dispatch consoles, IP intercom, public address) selling into Southeast Asia.
+Use the web_search tool to find new-build / major-upgrade projects in {current_year} across the target countries and industries below.
+
+TARGET COUNTRIES: {country_str}
+TARGET INDUSTRIES: {industry_str}
+
+[SEARCH STRATEGY — run several searches per country+industry]
+
+Step 1 — Find projects (per country + industry combo):
+- "[country] [industry keyword] new project {current_year} announcement developer"
+- "[country] [industry keyword] groundbreaking {current_year} site"
+- "[country] regulatory approval {current_year} [industry keyword]"  (BCA / URA / EDB for SG; CIDB for MY; PUPR / OSS for ID; BOI for TH)
+
+Step 2 — Find Main Contractor / M&E Consultant:
+- "[project name] main contractor awarded"
+- "[project name] M&E consultant" or "[project name] MEP design"
+- "[developer] [project keyword] tender awarded"
+
+Step 3 — Find ELV / ICT / Smart Building consultancies (where the radio + intercom + PA scope sits):
+- "[project name] ELV consultant" or "[project name] ICT specialist"
+- "[project name] IBMS integrator" / "[project name] smart building systems"
+- "[M&E consultant] ELV department contact" / "career opening communication systems engineer"
+
+[KEY DEPARTMENTS WORTH NAMING]
+- Data Center / Semiconductor / Hospital: ELV / ICT / IBMS team inside the M&E consultancy
+- Manufacturing / Shipyard: Engineering / E&I (electrical & instrumentation) team
+- Port / Airport / MRT: Communication & Control Systems team
+- Hotel / Real Estate: Building Services / Smart Building team
+
+[OUTPUT FORMAT — strict JSON, output JSON only, no surrounding prose]
+{{
+  "projects": [
+    {{
+      "project_name": "Full official project name",
+      "region": "country (e.g. Singapore, Malaysia, Indonesia, Thailand, Vietnam, Philippines, Cambodia, Myanmar)",
+      "city": "city / district (e.g. Johor Bahru, Batam) or null",
+      "industry": "industry key — must be one of: datacenter / hospitality / healthcare / manufacturing / semiconductor / transportation / real_estate / shipbuilding / energy / education / government / other",
+      "stage": "planning",
+      "total_investment": "amount with currency (e.g. USD 800M, SGD 1.2B, RM 500M) or null",
+      "description": "2-4 sentence summary of project scope and scale (English)",
+      "progress": "latest construction milestone with date (1-3 sentences, English) or null",
+      "stakeholders": [
+        {{
+          "stakeholder_type": "owner / design / epc / construction / other",
+          "company_name": "full registered company name",
+          "department": "department name (e.g. ELV Department, ICT Team) or null",
+          "address": "address or null",
+          "phone": "phone or null",
+          "contact_person": "contact name or null",
+          "email": "email or null",
+          "website": "official site or null",
+          "business_scope": "business scope or null",
+          "notes": "notes or null"
+        }}
+      ]
+    }}
+  ]
+}}
+
+Rules:
+1. Run at least 3-5 searches before producing output.
+2. Find 1-2 projects (more if available) per country + industry combo.
+3. Each project must include at least one Owner/Developer and one M&E Consultant or Main Contractor.
+4. Use null for any field not explicitly stated in search results — do not fabricate.
+5. Use 'design' stakeholder_type for M&E / ELV consultants. Use 'epc' for design-and-build / EPC contractors.
+6. All free-text fields must be in English.
+7. Output complete, valid JSON only."""
+
+
+@prospect_bp.route('/batch-research', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def batch_research():
+    """批量调研：按地区(省份/国家)+行业触发 AI 搜索。CN 用省份+中文 prompt，SG 用国家+英文 prompt。"""
+    from app.services.claude_research_provider import send_claude_research_request
+    from config import Config
+    import json
+    import re
+
+    body = request.get_json() or {}
+    is_ovs = bool(getattr(Config, 'IS_OVS', False))
+    # SG 传 countries，CN 传 provinces；为兼容也接受任一键
+    regions = body.get('countries') if is_ovs else body.get('provinces')
+    if not regions:
+        regions = body.get('provinces') or body.get('countries') or []
+    industries = body.get('industries') or []
+
+    if not regions or not industries:
+        msg = _('请至少选择一个省份和一个行业') if not is_ovs else _('Please select at least one country and one industry')
+        return jsonify(success=False, message=msg), 400
+
+    regions = regions[:2]
+    industries = industries[:2]
+
+    current_year = datetime.now().year
+    if is_ovs:
+        prompt = _build_batch_prompt_sg(regions, industries, current_year)
+    else:
+        prompt = _build_batch_prompt_cn(regions, industries, current_year)
+
     _recover_stale_logs()
 
     # 非管理员每日配额检查
     if not is_admin_or_ceo(current_user):
         remaining = _batch_quota_remaining(current_user.id)
         if remaining <= 0:
-            return jsonify(success=False, message='今日批量调研次数已达上限（3次），明日再试'), 429
+            return jsonify(success=False, message=_('今日批量调研次数已达上限（3次），明日再试')), 429
 
     acquired = _research_semaphore.acquire(timeout=10)
     if not acquired:
-        return jsonify(success=False, message='调研队列繁忙（最多2个并发），请稍后重试'), 429
+        return jsonify(success=False, message=_('调研队列繁忙（最多2个并发），请稍后重试')), 429
 
     log = _log_research(current_user.id, 'batch')
     try:
@@ -687,7 +788,7 @@ def batch_research():
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m:
             _finish_log(log, False)
-            return jsonify(success=False, message='AI 未返回有效 JSON'), 500
+            return jsonify(success=False, message=_('AI 未返回有效 JSON')), 500
         data = json.loads(m.group())
         ai_projects = data.get('projects') or []
 
