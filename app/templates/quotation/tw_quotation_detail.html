@@ -1079,7 +1079,7 @@
 
             tbody.querySelectorAll('tr[data-row-id]').forEach(function(mainRow) {
                 var rowId = String(mainRow.getAttribute('data-row-id'));
-                var rowObj = instance.rows.find(function(r) { return String(r.id) === rowId; });
+                var rowObj = instance.rows.find(function(r) { return String(r.rowId) === rowId; });
                 var itemId = rowObj && rowObj.data.item_id ? String(rowObj.data.item_id) : rowId;
                 var note = _qNotes[itemId] || '';
 
@@ -1333,7 +1333,7 @@
                     }
                     // Merge item_note: resolve key via row's item_id or rowId fallback
                     var rowId = _qTrs[idx] ? String(_qTrs[idx].getAttribute('data-row-id')) : '';
-                    var rowObj = rowId && _qInst ? _qInst.rows.find(function(r) { return String(r.id) === rowId; }) : null;
+                    var rowObj = rowId && _qInst ? _qInst.rows.find(function(r) { return String(r.rowId) === rowId; }) : null;
                     var itemId = rowObj && rowObj.data && rowObj.data.item_id ? String(rowObj.data.item_id) : rowId;
                     d.item_note = _qNotes[itemId] || '';
                     totalAmount += parseFloat(d.total_price) || 0;
