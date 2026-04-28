@@ -497,7 +497,14 @@ def create_app(config_class=Config):
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
     app.register_blueprint(backup_bp)
-    
+
+    # 注册 geo_monitor 蓝图（导航菜单引用了它的 endpoint）
+    try:
+        from app.routes.geo_monitor import geo_monitor_bp
+        app.register_blueprint(geo_monitor_bp, url_prefix='/geo')
+    except Exception as e:
+        logger.warning(f"geo_monitor 蓝图未注册: {e}")
+
     # 注册绩效管理蓝图
     register_performance_routes(app)
 
