@@ -213,11 +213,13 @@ def api_ai_leaderboard():
                     'total_tokens': 0,
                     'chat_tokens': 0,
                     'cli_tokens': 0,
+                    'proxy_tokens': 0,
                     'estimated_cost': 0.0,
                 }
             user_totals[uid]['total_tokens']   += u['total_tokens']
             user_totals[uid]['chat_tokens']    += u.get('chat_tokens', 0)
             user_totals[uid]['cli_tokens']     += u.get('cli_tokens', 0)
+            user_totals[uid]['proxy_tokens']   += u.get('proxy_tokens', 0)
             user_totals[uid]['estimated_cost'] += u['estimated_cost']
 
     sorted_users = sorted(user_totals.values(), key=lambda x: x['total_tokens'], reverse=True)
@@ -236,6 +238,7 @@ def api_ai_leaderboard():
             'total_tokens': u['total_tokens'],
             'chat_tokens': u['chat_tokens'],
             'cli_tokens': u['cli_tokens'],
+            'proxy_tokens': u['proxy_tokens'],
             'estimated_cost': round(u['estimated_cost'], 4),
             'is_me': u['user_id'] == current_user.id,
         })
