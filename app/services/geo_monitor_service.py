@@ -1,3 +1,4 @@
+import re
 import requests
 import json
 import logging
@@ -17,7 +18,10 @@ def get_setting(key, default=None):
 
 def call_proxy(messages, tools=None):
     """Call Mac Mini proxy with optional web_search tool."""
-    url = get_setting('proxy_url') + '/v1/messages'
+    proxy_url = get_setting('proxy_url')
+    if not proxy_url:
+        raise ValueError("GEO proxy_url not configured in GeoSettings")
+    url = proxy_url.rstrip('/') + '/v1/messages'
     token = get_setting('proxy_token')
     payload = {
         'model': 'claude-sonnet-4-6-20251101',
@@ -57,7 +61,7 @@ Use natural language that a buyer in each market would actually type."""
     resp = call_proxy([{'role': 'user', 'content': prompt}])
     text = next((b['text'] for b in resp.get('content', []) if b.get('type') == 'text'), '{}')
     # Strip markdown code blocks if present
-    text = text.strip().strip('```json').strip('```').strip()
+    text = re.sub(r'^```(?:json)?\s*|\s*```$', '', text.strip())
     return json.loads(text)
 
 
