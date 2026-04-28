@@ -95,6 +95,13 @@
       width: 100%; border: none; outline: none; background: transparent;
       padding: 0; font-size: inherit; color: inherit; font-family: inherit; resize: none;
     }
+    /* 去掉 forms 插件给 input/select 加的 focus ring（只用 td 的蓝边高亮） */
+    td.editable input:focus, td.editable select:focus, td.editable textarea:focus {
+      box-shadow: none !important; outline: none !important;
+      --tw-ring-shadow: 0 0 #0000 !important;
+      --tw-ring-offset-shadow: 0 0 #0000 !important;
+      border-color: transparent !important;
+    }
     /* 隐藏 number input 的上下箭头（保持表格视觉简洁） */
     td.editable input[type="number"]::-webkit-outer-spin-button,
     td.editable input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
