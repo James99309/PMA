@@ -1,0 +1,728 @@
+{#
+=============================================================================
+报价单编辑器 (Excel-like 全屏页面) — Beta 共存模式
+=============================================================================
+- 路由: GET /quotation/<id>/edit  或  GET /quotation/create[?project_id=X]
+- 后端 helper: views/quotation.py: _render_excel_editor()
+- 提交: POST /quotation/<id>/save (编辑)  或  POST /quotation/create (新建)
+- 字段级抬头/签名保存: POST /quotation/api/user/quotation_template
+
+设计参考: /Users/nijie/Downloads/quotation-edit-mockup.html
+=============================================================================
+#}
+{% set quotation_id = quotation.id if quotation else 0 %}
+{% set is_edit = quotation is not none %}
+{% set page_title = (_('编辑报价单') ~ ' · ' ~ quotation.quotation_number) if is_edit else _('新建报价单') %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+  <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{{ page_title }}</title>
+
+  <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: { colors: { "primary": "#137fec" }, fontFamily: { "display": ["Inter","sans-serif"] } } }
+    }
+  </script>
+  <style>
+    body { background: #cfd2d7; font-family: 'Inter', 'Calibri', -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20; }
+
+    .quotation-paper {
+      background: #fff;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.15);
+      margin: 24px auto;
+      width: 1200px;
+      max-width: calc(100vw - 32px);
+      padding: 36px 50px 50px 50px;
+      box-sizing: border-box;
+    }
+    table.q-grid { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+    table.q-grid td {
+      border: 1px solid #b3b3b3;
+      padding: 4px 8px; vertical-align: middle; background: #fff;
+      line-height: 1.35; color: #000; word-wrap: break-word; overflow: hidden;
+    }
+    td.no-border { border: none !important; padding: 2px 8px; background: transparent; }
+
+    .company-name, .company-info { background: transparent !important; padding: 2px 4px !important; }
+    .company-name input, .company-info input {
+      width: 100%; border: 1px dashed transparent; outline: none; background: transparent;
+      padding: 2px 4px; font-family: inherit; color: inherit;
+    }
+    .company-name input { font-size: 18px; font-weight: 700; }
+    .company-info input { font-size: 11px; }
+    .company-name input:hover, .company-info input:hover { border-color: #cbd5e1; background: #f8fafc; }
+    .company-name input:focus, .company-info input:focus { border-color: #137fec; border-style: solid; background: #fff; box-shadow: 0 0 0 2px rgba(19,127,236,0.15); }
+
+    .logo-uploader {
+      width: 88px; height: 88px; border: 1.5px dashed #cbd5e1; border-radius: 8px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      color: #94a3b8; font-size: 11px; cursor: pointer; transition: all 0.15s;
+      position: relative; overflow: hidden;
+    }
+    .logo-uploader:hover { border-color: #137fec; color: #137fec; background: #eff6ff; }
+    .logo-uploader .material-symbols-outlined { font-size: 24px; margin-bottom: 2px; }
+    .logo-uploader input[type="file"] { display: none; }
+    .logo-uploader img { width: 100%; height: 100%; object-fit: contain; }
+
+    .title-cell {
+      font-size: 24px; font-weight: 700; text-align: center;
+      padding: 10px 0 !important; letter-spacing: 1px; background: transparent !important;
+    }
+    td.label { font-weight: 700; }
+    td.readonly { background: #fafbfc; color: #475569; }
+    td.editable { background: #fff; cursor: text; }
+    td.editable:hover { background: #f0f7ff; }
+    td.editable:focus-within { background: #fff; box-shadow: inset 0 0 0 2px #137fec; outline: none; }
+    td.editable input, td.editable select, td.editable textarea {
+      width: 100%; border: none; outline: none; background: transparent;
+      padding: 0; font-size: inherit; color: inherit; font-family: inherit; resize: none;
+    }
+    td.editable select {
+      appearance: none; padding-right: 14px;
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+      background-position: right 0 center; background-repeat: no-repeat; background-size: 12px;
+    }
+
+    td.product-th { background: #f8fafc !important; font-weight: 700; text-align: center; font-size: 12px; padding: 6px 8px; }
+    td.draggable-col { cursor: grab; border-style: dashed; border-color: #137fec !important; color: #137fec; background: #eff6ff !important; }
+    td.draggable-col::after { content: " ↔"; opacity: 0.6; font-weight: 400; }
+    td.draggable-col.dragging { opacity: 0.4; }
+    td.draggable-col.drop-target { box-shadow: inset 4px 0 0 #137fec; }
+
+    tr.product-row td { font-size: 11px; padding: 4px 8px; }
+    tr.section-row td { font-weight: 600; text-align: center; }
+    tr.section-row td.section-label-cell { text-align: left; padding-left: 12px; font-weight: 600; color: #1e293b; }
+    tr.section-row td.section-label-cell input { width: 80%; border: none; background: transparent; outline: none; font-weight: 600; }
+    tr.config-row td.product-name-cell::before { content: "└ "; color: #94a3b8; margin-right: 2px; }
+
+    td.drag-handle {
+      border: none !important; background: transparent !important;
+      cursor: grab; color: transparent; user-select: none;
+      text-align: center; padding: 0 !important; transition: color 0.15s;
+    }
+    tr:hover > td.drag-handle { color: #94a3b8; }
+    td.drag-handle:hover { color: #1e293b !important; }
+    td.drag-handle.config-handle { cursor: not-allowed; }
+    tr:hover > td.drag-handle.config-handle { color: #e2e8f0; }
+    td.drag-handle.config-handle:hover { color: #cbd5e1 !important; }
+
+    td.delete-cell { border: none !important; background: transparent !important; text-align: center; padding: 0 !important; }
+    td.delete-cell .material-symbols-outlined { cursor: pointer; color: transparent; transition: color 0.15s; }
+    tr:hover > td.delete-cell .material-symbols-outlined { color: #94a3b8; }
+    td.delete-cell .material-symbols-outlined:hover { color: #ef4444 !important; }
+
+    tr.total-row td { font-weight: 700; }
+    tr.total-row td.total-label { text-align: left; padding-left: 12px; }
+    tr.total-row td.total-value { text-align: right; }
+    tr.total-final-row td.total-label, tr.total-final-row td.total-value { background: #fef3c7 !important; }
+
+    td.sign-blank { border: none !important; height: 40px; background: transparent; }
+    span.sign-line {
+      display: inline-block; border-top: 1.5px solid #000;
+      padding: 6px 8px 0; font-weight: 700; font-size: 12px;
+      min-width: 280px; text-align: left;
+    }
+    span.sign-line input {
+      width: 100%; border: none; outline: none; background: transparent;
+      padding: 0; font-family: inherit; color: inherit; font-weight: inherit;
+      font-size: inherit; font-style: inherit;
+    }
+
+    td.hidden-col {
+      padding: 0 !important; border: 0 !important; width: 0 !important; max-width: 0 !important;
+      overflow: hidden !important; font-size: 0 !important; line-height: 0 !important;
+      color: transparent !important; background: transparent !important;
+    }
+    td.hidden-col * { visibility: hidden !important; }
+
+    .editable-field { position: relative; display: block; }
+    .editable-field input { padding-right: 56px !important; }
+    .field-actions {
+      position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+      display: none; gap: 3px; z-index: 5;
+      height: calc(100% - 4px); align-items: center;
+    }
+    .editable-field.is-dirty:hover .field-actions,
+    .editable-field.is-dirty:focus-within .field-actions { display: inline-flex; }
+    .field-actions button {
+      height: 22px; width: 22px; border: 1px solid #cbd5e1; border-radius: 4px;
+      background: #fff; cursor: pointer; display: inline-flex;
+      align-items: center; justify-content: center; padding: 0;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .field-actions button .material-symbols-outlined { font-size: 14px; }
+    .field-actions .save-btn { color: #137fec; }
+    .field-actions .save-btn:hover { background: #eff6ff; border-color: #137fec; }
+    .field-actions .reset-btn { color: #64748b; }
+    .field-actions .reset-btn:hover { background: #f1f5f9; color: #ef4444; border-color: #ef4444; }
+    .editable-field.is-dirty input { background: #fffbea !important; }
+
+    @media print {
+      body { background: white; }
+      header, .field-actions, td.drag-handle, td.delete-cell { display: none !important; }
+      .quotation-paper { box-shadow: none; margin: 0; padding: 10mm; }
+    }
+  </style>
+</head>
+<body class="text-slate-900">
+
+<header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-30 shadow-sm h-14">
+  <div class="flex items-center gap-3">
+    <a href="{% if is_edit %}{{ url_for('quotation.view_quotation', id=quotation.id) }}{% else %}{{ url_for('quotation.list_quotations') }}{% endif %}" class="text-slate-500 hover:text-slate-700">
+      <span class="material-symbols-outlined">arrow_back</span>
+    </a>
+    <div>
+      <h1 class="text-sm font-semibold text-slate-900">{{ page_title }}</h1>
+      {% if is_edit and quotation.project %}<p class="text-xs text-slate-500">{{ quotation.project.project_name }}</p>{% endif %}
+    </div>
+    <span class="ml-3 text-[10px] uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">Beta</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <div class="relative">
+      <button type="button" class="px-3 py-1.5 rounded-md text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5" onclick="document.getElementById('colMenu').classList.toggle('hidden')">
+        <span class="material-symbols-outlined text-base">view_column</span>{{ _('显示列') }}
+      </button>
+      <div id="colMenu" class="hidden absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg p-2 w-52 z-30">
+        <label class="flex items-center gap-2 p-1.5 text-sm hover:bg-slate-50 rounded cursor-pointer"><input type="checkbox" checked onchange="QuotationEditor.toggleCol('discount', this.checked)" class="rounded text-primary focus:ring-primary"> {{ _('折扣%') }}</label>
+        <label class="flex items-center gap-2 p-1.5 text-sm hover:bg-slate-50 rounded cursor-pointer"><input type="checkbox" checked onchange="QuotationEditor.toggleCol('market', this.checked)" class="rounded text-primary focus:ring-primary"> {{ _('市场价') }}</label>
+        <label class="flex items-center gap-2 p-1.5 text-sm hover:bg-slate-50 rounded cursor-pointer"><input type="checkbox" checked onchange="QuotationEditor.toggleCol('product_mn', this.checked)" class="rounded text-primary focus:ring-primary"> {{ _('产品编码') }}</label>
+      </div>
+    </div>
+    <div class="relative">
+      <button type="button" class="px-3 py-1.5 rounded-md text-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5" onclick="document.getElementById('addMenu').classList.toggle('hidden')">
+        <span class="material-symbols-outlined text-base">add</span>{{ _('添加行') }}<span class="material-symbols-outlined text-base">expand_more</span>
+      </button>
+      <div id="addMenu" class="hidden absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg py-1 w-52 z-30">
+        <button type="button" class="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2" onclick="QuotationEditor.addRow('product')"><span class="material-symbols-outlined text-base">inventory_2</span>{{ _('从产品库添加') }}</button>
+        <button type="button" class="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2" onclick="QuotationEditor.addRow('custom')"><span class="material-symbols-outlined text-base">edit_note</span>{{ _('添加自建产品') }}</button>
+        <button type="button" class="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2" onclick="QuotationEditor.addRow('section')"><span class="material-symbols-outlined text-base">label</span>{{ _('添加标注行') }}</button>
+      </div>
+    </div>
+    <button type="button" onclick="window.print()" class="px-3 py-1.5 rounded-md text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5">
+      <span class="material-symbols-outlined text-base">print</span>{{ _('打印') }}
+    </button>
+    <a href="{% if is_edit %}{{ url_for('quotation.view_quotation', id=quotation.id) }}{% else %}{{ url_for('quotation.list_quotations') }}{% endif %}" class="px-3 py-1.5 rounded-md text-sm bg-slate-100 hover:bg-slate-200 text-slate-700">{{ _('取消') }}</a>
+    <button type="button" onclick="QuotationEditor.submit()" class="px-3 py-1.5 rounded-md text-sm bg-emerald-600 hover:bg-emerald-700 text-white">{{ _('保存') }}</button>
+  </div>
+</header>
+
+<div class="quotation-paper" id="quotationPaper">
+  <table class="q-grid" style="margin-bottom:8px">
+    <colgroup><col style="width: 100px"><col></colgroup>
+    <tbody>
+      <tr>
+        <td class="no-border" rowspan="3" style="text-align:center;vertical-align:middle">
+          <label class="logo-uploader" id="logoUploader" title="{{ _('点击上传公司 LOGO') }}">
+            {% if user_letterhead.logo_url %}<img src="{{ user_letterhead.logo_url }}" alt="LOGO">{% else %}<span class="material-symbols-outlined">image</span>LOGO{% endif %}
+            <input type="file" accept="image/*" onchange="QuotationEditor.uploadLogo(this)">
+          </label>
+        </td>
+        <td class="no-border company-name">
+          <div class="editable-field">
+            <input data-field="letterhead.line1" data-default="{{ user_letterhead.line1 or 'EVERTAC SOLUTIONS SINGAPORE PTE. LTD.' }}" value="{{ user_letterhead.line1 or 'EVERTAC SOLUTIONS SINGAPORE PTE. LTD.' }}">
+            {% include 'quotation/_field_actions.html' %}
+          </div>
+        </td>
+      </tr>
+      <tr><td class="no-border company-info">
+        <div class="editable-field">
+          <input data-field="letterhead.line2" data-default="{{ user_letterhead.line2 or '18 Boon Lay Way, #03-117 Tradehub 21, Singapore 609966' }}" value="{{ user_letterhead.line2 or '18 Boon Lay Way, #03-117 Tradehub 21, Singapore 609966' }}">
+          {% include 'quotation/_field_actions.html' %}
+        </div>
+      </td></tr>
+      <tr><td class="no-border company-info">
+        <div class="editable-field">
+          <input data-field="letterhead.line3" data-default="{{ user_letterhead.line3 or 'UEN No/GST Reg. No.: 202230146C    Website: www.evertac-solutions.com' }}" value="{{ user_letterhead.line3 or 'UEN No/GST Reg. No.: 202230146C    Website: www.evertac-solutions.com' }}">
+          {% include 'quotation/_field_actions.html' %}
+        </div>
+      </td></tr>
+    </tbody>
+  </table>
+
+  <div class="title-cell">QUOTATION</div>
+
+  <table class="q-grid" id="mainGrid">
+    <colgroup>
+      <col style="width: 26px">
+      <col style="width: 4%"><col style="width: 13%"><col style="width: 12%">
+      <col><col style="width: 7%"><col style="width: 9%">
+      <col style="width: 9%"><col style="width: 6%"><col style="width: 11%">
+      <col style="width: 28px">
+    </colgroup>
+    <tbody id="customerInfoBody">
+      <tr>
+        <td style="border:none;background:transparent"></td>
+        <td class="label" colspan="3">{{ _('关联客户') }}: <span class="text-red-500">*</span></td>
+        <td class="editable" colspan="3"><select id="customerSelect" required><option value="">{{ _('-- 请先选择项目 --') }}</option></select></td>
+        <td class="label" colspan="2">{{ _('报价编号') }}:</td>
+        <td class="readonly">{{ quotation.quotation_number if is_edit else _('（保存后生成）') }}</td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+      <tr>
+        <td style="border:none;background:transparent"></td>
+        <td class="label" colspan="3">{{ _('关联项目') }}: <span class="text-red-500">*</span></td>
+        <td class="editable" colspan="3" style="position:relative">
+          <input type="text" id="projectSearch" placeholder="{{ _('搜索项目...') }}" autocomplete="off" value="{{ quotation.project.project_name if is_edit and quotation.project else (preset_project.project_name if preset_project else '') }}">
+          <input type="hidden" id="projectId" value="{{ quotation.project_id if is_edit else (preset_project.id if preset_project else '') }}">
+          <div id="projectDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"></div>
+        </td>
+        <td class="label" colspan="2">{{ _('报价日期') }}:</td>
+        <td class="readonly">{{ quotation.created_at.strftime('%Y-%m-%d') if is_edit else '' }}</td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+      <tr>
+        <td style="border:none;background:transparent"></td>
+        <td class="label" colspan="3">{{ _('联系人') }}:</td>
+        <td class="editable" colspan="3"><select id="contactSelect"><option value="">--</option></select></td>
+        <td class="label" colspan="2">{{ _('货币') }}:</td>
+        <td class="editable">
+          <select id="currencySelect">
+            {% for code, name in currency_options %}
+            <option value="{{ code }}" {% if code == default_currency %}selected{% endif %}>{{ code }}</option>
+            {% endfor %}
+          </select>
+        </td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+    </tbody>
+
+    <tbody id="productHeader">
+      <tr>
+        <td style="border:none;background:transparent"></td>
+        <td class="product-th">S/N</td>
+        <td class="product-th draggable-col" data-col-key="product_mn" draggable="true">{{ _('产品编码') }}</td>
+        <td class="product-th draggable-col" data-col-key="brand" draggable="true">{{ _('品牌') }}</td>
+        <td class="product-th draggable-col" data-col-key="description" draggable="true">{{ _('描述/型号/规格') }}</td>
+        <td class="product-th">{{ _('折扣%') }}</td>
+        <td class="product-th">{{ _('市场价') }}</td>
+        <td class="product-th">{{ _('单价') }}</td>
+        <td class="product-th">{{ _('数量') }}</td>
+        <td class="product-th">{{ _('小计') }}</td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+    </tbody>
+
+    <tbody id="productBody"></tbody>
+
+    <tbody id="totalBody">
+      <tr class="total-row">
+        <td colspan="5" style="border:none;background:transparent"></td>
+        <td class="total-label" colspan="4">{{ _('Total before GST') }}</td>
+        <td class="total-value" id="subtotalCell">0.00</td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="5" style="border:none;background:transparent"></td>
+        <td class="total-label" colspan="4">{{ _('GST') }}</td>
+        <td class="editable total-value"><input type="number" id="gstInput" value="0" style="text-align:right;font-weight:700"></td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+      <tr class="total-row total-final-row">
+        <td colspan="5" style="border:none;background:transparent"></td>
+        <td class="total-label" colspan="4">{{ _('Total after GST') }}</td>
+        <td class="total-value" id="totalCell">0.00</td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+      <tr>
+        <td style="border:none;background:transparent"></td>
+        <td class="label" colspan="2" style="vertical-align:top">{{ _('备注') }}:</td>
+        <td class="editable" colspan="7"><textarea id="notesInput" rows="2" placeholder="{{ _('输入报价单备注...') }}">{% if is_edit %}{{ quotation.notes or '' }}{% endif %}</textarea></td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="q-grid" style="margin-top:40px">
+    <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+    <tbody>
+      <tr>
+        <td class="sign-blank"></td>
+        <td class="no-border" style="font-weight:700;font-size:12px">{{ _('Signed and Accepted by Customer:') }}</td>
+      </tr>
+      <tr><td class="sign-blank"></td><td class="sign-blank"></td></tr>
+      <tr>
+        <td class="no-border" style="vertical-align:top">
+          <div class="editable-field" style="display:inline-block">
+            <span class="sign-line"><input data-field="signature.left" data-default="{{ user_signature.left or 'Evertac Solutions Singapore Pte. Ltd.' }}" value="{{ user_signature.left or 'Evertac Solutions Singapore Pte. Ltd.' }}"></span>
+            <span class="field-actions" style="right:-58px">
+              <button type="button" class="save-btn" title="{{ _('保存为账户默认') }}"><span class="material-symbols-outlined">save</span></button>
+              <button type="button" class="reset-btn" title="{{ _('恢复系统默认') }}"><span class="material-symbols-outlined">undo</span></button>
+            </span>
+          </div>
+        </td>
+        <td class="no-border" style="vertical-align:top">
+          <div class="editable-field" style="display:inline-block">
+            <span class="sign-line" style="font-weight:400;font-size:11px;font-style:italic"><input data-field="signature.right" data-default="{{ user_signature.right or 'chop & sign' }}" value="{{ user_signature.right or 'chop & sign' }}"></span>
+            <span class="field-actions" style="right:-58px">
+              <button type="button" class="save-btn" title="{{ _('保存为账户默认') }}"><span class="material-symbols-outlined">save</span></button>
+              <button type="button" class="reset-btn" title="{{ _('恢复系统默认') }}"><span class="material-symbols-outlined">undo</span></button>
+            </span>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+window.QuotationEditor = (function() {
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+  const isEdit = {{ 'true' if is_edit else 'false' }};
+  const quotationId = {{ quotation_id }};
+  const initialDetails = {{ quotation_details_json | safe }};
+  let nextRowId = 0;
+  const rows = [];
+
+  function makeRowId() { return 'r' + (++nextRowId); }
+  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+  function formatNum(n) { const v = parseFloat(n) || 0; return v.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+
+  function renderProductRows() {
+    const tbody = document.getElementById('productBody');
+    tbody.innerHTML = '';
+    let serial = 0, lastMainRowId = null, configIndex = {};
+    rows.forEach(row => {
+      if (row.data.row_type === 'section') tbody.appendChild(renderSectionRow(row));
+      else if (row.data.is_accessory && lastMainRowId) {
+        configIndex[lastMainRowId] = (configIndex[lastMainRowId]||0)+1;
+        tbody.appendChild(renderProductRow(row, '', configIndex[lastMainRowId], true));
+      } else {
+        serial += 1; lastMainRowId = row.rowId; configIndex[lastMainRowId] = 0;
+        tbody.appendChild(renderProductRow(row, serial, null, false));
+      }
+    });
+    recalcTotals();
+  }
+  function renderSectionRow(row) {
+    const tr = document.createElement('tr');
+    tr.className = 'product-row section-row';
+    tr.dataset.rowId = row.rowId;
+    tr.innerHTML = `
+      <td class="drag-handle">⠿</td>
+      <td colspan="9" class="section-label-cell">
+        <input value="${escapeHtml(row.data.section_label||'')}" oninput="QuotationEditor.updateField('${row.rowId}','section_label',this.value)">
+      </td>
+      <td class="delete-cell"><span class="material-symbols-outlined" onclick="QuotationEditor.removeRow('${row.rowId}')">delete</span></td>`;
+    return tr;
+  }
+  function renderProductRow(row, serialNum, configSerial, isConfig) {
+    const tr = document.createElement('tr');
+    tr.className = 'product-row' + (isConfig ? ' config-row' : '');
+    tr.dataset.rowId = row.rowId;
+    const d = row.data;
+    const sn = isConfig ? (configSerial ? '└ ' + configSerial : '') : serialNum;
+    const mp = parseFloat(d.market_price) || 0;
+    const dr = d.discount_rate != null ? d.discount_rate : 100;
+    const up = parseFloat(d.unit_price) || 0;
+    const qty = parseInt(d.quantity) || 1;
+    tr.innerHTML = `
+      <td class="drag-handle ${isConfig?'config-handle':''}" title="${isConfig ? '{{ _("跟随父产品移动") }}' : ''}">⠿</td>
+      <td class="readonly" style="text-align:center">${sn}</td>
+      <td class="readonly">${escapeHtml(d.product_mn||'')}</td>
+      <td class="readonly">${escapeHtml(d.brand||'')}</td>
+      <td class="${isConfig?'readonly product-name-cell':'editable'}">
+        ${isConfig ? escapeHtml(d.product_name||'') : `<input value="${escapeHtml(d.product_name||'')}" placeholder="{{ _('产品名称') }}" oninput="QuotationEditor.updateField('${row.rowId}','product_name',this.value)">`}
+      </td>
+      <td class="${isConfig?'readonly':'editable'}" style="text-align:right">
+        ${isConfig ? dr : `<input type="number" value="${dr}" style="text-align:right" oninput="QuotationEditor.updateField('${row.rowId}','discount_rate',this.value)">`}
+      </td>
+      <td class="readonly" style="text-align:right">${formatNum(mp)}</td>
+      <td class="${isConfig?'readonly':'editable'}" style="text-align:right">
+        ${isConfig ? formatNum(up) : `<input type="number" value="${up}" style="text-align:right" oninput="QuotationEditor.updateField('${row.rowId}','unit_price',this.value)">`}
+      </td>
+      <td class="editable" style="text-align:center">
+        <input type="number" value="${qty}" style="text-align:center" oninput="QuotationEditor.updateField('${row.rowId}','quantity',this.value)">
+      </td>
+      <td class="readonly" style="text-align:right" data-subtotal>${formatNum(up*qty)}</td>
+      <td class="delete-cell"><span class="material-symbols-outlined" onclick="QuotationEditor.removeRow('${row.rowId}')">delete</span></td>`;
+    return tr;
+  }
+
+  function updateField(rowId, key, val) {
+    const row = rows.find(r => r.rowId === rowId);
+    if (!row) return;
+    row.data[key] = val;
+    if (['unit_price','quantity','discount_rate'].includes(key)) {
+      const tr = document.querySelector(`tr[data-row-id="${rowId}"]`);
+      if (tr) {
+        const sub = (parseFloat(row.data.unit_price)||0)*(parseFloat(row.data.quantity)||1);
+        const cell = tr.querySelector('[data-subtotal]');
+        if (cell) cell.textContent = formatNum(sub);
+      }
+      recalcTotals();
+    }
+  }
+  function recalcTotals() {
+    let sub = 0;
+    rows.forEach(r => { if (r.data.row_type==='section') return;
+      sub += (parseFloat(r.data.unit_price)||0)*(parseFloat(r.data.quantity)||1);
+    });
+    const gst = parseFloat(document.getElementById('gstInput')?.value)||0;
+    document.getElementById('subtotalCell').textContent = formatNum(sub);
+    document.getElementById('totalCell').textContent = formatNum(sub+gst);
+  }
+
+  function addRow(kind) {
+    document.getElementById('addMenu').classList.add('hidden');
+    if (kind === 'section') rows.push({rowId:makeRowId(), data:{row_type:'section', section_label:''}});
+    else rows.push({rowId:makeRowId(), data:{row_type:'product', product_name:'', brand:'', unit:'个', quantity:1, discount_rate:100, market_price:0, unit_price:0, is_temp: kind==='custom', source: kind==='custom'?'custom':'library'}});
+    renderProductRows();
+  }
+  function removeRow(rowId) {
+    if (!confirm('{{ _("确认删除这行?") }}')) return;
+    const idx = rows.findIndex(r => r.rowId===rowId);
+    if (idx<0) return;
+    const target = rows[idx];
+    if (target.data.row_type==='product' && !target.data.is_accessory) {
+      let n = 1;
+      while (idx+n<rows.length && rows[idx+n].data.is_accessory) n++;
+      rows.splice(idx, n);
+    } else rows.splice(idx, 1);
+    renderProductRows();
+  }
+
+  // —— 项目搜索 + 客户/联系人级联（沿用 quotation 模块现有 API）——
+  let projectTimer = null;
+  function setupProjectSearch() {
+    const search = document.getElementById('projectSearch');
+    const dropdown = document.getElementById('projectDropdown');
+    const projIdInput = document.getElementById('projectId');
+    search.addEventListener('input', () => {
+      clearTimeout(projectTimer);
+      const q = search.value.trim();
+      if (!q || q.length < 2) { dropdown.classList.add('hidden'); return; }
+      projectTimer = setTimeout(async () => {
+        try {
+          const r = await fetch(`/quotation/search_projects?q=${encodeURIComponent(q)}`);
+          const data = await r.json();
+          if (data.success && data.projects && data.projects.length > 0) {
+            dropdown.innerHTML = data.projects.map(p =>
+              `<div class="px-3 py-2 hover:bg-slate-50 cursor-pointer" data-id="${p.id}" data-name="${escapeHtml(p.name)}">
+                <div class="text-sm font-medium">${escapeHtml(p.name)}</div>
+                <div class="text-xs text-slate-500">${escapeHtml(p.owner||'')} · ${escapeHtml(p.type||'')} · ${escapeHtml(p.stage||'')}</div>
+              </div>`).join('');
+            dropdown.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => {
+              projIdInput.value = el.dataset.id;
+              search.value = el.dataset.name;
+              dropdown.classList.add('hidden');
+              loadProjectCustomers(el.dataset.id);
+            }));
+            dropdown.classList.remove('hidden');
+          } else dropdown.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">{{ _("未找到匹配项目") }}</div>';
+        } catch (e) { console.error(e); }
+      }, 250);
+    });
+    document.addEventListener('click', e => { if (!search.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.add('hidden'); });
+  }
+  async function loadProjectCustomers(projectId) {
+    try {
+      const r = await fetch(`/quotation/get_project_customers/${projectId}`);
+      const data = await r.json();
+      const sel = document.getElementById('customerSelect');
+      if (data.success && data.customers && data.customers.length > 0) {
+        sel.innerHTML = '<option value="">{{ _("-- 选择客户 --") }}</option>' + data.customers.map(c => `<option value="${c.id}">${escapeHtml(c.company_name||c.name)}</option>`).join('');
+        sel.disabled = false;
+      } else { sel.innerHTML = '<option value="">{{ _("无客户") }}</option>'; }
+    } catch (e) { console.error(e); }
+  }
+  async function loadCustomerContacts(customerId) {
+    try {
+      const r = await fetch(`/quotation/get_customer_contacts/${customerId}`);
+      const data = await r.json();
+      const sel = document.getElementById('contactSelect');
+      if (data.success && data.contacts && data.contacts.length > 0) {
+        sel.innerHTML = '<option value="">{{ _("-- 选择联系人 --") }}</option>' + data.contacts.map(c => `<option value="${c.id}">${escapeHtml(c.name)}${c.position?' ('+escapeHtml(c.position)+')':''}</option>`).join('');
+      } else sel.innerHTML = '<option value="">--</option>';
+    } catch (e) { console.error(e); }
+  }
+
+  async function submit() {
+    const customerId = document.getElementById('customerSelect').value;
+    const projectId = document.getElementById('projectId').value;
+    const contactId = document.getElementById('contactSelect').value;
+    const currency = document.getElementById('currencySelect').value;
+    const notes = document.getElementById('notesInput').value;
+    if (!projectId) { alert('{{ _("请选择项目") }}'); return; }
+    if (!customerId) { alert('{{ _("请选择客户") }}'); return; }
+    const productRows = rows.filter(r => r.data.row_type !== 'section');
+    if (productRows.length === 0) { alert('{{ _("请添加至少一个产品") }}'); return; }
+
+    let lastMainRowId = null;
+    const details = rows.map(r => {
+      if (r.data.row_type === 'section') return { row_type:'section', section_label:r.data.section_label||'', row_id:r.rowId };
+      const isConfig = !!r.data.is_accessory;
+      const parent_row_id = isConfig ? lastMainRowId : null;
+      if (!isConfig) lastMainRowId = r.rowId;
+      const total = (parseFloat(r.data.unit_price)||0)*(parseFloat(r.data.quantity)||1);
+      return {
+        row_type:'product', row_id:r.rowId, parent_row_id, is_configuration:isConfig,
+        item_id:r.data.item_id, product_name:r.data.product_name, product_model:r.data.product_model||'',
+        product_desc:r.data.product_desc||'', brand:r.data.brand||'', unit:r.data.unit||'个',
+        quantity:parseInt(r.data.quantity)||1, discount_rate:parseFloat(r.data.discount_rate)||100,
+        market_price:parseFloat(r.data.market_price)||0, unit_price:parseFloat(r.data.unit_price)||0,
+        total_price:total, product_mn:r.data.product_mn||'', is_temp:!!r.data.is_temp,
+        item_note:r.data.item_note||'',
+      };
+    });
+    let totalAmount = 0;
+    details.forEach(d => { if (d.row_type==='product') totalAmount += d.total_price||0; });
+
+    const payload = { project_id:projectId, customer_id:customerId, contact_id:contactId||null, currency, notes, total_amount:totalAmount, details };
+    const url = isEdit ? `/quotation/${quotationId}/save` : '/quotation/create';
+    try {
+      const resp = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify(payload)});
+      const result = await resp.json();
+      if (result.status === 'success' || result.success) {
+        const newId = result.quotation_id || quotationId;
+        window.location.href = `/quotation/${newId}/detail`;
+      } else alert(result.message || '{{ _("保存失败") }}');
+    } catch (e) { alert('{{ _("保存失败") }}: ' + e.message); }
+  }
+
+  const colMap = { product_mn:3, discount:6, market:7 };
+  const _colStash = {};
+  function toggleCol(name, show) {
+    const colIndex = colMap[name]; if (!colIndex) return;
+    const mainTable = document.getElementById('mainGrid'); const idx0 = colIndex - 1;
+    if (!show && !_colStash[name]) {
+      const stash = { tdSnapshots:[], spanSnapshots:[] };
+      mainTable.querySelectorAll('tr').forEach(tr => {
+        let cur = 0;
+        for (let i = 0; i < tr.children.length; i++) {
+          const c = tr.children[i]; const span = c.colSpan||1;
+          if (cur === idx0 && span === 1) { stash.tdSnapshots.push({tr, index:i, cell:c}); break; }
+          if (span > 1 && cur <= idx0 && cur+span > idx0) { stash.spanSnapshots.push({cell:c, originalSpan:span}); c.colSpan = span-1; break; }
+          cur += span;
+        }
+      });
+      [...stash.tdSnapshots].reverse().forEach(s => s.cell.remove());
+      const colEl = mainTable.querySelectorAll('colgroup col')[idx0];
+      if (colEl) { stash.colEl = colEl; stash.colParent = colEl.parentNode; stash.colNext = colEl.nextSibling; colEl.remove(); }
+      _colStash[name] = stash;
+    } else if (show && _colStash[name]) {
+      const s = _colStash[name];
+      if (s.colEl) { if (s.colNext) s.colParent.insertBefore(s.colEl, s.colNext); else s.colParent.appendChild(s.colEl); }
+      s.spanSnapshots.forEach(x => x.cell.colSpan = x.originalSpan);
+      s.tdSnapshots.forEach(x => { const tgt = x.tr.children[x.index] || null; x.tr.insertBefore(x.cell, tgt); });
+      delete _colStash[name];
+    }
+    const prefs = JSON.parse(localStorage.getItem('qe_col_visibility')||'{}');
+    prefs[name] = show;
+    localStorage.setItem('qe_col_visibility', JSON.stringify(prefs));
+  }
+
+  function uploadLogo(input) {
+    const file = input.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const uploader = document.getElementById('logoUploader');
+      uploader.innerHTML = `<img src="${e.target.result}" alt="LOGO">`;
+      const ni = document.createElement('input'); ni.type='file'; ni.accept='image/*';
+      ni.onchange = () => uploadLogo(ni); ni.style.display='none';
+      uploader.appendChild(ni);
+      // TODO: 真实部署时要上传到 /storage/upload，拿到 url 后调 /api/user/quotation_template 保存 logo_url
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setupRowDrag() {
+    const tbody = document.getElementById('productBody');
+    let draggedRowId = null;
+    tbody.addEventListener('mousedown', e => {
+      const handle = e.target.closest('td.drag-handle');
+      if (!handle || handle.classList.contains('config-handle')) return;
+      const tr = handle.closest('tr'); tr.draggable = true;
+      tr.addEventListener('dragstart', ev => { draggedRowId = tr.dataset.rowId; ev.dataTransfer.effectAllowed='move'; tr.style.opacity='0.4'; }, {once:true});
+      tr.addEventListener('dragend', () => { tr.style.opacity=''; tr.draggable=false; draggedRowId=null; }, {once:true});
+    });
+    tbody.addEventListener('dragover', e => { const tr = e.target.closest('tr'); if (tr && draggedRowId && tr.dataset.rowId !== draggedRowId) { e.preventDefault(); tr.style.borderTop='2px solid #137fec'; } });
+    tbody.addEventListener('dragleave', e => { const tr = e.target.closest('tr'); if (tr) tr.style.borderTop=''; });
+    tbody.addEventListener('drop', e => {
+      e.preventDefault(); const tr = e.target.closest('tr'); if (tr) tr.style.borderTop='';
+      if (!tr || !draggedRowId || tr.dataset.rowId === draggedRowId) return;
+      const fromIdx = rows.findIndex(r => r.rowId===draggedRowId);
+      const toIdx = rows.findIndex(r => r.rowId===tr.dataset.rowId);
+      if (fromIdx < 0 || toIdx < 0) return;
+      let chunkSize = 1;
+      if (rows[fromIdx].data.row_type==='product' && !rows[fromIdx].data.is_accessory) {
+        while (fromIdx+chunkSize < rows.length && rows[fromIdx+chunkSize].data.is_accessory) chunkSize++;
+      }
+      const chunk = rows.splice(fromIdx, chunkSize);
+      const newToIdx = rows.findIndex(r => r.rowId===tr.dataset.rowId);
+      rows.splice(newToIdx, 0, ...chunk);
+      renderProductRows();
+    });
+  }
+
+  function init() {
+    if (initialDetails && initialDetails.length > 0) {
+      initialDetails.forEach(d => rows.push({rowId:makeRowId(), data:Object.assign({}, d, {row_type:d.row_type||(d.section_label?'section':'product')})}));
+    }
+    renderProductRows();
+
+    const prefs = JSON.parse(localStorage.getItem('qe_col_visibility')||'{}');
+    Object.keys(prefs).forEach(name => {
+      if (prefs[name] === false) {
+        const cb = document.querySelector(`#colMenu input[onchange*="'${name}'"]`);
+        if (cb) { cb.checked = false; toggleCol(name, false); }
+      }
+    });
+
+    document.getElementById('gstInput')?.addEventListener('input', recalcTotals);
+
+    document.querySelectorAll('.editable-field input').forEach(input => {
+      const cell = input.closest('.editable-field');
+      input.addEventListener('input', () => cell.classList.toggle('is-dirty', input.value !== input.dataset.default));
+    });
+    document.addEventListener('click', async e => {
+      const reset = e.target.closest('.reset-btn'), save = e.target.closest('.save-btn');
+      if (reset) { const c = reset.closest('.editable-field'); const i = c.querySelector('input'); i.value = i.dataset.default; c.classList.remove('is-dirty'); }
+      else if (save) {
+        const c = save.closest('.editable-field'); const i = c.querySelector('input'); const f = i.dataset.field;
+        if (!f) return;
+        try {
+          const r = await fetch('/quotation/api/user/quotation_template', {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify({field:f, value:i.value})});
+          const res = await r.json();
+          if (res.success) { i.dataset.default = i.value; c.classList.remove('is-dirty'); }
+          else alert(res.message || '{{ _("保存失败") }}');
+        } catch (err) { alert('{{ _("保存失败") }}: ' + err.message); }
+      }
+    });
+
+    setupProjectSearch();
+    setupRowDrag();
+
+    // 客户级联
+    document.getElementById('customerSelect')?.addEventListener('change', e => { if (e.target.value) loadCustomerContacts(e.target.value); });
+
+    // 编辑模式：预填客户/联系人
+    {% if is_edit and quotation.project_id %}
+    loadProjectCustomers({{ quotation.project_id }}).then(() => {
+      const sel = document.getElementById('customerSelect');
+      sel.value = '{{ quotation.customer_id or "" }}';
+      if (sel.value) loadCustomerContacts(sel.value).then(() => {
+        document.getElementById('contactSelect').value = '{{ quotation.contact_id or "" }}';
+      });
+    });
+    {% elif preset_project %}
+    loadProjectCustomers({{ preset_project.id }});
+    {% endif %}
+  }
+  document.addEventListener('DOMContentLoaded', init);
+
+  return { addRow, removeRow, updateField, submit, toggleCol, uploadLogo };
+})();
+</script>
+</body>
+</html>

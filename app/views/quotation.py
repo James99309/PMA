@@ -957,6 +957,94 @@ def quotations_list_ajax():
 # ============================================================
 # 公共函数：处理报价单产品明细（创建和编辑共用）
 # ============================================================
+def _render_excel_editor(quotation_id=None, project_id_preset=None):
+    """渲染全屏 Excel-like 报价单编辑器（Beta 共存模式入口）。
+
+    quotation_id 提供时为编辑模式，否则为新建模式。
+    project_id_preset 用于新建模式预填项目（来自项目页跳转）。
+    """
+    import json
+    from app.models.product import Product as _Product
+
+    quotation = None
+    quotation_details_json = '[]'
+    can_edit_this_quotation = True
+
+    if quotation_id:
+        quotation = Quotation.query.get_or_404(quotation_id)
+        if not can_edit_data(quotation, current_user):
+            flash(_('您没有权限编辑此报价单'), 'danger')
+            return redirect(url_for('quotation.view_quotation', id=quotation_id))
+        if quotation.is_locked:
+            flash(_('报价单已被锁定，无法编辑'), 'warning')
+            return redirect(url_for('quotation.view_quotation', id=quotation_id))
+
+        # 准备产品明细 JSON（与 view_quotation 中逻辑保持一致）
+        non_temp_mns = list({
+            str(getattr(d, 'product_mn', '') or '')
+            for d in quotation.details
+            if getattr(d, 'product_mn', None) and not str(d.product_mn).startswith('TEMP_')
+        })
+        product_mn_to_id = {}
+        if non_temp_mns:
+            _products = _Product.query.filter(_Product.product_mn.in_(non_temp_mns)).all()
+            product_mn_to_id = {p.product_mn: p.id for p in _products}
+
+        details_for_edit = []
+        for detail in quotation.details:
+            try:
+                product_mn = str(getattr(detail, 'product_mn', '') or '')
+                is_temp_product = product_mn.startswith('TEMP_')
+                details_for_edit.append({
+                    'item_id': detail.id,
+                    'row_type': str(getattr(detail, 'row_type', 'product') or 'product'),
+                    'section_label': str(getattr(detail, 'section_label', '') or ''),
+                    'sort_order': getattr(detail, 'sort_order', None),
+                    'product_id': product_mn_to_id.get(product_mn),
+                    'product_name': str(detail.product_name or ''),
+                    'product_model': str(detail.product_model or ''),
+                    'product_desc': str(detail.product_desc or ''),
+                    'brand': str(detail.brand or ''),
+                    'unit': str(detail.unit or '个'),
+                    'market_price': float(detail.market_price or 0),
+                    'discount_rate': float(detail.discount * 100 if detail.discount is not None else 100.0),
+                    'unit_price': float(detail.unit_price or 0),
+                    'quantity': int(detail.quantity or 1),
+                    'subtotal': float(detail.total_price or 0),
+                    'product_mn': product_mn,
+                    'is_temp': is_temp_product,
+                    'is_accessory': bool(getattr(detail, 'is_accessory', False)),
+                    'parent_item_id': getattr(detail, 'parent_item_id', None),
+                    'config_type': str(getattr(detail, 'config_type', '') or ''),
+                    'config_base_quantity': getattr(detail, 'config_base_quantity', None),
+                    'quantity_synced': bool(getattr(detail, 'quantity_synced', True) if getattr(detail, 'quantity_synced', None) is not None else True),
+                    'item_note': str(getattr(detail, 'item_note', '') or ''),
+                })
+            except Exception as e:
+                current_app.logger.warning(f"明细处理出错: {e}")
+        quotation_details_json = json.dumps(details_for_edit)
+
+    # 预填项目信息（新建模式）
+    preset_project = None
+    if project_id_preset and not quotation_id:
+        try:
+            preset_project = Project.query.get(int(project_id_preset))
+        except (ValueError, TypeError):
+            preset_project = None
+
+    return render_template(
+        'quotation/tw_quotation_edit.html',
+        quotation=quotation,
+        preset_project=preset_project,
+        quotation_details_json=quotation_details_json,
+        currency_options=get_available_quotation_currencies(),
+        default_currency=(quotation.currency if quotation else Config.DEFAULT_CURRENCY),
+        user_letterhead=getattr(current_user, 'quotation_letterhead', None) or {},
+        user_signature=getattr(current_user, 'quotation_signature', None) or {},
+        can_edit_this_quotation=can_edit_this_quotation,
+    )
+
+
 def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CURRENCY):
     """
     处理报价单产品明细，包括父子关系建立
@@ -980,6 +1068,25 @@ def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CUR
         try:
             if not isinstance(detail, dict):
                 errors.append(f"第 {index+1} 行数据格式错误")
+                continue
+
+            # 标注行（row_type='section'）：单独处理，不走产品验证逻辑
+            if detail.get('row_type') == 'section':
+                section_detail = QuotationDetail(
+                    quotation_id=quotation_id,
+                    product_name='',
+                    row_type='section',
+                    section_label=str(detail.get('section_label', '') or ''),
+                    sort_order=index,
+                    market_price=0,
+                    unit_price=0,
+                    total_price=0,
+                    quantity=0,
+                    discount=0,
+                    currency=currency,
+                )
+                db.session.add(section_detail)
+                created_details.append(section_detail)
                 continue
 
             product_name = detail.get('product_name', '').strip()
@@ -1066,7 +1173,9 @@ def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CUR
                 configured_mn=configured_mn,
                 price_adjustment_total=price_adjustment_total,
                 pending_product_creation=pending_product_creation,
-                item_note=detail.get('item_note', '') or ''
+                item_note=detail.get('item_note', '') or '',
+                row_type='product',
+                sort_order=index,
             )
 
             # 计算植入小计
@@ -1531,11 +1640,8 @@ def create_quotation():
                 flash(_('报价单创建失败：%s') % str(e), 'danger')
                 print(f"Error: {str(e)}")  # 添加错误日志
     
-    # GET 请求处理 - 重定向到列表页（创建功能现在通过模态框完成）
-    # 如果有预设的项目ID，带到列表页URL参数中
-    if preset_project_id:
-        return redirect(url_for('quotation.list_quotations', preset_project_id=preset_project_id))
-    return redirect(url_for('quotation.list_quotations'))
+    # GET 请求处理 - 渲染全屏 Excel-like 编辑器（Beta 共存模式）
+    return _render_excel_editor(quotation_id=None, project_id_preset=preset_project_id)
 
 @quotation.route('/get_project/<int:project_id>')
 def get_project(project_id):
@@ -2122,8 +2228,8 @@ def edit_quotation(id):
                                      currency_options=get_available_quotation_currencies(),
                                      return_to=return_to)
         
-        # GET请求 - 重定向到详情页（编辑功能现在通过详情页的模态框完成）
-        return redirect(url_for('quotation.view_quotation', id=id, edit=1))
+        # GET 请求 - 渲染全屏 Excel-like 编辑器（Beta 共存模式：旧 modal 仍保留）
+        return _render_excel_editor(quotation_id=id, project_id_preset=None)
         
     except Exception as e:
         flash(_('加载报价单失败：%s') % str(e), 'danger')
@@ -3424,6 +3530,9 @@ def view_quotation(id):
                     is_temp_product = product_mn.startswith('TEMP_')
                     detail_data = {
                         'item_id': detail.id,  # 数据库ID，用于父子关系映射
+                        'row_type': str(getattr(detail, 'row_type', 'product') or 'product'),
+                        'section_label': str(getattr(detail, 'section_label', '') or ''),
+                        'sort_order': getattr(detail, 'sort_order', None),
                         'product_id': product_mn_to_id.get(product_mn),  # 反查 Product.id，用于货币切换拉地区面价
                         'product_name': str(detail.product_name or ''),
                         'product_model': str(detail.product_model or ''),
@@ -3479,7 +3588,9 @@ def view_quotation(id):
                              default_currency=quotation.currency or Config.DEFAULT_CURRENCY,
                              active_pricing_order=active_pricing_order,
                              confirmation_candidates=confirmation_candidates,
-                             role_display_map=role_display_map)
+                             role_display_map=role_display_map,
+                             user_letterhead=getattr(current_user, 'quotation_letterhead', None) or {},
+                             user_signature=getattr(current_user, 'quotation_signature', None) or {})
     except Exception as e:
         import traceback
         logger.error(f"加载报价单详情失败: {str(e)}\n{traceback.format_exc()}")
@@ -5519,3 +5630,36 @@ def create_products_from_configured_specs(quotation):
             continue
 
     return created_products
+
+
+# ==================== 账户级报价单抬头/签名 API ====================
+
+@quotation.route('/api/user/quotation_template', methods=['POST'])
+@login_required
+def save_quotation_template():
+    """保存当前用户的账户默认抬头/签名（字段级）。
+
+    body: { "field": "letterhead.line1" | "signature.left" | ..., "value": "..." }
+    """
+    data = request.get_json() or {}
+    field = data.get('field', '')
+    value = data.get('value', '')
+
+    if '.' not in field:
+        return jsonify({'success': False, 'message': 'field 必须形如 letterhead.line1 / signature.left'}), 400
+    group, key = field.split('.', 1)
+    if group not in ('letterhead', 'signature'):
+        return jsonify({'success': False, 'message': 'unknown group'}), 400
+
+    user = current_user
+    if group == 'letterhead':
+        cur = dict(user.quotation_letterhead or {})
+        cur[key] = value
+        user.quotation_letterhead = cur
+    else:
+        cur = dict(user.quotation_signature or {})
+        cur[key] = value
+        user.quotation_signature = cur
+
+    db.session.commit()
+    return jsonify({'success': True})
