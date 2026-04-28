@@ -213,6 +213,13 @@
     <span class="ml-3 text-[10px] uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">Beta</span>
   </div>
   <div class="flex items-center gap-2">
+    <!-- 公司主体下拉 -->
+    <div class="flex items-center gap-1.5">
+      <span class="text-xs text-slate-500">{{ _('主体') }}:</span>
+      <select id="entitySelector" class="px-2 py-1 rounded-md text-sm bg-slate-100 border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary">
+        <!-- options 由 JS 填充 -->
+      </select>
+    </div>
     <div class="relative">
       <button type="button" class="px-3 py-1.5 rounded-md text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5" onclick="document.getElementById('colMenu').classList.toggle('hidden')">
         <span class="material-symbols-outlined text-base">view_column</span>{{ _('显示列') }}
@@ -419,6 +426,36 @@ window.QuotationEditor = (function() {
   const isEdit = {{ 'true' if is_edit else 'false' }};
   const quotationId = {{ quotation_id }};
   const initialDetails = {{ quotation_details_json | safe }};
+  const entities = {{ entities_json | safe }};
+  let currentEntityId = {{ default_entity_id or 'null' }};
+
+  // i18n 词典 (zh/en) — 切换主体时刷新页面文案
+  const I18N = {
+    zh: {
+      title: '报价单', sn: 'S/N', item_no: '产品编码', brand: '品牌', desc: '型号规格',
+      disc: '折扣%', market: '市场价', unit_price: '单价', qty: '数量', amount: '小计',
+      total_before: '小计', tax_label: '增值税', total_after: '合计', remarks: '备注',
+      qno: '报价编号', qdate: '报价日期', payment: '付款条件', shipping: '交付条件', validity: '有效期', refno: '参考编号',
+      cust: '关联客户', proj: '关联项目', contact: '联系人', currency: '货币',
+      sign_left: '盖章和签字', sign_right: '客户签字盖章',
+      total_amount: '金额',
+    },
+    en: {
+      title: 'QUOTATION', sn: 'S/N', item_no: 'Item No.', brand: 'Brand', desc: 'Description',
+      disc: 'Disc%', market: 'Market', unit_price: 'Unit Price', qty: 'Qty', amount: 'Amount',
+      total_before: 'Total before GST', tax_label: 'GST', total_after: 'Total after GST', remarks: 'Remarks',
+      qno: 'Quotation No.', qdate: 'Quotation Date', payment: 'Payment Terms', shipping: 'Shipping Terms', validity: 'Validity', refno: 'Ref No',
+      cust: 'Customer', proj: 'Project', contact: 'Contact Person', currency: 'Currency',
+      sign_left: 'Signature & Stamp', sign_right: 'Signed and Accepted by Customer',
+      total_amount: 'Amount',
+    }
+  };
+  function getEntity() { return entities.find(e => e.id === currentEntityId) || entities[0]; }
+  function t(key) {
+    const e = getEntity();
+    const dict = I18N[(e && e.language) || 'en'] || I18N.en;
+    return dict[key] || key;
+  }
   let nextRowId = 0;
   const rows = [];
 
@@ -725,7 +762,7 @@ window.QuotationEditor = (function() {
     let totalAmount = 0;
     details.forEach(d => { if (d.row_type==='product') totalAmount += d.total_price||0; });
 
-    const payload = { project_id:projectId, customer_id:customerId, contact_id:contactId||null, currency, notes, total_amount:totalAmount, details };
+    const payload = { project_id:projectId, customer_id:customerId, contact_id:contactId||null, currency, notes, total_amount:totalAmount, details, entity_id: currentEntityId };
     const url = isEdit ? `/quotation/${quotationId}/save` : '/quotation/create';
     try {
       const resp = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify(payload)});
@@ -812,11 +849,110 @@ window.QuotationEditor = (function() {
     });
   }
 
+  // ============== 公司主体 (entity) 切换 ==============
+  function initEntitySelector() {
+    const sel = document.getElementById('entitySelector');
+    if (!sel || !entities || entities.length === 0) return;
+    sel.innerHTML = entities.map(e => `<option value="${e.id}" ${e.id === currentEntityId ? 'selected' : ''}>${escapeHtml(e.name)}</option>`).join('');
+    sel.addEventListener('change', () => {
+      currentEntityId = parseInt(sel.value);
+      applyEntity();
+    });
+    applyEntity();  // 首次加载也同步一次
+  }
+  function applyEntity() {
+    const e = getEntity();
+    if (!e) return;
+    // LOGO
+    const uploader = document.getElementById('logoUploader');
+    if (uploader) {
+      if (e.logo_url) {
+        uploader.innerHTML = `<img src="${e.logo_url}" alt="LOGO">`;
+      } else {
+        uploader.innerHTML = `<span class="material-symbols-outlined">image</span>LOGO`;
+      }
+      // 重新 mount file input（如果用户要换 LOGO）
+      const fi = document.createElement('input');
+      fi.type = 'file'; fi.accept = 'image/*'; fi.style.display = 'none';
+      fi.onchange = () => uploadLogo(fi);
+      uploader.appendChild(fi);
+    }
+    // 抬头三行（覆盖 input value 和 default）
+    const lineMap = {1:'line1',2:'line2',3:'line3'};
+    [1,2,3].forEach(n => {
+      const inp = document.querySelector(`.company-${n===1?'name':'info'} input[data-field="letterhead.line${n}"]`);
+      if (inp) { inp.value = e[lineMap[n]] || ''; inp.dataset.default = e[lineMap[n]] || ''; inp.closest('.editable-field')?.classList.remove('is-dirty'); }
+    });
+    // 货币
+    const cur = document.getElementById('currencySelect');
+    if (cur && e.currency_code) cur.value = e.currency_code;
+    // 标题（QUOTATION / 报价单）
+    document.querySelector('.title-cell').textContent = t('title');
+    // 合计区显示形态：价内只显示一行；价外保持三行
+    applyTaxLayout(e.tax_mode, e.tax_label || t('tax_label'));
+    // 表头/客户信息块标签语言切换
+    applyI18nLabels();
+    recalcTotals();
+  }
+  function applyTaxLayout(taxMode, taxLabel) {
+    const totalRows = document.querySelectorAll('#totalBody tr.total-row');
+    if (taxMode === 'inclusive') {
+      // 中国价内：只显示「金额」一行（最终行），其它两行隐藏
+      if (totalRows[0]) totalRows[0].style.display = 'none';
+      if (totalRows[1]) totalRows[1].style.display = 'none';
+      // 修改最终行的 label 为 "金额"
+      const finalLabel = totalRows[2]?.querySelector('.total-label');
+      if (finalLabel) finalLabel.textContent = t('total_amount');
+    } else {
+      // 价外：显示三行
+      if (totalRows[0]) totalRows[0].style.display = '';
+      if (totalRows[1]) totalRows[1].style.display = '';
+      // GST 模式 select 默认 exclusive
+      const gstMode = document.getElementById('gstMode');
+      if (gstMode) gstMode.value = 'exclusive';
+      // 第一行 label
+      const beforeLabel = totalRows[0]?.querySelector('.total-label');
+      if (beforeLabel) beforeLabel.textContent = t('total_before');
+      // GST 模式选项第一项的文字（动态用主体的 tax_label）
+      const gstModeOpt0 = gstMode?.querySelector('option[value="exclusive"]');
+      if (gstModeOpt0) gstModeOpt0.textContent = taxLabel;
+      // 最终行
+      const finalLabel = totalRows[2]?.querySelector('.total-label');
+      if (finalLabel) finalLabel.textContent = t('total_after');
+    }
+  }
+  function applyI18nLabels() {
+    // 表头
+    const productHeader = document.getElementById('productHeader');
+    if (productHeader) {
+      const ths = productHeader.querySelectorAll('td.product-th');
+      // 顺序: 空, S/N, Item No, Brand, Description, Disc%, Market, Unit Price, Qty, Amount, 空
+      const order = [null,'sn','item_no','brand','desc','disc','market','unit_price','qty','amount',null];
+      ths.forEach((th, i) => { if (order[i]) th.firstChild && (th.textContent = t(order[i])); });
+      // 重新加 ↔ 标识到可拖动列
+      productHeader.querySelectorAll('td.draggable-col').forEach(td => {
+        const k = td.dataset.colKey === 'product_mn' ? 'item_no' : (td.dataset.colKey === 'brand' ? 'brand' : 'desc');
+        td.textContent = t(k);
+      });
+    }
+    // 客户信息块的 label（按 td.label 逐一替换）
+    const labelMap = ['cust','qno','proj','qdate','contact','currency'];
+    const labels = document.querySelectorAll('#customerInfoBody tr td.label');
+    // 行结构：每行 2 个 label（左/右），共 3 行 = 6 个 label
+    labels.forEach((td, i) => {
+      const k = labelMap[i]; if (k) td.firstChild && (td.innerHTML = t(k) + (k==='cust'||k==='proj' ? ': <span class="text-red-500">*</span>' : ':'));
+    });
+    // 备注
+    const remarkCell = document.querySelector('#totalBody tr td.label[colspan="2"]');
+    if (remarkCell) remarkCell.firstChild && (remarkCell.textContent = t('remarks') + ':');
+  }
+
   function init() {
     if (initialDetails && initialDetails.length > 0) {
       initialDetails.forEach(d => rows.push({rowId:makeRowId(), data:Object.assign({}, d, {row_type:d.row_type||(d.section_label?'section':'product')})}));
     }
     renderProductRows();
+    initEntitySelector();
 
     const prefs = JSON.parse(localStorage.getItem('qe_col_visibility')||'{}');
     Object.keys(prefs).forEach(name => {
