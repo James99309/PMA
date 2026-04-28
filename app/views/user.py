@@ -2732,3 +2732,21 @@ def api_claude_ai_quota(user_id):
         return jsonify({'success': False, 'message': '配额必须是非负整数'}), 400
     push_ok, _ = update_user_quota(user, quota)
     return jsonify({'success': True, 'quota': quota, 'sync_ok': push_ok})
+
+
+@user_bp.route('/api/<int:user_id>/claude-ai/refresh-usage', methods=['POST'])
+@csrf.exempt
+@login_required
+@permission_required('user', 'view')
+def api_claude_ai_refresh_usage(user_id):
+    """从 Mac mini 拉取该用户最新用量（手动刷新）"""
+    from app.services.ai_proxy_service import _pull_user_daily_usage, get_user_usage_summary
+    user = User.query.get_or_404(user_id)
+    if not user.claude_ai_token:
+        return jsonify({'success': False, 'message': '用户未开通代理'}), 400
+    try:
+        _pull_user_daily_usage(user, user.claude_ai_token, days=14)
+        usage = get_user_usage_summary(user_id)
+        return jsonify({'success': True, 'usage': usage})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500

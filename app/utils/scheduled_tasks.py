@@ -344,6 +344,22 @@ def verify_dingtalk_mappings():
         logger.error(f"[{datetime.now()}] 钉钉 mapping 校验任务失败: {e}")
 
 
+def run_claude_usage_pull():
+    """每 5 分钟从 Mac mini 拉取 Claude AI 代理用量并写入数据库"""
+    from flask import current_app
+    app = current_app._get_current_object()
+    with app.app_context():
+        try:
+            from app.services.ai_proxy_service import pull_usage_from_macmini
+            ok, result = pull_usage_from_macmini()
+            if ok:
+                logger.debug(f"Claude 用量同步完成: {result} 用户")
+            else:
+                logger.warning(f"Claude 用量同步失败: {result}")
+        except Exception as e:
+            logger.error(f"Claude 用量同步任务异常: {e}")
+
+
 def start_scheduler(run_time="01:00"):
     """
     启动定时任务调度器
@@ -389,6 +405,10 @@ def start_scheduler(run_time="01:00"):
         schedule.every().day.at(backup_time).do(run_daily_backup)
         schedule.every().sunday.at("04:00").do(run_weekly_backup_cleanup)
         logger.info(f"备份任务已注册: 每日 {backup_time} 自动备份, 每周日 04:00 清理")
+
+    # Claude AI 代理用量同步（每 5 分钟从 Mac mini 拉取）
+    schedule.every(5).minutes.do(run_claude_usage_pull)
+    logger.info("Claude AI 用量同步任务已注册: 每 5 分钟")
 
     _scheduler_running = True
 

@@ -769,6 +769,12 @@
                         <h4 class="text-base font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">monitoring</span>
                             {{ _('用量统计') }}
+                            <button @click="refreshUsage()" :disabled="loading"
+                                    class="ml-auto text-xs text-slate-500 hover:text-primary flex items-center gap-1 disabled:opacity-40"
+                                    title="{{ _('从 Mac mini 拉取最新用量') }}">
+                                <span class="material-symbols-outlined text-sm" :class="{'animate-spin': loading}">sync</span>
+                                {{ _('刷新') }}
+                            </button>
                         </h4>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
@@ -879,6 +885,20 @@
                                 if (!d.success) throw new Error(d.message || '保存失败');
                                 this.flash('✓ 配额已保存', 'info');
                                 await this.load();
+                            } catch (e) {
+                                this.flash('失败: ' + e.message, 'error');
+                            } finally {
+                                this.loading = false;
+                            }
+                        },
+                        async refreshUsage() {
+                            this.loading = true;
+                            try {
+                                const r = await fetch(`/user/api/${this.userId}/claude-ai/refresh-usage`, {method: 'POST'});
+                                const d = await r.json();
+                                if (!d.success) throw new Error(d.message || '刷新失败');
+                                this.data.usage = d.usage;
+                                this.flash('✓ 用量已刷新', 'info');
                             } catch (e) {
                                 this.flash('失败: ' + e.message, 'error');
                             } finally {
