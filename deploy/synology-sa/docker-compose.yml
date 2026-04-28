@@ -89,6 +89,12 @@ services:
       # DeepSeek AI 聊天服务
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
 
+      # Claude AI 代理管理（Mac mini cliproxy 白名单同步）
+      CLAUDE_AI_PROXY_ADMIN_URL: ${CLAUDE_AI_PROXY_ADMIN_URL:-http://100.110.41.83:8318}
+      CLAUDE_AI_PROXY_PUBLIC_URL: ${CLAUDE_AI_PROXY_PUBLIC_URL:-https://mac-proxy.jamesgpone.win}
+      CLAUDE_AI_PROXY_SHARED_KEY: ${CLAUDE_AI_PROXY_SHARED_KEY}
+      CLAUDE_AI_DEFAULT_QUOTA: ${CLAUDE_AI_DEFAULT_QUOTA:-50000000}
+
       # CLI Agent (智能终端)
       CLI_AGENT_PROVIDER: ${CLI_AGENT_PROVIDER:-}
       CLI_AGENT_MODEL: ${CLI_AGENT_MODEL:-}
