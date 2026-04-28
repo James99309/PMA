@@ -351,15 +351,15 @@
     <tbody id="productHeader">
       <tr>
         <td style="border:none;background:transparent"></td>
-        <td class="product-th">S/N</td>
-        <td class="product-th draggable-col" data-col-key="product_mn" draggable="true">{{ _('产品编码') }}</td>
-        <td class="product-th draggable-col" data-col-key="brand" draggable="true">{{ _('品牌') }}</td>
-        <td class="product-th draggable-col" data-col-key="description" draggable="true">{{ _('型号规格') }}</td>
-        <td class="product-th">{{ _('折扣%') }}</td>
-        <td class="product-th">{{ _('市场价') }}</td>
-        <td class="product-th">{{ _('单价') }}</td>
-        <td class="product-th">{{ _('数量') }}</td>
-        <td class="product-th">{{ _('小计') }}</td>
+        <td class="product-th" data-i18n="sn">S/N</td>
+        <td class="product-th draggable-col" data-col-key="product_mn" data-i18n="item_no" draggable="true">{{ _('产品编码') }}</td>
+        <td class="product-th draggable-col" data-col-key="brand" data-i18n="brand" draggable="true">{{ _('品牌') }}</td>
+        <td class="product-th draggable-col" data-col-key="description" data-i18n="desc" draggable="true">{{ _('型号规格') }}</td>
+        <td class="product-th" data-i18n="disc">{{ _('折扣%') }}</td>
+        <td class="product-th" data-i18n="market">{{ _('市场价') }}</td>
+        <td class="product-th" data-i18n="unit_price">{{ _('单价') }}</td>
+        <td class="product-th" data-i18n="qty">{{ _('数量') }}</td>
+        <td class="product-th" data-i18n="amount">{{ _('小计') }}</td>
         <td style="border:none;background:transparent"></td>
       </tr>
     </tbody>
@@ -1032,19 +1032,10 @@ window.QuotationEditor = (function() {
     }
   }
   function applyI18nLabels() {
-    // 表头
-    const productHeader = document.getElementById('productHeader');
-    if (productHeader) {
-      const ths = productHeader.querySelectorAll('td.product-th');
-      // 顺序: 空, S/N, Item No, Brand, Description, Disc%, Market, Unit Price, Qty, Amount, 空
-      const order = [null,'sn','item_no','brand','desc','disc','market','unit_price','qty','amount',null];
-      ths.forEach((th, i) => { if (order[i]) th.firstChild && (th.textContent = t(order[i])); });
-      // 重新加 ↔ 标识到可拖动列
-      productHeader.querySelectorAll('td.draggable-col').forEach(td => {
-        const k = td.dataset.colKey === 'product_mn' ? 'item_no' : (td.dataset.colKey === 'brand' ? 'brand' : 'desc');
-        td.textContent = t(k);
-      });
-    }
+    // 表头：按每个 cell 的 data-i18n 标记设置文案（与列顺序无关，列拖动后仍正确）
+    document.querySelectorAll('#productHeader td[data-i18n]').forEach(td => {
+      td.textContent = t(td.dataset.i18n);
+    });
     // 客户信息块 label：行1 客户/报价编号，行2 联系人/报价日期，行3 项目/货币
     const labelMap = ['cust','qno','contact','qdate','proj','currency'];
     const labels = document.querySelectorAll('#customerInfoBody tr td.label');
