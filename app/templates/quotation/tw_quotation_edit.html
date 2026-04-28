@@ -453,6 +453,25 @@ window.QuotationEditor = (function() {
     const row = rows.find(r => r.rowId === rowId);
     if (!row) return;
     row.data[key] = val;
+
+    // 折扣率 ↔ 单价 联动（市场价是基准；其中一边改，另一边自动算）
+    const mp = parseFloat(row.data.market_price) || 0;
+    if (key === 'discount_rate' && mp > 0) {
+      const dr = parseFloat(val) || 0;
+      const newUnit = mp * dr / 100;
+      row.data.unit_price = newUnit;
+      const tr = document.querySelector(`tr[data-row-id="${rowId}"]`);
+      const upInput = tr && tr.querySelector('input[oninput*="unit_price"]');
+      if (upInput) upInput.value = newUnit.toFixed(2);
+    } else if (key === 'unit_price' && mp > 0) {
+      const up = parseFloat(val) || 0;
+      const newDiscount = up / mp * 100;
+      row.data.discount_rate = newDiscount;
+      const tr = document.querySelector(`tr[data-row-id="${rowId}"]`);
+      const drInput = tr && tr.querySelector('input[oninput*="discount_rate"]');
+      if (drInput) drInput.value = newDiscount.toFixed(2);
+    }
+
     if (['unit_price','quantity','discount_rate'].includes(key)) {
       const tr = document.querySelector(`tr[data-row-id="${rowId}"]`);
       if (tr) {
