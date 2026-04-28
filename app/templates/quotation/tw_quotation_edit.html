@@ -118,8 +118,18 @@
       background-position: right 0 center; background-repeat: no-repeat; background-size: 12px;
     }
 
-    td.product-th { background: #f8fafc !important; font-weight: 700; text-align: center; font-size: 12px; padding: 6px 8px; }
+    td.product-th { background: #f8fafc !important; font-weight: 700; text-align: center; font-size: 12px; padding: 6px 8px; position: relative; }
     td.draggable-col { cursor: grab; }
+    /* 列宽 resize handle */
+    .col-resize-handle {
+      position: absolute; top: 0; right: 0; width: 6px; height: 100%;
+      cursor: col-resize; user-select: none; z-index: 10;
+    }
+    .col-resize-handle:hover, .col-resize-handle.resizing {
+      background: rgba(19, 127, 236, 0.3);
+    }
+    body.col-resizing { cursor: col-resize !important; }
+    body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
     td.draggable-col.dragging { opacity: 0.4; }
     td.draggable-col.drop-target { box-shadow: inset 4px 0 0 #137fec; }
 
@@ -898,6 +908,45 @@ window.QuotationEditor = (function() {
     reader.readAsDataURL(file);
   }
 
+  // 列宽 resize：在表头每个 product-th 右边缘加 handle，拖动改对应 col 宽度
+  function setupColumnResize() {
+    const headerRow = document.querySelector('#productHeader tr');
+    if (!headerRow) return;
+    const mainTable = document.getElementById('mainGrid');
+    headerRow.querySelectorAll('td.product-th').forEach((th, idx) => {
+      // 跳过最后一个有内容的 cell（不需要在它右边再加 handle）
+      if (th.querySelector('.col-resize-handle')) return;
+      const handle = document.createElement('span');
+      handle.className = 'col-resize-handle';
+      th.appendChild(handle);
+      handle.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const cellIndex = Array.from(headerRow.children).indexOf(th);
+        const cols = mainTable.querySelectorAll('colgroup col');
+        const col = cols[cellIndex];
+        if (!col) return;
+        const startX = e.clientX;
+        const startWidth = col.getBoundingClientRect ? th.getBoundingClientRect().width : 0;
+        document.body.classList.add('col-resizing');
+        handle.classList.add('resizing');
+
+        function onMove(ev) {
+          const delta = ev.clientX - startX;
+          const newWidth = Math.max(40, startWidth + delta);
+          col.style.width = newWidth + 'px';
+        }
+        function onUp() {
+          document.body.classList.remove('col-resizing');
+          handle.classList.remove('resizing');
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+        }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+      });
+    });
+  }
+
   // 列拖动重排：仅在产品表头 + 产品行/合计行之间互换 fromIdx 和 toIdx 的 cell
   // 客户信息行（含 colspan）跳过避免破坏布局
   function setupColumnDrag() {
@@ -1132,6 +1181,7 @@ window.QuotationEditor = (function() {
     setupProjectSearch();
     setupRowDrag();
     setupColumnDrag();
+    setupColumnResize();
 
     // 工具栏下拉菜单 (显示列/添加行)：点击外部关闭
     document.addEventListener('click', e => {
