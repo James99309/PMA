@@ -10,6 +10,9 @@
 设计参考: /Users/nijie/Downloads/quotation-edit-mockup.html
 =============================================================================
 #}
+{% from 'components/tw_product_spec_modal.html' import tw_product_spec_modal, tw_product_spec_modal_script with context %}
+{% from 'macros/product_config_modal.html' import render_product_config_modal with context %}
+
 {% set quotation_id = quotation.id if quotation else 0 %}
 {% set is_edit = quotation is not none %}
 {% set page_title = (_('编辑报价单') ~ ' · ' ~ quotation.quotation_number) if is_edit else _('新建报价单') %}
@@ -27,6 +30,10 @@
   <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+  <!-- 产品选择器 + 配置 modal + 自建产品 autocomplete (复用旧 modal 同款) -->
+  <script src="{{ url_for('static', filename='js/product-selector.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/product-config-modal.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/custom-product-autocomplete.js') }}"></script>
   <script>
     tailwind.config = {
       darkMode: "class",
@@ -50,7 +57,7 @@
     table.q-grid td {
       border: 1px solid #b3b3b3;
       padding: 4px 8px; vertical-align: middle; background: #fff;
-      line-height: 1.35; color: #000; word-wrap: break-word; overflow: hidden;
+      line-height: 1.35; color: #000; word-wrap: break-word; overflow-wrap: break-word;
     }
     td.no-border { border: none !important; padding: 2px 8px; background: transparent; }
 
@@ -88,6 +95,13 @@
       width: 100%; border: none; outline: none; background: transparent;
       padding: 0; font-size: inherit; color: inherit; font-family: inherit; resize: none;
     }
+    /* 隐藏 number input 的上下箭头（保持表格视觉简洁） */
+    td.editable input[type="number"]::-webkit-outer-spin-button,
+    td.editable input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    td.editable input[type="number"] { -moz-appearance: textfield; }
+    #gstInput::-webkit-outer-spin-button,
+    #gstInput::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    #gstInput { -moz-appearance: textfield; }
     td.editable select {
       appearance: none; padding-right: 14px;
       background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
