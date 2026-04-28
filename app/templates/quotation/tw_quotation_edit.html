@@ -624,7 +624,9 @@ window.QuotationEditor = (function() {
       <td class="readonly">${escapeHtml(d.brand||'')}</td>
       ${descCell}
       <td class="${isConfig?'readonly':'editable'}" style="text-align:right">
-        ${isConfig ? dr : `<input type="number" value="${dr}" style="text-align:right" oninput="QuotationEditor.updateField('${row.rowId}','discount_rate',this.value)">`}
+        ${isConfig
+          ? `${dr} %`
+          : `<input type="number" value="${dr}" style="text-align:right;width:calc(100% - 14px);display:inline-block" oninput="QuotationEditor.updateField('${row.rowId}','discount_rate',this.value)"><span style="margin-left:2px;color:#64748b">%</span>`}
       </td>
       <td class="readonly" style="text-align:right">${formatNum(mp)}</td>
       <td class="${isConfig?'readonly':'editable'}" style="text-align:right">
