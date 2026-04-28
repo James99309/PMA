@@ -120,9 +120,9 @@
 
     td.product-th { background: #f8fafc !important; font-weight: 700; text-align: center; font-size: 12px; padding: 6px 8px; position: relative; }
     td.draggable-col { cursor: grab; }
-    /* 列宽 resize handle —— 贯穿整张表（不只表头），让用户在任何行的分隔线处都能拖 */
+    /* 列宽 resize handle —— 贯穿整张表（不只表头）；高度由 JS 动态设置 = mainGrid 高度 */
     .col-resize-handle {
-      position: absolute; top: 0; right: -3px; width: 6px; height: 200vh;
+      position: absolute; top: 0; right: -3px; width: 6px; height: 100%;
       cursor: col-resize; user-select: none; z-index: 10;
     }
     .col-resize-handle:hover, .col-resize-handle.resizing {
@@ -913,6 +913,19 @@ window.QuotationEditor = (function() {
     const headerRow = document.querySelector('#productHeader tr');
     if (!headerRow) return;
     const mainTable = document.getElementById('mainGrid');
+    // 把 mainTable 设为 positioned ancestor，让 handle 可以贴 mainTable 高度
+    if (mainTable) mainTable.style.position = 'relative';
+    function syncHandleHeight() {
+      if (!mainTable) return;
+      const h = mainTable.offsetHeight;
+      headerRow.querySelectorAll('.col-resize-handle').forEach(handle => {
+        // 让 handle 从 thead 顶部延伸到 mainTable 底部
+        const thRect = handle.parentElement.getBoundingClientRect();
+        const tableRect = mainTable.getBoundingClientRect();
+        const offsetTop = thRect.top - tableRect.top;
+        handle.style.height = (h - offsetTop) + 'px';
+      });
+    }
     headerRow.querySelectorAll('td.product-th').forEach((th, idx) => {
       // 跳过最后一个有内容的 cell（不需要在它右边再加 handle）
       if (th.querySelector('.col-resize-handle')) return;
@@ -945,6 +958,14 @@ window.QuotationEditor = (function() {
         document.addEventListener('mouseup', onUp);
       });
     });
+    // 初次 + window resize / 内容变化时重新计算 handle 高度
+    syncHandleHeight();
+    window.addEventListener('resize', syncHandleHeight);
+    // 主表内容变化（行增删/折叠）时也要刷
+    if (mainTable) {
+      const ro = new ResizeObserver(() => syncHandleHeight());
+      ro.observe(mainTable);
+    }
   }
 
   // 列拖动重排：仅在产品表头 + 产品行/合计行之间互换 fromIdx 和 toIdx 的 cell
