@@ -157,7 +157,22 @@
       --tw-ring-shadow: 0 0 #0000 !important;
       --tw-ring-offset-shadow: 0 0 #0000 !important;
     }
-    tr.config-row td.product-name-cell::before { content: "└ "; color: #94a3b8; margin-right: 2px; }
+    /* 配件子行：所有 cells 白色（含 drag-handle/delete-cell）；text 颜色不强制，让 base td.readonly/editable 决定，跟父行一致 */
+    tr.config-row td { background: #fff !important; }
+    tr.config-row td.drag-handle { background: #fff !important; color: transparent !important; cursor: default !important; border: none !important; }
+    tr.config-row td.delete-cell { background: #fff !important; border: none !important; }
+    tr.config-row td.delete-cell .material-symbols-outlined { display: none !important; }
+    tr.config-row:hover > td.drag-handle { color: transparent !important; }
+    /* └ 解除按钮：放在子行 S/N 列前 + 产品名前；hover 蓝→红，点击解除关联 */
+    .config-detach-btn {
+      display: inline-block; cursor: pointer; color: #94a3b8;
+      padding: 0 2px; transition: color 0.12s;
+      user-select: none;
+    }
+    .config-detach-btn:hover { color: #ef4444; }
+    .config-detach-btn:hover::after {
+      content: " ✕"; font-size: 10px; color: #ef4444; vertical-align: super;
+    }
 
     td.drag-handle {
       border: none !important; background: transparent !important;
@@ -170,6 +185,39 @@
     td.drag-handle.config-handle { cursor: not-allowed; }
     tr:hover > td.drag-handle.config-handle { color: #e2e8f0 !important; }
     td.drag-handle.config-handle:hover { color: #cbd5e1 !important; }
+
+    /* 行间插入提示器（位置由 JS 动态计算） */
+    #rowInsertHint {
+      position: absolute; width: 20px; height: 20px;
+      border-radius: 50%; background: #137fec; color: #fff;
+      display: none; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 2px 6px rgba(19,127,236,0.4);
+      z-index: 20; transition: transform 0.1s, left 0.06s linear; user-select: none;
+    }
+    #rowInsertHint.visible { display: flex; }
+    #rowInsertHint:hover { transform: scale(1.15); }
+    #rowInsertHint .material-symbols-outlined { font-size: 16px !important; }
+    /* hover 在 gap 时画一条蓝线提示插入位置（left/width 由 JS 设定 = 表格宽度） */
+    #rowInsertLine {
+      position: absolute; height: 2px;
+      background: #137fec; display: none; z-index: 19; pointer-events: none;
+      box-shadow: 0 0 0 1px rgba(19,127,236,0.2);
+    }
+    #rowInsertLine.visible { display: block; }
+    #rowInsertMenu {
+      position: absolute; background: #fff; border: 1px solid #e2e8f0;
+      border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      padding: 4px 0; min-width: 200px; display: none; z-index: 40;
+    }
+    #rowInsertMenu.visible { display: block; }
+    #rowInsertMenu button {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; padding: 8px 14px; font-size: 13px;
+      text-align: left; background: transparent; border: none;
+      color: #1e293b; cursor: pointer;
+    }
+    #rowInsertMenu button:hover { background: #f1f5f9; }
+    #rowInsertMenu button .material-symbols-outlined { font-size: 16px !important; color: #64748b; }
 
     td.delete-cell { border: none !important; background: transparent !important; text-align: center; padding: 0 !important; }
     td.delete-cell .material-symbols-outlined { cursor: pointer; color: transparent !important; transition: color 0.15s; font-size: 14px !important; }
@@ -227,12 +275,28 @@
     .field-actions .reset-btn:hover { background: #f1f5f9; color: #ef4444; border-color: #ef4444; }
     .editable-field.is-dirty input { background: #fffbea !important; }
 
-    @page { size: A4 landscape; margin: 8mm; }
+    @page { size: A4 landscape; margin: 14mm 10mm 10mm 10mm; }
     @media print {
       body { background: white !important; }
-      /* 隐藏：顶部工具栏 / 字段保存按钮 / 拖动手柄 / 删除按钮 / 列拖动手柄 / Beta 标签 */
-      header, .field-actions, td.drag-handle, td.delete-cell, .col-resize-handle,
+      /* 隐藏：顶部工具栏 / 字段保存按钮 / 列拖动手柄 / Beta 标签 */
+      header, .field-actions, .col-resize-handle,
       .editable-field .field-actions { display: none !important; }
+      /* drag-handle / delete-cell：保留 td 占位（产品行的 col 0 / col 末），
+         若 display:none 整个 td 会让产品行少 2 cells，与表头/客户/合计行错位一格 */
+      td.drag-handle, td.delete-cell {
+        color: transparent !important;
+        background: transparent !important;
+        border: none !important;
+      }
+      td.drag-handle *, td.delete-cell * { visibility: hidden !important; }
+      #rowInsertHint, #rowInsertLine, #rowInsertMenu { display: none !important; }
+      /* 配件行打印时与普通产品行视觉一致：完全擦除父子关系视觉差异 */
+      tr.config-row td.product-name-cell::before,
+      td.config-sn::before { content: "" !important; margin: 0 !important; }
+      .config-detach-btn { display: none !important; }
+      /* 子行打印时所有 cells 跟普通产品行一致（背景白色 + 标准边框；text 颜色不强制，让 base 规则跟父行一致） */
+      tr.config-row td { background: #fff !important; border: 1px solid #b3b3b3 !important; }
+      tr.config-row td.drag-handle, tr.config-row td.delete-cell { border: none !important; background: #fff !important; }
       span[class*="amber"] { display: none !important; }
       /* 纸张 */
       .quotation-paper {
@@ -338,7 +402,15 @@
   </div>
 </header>
 
-<div class="quotation-paper" id="quotationPaper">
+<div class="quotation-paper" id="quotationPaper" style="position:relative">
+  <!-- 行间插入提示器（hover gap 时浮出，点击开菜单） -->
+  <div id="rowInsertLine"></div>
+  <div id="rowInsertHint" title="{{ _('在此插入新行') }}"><span class="material-symbols-outlined">add</span></div>
+  <div id="rowInsertMenu">
+    <button type="button" data-kind="product"><span class="material-symbols-outlined">inventory_2</span><span data-i18n-tb="add_lib">{{ _('从产品库添加') }}</span></button>
+    <button type="button" data-kind="custom"><span class="material-symbols-outlined">edit_note</span><span data-i18n-tb="add_custom">{{ _('添加自建产品') }}</span></button>
+    <button type="button" data-kind="section"><span class="material-symbols-outlined">label</span><span data-i18n-tb="add_section">{{ _('添加标注行') }}</span></button>
+  </div>
   <table class="q-grid" style="margin-bottom:8px">
     <colgroup><col style="width: 155px"><col></colgroup>
     <tbody>
@@ -606,14 +678,17 @@ window.QuotationEditor = (function() {
   function renderProductRows() {
     const tbody = document.getElementById('productBody');
     tbody.innerHTML = '';
-    let serial = 0, lastMainRowId = null, configIndex = {};
+    let serial = 0, lastMainRowId = null, lastMainSerial = 0, configIndex = {};
     rows.forEach(row => {
       if (row.data.row_type === 'section') tbody.appendChild(renderSectionRow(row));
       else if (row.data.is_accessory && lastMainRowId) {
         configIndex[lastMainRowId] = (configIndex[lastMainRowId]||0)+1;
-        tbody.appendChild(renderProductRow(row, '', configIndex[lastMainRowId], true));
+        // 子行序号 "父.子" 格式（如 "1.1"、"1.2"）
+        const subSerial = `${lastMainSerial}.${configIndex[lastMainRowId]}`;
+        tbody.appendChild(renderProductRow(row, '', subSerial, true));
       } else {
-        serial += 1; lastMainRowId = row.rowId; configIndex[lastMainRowId] = 0;
+        serial += 1; lastMainRowId = row.rowId; lastMainSerial = serial;
+        configIndex[lastMainRowId] = 0;
         tbody.appendChild(renderProductRow(row, serial, null, false));
       }
     });
@@ -642,7 +717,7 @@ window.QuotationEditor = (function() {
     tr.className = 'product-row' + (isConfig ? ' config-row' : '');
     tr.dataset.rowId = row.rowId;
     const d = row.data;
-    const sn = isConfig ? (configSerial ? '└ ' + configSerial : '') : serialNum;
+    const sn = isConfig ? (configSerial || '') : serialNum;
     const mp = parseFloat(d.market_price) || 0;
     const dr = d.discount_rate != null ? d.discount_rate : 100;
     const up = parseFloat(d.unit_price) || 0;
@@ -658,6 +733,7 @@ window.QuotationEditor = (function() {
     };
     let descCell;
     if (isConfig) {
+      // 型号规格列不再显示 └（解除按钮统一在 S/N 列触发）
       descCell = `<td class="readonly product-name-cell" style="vertical-align:top;padding:6px 8px">${renderProductInfo(d)}</td>`;
     } else if (!d.product_name) {
       descCell = `<td class="editable" style="text-align:left;vertical-align:middle;padding:6px 8px">
@@ -676,7 +752,7 @@ window.QuotationEditor = (function() {
 
     tr.innerHTML = `
       <td class="drag-handle ${isConfig?'config-handle':''}" title="${isConfig ? '{{ _("跟随父产品移动") }}' : ''}">⠿</td>
-      <td class="readonly" style="text-align:center">${sn}</td>
+      <td class="readonly ${isConfig?'config-sn':''}" style="text-align:center">${isConfig ? `<span class="config-detach-btn" title="{{ _('点击解除与父产品的关联') }}" onclick="QuotationEditor.detachAccessory('${row.rowId}')">└</span> ${escapeHtml(sn)}` : sn}</td>
       <td class="readonly">${escapeHtml(d.product_mn||'')}</td>
       <td class="readonly">${escapeHtml(d.brand||'')}</td>
       ${descCell}
@@ -718,8 +794,9 @@ window.QuotationEditor = (function() {
       i18n: { products: '{{ _("个产品") }}', priceNegotiable: '{{ _("价格面议") }}', clickToSelectCount: '{{ _("点击选择") }}', discontinued: '{{ _("停产") }}' },
       onSelect: function(product) {
         if (!_activePickRowId) return;
-        const row = rows.find(r => r.rowId === _activePickRowId);
-        if (!row) return;
+        const rowIdx = rows.findIndex(r => r.rowId === _activePickRowId);
+        if (rowIdx < 0) return;
+        const row = rows[rowIdx];
         const data = row.data;
         data.product_id = product.product_id || product.id;
         data.product_name = product.product_name || '';
@@ -732,6 +809,48 @@ window.QuotationEditor = (function() {
         data.is_temp = !!product.is_temp;
         if (!data.discount_rate) data.discount_rate = 100;
         data.unit_price = data.market_price * (parseFloat(data.discount_rate)||100) / 100;
+
+        // 先清掉当前行原有的配件子行（重选产品时清掉旧配件，避免叠加）
+        let removeAt = rowIdx + 1;
+        let removeCount = 0;
+        while (removeAt + removeCount < rows.length && rows[removeAt + removeCount].data.is_accessory) removeCount++;
+        if (removeCount > 0) rows.splice(removeAt, removeCount);
+
+        // 自动带入产品库关联的子配置（递归拍平 nested_configs）
+        const accessoryRows = [];
+        const flatten = (cfg) => {
+          if (!cfg) return;
+          const cp = cfg.product || cfg;  // 兼容两种结构
+          // 后端 /api/product/<id>/relations 返回字段是 retail_price，做向后兼容
+          const mp = parseFloat(cp.retail_price ?? cp.market_price ?? 0) || 0;
+          const dr = parseFloat(cp.discount_rate) || 100;
+          accessoryRows.push({
+            rowId: makeRowId(),
+            data: {
+              row_type: 'product',
+              is_accessory: true,
+              product_id: cp.related_product_id || cp.product_id || cp.id || null,
+              product_name: cp.product_name || '',
+              product_model: cp.product_model || cp.model || '',
+              product_desc: cp.specification || cp.product_desc || cp.product_spec || cp.specs || '',
+              brand: cp.brand || '',
+              product_mn: cp.product_mn || '',
+              unit: cp.unit || '个',
+              quantity: parseInt(cp.default_quantity || cp.quantity || cfg.quantity) || 1,
+              market_price: mp,
+              discount_rate: dr,
+              unit_price: mp * dr / 100,
+              source: 'library',
+            }
+          });
+          const nested = cp.nested_configs || cfg.nested_configs || [];
+          nested.forEach(flatten);
+        };
+        const configurations = product.configurations || [];
+        configurations.forEach(flatten);
+        if (accessoryRows.length > 0) {
+          rows.splice(rowIdx + 1, 0, ...accessoryRows);
+        }
         renderProductRows();
       },
     });
@@ -816,6 +935,39 @@ window.QuotationEditor = (function() {
     } else {
       rows.push({rowId:makeRowId(), data:{row_type:'product', product_name:'', brand:'', unit:'个', quantity:1, discount_rate:100, market_price:0, unit_price:0, is_temp: kind==='custom', source: kind==='custom'?'custom':'library'}});
     }
+    renderProductRows();
+  }
+  function makeRowFor(kind) {
+    if (kind === 'section') return { rowId: makeRowId(), data: { row_type: 'section', section_label: '' } };
+    return { rowId: makeRowId(), data: {
+      row_type: 'product', product_name: '', brand: '', unit: '个',
+      quantity: 1, discount_rate: 100, market_price: 0, unit_price: 0,
+      is_temp: kind === 'custom', source: kind === 'custom' ? 'custom' : 'library'
+    }};
+  }
+  function detachAccessory(rowId) {
+    const idx = rows.findIndex(r => r.rowId === rowId);
+    if (idx < 0) return;
+    const target = rows[idx];
+    if (!target.data.is_accessory) return;
+    target.data.is_accessory = false;
+    // 解除后，把这一行从父子 chunk 中移到 chunk 末尾后（避免破坏其他子行的连续性）
+    let chunkEnd = idx + 1;
+    while (chunkEnd < rows.length && rows[chunkEnd].data.is_accessory) chunkEnd++;
+    if (chunkEnd > idx + 1) {
+      const [moved] = rows.splice(idx, 1);
+      rows.splice(chunkEnd - 1, 0, moved);
+    }
+    renderProductRows();
+  }
+  function insertRowAt(idx, kind) {
+    // idx 是 rows 数组中的插入位置（0..rows.length）
+    // 配件行（is_accessory）必须跟随父产品；如果 idx 落在父+配件 chunk 中间，向上推到父之前或向下推到 chunk 末尾后
+    if (idx > 0 && idx < rows.length && rows[idx].data && rows[idx].data.is_accessory) {
+      // 落在配件之前：往后推到 chunk 末尾
+      while (idx < rows.length && rows[idx].data.is_accessory) idx++;
+    }
+    rows.splice(idx, 0, makeRowFor(kind));
     renderProductRows();
   }
   function removeRow(rowId) {
@@ -1114,6 +1266,134 @@ window.QuotationEditor = (function() {
     });
   }
 
+  // ============== 行间 hover 插入提示 ==============
+  function setupRowInsertHint() {
+    const paper = document.getElementById('quotationPaper');
+    const tbody = document.getElementById('productBody');
+    const hint = document.getElementById('rowInsertHint');
+    const line = document.getElementById('rowInsertLine');
+    const menu = document.getElementById('rowInsertMenu');
+    const mainTable = document.getElementById('mainGrid');
+    if (!paper || !tbody || !hint || !line || !menu || !mainTable) return;
+
+    let currentInsertIdx = 0;
+    let hideTimer = null;
+
+    function updateHint(clientX, clientY) {
+      const paperRect = paper.getBoundingClientRect();
+      const tableRect = mainTable.getBoundingClientRect();
+      // 仅在表格左侧 drag-handle + S/N 列范围内触发（约 76px）
+      const triggerLeftMax = tableRect.left + 76;
+      if (clientX > triggerLeftMax) { hideHint(); return; }
+
+      const trs = [...tbody.querySelectorAll('tr')];
+      const headerRow = document.querySelector('#productHeader tr');
+      const positions = [];  // { y: 相对 paper 的 y, idx: 插入到 rows 数组的 index }
+      if (headerRow) {
+        const r = headerRow.getBoundingClientRect();
+        positions.push({ y: r.bottom - paperRect.top, idx: 0 });
+      }
+      trs.forEach((tr, i) => {
+        const r = tr.getBoundingClientRect();
+        positions.push({ y: r.bottom - paperRect.top, idx: i + 1 });
+      });
+      if (positions.length === 0) { hideHint(); return; }
+      const yRel = clientY - paperRect.top;
+      let best = positions[0]; let bestDist = Math.abs(yRel - best.y);
+      for (const p of positions) {
+        const d = Math.abs(yRel - p.y);
+        if (d < bestDist) { best = p; bestDist = d; }
+      }
+      if (bestDist > 32) { hideHint(); return; }
+      // 父子之间不允许插入：如果插入位置正好落在配件行之前（即下一行是 is_accessory），隐藏 hint
+      if (best.idx > 0 && best.idx < rows.length && rows[best.idx].data && rows[best.idx].data.is_accessory) {
+        hideHint(); return;
+      }
+
+      // 取 S/N 列（productHeader 的第 2 个 td）的水平范围作为蓝线 + ⊕ 的位置
+      const snTd = document.querySelector('#productHeader tr td:nth-child(2)');
+      let lineLeft, lineRight;
+      if (snTd) {
+        const snRect = snTd.getBoundingClientRect();
+        lineLeft = snRect.left - paperRect.left;
+        lineRight = snRect.right - paperRect.left;
+      } else {
+        lineLeft = (tableRect.left - paperRect.left) + 26;
+        lineRight = lineLeft + 50;
+      }
+      line.style.top = (best.y - 1) + 'px';
+      line.style.left = lineLeft + 'px';
+      line.style.width = (lineRight - lineLeft) + 'px';
+
+      // hint：固定在 S/N 列水平中央
+      const hintX = (lineLeft + lineRight) / 2 - 10;
+      hint.style.left = hintX + 'px';
+      hint.style.top = (best.y - 10) + 'px';
+      hint.dataset.insertIdx = best.idx;
+      currentInsertIdx = best.idx;
+      hint.classList.add('visible');
+      line.classList.add('visible');
+    }
+    function hideHint() {
+      if (menu.classList.contains('visible')) return;
+      hint.classList.remove('visible');
+      line.classList.remove('visible');
+    }
+    function scheduleHide() {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hideHint, 120);
+    }
+    function cancelHide() { clearTimeout(hideTimer); }
+
+    const watchAreas = [tbody];
+    const ph = document.getElementById('productHeader');
+    if (ph) watchAreas.push(ph);
+    watchAreas.forEach(el => {
+      el.addEventListener('mousemove', e => {
+        if (menu.classList.contains('visible')) return;
+        cancelHide();
+        updateHint(e.clientX, e.clientY);
+      });
+      el.addEventListener('mouseleave', e => {
+        // 移到 hint 上不算离开（hint 是 paper 的 child，不是 tbody 的 child）
+        scheduleHide();
+      });
+    });
+
+    hint.addEventListener('mouseenter', cancelHide);
+    hint.addEventListener('mouseleave', e => {
+      if (menu.classList.contains('visible')) return;
+      scheduleHide();
+    });
+
+    hint.addEventListener('click', e => {
+      e.stopPropagation();
+      const hintRect = hint.getBoundingClientRect();
+      const paperRect = paper.getBoundingClientRect();
+      menu.style.top = (hintRect.bottom - paperRect.top + 4) + 'px';
+      menu.style.left = (hintRect.left - paperRect.left) + 'px';
+      menu.classList.add('visible');
+    });
+
+    menu.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const kind = btn.dataset.kind;
+        menu.classList.remove('visible');
+        hideHint();
+        insertRowAt(currentInsertIdx, kind);
+      });
+    });
+
+    document.addEventListener('click', e => {
+      if (menu.classList.contains('visible') &&
+          !menu.contains(e.target) && e.target !== hint && !hint.contains(e.target)) {
+        menu.classList.remove('visible');
+        hideHint();
+      }
+    });
+  }
+
   function setupRowDrag() {
     const tbody = document.getElementById('productBody');
     let draggedRowId = null;
@@ -1315,6 +1595,7 @@ window.QuotationEditor = (function() {
 
     setupProjectSearch();
     setupRowDrag();
+    setupRowInsertHint();
     setupColumnDrag();
     setupColumnResize();
 
@@ -1405,7 +1686,8 @@ window.QuotationEditor = (function() {
   }
   document.addEventListener('DOMContentLoaded', init);
 
-  return { addRow, removeRow, updateField, submit, toggleCol, uploadLogo, openProductPicker, formatNum, autoResize };
+
+  return { addRow, insertRowAt, removeRow, detachAccessory, updateField, submit, toggleCol, uploadLogo, openProductPicker, formatNum, autoResize };
 })();
 </script>
 </body>
