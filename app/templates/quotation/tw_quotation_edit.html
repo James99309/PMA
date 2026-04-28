@@ -864,6 +864,55 @@ window.QuotationEditor = (function() {
     reader.readAsDataURL(file);
   }
 
+  // 列拖动重排：仅在产品表头 + 产品行/合计行之间互换 fromIdx 和 toIdx 的 cell
+  // 客户信息行（含 colspan）跳过避免破坏布局
+  function setupColumnDrag() {
+    const headerRow = document.querySelector('#productHeader tr');
+    if (!headerRow) return;
+    let draggedTd = null;
+    function getColIndex(td) { return Array.from(td.parentNode.children).indexOf(td); }
+    function swapColumns(fromIdx, toIdx) {
+      const mainTable = document.getElementById('mainGrid');
+      // 1. 表头交换
+      [headerRow, ...mainTable.querySelectorAll('#productBody tr')].forEach(row => {
+        const cells = Array.from(row.children);
+        const allSingle = cells.every(c => (c.colSpan || 1) === 1);
+        if (!allSingle) return;
+        const fc = cells[fromIdx], tc = cells[toIdx];
+        if (!fc || !tc) return;
+        if (fromIdx < toIdx) row.insertBefore(tc, fc);
+        else row.insertBefore(fc, tc);
+      });
+      // 2. colgroup 中也交换 col 位置（保证列宽跟着内容走）
+      const cols = Array.from(mainTable.querySelectorAll('colgroup col'));
+      const fc = cols[fromIdx], tc = cols[toIdx];
+      if (fc && tc) {
+        if (fromIdx < toIdx) fc.parentNode.insertBefore(tc, fc);
+        else fc.parentNode.insertBefore(fc, tc);
+      }
+    }
+    headerRow.querySelectorAll('td.draggable-col').forEach(td => {
+      td.addEventListener('dragstart', e => {
+        draggedTd = td; td.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      td.addEventListener('dragend', () => {
+        td.classList.remove('dragging');
+        document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+        draggedTd = null;
+      });
+      td.addEventListener('dragover', e => {
+        if (draggedTd && draggedTd !== td) { e.preventDefault(); td.classList.add('drop-target'); }
+      });
+      td.addEventListener('dragleave', () => td.classList.remove('drop-target'));
+      td.addEventListener('drop', e => {
+        e.preventDefault(); td.classList.remove('drop-target');
+        if (!draggedTd || draggedTd === td) return;
+        swapColumns(getColIndex(draggedTd), getColIndex(td));
+      });
+    });
+  }
+
   function setupRowDrag() {
     const tbody = document.getElementById('productBody');
     let draggedRowId = null;
@@ -1049,6 +1098,7 @@ window.QuotationEditor = (function() {
 
     setupProjectSearch();
     setupRowDrag();
+    setupColumnDrag();
 
     // 工具栏下拉菜单 (显示列/添加行)：点击外部关闭
     document.addEventListener('click', e => {
