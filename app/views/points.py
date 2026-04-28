@@ -246,6 +246,20 @@ def api_ai_leaderboard():
     return jsonify({'success': True, 'data': data})
 
 
+@points_bp.route('/api/ai-sync', methods=['POST'])
+@login_required
+def api_ai_sync():
+    """触发一次从 Mac mini 拉取所有用户 Claude 代理用量"""
+    from app.services.ai_proxy_service import pull_usage_from_macmini
+    try:
+        ok, result = pull_usage_from_macmini()
+        if ok:
+            return jsonify({'success': True, 'updated': result})
+        return jsonify({'success': False, 'message': str(result)}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @points_bp.route('/admin/config')
 @login_required
 @permission_required('system_settings', 'edit')

@@ -944,6 +944,7 @@
                             } finally {
                                 this.loading = false;
                             }
+                            if (this.data.has_token) this.refreshUsage();
                         },
                         flash(msg, type) {
                             this.message = msg;

@@ -337,6 +337,13 @@
                     <span class="material-symbols-outlined text-purple-500">token</span>
                     {{ _('AI 用量排行') }}
                   </h2>
+                  <div class="flex items-center gap-1 text-xs text-slate-400">
+                    <span x-show="aiSyncing" class="flex items-center gap-1">
+                      <span class="material-symbols-outlined text-sm animate-spin">sync</span>
+                      {{ _('同步中') }}
+                    </span>
+                    <span x-show="!aiSyncing && aiSyncedAt" x-text="'↑ ' + new Date(aiSyncedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})"></span>
+                  </div>
                 </div>
                 <div x-show="aiLoading" class="flex justify-center py-8">
                   <span class="material-symbols-outlined animate-spin text-primary">progress_activity</span>
@@ -514,6 +521,8 @@ function pointsPage() {
     activeTab: 'points',
     aiLeaderboard: [],
     aiLoading: false,
+    aiSyncing: false,
+    aiSyncedAt: null,
     myAI: null,
     selectedAIUserId: null,
     selectedAIUserName: '',
@@ -543,6 +552,7 @@ function pointsPage() {
     switchToAI() {
       this.activeTab = 'ai';
       this.loadAILeaderboard();
+      this.syncAndReloadAI();
     },
     loadKnowledgeLeaderboard() {
       this.knowledgeLoading = true;
@@ -564,6 +574,17 @@ function pointsPage() {
           this.myAI = this.aiLeaderboard.find(u => u.is_me) || null;
         })
         .finally(() => { this.aiLoading = false; });
+    },
+    syncAndReloadAI() {
+      const now = Date.now();
+      if (this.aiSyncing) return;
+      if (this.aiSyncedAt && now - this.aiSyncedAt < 120000) return;
+      this.aiSyncing = true;
+      fetch('/points/api/ai-sync', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => { if (d.success) { this.aiSyncedAt = Date.now(); this.loadAILeaderboard(); } })
+        .catch(() => {})
+        .finally(() => { this.aiSyncing = false; });
     },
     selectAIUser(item) {
       this.selectedAIUserId = item.user_id;
