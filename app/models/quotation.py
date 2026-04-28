@@ -121,6 +121,9 @@ class Quotation(db.Model):
     # 公司主体（多公司报价：CN/SG/MY 等）
     entity_id = db.Column(db.Integer, db.ForeignKey('company_entities.id'), nullable=True)
     entity = db.relationship('CompanyEntity', foreign_keys=[entity_id])
+
+    # 非结构化字段：付款条件 / 交付条件 / 有效期 / Ref No 等（编辑器输入）
+    extra_fields = db.Column(db.JSON, nullable=True)
     
     # 锁定人关联
     locker = db.relationship('User', foreign_keys=[locked_by], backref='locked_quotations')

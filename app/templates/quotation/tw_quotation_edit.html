@@ -314,36 +314,60 @@
     <tbody id="customerInfoBody">
       <tr>
         <td style="border:none;background:transparent"></td>
-        <td class="label" colspan="3">{{ _('客户名称') }}:</td>
+        <td class="label" colspan="3" data-i18n-label="cust">{{ _('客户名称') }}:</td>
         <td class="editable" colspan="3"><select id="customerSelect" required><option value="">{{ _('-- 请先选择项目 --') }}</option></select></td>
-        <td class="label" colspan="2">{{ _('报价编号') }}:</td>
+        <td class="label" colspan="2" data-i18n-label="qno">{{ _('报价编号') }}:</td>
         <td class="readonly">{{ quotation.quotation_number if is_edit else _('（保存后生成）') }}</td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
         <td style="border:none;background:transparent"></td>
-        <td class="label" colspan="3">{{ _('联系人') }}:</td>
-        <td class="editable" colspan="3"><select id="contactSelect"><option value="">--</option></select></td>
-        <td class="label" colspan="2">{{ _('报价日期') }}:</td>
+        <td class="label" colspan="3" data-i18n-label="company_address">{{ _('客户地址') }}:</td>
+        <td class="editable" colspan="3"><input type="text" id="customerAddress" placeholder=""></td>
+        <td class="label" colspan="2" data-i18n-label="qdate">{{ _('报价日期') }}:</td>
         <td class="readonly">{{ quotation.created_at.strftime('%Y-%m-%d') if is_edit else '' }}</td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
         <td style="border:none;background:transparent"></td>
-        <td class="label" colspan="3">{{ _('项目名称') }}:</td>
+        <td class="label" colspan="3" data-i18n-label="contact">{{ _('联系人') }}:</td>
+        <td class="editable" colspan="3"><select id="contactSelect"><option value="">--</option></select></td>
+        <td class="label" colspan="2" data-i18n-label="payment">{{ _('付款条件') }}:</td>
+        <td class="editable"><input type="text" id="extraPaymentTerms" placeholder=""></td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+      <tr>
+        <td style="border:none;background:transparent"></td>
+        <td class="label" colspan="3" data-i18n-label="contact_no">{{ _('联系电话') }}:</td>
+        <td class="editable" colspan="3"><input type="text" id="contactPhone" placeholder=""></td>
+        <td class="label" colspan="2" data-i18n-label="shipping">{{ _('交付条件') }}:</td>
+        <td class="editable"><input type="text" id="extraShippingTerms" placeholder=""></td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+      <tr>
+        <td style="border:none;background:transparent"></td>
+        <td class="label" colspan="3" data-i18n-label="proj">{{ _('项目名称') }}:</td>
         <td class="editable" colspan="3" style="position:relative">
           <input type="text" id="projectSearch" placeholder="{{ _('搜索项目...') }}" autocomplete="off" value="{{ quotation.project.project_name if is_edit and quotation.project else (preset_project.project_name if preset_project else '') }}">
           <input type="hidden" id="projectId" value="{{ quotation.project_id if is_edit else (preset_project.id if preset_project else '') }}">
           <div id="projectDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"></div>
         </td>
-        <td class="label" colspan="2">{{ _('货币') }}:</td>
-        <td class="editable">
+        <td class="label" colspan="2" data-i18n-label="validity">{{ _('有效期') }}:</td>
+        <td class="editable"><input type="text" id="extraValidity" placeholder=""></td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+      <tr>
+        <td style="border:none;background:transparent"></td>
+        <td class="label" colspan="3" data-i18n-label="currency">{{ _('货币') }}:</td>
+        <td class="editable" colspan="3">
           <select id="currencySelect">
             {% for code, name in currency_options %}
             <option value="{{ code }}" {% if code == default_currency %}selected{% endif %}>{{ code }}</option>
             {% endfor %}
           </select>
         </td>
+        <td class="label" colspan="2" data-i18n-label="refno">{{ _('参考编号') }}:</td>
+        <td class="editable"><input type="text" id="extraRefNo" placeholder=""></td>
         <td style="border:none;background:transparent"></td>
       </tr>
     </tbody>
@@ -460,6 +484,7 @@ window.QuotationEditor = (function() {
   const initialDetails = {{ quotation_details_json | safe }};
   const entities = {{ entities_json | safe }};
   let currentEntityId = {{ default_entity_id or 'null' }};
+  const extraFieldsInitial = {{ extra_fields_json | safe }};
 
   // i18n 词典 (zh/en) — 切换主体时刷新页面文案
   const I18N = {
@@ -468,7 +493,7 @@ window.QuotationEditor = (function() {
       disc: '折扣%', market: '市场价', unit_price: '单价', qty: '数量', amount: '小计',
       total_before: '税前金额', tax_label: '增值税', total_after: '合计', remarks: '备注',
       qno: '报价编号', qdate: '报价日期', payment: '付款条件', shipping: '交付条件', validity: '有效期', refno: '参考编号',
-      cust: '客户名称', proj: '项目名称', contact: '联系人', currency: '货币',
+      cust: '客户名称', company_address: '客户地址', proj: '项目名称', contact: '联系人', contact_no: '联系电话', currency: '货币',
       sign_customer: '客户签字盖章:', sign_seal: '盖章签字',
       total_amount: '金额',
     },
@@ -477,7 +502,7 @@ window.QuotationEditor = (function() {
       disc: 'Disc%', market: 'Market', unit_price: 'Unit Price', qty: 'Qty', amount: 'Amount',
       total_before: 'Total before GST', tax_label: 'GST', total_after: 'Total after GST', remarks: 'Remarks',
       qno: 'Quotation No.', qdate: 'Quotation Date', payment: 'Payment Terms', shipping: 'Shipping Terms', validity: 'Validity', refno: 'Ref No',
-      cust: 'Customer', proj: 'Project', contact: 'Contact Person', currency: 'Currency',
+      cust: 'Company Name', company_address: 'Company Address', proj: 'Project', contact: 'Contact Person', contact_no: 'Contact No.', currency: 'Currency',
       sign_customer: 'Signed and Accepted by Customer:', sign_seal: 'chop & sign',
       total_amount: 'Amount',
     }
@@ -806,7 +831,16 @@ window.QuotationEditor = (function() {
     let totalAmount = 0;
     details.forEach(d => { if (d.row_type==='product') totalAmount += d.total_price||0; });
 
-    const payload = { project_id:projectId, customer_id:customerId, contact_id:contactId||null, currency, notes, total_amount:totalAmount, details, entity_id: currentEntityId };
+    const getV = id => document.getElementById(id)?.value || '';
+    const extra_fields = {
+      payment_terms: getV('extraPaymentTerms'),
+      shipping_terms: getV('extraShippingTerms'),
+      validity: getV('extraValidity'),
+      ref_no: getV('extraRefNo'),
+      customer_address: getV('customerAddress'),
+      contact_phone: getV('contactPhone'),
+    };
+    const payload = { project_id:projectId, customer_id:customerId, contact_id:contactId||null, currency, notes, total_amount:totalAmount, details, entity_id: currentEntityId, extra_fields };
     const url = isEdit ? `/quotation/${quotationId}/save` : '/quotation/create';
     try {
       const resp = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':csrfToken}, body:JSON.stringify(payload)});
@@ -1036,11 +1070,9 @@ window.QuotationEditor = (function() {
     document.querySelectorAll('#productHeader td[data-i18n]').forEach(td => {
       td.textContent = t(td.dataset.i18n);
     });
-    // 客户信息块 label：行1 客户/报价编号，行2 联系人/报价日期，行3 项目/货币
-    const labelMap = ['cust','qno','contact','qdate','proj','currency'];
-    const labels = document.querySelectorAll('#customerInfoBody tr td.label');
-    labels.forEach((td, i) => {
-      const k = labelMap[i]; if (k) td.innerHTML = t(k) + ':';
+    // 客户信息块 label：用 data-i18n-label 标记直接定位
+    document.querySelectorAll('#customerInfoBody td[data-i18n-label]').forEach(td => {
+      td.innerHTML = t(td.dataset.i18nLabel) + ':';
     });
     // 备注
     const remarkCell = document.querySelector('#totalBody tr td.label[colspan="2"]');
@@ -1063,6 +1095,16 @@ window.QuotationEditor = (function() {
     });
 
     document.getElementById('gstRate')?.addEventListener('input', recalcTotals);
+
+    // 加载 extra_fields 到 input
+    const ef = extraFieldsInitial || {};
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.value = v; };
+    setVal('extraPaymentTerms', ef.payment_terms);
+    setVal('extraShippingTerms', ef.shipping_terms);
+    setVal('extraValidity', ef.validity);
+    setVal('extraRefNo', ef.ref_no);
+    setVal('customerAddress', ef.customer_address);
+    setVal('contactPhone', ef.contact_phone);
 
     // 备注 textarea 初始撑开
     const notesInput = document.getElementById('notesInput');

@@ -1054,6 +1054,7 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
         if default_entity_id is None and entities:
             default_entity_id = entities[0].id
 
+    extra_fields = (getattr(quotation, 'extra_fields', None) if quotation else None) or {}
     return render_template(
         'quotation/tw_quotation_edit.html',
         quotation=quotation,
@@ -1066,6 +1067,7 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
         can_edit_this_quotation=can_edit_this_quotation,
         entities_json=entities_json,
         default_entity_id=default_entity_id,
+        extra_fields_json=json.dumps(extra_fields),
     )
 
 
@@ -1343,6 +1345,8 @@ def create_quotation():
                 if data.get('entity_id'):
                     try: quotation.entity_id = int(data.get('entity_id'))
                     except (ValueError, TypeError): pass
+                if 'extra_fields' in data and isinstance(data.get('extra_fields'), dict):
+                    quotation.extra_fields = data.get('extra_fields') or {}
                 db.session.add(quotation)
                 current_app.logger.debug(f"创建新报价单: {quotation.quotation_number}")
                 
@@ -3877,6 +3881,9 @@ def save_quotation(id):
         if data.get('entity_id'):
             try: quotation.entity_id = int(data.get('entity_id'))
             except (ValueError, TypeError): pass
+        # 非结构化字段（payment_terms/shipping_terms/validity/ref_no 等）
+        if 'extra_fields' in data and isinstance(data.get('extra_fields'), dict):
+            quotation.extra_fields = data.get('extra_fields') or {}
         # 手动更新时间戳，确保updated_at字段正确
         quotation.updated_at = datetime.utcnow()
         current_app.logger.info(f'直接保存前端总金额到报价单: {total_amount}, 货币: {quotation.currency}')
