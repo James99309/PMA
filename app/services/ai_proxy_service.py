@@ -248,17 +248,22 @@ def get_user_usage_summary(user_id):
 def enable_user(user, quota_tokens=None, send_email=True):
     """启用某用户的 Claude AI 代理。
     返回 dict {token, is_new_token, email_sent, push_ok, push_msg}
+
+    邮件触发逻辑：只要本次操作让 enabled 从 False → True（或首次生成 token），就发邮件。
+    单纯改配额而 enabled 一直是 True 的不算（quota 路由单独处理）。
     """
     if not user.is_active:
         raise ValueError('用户未激活，不能开通 Claude AI 代理')
     if not user.email:
         raise ValueError('用户未绑定邮箱，无法发送 token')
 
+    was_enabled = bool(user.claude_ai_enabled)
     token, is_new = user.enable_claude_ai(quota_tokens=quota_tokens)
     db.session.commit()
 
     email_sent = False
-    if send_email and is_new:
+    should_email = send_email and (is_new or not was_enabled)  # 新 token 或刚被开启都发
+    if should_email:
         try:
             from app.utils.email import send_claude_ai_token_email
             email_sent = send_claude_ai_token_email(user, token)

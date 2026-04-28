@@ -176,7 +176,12 @@ def create_app(config_class=Config):
         if request.path.startswith('/approval/approve/') or request.path.startswith('/approval/process/'):
             logger.debug(f'CSRF exempt Approval Action path: {request.path}, Method: {request.method}')
             return True
-            
+
+        # Claude AI 代理 API 路径豁免（/user/api/<id>/claude-ai/*）
+        if '/claude-ai' in request.path and '/api/' in request.path:
+            logger.debug(f'CSRF exempt Claude AI API path: {request.path}, Method: {request.method}')
+            return True
+
         # 报销模块API路径豁免
         if request.path.startswith('/expense/api/'):
             logger.debug(f'CSRF exempt Expense API path: {request.path}, Method: {request.method}')

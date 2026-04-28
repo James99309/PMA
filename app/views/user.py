@@ -27,6 +27,7 @@ from app.models.role_permissions import RolePermission
 from app.utils.access_control import get_viewable_data, can_edit_data
 from app.utils.sharing import get_shareable_users_tree
 from app.permissions import permission_required
+from app.extensions import csrf
 
 logger = logging.getLogger(__name__)
 user_bp = Blueprint('user', __name__)
@@ -2645,7 +2646,7 @@ def api_claude_ai_get(user_id):
         'quota': int(user.claude_ai_quota_tokens or 0),
         'effective_quota': int(user.claude_ai_quota_tokens or default_quota()),
         'default_quota': default_quota(),
-        'enabled_at': user.claude_ai_enabled_at.isoformat() if user.claude_ai_enabled_at else None,
+        'enabled_at': user.claude_ai_enabled_at.strftime('%Y-%m-%d %H:%M') if user.claude_ai_enabled_at else None,
         'is_active': user.is_active,
         'has_email': bool(user.email),
         'usage': usage,
@@ -2653,6 +2654,7 @@ def api_claude_ai_get(user_id):
 
 
 @user_bp.route('/api/<int:user_id>/claude-ai/enable', methods=['POST'])
+@csrf.exempt
 @login_required
 @permission_required('user', 'edit')
 def api_claude_ai_enable(user_id):
@@ -2680,6 +2682,7 @@ def api_claude_ai_enable(user_id):
 
 
 @user_bp.route('/api/<int:user_id>/claude-ai/disable', methods=['POST'])
+@csrf.exempt
 @login_required
 @permission_required('user', 'edit')
 def api_claude_ai_disable(user_id):
@@ -2691,6 +2694,7 @@ def api_claude_ai_disable(user_id):
 
 
 @user_bp.route('/api/<int:user_id>/claude-ai/reset-token', methods=['POST'])
+@csrf.exempt
 @login_required
 def api_claude_ai_reset_token(user_id):
     """重置 token：管理员或用户本人可操作"""
@@ -2713,6 +2717,7 @@ def api_claude_ai_reset_token(user_id):
 
 
 @user_bp.route('/api/<int:user_id>/claude-ai/quota', methods=['POST'])
+@csrf.exempt
 @login_required
 @permission_required('user', 'edit')
 def api_claude_ai_quota(user_id):

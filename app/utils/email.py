@@ -550,7 +550,8 @@ def send_claude_ai_token_email(user, token, is_reset=False):
         """
 
         logger.info(f'正在向 {user.username} 发送 Claude AI {subject_action} 邮件')
-        return send_email(subject, user.email, None, html=html_content)
+        # 同步发送：HTTP 请求返回前确保邮件已实际投递（开通操作不频繁，等 1-3 秒可接受）
+        return send_email(subject, user.email, None, html=html_content, async_send=False)
 
     except Exception as e:
         logger.error(f'发送 Claude AI 邮件失败: {e}', exc_info=True)
