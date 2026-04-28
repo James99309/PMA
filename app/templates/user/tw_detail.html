@@ -734,6 +734,29 @@
                             <label class="text-sm text-slate-500 dark:text-slate-400">{{ _('启用时间') }}</label>
                             <p class="text-slate-900 dark:text-white text-sm mt-1" x-text="data.enabled_at || '-'"></p>
                         </div>
+                        <!-- 设备锁定状态 -->
+                        <div class="md:col-span-2">
+                            <label class="text-sm text-slate-500 dark:text-slate-400 block mb-1">{{ _('设备锁定') }}</label>
+                            <div class="flex items-center gap-3 flex-wrap">
+                                <template x-if="data.locked_device_id">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                                        <span class="material-symbols-outlined text-sm">lock</span>
+                                        <span x-text="data.locked_device_id.substring(0, 8) + '…'"></span>
+                                    </span>
+                                </template>
+                                <template x-if="!data.locked_device_id">
+                                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                                        <span class="material-symbols-outlined text-sm">lock_open</span>
+                                        {{ _('首次使用时自动锁定') }}
+                                    </span>
+                                </template>
+                                <button x-show="data.locked_device_id" type="button" @click="unlockDevice()" :disabled="loading"
+                                        class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 transition-colors disabled:opacity-50">
+                                    <span class="material-symbols-outlined text-sm">lock_open</span>
+                                    {{ _('解除设备锁定') }}
+                                </button>
+                            </div>
+                        </div>
                         <div class="md:col-span-2">
                             <button type="button" @click="resetToken()" :disabled="loading"
                                     class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 dark:text-amber-300 transition-colors disabled:opacity-50">
@@ -807,12 +830,17 @@
                     </div>
                 </div>
 
+                <!-- 确认对话框：开关 / 重置 token / 解除设备锁定 -->
+                {{ tw_confirm_modal('claudeToggleModal', title='确认操作', message='', confirm_text='确认', cancel_text='取消', variant='warning', show_error=true) }}
+                {{ tw_confirm_modal('claudeResetTokenModal', title='重置 Token', message='重置后旧 token <strong>立即失效</strong>，用户需要重新配置客户端。新 token 将发送至邮箱。确认继续？', confirm_text='重置', cancel_text='取消', variant='danger', show_error=true) }}
+                {{ tw_confirm_modal('claudeUnlockDeviceModal', title='解除设备锁定', message='解除后，该 token 下次使用时会自动锁定到新设备。用户可以在新电脑上继续使用<strong>相同 token</strong>。', confirm_text='解除锁定', cancel_text='取消', variant='warning', show_error=true) }}
+
                 <script>
                 function claudeAiTab(userId, getUrl) {
                     return {
                         userId: userId,
                         getUrl: getUrl,
-                        data: {enabled: false, has_token: false, quota: 0, default_quota: 0, effective_quota: 0, usage: {}, is_active: true, has_email: true},
+                        data: {enabled: false, has_token: false, quota: 0, default_quota: 0, effective_quota: 0, usage: {}, is_active: true, has_email: true, locked_device_id: null},
                         quotaInput: 0,
                         loading: false,
                         message: '',
@@ -834,44 +862,70 @@
                             this.messageType = type || 'info';
                             setTimeout(() => { this.message = ''; }, 4000);
                         },
-                        async toggleEnable(ev) {
-                            this.loading = true;
+                        toggleEnable(ev) {
                             const turnOn = ev.target.checked;
-                            const url = `/user/api/${this.userId}/claude-ai/${turnOn ? 'enable' : 'disable'}`;
-                            try {
-                                const r = await fetch(url, {
-                                    method: 'POST',
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: JSON.stringify({quota: this.quotaInput})
-                                });
-                                const d = await r.json();
-                                if (!d.success) throw new Error(d.message || '操作失败');
-                                let msg = turnOn ? '✓ 已启用' : '✓ 已禁用';
-                                if (d.email_sent) msg += '，邮件已发送';
-                                if (d.sync_ok === false) msg += '；Mac mini 推送失败 (将由定时任务兜底)';
-                                this.flash(msg, 'info');
-                                await this.load();
-                            } catch (e) {
-                                this.flash('失败: ' + e.message, 'error');
-                                ev.target.checked = !turnOn;
-                            } finally {
-                                this.loading = false;
-                            }
+                            ev.target.checked = !turnOn;  // 先还原，等确认后再改
+                            const self = this;
+                            openConfirmModal('claudeToggleModal', {
+                                title: turnOn ? '开通 Claude AI 代理' : '禁用 Claude AI 代理',
+                                message: turnOn
+                                    ? '确认开通后，系统将生成 token 并发送至用户邮箱，用户可通过邮件配置客户端。'
+                                    : '确认禁用后，该用户将<strong>立即无法使用</strong>代理服务。Token 保留，重新启用时无需重新配置客户端。',
+                                onConfirm: async () => {
+                                    const url = `/user/api/${self.userId}/claude-ai/${turnOn ? 'enable' : 'disable'}`;
+                                    self.loading = true;
+                                    try {
+                                        const r = await fetch(url, {
+                                            method: 'POST',
+                                            headers: {'Content-Type': 'application/json'},
+                                            body: JSON.stringify({quota: self.quotaInput})
+                                        });
+                                        const d = await r.json();
+                                        if (!d.success) throw new Error(d.message || '操作失败');
+                                        let msg = turnOn ? '✓ 已启用' : '✓ 已禁用';
+                                        if (d.email_sent) msg += '，邮件已发送';
+                                        if (d.sync_ok === false) msg += '；Mac mini 推送失败';
+                                        self.flash(msg, 'info');
+                                        await self.load();
+                                    } finally {
+                                        self.loading = false;
+                                    }
+                                }
+                            });
                         },
-                        async resetToken() {
-                            if (!confirm('重置后旧 token 立即失效，用户需要重新配置客户端。确认继续？')) return;
-                            this.loading = true;
-                            try {
-                                const r = await fetch(`/user/api/${this.userId}/claude-ai/reset-token`, {method: 'POST'});
-                                const d = await r.json();
-                                if (!d.success) throw new Error(d.message || '重置失败');
-                                this.flash('✓ token 已重置，邮件已发送给用户', 'info');
-                                await this.load();
-                            } catch (e) {
-                                this.flash('失败: ' + e.message, 'error');
-                            } finally {
-                                this.loading = false;
-                            }
+                        resetToken() {
+                            const self = this;
+                            openConfirmModal('claudeResetTokenModal', {
+                                onConfirm: async () => {
+                                    self.loading = true;
+                                    try {
+                                        const r = await fetch(`/user/api/${self.userId}/claude-ai/reset-token`, {method: 'POST'});
+                                        const d = await r.json();
+                                        if (!d.success) throw new Error(d.message || '重置失败');
+                                        self.flash('✓ token 已重置，邮件已发送给用户', 'info');
+                                        await self.load();
+                                    } finally {
+                                        self.loading = false;
+                                    }
+                                }
+                            });
+                        },
+                        unlockDevice() {
+                            const self = this;
+                            openConfirmModal('claudeUnlockDeviceModal', {
+                                onConfirm: async () => {
+                                    self.loading = true;
+                                    try {
+                                        const r = await fetch(`/user/api/${self.userId}/claude-ai/unlock-device`, {method: 'POST'});
+                                        const d = await r.json();
+                                        if (!d.success) throw new Error(d.message || '解锁失败');
+                                        self.data.locked_device_id = null;
+                                        self.flash('✓ 设备锁定已解除', 'info');
+                                    } finally {
+                                        self.loading = false;
+                                    }
+                                }
+                            });
                         },
                         async saveQuota() {
                             this.loading = true;

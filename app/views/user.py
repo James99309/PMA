@@ -2634,10 +2634,11 @@ def profile():
 @login_required
 @permission_required('user', 'view')
 def api_claude_ai_get(user_id):
-    """获取某用户的 Claude AI 代理状态 + 用量摘要"""
-    from app.services.ai_proxy_service import get_user_usage_summary, default_quota
+    """获取某用户的 Claude AI 代理状态 + 用量摘要 + 设备锁定状态"""
+    from app.services.ai_proxy_service import get_user_usage_summary, default_quota, get_device_lock_status
     user = User.query.get_or_404(user_id)
     usage = get_user_usage_summary(user_id)
+    locked_device_id = get_device_lock_status(user.claude_ai_token) if user.claude_ai_token else None
     return jsonify({
         'enabled': bool(user.claude_ai_enabled),
         'has_token': bool(user.claude_ai_token),
@@ -2650,6 +2651,7 @@ def api_claude_ai_get(user_id):
         'is_active': user.is_active,
         'has_email': bool(user.email),
         'usage': usage,
+        'locked_device_id': locked_device_id,
     })
 
 
@@ -2750,3 +2752,19 @@ def api_claude_ai_refresh_usage(user_id):
         return jsonify({'success': True, 'usage': usage})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@user_bp.route('/api/<int:user_id>/claude-ai/unlock-device', methods=['POST'])
+@csrf.exempt
+@login_required
+@permission_required('user', 'edit')
+def api_claude_ai_unlock_device(user_id):
+    """解除该用户 token 的设备锁定（管理员操作）"""
+    from app.services.ai_proxy_service import clear_device_lock
+    user = User.query.get_or_404(user_id)
+    if not user.claude_ai_token:
+        return jsonify({'success': False, 'message': '用户未开通代理'}), 400
+    ok, msg = clear_device_lock(user.claude_ai_token)
+    if not ok:
+        return jsonify({'success': False, 'message': f'解锁失败: {msg}'}), 500
+    return jsonify({'success': True})

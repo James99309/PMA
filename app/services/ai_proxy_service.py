@@ -312,3 +312,38 @@ def update_user_quota(user, quota_tokens):
     user.claude_ai_quota_tokens = int(quota_tokens or 0)
     db.session.commit()
     return push_to_macmini()
+
+
+# ── 设备锁定 ───────────────────────────────────────────────────────────────
+
+def get_device_lock_status(token, timeout=3):
+    """返回某 token 的设备锁定 ID，获取失败返回 None。"""
+    url = _admin_url().rstrip('/') + '/api/device-lock'
+    try:
+        resp = requests.get(url, params={'token': token}, timeout=timeout)
+        if resp.status_code == 200:
+            return resp.json().get('locked_device_id')
+    except Exception as e:
+        logger.debug(f'获取设备锁定状态失败 token={token[:14]}…: {e}')
+    return None
+
+
+def clear_device_lock(token, timeout=5):
+    """清除某 token 的设备锁定。返回 (ok, msg)。"""
+    url = _admin_url().rstrip('/') + '/api/device-lock'
+    key = _shared_key()
+    if not key:
+        return False, 'missing shared key'
+    try:
+        resp = requests.delete(
+            url,
+            json={'token': token},
+            headers={'X-API-Key': key, 'Content-Type': 'application/json'},
+            timeout=timeout,
+        )
+        if resp.status_code == 200:
+            return True, 'ok'
+        return False, f'http {resp.status_code}: {resp.text[:100]}'
+    except Exception as e:
+        logger.warning(f'清除设备锁定失败 token={token[:14]}…: {e}')
+        return False, str(e)
