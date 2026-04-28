@@ -490,7 +490,7 @@ window.QuotationEditor = (function() {
       </td>
       <td class="readonly" style="text-align:right">${formatNum(mp)}</td>
       <td class="${isConfig?'readonly':'editable'}" style="text-align:right">
-        ${isConfig ? formatNum(up) : `<input type="number" value="${up}" style="text-align:right" oninput="QuotationEditor.updateField('${row.rowId}','unit_price',this.value)">`}
+        ${isConfig ? formatNum(up) : `<input type="text" value="${formatNum(up)}" style="text-align:right" oninput="QuotationEditor.updateField('${row.rowId}','unit_price',this.value)" onfocus="this.value=parseFloat(String(this.value).replace(/,/g,''))||0" onblur="this.value=QuotationEditor.formatNum(this.value)">`}
       </td>
       <td class="editable" style="text-align:center">
         <input type="number" value="${qty}" style="text-align:center" oninput="QuotationEditor.updateField('${row.rowId}','quantity',this.value)">
@@ -551,6 +551,8 @@ window.QuotationEditor = (function() {
   function updateField(rowId, key, val) {
     const row = rows.find(r => r.rowId === rowId);
     if (!row) return;
+    // 单价 input 是 type=text 带千分位，存储时 strip 逗号
+    if (key === 'unit_price' && typeof val === 'string') val = val.replace(/,/g, '');
     row.data[key] = val;
 
     // 折扣率 ↔ 单价 联动（市场价是基准；其中一边改，另一边自动算）
@@ -561,7 +563,8 @@ window.QuotationEditor = (function() {
       row.data.unit_price = newUnit;
       const tr = document.querySelector(`tr[data-row-id="${rowId}"]`);
       const upInput = tr && tr.querySelector('input[oninput*="unit_price"]');
-      if (upInput) upInput.value = newUnit.toFixed(2);
+      if (upInput && document.activeElement !== upInput) upInput.value = formatNum(newUnit);
+      else if (upInput) upInput.value = newUnit.toFixed(2);
     } else if (key === 'unit_price' && mp > 0) {
       const up = parseFloat(val) || 0;
       const newDiscount = up / mp * 100;
@@ -849,7 +852,7 @@ window.QuotationEditor = (function() {
   }
   document.addEventListener('DOMContentLoaded', init);
 
-  return { addRow, removeRow, updateField, submit, toggleCol, uploadLogo, openProductPicker };
+  return { addRow, removeRow, updateField, submit, toggleCol, uploadLogo, openProductPicker, formatNum };
 })();
 </script>
 </body>
