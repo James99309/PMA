@@ -99,11 +99,11 @@
             <h1 class="text-2xl font-bold text-slate-900 dark:text-white">{{ _('报价单管理') }}</h1>
             <div class="flex flex-wrap items-center gap-2">
                 {% if has_permission('quotation', 'create') %}
-                <button type="button" onclick="openAddQuotationModal()"
+                <a href="{{ url_for('quotation.create_quotation') }}"
                    class="inline-flex items-center justify-center gap-2 h-10 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors">
                     <span class="material-symbols-outlined" style="font-size: 20px;">add</span>
                     <span>{{ _('创建报价单') }}</span>
-                </button>
+                </a>
                 {% endif %}
             </div>
         {% elif page_slot == 'content' %}
