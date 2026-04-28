@@ -514,11 +514,11 @@
                     {# region selection — provinces (CN) or countries (SG) #}
                     <div>
                         <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            {% if is_ovs %}{{ _('国家') }}{% else %}{{ _('省份') }}{% endif %}
+                            {% if currency_config.is_ovs %}{{ _('国家') }}{% else %}{{ _('省份') }}{% endif %}
                             <span class="text-xs text-slate-400 font-normal">{{ _('（最多选 2 个）') }}</span>
                         </label>
                         <div id="br-provinces" class="flex flex-wrap gap-1.5">
-                            {% if is_ovs %}
+                            {% if currency_config.is_ovs %}
                                 {% set _regions = [
                                     ('Singapore',   _('新加坡')),
                                     ('Malaysia',    _('马来西亚')),
@@ -554,7 +554,7 @@
                             {{ _('行业') }} <span class="text-xs text-slate-400 font-normal">{{ _('（最多选 2 个）') }}</span>
                         </label>
                         <div id="br-industries" class="flex flex-wrap gap-1.5">
-                            {% if is_ovs %}
+                            {% if currency_config.is_ovs %}
                                 {% set _industries = [
                                     ('datacenter',     _('数据中心')),
                                     ('hospitality',    _('酒店')),
@@ -1791,7 +1791,7 @@
         government:        '{{ _("政府") }}',
         other:             '{{ _("其他") }}',
     };
-    const _BR_IS_OVS = {{ 'true' if is_ovs else 'false' }};
+    const _BR_IS_OVS = {{ 'true' if currency_config.is_ovs else 'false' }};
 
     function openBatchResearchModal() {
         _brProvinces  = [];
