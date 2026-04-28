@@ -143,10 +143,13 @@
     tr:hover > td.delete-cell .material-symbols-outlined { color: #94a3b8; }
     td.delete-cell .material-symbols-outlined:hover { color: #ef4444 !important; }
 
-    tr.total-row td { font-weight: 700; }
+    tr.total-row td { font-weight: 700; height: 32px; padding-top: 4px; padding-bottom: 4px; }
     tr.total-row td.total-label { text-align: left; padding-left: 12px; }
     tr.total-row td.total-value { text-align: right; }
     tr.total-final-row td.total-label, tr.total-final-row td.total-value { background: #fef3c7 !important; }
+    /* GST 模式 select / 比例 input：紧凑、无干扰 */
+    #gstMode { padding: 0 18px 0 0; height: auto; }
+    #gstRate { padding: 0; height: auto; }
 
     td.sign-blank { border: none !important; height: 40px; background: transparent; }
     span.sign-line {
@@ -345,8 +348,17 @@
       </tr>
       <tr class="total-row">
         <td colspan="5" style="border:none;background:transparent"></td>
-        <td class="total-label" colspan="4">{{ _('GST') }}</td>
-        <td class="editable total-value"><input type="number" id="gstInput" value="0" style="text-align:right;font-weight:700"></td>
+        <td class="total-label" colspan="2">
+          <select id="gstMode" class="form-select bg-transparent border-none p-0 text-[12px] font-bold focus:ring-0">
+            <option value="exclusive">{{ _('GST') }}</option>
+            <option value="inclusive">{{ _('GST 包含在价格内') }}</option>
+            <option value="none">{{ _('无 GST') }}</option>
+          </select>
+        </td>
+        <td class="editable" style="text-align:right" colspan="2">
+          <input type="number" id="gstRate" value="0" min="0" max="100" step="0.01" style="text-align:right;font-weight:700;width:60%;display:inline-block"><span style="margin-left:4px">%</span>
+        </td>
+        <td class="total-value" id="gstAmountCell">0.00</td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr class="total-row total-final-row">
@@ -589,9 +601,23 @@ window.QuotationEditor = (function() {
     rows.forEach(r => { if (r.data.row_type==='section') return;
       sub += (parseFloat(r.data.unit_price)||0)*(parseFloat(r.data.quantity)||1);
     });
-    const gst = parseFloat(document.getElementById('gstInput')?.value)||0;
+    const mode = document.getElementById('gstMode')?.value || 'exclusive';
+    const rate = parseFloat(document.getElementById('gstRate')?.value) || 0;
+    let gstAmount = 0, total = sub;
+    if (mode === 'exclusive') {
+      gstAmount = sub * rate / 100;
+      total = sub + gstAmount;
+    } else if (mode === 'inclusive') {
+      // 价格内含 GST，显示金额但不影响总计
+      gstAmount = sub - sub / (1 + rate/100);
+      total = sub;
+    } else {
+      gstAmount = 0; total = sub;
+    }
     document.getElementById('subtotalCell').textContent = formatNum(sub);
-    document.getElementById('totalCell').textContent = formatNum(sub+gst);
+    const amtCell = document.getElementById('gstAmountCell');
+    if (amtCell) amtCell.textContent = formatNum(gstAmount);
+    document.getElementById('totalCell').textContent = formatNum(total);
   }
 
   function addRow(kind) {
@@ -800,7 +826,8 @@ window.QuotationEditor = (function() {
       }
     });
 
-    document.getElementById('gstInput')?.addEventListener('input', recalcTotals);
+    document.getElementById('gstRate')?.addEventListener('input', recalcTotals);
+    document.getElementById('gstMode')?.addEventListener('change', recalcTotals);
 
     document.querySelectorAll('.editable-field input').forEach(input => {
       const cell = input.closest('.editable-field');
