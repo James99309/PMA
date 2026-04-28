@@ -251,10 +251,13 @@
       tr.product-row td:nth-child(8), /* Unit Price */
       tr.product-row td:nth-child(9), /* Qty */
       tr.product-row td:nth-child(10) /* Amount */ { white-space: nowrap; }
-      /* 文字列允许换行（产品编码/品牌可能超长） */
+      /* 文字列允许任意位置换行（产品编码/品牌可能超长） */
       tr.product-row td:nth-child(3),
       tr.product-row td:nth-child(4) {
-        word-break: break-word; white-space: normal;
+        word-break: break-all !important;
+        overflow-wrap: anywhere !important;
+        white-space: normal !important;
+        font-size: 8px;
       }
       /* 让产品行避免在中间分页 */
       tr.product-row { page-break-inside: avoid; }
@@ -1016,10 +1019,20 @@ window.QuotationEditor = (function() {
           handle.classList.remove('resizing');
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup', onUp);
+          // 持久化：保存列宽到 localStorage
+          const widths = JSON.parse(localStorage.getItem('qe_col_widths')||'{}');
+          widths[cellIndex] = col.style.width;
+          localStorage.setItem('qe_col_widths', JSON.stringify(widths));
         }
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
       });
+    });
+    // 应用持久化的列宽
+    const savedWidths = JSON.parse(localStorage.getItem('qe_col_widths')||'{}');
+    Object.keys(savedWidths).forEach(idx => {
+      const c = mainTable.querySelectorAll('colgroup col')[parseInt(idx)];
+      if (c && savedWidths[idx]) c.style.width = savedWidths[idx];
     });
     // 初次 + window resize / 内容变化时重新计算 handle 高度
     syncHandleHeight();
