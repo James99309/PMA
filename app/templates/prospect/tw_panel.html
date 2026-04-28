@@ -104,12 +104,14 @@
     {# ── 关联方 ───────────────────────────────────── #}
     {% if p.stakeholders.count() %}
     {% set type_cfg = {
-        'owner':        (_('业主'),   'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700', 'domain'),
-        'consultant':   (_('顾问'),   'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-900/30 dark:border-teal-700', 'support_agent'),
-        'design':       (_('设计院'), 'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700', 'architecture'),
-        'epc':          ('EPC',       'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700', 'engineering'),
-        'construction': (_('施工'),   'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700', 'construction'),
-        'other':        (_('其他'),   'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600', 'group')
+        'owner':            (_('业主'),       'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700', 'domain'),
+        'consultant':       (_('机电/安防顾问'), 'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-900/30 dark:border-teal-700', 'engineering'),
+        'design':           (_('设计院'),   'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700', 'architecture'),
+        'main_contractor':  (_('主承包商'), 'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-700', 'construction'),
+        'system_integrator':(_('系统集成商'), 'text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700', 'settings_input_component'),
+        'epc':              ('EPC',         'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700', 'handyman'),
+        'construction':     (_('施工'),     'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700', 'hard_hat'),
+        'other':            (_('其他'),     'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600', 'group')
     } %}
     <div>
         <p class="text-xs font-medium text-slate-400 uppercase tracking-wide mb-2">{{ _('关联方') }} ({{ p.stakeholders.count() }})</p>

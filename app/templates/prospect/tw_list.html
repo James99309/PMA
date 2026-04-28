@@ -849,16 +849,24 @@
     let _importItems = [];  // built from UI selections
 
     const STAKEHOLDER_TYPE_LABEL = {
-        owner: '{{ _("业主") }}', consultant: '{{ _("顾问") }}', design: '{{ _("设计院") }}', epc: 'EPC',
-        construction: '{{ _("施工") }}', other: '{{ _("其他") }}'
+        owner:            '{{ _("业主") }}',
+        consultant:       '{{ _("机电/安防顾问") }}',
+        design:           '{{ _("设计院") }}',
+        main_contractor:  '{{ _("主承包商") }}',
+        system_integrator:'{{ _("系统集成商") }}',
+        epc:              'EPC',
+        construction:     '{{ _("施工") }}',
+        other:            '{{ _("其他") }}'
     };
     const TYPE_COLOR = {
-        owner:        'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
-        consultant:   'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-900/30 dark:border-teal-700',
-        design:       'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
-        epc:          'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700',
-        construction: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700',
-        other:        'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600',
+        owner:            'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
+        consultant:       'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-900/30 dark:border-teal-700',
+        design:           'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
+        main_contractor:  'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-700',
+        system_integrator:'text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700',
+        epc:              'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700',
+        construction:     'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700',
+        other:            'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600',
     };
 
     function openImportModal(prospectId) {
@@ -1533,14 +1541,20 @@
         document.getElementById('prm-subtitle').textContent =
             `${data.project_name || ''} · {{ _("发现") }} ${total} {{ _("项可保存内容") }}`;
 
-        const TYPE_LABEL = { owner:'{{ _("业主") }}', consultant:'{{ _("顾问") }}', design:'{{ _("设计院") }}', epc:'EPC', construction:'{{ _("施工") }}', other:'{{ _("其他") }}' };
+        const TYPE_LABEL = {
+            owner:'{{ _("业主") }}', consultant:'{{ _("机电/安防顾问") }}', design:'{{ _("设计院") }}',
+            main_contractor:'{{ _("主承包商") }}', system_integrator:'{{ _("系统集成商") }}',
+            epc:'EPC', construction:'{{ _("施工") }}', other:'{{ _("其他") }}'
+        };
         const TYPE_COLOR = {
-            owner:        'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
-            consultant:   'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-900/30 dark:border-teal-700',
-            design:       'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
-            epc:          'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700',
-            construction: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700',
-            other:        'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600',
+            owner:            'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
+            consultant:       'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-900/30 dark:border-teal-700',
+            design:           'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
+            main_contractor:  'text-amber-600 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-700',
+            system_integrator:'text-emerald-600 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-700',
+            epc:              'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700',
+            construction:     'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700',
+            other:            'text-slate-500 bg-slate-100 border-slate-200 dark:text-slate-400 dark:bg-slate-700 dark:border-slate-600',
         };
 
         let html = '';

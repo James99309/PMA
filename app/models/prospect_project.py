@@ -12,8 +12,10 @@ PROSPECT_STAGES = {
 
 STAKEHOLDER_TYPES = {
     'owner': '建设单位',
-    'consultant': '顾问公司',
+    'consultant': '机电/安防顾问',
     'design': '设计院',
+    'main_contractor': '主承包商',
+    'system_integrator': '系统集成商',
     'epc': 'EPC/总承包',
     'construction': '施工单位',
     'other': '其他',

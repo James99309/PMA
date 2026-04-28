@@ -458,15 +458,16 @@ def lost_ai_research(project_id):
             f"Search strategy:\n"
             f'1. Search "[project name] developer owner" to find the client/owner.\n'
             f'2. Search "[project name] main contractor awarded" to find the general contractor.\n'
-            f'3. Search "[project name] M&E consultant ELV ICT" to find consultants.\n'
-            f'4. Search "[project name] latest news update" for progress.\n\n'
+            f'3. Search "[project name] M&E consultant ELV security consultant" to find MEP/security consultants.\n'
+            f'4. Search "[project name] ELV integrator security system integrator ICT" to find system integrators.\n'
+            f'5. Search "[project name] latest news update" for progress.\n\n'
             "Output the following JSON structure (English only):\n"
             "{\n"
             '  "description": "2-5 sentence project overview — English only",\n'
             '  "progress": "Latest milestone with date (1-3 sentences) — English only — or null",\n'
             '  "stakeholders": [\n'
             '    {\n'
-            '      "stakeholder_type": "owner|consultant|epc|construction|other",\n'
+            '      "stakeholder_type": "owner|consultant|design|main_contractor|system_integrator|epc|other",\n'
             '      "company_name": "full registered company name in English",\n'
             '      "department": "department name in English or null",\n'
             '      "address": "address or null",\n'
@@ -479,8 +480,14 @@ def lost_ai_research(project_id):
             '    }\n'
             "  ]\n"
             "}\n\n"
-            "Stakeholder types: owner=Developer/Client, consultant=M&E/ELV/ICT consultant, "
-            "epc=Main/General contractor, construction=Subcontractor, other=Other.\n"
+            "Stakeholder type guide (choose the MOST SPECIFIC type):\n"
+            "- owner:            Developer / Owner / Client / Employer\n"
+            "- consultant:       MEP / ELV / Security / ICT consultant who writes specifications\n"
+            "- design:           Architectural or structural design firm\n"
+            "- main_contractor:  Main contractor / General contractor for overall construction\n"
+            "- system_integrator: ELV / Security / ICT / AV system integrator who installs the systems\n"
+            "- epc:              EPC design-and-build contractor\n"
+            "- other:            Any other party (connectivity platform, utility, strategic partner, etc.)\n"
             "Set unknown fields to null. ALL text must be in English."
         )
     else:
@@ -496,7 +503,7 @@ def lost_ai_research(project_id):
             '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
             '  "stakeholders": [\n'
             '    {\n'
-            '      "stakeholder_type": "owner|consultant|design|epc|construction|other",\n'
+            '      "stakeholder_type": "owner|consultant|design|main_contractor|system_integrator|epc|construction|other",\n'
             '      "company_name": "公司全称",\n'
             '      "department": "部门/null",\n'
             '      "address": "公司地址/null",\n'
@@ -509,7 +516,9 @@ def lost_ai_research(project_id):
             '    }\n'
             "  ]\n"
             "}\n\n"
-            "找不到的字段设为 null。stakeholder_type 必须是上述枚举之一。"
+            "stakeholder_type 说明：owner=建设单位, consultant=机电/安防顾问, design=设计院, "
+            "main_contractor=主承包商, system_integrator=系统集成商, epc=EPC/总承包, "
+            "construction=施工单位, other=其他。找不到的字段设为 null。"
         )
 
     _recover_stale_logs()
@@ -567,15 +576,16 @@ def intel_ai_research(id):
             f"Search strategy:\n"
             f'1. Search "[project name] developer owner" to find the client/owner.\n'
             f'2. Search "[project name] main contractor awarded" to find the general contractor.\n'
-            f'3. Search "[project name] M&E consultant" or "[project name] ELV consultant ICT" to find consultants.\n'
-            f'4. Search "[project name] latest news {p.region or ""}" for progress updates.\n\n'
+            f'3. Search "[project name] M&E consultant" or "[project name] ELV consultant security consultant" to find MEP/security consultants.\n'
+            f'4. Search "[project name] ELV integrator" or "[project name] security system integrator ICT" to find system integrators.\n'
+            f'5. Search "[project name] latest news {p.region or ""}" for progress updates.\n\n'
             "Output the following JSON structure (English only):\n"
             "{\n"
             '  "description": "2-5 sentence project overview (scope, scale, technology) — English only",\n'
             '  "progress": "Latest milestone with date (1-3 sentences) — English only — or null",\n'
             '  "stakeholders": [\n'
             '    {\n'
-            '      "stakeholder_type": "owner|consultant|epc|construction|other",\n'
+            '      "stakeholder_type": "owner|consultant|design|main_contractor|system_integrator|epc|other",\n'
             '      "company_name": "full registered company name in English",\n'
             '      "department": "department name in English or null",\n'
             '      "address": "address or null",\n'
@@ -588,12 +598,14 @@ def intel_ai_research(id):
             '    }\n'
             "  ]\n"
             "}\n\n"
-            "Stakeholder type guide:\n"
-            "- owner: Developer / Owner / Client\n"
-            "- consultant: M&E consultant / ELV consultant / ICT specialist / PMC\n"
-            "- epc: Main contractor / General contractor / EPC (design-and-build)\n"
-            "- construction: Specialist subcontractor\n"
-            "- other: Any other party\n\n"
+            "Stakeholder type guide (choose the MOST SPECIFIC type):\n"
+            "- owner:            Developer / Owner / Client / Employer who funds the project\n"
+            "- consultant:       MEP / ELV / Security / ICT consultant who writes specifications — NOT general infrastructure partners\n"
+            "- design:           Architectural or structural design firm / design institute\n"
+            "- main_contractor:  Main contractor / General contractor responsible for overall construction\n"
+            "- system_integrator: ELV / Security / ICT / AV / IBMS system integrator who installs the systems\n"
+            "- epc:              EPC design-and-build contractor holding both design and construction responsibility\n"
+            "- other:            Any other party (e.g. connectivity platform, utility provider, strategic partner)\n\n"
             "Set unknown fields to null. ALL text must be in English."
         )
     else:
@@ -608,7 +620,7 @@ def intel_ai_research(id):
             '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
             '  "stakeholders": [\n'
             '    {\n'
-            '      "stakeholder_type": "owner|consultant|design|epc|construction|other",\n'
+            '      "stakeholder_type": "owner|consultant|design|main_contractor|system_integrator|epc|construction|other",\n'
             '      "company_name": "公司全称",\n'
             '      "department": "部门/null",\n'
             '      "address": "公司地址/null",\n'
@@ -621,7 +633,9 @@ def intel_ai_research(id):
             '    }\n'
             "  ]\n"
             "}\n\n"
-            "找不到的字段设为 null。stakeholder_type 必须是上述枚举之一。"
+            "stakeholder_type 说明：owner=建设单位, consultant=机电/安防顾问, design=设计院, "
+            "main_contractor=主承包商, system_integrator=系统集成商, epc=EPC/总承包, "
+            "construction=施工单位, other=其他。找不到的字段设为 null。"
         )
 
     _recover_stale_logs()
@@ -711,7 +725,7 @@ def _build_batch_prompt_cn(provinces, industries, current_year):
       "progress": "最新建设进展（含时间节点，1~3句）或 null",
       "stakeholders": [
         {{
-          "stakeholder_type": "owner/design/epc/construction/other",
+          "stakeholder_type": "owner/consultant/design/main_contractor/system_integrator/epc/construction/other",
           "company_name": "公司全称",
           "department": "部门名称（如：电气电信室）或 null",
           "address": "地址或 null",
@@ -730,7 +744,9 @@ def _build_batch_prompt_cn(provinces, industries, current_year):
 要求：
 1. 至少搜索 3~5 次才输出结果
 2. 每个省份+行业组合至少找 1~2 个项目（有条件找更多）
-3. 每个项目至少包含1个业主(owner)和1个设计院(design/epc)关联方
+3. 每个项目至少包含1个业主(owner)和1个设计院(design)或主承包商(main_contractor)
+   stakeholder_type说明：owner=建设单位, consultant=机电/安防顾问, design=设计院,
+   main_contractor=主承包商, system_integrator=系统集成商, epc=EPC/总承包, construction=施工单位, other=其他
 4. 没有公开信息的字段设为 null，不要编造
 5. stage 必须是 planning/designing/construction/completed 四者之一，根据实际进展判断
 6. 输出完整合法的 JSON"""
@@ -777,11 +793,17 @@ Step 2 — Find Main Contractor / General Contractor:
 - "[project name] general contractor contract"
 - "[developer] [project keyword] tender awarded main contractor"
 
-Step 3 — Find M&E / ELV / ICT Consultant (where the radio + intercom + PA scope sits):
+Step 3 — Find M&E / ELV / Security Consultant (where radio + intercom + PA scope is specified):
 - "[project name] M&E consultant" or "[project name] MEP consultant design"
-- "[project name] ELV consultant" or "[project name] ICT specialist"
-- "[project name] IBMS integrator" / "[project name] smart building systems"
+- "[project name] ELV consultant" or "[project name] security consultant"
+- "[project name] ICT consultant" / "[project name] IBMS consultant"
 - "[M&E consultant firm] ELV department contact"
+
+Step 4 — Find System Integrator for ELV / Security / ICT:
+- "[project name] ELV system integrator"
+- "[project name] security integrator CCTV access control"
+- "[project name] PA intercom radio system integrator"
+- "[project name] ICT system integrator LAN WiFi"
 
 [KEY DEPARTMENTS WORTH NAMING]
 - Data Center / Semiconductor / Hospital: ELV / ICT / IBMS team inside the M&E consultancy
@@ -803,7 +825,7 @@ Step 3 — Find M&E / ELV / ICT Consultant (where the radio + intercom + PA scop
       "progress": "latest construction milestone with date (1-3 sentences) — ENGLISH ONLY — or null",
       "stakeholders": [
         {{
-          "stakeholder_type": "owner / consultant / epc / construction / other",
+          "stakeholder_type": "owner / consultant / design / main_contractor / system_integrator / epc / other",
           "company_name": "full registered company name in English",
           "department": "department name in English (e.g. ELV Department, ICT Team) or null",
           "address": "address or null",
@@ -819,20 +841,23 @@ Step 3 — Find M&E / ELV / ICT Consultant (where the radio + intercom + PA scop
   ]
 }}
 
-Stakeholder type guide:
-- owner       → Developer / Owner / Client entity
-- consultant  → M&E consultant / ELV consultant / ICT specialist / PMC / advisory firm
-- epc         → Main contractor / General contractor / EPC (design-and-build) contractor
-- construction → Specialist subcontractor
-- other       → Any other party
+Stakeholder type guide (choose the MOST SPECIFIC type that applies):
+- owner            → Developer / Owner / Client / Employer who funds the project
+- consultant       → MEP (Mechanical, Electrical, Plumbing) consultant / ELV consultant / Security consultant / ICT specialist / PMC who writes specifications — NOT general infrastructure partners
+- design           → Architectural or structural design firm / design institute
+- main_contractor  → Main contractor / General contractor responsible for overall site construction and coordination
+- system_integrator → ELV / Security / ICT / AV / IBMS system integrator who supplies and installs the systems
+- epc              → EPC (Engineering, Procurement, Construction) design-and-build contractor who holds both design and construction responsibility
+- other            → Any other party that does not fit the above (e.g. strategic infrastructure platform, connectivity partner, utility provider)
 
 Rules:
-1. Run at least 3-5 searches before producing output.
+1. Run at least 4-6 searches before producing output.
 2. Find 1-2 projects (more if available) per country + industry combo.
-3. Each project must include at least: one owner, one main contractor (epc), and one M&E/ELV consultant (consultant).
-4. Use null for any field not explicitly stated in search results — do not fabricate.
-5. ALL text values in the JSON must be in English. Translate if necessary.
-6. Output complete, valid JSON only."""
+3. Each project must include at least: one owner, one main_contractor, and one consultant (MEP/ELV/Security).
+4. If a system integrator for ELV/security/ICT is found, always include them — they are high priority.
+5. Use null for any field not explicitly stated in search results — do not fabricate.
+6. ALL text values in the JSON must be in English. Translate if necessary.
+7. Output complete, valid JSON only."""
 
 
 @prospect_bp.route('/batch-research', methods=['POST'])
