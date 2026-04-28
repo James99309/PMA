@@ -851,8 +851,8 @@ Stakeholder type guide (choose the MOST SPECIFIC type that applies):
 - other            → Any other party that does not fit the above (e.g. strategic infrastructure platform, connectivity partner, utility provider)
 
 Rules:
-1. Run at least 4-6 searches before producing output.
-2. Find 1-2 projects (more if available) per country + industry combo.
+1. Run at least 8-12 searches across multiple country + industry combos before producing output.
+2. Find a MINIMUM of 10 projects in total — spread across the target countries and industries.
 3. Each project must include at least: one owner, one main_contractor, and one consultant (MEP/ELV/Security).
 4. If a system integrator for ELV/security/ICT is found, always include them — they are high priority.
 5. Use null for any field not explicitly stated in search results — do not fabricate.
