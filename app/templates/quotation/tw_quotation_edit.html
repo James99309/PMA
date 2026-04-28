@@ -259,6 +259,15 @@
         white-space: normal !important;
         font-size: 8px;
       }
+      /* 打印时强制产品编码列更宽，避免长编码被切碎 */
+      #mainGrid colgroup col:nth-child(3) { width: 16% !important; }  /* Item No */
+      #mainGrid colgroup col:nth-child(4) { width: 9% !important; }   /* Brand */
+      #mainGrid colgroup col:nth-child(5) { width: auto !important; } /* Description (auto) */
+      #mainGrid colgroup col:nth-child(6) { width: 6% !important; }   /* Disc% */
+      #mainGrid colgroup col:nth-child(7) { width: 8% !important; }   /* Market */
+      #mainGrid colgroup col:nth-child(8) { width: 8% !important; }   /* Unit Price */
+      #mainGrid colgroup col:nth-child(9) { width: 5% !important; }   /* Qty */
+      #mainGrid colgroup col:nth-child(10) { width: 10% !important; } /* Amount */
       /* 让产品行避免在中间分页 */
       tr.product-row { page-break-inside: avoid; }
       /* 签字区避免前一页留空白 */
