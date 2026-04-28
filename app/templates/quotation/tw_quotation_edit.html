@@ -120,9 +120,9 @@
 
     td.product-th { background: #f8fafc !important; font-weight: 700; text-align: center; font-size: 12px; padding: 6px 8px; position: relative; }
     td.draggable-col { cursor: grab; }
-    /* 列宽 resize handle */
+    /* 列宽 resize handle —— 贯穿整张表（不只表头），让用户在任何行的分隔线处都能拖 */
     .col-resize-handle {
-      position: absolute; top: 0; right: 0; width: 6px; height: 100%;
+      position: absolute; top: 0; right: -3px; width: 6px; height: 200vh;
       cursor: col-resize; user-select: none; z-index: 10;
     }
     .col-resize-handle:hover, .col-resize-handle.resizing {
