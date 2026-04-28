@@ -494,6 +494,10 @@ def create_app(config_class=Config):
     from app.routes.guide import guide_bp
     app.register_blueprint(guide_bp)
 
+    # 注册 GEO Monitor 蓝图
+    from app.routes.geo_monitor import geo_monitor_bp
+    app.register_blueprint(geo_monitor_bp, url_prefix='/geo')
+
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
     app.register_blueprint(backup_bp)
