@@ -882,7 +882,7 @@ window.QuotationEditor = (function() {
   const colMap = { product_mn:3, discount:6, market:7, remark:11 };
   const _colStash = {};
   let _remarkColShown = true;  // 真值（HTML 默认有 remark cell），init 时 toggleCol(false) 隐藏
-  function toggleCol(name, show) {
+  function toggleCol(name, show, silent) {
     if (name === 'remark') _remarkColShown = show;
     const colIndex = colMap[name]; if (!colIndex) return;
     const mainTable = document.getElementById('mainGrid'); const idx0 = colIndex - 1;
@@ -908,9 +908,11 @@ window.QuotationEditor = (function() {
       s.tdSnapshots.forEach(x => { const tgt = x.tr.children[x.index] || null; x.tr.insertBefore(x.cell, tgt); });
       delete _colStash[name];
     }
-    const prefs = JSON.parse(localStorage.getItem('qe_col_visibility')||'{}');
-    prefs[name] = show;
-    localStorage.setItem('qe_col_visibility', JSON.stringify(prefs));
+    if (!silent) {
+      const prefs = JSON.parse(localStorage.getItem('qe_col_visibility')||'{}');
+      prefs[name] = show;
+      localStorage.setItem('qe_col_visibility', JSON.stringify(prefs));
+    }
   }
 
   function uploadLogo(input) {
@@ -1187,23 +1189,17 @@ window.QuotationEditor = (function() {
     renderProductRows();
     initEntitySelector();
 
-    // 默认隐藏行备注列（HTML 静态结构里有 remark cells；先关掉再按偏好恢复）
-    toggleCol('remark', false);
-
-    // 应用列显隐偏好（从 localStorage）
+    // 应用列显隐偏好（从 localStorage） — 默认值: remark 隐藏, 其他显示
     const prefs = JSON.parse(localStorage.getItem('qe_col_visibility')||'{}');
-    Object.keys(prefs).forEach(name => {
+    const defaultShown = { product_mn: true, discount: true, market: true, remark: false };
+    Object.keys(defaultShown).forEach(name => {
       const cb = document.querySelector(`#colMenu input[onchange*="'${name}'"]`);
       if (!cb) return;
-      const prefShow = prefs[name] !== false;  // true 或未存=显示，false=隐藏
-      // remark 列默认隐藏；其他列默认显示
-      const defaultShow = name !== 'remark';
-      if (prefShow !== defaultShow) {
-        cb.checked = prefShow;
-        toggleCol(name, prefShow);
-      } else if (prefShow) {
-        cb.checked = true;
-      }
+      // 偏好里没存就用默认；存了就用偏好
+      const shouldShow = (prefs[name] === undefined) ? defaultShown[name] : prefs[name];
+      cb.checked = !!shouldShow;
+      // 当前 HTML 默认所有列都显示。若需要隐藏才调 toggleCol
+      if (!shouldShow) toggleCol(name, false, true);
     });
 
     document.getElementById('gstRate')?.addEventListener('input', recalcTotals);
