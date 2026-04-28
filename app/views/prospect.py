@@ -673,6 +673,10 @@ def _build_batch_prompt_sg(countries, industries, current_year):
     return f"""You are an intelligence analyst for an industrial communication systems vendor (two-way radios, dispatch consoles, IP intercom, public address) selling into Southeast Asia.
 Use the web_search tool to find new-build / major-upgrade projects in {current_year} across the target countries and industries below.
 
+⚠️ LANGUAGE RULE (MANDATORY): Your entire JSON output — every string value — MUST be written in English.
+   Do NOT use Chinese, Malay, Thai, or any other language, even if your web search results are in those languages.
+   Translate all names, departments, and descriptions into English before inserting them into the JSON.
+
 TARGET COUNTRIES: {country_str}
 TARGET INDUSTRIES: {industry_str}
 
@@ -683,15 +687,16 @@ Step 1 — Find projects (per country + industry combo):
 - "[country] [industry keyword] groundbreaking {current_year} site"
 - "[country] regulatory approval {current_year} [industry keyword]"  (BCA / URA / EDB for SG; CIDB for MY; PUPR / OSS for ID; BOI for TH)
 
-Step 2 — Find Main Contractor / M&E Consultant:
+Step 2 — Find Main Contractor / General Contractor:
 - "[project name] main contractor awarded"
-- "[project name] M&E consultant" or "[project name] MEP design"
-- "[developer] [project keyword] tender awarded"
+- "[project name] general contractor contract"
+- "[developer] [project keyword] tender awarded main contractor"
 
-Step 3 — Find ELV / ICT / Smart Building consultancies (where the radio + intercom + PA scope sits):
+Step 3 — Find M&E / ELV / ICT Consultant (where the radio + intercom + PA scope sits):
+- "[project name] M&E consultant" or "[project name] MEP consultant design"
 - "[project name] ELV consultant" or "[project name] ICT specialist"
 - "[project name] IBMS integrator" / "[project name] smart building systems"
-- "[M&E consultant] ELV department contact" / "career opening communication systems engineer"
+- "[M&E consultant firm] ELV department contact"
 
 [KEY DEPARTMENTS WORTH NAMING]
 - Data Center / Semiconductor / Hospital: ELV / ICT / IBMS team inside the M&E consultancy
@@ -703,40 +708,46 @@ Step 3 — Find ELV / ICT / Smart Building consultancies (where the radio + inte
 {{
   "projects": [
     {{
-      "project_name": "Full official project name",
+      "project_name": "Full official project name (English)",
       "region": "country (e.g. Singapore, Malaysia, Indonesia, Thailand, Vietnam, Philippines, Cambodia, Myanmar)",
       "city": "city / district (e.g. Johor Bahru, Batam) or null",
       "industry": "industry key — must be one of: datacenter / hospitality / healthcare / manufacturing / semiconductor / transportation / real_estate / shipbuilding / energy / education / government / other",
       "stage": "planning",
       "total_investment": "amount with currency (e.g. USD 800M, SGD 1.2B, RM 500M) or null",
-      "description": "2-4 sentence summary of project scope and scale (English)",
-      "progress": "latest construction milestone with date (1-3 sentences, English) or null",
+      "description": "2-4 sentence summary of project scope and scale — ENGLISH ONLY",
+      "progress": "latest construction milestone with date (1-3 sentences) — ENGLISH ONLY — or null",
       "stakeholders": [
         {{
-          "stakeholder_type": "owner / design / epc / construction / other",
-          "company_name": "full registered company name",
-          "department": "department name (e.g. ELV Department, ICT Team) or null",
+          "stakeholder_type": "owner / consultant / epc / construction / other",
+          "company_name": "full registered company name in English",
+          "department": "department name in English (e.g. ELV Department, ICT Team) or null",
           "address": "address or null",
           "phone": "phone or null",
-          "contact_person": "contact name or null",
+          "contact_person": "contact name (romanised / English) or null",
           "email": "email or null",
           "website": "official site or null",
-          "business_scope": "business scope or null",
-          "notes": "notes or null"
+          "business_scope": "business scope in English or null",
+          "notes": "notes in English or null"
         }}
       ]
     }}
   ]
 }}
 
+Stakeholder type guide:
+- owner       → Developer / Owner / Client entity
+- consultant  → M&E consultant / ELV consultant / ICT specialist / PMC / advisory firm
+- epc         → Main contractor / General contractor / EPC (design-and-build) contractor
+- construction → Specialist subcontractor
+- other       → Any other party
+
 Rules:
 1. Run at least 3-5 searches before producing output.
 2. Find 1-2 projects (more if available) per country + industry combo.
-3. Each project must include at least one Owner/Developer and one M&E Consultant or Main Contractor.
+3. Each project must include at least: one owner, one main contractor (epc), and one M&E/ELV consultant (consultant).
 4. Use null for any field not explicitly stated in search results — do not fabricate.
-5. Use 'design' stakeholder_type for M&E / ELV consultants. Use 'epc' for design-and-build / EPC contractors.
-6. All free-text fields must be in English.
-7. Output complete, valid JSON only."""
+5. ALL text values in the JSON must be in English. Translate if necessary.
+6. Output complete, valid JSON only."""
 
 
 @prospect_bp.route('/batch-research', methods=['POST'])
