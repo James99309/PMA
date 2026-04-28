@@ -1690,10 +1690,26 @@ def can_view_contact(user, contact):
     if user.id == contact.owner_id:
         return True
 
-    # 🔥 关键修复：如果用户拥有该联系人所属的客户，则可以查看该联系人
+    # 如果用户拥有该联系人所属的客户，则可以查看该联系人
     company = contact.company
     if company and company.owner_id == user.id:
         return True
+
+    # 基于权限级别的访问控制（与 can_view_company / get_viewable_data 保持一致）
+    if user.has_permission('customer', 'view'):
+        permission_level = user.get_permission_level('customer')
+        if permission_level == 'system':
+            return True
+        elif permission_level == 'company' and user.company_name:
+            contact_owner = User.query.get(contact.owner_id)
+            if contact_owner and contact_owner.company_name == user.company_name:
+                return True
+        elif permission_level == 'department' and user.department and user.company_name:
+            contact_owner = User.query.get(contact.owner_id)
+            if (contact_owner and
+                    contact_owner.department == user.department and
+                    contact_owner.company_name == user.company_name):
+                return True
 
     # 判断是否有指定的联系人归属
     if hasattr(contact, 'assigned_to') and contact.assigned_to == user.id:
