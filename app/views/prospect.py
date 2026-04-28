@@ -135,10 +135,11 @@ def _list_intel():
     elif sort_col == 'stage':
         stage_order = func.case(
             (ProspectProject.stage == 'construction', 1),
-            (ProspectProject.stage == 'designing', 2),
-            (ProspectProject.stage == 'planning', 3),
-            (ProspectProject.stage == 'completed', 4),
-            else_=5
+            (ProspectProject.stage == 'tendering', 2),
+            (ProspectProject.stage == 'designing', 3),
+            (ProspectProject.stage == 'planning', 4),
+            (ProspectProject.stage == 'completed', 5),
+            else_=6
         )
         query = query.order_by(stage_order if sort_order_dir == 'asc' else stage_order.desc())
     elif sort == 'updated_asc':
@@ -146,10 +147,11 @@ def _list_intel():
     elif sort == 'stage_hot':
         stage_order = func.case(
             (ProspectProject.stage == 'construction', 1),
-            (ProspectProject.stage == 'designing', 2),
-            (ProspectProject.stage == 'planning', 3),
-            (ProspectProject.stage == 'completed', 4),
-            else_=5
+            (ProspectProject.stage == 'tendering', 2),
+            (ProspectProject.stage == 'designing', 3),
+            (ProspectProject.stage == 'planning', 4),
+            (ProspectProject.stage == 'completed', 5),
+            else_=6
         )
         query = query.order_by(stage_order)
     elif sort == 'created_desc':
@@ -162,7 +164,7 @@ def _list_intel():
 
     # 统计各阶段数量（全量，不受筛选影响）
     stage_counts = {}
-    for stg in ('planning', 'designing', 'construction', 'completed'):
+    for stg in ('planning', 'designing', 'tendering', 'construction', 'completed'):
         stage_counts[stg] = ProspectProject.query.filter(
             ProspectProject.is_deleted == False,
             ProspectProject.stage == stg
@@ -188,9 +190,10 @@ def _list_intel():
                .order_by(ProspectProject.region).all()]
 
     # 动态阶段选项（保持固定顺序但仅显示库中存在的）
-    _stage_order = ['construction', 'designing', 'planning', 'completed']
+    _stage_order = ['construction', 'tendering', 'designing', 'planning', 'completed']
     _stage_labels = {
         'construction': _('在建'),
+        'tendering':    _('招标中'),
         'designing':    _('设计中'),
         'planning':     _('规划中'),
         'completed':    _('竣工'),
@@ -472,6 +475,14 @@ def lost_ai_research(project_id):
             "{\n"
             '  "description": "2-5 sentence project overview — English only",\n'
             '  "progress": "Latest milestone with date (1-3 sentences) — English only — or null",\n'
+            '  "stage": "current stage — must be one of: planning / designing / tendering / construction / completed",\n'
+            '  "stage_data": {\n'
+            '    "planning": "What is known about the planning/approval phase — English only — or null",\n'
+            '    "designing": "What is known about the design phase — English only — or null",\n'
+            '    "tendering": "What is known about active tenders/procurement — English only — or null",\n'
+            '    "construction": "What is known about construction progress — English only — or null",\n'
+            '    "completed": "Completion/handover info — English only — or null"\n'
+            '  },\n'
             '  "stakeholders": [\n'
             '    {\n'
             '      "stakeholder_type": "owner|consultant|design|main_contractor|system_integrator|epc|other",\n'
@@ -495,6 +506,8 @@ def lost_ai_research(project_id):
             "- system_integrator: ELV / Security / ICT / AV system integrator who installs the systems\n"
             "- epc:              EPC design-and-build contractor\n"
             "- other:            Any other party (connectivity platform, utility, strategic partner, etc.)\n"
+            "Stage guide: planning=announced/approved not started, designing=design phase, "
+            "tendering=active tender/procurement underway, construction=under construction, completed=operational.\n"
             "Set unknown fields to null. ALL text must be in English."
         )
     else:
@@ -508,6 +521,14 @@ def lost_ai_research(project_id):
             "{\n"
             '  "description": "项目详细描述（2~5 句）",\n'
             '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
+            '  "stage": "当前阶段，必须是：planning / designing / tendering / construction / completed 之一",\n'
+            '  "stage_data": {\n'
+            '    "planning": "规划/审批阶段已知信息（1~2句）或 null",\n'
+            '    "designing": "设计阶段已知信息（1~2句）或 null",\n'
+            '    "tendering": "招标/采购阶段已知信息（1~2句）或 null",\n'
+            '    "construction": "建设进展（1~2句）或 null",\n'
+            '    "completed": "竣工/投用信息（1~2句）或 null"\n'
+            '  },\n'
             '  "stakeholders": [\n'
             '    {\n'
             '      "stakeholder_type": "owner|consultant|design|main_contractor|system_integrator|epc|construction|other",\n'
@@ -523,6 +544,8 @@ def lost_ai_research(project_id):
             '    }\n'
             "  ]\n"
             "}\n\n"
+            "stage 说明：planning=规划/审批中, designing=设计阶段, tendering=招标中, "
+            "construction=在建, completed=已竣工。"
             "stakeholder_type 说明：owner=建设单位, consultant=机电/安防顾问, design=设计院, "
             "main_contractor=主承包商, system_integrator=系统集成商, epc=EPC/总承包, "
             "construction=施工单位, other=其他。找不到的字段设为 null。"
@@ -631,6 +654,14 @@ def intel_ai_research(id):
             "{\n"
             '  "description": "项目详细描述（2~5 句）",\n'
             '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
+            '  "stage": "当前阶段，必须是：planning / designing / tendering / construction / completed 之一",\n'
+            '  "stage_data": {\n'
+            '    "planning": "规划/审批阶段已知信息（1~2句）或 null",\n'
+            '    "designing": "设计阶段已知信息（1~2句）或 null",\n'
+            '    "tendering": "招标/采购阶段已知信息（1~2句）或 null",\n'
+            '    "construction": "建设进展（1~2句）或 null",\n'
+            '    "completed": "竣工/投用信息（1~2句）或 null"\n'
+            '  },\n'
             '  "stakeholders": [\n'
             '    {\n'
             '      "stakeholder_type": "owner|consultant|design|main_contractor|system_integrator|epc|construction|other",\n'
@@ -646,6 +677,8 @@ def intel_ai_research(id):
             '    }\n'
             "  ]\n"
             "}\n\n"
+            "stage 说明：planning=规划/审批中, designing=设计阶段, tendering=招标中, "
+            "construction=在建, completed=已竣工。"
             "stakeholder_type 说明：owner=建设单位, consultant=机电/安防顾问, design=设计院, "
             "main_contractor=主承包商, system_integrator=系统集成商, epc=EPC/总承包, "
             "construction=施工单位, other=其他。找不到的字段设为 null。"
@@ -735,7 +768,14 @@ def _build_batch_prompt_cn(provinces, industries, current_year):
       "region": "省份（如：广东）",
       "city": "城市（如：茂名）或 null",
       "industry": "industry key，只能是：chemical/energy/manufacturing/shipbuilding/semiconductor/tunnel_underground/transportation/datacenter/other",
-      "stage": "根据实际进展判断：planning（规划/审批中）/ designing（设计阶段）/ construction（在建）/ completed（已竣工）",
+      "stage": "根据实际进展判断：planning（规划/审批中）/ designing（设计阶段）/ tendering（招标中）/ construction（在建）/ completed（已竣工）",
+      "stage_data": {
+        "planning": "规划/审批阶段已知信息（1~2句）或 null",
+        "designing": "设计阶段已知信息（1~2句）或 null",
+        "tendering": "招标/采购阶段已知信息（1~2句）或 null",
+        "construction": "建设进展（1~2句）或 null",
+        "completed": "竣工/投用信息（1~2句）或 null"
+      },
       "total_investment": "投资额（如：50亿）或 null",
       "description": "项目背景和规模描述（2~4句）",
       "progress": "最新建设进展（含时间节点，1~3句）或 null",
@@ -764,7 +804,7 @@ def _build_batch_prompt_cn(provinces, industries, current_year):
    stakeholder_type说明：owner=建设单位, consultant=机电/安防顾问, design=设计院,
    main_contractor=主承包商, system_integrator=系统集成商, epc=EPC/总承包, construction=施工单位, other=其他
 4. 没有公开信息的字段设为 null，不要编造
-5. stage 必须是 planning/designing/construction/completed 四者之一，根据实际进展判断
+5. stage 必须是 planning/designing/tendering/construction/completed 五者之一，根据实际进展判断
 6. 输出完整合法的 JSON"""
 
 
@@ -835,7 +875,14 @@ Step 4 — Find System Integrator for ELV / Security / ICT:
       "region": "country (e.g. Singapore, Malaysia, Indonesia, Thailand, Vietnam, Philippines, Cambodia, Myanmar)",
       "city": "city / district (e.g. Johor Bahru, Batam) or null",
       "industry": "industry key — must be one of: datacenter / hospitality / healthcare / manufacturing / semiconductor / transportation / real_estate / shipbuilding / energy / education / government / other",
-      "stage": "determine from research: planning (approved/announced, not yet started) / designing (design phase) / construction (under construction) / completed (built and operational)",
+      "stage": "determine from research: planning (approved/announced, not yet started) / designing (design phase) / tendering (active tender/procurement underway) / construction (under construction) / completed (built and operational)",
+      "stage_data": {
+        "planning": "What is known about the planning/approval phase — English only — or null",
+        "designing": "What is known about the design phase — English only — or null",
+        "tendering": "Active tender or procurement details — English only — or null",
+        "construction": "Construction progress — English only — or null",
+        "completed": "Completion/handover info — English only — or null"
+      },
       "total_investment": "amount with currency (e.g. USD 800M, SGD 1.2B, RM 500M) or null",
       "description": "2-4 sentence summary of project scope and scale — ENGLISH ONLY",
       "progress": "latest construction milestone with date (1-3 sentences) — ENGLISH ONLY — or null",
@@ -1000,12 +1047,19 @@ def batch_research_save():
             def _trunc(s, n):
                 return s[:n] if s else s
 
+            raw_sd = proj.get('stage_data')
+            stage_data = None
+            if isinstance(raw_sd, dict):
+                stage_data = {k: str(v).strip() for k, v in raw_sd.items()
+                              if k in PROSPECT_STAGES and v and str(v).strip()} or None
+
             p = ProspectProject(
                 project_name=project_name[:200],
                 industry=_trunc(_clean(proj.get('industry')), 50),
                 region=_trunc(_clean(proj.get('region')), 100),
                 city=_trunc(_clean(proj.get('city')), 100),
                 stage=proj.get('stage') if proj.get('stage') in PROSPECT_STAGES else 'planning',
+                stage_data=stage_data,
                 total_investment=_trunc(_clean(proj.get('total_investment')), 50),
                 description=_clean(proj.get('description')),
                 progress=_clean(proj.get('progress')),
@@ -1063,6 +1117,14 @@ def save_ai_research(prospect_id):
         p.description = body['description'].strip()
     if body.get('progress'):
         p.progress = body['progress'].strip()
+    if body.get('stage') and body['stage'] in PROSPECT_STAGES:
+        p.stage = body['stage']
+    if body.get('stage_data') and isinstance(body['stage_data'], dict):
+        merged = dict(p.stage_data or {})
+        for k, v in body['stage_data'].items():
+            if k in PROSPECT_STAGES and v and str(v).strip():
+                merged[k] = str(v).strip()
+        p.stage_data = merged or None
     p.info_updated_at = datetime.utcnow()
     p.info_updated_by = current_user.username
 

@@ -4,10 +4,11 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Foreign
 from sqlalchemy.orm import relationship
 
 PROSPECT_STAGES = {
-    'planning': '规划中',
-    'designing': '设计中',
+    'planning':     '规划中',
+    'designing':    '设计中',
+    'tendering':    '招标中',
     'construction': '在建',
-    'completed': '竣工',
+    'completed':    '竣工',
 }
 
 STAKEHOLDER_TYPES = {
@@ -38,6 +39,7 @@ class ProspectProject(db.Model):
     region = Column(String(100), nullable=True)
     city = Column(String(100), nullable=True)
     stage = Column(String(20), nullable=False, default='planning')
+    stage_data = Column(JSON, nullable=True)
     total_investment = Column(String(50), nullable=True)
     description = Column(Text, nullable=True)
     progress = Column(Text, nullable=True)

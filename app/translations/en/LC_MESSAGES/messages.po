@@ -28076,11 +28076,29 @@ msgstr "Under Construction"
 msgid "设计中"
 msgstr "Designing"
 
+msgid "招标中"
+msgstr "Tendering"
+
 msgid "规划中"
 msgstr "Planning"
 
 msgid "竣工"
 msgstr "Completed"
+
+msgid "阶段进展"
+msgstr "Project Stages"
+
+msgid "自动写入"
+msgstr "auto-saved"
+
+msgid "当前阶段"
+msgstr "Current Stage"
+
+msgid "规划/审批"
+msgstr "Planning"
+
+msgid "建设中"
+msgstr "Under Construction"
 
 msgid "发现商机"
 msgstr "Discovered"
