@@ -244,17 +244,22 @@
       table.q-grid td { padding: 3px 5px; line-height: 1.3; }
       td.product-th { padding: 4px 5px; font-size: 9px; }
       tr.product-row td { font-size: 9px; padding: 3px 5px; }
-      /* 关键列不允许换行（产品编码、品牌、数量、价格） */
+      /* 数字列不换行 */
       tr.product-row td:nth-child(2), /* S/N */
-      tr.product-row td:nth-child(3), /* Item No */
-      tr.product-row td:nth-child(4), /* Brand */
       tr.product-row td:nth-child(6), /* Disc% */
       tr.product-row td:nth-child(7), /* Market */
       tr.product-row td:nth-child(8), /* Unit Price */
       tr.product-row td:nth-child(9), /* Qty */
       tr.product-row td:nth-child(10) /* Amount */ { white-space: nowrap; }
+      /* 文字列允许换行（产品编码/品牌可能超长） */
+      tr.product-row td:nth-child(3),
+      tr.product-row td:nth-child(4) {
+        word-break: break-word; white-space: normal;
+      }
       /* 让产品行避免在中间分页 */
       tr.product-row { page-break-inside: avoid; }
+      /* 签字区避免前一页留空白 */
+      .quotation-paper > table:last-child { page-break-inside: avoid; }
       /* LOGO 不换行/不伸缩 */
       .logo-uploader { width: 100px !important; min-height: 50px !important; }
       .company-name input { font-size: 14px !important; }
