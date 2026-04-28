@@ -11,6 +11,7 @@ from sqlalchemy import func, and_
 from app import db
 from app.models.chat import ChatMessage, ChatConversation
 from app.models.cli_session import CliSession
+from app.models.ai_proxy_usage import AIProxyUsage
 
 logger = logging.getLogger(__name__)
 
@@ -72,20 +73,22 @@ def get_ai_usage_stats(year, month, user_id=None, source=None):
         year: 年份
         month: 月份 (1-12)
         user_id: 可选，按用户过滤
-        source: 可选，'chat' / 'cli' / None(全部)
+        source: 可选，'chat' / 'cli' / 'claude_proxy' / None(全部)
 
     Returns:
-        dict: 包含 summary, daily_usage, model_breakdown, user_breakdown
+        dict: 包含 summary, daily_usage, model_breakdown, user_breakdown, proxy_leaderboard
     """
     try:
         _, last_day = monthrange(year, month)
         start_date = datetime(year, month, 1)
         end_date = datetime(year, month, last_day, 23, 59, 59)
 
-        chat_data = {} if source == 'cli' else _get_chat_stats(start_date, end_date, user_id)
-        cli_data  = {} if source == 'chat' else _get_cli_stats(start_date, end_date, user_id)
+        proxy_only = source == 'claude_proxy'
+        chat_data  = {} if source in ('cli', 'claude_proxy') else _get_chat_stats(start_date, end_date, user_id)
+        cli_data   = {} if source in ('chat', 'claude_proxy') else _get_cli_stats(start_date, end_date, user_id)
+        proxy_data = {} if source in ('chat', 'cli') else _get_proxy_stats(start_date, end_date, user_id)
 
-        return _merge_stats(chat_data, cli_data)
+        return _merge_stats(chat_data, cli_data, proxy_data)
 
     except Exception as e:
         logger.error(f"获取 AI 使用量统计失败: {str(e)}", exc_info=True)
@@ -287,19 +290,114 @@ def _get_cli_stats(start_date, end_date, user_id=None):
     }
 
 
+# ─── Claude 代理来源 ──────────────────────────────────────────────────────────
+
+def _get_proxy_stats(start_date, end_date, user_id=None):
+    from app.models.user import User
+    from datetime import date as date_type
+    start_d = start_date.date() if hasattr(start_date, 'date') else start_date
+    end_d = end_date.date() if hasattr(end_date, 'date') else end_date
+
+    filters = [
+        AIProxyUsage.provider == 'claude',
+        AIProxyUsage.date >= start_d,
+        AIProxyUsage.date <= end_d,
+    ]
+    if user_id:
+        filters.append(AIProxyUsage.user_id == user_id)
+
+    rows = db.session.query(
+        AIProxyUsage.user_id,
+        AIProxyUsage.date,
+        AIProxyUsage.input_tokens,
+        AIProxyUsage.output_tokens,
+        AIProxyUsage.request_count,
+    ).filter(and_(*filters)).all()
+
+    uid_set = {r.user_id for r in rows}
+    names = _get_user_names(list(uid_set))
+
+    daily = {}
+    user_map = {}
+    total_in = total_out = total_req = 0
+
+    for r in rows:
+        day = str(r.date)
+        it, ot, rc = int(r.input_tokens or 0), int(r.output_tokens or 0), int(r.request_count or 0)
+        total_in += it; total_out += ot; total_req += rc
+
+        if day not in daily:
+            daily[day] = {'request_count': 0, 'prompt_tokens': 0, 'completion_tokens': 0, 'estimated_cost': 0.0}
+        daily[day]['request_count'] += rc
+        daily[day]['prompt_tokens'] += it
+        daily[day]['completion_tokens'] += ot
+
+        uid = r.user_id
+        if uid not in user_map:
+            user_map[uid] = {
+                'user_id': uid,
+                'user_name': names.get(uid, f'User #{uid}'),
+                'source': 'claude_proxy',
+                'request_count': 0,
+                'total_tokens': 0,
+                'estimated_cost': 0.0,
+            }
+        user_map[uid]['request_count'] += rc
+        user_map[uid]['total_tokens'] += it + ot
+
+    models = [{
+        'model': 'claude-proxy',
+        'source': 'claude_proxy',
+        'request_count': total_req,
+        'prompt_tokens': total_in,
+        'completion_tokens': total_out,
+        'estimated_cost': 0.0,
+        'pricing': None,
+    }] if (total_in + total_out) > 0 else []
+
+    # 排行榜：附加配额信息
+    leaderboard = []
+    if uid_set:
+        quota_users = User.query.filter(User.id.in_(uid_set)).all()
+        default_q = 50_000_000
+        try:
+            import os
+            default_q = int(os.environ.get('CLAUDE_AI_DEFAULT_QUOTA', 50_000_000))
+        except Exception:
+            pass
+        quota_map = {u.id: int(u.claude_ai_quota_tokens or default_q) for u in quota_users}
+        for uid, ud in user_map.items():
+            quota = quota_map.get(uid, default_q)
+            leaderboard.append({
+                'user_id': uid,
+                'user_name': ud['user_name'],
+                'tokens': ud['total_tokens'],
+                'requests': ud['request_count'],
+                'quota': quota,
+                'pct': round(ud['total_tokens'] / quota * 100, 1) if quota > 0 else 0,
+            })
+        leaderboard.sort(key=lambda x: x['tokens'], reverse=True)
+
+    return {'daily': daily, 'models': models, 'users': list(user_map.values()), 'leaderboard': leaderboard}
+
+
 # ─── 合并 ─────────────────────────────────────────────────────────────────────
 
-def _merge_stats(chat_data, cli_data):
-    all_days = set(chat_data.get('daily', {}).keys()) | set(cli_data.get('daily', {}).keys())
+def _merge_stats(chat_data, cli_data, proxy_data=None):
+    proxy_data = proxy_data or {}
+    all_days = (set(chat_data.get('daily', {}).keys()) |
+                set(cli_data.get('daily', {}).keys()) |
+                set(proxy_data.get('daily', {}).keys()))
     daily_usage = []
     for day in sorted(all_days):
         c = chat_data.get('daily', {}).get(day, {})
         l = cli_data.get('daily', {}).get(day, {})
-        pt = c.get('prompt_tokens', 0) + l.get('prompt_tokens', 0)
-        ct = c.get('completion_tokens', 0) + l.get('completion_tokens', 0)
+        p = proxy_data.get('daily', {}).get(day, {})
+        pt = c.get('prompt_tokens', 0) + l.get('prompt_tokens', 0) + p.get('prompt_tokens', 0)
+        ct = c.get('completion_tokens', 0) + l.get('completion_tokens', 0) + p.get('completion_tokens', 0)
         daily_usage.append({
             'day': day,
-            'request_count': c.get('request_count', 0) + l.get('request_count', 0),
+            'request_count': c.get('request_count', 0) + l.get('request_count', 0) + p.get('request_count', 0),
             'prompt_tokens': pt,
             'completion_tokens': ct,
             'total_tokens': pt + ct,
@@ -308,13 +406,14 @@ def _merge_stats(chat_data, cli_data):
             ),
             'chat_tokens': c.get('prompt_tokens', 0) + c.get('completion_tokens', 0),
             'cli_tokens': l.get('prompt_tokens', 0) + l.get('completion_tokens', 0),
+            'proxy_tokens': p.get('prompt_tokens', 0) + p.get('completion_tokens', 0),
         })
 
-    model_breakdown = chat_data.get('models', []) + cli_data.get('models', [])
+    model_breakdown = chat_data.get('models', []) + cli_data.get('models', []) + proxy_data.get('models', [])
 
-    # 用户明细：同一 user_id 的 chat+cli 合并
+    # 用户明细：同一 user_id 的 chat+cli+proxy 合并
     user_combined = {}
-    for u in chat_data.get('users', []) + cli_data.get('users', []):
+    for u in chat_data.get('users', []) + cli_data.get('users', []) + proxy_data.get('users', []):
         uid = u['user_id']
         if uid not in user_combined:
             user_combined[uid] = {
@@ -325,16 +424,20 @@ def _merge_stats(chat_data, cli_data):
                 'estimated_cost': 0.0,
                 'chat_tokens': 0,
                 'cli_tokens': 0,
+                'proxy_tokens': 0,
             }
         user_combined[uid]['request_count'] += u['request_count']
         user_combined[uid]['total_tokens'] += u['total_tokens']
         user_combined[uid]['estimated_cost'] = round(
             user_combined[uid]['estimated_cost'] + u['estimated_cost'], 6
         )
-        if u.get('source') == 'chat':
+        src = u.get('source')
+        if src == 'chat':
             user_combined[uid]['chat_tokens'] += u['total_tokens']
-        else:
+        elif src == 'cli':
             user_combined[uid]['cli_tokens'] += u['total_tokens']
+        elif src == 'claude_proxy':
+            user_combined[uid]['proxy_tokens'] += u['total_tokens']
 
     user_breakdown = sorted(user_combined.values(), key=lambda x: x['total_tokens'], reverse=True)
 
@@ -357,6 +460,7 @@ def _merge_stats(chat_data, cli_data):
             'daily_usage': daily_usage,
             'model_breakdown': model_breakdown,
             'user_breakdown': user_breakdown,
+            'proxy_leaderboard': proxy_data.get('leaderboard', []),
         }
     }
 
@@ -371,7 +475,7 @@ def _empty_result(msg=''):
                 'total_completion_tokens': 0, 'total_tokens': 0,
                 'estimated_cost': 0, 'active_users': 0,
             },
-            'daily_usage': [], 'model_breakdown': [], 'user_breakdown': [],
+            'daily_usage': [], 'model_breakdown': [], 'user_breakdown': [], 'proxy_leaderboard': [],
         }
     }
 
