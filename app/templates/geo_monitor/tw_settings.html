@@ -85,7 +85,7 @@ function settingsForm() {
         marketsEnabled: '{{ enabled_markets | join(",") }}',
         init() {},
         updateMarkets() {
-            const checked = [...document.querySelectorAll('input[type=checkbox][value]')].filter(c => c.checked).map(c => c.value);
+            const checked = [...document.querySelectorAll('input[name^="market_"]')].filter(c => c.checked).map(c => c.value);
             this.marketsEnabled = checked.join(',');
         }
     }

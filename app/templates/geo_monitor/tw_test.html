@@ -26,7 +26,7 @@
             if (!this.title.trim()) return;
             this.loading = true; this.results = null; this.error = null;
             try {
-                const r = await fetch('{{ url_for('geo_monitor.test_run') }}', {
+                const r = await fetch('{{ url_for("geo_monitor.test_run") }}', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
