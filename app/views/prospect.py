@@ -1349,58 +1349,126 @@ def stakeholder_ai_enrich(id, sid):
     p = ProspectProject.query.filter_by(id=id, is_deleted=False).first_or_404()
     s = ProspectStakeholder.query.filter_by(id=sid, prospect_id=id).first_or_404()
 
-    type_names = {
-        'owner': '业主/建设单位', 'design': '设计院/工程咨询',
-        'epc': 'EPC总承包商', 'construction': '施工单位', 'other': '相关单位'
+    from config import Config
+    is_ovs = bool(Config.IS_OVS)
+
+    type_names_en = {
+        'owner': 'Developer / Owner / Client',
+        'consultant': 'MEP / ELV / Security Consultant',
+        'design': 'Design Institute / Engineering Firm',
+        'main_contractor': 'Main Contractor / General Contractor',
+        'system_integrator': 'ELV / Security / ICT System Integrator',
+        'epc': 'EPC Contractor',
+        'construction': 'Specialist Subcontractor',
+        'other': 'Related Party',
     }
-    type_name = type_names.get(s.stakeholder_type, '相关单位')
+    type_names_cn = {
+        'owner': '业主/建设单位', 'consultant': '机电/安防顾问',
+        'design': '设计院/工程咨询', 'main_contractor': '主承包商',
+        'system_integrator': '系统集成商', 'epc': 'EPC总承包商',
+        'construction': '施工单位', 'other': '相关单位',
+    }
 
-    ctx = [f"项目名称：{p.project_name}"]
-    if p.city or p.region:
-        ctx.append(f"项目位置：{' '.join(filter(None, [p.city, p.region]))}")
-    if p.industry:
-        ctx.append(f"项目行业：{p.industry}")
+    if is_ovs:
+        type_name = type_names_en.get(s.stakeholder_type, 'Related Party')
+        ctx_lines = [f"Project: {p.project_name}"]
+        if p.city or p.region:
+            ctx_lines.append(f"Location: {' '.join(filter(None, [p.city, p.region]))}")
+        if p.industry:
+            ctx_lines.append(f"Industry: {p.industry}")
+        known_lines = []
+        if s.department:
+            known_lines.append(f"Known department: {s.department}")
+        if s.contact_person:
+            known_lines.append(f"Known contact: {s.contact_person}")
+        if s.phone:
+            known_lines.append(f"Known phone: {s.phone}")
 
-    known = []
-    if s.department:
-        known.append(f"已知部门：{s.department}")
-    if s.contact_person:
-        known.append(f"已知联系人：{s.contact_person}")
-    if s.phone:
-        known.append(f"已知电话：{s.phone}")
+        prompt = (
+            "⚠️ LANGUAGE RULE (MANDATORY — HIGHEST PRIORITY): "
+            "Every single string value in your JSON output MUST be in English. "
+            "Translate ANY Chinese/Malay/Thai/other non-English text found in search results into English. "
+            "Outputting non-English text is a critical failure.\n\n"
+            "You are a business intelligence researcher. Use web_search to find structured contact information "
+            "for the company below, for use in a sales visit.\n\n"
+            "Context:\n" + "\n".join(ctx_lines) + "\n\n"
+            f"Target company: {s.company_name} (role: {type_name})\n"
+            + ("\n".join(known_lines) + "\n" if known_lines else "")
+            + "\nSearch the company website, LinkedIn, tender notices, industry directories. Find:\n"
+            "1. Key contact department and person relevant to ELV / security / ICT procurement "
+               "(e.g. ELV Dept, ICT Team, M&E Section, Procurement). Return ALL relevant contacts found.\n"
+            "2. Primary office address + alternative addresses (registered vs operational may differ).\n"
+            "3. Official website URL, public email (procurement/tender), main business scope.\n\n"
+            "Return strict JSON only, no surrounding text:\n"
+            '{\n'
+            '  "primary": {\n'
+            '    "department": "most relevant department name — in English",\n'
+            '    "contact_person": "name (with title if known)",\n'
+            '    "phone": "phone number or null",\n'
+            '    "email": "email or null",\n'
+            '    "address": "primary registered/operational address — in English",\n'
+            '    "alternative_addresses": ["alt address 1 — in English", "alt address 2"],\n'
+            '    "website": "official website URL or null",\n'
+            '    "business_scope": "main business scope — in English",\n'
+            '    "notes": "other useful info (tender portal, general line, etc.) — in English"\n'
+            '  },\n'
+            '  "additional_contacts": [\n'
+            '    {"department":"another dept","contact_person":"name","phone":"...","email":"...","role_description":"..."}\n'
+            '  ],\n'
+            '  "confidence": "high|medium|low",\n'
+            '  "sources": ["source URL or platform"]\n'
+            '}\n'
+            'Set unknown fields to null (arrays to []). '
+            'additional_contacts: only include contacts from different departments or different people than primary. '
+            '⚠️ ALL text must be in English — translate if needed.'
+        )
+    else:
+        type_name = type_names_cn.get(s.stakeholder_type, '相关单位')
+        ctx = [f"项目名称：{p.project_name}"]
+        if p.city or p.region:
+            ctx.append(f"项目位置：{' '.join(filter(None, [p.city, p.region]))}")
+        if p.industry:
+            ctx.append(f"项目行业：{p.industry}")
+        known = []
+        if s.department:
+            known.append(f"已知部门：{s.department}")
+        if s.contact_person:
+            known.append(f"已知联系人：{s.contact_person}")
+        if s.phone:
+            known.append(f"已知电话：{s.phone}")
 
-    prompt = (
-        "你是商务情报调研助手。请通过网络搜索，调研下列企业的结构化联系信息，用于商业拜访。\n\n"
-        "背景：\n" + "\n".join(ctx) + "\n\n"
-        f"调研对象：{s.company_name}（角色：{type_name}）\n"
-        + ("\n".join(known) + "\n" if known else "")
-        + "\n请搜索官网、招聘平台、企查查、招标公告等，尽量找出：\n"
-        "1. 关键对口部门及负责人（招标/采购/技术/项目/电信仪表 等），"
-           "如果存在多个部门联系人，全部返回\n"
-        "2. 企业主地址 + 备选地址（官网登记 vs 工商登记可能不同，都要列出）\n"
-        "3. 官网 URL、对外邮箱（招聘/招标）、主营业务范围\n\n"
-        "返回严格 JSON，不含其他文字，结构如下：\n"
-        '{\n'
-        '  "primary": {\n'
-        '    "department": "对口部门名(选最相关的一个)",\n'
-        '    "contact_person": "姓名(可附职位)",\n'
-        '    "phone": "电话",\n'
-        '    "email": "邮箱",\n'
-        '    "address": "最权威的主地址",\n'
-        '    "alternative_addresses": ["备选地址1", "备选地址2"],\n'
-        '    "website": "官网URL",\n'
-        '    "business_scope": "主营业务/营业范围",\n'
-        '    "notes": "其他补充信息(招标平台/招聘邮箱/总机等)"\n'
-        '  },\n'
-        '  "additional_contacts": [\n'
-        '    {"department":"另一个部门","contact_person":"姓名","phone":"...","email":"...","role_description":"职责说明"}\n'
-        '  ],\n'
-        '  "confidence": "high|medium|low",\n'
-        '  "sources": ["来源URL或平台"]\n'
-        '}\n'
-        '说明：找不到的字段设为 null（数组找不到设为空数组 []）。'
-        'additional_contacts 仅放与 primary 不同部门/不同人的联系人，避免重复。'
-    )
+        prompt = (
+            "你是商务情报调研助手。请通过网络搜索，调研下列企业的结构化联系信息，用于商业拜访。\n\n"
+            "背景：\n" + "\n".join(ctx) + "\n\n"
+            f"调研对象：{s.company_name}（角色：{type_name}）\n"
+            + ("\n".join(known) + "\n" if known else "")
+            + "\n请搜索官网、招聘平台、企查查、招标公告等，尽量找出：\n"
+            "1. 关键对口部门及负责人（招标/采购/技术/项目/电信仪表 等），"
+               "如果存在多个部门联系人，全部返回\n"
+            "2. 企业主地址 + 备选地址（官网登记 vs 工商登记可能不同，都要列出）\n"
+            "3. 官网 URL、对外邮箱（招聘/招标）、主营业务范围\n\n"
+            "返回严格 JSON，不含其他文字，结构如下：\n"
+            '{\n'
+            '  "primary": {\n'
+            '    "department": "对口部门名(选最相关的一个)",\n'
+            '    "contact_person": "姓名(可附职位)",\n'
+            '    "phone": "电话",\n'
+            '    "email": "邮箱",\n'
+            '    "address": "最权威的主地址",\n'
+            '    "alternative_addresses": ["备选地址1", "备选地址2"],\n'
+            '    "website": "官网URL",\n'
+            '    "business_scope": "主营业务/营业范围",\n'
+            '    "notes": "其他补充信息(招标平台/招聘邮箱/总机等)"\n'
+            '  },\n'
+            '  "additional_contacts": [\n'
+            '    {"department":"另一个部门","contact_person":"姓名","phone":"...","email":"...","role_description":"职责说明"}\n'
+            '  ],\n'
+            '  "confidence": "high|medium|low",\n'
+            '  "sources": ["来源URL或平台"]\n'
+            '}\n'
+            '说明：找不到的字段设为 null（数组找不到设为空数组 []）。'
+            'additional_contacts 仅放与 primary 不同部门/不同人的联系人，避免重复。'
+        )
 
     try:
         from app.services.claude_research_provider import send_claude_research_request
