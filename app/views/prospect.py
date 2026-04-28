@@ -705,7 +705,7 @@ def _build_batch_prompt_cn(provinces, industries, current_year):
       "region": "省份（如：广东）",
       "city": "城市（如：茂名）或 null",
       "industry": "industry key，只能是：chemical/energy/manufacturing/shipbuilding/semiconductor/tunnel_underground/transportation/datacenter/other",
-      "stage": "planning",
+      "stage": "根据实际进展判断：planning（规划/审批中）/ designing（设计阶段）/ construction（在建）/ completed（已竣工）",
       "total_investment": "投资额（如：50亿）或 null",
       "description": "项目背景和规模描述（2~4句）",
       "progress": "最新建设进展（含时间节点，1~3句）或 null",
@@ -732,7 +732,8 @@ def _build_batch_prompt_cn(provinces, industries, current_year):
 2. 每个省份+行业组合至少找 1~2 个项目（有条件找更多）
 3. 每个项目至少包含1个业主(owner)和1个设计院(design/epc)关联方
 4. 没有公开信息的字段设为 null，不要编造
-5. 输出完整合法的 JSON"""
+5. stage 必须是 planning/designing/construction/completed 四者之一，根据实际进展判断
+6. 输出完整合法的 JSON"""
 
 
 def _build_batch_prompt_sg(countries, industries, current_year):
@@ -796,7 +797,7 @@ Step 3 — Find M&E / ELV / ICT Consultant (where the radio + intercom + PA scop
       "region": "country (e.g. Singapore, Malaysia, Indonesia, Thailand, Vietnam, Philippines, Cambodia, Myanmar)",
       "city": "city / district (e.g. Johor Bahru, Batam) or null",
       "industry": "industry key — must be one of: datacenter / hospitality / healthcare / manufacturing / semiconductor / transportation / real_estate / shipbuilding / energy / education / government / other",
-      "stage": "planning",
+      "stage": "determine from research: planning (approved/announced, not yet started) / designing (design phase) / construction (under construction) / completed (built and operational)",
       "total_investment": "amount with currency (e.g. USD 800M, SGD 1.2B, RM 500M) or null",
       "description": "2-4 sentence summary of project scope and scale — ENGLISH ONLY",
       "progress": "latest construction milestone with date (1-3 sentences) — ENGLISH ONLY — or null",
@@ -950,7 +951,7 @@ def batch_research_save():
                 industry=_clean(proj.get('industry')),
                 region=_clean(proj.get('region')),
                 city=_clean(proj.get('city')),
-                stage=proj.get('stage') or 'planning',
+                stage=proj.get('stage') if proj.get('stage') in PROSPECT_STAGES else 'planning',
                 total_investment=_clean(proj.get('total_investment')),
                 description=_clean(proj.get('description')),
                 progress=_clean(proj.get('progress')),
