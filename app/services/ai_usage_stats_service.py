@@ -299,7 +299,7 @@ def _get_proxy_stats(start_date, end_date, user_id=None):
     end_d = end_date.date() if hasattr(end_date, 'date') else end_date
 
     filters = [
-        AIProxyUsage.provider == 'claude',
+        AIProxyUsage.provider.in_(['claude', 'claude_research']),
         AIProxyUsage.date >= start_d,
         AIProxyUsage.date <= end_d,
     ]
@@ -407,6 +407,9 @@ def _merge_stats(chat_data, cli_data, proxy_data=None):
             'chat_tokens': c.get('prompt_tokens', 0) + c.get('completion_tokens', 0),
             'cli_tokens': l.get('prompt_tokens', 0) + l.get('completion_tokens', 0),
             'proxy_tokens': p.get('prompt_tokens', 0) + p.get('completion_tokens', 0),
+            'chat_requests': c.get('request_count', 0),
+            'cli_requests': l.get('request_count', 0),
+            'proxy_requests': p.get('request_count', 0),
         })
 
     model_breakdown = chat_data.get('models', []) + cli_data.get('models', []) + proxy_data.get('models', [])

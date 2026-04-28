@@ -437,10 +437,11 @@ function aiUsageDashboard() {
             const chart = this._getChart('chartDaily');
             if (!chart) return;
 
-            const days = this.dailyUsage.map(d => d.day.slice(5));  // MM-DD
-            const promptTokens = this.dailyUsage.map(d => d.prompt_tokens);
-            const completionTokens = this.dailyUsage.map(d => d.completion_tokens);
-            const costs = this.dailyUsage.map(d => d.estimated_cost);
+            const days        = this.dailyUsage.map(d => d.day.slice(5));
+            const chatTokens  = this.dailyUsage.map(d => d.chat_tokens  || 0);
+            const cliTokens   = this.dailyUsage.map(d => d.cli_tokens   || 0);
+            const proxyTokens = this.dailyUsage.map(d => d.proxy_tokens || 0);
+            const costs       = this.dailyUsage.map(d => d.estimated_cost);
 
             chart.setOption({
                 tooltip: {
@@ -486,19 +487,27 @@ function aiUsageDashboard() {
                 ],
                 series: [
                     {
-                        name: 'Prompt Tokens',
+                        name: 'Chat Tokens',
                         type: 'bar',
                         stack: 'tokens',
-                        data: promptTokens,
-                        itemStyle: { color: '#3b82f6', borderRadius: [0, 0, 0, 0] },
+                        data: chatTokens,
+                        itemStyle: { color: '#3b82f6' },
                         barMaxWidth: 28,
                     },
                     {
-                        name: 'Completion Tokens',
+                        name: 'CLI Tokens',
                         type: 'bar',
                         stack: 'tokens',
-                        data: completionTokens,
-                        itemStyle: { color: '#06b6d4', borderRadius: [3, 3, 0, 0] },
+                        data: cliTokens,
+                        itemStyle: { color: '#06b6d4' },
+                        barMaxWidth: 28,
+                    },
+                    {
+                        name: '代理 Tokens',
+                        type: 'bar',
+                        stack: 'tokens',
+                        data: proxyTokens,
+                        itemStyle: { color: '#f97316', borderRadius: [3, 3, 0, 0] },
                         barMaxWidth: 28,
                     },
                     {
@@ -521,12 +530,18 @@ function aiUsageDashboard() {
             const chart = this._getChart('chartRequests');
             if (!chart) return;
 
-            const days = this.dailyUsage.map(d => d.day.slice(5));
-            const counts = this.dailyUsage.map(d => d.request_count);
+            const days         = this.dailyUsage.map(d => d.day.slice(5));
+            const chatReqs     = this.dailyUsage.map(d => d.chat_requests  || 0);
+            const cliReqs      = this.dailyUsage.map(d => d.cli_requests   || 0);
+            const proxyReqs    = this.dailyUsage.map(d => d.proxy_requests || 0);
 
             chart.setOption({
-                tooltip: { trigger: 'axis' },
-                grid: { top: 15, right: 15, bottom: 25, left: 45, containLabel: false },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: { type: 'shadow' },
+                },
+                legend: { top: 0, textStyle: { color: textColor, fontSize: 11 } },
+                grid: { top: 30, right: 15, bottom: 25, left: 45, containLabel: false },
                 xAxis: {
                     type: 'category',
                     data: days,
@@ -539,12 +554,32 @@ function aiUsageDashboard() {
                     axisLabel: { color: textColor, fontSize: 11 },
                     splitLine: { lineStyle: { color: gridLineColor } },
                 },
-                series: [{
-                    type: 'bar',
-                    data: counts,
-                    itemStyle: { color: '#8b5cf6', borderRadius: [3, 3, 0, 0] },
-                    barMaxWidth: 24,
-                }]
+                series: [
+                    {
+                        name: 'Chat',
+                        type: 'bar',
+                        stack: 'reqs',
+                        data: chatReqs,
+                        itemStyle: { color: '#3b82f6' },
+                        barMaxWidth: 24,
+                    },
+                    {
+                        name: 'CLI',
+                        type: 'bar',
+                        stack: 'reqs',
+                        data: cliReqs,
+                        itemStyle: { color: '#06b6d4' },
+                        barMaxWidth: 24,
+                    },
+                    {
+                        name: '代理',
+                        type: 'bar',
+                        stack: 'reqs',
+                        data: proxyReqs,
+                        itemStyle: { color: '#f97316', borderRadius: [3, 3, 0, 0] },
+                        barMaxWidth: 24,
+                    },
+                ]
             });
             window.addEventListener('resize', () => chart.resize());
         },

@@ -479,7 +479,7 @@ def lost_ai_research(project_id):
 
     log = _log_research(current_user.id, 'lost')
     try:
-        raw = send_claude_research_request(prompt, timeout=180)
+        raw = send_claude_research_request(prompt, timeout=180, user_id=current_user.id)
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m:
             _finish_log(log, False)
@@ -547,7 +547,7 @@ def intel_ai_research(id):
 
     log = _log_research(current_user.id, 'intel')
     try:
-        raw = send_claude_research_request(prompt, timeout=180)
+        raw = send_claude_research_request(prompt, timeout=180, user_id=current_user.id)
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m:
             _finish_log(log, False)
@@ -784,7 +784,7 @@ def batch_research():
 
     log = _log_research(current_user.id, 'batch')
     try:
-        raw = send_claude_research_request(prompt, timeout=300)
+        raw = send_claude_research_request(prompt, timeout=300, user_id=current_user.id)
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m:
             _finish_log(log, False)
@@ -1275,7 +1275,7 @@ def stakeholder_ai_enrich(id, sid):
         from app.services.claude_research_provider import send_claude_research_request
         import json, re
 
-        raw = send_claude_research_request(prompt, timeout=120)
+        raw = send_claude_research_request(prompt, timeout=120, user_id=current_user.id)
 
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         if not m:

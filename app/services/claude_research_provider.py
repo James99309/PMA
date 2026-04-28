@@ -22,14 +22,43 @@ _MAX_ITERATIONS = 15  # 最多 tool 调用轮次
 _MAX_TOKENS = 8192
 
 
-def send_claude_research_request(prompt: str, timeout: int = 300) -> str:
+def _log_research_usage(user_id: int, input_tokens: int, output_tokens: int) -> None:
+    """将调研 token 用量写入 AIProxyUsage 表（provider='claude_research'）。"""
+    if not user_id or (input_tokens + output_tokens) <= 0:
+        return
+    try:
+        from datetime import date as date_type
+        from app import db
+        from app.models.ai_proxy_usage import AIProxyUsage
+        today = date_type.today()
+        row = AIProxyUsage.query.filter_by(
+            user_id=user_id, provider='claude_research', date=today
+        ).first()
+        if row:
+            row.input_tokens  += input_tokens
+            row.output_tokens += output_tokens
+            row.request_count += 1
+        else:
+            row = AIProxyUsage(
+                user_id=user_id, provider='claude_research', date=today,
+                input_tokens=input_tokens, output_tokens=output_tokens, request_count=1,
+            )
+            db.session.add(row)
+        db.session.commit()
+    except Exception as e:
+        logger.warning(f'[Claude-Research] 记录用量失败 user={user_id}: {e}')
+
+
+def send_claude_research_request(prompt: str, timeout: int = 300,
+                                  user_id: int | None = None) -> str:
     """向 Claude 发送调研请求，自动处理 web_search 工具调用循环。
 
     接口与 send_openclaw_request 兼容（返回纯文本字符串）。
 
     Args:
-        prompt: 调研提示词（已包含 web_search 指令和 JSON 格式要求）
-        timeout: 超时秒数（当前实现为 httpx 连接级超时，由 ClaudeClient 控制）
+        prompt:   调研提示词（已包含 web_search 指令和 JSON 格式要求）
+        timeout:  超时秒数
+        user_id:  触发调研的用户 ID，用于统计用量；批量自动任务传 None 则不记录
 
     Returns:
         str: Claude 的最终文本回复
@@ -59,6 +88,9 @@ def send_claude_research_request(prompt: str, timeout: int = 300) -> str:
         'JSON 字符串值内如需引用内容，必须使用中文引号「」或将双引号转义为 \\"。'
     )}]
 
+    total_input_tokens = 0
+    total_output_tokens = 0
+
     for iteration in range(_MAX_ITERATIONS):
         full_text = ''
         tool_uses: list[dict] = []
@@ -78,22 +110,29 @@ def send_claude_research_request(prompt: str, timeout: int = 300) -> str:
                 tool_uses.append(event)
             elif t == 'message_stop':
                 stop_reason = event.get('stop_reason')
+                usage = event.get('usage', {})
+                total_input_tokens  += usage.get('input_tokens', 0) or 0
+                total_output_tokens += usage.get('output_tokens', 0) or 0
             elif t == 'error':
                 error = event.get('message', '未知错误')
                 break
 
         if error:
+            _log_research_usage(user_id, total_input_tokens, total_output_tokens)
             raise RuntimeError(f'Claude API 错误: {error}')
 
         logger.info(
             f'[Claude-Research] 轮次 {iteration + 1}: '
-            f'stop={stop_reason} tools={len(tool_uses)} text_chars={len(full_text)}'
+            f'stop={stop_reason} tools={len(tool_uses)} text_chars={len(full_text)} '
+            f'tokens={total_input_tokens}+{total_output_tokens}'
         )
 
         # 无工具调用或自然结束
         if stop_reason == 'end_turn' or not tool_uses:
             if not full_text.strip():
+                _log_research_usage(user_id, total_input_tokens, total_output_tokens)
                 raise RuntimeError('Claude 返回了空响应')
+            _log_research_usage(user_id, total_input_tokens, total_output_tokens)
             return full_text
 
         # 构造 assistant 轮（包含文本 + tool_use 块）
@@ -127,6 +166,7 @@ def send_claude_research_request(prompt: str, timeout: int = 300) -> str:
 
     # 超出最大轮次，返回已有内容
     logger.warning(f'[Claude-Research] 达到最大轮次 {_MAX_ITERATIONS}，返回当前内容')
+    _log_research_usage(user_id, total_input_tokens, total_output_tokens)
     if not full_text.strip():
         raise RuntimeError(f'Claude 在 {_MAX_ITERATIONS} 轮后仍未返回有效内容')
     return full_text
