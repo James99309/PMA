@@ -360,6 +360,26 @@ def run_claude_usage_pull():
             logger.error(f"Claude 用量同步任务异常: {e}")
 
 
+def run_geo_monitor_daily():
+    """Run all enabled GEO Monitor intents."""
+    from flask import current_app
+    from app import create_app
+    from app.services.geo_monitor_service import run_all_due
+
+    logger.info(f"[{datetime.now()}] GEO Monitor 定时跑批开始...")
+    try:
+        try:
+            current_app._get_current_object()
+            run_all_due()
+        except RuntimeError:
+            app = create_app()
+            with app.app_context():
+                run_all_due()
+        logger.info(f"[{datetime.now()}] GEO Monitor 跑批完成")
+    except Exception as e:
+        logger.error(f"GEO Monitor 跑批失败: {e}")
+
+
 def start_scheduler(run_time="01:00"):
     """
     启动定时任务调度器
@@ -405,6 +425,10 @@ def start_scheduler(run_time="01:00"):
         schedule.every().day.at(backup_time).do(run_daily_backup)
         schedule.every().sunday.at("04:00").do(run_weekly_backup_cleanup)
         logger.info(f"备份任务已注册: 每日 {backup_time} 自动备份, 每周日 04:00 清理")
+
+    # GEO Monitor 每日跑批（09:00）
+    schedule.every().day.at("09:00").do(run_geo_monitor_daily)
+    logger.info("GEO Monitor 跑批任务已注册: 每日 09:00")
 
     # Claude AI 代理用量同步（每 5 分钟从 Mac mini 拉取）
     schedule.every(5).minutes.do(run_claude_usage_pull)
