@@ -78,7 +78,7 @@ def upgrade():
     op.execute("""
         INSERT INTO company_entities (code, name, region, language, tax_mode, tax_label, currency_code, logo_url, line1, line2, line3, sort_order, is_default)
         VALUES (
-            'MY_DEFAULT', 'Evertac Solutions Malaysia', 'MY', 'en', 'exclusive', 'SST', 'MYR',
+            'MY_DEFAULT', 'Evertac Solutions Malaysia', 'MY', 'en', 'inclusive', NULL, 'MYR',
             '/static/img/company_logos/evertac_solutions.png',
             'EVERTAC SOLUTION MALAYSIA SDN. BHD.',
             'D-12-6, Menara Mitraland, No. 13A, Jalan PJU 5/1, Kota Damansara PJU 5, 47810 Petaling Jaya, Selangor Darul Ehsan',
