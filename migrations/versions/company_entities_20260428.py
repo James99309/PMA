@@ -52,7 +52,7 @@ def upgrade():
     op.execute("""
         INSERT INTO company_entities (code, name, region, language, tax_mode, tax_label, currency_code, logo_url, line1, line2, line3, sort_order, is_default)
         VALUES (
-            'CN_DEFAULT', '和源通信(上海)股份有限公司', 'CN', 'zh', 'inclusive', '增值税', 'CNY',
+            'CN_DEFAULT', '和源通信', 'CN', 'zh', 'inclusive', '增值税', 'CNY',
             '/static/img/company_logos/evertac_cn.png',
             '和源通信(上海)股份有限公司',
             '普陀区武南路88号1102室',
