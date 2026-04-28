@@ -74,9 +74,9 @@
         </div>
         <div class="flex items-center gap-4">
             <button @click="run()" :disabled="loading || !title.trim() || selected.length === 0"
-                    class="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-primary/90">
-                <span x-show="!loading">▶ 同时测试所有市场</span>
-                <span x-show="loading" x-cloak>⏳ 搜索中，请稍候（约30-60秒）...</span>
+                    class="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium disabled:opacity-50 hover:bg-primary/90"
+                    x-text="loading ? '⏳ 搜索中（约30-60秒）...' : '▶ 同时测试所有市场'">
+                ▶ 同时测试所有市场
             </button>
         </div>
     </div>
