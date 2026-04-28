@@ -72,7 +72,7 @@
     .company-name input:focus, .company-info input:focus { border-color: #137fec; border-style: solid; background: #fff; box-shadow: 0 0 0 2px rgba(19,127,236,0.15); }
 
     .logo-uploader {
-      width: 88px; min-height: 88px; border: 1px dashed transparent; border-radius: 0;
+      width: 132px; min-height: 132px; border: 1px dashed transparent; border-radius: 0;
       display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
       color: transparent; font-size: 11px; cursor: pointer; transition: all 0.15s;
       position: relative; padding: 0; box-sizing: border-box;
@@ -254,10 +254,10 @@
 
 <div class="quotation-paper" id="quotationPaper">
   <table class="q-grid" style="margin-bottom:8px">
-    <colgroup><col style="width: 100px"><col></colgroup>
+    <colgroup><col style="width: 171px"><col></colgroup>
     <tbody>
       <tr>
-        <td class="no-border" rowspan="3" style="text-align:left;vertical-align:top;padding:0 8px 0 0">
+        <td class="no-border" rowspan="3" style="text-align:left;vertical-align:top;padding:0 8px 0 26px">
           <label class="logo-uploader" id="logoUploader" title="{{ _('点击上传公司 LOGO') }}">
             {% if user_letterhead.logo_url %}<img src="{{ user_letterhead.logo_url }}" alt="LOGO">{% else %}<span class="material-symbols-outlined">image</span>LOGO{% endif %}
             <input type="file" accept="image/*" onchange="QuotationEditor.uploadLogo(this)">
