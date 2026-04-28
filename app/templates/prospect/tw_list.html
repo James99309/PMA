@@ -291,8 +291,9 @@
 
     {% for p in projects %}
     {% set sc = stage_cfg.get(p.stage, (_('未知'), 'text-slate-500 bg-slate-100 border border-slate-200 dark:text-slate-400 dark:bg-slate-700')) %}
-    {% set owner_ct   = p.stakeholders | selectattr('stakeholder_type', 'eq', 'owner')  | list | length %}
-    {% set design_ct  = p.stakeholders | selectattr('stakeholder_type', 'in', ['design','epc']) | list | length %}
+    {% set owner_ct      = p.stakeholders | selectattr('stakeholder_type', 'eq', 'owner')      | list | length %}
+    {% set consultant_ct = p.stakeholders | selectattr('stakeholder_type', 'eq', 'consultant') | list | length %}
+    {% set epc_ct        = p.stakeholders | selectattr('stakeholder_type', 'in', ['design','epc']) | list | length %}
 
     <tr class="table-row-hover transition-colors cursor-pointer"
         onclick="openProspectDetail({{ p.id }})">
@@ -353,10 +354,13 @@
             {% if p.stakeholders %}
             <div class="flex items-center gap-1.5">
                 {% if owner_ct > 0 %}
-                <span class="px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-700">{{ _('建设') }} {{ owner_ct }}</span>
+                <span class="px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-700">{{ _('业主') }} {{ owner_ct }}</span>
                 {% endif %}
-                {% if design_ct > 0 %}
-                <span class="px-1.5 py-0.5 rounded text-xs bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 border border-violet-200 dark:border-violet-700">{{ _('设计') }} {{ design_ct }}</span>
+                {% if consultant_ct > 0 %}
+                <span class="px-1.5 py-0.5 rounded text-xs bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-300 border border-teal-200 dark:border-teal-700">{{ _('顾问') }} {{ consultant_ct }}</span>
+                {% endif %}
+                {% if epc_ct > 0 %}
+                <span class="px-1.5 py-0.5 rounded text-xs bg-violet-50 dark:bg-violet-900/30 text-violet-600 dark:text-violet-300 border border-violet-200 dark:border-violet-700">{{ _('设计') }} {{ epc_ct }}</span>
                 {% endif %}
             </div>
             {% else %}
@@ -844,11 +848,12 @@
     let _importItems = [];  // built from UI selections
 
     const STAKEHOLDER_TYPE_LABEL = {
-        owner: '{{ _("业主") }}', design: '{{ _("设计院") }}', epc: 'EPC',
+        owner: '{{ _("业主") }}', consultant: '{{ _("顾问") }}', design: '{{ _("设计院") }}', epc: 'EPC',
         construction: '{{ _("施工") }}', other: '{{ _("其他") }}'
     };
     const TYPE_COLOR = {
         owner:        'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
+        consultant:   'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-900/30 dark:border-teal-700',
         design:       'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
         epc:          'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700',
         construction: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700',
@@ -1527,7 +1532,7 @@
         document.getElementById('prm-subtitle').textContent =
             `${data.project_name || ''} · {{ _("发现") }} ${total} {{ _("项可保存内容") }}`;
 
-        const TYPE_LABEL = { owner:'{{ _("业主") }}', design:'{{ _("设计院") }}', epc:'EPC', construction:'{{ _("施工") }}', other:'{{ _("其他") }}' };
+        const TYPE_LABEL = { owner:'{{ _("业主") }}', consultant:'{{ _("顾问") }}', design:'{{ _("设计院") }}', epc:'EPC', construction:'{{ _("施工") }}', other:'{{ _("其他") }}' };
         const TYPE_COLOR = {
             owner:        'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
             design:       'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
