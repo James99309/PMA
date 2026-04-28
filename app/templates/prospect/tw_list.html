@@ -296,6 +296,7 @@
     {% set epc_ct        = p.stakeholders | selectattr('stakeholder_type', 'in', ['design','epc']) | list | length %}
 
     <tr class="table-row-hover transition-colors cursor-pointer"
+        data-prospect-id="{{ p.id }}"
         onclick="openProspectDetail({{ p.id }})">
 
         {# 项目名称 #}
@@ -1535,6 +1536,7 @@
         const TYPE_LABEL = { owner:'{{ _("业主") }}', consultant:'{{ _("顾问") }}', design:'{{ _("设计院") }}', epc:'EPC', construction:'{{ _("施工") }}', other:'{{ _("其他") }}' };
         const TYPE_COLOR = {
             owner:        'text-blue-600 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700',
+            consultant:   'text-teal-600 bg-teal-50 border-teal-200 dark:text-teal-300 dark:bg-teal-900/30 dark:border-teal-700',
             design:       'text-violet-600 bg-violet-50 border-violet-200 dark:text-violet-300 dark:bg-violet-900/30 dark:border-violet-700',
             epc:          'text-indigo-600 bg-indigo-50 border-indigo-200 dark:text-indigo-300 dark:bg-indigo-900/30 dark:border-indigo-700',
             construction: 'text-orange-600 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700',
@@ -1773,6 +1775,45 @@
                 alert(data.message || '{{ _("取消失败") }}');
             }
         });
+    }
+
+    function deleteStakeholder(sid, btn) {
+        if (!confirm('{{ _("确认删除此关联方？") }}')) return;
+        const card = btn.closest('.flex.items-start');
+        fetch('/prospect/stakeholder/' + sid + '/delete', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                if (card) card.remove();
+                showToast('{{ _("已删除") }}', 'success');
+            } else {
+                showToast(data.message || '{{ _("删除失败") }}', 'error');
+            }
+        })
+        .catch(() => showToast('{{ _("删除请求失败") }}', 'error'));
+    }
+
+    function deleteProspectProject(id) {
+        if (!confirm('{{ _("确认删除此项目情报？此操作不可撤销。") }}')) return;
+        fetch('/prospect/' + id + '/delete', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                closeProspectDetail();
+                const row = document.querySelector('tr[data-prospect-id="' + id + '"]');
+                if (row) row.remove();
+                showToast('{{ _("项目已删除") }}', 'success');
+            } else {
+                showToast(data.message || '{{ _("删除失败") }}', 'error');
+            }
+        })
+        .catch(() => showToast('{{ _("删除请求失败") }}', 'error'));
     }
 
     // ── Batch Research ─────────────────────────────────────────────
