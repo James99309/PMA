@@ -540,13 +540,15 @@ def lost_ai_research(project_id):
             return jsonify(success=False, message='AI 未返回有效结果'), 500
         data = json.loads(m.group())
         _finish_log(log, True)
+        stakeholders = [s for s in (data.get('stakeholders') or [])
+                        if s.get('company_name') and str(s['company_name']).strip()]
         return jsonify({
             'success': True,
             'prospect_id': research.id,
             'project_name': project.project_name,
             'description': (data.get('description') or '').strip(),
             'progress': (data.get('progress') or '').strip(),
-            'stakeholders': data.get('stakeholders') or [],
+            'stakeholders': stakeholders,
         })
     except Exception as e:
         _finish_log(log, False)
@@ -657,13 +659,16 @@ def intel_ai_research(id):
             return jsonify(success=False, message='AI 未返回有效结果'), 500
         data = json.loads(m.group())
         _finish_log(log, True)
+        # 过滤掉 company_name 为空的关联方
+        stakeholders = [s for s in (data.get('stakeholders') or [])
+                        if s.get('company_name') and str(s['company_name']).strip()]
         return jsonify({
             'success': True,
             'prospect_id': p.id,
             'project_name': p.project_name,
             'description': (data.get('description') or '').strip(),
             'progress': (data.get('progress') or '').strip(),
-            'stakeholders': data.get('stakeholders') or [],
+            'stakeholders': stakeholders,
         })
     except Exception as e:
         _finish_log(log, False)

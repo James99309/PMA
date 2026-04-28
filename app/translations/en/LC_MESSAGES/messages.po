@@ -28172,6 +28172,15 @@ msgstr "Manual Entry"
 msgid "业主"
 msgstr "Owner"
 
+msgid "主承包商"
+msgstr "Main Contractor"
+
+msgid "系统集成商"
+msgstr "System Integrator"
+
+msgid "机电/安防顾问"
+msgstr "MEP/Security Consultant"
+
 msgid "施工"
 msgstr "Construction"
 
