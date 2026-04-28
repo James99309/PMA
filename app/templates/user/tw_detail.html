@@ -178,7 +178,7 @@
         {% if can_view_salary %}
         {% set tabs = tabs + [{'key': 'salary', 'label': _('薪资明细')}] %}
         {% endif %}
-        {% if can_edit_user %}
+        {% if current_user.role == 'admin' %}
         {% set tabs = tabs + [{'key': 'claude_ai', 'label': _('Claude AI 代理')}] %}
         {% endif %}
         <div class="sticky top-0 z-20 bg-background-light dark:bg-black -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 pt-2 [&>nav]:mb-0">
@@ -681,7 +681,7 @@
             {% endif %}
 
             <!-- Claude AI 代理标签页 -->
-            {% if can_edit_user %}
+            {% if current_user.role == 'admin' %}
             <div id="tab-claude_ai" class="tab-panel hidden">
                 <div class="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 space-y-6"
                      x-data="claudeAiTab({{ user.id }}, '{{ url_for('user.api_claude_ai_get', user_id=user.id) }}')"
