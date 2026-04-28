@@ -94,7 +94,10 @@
     td.editable input, td.editable select, td.editable textarea {
       width: 100%; border: none; outline: none; background: transparent;
       padding: 0; font-size: inherit; color: inherit; font-family: inherit; resize: none;
+      line-height: 1.35; margin: 0;
     }
+    /* 备注 textarea 顶部对齐 label */
+    #notesInput { padding-top: 0 !important; }
     /* 去掉 forms 插件给 input/select 加的 focus ring（只用 td 的蓝边高亮） */
     td.editable input:focus, td.editable select:focus, td.editable textarea:focus {
       box-shadow: none !important; outline: none !important;
