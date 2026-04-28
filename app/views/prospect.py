@@ -421,10 +421,12 @@ def lost_ai_research(project_id):
     以保持"AI 可以补全，但不会同步回项目"的设计意图。
     """
     from app.services.claude_research_provider import send_claude_research_request
+    from config import Config
     import json
     import re
 
     project = Project.query.filter_by(id=project_id, is_deleted=False).first_or_404()
+    is_ovs = bool(Config.IS_OVS)
 
     research = ProspectProject.query.filter_by(
         converted_project_id=project.id,
@@ -444,33 +446,71 @@ def lost_ai_research(project_id):
         db.session.add(research)
         db.session.flush()
 
-    prompt = (
-        f"请对以下项目做调研，输出严格 JSON：\n\n"
-        f"项目名称：{project.project_name}\n"
-        f"行业：{project.industry or '未知'}\n"
-        f"地区：{project.region or '未知'}\n"
-        f"阶段：{project.current_stage or '未知'}\n\n"
-        "请输出如下 JSON 结构：\n"
-        "{\n"
-        '  "description": "项目详细描述（2~5 句）",\n'
-        '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
-        '  "stakeholders": [\n'
-        '    {\n'
-        '      "stakeholder_type": "owner|design|epc|construction|other",\n'
-        '      "company_name": "公司全称",\n'
-        '      "department": "部门/null",\n'
-        '      "address": "公司地址/null",\n'
-        '      "phone": "电话/null",\n'
-        '      "contact_person": "联系人/null",\n'
-        '      "email": "邮箱/null",\n'
-        '      "website": "官网/null",\n'
-        '      "business_scope": "业务范围/null",\n'
-        '      "notes": "其他/null"\n'
-        '    }\n'
-        "  ]\n"
-        "}\n\n"
-        "找不到的字段设为 null。stakeholder_type 必须是上述五种枚举之一。"
-    )
+    if is_ovs:
+        prompt = (
+            f"⚠️ LANGUAGE RULE (MANDATORY): Your entire JSON output MUST be in English only. "
+            f"Do NOT use Chinese or any other non-English language.\n\n"
+            f"Research the following project and output strict JSON.\n\n"
+            f"Project name: {project.project_name}\n"
+            f"Industry: {project.industry or 'unknown'}\n"
+            f"Region: {project.region or 'unknown'}\n"
+            f"Stage: {project.current_stage or 'unknown'}\n\n"
+            f"Search strategy:\n"
+            f'1. Search "[project name] developer owner" to find the client/owner.\n'
+            f'2. Search "[project name] main contractor awarded" to find the general contractor.\n'
+            f'3. Search "[project name] M&E consultant ELV ICT" to find consultants.\n'
+            f'4. Search "[project name] latest news update" for progress.\n\n'
+            "Output the following JSON structure (English only):\n"
+            "{\n"
+            '  "description": "2-5 sentence project overview — English only",\n'
+            '  "progress": "Latest milestone with date (1-3 sentences) — English only — or null",\n'
+            '  "stakeholders": [\n'
+            '    {\n'
+            '      "stakeholder_type": "owner|consultant|epc|construction|other",\n'
+            '      "company_name": "full registered company name in English",\n'
+            '      "department": "department name in English or null",\n'
+            '      "address": "address or null",\n'
+            '      "phone": "phone or null",\n'
+            '      "contact_person": "contact name (romanised) or null",\n'
+            '      "email": "email or null",\n'
+            '      "website": "official site or null",\n'
+            '      "business_scope": "business scope in English or null",\n'
+            '      "notes": "notes in English or null"\n'
+            '    }\n'
+            "  ]\n"
+            "}\n\n"
+            "Stakeholder types: owner=Developer/Client, consultant=M&E/ELV/ICT consultant, "
+            "epc=Main/General contractor, construction=Subcontractor, other=Other.\n"
+            "Set unknown fields to null. ALL text must be in English."
+        )
+    else:
+        prompt = (
+            f"请对以下项目做调研，输出严格 JSON：\n\n"
+            f"项目名称：{project.project_name}\n"
+            f"行业：{project.industry or '未知'}\n"
+            f"地区：{project.region or '未知'}\n"
+            f"阶段：{project.current_stage or '未知'}\n\n"
+            "请输出如下 JSON 结构：\n"
+            "{\n"
+            '  "description": "项目详细描述（2~5 句）",\n'
+            '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
+            '  "stakeholders": [\n'
+            '    {\n'
+            '      "stakeholder_type": "owner|consultant|design|epc|construction|other",\n'
+            '      "company_name": "公司全称",\n'
+            '      "department": "部门/null",\n'
+            '      "address": "公司地址/null",\n'
+            '      "phone": "电话/null",\n'
+            '      "contact_person": "联系人/null",\n'
+            '      "email": "邮箱/null",\n'
+            '      "website": "官网/null",\n'
+            '      "business_scope": "业务范围/null",\n'
+            '      "notes": "其他/null"\n'
+            '    }\n'
+            "  ]\n"
+            "}\n\n"
+            "找不到的字段设为 null。stakeholder_type 必须是上述枚举之一。"
+        )
 
     _recover_stale_logs()
     acquired = _research_semaphore.acquire(timeout=10)
@@ -508,37 +548,81 @@ def lost_ai_research(project_id):
 def intel_ai_research(id):
     """触发情报库项目的 AI 调研，只返回结果不写入，由前端预览后确认写入。"""
     from app.services.claude_research_provider import send_claude_research_request
+    from config import Config
     import json
     import re
 
     p = ProspectProject.query.filter_by(id=id, is_deleted=False).first_or_404()
+    is_ovs = bool(Config.IS_OVS)
 
-    prompt = (
-        f"请对以下市场情报项目做调研，输出严格 JSON：\n\n"
-        f"项目名称：{p.project_name}\n"
-        f"行业：{p.industry or '未知'}\n"
-        f"地区：{p.region or '未知'}\n\n"
-        "请输出如下 JSON 结构：\n"
-        "{\n"
-        '  "description": "项目详细描述（2~5 句）",\n'
-        '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
-        '  "stakeholders": [\n'
-        '    {\n'
-        '      "stakeholder_type": "owner|design|epc|construction|other",\n'
-        '      "company_name": "公司全称",\n'
-        '      "department": "部门/null",\n'
-        '      "address": "公司地址/null",\n'
-        '      "phone": "电话/null",\n'
-        '      "contact_person": "联系人/null",\n'
-        '      "email": "邮箱/null",\n'
-        '      "website": "官网/null",\n'
-        '      "business_scope": "业务范围/null",\n'
-        '      "notes": "其他/null"\n'
-        '    }\n'
-        "  ]\n"
-        "}\n\n"
-        "找不到的字段设为 null。stakeholder_type 必须是上述五种枚举之一。"
-    )
+    if is_ovs:
+        prompt = (
+            f"⚠️ LANGUAGE RULE (MANDATORY): Your entire JSON output MUST be in English only. "
+            f"Do NOT use Chinese or any other non-English language, even if search results are in other languages.\n\n"
+            f"You are an intelligence analyst for an industrial communication systems vendor selling into Southeast Asia. "
+            f"Use the web_search tool to research the following project and output strict JSON.\n\n"
+            f"Project name: {p.project_name}\n"
+            f"Industry: {p.industry or 'unknown'}\n"
+            f"Region: {p.region or 'unknown'}\n\n"
+            f"Search strategy:\n"
+            f'1. Search "[project name] developer owner" to find the client/owner.\n'
+            f'2. Search "[project name] main contractor awarded" to find the general contractor.\n'
+            f'3. Search "[project name] M&E consultant" or "[project name] ELV consultant ICT" to find consultants.\n'
+            f'4. Search "[project name] latest news {p.region or ""}" for progress updates.\n\n'
+            "Output the following JSON structure (English only):\n"
+            "{\n"
+            '  "description": "2-5 sentence project overview (scope, scale, technology) — English only",\n'
+            '  "progress": "Latest milestone with date (1-3 sentences) — English only — or null",\n'
+            '  "stakeholders": [\n'
+            '    {\n'
+            '      "stakeholder_type": "owner|consultant|epc|construction|other",\n'
+            '      "company_name": "full registered company name in English",\n'
+            '      "department": "department name in English or null",\n'
+            '      "address": "address or null",\n'
+            '      "phone": "phone or null",\n'
+            '      "contact_person": "contact name (romanised) or null",\n'
+            '      "email": "email or null",\n'
+            '      "website": "official site or null",\n'
+            '      "business_scope": "business scope in English or null",\n'
+            '      "notes": "notes in English or null"\n'
+            '    }\n'
+            "  ]\n"
+            "}\n\n"
+            "Stakeholder type guide:\n"
+            "- owner: Developer / Owner / Client\n"
+            "- consultant: M&E consultant / ELV consultant / ICT specialist / PMC\n"
+            "- epc: Main contractor / General contractor / EPC (design-and-build)\n"
+            "- construction: Specialist subcontractor\n"
+            "- other: Any other party\n\n"
+            "Set unknown fields to null. ALL text must be in English."
+        )
+    else:
+        prompt = (
+            f"请对以下市场情报项目做调研，输出严格 JSON：\n\n"
+            f"项目名称：{p.project_name}\n"
+            f"行业：{p.industry or '未知'}\n"
+            f"地区：{p.region or '未知'}\n\n"
+            "请输出如下 JSON 结构：\n"
+            "{\n"
+            '  "description": "项目详细描述（2~5 句）",\n'
+            '  "progress": "项目最新进展（1~3 句，可包含日期）",\n'
+            '  "stakeholders": [\n'
+            '    {\n'
+            '      "stakeholder_type": "owner|consultant|design|epc|construction|other",\n'
+            '      "company_name": "公司全称",\n'
+            '      "department": "部门/null",\n'
+            '      "address": "公司地址/null",\n'
+            '      "phone": "电话/null",\n'
+            '      "contact_person": "联系人/null",\n'
+            '      "email": "邮箱/null",\n'
+            '      "website": "官网/null",\n'
+            '      "business_scope": "业务范围/null",\n'
+            '      "notes": "其他/null"\n'
+            '    }\n'
+            "  ]\n"
+            "}\n\n"
+            "找不到的字段设为 null。stakeholder_type 必须是上述枚举之一。"
+        )
 
     _recover_stale_logs()
     acquired = _research_semaphore.acquire(timeout=10)
