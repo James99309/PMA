@@ -47,24 +47,26 @@ def upgrade():
         )
     """)
 
-    # 初始化数据：根据当前 DB 类型注入 CN 或 SG/MY
-    # CN 库默认主体
+    # 初始化 3 个主体数据
+    # CN 主体（中国，价内税，中文）
     op.execute("""
-        INSERT INTO company_entities (code, name, region, language, tax_mode, tax_label, currency_code, line1, line2, line3, sort_order, is_default)
+        INSERT INTO company_entities (code, name, region, language, tax_mode, tax_label, currency_code, logo_url, line1, line2, line3, sort_order, is_default)
         VALUES (
-            'CN_DEFAULT', '中国默认主体', 'CN', 'zh', 'inclusive', '增值税', 'CNY',
-            '上海和源通信科技有限公司',
-            '上海市闵行区紫月路 999 号',
-            '电话: 021-xxxx-xxxx  网址: www.evertac.cn',
+            'CN_DEFAULT', '和源通信(上海)股份有限公司', 'CN', 'zh', 'inclusive', '增值税', 'CNY',
+            '/static/img/company_logos/evertac_cn.png',
+            '和源通信(上海)股份有限公司',
+            '普陀区武南路88号1102室',
+            '电话: 021-62596028   网站: www.evertac.net',
             10, true
         )
         ON CONFLICT (code) DO NOTHING
     """)
-    # SG 主体
+    # SG 主体（新加坡，价外税 GST，英文）
     op.execute("""
-        INSERT INTO company_entities (code, name, region, language, tax_mode, tax_label, currency_code, line1, line2, line3, sort_order, is_default)
+        INSERT INTO company_entities (code, name, region, language, tax_mode, tax_label, currency_code, logo_url, line1, line2, line3, sort_order, is_default)
         VALUES (
-            'SG_DEFAULT', 'Evertac Singapore', 'SG', 'en', 'exclusive', 'GST', 'SGD',
+            'SG_DEFAULT', 'Evertac Solutions Singapore', 'SG', 'en', 'exclusive', 'GST', 'SGD',
+            '/static/img/company_logos/evertac_solutions.png',
             'EVERTAC SOLUTIONS SINGAPORE PTE. LTD.',
             '18 Boon Lay Way, #03-117 Tradehub 21, Singapore 609966',
             'UEN No/GST Reg. No.: 202230146C    Website: www.evertac-solutions.com',
@@ -72,14 +74,15 @@ def upgrade():
         )
         ON CONFLICT (code) DO NOTHING
     """)
-    # MY 主体
+    # MY 主体（马来西亚，价外税 SST，英文，复用 SG LOGO）
     op.execute("""
-        INSERT INTO company_entities (code, name, region, language, tax_mode, tax_label, currency_code, line1, line2, line3, sort_order, is_default)
+        INSERT INTO company_entities (code, name, region, language, tax_mode, tax_label, currency_code, logo_url, line1, line2, line3, sort_order, is_default)
         VALUES (
-            'MY_DEFAULT', 'Evertac Malaysia', 'MY', 'en', 'exclusive', 'SST', 'MYR',
-            'EVERTAC SOLUTIONS MALAYSIA SDN. BHD.',
-            'Kuala Lumpur, Malaysia',
-            'Reg. No.: 1234567-X    Website: www.evertac-solutions.com',
+            'MY_DEFAULT', 'Evertac Solutions Malaysia', 'MY', 'en', 'exclusive', 'SST', 'MYR',
+            '/static/img/company_logos/evertac_solutions.png',
+            'EVERTAC SOLUTION MALAYSIA SDN. BHD.',
+            'D-12-6, Menara Mitraland, No. 13A, Jalan PJU 5/1, Kota Damansara PJU 5, 47810 Petaling Jaya, Selangor Darul Ehsan',
+            'Company Registration No.: 1512990K / 202301019068',
             30, false
         )
         ON CONFLICT (code) DO NOTHING
