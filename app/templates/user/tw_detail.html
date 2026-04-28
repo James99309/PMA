@@ -792,12 +792,20 @@
                         <h4 class="text-base font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary">monitoring</span>
                             {{ _('用量统计') }}
-                            <button @click="refreshUsage()" :disabled="loading"
-                                    class="ml-auto text-xs text-slate-500 hover:text-primary flex items-center gap-1 disabled:opacity-40"
-                                    title="{{ _('从 Mac mini 拉取最新用量') }}">
-                                <span class="material-symbols-outlined text-sm" :class="{'animate-spin': loading}">sync</span>
-                                {{ _('刷新') }}
-                            </button>
+                            <div class="ml-auto flex items-center gap-2">
+                                <button x-show="data.has_token" @click="openRequests()" :disabled="loading"
+                                        class="text-xs text-slate-500 hover:text-primary flex items-center gap-1 disabled:opacity-40"
+                                        title="{{ _('查看提问记录') }}">
+                                    <span class="material-symbols-outlined text-sm">chat_bubble</span>
+                                    {{ _('提问记录') }}
+                                </button>
+                                <button @click="refreshUsage()" :disabled="loading"
+                                        class="text-xs text-slate-500 hover:text-primary flex items-center gap-1 disabled:opacity-40"
+                                        title="{{ _('从 Mac mini 拉取最新用量') }}">
+                                    <span class="material-symbols-outlined text-sm" :class="{'animate-spin': loading}">sync</span>
+                                    {{ _('刷新') }}
+                                </button>
+                            </div>
                         </h4>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div class="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
@@ -828,6 +836,85 @@
                          :class="messageType === 'error' ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300' : 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'">
                         <span x-text="message"></span>
                     </div>
+
+                    <!-- 提问记录 slide-over 面板 -->
+                    <div x-show="reqPanel.open" x-transition:enter="transition ease-out duration-200"
+                         x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                         x-transition:leave="transition ease-in duration-150"
+                         x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                         class="fixed inset-0 z-50 flex justify-end"
+                         @click.self="reqPanel.open = false">
+                        <!-- 遮罩 -->
+                        <div class="absolute inset-0 bg-black/40"></div>
+                        <!-- 面板 -->
+                        <div class="relative w-full max-w-xl bg-white dark:bg-slate-800 h-full shadow-2xl flex flex-col"
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full">
+                            <!-- 面板头部 -->
+                            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-primary">chat_bubble</span>
+                                    <span class="font-semibold text-slate-900 dark:text-white">{{ _('提问记录') }}</span>
+                                    <span class="text-xs text-slate-400 dark:text-slate-500" x-text="reqPanel.date"></span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <!-- 日期导航 -->
+                                    <button @click="reqNav(-1)" :disabled="reqPanel.dateIdx >= reqPanel.dates.length - 1"
+                                            class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors">
+                                        <span class="material-symbols-outlined text-base">chevron_left</span>
+                                    </button>
+                                    <button @click="reqNav(1)" :disabled="reqPanel.dateIdx <= 0"
+                                            class="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors">
+                                        <span class="material-symbols-outlined text-base">chevron_right</span>
+                                    </button>
+                                    <button @click="reqPanel.open = false"
+                                            class="ml-2 p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors">
+                                        <span class="material-symbols-outlined text-base">close</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- 内容区 -->
+                            <div class="flex-1 overflow-y-auto px-5 py-4">
+                                <!-- 加载中 -->
+                                <div x-show="reqPanel.loading" class="flex justify-center py-12">
+                                    <span class="inline-block w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin"></span>
+                                </div>
+                                <!-- 空状态 -->
+                                <div x-show="!reqPanel.loading && reqPanel.entries.length === 0" class="flex flex-col items-center justify-center py-16 text-slate-400 dark:text-slate-500">
+                                    <span class="material-symbols-outlined text-5xl mb-3">chat_bubble_outline</span>
+                                    <p class="text-sm">{{ _('当日暂无提问记录') }}</p>
+                                </div>
+                                <!-- 记录列表 -->
+                                <div x-show="!reqPanel.loading && reqPanel.entries.length > 0" class="space-y-3">
+                                    <template x-for="(entry, i) in reqPanel.entries" :key="i">
+                                        <div class="flex gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                                            <div class="shrink-0 mt-0.5">
+                                                <span class="material-symbols-outlined text-slate-400 text-base">person</span>
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                                    <span class="text-xs text-slate-500 dark:text-slate-400 font-mono" x-text="entry.ts?.substring(11, 16) || ''"></span>
+                                                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium"
+                                                          :class="entry.model?.includes('opus') ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300' : entry.model?.includes('sonnet') ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'"
+                                                          x-text="entry.model?.replace('claude-','').replace(/-\d{8}$/,'') || 'unknown'">
+                                                    </span>
+                                                    <span x-show="entry.country" class="text-[10px] text-slate-400 dark:text-slate-500" x-text="entry.country"></span>
+                                                </div>
+                                                <p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed break-words line-clamp-4" x-text="entry.message || '(无内容)'"></p>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <!-- 底部计数 -->
+                            <div x-show="!reqPanel.loading && reqPanel.entries.length > 0"
+                                 class="px-5 py-3 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-400 dark:text-slate-500 shrink-0">
+                                {{ _('共') }} <span x-text="reqPanel.entries.length"></span> {{ _('条记录') }}
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 确认对话框：开关 / 重置 token / 解除设备锁定 -->
@@ -845,6 +932,7 @@
                         loading: false,
                         message: '',
                         messageType: 'info',
+                        reqPanel: {open: false, loading: false, date: '', dates: [], dateIdx: 0, entries: []},
                         async load() {
                             this.loading = true;
                             try {
@@ -926,6 +1014,37 @@
                                     }
                                 }
                             });
+                        },
+                        async openRequests() {
+                            const today = new Date().toISOString().slice(0, 10);
+                            this.reqPanel.date = today;
+                            this.reqPanel.open = true;
+                            await this._loadRequests(today);
+                        },
+                        async _loadRequests(date) {
+                            this.reqPanel.loading = true;
+                            try {
+                                const r = await fetch(`/user/api/${this.userId}/claude-ai/requests?date=${date}`);
+                                const d = await r.json();
+                                this.reqPanel.entries = d.entries || [];
+                                if (d.dates && d.dates.length > 0) {
+                                    this.reqPanel.dates = d.dates;
+                                    this.reqPanel.dateIdx = d.dates.indexOf(date);
+                                    if (this.reqPanel.dateIdx < 0) this.reqPanel.dateIdx = 0;
+                                }
+                            } catch (e) {
+                                this.reqPanel.entries = [];
+                            } finally {
+                                this.reqPanel.loading = false;
+                            }
+                        },
+                        async reqNav(dir) {
+                            const newIdx = this.reqPanel.dateIdx - dir;
+                            if (newIdx < 0 || newIdx >= this.reqPanel.dates.length) return;
+                            this.reqPanel.dateIdx = newIdx;
+                            const newDate = this.reqPanel.dates[newIdx];
+                            this.reqPanel.date = newDate;
+                            await this._loadRequests(newDate);
                         },
                         async saveQuota() {
                             this.loading = true;

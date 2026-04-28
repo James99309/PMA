@@ -2768,3 +2768,28 @@ def api_claude_ai_unlock_device(user_id):
     if not ok:
         return jsonify({'success': False, 'message': f'解锁失败: {msg}'}), 500
     return jsonify({'success': True})
+
+
+@user_bp.route('/api/<int:user_id>/claude-ai/requests', methods=['GET'])
+@login_required
+@permission_required('user', 'view')
+def api_claude_ai_requests(user_id):
+    """获取该用户的 Claude AI 提问记录（从 Mac mini admin_server 拉取）"""
+    import requests as http_requests
+    from app.services.ai_proxy_service import _admin_url
+    user = User.query.get_or_404(user_id)
+    if not user.claude_ai_token:
+        return jsonify({'success': True, 'entries': [], 'dates': []})
+    date = request.args.get('date', datetime.now().strftime('%Y-%m-%d'))
+    try:
+        resp = http_requests.get(
+            _admin_url().rstrip('/') + '/api/requests',
+            params={'ip': user.claude_ai_token, 'date': date},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return jsonify({'success': True, 'entries': data.get('entries', []), 'dates': data.get('dates', [])})
+        return jsonify({'success': False, 'entries': [], 'dates': [], 'message': f'http {resp.status_code}'})
+    except Exception as e:
+        return jsonify({'success': False, 'entries': [], 'dates': [], 'message': str(e)})
