@@ -137,7 +137,8 @@
     tr.section-row td.section-label-cell textarea {
       width: 100%; border: none; background: transparent; outline: none;
       color: #334155; padding: 0; line-height: 1.35; font-size: 11px;
-      resize: none; overflow: hidden; min-height: 1.35em; font-family: inherit;
+      resize: none; overflow: hidden; font-family: inherit;
+      display: block; vertical-align: middle;
     }
     tr.section-row td.section-label-cell textarea:focus {
       box-shadow: none !important; outline: none !important;
@@ -400,7 +401,7 @@
       <tr>
         <td style="border:none;background:transparent"></td>
         <td class="label" colspan="2" style="vertical-align:top">{{ _('备注') }}:</td>
-        <td class="editable" colspan="7" style="vertical-align:top"><textarea id="notesInput" rows="1" placeholder="{{ _('输入报价单备注...') }}" oninput="QuotationEditor.autoResize(this)" style="overflow:hidden">{% if is_edit %}{{ quotation.notes or '' }}{% endif %}</textarea></td>
+        <td class="editable" colspan="7" style="vertical-align:top"><textarea id="notesInput" rows="3" placeholder="{{ _('输入报价单备注...') }}" oninput="QuotationEditor.autoResize(this)" style="overflow:hidden;min-height:calc(1.35em * 3 + 4px)">{% if is_edit %}{{ quotation.notes or '' }}{% endif %}</textarea></td>
         <td style="border:none;background:transparent"></td>
       </tr>
     </tbody>
