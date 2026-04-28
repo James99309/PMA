@@ -400,7 +400,7 @@
       <tr>
         <td style="border:none;background:transparent"></td>
         <td class="label" colspan="2" style="vertical-align:top">{{ _('备注') }}:</td>
-        <td class="editable" colspan="7" style="vertical-align:top"><textarea id="notesInput" rows="2" placeholder="{{ _('输入报价单备注...') }}">{% if is_edit %}{{ quotation.notes or '' }}{% endif %}</textarea></td>
+        <td class="editable" colspan="7" style="vertical-align:top"><textarea id="notesInput" rows="1" placeholder="{{ _('输入报价单备注...') }}" oninput="QuotationEditor.autoResize(this)" style="overflow:hidden">{% if is_edit %}{{ quotation.notes or '' }}{% endif %}</textarea></td>
         <td style="border:none;background:transparent"></td>
       </tr>
     </tbody>
@@ -1031,6 +1031,10 @@ window.QuotationEditor = (function() {
 
     document.getElementById('gstRate')?.addEventListener('input', recalcTotals);
     document.getElementById('gstMode')?.addEventListener('change', recalcTotals);
+
+    // 备注 textarea 初始撑开
+    const notesInput = document.getElementById('notesInput');
+    if (notesInput) autoResize(notesInput);
 
     document.querySelectorAll('.editable-field input').forEach(input => {
       const cell = input.closest('.editable-field');
