@@ -389,6 +389,11 @@
   </table>
 </div>
 
+<!-- 产品配置 Modal（点选产品后弹出，由 product-selector.js 管理） -->
+{{ render_product_config_modal() }}
+{{ tw_product_spec_modal() }}
+{{ tw_product_spec_modal_script() }}
+
 <script>
 window.QuotationEditor = (function() {
   const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
@@ -486,6 +491,54 @@ window.QuotationEditor = (function() {
       <td class="readonly" style="text-align:right" data-subtotal>${formatNum(up*qty)}</td>
       <td class="delete-cell"><span class="material-symbols-outlined" onclick="QuotationEditor.removeRow('${row.rowId}')">delete</span></td>`;
     return tr;
+  }
+
+  // ============== ProductSelector 集成 ==============
+  let _productSelector = null;
+  let _activePickRowId = null;
+  function getProductSelector() {
+    if (_productSelector) return _productSelector;
+    if (typeof ProductSelector === 'undefined') { console.warn('ProductSelector 未加载'); return null; }
+    _productSelector = new ProductSelector({
+      apiEndpoints: {
+        categories: '/api/products/categories',
+        productsByCategory: '/api/products/by-category',
+        subcategories: '/api/products/subcategories',
+        productsBySubcategory: '/api/products/by-subcategory',
+        productModels: '/api/products/models',
+        productSpecs: '/api/products/specs',
+        productSearch: '/api/products/search',
+      },
+      manual_input: { enabled: true, option_text: '{{ _("手动输入") }}', temp_indicator: { show: true, text: '{{ _("临时") }}', position: 'after_price', style: 'temp-product-indicator' } },
+      i18n: { products: '{{ _("个产品") }}', priceNegotiable: '{{ _("价格面议") }}', clickToSelectCount: '{{ _("点击选择") }}', discontinued: '{{ _("停产") }}' },
+      onSelect: function(product) {
+        if (!_activePickRowId) return;
+        const row = rows.find(r => r.rowId === _activePickRowId);
+        if (!row) return;
+        const data = row.data;
+        data.product_id = product.product_id || product.id;
+        data.product_name = product.product_name || '';
+        data.product_model = product.product_model || '';
+        data.product_desc = product.product_desc || product.specs || '';
+        data.brand = product.brand || '';
+        data.product_mn = product.product_mn || '';
+        data.unit = product.unit || '个';
+        data.market_price = parseFloat(product.market_price) || 0;
+        data.is_temp = !!product.is_temp;
+        if (!data.discount_rate) data.discount_rate = 100;
+        data.unit_price = data.market_price * (parseFloat(data.discount_rate)||100) / 100;
+        renderProductRows();
+      },
+    });
+    return _productSelector;
+  }
+  function openProductPicker(rowId, triggerEl) {
+    _activePickRowId = rowId;
+    const sel = getProductSelector();
+    if (!sel) { alert('{{ _("产品选择器加载失败") }}'); return; }
+    // product-selector.js 期望 trigger 元素有 .value 属性（用于搜索模式判断）
+    if (triggerEl.value === undefined) triggerEl.value = '';
+    sel.showProductMenu(triggerEl);
   }
 
   function updateField(rowId, key, val) {
@@ -761,6 +814,16 @@ window.QuotationEditor = (function() {
     setupProjectSearch();
     setupRowDrag();
 
+    // 兜底：点击外部关闭产品菜单（product-selector.js 的同名 handler 在某些场景下不触发）
+    document.addEventListener('click', e => {
+      const menu = document.querySelector('.product-menu-container');
+      if (!menu) return;
+      if (e.target.closest('.product-menu-container')) return;
+      if (e.target.closest('.product-selector-trigger')) return;
+      menu.remove();
+      if (_productSelector && _productSelector.activeMenus) _productSelector.activeMenus.clear();
+    }, true);
+
     // 客户级联
     document.getElementById('customerSelect')?.addEventListener('change', e => { if (e.target.value) loadCustomerContacts(e.target.value); });
 
@@ -779,7 +842,7 @@ window.QuotationEditor = (function() {
   }
   document.addEventListener('DOMContentLoaded', init);
 
-  return { addRow, removeRow, updateField, submit, toggleCol, uploadLogo };
+  return { addRow, removeRow, updateField, submit, toggleCol, uploadLogo, openProductPicker };
 })();
 </script>
 </body>
