@@ -138,14 +138,13 @@
         status_badges=render_tw_lock_badge(quotation.is_locked),
         edit_btn={
             'show': can_edit_this_quotation and not quotation.is_locked,
-            'onclick': 'openEditQuotationModal()'
+            'onclick': "window.location.href='" ~ url_for('quotation.edit_quotation', id=quotation.id) ~ "'"
         },
         delete_btn={
             'show': can_delete_this_quotation and not quotation.is_locked,
             'onclick': 'confirmDeleteQuotation(' ~ quotation.id ~ ')'
         },
         extra_actions=[
-            {'show': can_edit_this_quotation and not quotation.is_locked, 'label': _('Excel 编辑器 (Beta)'), 'onclick': "window.location.href='" ~ url_for('quotation.edit_quotation', id=quotation.id) ~ "'", 'icon': 'edit_note', 'color': 'amber'},
             {'show': can_show_pricing and active_pricing_order, 'label': _('批价单'), 'onclick': 'openPricingOrderModal(' ~ (active_pricing_order.id if active_pricing_order else 0) ~ ')', 'icon': 'request_quote', 'color': 'primary'},
             {'show': can_show_pricing and not active_pricing_order, 'label': _('生成批价单'), 'onclick': 'createPricingOrder()', 'icon': 'add_circle', 'color': 'success'},
             {'show': true, 'label': _('导出'), 'onclick': 'showExportInfoModal("quotationExportModal")', 'icon': 'download', 'color': 'slate'}
