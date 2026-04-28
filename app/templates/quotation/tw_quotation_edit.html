@@ -72,15 +72,15 @@
     .company-name input:focus, .company-info input:focus { border-color: #137fec; border-style: solid; background: #fff; box-shadow: 0 0 0 2px rgba(19,127,236,0.15); }
 
     .logo-uploader {
-      width: 88px; height: 88px; border: 1.5px dashed transparent; border-radius: 8px;
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      width: 88px; min-height: 88px; border: 1.5px dashed transparent; border-radius: 8px;
+      display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
       color: transparent; font-size: 11px; cursor: pointer; transition: all 0.15s;
-      position: relative; overflow: hidden;
+      position: relative; overflow: hidden; padding: 0;
     }
     .logo-uploader:hover { border-color: #137fec; color: #137fec; background: #eff6ff; }
-    .logo-uploader .material-symbols-outlined { font-size: 24px; margin-bottom: 2px; }
+    .logo-uploader .material-symbols-outlined { font-size: 24px; margin: 18px 0 2px; }
     .logo-uploader input[type="file"] { display: none; }
-    .logo-uploader img { width: 100%; height: 100%; object-fit: contain; object-position: top; }
+    .logo-uploader img { width: 100%; height: auto; display: block; }
 
     .title-cell {
       font-size: 24px; font-weight: 700; text-align: center;
@@ -253,7 +253,7 @@
     <colgroup><col style="width: 100px"><col></colgroup>
     <tbody>
       <tr>
-        <td class="no-border" rowspan="3" style="text-align:center;vertical-align:top;padding-top:0">
+        <td class="no-border" rowspan="3" style="text-align:left;vertical-align:top;padding:2px 8px 0 0">
           <label class="logo-uploader" id="logoUploader" title="{{ _('点击上传公司 LOGO') }}">
             {% if user_letterhead.logo_url %}<img src="{{ user_letterhead.logo_url }}" alt="LOGO">{% else %}<span class="material-symbols-outlined">image</span>LOGO{% endif %}
             <input type="file" accept="image/*" onchange="QuotationEditor.uploadLogo(this)">
