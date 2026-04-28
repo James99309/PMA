@@ -361,7 +361,8 @@ def run_claude_usage_pull():
 
 
 def run_geo_monitor_daily():
-    """Run all enabled GEO Monitor intents."""
+    """GEO Monitor 每日定时跑批：运行所有启用意图。"""
+    import traceback
     from flask import current_app
     from app import create_app
     from app.services.geo_monitor_service import run_all_due
@@ -369,15 +370,15 @@ def run_geo_monitor_daily():
     logger.info(f"[{datetime.now()}] GEO Monitor 定时跑批开始...")
     try:
         try:
-            current_app._get_current_object()
-            run_all_due()
+            app = current_app._get_current_object()
         except RuntimeError:
             app = create_app()
-            with app.app_context():
-                run_all_due()
+        with app.app_context():
+            run_all_due()
         logger.info(f"[{datetime.now()}] GEO Monitor 跑批完成")
     except Exception as e:
-        logger.error(f"GEO Monitor 跑批失败: {e}")
+        logger.error(f"[{datetime.now()}] GEO Monitor 跑批失败: {e}")
+        logger.error(traceback.format_exc())
 
 
 def start_scheduler(run_time="01:00"):
