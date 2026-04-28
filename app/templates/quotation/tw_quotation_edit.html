@@ -129,18 +129,19 @@
 
     td.drag-handle {
       border: none !important; background: transparent !important;
-      cursor: grab; color: transparent; user-select: none;
+      cursor: grab; color: transparent !important; user-select: none;
       text-align: center; padding: 0 !important; transition: color 0.15s;
+      font-size: 14px !important;
     }
-    tr:hover > td.drag-handle { color: #94a3b8; }
+    tr:hover > td.drag-handle { color: #94a3b8 !important; }
     td.drag-handle:hover { color: #1e293b !important; }
     td.drag-handle.config-handle { cursor: not-allowed; }
-    tr:hover > td.drag-handle.config-handle { color: #e2e8f0; }
+    tr:hover > td.drag-handle.config-handle { color: #e2e8f0 !important; }
     td.drag-handle.config-handle:hover { color: #cbd5e1 !important; }
 
     td.delete-cell { border: none !important; background: transparent !important; text-align: center; padding: 0 !important; }
-    td.delete-cell .material-symbols-outlined { cursor: pointer; color: transparent; transition: color 0.15s; }
-    tr:hover > td.delete-cell .material-symbols-outlined { color: #94a3b8; }
+    td.delete-cell .material-symbols-outlined { cursor: pointer; color: transparent !important; transition: color 0.15s; font-size: 14px !important; }
+    tr:hover > td.delete-cell .material-symbols-outlined { color: #94a3b8 !important; }
     td.delete-cell .material-symbols-outlined:hover { color: #ef4444 !important; }
 
     tr.total-row td { font-weight: 700; height: 32px; padding-top: 4px; padding-bottom: 4px; }
