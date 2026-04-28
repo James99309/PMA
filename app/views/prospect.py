@@ -850,18 +850,21 @@ def batch_research_save():
             if not project_name:
                 continue
 
+            def _trunc(s, n):
+                return s[:n] if s else s
+
             p = ProspectProject(
                 project_name=project_name[:200],
-                industry=_clean(proj.get('industry')),
-                region=_clean(proj.get('region')),
-                city=_clean(proj.get('city')),
-                stage=proj.get('stage') or 'planning',
-                total_investment=_clean(proj.get('total_investment')),
+                industry=_trunc(_clean(proj.get('industry')), 50),
+                region=_trunc(_clean(proj.get('region')), 100),
+                city=_trunc(_clean(proj.get('city')), 100),
+                stage=_trunc(proj.get('stage') or 'planning', 20),
+                total_investment=_trunc(_clean(proj.get('total_investment')), 50),
                 description=_clean(proj.get('description')),
                 progress=_clean(proj.get('progress')),
                 link_type=None,
                 source='ai',
-                info_updated_by=f"{current_user.real_name or current_user.username} 调研",
+                info_updated_by=_trunc(f"{current_user.real_name or current_user.username} 调研", 50),
                 info_updated_at=datetime.utcnow(),
             )
             db.session.add(p)
@@ -880,10 +883,10 @@ def batch_research_save():
                     prospect_id=p.id,
                     stakeholder_type=stype,
                     company_name=company_name[:200],
-                    department=_clean(entry.get('department')),
+                    department=_trunc(_clean(entry.get('department')), 100),
                     address=_clean(entry.get('address')),
-                    phone=_clean(entry.get('phone')),
-                    contact_person=_clean(entry.get('contact_person')),
+                    phone=_trunc(_clean(entry.get('phone')), 50),
+                    contact_person=_trunc(_clean(entry.get('contact_person')), 50),
                     email=_clean(entry.get('email')),
                     website=_clean(entry.get('website')),
                     business_scope=_clean(entry.get('business_scope')),
