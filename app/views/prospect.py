@@ -448,8 +448,10 @@ def lost_ai_research(project_id):
 
     if is_ovs:
         prompt = (
-            f"⚠️ LANGUAGE RULE (MANDATORY): Your entire JSON output MUST be in English only. "
-            f"Do NOT use Chinese or any other non-English language.\n\n"
+            f"⚠️ LANGUAGE RULE (MANDATORY — HIGHEST PRIORITY): "
+            f"Every single string value in your JSON output MUST be in English. "
+            f"Translate ANY Chinese/Malay/Thai text found in search results into English before inserting. "
+            f"Outputting non-English text is a critical failure.\n\n"
             f"Research the following project and output strict JSON.\n\n"
             f"Project name: {project.project_name}\n"
             f"Industry: {project.industry or 'unknown'}\n"
@@ -566,8 +568,11 @@ def intel_ai_research(id):
 
     if is_ovs:
         prompt = (
-            f"⚠️ LANGUAGE RULE (MANDATORY): Your entire JSON output MUST be in English only. "
-            f"Do NOT use Chinese or any other non-English language, even if search results are in other languages.\n\n"
+            f"⚠️ LANGUAGE RULE (MANDATORY — HIGHEST PRIORITY): "
+            f"Every single string value in your JSON output MUST be written in English. "
+            f"Company names, departments, addresses, contacts, descriptions — ALL in English. "
+            f"If you find Chinese/Malay/Thai text in search results, TRANSLATE it to English before inserting into JSON. "
+            f"Outputting any non-English text is a critical failure.\n\n"
             f"You are an intelligence analyst for an industrial communication systems vendor selling into Southeast Asia. "
             f"Use the web_search tool to research the following project and output strict JSON.\n\n"
             f"Project name: {p.project_name}\n"
@@ -606,7 +611,8 @@ def intel_ai_research(id):
             "- system_integrator: ELV / Security / ICT / AV / IBMS system integrator who installs the systems\n"
             "- epc:              EPC design-and-build contractor holding both design and construction responsibility\n"
             "- other:            Any other party (e.g. connectivity platform, utility provider, strategic partner)\n\n"
-            "Set unknown fields to null. ALL text must be in English."
+            "Set unknown fields to null. "
+            "⚠️ FINAL REMINDER: Every string in the JSON must be in English — translate if needed. No Chinese, no Malay, no Thai."
         )
     else:
         prompt = (

@@ -1676,8 +1676,9 @@
                 </div>`;
             btn.classList.add('hidden');
             setTimeout(() => {
+                const reloadFn = _prmReloadFn;
                 closeProjectResearchModal();
-                if (_prmReloadFn) _prmReloadFn();
+                if (reloadFn) reloadFn();
             }, 1200);
         })
         .catch(() => {
