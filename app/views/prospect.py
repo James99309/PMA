@@ -937,6 +937,7 @@ def batch_research_save():
 
     valid_types = set(STAKEHOLDER_TYPES.keys())
     created = 0
+    skipped = 0
 
     try:
         for proj in projects_to_save:
@@ -944,6 +945,15 @@ def batch_research_save():
                 continue
             project_name = _clean(proj.get('project_name'))
             if not project_name:
+                continue
+
+            # 按项目名去重（忽略大小写）
+            exists = ProspectProject.query.filter(
+                ProspectProject.is_deleted == False,
+                db.func.lower(ProspectProject.project_name) == project_name.lower()
+            ).first()
+            if exists:
+                skipped += 1
                 continue
 
             def _trunc(s, n):
@@ -993,7 +1003,7 @@ def batch_research_save():
             created += 1
 
         db.session.commit()
-        return jsonify(success=True, created=created)
+        return jsonify(success=True, created=created, skipped=skipped)
     except Exception as e:
         db.session.rollback()
         current_app.logger.exception("Batch research save failed")
@@ -1543,6 +1553,26 @@ def admin_edit(id):
                            stage_options=PROSPECT_STAGES,
                            stakeholder_types=STAKEHOLDER_TYPES,
                            industry_options=get_industry_options())
+
+
+@prospect_bp.route('/<int:id>/delete', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def delete_prospect(id):
+    p = ProspectProject.query.filter_by(id=id, is_deleted=False).first_or_404()
+    p.is_deleted = True
+    db.session.commit()
+    return jsonify(success=True)
+
+
+@prospect_bp.route('/stakeholder/<int:sid>/delete', methods=['POST'])
+@login_required
+@permission_required('project', 'view')
+def delete_stakeholder(sid):
+    s = ProspectStakeholder.query.get_or_404(sid)
+    db.session.delete(s)
+    db.session.commit()
+    return jsonify(success=True)
 
 
 @prospect_bp.route('/admin/<int:id>/delete', methods=['POST'])
