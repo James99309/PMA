@@ -12,8 +12,9 @@ PROSPECT_STAGES = {
 
 STAKEHOLDER_TYPES = {
     'owner': '建设单位',
+    'consultant': '顾问公司',
     'design': '设计院',
-    'epc': 'EPC承包商',
+    'epc': 'EPC/总承包',
     'construction': '施工单位',
     'other': '其他',
 }
