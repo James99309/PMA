@@ -321,16 +321,20 @@ def _get_proxy_stats(start_date, end_date, user_id=None):
     user_map = {}
     total_in = total_out = total_req = 0
 
+    _proxy_model = 'claude-sonnet-4-6'  # 代理默认模型，用于费用估算
+
     for r in rows:
         day = str(r.date)
         it, ot, rc = int(r.input_tokens or 0), int(r.output_tokens or 0), int(r.request_count or 0)
         total_in += it; total_out += ot; total_req += rc
+        cost = calculate_cost(_proxy_model, it, ot)
 
         if day not in daily:
             daily[day] = {'request_count': 0, 'prompt_tokens': 0, 'completion_tokens': 0, 'estimated_cost': 0.0}
         daily[day]['request_count'] += rc
         daily[day]['prompt_tokens'] += it
         daily[day]['completion_tokens'] += ot
+        daily[day]['estimated_cost'] = round(daily[day]['estimated_cost'] + cost, 6)
 
         uid = r.user_id
         if uid not in user_map:
@@ -344,15 +348,17 @@ def _get_proxy_stats(start_date, end_date, user_id=None):
             }
         user_map[uid]['request_count'] += rc
         user_map[uid]['total_tokens'] += it + ot
+        user_map[uid]['estimated_cost'] = round(user_map[uid]['estimated_cost'] + cost, 6)
 
+    proxy_total_cost = calculate_cost(_proxy_model, total_in, total_out)
     models = [{
         'model': 'claude-proxy',
         'source': 'claude_proxy',
         'request_count': total_req,
         'prompt_tokens': total_in,
         'completion_tokens': total_out,
-        'estimated_cost': 0.0,
-        'pricing': None,
+        'estimated_cost': proxy_total_cost,
+        'pricing': get_model_pricing(_proxy_model),
     }] if (total_in + total_out) > 0 else []
 
     # 排行榜：附加配额信息
@@ -402,7 +408,7 @@ def _merge_stats(chat_data, cli_data, proxy_data=None):
             'completion_tokens': ct,
             'total_tokens': pt + ct,
             'estimated_cost': round(
-                c.get('estimated_cost', 0.0) + l.get('estimated_cost', 0.0), 6
+                c.get('estimated_cost', 0.0) + l.get('estimated_cost', 0.0) + p.get('estimated_cost', 0.0), 6
             ),
             'chat_tokens': c.get('prompt_tokens', 0) + c.get('completion_tokens', 0),
             'cli_tokens': l.get('prompt_tokens', 0) + l.get('completion_tokens', 0),
