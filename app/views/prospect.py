@@ -189,7 +189,12 @@ def _list_intel():
 
     # 动态阶段选项（保持固定顺序但仅显示库中存在的）
     _stage_order = ['construction', 'designing', 'planning', 'completed']
-    _stage_labels = {'construction': '在建', 'designing': '设计中', 'planning': '规划中', 'completed': '竣工'}
+    _stage_labels = {
+        'construction': _('在建'),
+        'designing':    _('设计中'),
+        'planning':     _('规划中'),
+        'completed':    _('竣工'),
+    }
     _existing_stages = {r[0] for r in _base.filter(ProspectProject.stage != None)
                         .with_entities(ProspectProject.stage).distinct().all()}
     stage_options = [(s, _stage_labels[s]) for s in _stage_order if s in _existing_stages]
