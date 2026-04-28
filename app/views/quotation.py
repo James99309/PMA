@@ -17,6 +17,7 @@ from app.decorators import permission_required, permission_required_with_approva
 from app.extensions import csrf
 from app.utils.access_control import get_viewable_data, can_edit_data, can_view_project, can_change_quotation_owner, can_view_quotation
 import logging
+import os
 from decimal import Decimal
 import json
 from flask import current_app
@@ -1032,6 +1033,27 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
         except (ValueError, TypeError):
             preset_project = None
 
+    # 公司主体列表（CN/SG/MY 等）
+    from app.models.company_entity import CompanyEntity
+    entities = CompanyEntity.query.order_by(CompanyEntity.sort_order, CompanyEntity.id).all()
+    entities_json = json.dumps([e.to_dict() for e in entities])
+    # 默认 entity：编辑时用 quotation.entity_id；新建时根据 PMA_DB_TYPE 选区域
+    default_entity_id = None
+    if quotation and quotation.entity_id:
+        default_entity_id = quotation.entity_id
+    else:
+        db_type = current_app.config.get('PMA_DB_TYPE') or os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE') or ''
+        wanted_region = 'CN' if str(db_type).lower() == 'sp8d' else 'SG'
+        for e in entities:
+            if e.region == wanted_region:
+                default_entity_id = e.id; break
+        if default_entity_id is None:
+            for e in entities:
+                if e.is_default:
+                    default_entity_id = e.id; break
+        if default_entity_id is None and entities:
+            default_entity_id = entities[0].id
+
     return render_template(
         'quotation/tw_quotation_edit.html',
         quotation=quotation,
@@ -1042,6 +1064,8 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
         user_letterhead=getattr(current_user, 'quotation_letterhead', None) or {},
         user_signature=getattr(current_user, 'quotation_signature', None) or {},
         can_edit_this_quotation=can_edit_this_quotation,
+        entities_json=entities_json,
+        default_entity_id=default_entity_id,
     )
 
 
@@ -1315,6 +1339,10 @@ def create_quotation():
                     owner_id=current_user.id,
                     notes=data.get('notes', '') or ''
                 )
+                # 公司主体（CN/SG/MY）
+                if data.get('entity_id'):
+                    try: quotation.entity_id = int(data.get('entity_id'))
+                    except (ValueError, TypeError): pass
                 db.session.add(quotation)
                 current_app.logger.debug(f"创建新报价单: {quotation.quotation_number}")
                 
@@ -3845,6 +3873,10 @@ def save_quotation(id):
         quotation.amount = total_amount
         quotation.currency = data.get('currency', Config.DEFAULT_CURRENCY)  # 添加货币字段更新
         quotation.notes = data.get('notes', '') or ''
+        # 公司主体（多公司报价）
+        if data.get('entity_id'):
+            try: quotation.entity_id = int(data.get('entity_id'))
+            except (ValueError, TypeError): pass
         # 手动更新时间戳，确保updated_at字段正确
         quotation.updated_at = datetime.utcnow()
         current_app.logger.info(f'直接保存前端总金额到报价单: {total_amount}, 货币: {quotation.currency}')
