@@ -945,9 +945,12 @@ window.QuotationEditor = (function() {
     if (name === 'remark') _remarkColShown = show;
     const colIndex = colMap[name]; if (!colIndex) return;
     const mainTable = document.getElementById('mainGrid'); const idx0 = colIndex - 1;
+    // remark 列：跳过产品行（它们由 renderProductRows 自己负责，根据 _remarkColShown 决定 cell 数）
+    const trSelector = (name === 'remark') ? 'tr:not(.product-row)' : 'tr';
+
     if (!show && !_colStash[name]) {
       const stash = { tdSnapshots:[], spanSnapshots:[] };
-      mainTable.querySelectorAll('tr').forEach(tr => {
+      mainTable.querySelectorAll(trSelector).forEach(tr => {
         let cur = 0;
         for (let i = 0; i < tr.children.length; i++) {
           const c = tr.children[i]; const span = c.colSpan||1;
@@ -967,6 +970,10 @@ window.QuotationEditor = (function() {
       s.tdSnapshots.forEach(x => { const tgt = x.tr.children[x.index] || null; x.tr.insertBefore(x.cell, tgt); });
       delete _colStash[name];
     }
+
+    // remark 列切换时：重新渲染产品行让 cells 数与最新 _remarkColShown 同步
+    if (name === 'remark') renderProductRows();
+
     if (!silent) {
       const prefs = JSON.parse(localStorage.getItem('qe_col_visibility')||'{}');
       prefs[name] = show;
