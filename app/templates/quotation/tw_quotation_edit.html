@@ -275,7 +275,7 @@
     .field-actions .reset-btn:hover { background: #f1f5f9; color: #ef4444; border-color: #ef4444; }
     .editable-field.is-dirty input { background: #fffbea !important; }
 
-    @page { size: A4 landscape; margin: 14mm 10mm 10mm 10mm; }
+    @page { size: A4 landscape; margin: 12mm 13mm 13mm 13mm; } /* 顶 12 / 左右下 13，对齐编辑器内 paper padding */
     @media print {
       body { background: white !important; }
       /* 隐藏：顶部工具栏 / 字段保存按钮 / 列拖动手柄 / Beta 标签 */
@@ -294,9 +294,24 @@
       tr.config-row td.product-name-cell::before,
       td.config-sn::before { content: "" !important; margin: 0 !important; }
       .config-detach-btn { display: none !important; }
-      /* 子行打印时所有 cells 跟普通产品行一致（背景白色 + 标准边框；text 颜色不强制，让 base 规则跟父行一致） */
-      tr.config-row td { background: #fff !important; border: 1px solid #b3b3b3 !important; }
-      tr.config-row td.drag-handle, tr.config-row td.delete-cell { border: none !important; background: #fff !important; }
+      /* 全局打印强制：边框黑色 + 文字黑色（覆盖 readonly 灰色和子元素 Tailwind text-slate-* 颜色） */
+      table.q-grid td, table.q-grid td * {
+        color: #000 !important;
+        border-color: #000 !important;
+      }
+      table.q-grid td { border: 1px solid #000 !important; }
+      tr.config-row td { background: #fff !important; }
+      td.drag-handle, td.delete-cell,
+      tr.config-row td.drag-handle, tr.config-row td.delete-cell,
+      td.no-border, td.sign-blank, td[style*="border:none"] {
+        border: none !important; background: #fff !important;
+      }
+      /* 选择框打印时去掉箭头（select native dropdown 图标 + 自定义 SVG） */
+      td.editable select {
+        background-image: none !important;
+        padding-right: 0 !important;
+        appearance: none !important;
+      }
       span[class*="amber"] { display: none !important; }
       /* 纸张 */
       .quotation-paper {
