@@ -1080,6 +1080,49 @@ window.QuotationEditor = (function() {
     // 客户级联
     document.getElementById('customerSelect')?.addEventListener('change', e => { if (e.target.value) loadCustomerContacts(e.target.value); });
 
+    // 货币切换 → 批量从产品库拉新货币的地区面价 (与旧 modal 行为对齐)
+    document.getElementById('currencySelect')?.addEventListener('change', async e => {
+      const newCurrency = e.target.value;
+      const productIds = [...new Set(rows
+        .filter(r => r.data.row_type === 'product' && r.data.product_id && !r.data.is_temp)
+        .map(r => r.data.product_id))];
+      if (!productIds.length) { recalcTotals(); return; }
+      try {
+        const r = await fetch('/api/products/region-prices/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({ product_ids: productIds, currency: newCurrency }),
+        });
+        const data = await r.json();
+        const prices = data.prices || {};
+        const missing = [];
+        rows.forEach(row => {
+          if (row.data.row_type !== 'product' || !row.data.product_id || row.data.is_temp) return;
+          const p = prices[row.data.product_id];
+          if (p === undefined || p === null) {
+            // 该产品在此货币下未配置面价 → 清零，标记缺失
+            row.data.market_price = 0;
+            row.data.unit_price = 0;
+            row.data._regionPriceMissing = true;
+            const name = row.data.product_name || `#${row.data.product_id}`;
+            if (!missing.includes(name)) missing.push(name);
+          } else {
+            row.data.market_price = parseFloat(p) || 0;
+            row.data._regionPriceMissing = false;
+            // 按当前折扣率重算单价
+            const dr = parseFloat(row.data.discount_rate) || 100;
+            row.data.unit_price = row.data.market_price * dr / 100;
+          }
+        });
+        renderProductRows();
+        if (missing.length) {
+          alert('{{ _("以下产品在新货币下未配置面价 (单价已清零)") }}:\n\n' + missing.join('\n'));
+        }
+      } catch (err) {
+        console.error('货币切换失败', err);
+      }
+    });
+
     // 编辑模式：预填客户/联系人
     {% if is_edit and quotation.project_id %}
     loadProjectCustomers({{ quotation.project_id }}).then(() => {
