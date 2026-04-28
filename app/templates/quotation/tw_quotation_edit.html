@@ -1187,14 +1187,22 @@ window.QuotationEditor = (function() {
     renderProductRows();
     initEntitySelector();
 
-    // 默认隐藏行备注列（用户可在显示列菜单开启）
+    // 默认隐藏行备注列（HTML 静态结构里有 remark cells；先关掉再按偏好恢复）
     toggleCol('remark', false);
 
+    // 应用列显隐偏好（从 localStorage）
     const prefs = JSON.parse(localStorage.getItem('qe_col_visibility')||'{}');
     Object.keys(prefs).forEach(name => {
-      if (prefs[name] === false) {
-        const cb = document.querySelector(`#colMenu input[onchange*="'${name}'"]`);
-        if (cb) { cb.checked = false; toggleCol(name, false); }
+      const cb = document.querySelector(`#colMenu input[onchange*="'${name}'"]`);
+      if (!cb) return;
+      const prefShow = prefs[name] !== false;  // true 或未存=显示，false=隐藏
+      // remark 列默认隐藏；其他列默认显示
+      const defaultShow = name !== 'remark';
+      if (prefShow !== defaultShow) {
+        cb.checked = prefShow;
+        toggleCol(name, prefShow);
+      } else if (prefShow) {
+        cb.checked = true;
       }
     });
 
