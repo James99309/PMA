@@ -251,13 +251,18 @@
       tr.product-row td:nth-child(8), /* Unit Price */
       tr.product-row td:nth-child(9), /* Qty */
       tr.product-row td:nth-child(10) /* Amount */ { white-space: nowrap; }
-      /* 文字列允许任意位置换行（产品编码/品牌可能超长） */
-      tr.product-row td:nth-child(3),
-      tr.product-row td:nth-child(4) {
-        word-break: break-all !important;
-        overflow-wrap: anywhere !important;
-        white-space: normal !important;
+      /* 产品编码列（英文+数字）：单行 nowrap + 小字号，避免被 break-all 切碎 */
+      tr.product-row td:nth-child(3) {
+        white-space: nowrap !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
         font-size: 8px;
+      }
+      /* 品牌列：可换行 */
+      tr.product-row td:nth-child(4) {
+        word-break: break-word !important;
+        white-space: normal !important;
+        font-size: 9px;
       }
       /* 打印时强制产品编码列更宽，避免长编码被切碎 */
       #mainGrid colgroup col:nth-child(3) { width: 16% !important; }  /* Item No */
