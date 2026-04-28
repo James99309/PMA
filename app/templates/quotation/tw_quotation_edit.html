@@ -177,6 +177,8 @@
     tr.total-row td.total-label { text-align: left; padding-left: 12px; }
     tr.total-row td.total-value { text-align: right; }
     tr.total-final-row td.total-label, tr.total-final-row td.total-value { background: #fef3c7 !important; }
+    /* remark-merged cell：与前一个 cell 视觉合并 (去左边线，背景跟 left cell 一致) */
+    td.remark-merged { border-left: none !important; }
     /* GST 模式 select / 比例 input：紧凑、无干扰 */
     #gstMode { padding: 0 18px 0 0; height: auto; }
     #gstRate { padding: 0; height: auto; }
@@ -329,7 +331,7 @@
         <td class="label" colspan="3" data-i18n-label="cust">{{ _('客户名称') }}:</td>
         <td class="editable" colspan="3"><select id="customerSelect" required><option value="">{{ _('-- 请先选择项目 --') }}</option></select></td>
         <td class="label" colspan="2" data-i18n-label="qno">{{ _('报价编号') }}:</td>
-        <td class="readonly" colspan="2">{{ quotation.quotation_number if is_edit else _('（保存后生成）') }}</td>
+        <td class="readonly">{{ quotation.quotation_number if is_edit else _('（保存后生成）') }}</td><td class="readonly remark-col-cell remark-merged"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -337,7 +339,7 @@
         <td class="label" colspan="3" data-i18n-label="company_address">{{ _('客户地址') }}:</td>
         <td class="editable" colspan="3"><input type="text" id="customerAddress" placeholder=""></td>
         <td class="label" colspan="2" data-i18n-label="qdate">{{ _('报价日期') }}:</td>
-        <td class="readonly" colspan="2">{{ quotation.created_at.strftime('%Y-%m-%d') if is_edit else '' }}</td>
+        <td class="readonly">{{ quotation.created_at.strftime('%Y-%m-%d') if is_edit else '' }}</td><td class="readonly remark-col-cell remark-merged"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -345,7 +347,7 @@
         <td class="label" colspan="3" data-i18n-label="contact">{{ _('联系人') }}:</td>
         <td class="editable" colspan="3"><select id="contactSelect"><option value="">--</option></select></td>
         <td class="label" colspan="2" data-i18n-label="payment">{{ _('付款条件') }}:</td>
-        <td class="editable" colspan="2"><input type="text" id="extraPaymentTerms" placeholder=""></td>
+        <td class="editable"><input type="text" id="extraPaymentTerms" placeholder=""></td><td class="editable remark-col-cell remark-merged"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -353,7 +355,7 @@
         <td class="label" colspan="3" data-i18n-label="contact_no">{{ _('联系电话') }}:</td>
         <td class="editable" colspan="3"><input type="text" id="contactPhone" placeholder=""></td>
         <td class="label" colspan="2" data-i18n-label="shipping">{{ _('交付条件') }}:</td>
-        <td class="editable" colspan="2"><input type="text" id="extraShippingTerms" placeholder=""></td>
+        <td class="editable"><input type="text" id="extraShippingTerms" placeholder=""></td><td class="editable remark-col-cell remark-merged"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -365,7 +367,7 @@
           <div id="projectDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"></div>
         </td>
         <td class="label" colspan="2" data-i18n-label="validity">{{ _('有效期') }}:</td>
-        <td class="editable" colspan="2"><input type="text" id="extraValidity" placeholder=""></td>
+        <td class="editable"><input type="text" id="extraValidity" placeholder=""></td><td class="editable remark-col-cell remark-merged"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -379,7 +381,7 @@
           </select>
         </td>
         <td class="label" colspan="2" data-i18n-label="refno">{{ _('参考编号') }}:</td>
-        <td class="editable" colspan="2"><input type="text" id="extraRefNo" placeholder=""></td>
+        <td class="editable"><input type="text" id="extraRefNo" placeholder=""></td><td class="editable remark-col-cell remark-merged"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
     </tbody>
@@ -408,7 +410,7 @@
         <td style="border:none;background:transparent"></td>
         <td colspan="4" class="total-spacer"></td>
         <td class="total-label" colspan="4">{{ _('Total before GST') }}</td>
-        <td class="total-value" colspan="2" id="subtotalCell">0.00</td>
+        <td class="total-value"  id="subtotalCell">0.00</td><td class="total-value remark-col-cell remark-merged"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr class="total-row">
@@ -418,14 +420,14 @@
         <td class="editable" style="text-align:right" colspan="2">
           <input type="number" id="gstRate" value="0" min="0" max="100" step="0.01" style="text-align:right;font-weight:700;width:60%;display:inline-block"><span style="margin-left:4px">%</span>
         </td>
-        <td class="total-value" colspan="2" id="gstAmountCell">0.00</td>
+        <td class="total-value"  id="gstAmountCell">0.00</td><td class="total-value remark-col-cell remark-merged"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr class="total-row total-final-row">
         <td style="border:none;background:transparent"></td>
         <td colspan="4" class="total-spacer"></td>
         <td class="total-label" colspan="4">{{ _('Total after GST') }}</td>
-        <td class="total-value" colspan="2" id="totalCell">0.00</td>
+        <td class="total-value"  id="totalCell">0.00</td><td class="total-value remark-col-cell remark-merged"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
