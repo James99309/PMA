@@ -295,7 +295,7 @@
     <tbody id="customerInfoBody">
       <tr>
         <td style="border:none;background:transparent"></td>
-        <td class="label" colspan="3">{{ _('关联客户') }}: <span class="text-red-500">*</span></td>
+        <td class="label" colspan="3">{{ _('客户名称') }}:</td>
         <td class="editable" colspan="3"><select id="customerSelect" required><option value="">{{ _('-- 请先选择项目 --') }}</option></select></td>
         <td class="label" colspan="2">{{ _('报价编号') }}:</td>
         <td class="readonly">{{ quotation.quotation_number if is_edit else _('（保存后生成）') }}</td>
@@ -303,20 +303,20 @@
       </tr>
       <tr>
         <td style="border:none;background:transparent"></td>
-        <td class="label" colspan="3">{{ _('关联项目') }}: <span class="text-red-500">*</span></td>
-        <td class="editable" colspan="3" style="position:relative">
-          <input type="text" id="projectSearch" placeholder="{{ _('搜索项目...') }}" autocomplete="off" value="{{ quotation.project.project_name if is_edit and quotation.project else (preset_project.project_name if preset_project else '') }}">
-          <input type="hidden" id="projectId" value="{{ quotation.project_id if is_edit else (preset_project.id if preset_project else '') }}">
-          <div id="projectDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"></div>
-        </td>
+        <td class="label" colspan="3">{{ _('联系人') }}:</td>
+        <td class="editable" colspan="3"><select id="contactSelect"><option value="">--</option></select></td>
         <td class="label" colspan="2">{{ _('报价日期') }}:</td>
         <td class="readonly">{{ quotation.created_at.strftime('%Y-%m-%d') if is_edit else '' }}</td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
         <td style="border:none;background:transparent"></td>
-        <td class="label" colspan="3">{{ _('联系人') }}:</td>
-        <td class="editable" colspan="3"><select id="contactSelect"><option value="">--</option></select></td>
+        <td class="label" colspan="3">{{ _('项目名称') }}:</td>
+        <td class="editable" colspan="3" style="position:relative">
+          <input type="text" id="projectSearch" placeholder="{{ _('搜索项目...') }}" autocomplete="off" value="{{ quotation.project.project_name if is_edit and quotation.project else (preset_project.project_name if preset_project else '') }}">
+          <input type="hidden" id="projectId" value="{{ quotation.project_id if is_edit else (preset_project.id if preset_project else '') }}">
+          <div id="projectDropdown" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto z-50"></div>
+        </td>
         <td class="label" colspan="2">{{ _('货币') }}:</td>
         <td class="editable">
           <select id="currencySelect">
@@ -392,13 +392,13 @@
     <tbody>
       <tr>
         <td class="sign-blank"></td>
-        <td class="no-border" style="font-weight:700;font-size:12px">{{ _('Signed and Accepted by Customer:') }}</td>
+        <td class="no-border" id="signCustomerLabel" style="font-weight:700;font-size:12px">{{ _('Signed and Accepted by Customer:') }}</td>
       </tr>
       <tr><td class="sign-blank"></td><td class="sign-blank"></td></tr>
       <tr>
         <td class="no-border" style="vertical-align:top">
           <div class="editable-field" style="display:inline-block">
-            <span class="sign-line"><input data-field="signature.left" data-default="{{ user_signature.left or 'Evertac Solutions Singapore Pte. Ltd.' }}" value="{{ user_signature.left or 'Evertac Solutions Singapore Pte. Ltd.' }}"></span>
+            <span class="sign-line"><input id="signLeftInput" data-field="signature.left" data-default="" value=""></span>
             <span class="field-actions" style="right:-58px">
               <button type="button" class="save-btn" title="{{ _('保存为账户默认') }}"><span class="material-symbols-outlined">save</span></button>
               <button type="button" class="reset-btn" title="{{ _('恢复系统默认') }}"><span class="material-symbols-outlined">undo</span></button>
@@ -407,7 +407,7 @@
         </td>
         <td class="no-border" style="vertical-align:top">
           <div class="editable-field" style="display:inline-block">
-            <span class="sign-line" style="font-weight:400;font-size:11px;font-style:italic"><input data-field="signature.right" data-default="{{ user_signature.right or 'chop & sign' }}" value="{{ user_signature.right or 'chop & sign' }}"></span>
+            <span class="sign-line" style="font-weight:400;font-size:11px;font-style:italic"><input id="signRightInput" data-field="signature.right" data-default="" value=""></span>
             <span class="field-actions" style="right:-58px">
               <button type="button" class="save-btn" title="{{ _('保存为账户默认') }}"><span class="material-symbols-outlined">save</span></button>
               <button type="button" class="reset-btn" title="{{ _('恢复系统默认') }}"><span class="material-symbols-outlined">undo</span></button>
@@ -438,10 +438,10 @@ window.QuotationEditor = (function() {
     zh: {
       title: '报价单', sn: 'S/N', item_no: '产品编码', brand: '品牌', desc: '型号规格',
       disc: '折扣%', market: '市场价', unit_price: '单价', qty: '数量', amount: '小计',
-      total_before: '小计', tax_label: '增值税', total_after: '合计', remarks: '备注',
+      total_before: '税前金额', tax_label: '增值税', total_after: '合计', remarks: '备注',
       qno: '报价编号', qdate: '报价日期', payment: '付款条件', shipping: '交付条件', validity: '有效期', refno: '参考编号',
-      cust: '关联客户', proj: '关联项目', contact: '联系人', currency: '货币',
-      sign_left: '盖章和签字', sign_right: '客户签字盖章',
+      cust: '客户名称', proj: '项目名称', contact: '联系人', currency: '货币',
+      sign_customer: '客户签字盖章:', sign_seal: '盖章签字',
       total_amount: '金额',
     },
     en: {
@@ -450,7 +450,7 @@ window.QuotationEditor = (function() {
       total_before: 'Total before GST', tax_label: 'GST', total_after: 'Total after GST', remarks: 'Remarks',
       qno: 'Quotation No.', qdate: 'Quotation Date', payment: 'Payment Terms', shipping: 'Shipping Terms', validity: 'Validity', refno: 'Ref No',
       cust: 'Customer', proj: 'Project', contact: 'Contact Person', currency: 'Currency',
-      sign_left: 'Signature & Stamp', sign_right: 'Signed and Accepted by Customer',
+      sign_customer: 'Signed and Accepted by Customer:', sign_seal: 'chop & sign',
       total_amount: 'Amount',
     }
   };
@@ -896,6 +896,30 @@ window.QuotationEditor = (function() {
     applyTaxLayout(e.tax_mode, e.tax_label || t('tax_label'));
     // 表头/客户信息块标签语言切换
     applyI18nLabels();
+    // 签字区同步：左下用 entity.line1（公司名），右下用 chop&sign / 盖章签字（按语言）
+    const signCustomerLabel = document.getElementById('signCustomerLabel');
+    if (signCustomerLabel) signCustomerLabel.textContent = t('sign_customer');
+    const signLeft = document.getElementById('signLeftInput');
+    if (signLeft) {
+      const v = e.line1 || '';
+      // 仅当用户没有手工修改过（仍是默认值）时同步；有 dirty 不覆盖
+      const cell = signLeft.closest('.editable-field');
+      if (cell && !cell.classList.contains('is-dirty')) {
+        signLeft.value = v; signLeft.dataset.default = v;
+      } else {
+        signLeft.dataset.default = v;
+      }
+    }
+    const signRight = document.getElementById('signRightInput');
+    if (signRight) {
+      const v = t('sign_seal');
+      const cell = signRight.closest('.editable-field');
+      if (cell && !cell.classList.contains('is-dirty')) {
+        signRight.value = v; signRight.dataset.default = v;
+      } else {
+        signRight.dataset.default = v;
+      }
+    }
     recalcTotals();
   }
   function applyTaxLayout(taxMode, taxLabel) {
@@ -939,12 +963,11 @@ window.QuotationEditor = (function() {
         td.textContent = t(k);
       });
     }
-    // 客户信息块的 label（按 td.label 逐一替换）
-    const labelMap = ['cust','qno','proj','qdate','contact','currency'];
+    // 客户信息块 label：行1 客户/报价编号，行2 联系人/报价日期，行3 项目/货币
+    const labelMap = ['cust','qno','contact','qdate','proj','currency'];
     const labels = document.querySelectorAll('#customerInfoBody tr td.label');
-    // 行结构：每行 2 个 label（左/右），共 3 行 = 6 个 label
     labels.forEach((td, i) => {
-      const k = labelMap[i]; if (k) td.firstChild && (td.innerHTML = t(k) + (k==='cust'||k==='proj' ? ': <span class="text-red-500">*</span>' : ':'));
+      const k = labelMap[i]; if (k) td.innerHTML = t(k) + ':';
     });
     // 备注
     const remarkCell = document.querySelector('#totalBody tr td.label[colspan="2"]');
