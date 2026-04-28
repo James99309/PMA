@@ -1,4 +1,4 @@
-{% from 'components/tw_layout.html' import render_tw_layout with context %}
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -93,5 +93,6 @@ function settingsForm() {
 </script>
 {% endif %}
 {% endcall %}
+{{ render_tw_layout_script() }}
 </body>
 </html>
