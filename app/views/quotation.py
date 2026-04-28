@@ -1055,8 +1055,10 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
             default_entity_id = entities[0].id
 
     extra_fields = (getattr(quotation, 'extra_fields', None) if quotation else None) or {}
+    today_str = datetime.now().strftime('%Y%m%d')
     return render_template(
         'quotation/tw_quotation_edit.html',
+        today_str=today_str,
         quotation=quotation,
         preset_project=preset_project,
         quotation_details_json=quotation_details_json,
