@@ -258,6 +258,7 @@
         <label class="flex items-center gap-2 p-1.5 text-sm hover:bg-slate-50 rounded cursor-pointer"><input type="checkbox" checked onchange="QuotationEditor.toggleCol('discount', this.checked)" class="rounded text-primary focus:ring-primary"><span data-i18n-tb="disc">{{ _('折扣%') }}</span></label>
         <label class="flex items-center gap-2 p-1.5 text-sm hover:bg-slate-50 rounded cursor-pointer"><input type="checkbox" checked onchange="QuotationEditor.toggleCol('market', this.checked)" class="rounded text-primary focus:ring-primary"><span data-i18n-tb="market">{{ _('市场价') }}</span></label>
         <label class="flex items-center gap-2 p-1.5 text-sm hover:bg-slate-50 rounded cursor-pointer"><input type="checkbox" checked onchange="QuotationEditor.toggleCol('product_mn', this.checked)" class="rounded text-primary focus:ring-primary"><span data-i18n-tb="item_no">{{ _('产品编码') }}</span></label>
+        <label class="flex items-center gap-2 p-1.5 text-sm hover:bg-slate-50 rounded cursor-pointer"><input type="checkbox" onchange="QuotationEditor.toggleCol('remark', this.checked)" class="rounded text-primary focus:ring-primary"><span data-i18n-tb="remark">{{ _('行备注') }}</span></label>
       </div>
     </div>
     <div class="relative">
@@ -319,6 +320,7 @@
       <col style="width: 4%"><col style="width: 13%"><col style="width: 12%">
       <col><col style="width: 7%"><col style="width: 9%">
       <col style="width: 9%"><col style="width: 6%"><col style="width: 11%">
+      <col class="remark-col" style="width: 12%">
       <col style="width: 28px">
     </colgroup>
     <tbody id="customerInfoBody">
@@ -328,6 +330,7 @@
         <td class="editable" colspan="3"><select id="customerSelect" required><option value="">{{ _('-- 请先选择项目 --') }}</option></select></td>
         <td class="label" colspan="2" data-i18n-label="qno">{{ _('报价编号') }}:</td>
         <td class="readonly">{{ quotation.quotation_number if is_edit else _('（保存后生成）') }}</td>
+        <td class="readonly remark-col-cell"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -336,6 +339,7 @@
         <td class="editable" colspan="3"><input type="text" id="customerAddress" placeholder=""></td>
         <td class="label" colspan="2" data-i18n-label="qdate">{{ _('报价日期') }}:</td>
         <td class="readonly">{{ quotation.created_at.strftime('%Y-%m-%d') if is_edit else '' }}</td>
+        <td class="readonly remark-col-cell"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -344,6 +348,7 @@
         <td class="editable" colspan="3"><select id="contactSelect"><option value="">--</option></select></td>
         <td class="label" colspan="2" data-i18n-label="payment">{{ _('付款条件') }}:</td>
         <td class="editable"><input type="text" id="extraPaymentTerms" placeholder=""></td>
+        <td class="readonly remark-col-cell"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -352,6 +357,7 @@
         <td class="editable" colspan="3"><input type="text" id="contactPhone" placeholder=""></td>
         <td class="label" colspan="2" data-i18n-label="shipping">{{ _('交付条件') }}:</td>
         <td class="editable"><input type="text" id="extraShippingTerms" placeholder=""></td>
+        <td class="readonly remark-col-cell"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -364,6 +370,7 @@
         </td>
         <td class="label" colspan="2" data-i18n-label="validity">{{ _('有效期') }}:</td>
         <td class="editable"><input type="text" id="extraValidity" placeholder=""></td>
+        <td class="readonly remark-col-cell"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -378,6 +385,7 @@
         </td>
         <td class="label" colspan="2" data-i18n-label="refno">{{ _('参考编号') }}:</td>
         <td class="editable"><input type="text" id="extraRefNo" placeholder=""></td>
+        <td class="readonly remark-col-cell"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
     </tbody>
@@ -394,6 +402,7 @@
         <td class="product-th" data-i18n="unit_price">{{ _('单价') }}</td>
         <td class="product-th" data-i18n="qty">{{ _('数量') }}</td>
         <td class="product-th" data-i18n="amount">{{ _('小计') }}</td>
+        <td class="product-th remark-col-cell" data-i18n="remark">{{ _('备注') }}</td>
         <td style="border:none;background:transparent"></td>
       </tr>
     </tbody>
@@ -406,6 +415,7 @@
         <td colspan="4" class="total-spacer"></td>
         <td class="total-label" colspan="4">{{ _('Total before GST') }}</td>
         <td class="total-value" id="subtotalCell">0.00</td>
+        <td class="remark-col-cell"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr class="total-row">
@@ -416,6 +426,7 @@
           <input type="number" id="gstRate" value="0" min="0" max="100" step="0.01" style="text-align:right;font-weight:700;width:60%;display:inline-block"><span style="margin-left:4px">%</span>
         </td>
         <td class="total-value" id="gstAmountCell">0.00</td>
+        <td class="remark-col-cell"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr class="total-row total-final-row">
@@ -423,12 +434,13 @@
         <td colspan="4" class="total-spacer"></td>
         <td class="total-label" colspan="4">{{ _('Total after GST') }}</td>
         <td class="total-value" id="totalCell">0.00</td>
+        <td class="remark-col-cell"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
         <td style="border:none;background:transparent"></td>
         <td class="label" colspan="2" style="vertical-align:top">{{ _('备注') }}:</td>
-        <td class="editable" colspan="7" style="vertical-align:top"><textarea id="notesInput" rows="3" placeholder="{{ _('输入报价单备注...') }}" oninput="QuotationEditor.autoResize(this)" style="overflow:hidden;min-height:calc(1.35em * 3 + 4px)">{% if is_edit %}{{ quotation.notes or '' }}{% endif %}</textarea></td>
+        <td class="editable" colspan="8" style="vertical-align:top"><textarea id="notesInput" rows="3" placeholder="{{ _('输入报价单备注...') }}" oninput="QuotationEditor.autoResize(this)" style="overflow:hidden;min-height:calc(1.35em * 3 + 4px)">{% if is_edit %}{{ quotation.notes or '' }}{% endif %}</textarea></td>
         <td style="border:none;background:transparent"></td>
       </tr>
     </tbody>
@@ -507,7 +519,7 @@ window.QuotationEditor = (function() {
       sign_customer: '客户签字盖章:', sign_seal: '盖章签字',
       total_amount: '金额',
       // 工具栏
-      edit_title: '编辑报价单', new_title: '新建报价单', entity_label: '主体', show_cols: '显示列',
+      remark: '备注', edit_title: '编辑报价单', new_title: '新建报价单', entity_label: '主体', show_cols: '显示列',
       add_row: '添加行', print: '打印', cancel: '取消', save: '保存',
       add_lib: '从产品库添加', add_custom: '添加自建产品', add_section: '添加标注行',
       placeholder_remarks: '输入报价单备注...', placeholder_search_proj: '搜索项目...',
@@ -521,7 +533,7 @@ window.QuotationEditor = (function() {
       cust: 'Company Name', company_address: 'Company Address', proj: 'Project', contact: 'Contact Person', contact_no: 'Contact No.', currency: 'Currency',
       sign_customer: 'Signed and Accepted by Customer:', sign_seal: 'chop & sign',
       total_amount: 'Amount',
-      edit_title: 'Edit Quotation', new_title: 'New Quotation', entity_label: 'Entity', show_cols: 'Show Columns',
+      remark: 'Remark', edit_title: 'Edit Quotation', new_title: 'New Quotation', entity_label: 'Entity', show_cols: 'Show Columns',
       add_row: 'Add Row', print: 'Print', cancel: 'Cancel', save: 'Save',
       add_lib: 'From Product Library', add_custom: 'Add Custom Product', add_section: 'Add Section',
       placeholder_remarks: 'Enter remarks...', placeholder_search_proj: 'Search project...',
@@ -563,7 +575,7 @@ window.QuotationEditor = (function() {
     tr.dataset.rowId = row.rowId;
     tr.innerHTML = `
       <td class="drag-handle">⠿</td>
-      <td colspan="9" class="section-label-cell">
+      <td colspan="10" class="section-label-cell">
         <textarea rows="1" oninput="QuotationEditor.updateField('${row.rowId}','section_label',this.value); QuotationEditor.autoResize(this)">${escapeHtml(row.data.section_label||'')}</textarea>
       </td>
       <td class="delete-cell"><span class="material-symbols-outlined" onclick="QuotationEditor.removeRow('${row.rowId}')">delete</span></td>`;
@@ -629,6 +641,7 @@ window.QuotationEditor = (function() {
         <input type="number" value="${qty}" style="text-align:center" oninput="QuotationEditor.updateField('${row.rowId}','quantity',this.value)">
       </td>
       <td class="readonly" style="text-align:right" data-subtotal>${formatNum(up*qty)}</td>
+      ${_remarkColShown ? `<td class="editable remark-col-cell"><input value="${escapeHtml(d.item_note||'')}" oninput="QuotationEditor.updateField('${row.rowId}','item_note',this.value)"></td>` : ''}
       <td class="delete-cell"><span class="material-symbols-outlined" onclick="QuotationEditor.removeRow('${row.rowId}')">delete</span></td>`;
     return tr;
   }
@@ -873,9 +886,11 @@ window.QuotationEditor = (function() {
     } catch (e) { alert('{{ _("保存失败") }}: ' + e.message); }
   }
 
-  const colMap = { product_mn:3, discount:6, market:7 };
+  const colMap = { product_mn:3, discount:6, market:7, remark:11 };
   const _colStash = {};
+  let _remarkColShown = true;  // 真值（HTML 默认有 remark cell），init 时 toggleCol(false) 隐藏
   function toggleCol(name, show) {
+    if (name === 'remark') _remarkColShown = show;
     const colIndex = colMap[name]; if (!colIndex) return;
     const mainTable = document.getElementById('mainGrid'); const idx0 = colIndex - 1;
     if (!show && !_colStash[name]) {
@@ -1178,6 +1193,9 @@ window.QuotationEditor = (function() {
     }
     renderProductRows();
     initEntitySelector();
+
+    // 默认隐藏行备注列（用户可在显示列菜单开启）
+    toggleCol('remark', false);
 
     const prefs = JSON.parse(localStorage.getItem('qe_col_visibility')||'{}');
     Object.keys(prefs).forEach(name => {
