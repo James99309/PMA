@@ -1092,6 +1092,7 @@ def process_quotation_details(quotation_id, details, currency=Config.DEFAULT_CUR
                 if row_id:
                     detail_id_map[row_id] = new_detail
 
+            db.session.add(new_detail)
             created_details.append(new_detail)
             current_app.logger.debug(f'创建第 {index+1} 行明细项: {product_name}')
 
