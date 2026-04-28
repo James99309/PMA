@@ -71,6 +71,8 @@ from app.models.cli_memory import CliMemory
 from app.models.points import PointsBehaviorConfig, PointsTransaction, UserPointsSummary
 # Claude AI 代理用量缓存（cliproxy 集成）
 from app.models.ai_proxy_usage import AIProxyUsage
+# GEO Monitor 模块
+from app.models.geo_monitor import GeoIntent, GeoQuery, GeoResult, GeoSettings
 
 __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'ProductSpec',
            'ProductCategory', 'ProductSubcategory', 'ProductCodeField',
@@ -111,4 +113,5 @@ __all__ = ['User', 'Project', 'Company', 'Contact', 'Quotation', 'Product', 'Pro
            'PerformanceManualEntry', 'PerformanceManualAttachment',
            'ProductDisplayOrder',
            'CliSession', 'UserCliState', 'CliSkill',
-           'AIProxyUsage']
+           'AIProxyUsage',
+           'GeoIntent', 'GeoQuery', 'GeoResult', 'GeoSettings']
