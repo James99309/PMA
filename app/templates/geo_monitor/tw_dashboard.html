@@ -1,0 +1,109 @@
+{% from 'components/tw_layout.html' import render_tw_layout with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>GEO 监控 - PMA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#137fec" } } } }</script>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+{% call(slot) render_tw_layout(active_page='geo_monitor') %}
+{% if slot == 'content' %}
+<div class="p-6 space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">GEO 监控</h1>
+        <a href="{{ url_for('geo_monitor.test_page') }}"
+           class="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90">
+            手动测试
+        </a>
+    </div>
+
+    <!-- Metric Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+            <div class="text-slate-500 dark:text-slate-400 text-sm">监控意图数</div>
+            <div class="text-3xl font-bold text-slate-900 dark:text-white mt-1">{{ summary|length }}</div>
+        </div>
+        {% for market in markets %}
+        {% set market_results = [] %}
+        {% for row in summary %}
+            {% if row.markets.get(market) %}{% set _ = market_results.append(row.markets[market]) %}{% endif %}
+        {% endfor %}
+        {% set mentioned_count = market_results | selectattr('mentioned', 'equalto', 'yes') | list | length %}
+        {% set rate = (mentioned_count / market_results|length * 100)|int if market_results else 0 %}
+        <div class="bg-white dark:bg-slate-800 rounded-xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+            <div class="text-slate-500 dark:text-slate-400 text-sm">{{ market|upper }} 提及率</div>
+            <div class="text-3xl font-bold mt-1 {% if rate >= 50 %}text-green-600{% elif rate > 0 %}text-yellow-500{% else %}text-red-500{% endif %}">
+                {{ rate }}%
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Results Table -->
+    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <h2 class="font-semibold text-slate-900 dark:text-white">最近跑批结果</h2>
+            <a href="{{ url_for('geo_monitor.intent_list') }}" class="text-sm text-primary hover:underline">管理查询</a>
+        </div>
+        <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50 dark:bg-slate-700/50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-slate-600 dark:text-slate-300 font-medium">意图</th>
+                    {% for market in markets %}
+                    <th class="px-4 py-3 text-center text-slate-600 dark:text-slate-300 font-medium">{{ market|upper }}</th>
+                    {% endfor %}
+                    <th class="px-4 py-3 text-center text-slate-600 dark:text-slate-300 font-medium">操作</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+            {% for row in summary %}
+            <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                <td class="px-6 py-4 text-slate-900 dark:text-white font-medium">{{ row.intent.title }}</td>
+                {% for market in markets %}
+                {% set r = row.markets.get(market) %}
+                <td class="px-4 py-4 text-center">
+                    {% if r %}
+                        {% if r.mentioned == 'yes' %}
+                            <span class="text-green-600 font-medium">✅{% if r.rank %} #{{ r.rank }}{% endif %}</span>
+                        {% elif r.mentioned == 'indirect' %}
+                            <span class="text-yellow-500">⚠️ 间接</span>
+                        {% elif r.error %}
+                            <span class="text-red-400 text-xs">错误</span>
+                        {% else %}
+                            <span class="text-red-500">❌</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="text-slate-400">—</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+                <td class="px-4 py-4 text-center">
+                    <form method="POST" action="{{ url_for('geo_monitor.intent_run', intent_id=row.intent.id) }}" class="inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="text-primary hover:underline text-sm">跑批</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="{{ markets|length + 2 }}" class="px-6 py-12 text-center text-slate-400">
+                暂无监控数据，<a href="{{ url_for('geo_monitor.intent_list') }}" class="text-primary hover:underline">添加监控意图</a>
+            </td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endcall %}
+</body>
+</html>
