@@ -704,8 +704,15 @@ window.QuotationEditor = (function() {
 
   function addRow(kind) {
     document.getElementById('addMenu').classList.add('hidden');
-    if (kind === 'section') rows.push({rowId:makeRowId(), data:{row_type:'section', section_label:''}});
-    else rows.push({rowId:makeRowId(), data:{row_type:'product', product_name:'', brand:'', unit:'个', quantity:1, discount_rate:100, market_price:0, unit_price:0, is_temp: kind==='custom', source: kind==='custom'?'custom':'library'}});
+    if (kind === 'section') {
+      // 标注行默认插入到表头之后、第一个产品行之前；如果已有标注行，插入到所有现有标注行之后
+      const newRow = { rowId: makeRowId(), data: { row_type: 'section', section_label: '' } };
+      let insertAt = 0;
+      while (insertAt < rows.length && rows[insertAt].data.row_type === 'section') insertAt++;
+      rows.splice(insertAt, 0, newRow);
+    } else {
+      rows.push({rowId:makeRowId(), data:{row_type:'product', product_name:'', brand:'', unit:'个', quantity:1, discount_rate:100, market_price:0, unit_price:0, is_temp: kind==='custom', source: kind==='custom'?'custom':'library'}});
+    }
     renderProductRows();
   }
   function removeRow(rowId) {
