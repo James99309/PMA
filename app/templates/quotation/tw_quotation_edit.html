@@ -468,7 +468,7 @@
         <td class="label" colspan="3" data-i18n-label="company_address">{{ _('客户地址') }}:</td>
         <td class="editable" colspan="3"><input type="text" id="customerAddress" placeholder=""></td>
         <td class="label" colspan="2" data-i18n-label="qdate">{{ _('报价日期') }}:</td>
-        <td class="readonly" colspan="2">{{ quotation.created_at.strftime('%Y-%m-%d') if is_edit else '' }}</td>
+        <td class="editable" colspan="2"><input type="date" id="extraQuotationDate" value="{{ quotation.created_at.strftime('%Y-%m-%d') if is_edit else today_str[:4] ~ '-' ~ today_str[4:6] ~ '-' ~ today_str[6:8] }}"></td>
         <td style="border:none;background:transparent"></td>
       </tr>
       <tr>
@@ -1071,6 +1071,7 @@ window.QuotationEditor = (function() {
 
     const getV = id => document.getElementById(id)?.value || '';
     const extra_fields = {
+      quotation_date: getV('extraQuotationDate'),
       payment_terms: getV('extraPaymentTerms'),
       shipping_terms: getV('extraShippingTerms'),
       validity: getV('extraValidity'),
@@ -1569,6 +1570,7 @@ window.QuotationEditor = (function() {
     setVal('extraRefNo', ef.ref_no);
     setVal('customerAddress', ef.customer_address);
     setVal('contactPhone', ef.contact_phone);
+    if (ef.quotation_date) setVal('extraQuotationDate', ef.quotation_date);
 
     // 备注 textarea 初始撑开
     const notesInput = document.getElementById('notesInput');

@@ -1033,26 +1033,25 @@ def _render_excel_editor(quotation_id=None, project_id_preset=None):
         except (ValueError, TypeError):
             preset_project = None
 
-    # 公司主体列表（CN/SG/MY 等）
+    # 公司主体列表：按部署地区过滤
+    # CN NAS (sp8d) 只显示 region=CN；SG NAS (ovs) 显示 SG + MY（同一 NAS 服务两国）
     from app.models.company_entity import CompanyEntity
-    entities = CompanyEntity.query.order_by(CompanyEntity.sort_order, CompanyEntity.id).all()
+    db_type = (current_app.config.get('PMA_DB_TYPE') or os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE') or '').lower()
+    if db_type == 'sp8d':
+        allowed_regions = ['CN']
+    elif db_type == 'ovs':
+        allowed_regions = ['SG', 'MY']
+    else:
+        allowed_regions = ['CN', 'SG', 'MY']  # 本地无 PMA_DB_TYPE 时显示全部，方便开发
+    entities = CompanyEntity.query.filter(CompanyEntity.region.in_(allowed_regions)) \
+                                  .order_by(CompanyEntity.sort_order, CompanyEntity.id).all()
     entities_json = json.dumps([e.to_dict() for e in entities])
-    # 默认 entity：编辑时用 quotation.entity_id；新建时根据 PMA_DB_TYPE 选区域
+    # 默认 entity：编辑时用 quotation.entity_id（即使跨区域也保留，避免数据丢失）；新建时取列表第一个
     default_entity_id = None
     if quotation and quotation.entity_id:
         default_entity_id = quotation.entity_id
-    else:
-        db_type = current_app.config.get('PMA_DB_TYPE') or os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE') or ''
-        wanted_region = 'CN' if str(db_type).lower() == 'sp8d' else 'SG'
-        for e in entities:
-            if e.region == wanted_region:
-                default_entity_id = e.id; break
-        if default_entity_id is None:
-            for e in entities:
-                if e.is_default:
-                    default_entity_id = e.id; break
-        if default_entity_id is None and entities:
-            default_entity_id = entities[0].id
+    elif entities:
+        default_entity_id = next((e.id for e in entities if e.is_default), entities[0].id)
 
     extra_fields = (getattr(quotation, 'extra_fields', None) if quotation else None) or {}
     today_str = datetime.now().strftime('%Y%m%d')
