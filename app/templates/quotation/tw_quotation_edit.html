@@ -390,16 +390,30 @@
     </tbody>
   </table>
 
+  <!-- 签字区：用一个独立的 11 列表格（同主表 colgroup），让两侧无边框列与主表对齐 -->
   <table class="q-grid" style="margin-top:40px">
-    <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+    <colgroup>
+      <col style="width: 26px"><col style="width: 4%"><col style="width: 13%"><col style="width: 12%">
+      <col><col style="width: 7%"><col style="width: 9%">
+      <col style="width: 9%"><col style="width: 6%"><col style="width: 11%">
+      <col style="width: 28px">
+    </colgroup>
     <tbody>
       <tr>
-        <td class="sign-blank"></td>
-        <td class="no-border" id="signCustomerLabel" style="font-weight:700;font-size:12px">{{ _('Signed and Accepted by Customer:') }}</td>
+        <td style="border:none;background:transparent"></td>
+        <td class="sign-blank" colspan="4"></td>
+        <td class="no-border" id="signCustomerLabel" style="font-weight:700;font-size:12px;text-align:left;padding-left:12px" colspan="5">{{ _('Signed and Accepted by Customer:') }}</td>
+        <td style="border:none;background:transparent"></td>
       </tr>
-      <tr><td class="sign-blank"></td><td class="sign-blank"></td></tr>
       <tr>
-        <td class="no-border" style="vertical-align:top">
+        <td style="border:none;background:transparent"></td>
+        <td class="sign-blank" colspan="4"></td>
+        <td class="sign-blank" colspan="5"></td>
+        <td style="border:none;background:transparent"></td>
+      </tr>
+      <tr>
+        <td style="border:none;background:transparent"></td>
+        <td class="no-border" colspan="4" style="vertical-align:top;padding-left:12px">
           <div class="editable-field" style="display:inline-block">
             <span class="sign-line"><input id="signLeftInput" data-field="signature.left" data-default="" value=""></span>
             <span class="field-actions" style="right:-58px">
@@ -408,7 +422,7 @@
             </span>
           </div>
         </td>
-        <td class="no-border" style="vertical-align:top">
+        <td class="no-border" colspan="5" style="vertical-align:top;padding-left:12px">
           <div class="editable-field" style="display:inline-block">
             <span class="sign-line" style="font-weight:400;font-size:11px;font-style:italic"><input id="signRightInput" data-field="signature.right" data-default="" value=""></span>
             <span class="field-actions" style="right:-58px">
@@ -417,6 +431,7 @@
             </span>
           </div>
         </td>
+        <td style="border:none;background:transparent"></td>
       </tr>
     </tbody>
   </table>
