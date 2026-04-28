@@ -317,7 +317,7 @@
         <td class="product-th">S/N</td>
         <td class="product-th draggable-col" data-col-key="product_mn" draggable="true">{{ _('产品编码') }}</td>
         <td class="product-th draggable-col" data-col-key="brand" draggable="true">{{ _('品牌') }}</td>
-        <td class="product-th draggable-col" data-col-key="description" draggable="true">{{ _('描述/型号/规格') }}</td>
+        <td class="product-th draggable-col" data-col-key="description" draggable="true">{{ _('型号规格') }}</td>
         <td class="product-th">{{ _('折扣%') }}</td>
         <td class="product-th">{{ _('市场价') }}</td>
         <td class="product-th">{{ _('单价') }}</td>
@@ -440,14 +440,39 @@ window.QuotationEditor = (function() {
     const dr = d.discount_rate != null ? d.discount_rate : 100;
     const up = parseFloat(d.unit_price) || 0;
     const qty = parseInt(d.quantity) || 1;
+
+    // Description cell：三行展示 名称 / 型号 / 规格描述
+    const renderProductInfo = (data) => {
+      const lines = [];
+      if (data.product_name) lines.push(`<div class="font-medium text-slate-900">${escapeHtml(data.product_name)}</div>`);
+      if (data.product_model) lines.push(`<div class="text-slate-700 text-[11px]">${escapeHtml(data.product_model)}</div>`);
+      if (data.product_desc) lines.push(`<div class="text-slate-500 text-[11px] whitespace-pre-wrap">${escapeHtml(data.product_desc)}</div>`);
+      return lines.join('');
+    };
+    let descCell;
+    if (isConfig) {
+      descCell = `<td class="readonly product-name-cell" style="vertical-align:top;padding:6px 8px">${renderProductInfo(d)}</td>`;
+    } else if (!d.product_name) {
+      descCell = `<td class="editable" style="text-align:left;vertical-align:middle;padding:6px 8px">
+        <button type="button" class="product-selector-trigger text-primary hover:underline" onclick="QuotationEditor.openProductPicker('${row.rowId}', this)">
+          <span class="material-symbols-outlined text-base align-middle">search</span> {{ _('选择产品') }}
+        </button>
+      </td>`;
+    } else {
+      descCell = `<td class="editable product-selector-trigger" style="text-align:left;cursor:pointer;vertical-align:top;padding:6px 8px" onclick="QuotationEditor.openProductPicker('${row.rowId}', this)" title="{{ _('点击切换产品') }}">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">${renderProductInfo(d)}</div>
+          <span class="material-symbols-outlined text-slate-400 text-base flex-shrink-0">expand_more</span>
+        </div>
+      </td>`;
+    }
+
     tr.innerHTML = `
       <td class="drag-handle ${isConfig?'config-handle':''}" title="${isConfig ? '{{ _("跟随父产品移动") }}' : ''}">⠿</td>
       <td class="readonly" style="text-align:center">${sn}</td>
       <td class="readonly">${escapeHtml(d.product_mn||'')}</td>
       <td class="readonly">${escapeHtml(d.brand||'')}</td>
-      <td class="${isConfig?'readonly product-name-cell':'editable'}">
-        ${isConfig ? escapeHtml(d.product_name||'') : `<input value="${escapeHtml(d.product_name||'')}" placeholder="{{ _('产品名称') }}" oninput="QuotationEditor.updateField('${row.rowId}','product_name',this.value)">`}
-      </td>
+      ${descCell}
       <td class="${isConfig?'readonly':'editable'}" style="text-align:right">
         ${isConfig ? dr : `<input type="number" value="${dr}" style="text-align:right" oninput="QuotationEditor.updateField('${row.rowId}','discount_rate',this.value)">`}
       </td>
