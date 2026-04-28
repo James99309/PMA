@@ -129,7 +129,7 @@ class Quotation(db.Model):
     customer = db.relationship('Company', backref='quotations')  # 客户关系
     contact = db.relationship('Contact', backref='quotations')  # 联系人关系
     details = db.relationship('QuotationDetail', backref='quotation', cascade='all, delete-orphan',
-                             order_by='QuotationDetail.id')  # 按明细ID排序，保持添加顺序
+                             order_by='QuotationDetail.sort_order, QuotationDetail.id')  # 优先按 sort_order，回退到 id
 
     def __init__(self, **kwargs):
         if 'quotation_number' not in kwargs:
@@ -469,6 +469,11 @@ class QuotationDetail(db.Model):
     # 货币字段
     currency = db.Column(db.String(10), default='CNY')  # 货币类型
     item_note = db.Column(db.Text, nullable=True, comment='明细行备注')
+
+    # 行类型 + 排序（Excel-like 编辑器）
+    row_type = db.Column(db.String(16), default='product', nullable=False)  # 'product' / 'section'
+    section_label = db.Column(db.String(255), nullable=True)  # 标注行的文字（仅 row_type='section' 时使用）
+    sort_order = db.Column(db.Integer, nullable=True)  # 显式排序（默认 = id）
 
     # 配置产品字段（使用已存在的parent_item_id和is_accessory字段）
     parent_item_id = db.Column(db.Integer, db.ForeignKey('quotation_details.id', ondelete='CASCADE'), nullable=True)  # 父级产品行ID

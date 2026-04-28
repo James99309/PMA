@@ -44,6 +44,11 @@ class User(db.Model, UserMixin):
     claude_ai_token = db.Column(db.String(64), unique=True, nullable=True, index=True)  # 代理认证 token
     claude_ai_quota_tokens = db.Column(db.BigInteger, default=0, nullable=False)  # 月度配额（0 = 用全局默认）
     claude_ai_enabled_at = db.Column(db.DateTime, nullable=True)  # 启用时间，审计用
+
+    # 报价单 Excel-like 编辑器：账户级默认抬头/签名（字段级保存）
+    quotation_letterhead = db.Column(db.JSON, nullable=True)  # {logo_url, line1, line2, line3}
+    quotation_signature = db.Column(db.JSON, nullable=True)   # {left, right}
+
     created_at = db.Column(db.Float, default=time.time)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
     last_login = db.Column(db.Float)  # 最后登录时间
