@@ -189,3 +189,6 @@ storage/
 .playwright-mcp/
 .worktrees/
 .worktrees/
+mobile-app/node_modules/
+mobile-app/dist/
+mobile-app/ios/App/Pods/
