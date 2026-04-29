@@ -187,3 +187,5 @@ storage/
 
 # Playwright MCP 临时截图
 .playwright-mcp/
+.worktrees/
+.worktrees/
