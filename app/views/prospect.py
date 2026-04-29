@@ -13,8 +13,50 @@ from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 import threading
 import logging
+import json as _json_mod
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_first_json(text):
+    """从文本中提取第一个完整合法的 JSON 对象，处理 Claude 输出中的格式瑕疵。"""
+    start = text.find('{')
+    if start == -1:
+        return None
+    depth = 0
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text[start:], start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                candidate = text[start:i + 1]
+                try:
+                    return _json_mod.loads(candidate)
+                except _json_mod.JSONDecodeError:
+                    # 尝试 json-repair 风格：截断到最后一个完整 project
+                    try:
+                        import re as _re
+                        # 找到 "projects": [ ... ] 部分，逐步截断
+                        fixed = _re.sub(r',\s*\{[^}]*$', '', candidate) + ']}'
+                        return _json_mod.loads(fixed)
+                    except Exception:
+                        return None
+    return None
+
 
 # 全局并发限制：最多 2 个 AI 调研任务同时运行（适配单 worker Gunicorn）
 _research_semaphore = threading.Semaphore(2)
@@ -926,18 +968,18 @@ Rules:
 def _run_batch_research_async(app, log_id, user_id, prompt, is_admin):
     """后台线程：执行调研并将结果写入 ProspectResearchLog.result_json。"""
     from app.services.claude_research_provider import send_claude_research_request
-    import json, re
+    import json
     with app.app_context():
         log = ProspectResearchLog.query.get(log_id)
         try:
             raw = send_claude_research_request(prompt, timeout=300, user_id=user_id)
-            m = re.search(r'\{.*\}', raw, re.DOTALL)
-            if not m:
+            data = _extract_first_json(raw)
+            if not data:
                 log.status = 'failed'
                 log.result_json = json.dumps({'error': 'AI 未返回有效 JSON'})
+                log.completed_at = datetime.utcnow()
                 db.session.commit()
                 return
-            data = json.loads(m.group())
             ai_projects = data.get('projects') or []
 
             existing = {
