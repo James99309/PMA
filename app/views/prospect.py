@@ -923,19 +923,61 @@ Rules:
 7. Output complete, valid JSON only."""
 
 
+def _run_batch_research_async(app, log_id, user_id, prompt, is_admin):
+    """后台线程：执行调研并将结果写入 ProspectResearchLog.result_json。"""
+    from app.services.claude_research_provider import send_claude_research_request
+    import json, re
+    with app.app_context():
+        log = ProspectResearchLog.query.get(log_id)
+        try:
+            raw = send_claude_research_request(prompt, timeout=300, user_id=user_id)
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if not m:
+                log.status = 'failed'
+                log.result_json = json.dumps({'error': 'AI 未返回有效 JSON'})
+                db.session.commit()
+                return
+            data = json.loads(m.group())
+            ai_projects = data.get('projects') or []
+
+            existing = {
+                p.project_name.strip()
+                for p in ProspectProject.query.filter(
+                    ProspectProject.is_deleted == False,
+                    ProspectProject.link_type.is_(None),
+                ).all()
+            }
+            result = []
+            for proj in ai_projects:
+                if not isinstance(proj, dict):
+                    continue
+                proj['in_library'] = proj.get('project_name', '').strip() in existing
+                result.append(proj)
+
+            remaining_after = _batch_quota_remaining(user_id) if not is_admin else None
+            log.status = 'done'
+            log.result_json = json.dumps({'projects': result, 'quota_remaining': remaining_after})
+            log.completed_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as e:
+            app.logger.exception("Async batch research failed")
+            log.status = 'failed'
+            log.result_json = json.dumps({'error': str(e)[:300]})
+            log.completed_at = datetime.utcnow()
+            db.session.commit()
+        finally:
+            _research_semaphore.release()
+
+
 @prospect_bp.route('/batch-research', methods=['POST'])
 @login_required
 @permission_required('project', 'view')
 def batch_research():
-    """批量调研：按地区(省份/国家)+行业触发 AI 搜索。CN 用省份+中文 prompt，SG 用国家+英文 prompt。"""
-    from app.services.claude_research_provider import send_claude_research_request
+    """批量调研：按地区(省份/国家)+行业触发 AI 搜索，立即返回 job_id，后台异步执行。"""
     from config import Config
-    import json
-    import re
 
     body = request.get_json() or {}
     is_ovs = bool(getattr(Config, 'IS_OVS', False))
-    # SG 传 countries，CN 传 provinces；为兼容也接受任一键
     regions = body.get('countries') if is_ovs else body.get('provinces')
     if not regions:
         regions = body.get('provinces') or body.get('countries') or []
@@ -949,14 +991,11 @@ def batch_research():
     industries = industries[:2]
 
     current_year = datetime.now().year
-    if is_ovs:
-        prompt = _build_batch_prompt_sg(regions, industries, current_year)
-    else:
-        prompt = _build_batch_prompt_cn(regions, industries, current_year)
+    prompt = _build_batch_prompt_sg(regions, industries, current_year) if is_ovs \
+        else _build_batch_prompt_cn(regions, industries, current_year)
 
     _recover_stale_logs()
 
-    # 非管理员每日配额检查
     if not is_admin_or_ceo(current_user):
         remaining = _batch_quota_remaining(current_user.id)
         if remaining <= 0:
@@ -967,43 +1006,38 @@ def batch_research():
         return jsonify(success=False, message=_('调研队列繁忙（最多2个并发），请稍后重试')), 429
 
     log = _log_research(current_user.id, 'batch')
-    try:
-        raw = send_claude_research_request(prompt, timeout=300, user_id=current_user.id)
-        m = re.search(r'\{.*\}', raw, re.DOTALL)
-        if not m:
-            _finish_log(log, False)
-            return jsonify(success=False, message=_('AI 未返回有效 JSON')), 500
-        data = json.loads(m.group())
-        ai_projects = data.get('projects') or []
+    is_admin = is_admin_or_ceo(current_user)
 
-        # 去重检查：与已有 ProspectProject（standalone intel）比对
-        existing = {
-            p.project_name.strip()
-            for p in ProspectProject.query.filter(
-                ProspectProject.is_deleted == False,
-                ProspectProject.link_type.is_(None),
-            ).all()
-        }
+    t = threading.Thread(
+        target=_run_batch_research_async,
+        args=(current_app._get_current_object(), log.id, current_user.id, prompt, is_admin),
+        daemon=True,
+    )
+    t.start()
 
-        result = []
-        for proj in ai_projects:
-            if not isinstance(proj, dict):
-                continue
-            proj['in_library'] = proj.get('project_name', '').strip() in existing
-            result.append(proj)
+    return jsonify(success=True, job_id=log.id, status='running')
 
-        _finish_log(log, True)
-        remaining_after = (
-            _batch_quota_remaining(current_user.id)
-            if not is_admin_or_ceo(current_user) else None
-        )
-        return jsonify(success=True, projects=result, quota_remaining=remaining_after)
-    except Exception as e:
-        _finish_log(log, False)
-        current_app.logger.exception("Batch research failed")
-        return jsonify(success=False, message=f'调研失败：{str(e)[:200]}'), 500
-    finally:
-        _research_semaphore.release()
+
+@prospect_bp.route('/batch-research/status/<int:job_id>', methods=['GET'])
+@login_required
+@permission_required('project', 'view')
+def batch_research_status(job_id):
+    """轮询批量调研状态。running → 继续轮询；done/failed → 返回结果。"""
+    import json
+    log = ProspectResearchLog.query.get_or_404(job_id)
+    if log.user_id != current_user.id and not is_admin_or_ceo(current_user):
+        return jsonify(success=False, message='无权查看'), 403
+
+    if log.status == 'running':
+        return jsonify(success=True, status='running')
+
+    result = json.loads(log.result_json) if log.result_json else {}
+    if log.status == 'failed':
+        return jsonify(success=False, status='failed', message=result.get('error', '调研失败'))
+
+    return jsonify(success=True, status='done',
+                   projects=result.get('projects', []),
+                   quota_remaining=result.get('quota_remaining'))
 
 
 @prospect_bp.route('/batch-research/save', methods=['POST'])

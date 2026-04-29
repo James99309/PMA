@@ -2037,19 +2037,40 @@
                 showToast(data.message || '{{ _("批量调研失败") }}', 'error');
                 return;
             }
-            // update quota display if user re-opens modal
-            const quotaEl = document.getElementById('br-quota-num');
-            if (quotaEl && data.quota_remaining !== null && data.quota_remaining !== undefined) {
-                quotaEl.textContent = data.quota_remaining;
-            }
-            _brResultData = data;
-            _setBrToolbarState('done');
-            showToast(`{{ _("调研完成，发现") }} ${(data.projects||[]).length} {{ _("个项目") }}`, 'success');
+            // 异步模式：后台运行，轮询状态
+            _pollBatchResearch(data.job_id);
         })
         .catch(() => {
             _setBrToolbarState('error');
             showToast('{{ _("批量调研请求失败，请重试") }}', 'error');
         });
+    }
+
+    function _pollBatchResearch(jobId) {
+        const poll = () => {
+            fetch(`/prospect/batch-research/status/${jobId}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'running') {
+                    setTimeout(poll, 5000);
+                    return;
+                }
+                if (!data.success || data.status === 'failed') {
+                    _setBrToolbarState('error');
+                    showToast(data.message || '{{ _("批量调研失败") }}', 'error');
+                    return;
+                }
+                const quotaEl = document.getElementById('br-quota-num');
+                if (quotaEl && data.quota_remaining != null) {
+                    quotaEl.textContent = data.quota_remaining;
+                }
+                _brResultData = data;
+                _setBrToolbarState('done');
+                showToast(`{{ _("调研完成，发现") }} ${(data.projects||[]).length} {{ _("个项目") }}`, 'success');
+            })
+            .catch(() => setTimeout(poll, 8000));
+        };
+        setTimeout(poll, 5000);
     }
 
     function openBatchResearchResultModal(data) {

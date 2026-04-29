@@ -111,6 +111,7 @@ class ProspectResearchLog(db.Model):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False, index=True)
     job_type = Column(String(20), nullable=False)   # 'batch' | 'intel' | 'lost'
     status = Column(String(20), nullable=False, default='running')  # 'running' | 'done' | 'failed'
+    result_json = Column(db.Text, nullable=True)    # 异步调研结果（JSON 字符串）
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     completed_at = Column(DateTime, nullable=True)
 
