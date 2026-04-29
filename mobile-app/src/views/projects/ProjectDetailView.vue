@@ -35,16 +35,17 @@ const STAGES = [
   { key: 'paused',     label: '搁置' },
 ]
 
-const STAGE_COLOR = {
-  discover: 'bg-gray-100 text-gray-600',
-  embed: 'bg-purple-100 text-purple-700',
-  pre_tender: 'bg-blue-100 text-blue-700',
-  tendering: 'bg-yellow-100 text-yellow-700',
-  awarded: 'bg-green-100 text-green-700',
-  quoted: 'bg-orange-100 text-orange-700',
-  signed: 'bg-emerald-100 text-emerald-700',
-  lost: 'bg-red-100 text-red-600',
-  paused: 'bg-gray-100 text-gray-500',
+// 与 PMA style.css .badge-stage 颜色一致
+const STAGE_STYLE = {
+  discover:   'background: linear-gradient(135deg,#d3e3fc,#b8d4f8,#9dc5f4); color:#0d47a1',
+  embed:      'background: linear-gradient(135deg,#b7ddc8,#9fd3b3,#87c99e); color:#1b5e20',
+  pre_tender: 'background: linear-gradient(135deg,#91c79f,#7bb88a,#65a975); color:#1b5e20',
+  tendering:  'background: linear-gradient(135deg,#6daf6c,#5a9259,#4d7c4c); color:#fff',
+  awarded:    'background: linear-gradient(135deg,#559c4c,#477f3f,#3a6832); color:#fff',
+  quoted:     'background: linear-gradient(135deg,#3c8c2c,#327326,#285e20); color:#fff',
+  signed:     'background: linear-gradient(135deg,#216822,#1b541d,#154518); color:#fff',
+  lost:       'background: linear-gradient(135deg,#6e2b23,#5a241e,#4a1f1a); color:#fff',
+  paused:     'background: linear-gradient(135deg,#9e9e9e,#858585,#6c6c6c); color:#fff',
 }
 
 const AUTH_COLOR = {
@@ -146,7 +147,8 @@ onMounted(load)
       <div class="bg-white px-4 py-4">
         <h2 class="text-base font-bold text-gray-900 mb-2">{{ project.name }}</h2>
         <div class="flex flex-wrap gap-1.5 mb-3">
-          <span :class="['text-xs px-2 py-0.5 rounded-full font-medium', STAGE_COLOR[project.current_stage] || 'bg-gray-100 text-gray-600']">
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium"
+            :style="STAGE_STYLE[project.current_stage] || 'background:#e5e7eb;color:#4b5563'">
             {{ project.stage_label || project.current_stage }}
           </span>
           <span :class="['text-xs px-2 py-0.5 rounded-full', project.authorization_code ? 'bg-green-100 text-green-700' : AUTH_COLOR[project.authorization_status] || 'bg-gray-100 text-gray-500']">
@@ -293,10 +295,15 @@ onMounted(load)
               v-for="s in STAGES" :key="s.key"
               @click="updateStage(s.key)"
               :disabled="s.key === project.current_stage || updatingStage"
-              class="w-full px-4 py-3.5 flex items-center justify-between text-sm disabled:opacity-40 active:bg-gray-50"
+              class="w-full px-4 py-3 flex items-center justify-between text-sm disabled:opacity-40 active:bg-gray-50"
             >
-              <span :class="s.key === project.current_stage ? 'text-blue-600 font-medium' : 'text-gray-900'">{{ s.label }}</span>
-              <svg v-if="s.key === project.current_stage" class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xs px-2 py-0.5 rounded-full font-medium min-w-10 text-center"
+                  :style="STAGE_STYLE[s.key] || 'background:#e5e7eb;color:#4b5563'">
+                  {{ s.label }}
+                </span>
+              </div>
+              <svg v-if="s.key === project.current_stage" class="w-4 h-4 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
               </svg>
             </button>

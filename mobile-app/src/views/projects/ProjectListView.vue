@@ -10,14 +10,16 @@ const loading = ref(false)
 const search = ref('')
 const page = ref(1)
 
-const stageColors = {
-  lead: 'bg-gray-100 text-gray-600',
-  opportunity: 'bg-blue-100 text-blue-700',
-  proposal: 'bg-yellow-100 text-yellow-700',
-  negotiation: 'bg-orange-100 text-orange-700',
-  won: 'bg-green-100 text-green-700',
-  lost: 'bg-red-100 text-red-600',
-  suspended: 'bg-gray-100 text-gray-500',
+const STAGE_STYLE = {
+  discover:   'background:linear-gradient(135deg,#d3e3fc,#b8d4f8,#9dc5f4);color:#0d47a1',
+  embed:      'background:linear-gradient(135deg,#b7ddc8,#9fd3b3,#87c99e);color:#1b5e20',
+  pre_tender: 'background:linear-gradient(135deg,#91c79f,#7bb88a,#65a975);color:#1b5e20',
+  tendering:  'background:linear-gradient(135deg,#6daf6c,#5a9259,#4d7c4c);color:#fff',
+  awarded:    'background:linear-gradient(135deg,#559c4c,#477f3f,#3a6832);color:#fff',
+  quoted:     'background:linear-gradient(135deg,#3c8c2c,#327326,#285e20);color:#fff',
+  signed:     'background:linear-gradient(135deg,#216822,#1b541d,#154518);color:#fff',
+  lost:       'background:linear-gradient(135deg,#6e2b23,#5a241e,#4a1f1a);color:#fff',
+  paused:     'background:linear-gradient(135deg,#9e9e9e,#858585,#6c6c6c);color:#fff',
 }
 
 async function load(reset = false) {
@@ -84,7 +86,8 @@ onMounted(() => load(true))
               <p class="text-xs text-gray-400 mt-0.5">{{ p.owner_name }}</p>
             </div>
             <div class="flex flex-col items-end gap-1 shrink-0">
-              <span :class="['text-xs px-2 py-0.5 rounded-full font-medium', stageColors[p.current_stage] || 'bg-gray-100 text-gray-600']">
+              <span class="text-xs px-2 py-0.5 rounded-full font-medium"
+                :style="STAGE_STYLE[p.current_stage] || 'background:#e5e7eb;color:#4b5563'">
                 {{ p.stage_label }}
               </span>
               <span class="text-sm font-semibold text-gray-700">
