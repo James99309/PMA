@@ -1,6 +1,8 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://pma.jamesgpone.win'
+// dev: 空字符串 → 走 Vite proxy（/api/v1 → localhost:5012）
+// prod: 生产域名
+const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://pma.jamesgpone.win'
 
 const client = axios.create({
   baseURL: `${BASE_URL}/api/v1`,
