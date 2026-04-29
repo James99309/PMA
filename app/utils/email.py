@@ -3,7 +3,11 @@
 import smtplib
 import logging
 import threading
+import io
+import zipfile
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
 from email.header import Header
 from flask import current_app, request
 from itsdangerous import URLSafeTimedSerializer
@@ -46,7 +50,92 @@ def _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_
         logger.error(f"后台邮件发送失败: {str(e)}")
         return False
 
-def send_email(subject, recipient, content, html=None, async_send=True):
+def generate_dxt_bytes(token: str, display_name: str = 'PMA') -> bytes:
+    """生成用户专属的 .dxt 扩展包（内存中，返回 bytes）"""
+    manifest = f'''{{
+  "dxt_version": "0.1",
+  "name": "pma",
+  "display_name": "{display_name}",
+  "version": "1.0.0",
+  "description": "连接 PMA 业务系统，查询报价单、项目、客户、审批等数据",
+  "author": {{"name": "Evertac"}},
+  "server": {{
+    "type": "python",
+    "entry_point": "server/bridge.py",
+    "mcp_config": {{
+      "command": "python3",
+      "args": ["${{__dirname}}/server/bridge.py"]
+    }}
+  }}
+}}'''
+
+    bridge = f'''#!/usr/bin/env python3
+"""PMA MCP stdio bridge"""
+import sys, json, ssl, http.client, os
+
+TOKEN = os.environ.get("PMA_TOKEN", "{token}")
+HOST  = "pma-mcp.jamesgpone.win"
+PATH  = f"/mcp?token={{TOKEN}}"
+
+_session_id = None
+
+def http_post(payload):
+    global _session_id
+    ctx  = ssl.create_default_context()
+    conn = http.client.HTTPSConnection(HOST, context=ctx, timeout=30)
+    body = json.dumps(payload).encode()
+    hdrs = {{
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+        "mcp-protocol-version": "2024-11-05",
+        "Content-Length": str(len(body)),
+    }}
+    if _session_id:
+        hdrs["mcp-session-id"] = _session_id
+    conn.request("POST", PATH, body=body, headers=hdrs)
+    r   = conn.getresponse()
+    raw = r.read().decode()
+    sid = r.getheader("mcp-session-id")
+    if sid:
+        _session_id = sid
+    ct  = r.getheader("content-type", "")
+    conn.close()
+    if "text/event-stream" in ct:
+        for line in raw.split("\\n"):
+            if line.startswith("data: "):
+                return json.loads(line[6:])
+        return None
+    return json.loads(raw)
+
+def out(msg):
+    sys.stdout.write(json.dumps(msg) + "\\n")
+    sys.stdout.flush()
+
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        msg  = json.loads(line)
+        resp = http_post(msg)
+        if resp:
+            out(resp)
+    except Exception as e:
+        mid = None
+        try: mid = json.loads(line).get("id")
+        except: pass
+        if mid is not None:
+            out({{"jsonrpc":"2.0","id":mid,"error":{{"code":-32603,"message":str(e)}}}})
+'''
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr('manifest.json', manifest)
+        zf.writestr('server/bridge.py', bridge)
+    return buf.getvalue()
+
+
+def send_email(subject, recipient, content, html=None, async_send=True, attachments=None):
     """发送邮件的通用函数
 
     Args:
@@ -94,7 +183,15 @@ def send_email(subject, recipient, content, html=None, async_send=True):
         logger.info(f"邮件主题: {subject}")
 
         # 创建邮件
-        if html:
+        if attachments:
+            msg = MIMEMultipart()
+            body = MIMEText(html or content or '', 'html' if html else 'plain', 'utf-8')
+            msg.attach(body)
+            for filename, data in attachments:
+                part = MIMEApplication(data, Name=filename)
+                part['Content-Disposition'] = f'attachment; filename="{filename}"'
+                msg.attach(part)
+        elif html:
             msg = MIMEText(html, 'html', 'utf-8')
             logger.debug("使用HTML格式邮件")
         else:
@@ -408,7 +505,7 @@ def send_password_reset_email(user, reset_token, reset_url):
     except Exception as e:
         logger.error(f"发送密码重置邮件异常: {str(e)}", exc_info=True)
         return False
-def send_claude_ai_token_email(user, token, is_reset=False):
+def send_claude_ai_token_email(user, token, is_reset=False, attach_dxt=True):
     """发送 Claude AI 代理 token 邮件给用户。
 
     参数:
@@ -591,8 +688,15 @@ def send_claude_ai_token_email(user, token, is_reset=False):
         """
 
         logger.info(f'正在向 {user.username} 发送 Claude AI {"重置" if is_reset else "开通"} 邮件')
-        # 同步发送：HTTP 请求返回前确保邮件已实际投递（开通操作不频繁，等 1-3 秒可接受）
-        return send_email(subject, user.email, None, html=html_content, async_send=False)
+        attachments = None
+        if attach_dxt and not is_reset:
+            try:
+                real_name = user.real_name or user.username
+                dxt_bytes = generate_dxt_bytes(token, display_name='PMA')
+                attachments = [(f'pma-{real_name}.dxt', dxt_bytes)]
+            except Exception as e:
+                logger.warning(f'生成 DXT 附件失败，继续发送邮件: {e}')
+        return send_email(subject, user.email, None, html=html_content, async_send=False, attachments=attachments)
 
     except Exception as e:
         logger.error(f'发送 Claude AI 邮件失败: {e}', exc_info=True)

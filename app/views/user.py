@@ -2812,3 +2812,26 @@ def api_claude_ai_requests(user_id):
         return jsonify({'success': False, 'entries': [], 'dates': [], 'message': f'http {resp.status_code}'})
     except Exception as e:
         return jsonify({'success': False, 'entries': [], 'dates': [], 'message': str(e)})
+
+
+@user_bp.route('/api/<int:user_id>/claude-ai/send-dxt', methods=['POST'])
+@login_required
+@permission_required('user', 'edit')
+def api_claude_ai_send_dxt(user_id):
+    """发送 Claude Desktop 扩展文件（.dxt）给用户"""
+    err = _assert_admin()
+    if err: return err
+    user = User.query.get_or_404(user_id)
+    if not user.claude_ai_token:
+        return jsonify({'success': False, 'message': '该用户尚未开通 Claude AI，请先开通'}), 400
+    if not user.email:
+        return jsonify({'success': False, 'message': '用户未绑定邮箱'}), 400
+    try:
+        from app.utils.email import send_claude_ai_token_email
+        sent = send_claude_ai_token_email(user, user.claude_ai_token, is_reset=False, attach_dxt=True)
+        if sent:
+            return jsonify({'success': True, 'message': f'扩展文件已发送至 {user.email}'})
+        return jsonify({'success': False, 'message': '邮件发送失败，请检查邮件配置'})
+    except Exception as e:
+        logger.exception(f'send_dxt error user={user_id}: {e}')
+        return jsonify({'success': False, 'message': str(e)}), 500
