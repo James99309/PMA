@@ -847,7 +847,232 @@ def dashboard():
 
 
 # ---------------------------------------------------------------------------
-# 端点 14: 知识库问答
+# 端点 14: 报销单详情（含行项目）
+# GET /internal/api/expenses/<id>
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/expenses/<int:expense_id>', methods=['GET'])
+@internal_auth_required
+def get_expense_detail(expense_id):
+    user = g.current_user
+    try:
+        from app.models.expense import Expense, ExpenseDetail
+
+        filters = [Expense.is_deleted == False]
+        e = get_viewable_data(Expense, user, filters).filter(Expense.id == expense_id).first()
+        if not e:
+            return jsonify({'error': 'Not found or no permission'}), 404
+
+        owner_name = (e.owner.real_name or e.owner.username) if e.owner else None
+        customer_name = e.customer.company_name if getattr(e, 'customer', None) else None
+        project_name = e.project.project_name if getattr(e, 'project', None) else None
+
+        items = []
+        for d in e.details:
+            items.append({
+                'id': d.id,
+                'expense_date': d.expense_date.isoformat() if d.expense_date else None,
+                'expense_category': d.expense_category,
+                'description': d.description,
+                'current_amount': d.current_amount,
+                'invoice_amount': d.invoice_amount,
+                'currency': d.currency,
+                'exchange_rate': getattr(d, 'exchange_rate', 1.0),
+                'document_count': getattr(d, 'document_count', 1),
+            })
+
+        return jsonify({
+            'id': e.id,
+            'expense_number': getattr(e, 'expense_number', None),
+            'title': e.title,
+            'description': e.description,
+            'status': e.status,
+            'total_amount': e.total_amount,
+            'currency': getattr(e, 'currency', 'CNY'),
+            'payment_status': getattr(e, 'payment_status', None),
+            'payment_date': _safe_datetime(getattr(e, 'payment_date', None)),
+            'payment_method': getattr(e, 'payment_method', None),
+            'owner_name': owner_name,
+            'owner_id': e.owner_id,
+            'customer_name': customer_name,
+            'project_name': project_name,
+            'created_at': _safe_datetime(e.created_at),
+            'items': items,
+            'items_count': len(items),
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] get_expense_detail error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 15: 创建行动记录
+# POST /internal/api/actions
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/actions', methods=['POST'])
+@internal_auth_required
+def create_action():
+    user = g.current_user
+    try:
+        from app.models.action import Action
+        from app.models.customer import Company, Contact
+        from app.models.project import Project
+
+        data = request.get_json() or {}
+        communication = (data.get('communication') or '').strip()
+        if not communication:
+            return jsonify({'error': '行动记录内容不能为空'}), 400
+
+        action_date = date.today()
+        if data.get('date'):
+            try:
+                action_date = date.fromisoformat(data['date'])
+            except ValueError:
+                pass
+
+        company_id = data.get('company_id')
+        project_id = data.get('project_id')
+        contact_id = data.get('contact_id')
+
+        # 权限验证：确认用户有权访问关联的项目/客户
+        if project_id:
+            p = get_viewable_data(Project, user, [Project.is_deleted == False]).filter(Project.id == project_id).first()
+            if not p:
+                return jsonify({'error': f'项目 {project_id} 不存在或无权访问'}), 404
+        if company_id:
+            c = get_viewable_data(Company, user, [Company.is_deleted == False]).filter(Company.id == company_id).first()
+            if not c:
+                return jsonify({'error': f'客户 {company_id} 不存在或无权访问'}), 404
+
+        action = Action(
+            date=action_date,
+            communication=communication,
+            company_id=company_id,
+            project_id=project_id,
+            contact_id=contact_id,
+            owner_id=user.id,
+            is_shared=True,
+        )
+        db.session.add(action)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'id': action.id,
+            'date': action.date.isoformat(),
+            'message': '行动记录已创建',
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f'[internal_api] create_action error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 16: 创建/获取工作日志草稿 + 添加工作项
+# POST /internal/api/worklogs
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/worklogs', methods=['POST'])
+@internal_auth_required
+def create_worklog_item():
+    user = g.current_user
+    try:
+        from app.models.worklog import WorkLog, WorkItem
+
+        data = request.get_json() or {}
+        title = (data.get('title') or '').strip()
+        if not title:
+            return jsonify({'error': '工作项标题不能为空'}), 400
+
+        log_date = date.today()
+        if data.get('date'):
+            try:
+                log_date = date.fromisoformat(data['date'])
+            except ValueError:
+                pass
+
+        # 获取或创建当日日志
+        worklog = WorkLog.get_or_create(user.id, log_date)
+        if worklog.status == 'submitted':
+            return jsonify({'error': f'{log_date} 的日志已提交，无法添加工作项'}), 400
+
+        item = WorkItem(
+            title=title,
+            description=data.get('description', ''),
+            planned_date=log_date,
+            work_type=data.get('work_type', 'other'),
+            status=data.get('status', 'completed'),
+            actual_hours=data.get('actual_hours'),
+            project_id=data.get('project_id'),
+            customer_id=data.get('company_id'),
+            owner_id=user.id,
+            worklog_id=worklog.id,
+        )
+        db.session.add(item)
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'worklog_id': worklog.id,
+            'item_id': item.id,
+            'date': log_date.isoformat(),
+            'worklog_status': worklog.status,
+            'message': f'工作项已添加到 {log_date} 日志',
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f'[internal_api] create_worklog_item error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 17: 提交工作日志
+# POST /internal/api/worklogs/<date>/submit
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/worklogs/<log_date>/submit', methods=['POST'])
+@internal_auth_required
+def submit_worklog(log_date):
+    user = g.current_user
+    try:
+        from app.models.worklog import WorkLog
+
+        try:
+            target_date = date.fromisoformat(log_date)
+        except ValueError:
+            return jsonify({'error': '日期格式无效，请用 YYYY-MM-DD'}), 400
+
+        worklog = WorkLog.get_or_create(user.id, target_date)
+
+        if worklog.status == 'submitted':
+            return jsonify({'error': f'{log_date} 的日志已经提交过了'}), 400
+
+        worklog.status = 'submitted'
+        worklog.submitted_at = datetime.now()
+
+        data = request.get_json() or {}
+        if data.get('additional_notes'):
+            worklog.additional_notes = data['additional_notes'].strip()
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'worklog_id': worklog.id,
+            'date': log_date,
+            'submitted_at': worklog.submitted_at.isoformat(),
+            'message': f'{log_date} 日志已提交',
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f'[internal_api] submit_worklog error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 18: 知识库问答
 # GET /internal/api/wiki/search?q=问题
 # ---------------------------------------------------------------------------
 
