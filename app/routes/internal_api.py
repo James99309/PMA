@@ -854,17 +854,41 @@ def dashboard():
 @internal_api_bp.route('/wiki/search', methods=['GET'])
 @internal_auth_required
 def wiki_search():
-    user = g.current_user
+    """全文检索知识库，返回匹配文章内容供 Claude 直接阅读分析。
+    不再内部调用 Claude API，由 MCP 调用方（Claude Desktop）负责理解。
+    """
     question = request.args.get('q', '').strip()
+    top_k = min(int(request.args.get('top_k', 5)), 10)
     if not question:
         return jsonify({'error': '问题不能为空'}), 400
     try:
-        from app.services.wiki.querier import query_wiki
-        result = query_wiki(question, current_user_id=user.id)
+        from app.services.wiki.querier import _full_text_search, _tokenize_query
+        from app.services.wiki import storage
+        from app.models.knowledge import KnowledgeWikiArticle
+
+        hits = _full_text_search(question, top_k, topic=None)
+
+        # 全文检索 0 命中时退化为最近更新的文章
+        if not hits:
+            hits = KnowledgeWikiArticle.query.order_by(
+                KnowledgeWikiArticle.updated_at.desc()
+            ).limit(top_k).all()
+
+        articles = []
+        for art in hits:
+            content = storage.read_article_content(art.file_path)
+            articles.append({
+                'id': art.id,
+                'title': art.title,
+                'topic': art.topic,
+                'summary': art.summary,
+                'content': content,
+            })
+
         return jsonify({
-            'answer': result.get('answer', ''),
-            'cited_articles': result.get('cited_articles', []),
-            'search_hit_count': result.get('search_hit_count', 0),
+            'question': question,
+            'articles': articles,
+            'fts_hit': len(hits) > 0,
         })
     except Exception as e:
         logger.exception(f'[internal_api] wiki_search error: {e}')
