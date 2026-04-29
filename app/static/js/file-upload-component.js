@@ -205,7 +205,11 @@ class FileUploadComponent {
             this.showProgress(label);
 
             try {
-                const result = await this.uploadSingleFile(file, (pct) => {
+                const CHUNK_THRESHOLD = 50 * 1024 * 1024; // 50MB
+                const uploadFn = file.size > CHUNK_THRESHOLD
+                    ? this.uploadChunked.bind(this)
+                    : this.uploadSingleFile.bind(this);
+                const result = await uploadFn(file, (pct) => {
                     this.updateProgress(pct);
                 });
                 if (result.success) {
@@ -270,6 +274,53 @@ class FileUploadComponent {
             xhr.timeout = 120000;
             xhr.send(formData);
         });
+    }
+
+    /**
+     * 分片上传大文件（>50MB），绕过 Cloudflare 100MB 限制
+     * @param {File} file
+     * @param {Function} onProgress
+     */
+    async uploadChunked(file, onProgress) {
+        const CHUNK_SIZE = 50 * 1024 * 1024; // 50MB
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        const uploadId = crypto.randomUUID();
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        const chunkApi = this.uploadApi.replace('/upload', '/upload/chunk');
+
+        for (let i = 0; i < totalChunks; i++) {
+            const chunk = file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+            const formData = new FormData();
+            formData.append('file', chunk, file.name);
+            formData.append('upload_id', uploadId);
+            formData.append('chunk_index', i);
+            formData.append('total_chunks', totalChunks);
+            formData.append('filename', file.name);
+            if (this.folderId) formData.append('folder_id', this.folderId);
+
+            const result = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.addEventListener('load', () => {
+                    try { resolve(JSON.parse(xhr.responseText)); }
+                    catch { reject(new Error(`服务器返回异常 (${xhr.status})`)); }
+                });
+                xhr.addEventListener('error', () => reject(new Error('网络连接失败')));
+                xhr.timeout = 300000; // 300s per chunk
+                xhr.addEventListener('timeout', () => reject(new Error('分片上传超时')));
+                xhr.open('POST', chunkApi);
+                xhr.withCredentials = true;
+                xhr.setRequestHeader('X-CSRFToken', csrfToken);
+                xhr.send(formData);
+            });
+
+            if (!result.success && !result.pending) {
+                return result; // 出错提前返回
+            }
+
+            if (onProgress) onProgress(Math.round((i + 1) / totalChunks * 100));
+
+            if (result.success) return result; // 最后一片，合并完成
+        }
     }
 
     /**

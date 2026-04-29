@@ -6,6 +6,7 @@
 """
 import os
 import logging
+import tempfile
 from flask import Blueprint, render_template, request, jsonify, abort
 from flask_login import login_required, current_user
 
@@ -127,6 +128,63 @@ def upload_file():
     if not ok:
         return jsonify({'success': False, 'message': result}), 400
     return jsonify({'success': True, 'data': result})
+
+
+@file_manager_bp.route('/api/upload/chunk', methods=['POST'])
+@login_required
+def upload_chunk():
+    """分片上传接口，供大文件（>50MB）使用"""
+    chunk = request.files.get('file')
+    upload_id = request.form.get('upload_id', '').strip()
+    filename = request.form.get('filename', '').strip()
+    folder_id = request.form.get('folder_id', None, type=int)
+
+    try:
+        chunk_index = int(request.form.get('chunk_index', 0))
+        total_chunks = int(request.form.get('total_chunks', 1))
+    except (ValueError, TypeError):
+        return jsonify({'success': False, 'message': '参数错误'}), 400
+
+    if not chunk or not upload_id or not filename:
+        return jsonify({'success': False, 'message': '缺少必要参数'}), 400
+
+    # 安全校验：upload_id 只允许 UUID 格式
+    import re
+    if not re.match(r'^[0-9a-f-]{36}$', upload_id):
+        return jsonify({'success': False, 'message': '无效的上传ID'}), 400
+
+    tmp_dir = os.path.join(tempfile.gettempdir(), 'pma_chunks', upload_id)
+    os.makedirs(tmp_dir, exist_ok=True)
+
+    # 保存分片
+    chunk_path = os.path.join(tmp_dir, f'{chunk_index:04d}')
+    chunk.save(chunk_path)
+
+    # 不是最后一片，返回 pending
+    if chunk_index < total_chunks - 1:
+        return jsonify({'success': False, 'pending': True, 'chunk': chunk_index})
+
+    # 最后一片：合并所有分片
+    try:
+        merged = bytearray()
+        for i in range(total_chunks):
+            part_path = os.path.join(tmp_dir, f'{i:04d}')
+            if not os.path.exists(part_path):
+                return jsonify({'success': False, 'message': f'分片 {i} 缺失，请重新上传'}), 400
+            with open(part_path, 'rb') as f:
+                merged.extend(f.read())
+
+        ok, result = FileManagerService.upload_file_from_bytes(
+            current_user, bytes(merged), filename, folder_id
+        )
+        if not ok:
+            return jsonify({'success': False, 'message': result}), 400
+        return jsonify({'success': True, 'data': result})
+
+    finally:
+        # 清理临时目录
+        import shutil
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ------------------------------------------------------------------

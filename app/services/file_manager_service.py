@@ -170,6 +170,67 @@ class FileManagerService:
         return True, ref.to_dict()
 
     @staticmethod
+    def upload_file_from_bytes(user, file_data: bytes, filename: str, folder_id=None):
+        """分片上传合并后的入口，与 upload_file 逻辑相同但接受 bytes。"""
+        if not filename:
+            return False, '文件名不能为空'
+
+        file_size = len(file_data)
+        if file_size == 0:
+            return False, '文件不能为空'
+
+        ok, msg = FileManagerService.check_quota(user, file_size)
+        if not ok:
+            return False, msg
+
+        if folder_id:
+            folder = UserFolder.query.filter_by(
+                id=folder_id, user_id=user.id, is_deleted=False
+            ).first()
+            if not folder:
+                return False, '文件夹不存在'
+
+        sha256 = hashlib.sha256(file_data).hexdigest()
+        mime_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+        existing_lib = FileLibrary.query.filter_by(sha256_hash=sha256).first()
+        if existing_lib:
+            if existing_lib.is_archived:
+                FileManagerService._restore_archived_in_place(existing_lib, file_data)
+            existing_lib.ref_count += 1
+            existing_lib.last_accessed_at = get_local_time()
+            lib_entry = existing_lib
+        else:
+            storage_result = FileManagerService._upload_to_storage(
+                user.id, file_data, filename, mime_type
+            )
+            if not storage_result:
+                return False, '文件上传到存储失败'
+
+            lib_entry = FileLibrary(
+                sha256_hash=sha256,
+                original_filename=filename,
+                file_size=file_size,
+                mime_type=mime_type,
+                storage_path=storage_result['storage_path'],
+                storage_type=storage_result.get('storage', 'nas'),
+                last_accessed_at=get_local_time(),
+            )
+            db.session.add(lib_entry)
+            db.session.flush()
+
+        ref = UserFileRef(
+            user_id=user.id,
+            folder_id=folder_id,
+            file_library_id=lib_entry.id,
+            display_name=filename,
+        )
+        db.session.add(ref)
+        user.storage_used = (user.storage_used or 0) + file_size
+        db.session.commit()
+        return True, ref.to_dict()
+
+    @staticmethod
     def _upload_to_storage(user_id, file_data, filename, mime_type):
         """上传文件到 NAS/Supabase"""
         try:

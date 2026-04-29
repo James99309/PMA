@@ -207,20 +207,25 @@ function fileManager() {
         },
 
         async _uploadFiles(fileList) {
+            const CHUNK_THRESHOLD = 50 * 1024 * 1024; // 50MB
             for (const file of fileList) {
                 const idx = this.uploadQueue.length;
                 this.uploadQueue.push({ name: file.name, status: 'uploading', progress: 0, errorMsg: '' });
 
-                const formData = new FormData();
-                formData.append('file', file);
-                if (this.currentFolderId) {
-                    formData.append('folder_id', this.currentFolderId);
-                }
+                const onProgress = (pct) => {
+                    if (this.uploadQueue[idx]) this.uploadQueue[idx].progress = pct;
+                };
 
                 try {
-                    const data = await this._uploadFileXHR(formData, (pct) => {
-                        if (this.uploadQueue[idx]) this.uploadQueue[idx].progress = pct;
-                    });
+                    let data;
+                    if (file.size > CHUNK_THRESHOLD) {
+                        data = await this._uploadFileChunked(file, this.currentFolderId, onProgress);
+                    } else {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        if (this.currentFolderId) formData.append('folder_id', this.currentFolderId);
+                        data = await this._uploadFileXHR(formData, onProgress);
+                    }
                     if (this.uploadQueue[idx]) {
                         this.uploadQueue[idx].status = data.success ? 'done' : 'error';
                         if (!data.success) this.uploadQueue[idx].errorMsg = data.message || '上传失败';
@@ -239,6 +244,43 @@ function fileManager() {
 
             // 5秒后清除上传队列
             setTimeout(() => { this.uploadQueue = []; }, 5000);
+        },
+
+        async _uploadFileChunked(file, folderId, onProgress) {
+            const CHUNK_SIZE = 50 * 1024 * 1024;
+            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            const uploadId = crypto.randomUUID();
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+
+            for (let i = 0; i < totalChunks; i++) {
+                const chunk = file.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+                const formData = new FormData();
+                formData.append('file', chunk, file.name);
+                formData.append('upload_id', uploadId);
+                formData.append('chunk_index', i);
+                formData.append('total_chunks', totalChunks);
+                formData.append('filename', file.name);
+                if (folderId) formData.append('folder_id', folderId);
+
+                const result = await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.addEventListener('load', () => {
+                        try { resolve(JSON.parse(xhr.responseText)); }
+                        catch { reject(new Error('服务器返回异常')); }
+                    });
+                    xhr.addEventListener('error', () => reject(new Error('网络连接失败')));
+                    xhr.timeout = 300000;
+                    xhr.addEventListener('timeout', () => reject(new Error('分片上传超时')));
+                    xhr.open('POST', '/files/api/upload/chunk');
+                    xhr.withCredentials = true;
+                    xhr.setRequestHeader('X-CSRFToken', csrfToken);
+                    xhr.send(formData);
+                });
+
+                if (!result.success && !result.pending) return result;
+                if (onProgress) onProgress(Math.round((i + 1) / totalChunks * 100));
+                if (result.success) return result;
+            }
         },
 
         _uploadFileXHR(formData, onProgress) {
