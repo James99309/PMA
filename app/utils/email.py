@@ -702,3 +702,148 @@ def send_claude_ai_token_email(user, token, is_reset=False, attach_dxt=True):
         logger.error(f'发送 Claude AI 邮件失败: {e}', exc_info=True)
         return False
 
+
+def send_dxt_install_email(user) -> bool:
+    """发送 Claude Desktop 扩展安装说明邮件（含 .dxt 附件）"""
+    try:
+        import os
+        if not user or not user.email:
+            logger.warning('send_dxt_install_email: 用户邮箱缺失')
+            return False
+        if not user.claude_ai_token:
+            logger.warning('send_dxt_install_email: 用户未开通 Claude AI')
+            return False
+
+        real_name = user.real_name or user.username
+        db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
+        is_cn = (db_type == 'sp8d')
+
+        if is_cn:
+            subject = f'PMA Claude Desktop 扩展安装指南 - {real_name}'
+            html_content = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#fff;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:48px 24px;">
+  <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #a0a0a0;">
+    <h1 style="font-size:28px;font-weight:300;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.05em;color:#1a1a1a;">PMA Claude AI</h1>
+    <p style="font-size:16px;color:#545454;margin:0;font-family:'Roboto Mono',monospace;">DESKTOP EXTENSION</p>
+  </div>
+  <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #a0a0a0;">
+    <p style="font-size:18px;color:#404040;margin:0;font-weight:300;">
+      <strong style="font-weight:500;">{real_name}</strong>，你的 PMA Claude Desktop 扩展已准备好，请按以下步骤完成安装。
+    </p>
+  </div>
+  <div style="margin-bottom:32px;">
+    <h3 style="font-size:16px;font-weight:500;color:#2c2c2c;margin:0 0 16px 0;">安装步骤</h3>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;width:32px;font-size:20px;">1</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>下载附件</strong><br>
+          <span style="color:#545454;">保存邮件附件 <code style="font-family:monospace;background:#f5f5f5;padding:2px 6px;border-radius:3px;">pma-{real_name}.dxt</code> 到电脑</span>
+        </td>
+      </tr>
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;font-size:20px;">2</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>打开 Claude Desktop</strong><br>
+          <span style="color:#545454;">点击左下角头像 → Settings → 左侧 Extensions</span>
+        </td>
+      </tr>
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;font-size:20px;">3</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>拖入安装</strong><br>
+          <span style="color:#545454;">将 .dxt 文件拖入 Extensions 页面中的 "Drag .MCPB or .DXT files here to install" 区域</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px;font-size:20px;">4</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>启用扩展</strong><br>
+          <span style="color:#545454;">安装后点击 PMA 扩展的开关将其启用，即可在对话中使用 PMA 数据查询</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+  <div style="border:1px solid #e8e8e8;border-radius:6px;padding:16px;margin-bottom:32px;background:#f9f9f9;">
+    <p style="font-size:13px;color:#545454;margin:0;">
+      安装完成后，你可以在 Claude Desktop 对话框中直接提问，例如：<br>
+      <em>"帮我查一下本月的报价单"</em>&nbsp;&nbsp;
+      <em>"最近有哪些待审批项目？"</em>
+    </p>
+  </div>
+  <div style="text-align:center;padding-top:32px;border-top:1px solid #a0a0a0;">
+    <p style="font-size:12px;color:#686868;margin:0;font-family:'Roboto Mono',monospace;">&copy; 2026 PMA系统管理团队. All rights reserved.</p>
+    <p style="font-size:11px;color:#a0a0a0;margin:8px 0 0 0;">此邮件由系统自动发送，请勿直接回复</p>
+  </div>
+</div>
+</body>
+</html>"""
+        else:
+            subject = f'PMA Claude Desktop Extension - Installation Guide - {real_name}'
+            html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"/></head>
+<body style="margin:0;padding:0;background:#fff;font-family:'Inter','Helvetica Neue',Arial,sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:48px 24px;">
+  <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #a0a0a0;">
+    <h1 style="font-size:28px;font-weight:300;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:.05em;color:#1a1a1a;">PMA Claude AI</h1>
+    <p style="font-size:16px;color:#545454;margin:0;font-family:'Roboto Mono',monospace;">DESKTOP EXTENSION</p>
+  </div>
+  <div style="text-align:center;padding-bottom:32px;margin-bottom:32px;border-bottom:1px solid #a0a0a0;">
+    <p style="font-size:18px;color:#404040;margin:0;font-weight:300;">
+      Hi <strong style="font-weight:500;">{real_name}</strong>, your PMA Claude Desktop extension is ready to install.
+    </p>
+  </div>
+  <div style="margin-bottom:32px;">
+    <h3 style="font-size:16px;font-weight:500;color:#2c2c2c;margin:0 0 16px 0;">Installation Steps</h3>
+    <table style="width:100%;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;width:32px;font-size:20px;">1</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>Download the attachment</strong><br>
+          <span style="color:#545454;">Save the email attachment <code style="font-family:monospace;background:#f5f5f5;padding:2px 6px;border-radius:3px;">pma-{real_name}.dxt</code> to your computer</span>
+        </td>
+      </tr>
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;font-size:20px;">2</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>Open Claude Desktop</strong><br>
+          <span style="color:#545454;">Click the avatar icon (bottom-left) → Settings → Extensions</span>
+        </td>
+      </tr>
+      <tr style="border-bottom:1px solid #e8e8e8;">
+        <td style="padding:12px 16px;font-size:20px;">3</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>Drag to install</strong><br>
+          <span style="color:#545454;">Drag the .dxt file into the "Drag .MCPB or .DXT files here to install" area on the Extensions page</span>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px;font-size:20px;">4</td>
+        <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
+          <strong>Enable the extension</strong><br>
+          <span style="color:#545454;">Toggle the PMA extension on — you can now query PMA data directly in Claude conversations</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+  <div style="text-align:center;padding-top:32px;border-top:1px solid #a0a0a0;">
+    <p style="font-size:12px;color:#686868;margin:0;font-family:'Roboto Mono',monospace;">&copy; 2026 PMA Team. All rights reserved.</p>
+    <p style="font-size:11px;color:#a0a0a0;margin:8px 0 0 0;">This email was sent automatically. Please do not reply.</p>
+  </div>
+</div>
+</body>
+</html>"""
+
+        dxt_bytes = generate_dxt_bytes(user.claude_ai_token, display_name='PMA')
+        attachments = [(f'pma-{real_name}.dxt', dxt_bytes)]
+        logger.info(f'发送 DXT 安装邮件给 {user.username} ({user.email})')
+        return send_email(subject, user.email, None, html=html_content, async_send=False, attachments=attachments)
+
+    except Exception as e:
+        logger.error(f'发送 DXT 安装邮件失败: {e}', exc_info=True)
+        return False
+

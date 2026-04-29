@@ -2828,10 +2828,10 @@ def api_claude_ai_send_dxt(user_id):
     if not user.email:
         return jsonify({'success': False, 'message': '用户未绑定邮箱'}), 400
     try:
-        from app.utils.email import send_claude_ai_token_email
-        sent = send_claude_ai_token_email(user, user.claude_ai_token, is_reset=False, attach_dxt=True)
+        from app.utils.email import send_dxt_install_email
+        sent = send_dxt_install_email(user)
         if sent:
-            return jsonify({'success': True, 'message': f'扩展文件已发送至 {user.email}'})
+            return jsonify({'success': True, 'message': f'扩展安装邮件已发送至 {user.email}'})
         return jsonify({'success': False, 'message': '邮件发送失败，请检查邮件配置'})
     except Exception as e:
         logger.exception(f'send_dxt error user={user_id}: {e}')
