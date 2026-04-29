@@ -9,3 +9,4 @@ def index():
 
 # 导入API模块
 from app.api.v1 import auth, users, permissions, affiliations, dictionary, discount_permissions, performance_dashboard, salary, configurations, cross_sync
+from app.api.v1 import mobile_projects, mobile_approval, mobile_customers, mobile_push

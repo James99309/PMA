@@ -36,6 +36,8 @@ class User(db.Model, UserMixin):
     _is_active = db.Column(db.Boolean, default=False, name="is_active")  # 账号是否激活，使用不同名称避免与属性冲突
     language_preference = db.Column(db.String(10), default='zh')  # 语言偏好设置，默认简体中文
     settlement_currency = db.Column(db.String(10), default=None)  # 结算货币，NULL则使用系统默认
+    push_token = db.Column(db.String(512), nullable=True)  # FCM/APNs 设备推送 token
+    push_platform = db.Column(db.String(10), nullable=True)  # ios 或 android
     linked_company_id = db.Column(db.Integer, db.ForeignKey('companies.id'), nullable=True)  # 关联外部用户到Company表(供应商/代理商/客户)
     storage_quota = db.Column(db.BigInteger, default=10737418240)  # 存储配额(字节), 默认10GB
     storage_used = db.Column(db.BigInteger, default=0)  # 已用存储(字节)
