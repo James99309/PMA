@@ -208,8 +208,8 @@ function fileManager() {
 
         async _uploadFiles(fileList) {
             for (const file of fileList) {
-                const queueItem = { name: file.name, status: 'uploading' };
-                this.uploadQueue.push(queueItem);
+                const idx = this.uploadQueue.length;
+                this.uploadQueue.push({ name: file.name, status: 'uploading', progress: 0, errorMsg: '' });
 
                 const formData = new FormData();
                 formData.append('file', file);
@@ -218,18 +218,18 @@ function fileManager() {
                 }
 
                 try {
-                    const res = await fetch('/files/api/upload', {
-                        method: 'POST',
-                        body: formData,
+                    const data = await this._uploadFileXHR(formData, (pct) => {
+                        if (this.uploadQueue[idx]) this.uploadQueue[idx].progress = pct;
                     });
-                    const data = await res.json();
-                    queueItem.status = data.success ? 'done' : 'error';
-                    if (!data.success) {
-                        console.error('上传失败:', data.message);
+                    if (this.uploadQueue[idx]) {
+                        this.uploadQueue[idx].status = data.success ? 'done' : 'error';
+                        if (!data.success) this.uploadQueue[idx].errorMsg = data.message || '上传失败';
                     }
                 } catch (e) {
-                    queueItem.status = 'error';
-                    console.error('上传异常:', e);
+                    if (this.uploadQueue[idx]) {
+                        this.uploadQueue[idx].status = 'error';
+                        this.uploadQueue[idx].errorMsg = e.message || '网络错误';
+                    }
                 }
             }
 
@@ -237,10 +237,29 @@ function fileManager() {
             this.loadFiles();
             this.loadFolderTree();
 
-            // 3秒后清除上传队列
-            setTimeout(() => {
-                this.uploadQueue = this.uploadQueue.filter(q => q.status === 'uploading');
-            }, 3000);
+            // 5秒后清除上传队列
+            setTimeout(() => { this.uploadQueue = []; }, 5000);
+        },
+
+        _uploadFileXHR(formData, onProgress) {
+            return new Promise((resolve, reject) => {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const xhr = new XMLHttpRequest();
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100));
+                });
+                xhr.addEventListener('load', () => {
+                    try { resolve(JSON.parse(xhr.responseText)); }
+                    catch { reject(new Error('服务器返回异常')); }
+                });
+                xhr.addEventListener('error', () => reject(new Error('网络连接失败')));
+                xhr.addEventListener('timeout', () => reject(new Error('上传超时')));
+                xhr.open('POST', '/files/api/upload');
+                xhr.withCredentials = true;
+                xhr.setRequestHeader('X-CSRFToken', csrfToken);
+                xhr.timeout = 120000;
+                xhr.send(formData);
+            });
         },
 
         // ------------------------------------------------------------------

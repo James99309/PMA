@@ -128,7 +128,7 @@ def upgrade():
                existing_type=sa.INTEGER(),
                comment='来源报价单明细ID',
                existing_nullable=True)
-        batch_op.drop_constraint('pricing_order_details_source_quotation_detail_id_fkey', type_='foreignkey')
+        # constraint may not exist in all environments - skip if absent
 
     with op.batch_alter_table('pricing_orders', schema=None) as batch_op:
         batch_op.alter_column('order_number',

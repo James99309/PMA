@@ -12,6 +12,12 @@ Create Date: 2025-12-24
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect, text
+
+
+def col_exists(table, col):
+    bind = op.get_bind()
+    return col in [c['name'] for c in inspect(bind).get_columns(table)]
 
 
 revision = 'move_code_fields_20251224'
@@ -22,35 +28,17 @@ depends_on = None
 
 def upgrade():
     # 1. 从 spec_definitions 表移除编码字段（如果存在）
-    try:
-        op.drop_column('spec_definitions', 'use_in_code')
-    except Exception:
-        pass  # 列可能不存在
-
-    try:
-        op.drop_column('spec_definitions', 'code_position')
-    except Exception:
-        pass
-
-    try:
-        op.drop_column('spec_definitions', 'code_options')
-    except Exception:
-        pass
+    for col in ('use_in_code', 'code_position', 'code_options'):
+        if col_exists('spec_definitions', col):
+            op.drop_column('spec_definitions', col)
 
     # 2. 向 spec_template_items 表添加编码字段
-    try:
+    if not col_exists('spec_template_items', 'use_in_code'):
         op.add_column('spec_template_items',
-            sa.Column('use_in_code', sa.Boolean(), nullable=True, default=False)
-        )
-    except Exception:
-        pass  # 列可能已存在
-
-    try:
+            sa.Column('use_in_code', sa.Boolean(), nullable=True, default=False))
+    if not col_exists('spec_template_items', 'code_length'):
         op.add_column('spec_template_items',
-            sa.Column('code_length', sa.Integer(), nullable=True, default=1)
-        )
-    except Exception:
-        pass
+            sa.Column('code_length', sa.Integer(), nullable=True, default=1))
 
 
 def downgrade():

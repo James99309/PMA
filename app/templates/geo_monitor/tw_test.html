@@ -10,24 +10,284 @@
     <noscript><link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"></noscript>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/marked/marked.min.js') }}"></script>
     <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
     <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
     <script>tailwind.config = { darkMode: "class", theme: { extend: { colors: { "primary": "#137fec", "background-light": "#faf8f6", "background-dark": "#1a1816" } } } }</script>
+    <style>
+        .geo-analysis h2 { font-size: 0.8rem; font-weight: 600; color: #334155; margin: 0.75rem 0 0.35rem; }
+        .geo-analysis ul, .geo-analysis ol { padding-left: 1.2rem; margin: 0.25rem 0; }
+        .geo-analysis li { margin: 0.2rem 0; font-size: 0.8rem; }
+        .geo-analysis p { font-size: 0.8rem; margin: 0.3rem 0; }
+        .dark .geo-analysis h2 { color: #cbd5e1; }
+        .dark .geo-analysis p, .dark .geo-analysis li { color: #94a3b8; }
+    </style>
 </head>
 <body class="bg-background-light dark:bg-background-dark">
 {% call(slot) render_tw_layout(active_page='geo_monitor') %}
 {% if slot == 'content' %}
-<div class="p-6 max-w-4xl space-y-6"
-     x-data="{
+<div class="p-6 max-w-4xl space-y-6" x-data="geoTestData()" @show-kb-article.window="kbModal.open=true; kbModal.title=$event.detail.title; kbModal.content=$event.detail.content">
+
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">手动测试</h1>
+        <a href="{{ url_for('geo_monitor.dashboard') }}" class="text-sm text-primary hover:underline">← 返回概览</a>
+    </div>
+
+    <div class="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                模拟搜索场景
+                <span class="text-xs font-normal text-slate-400 ml-1">— AI 会根据这个场景生成推荐型问题，再检测回答里是否出现品牌词</span>
+            </label>
+            <input type="text" x-model="title"
+                   placeholder="例：数据中心应急通讯设备推荐"
+                   @keydown.enter="run()"
+                   class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+        </div>
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">测试市场</label>
+            {% set market_labels = {'cn': '中文', 'en': '英文', 'my': '马来文', 'id': '印尼文', 'th': '泰文', 'vn': '越南文', 'ph': '菲律宾'} %}
+            <div class="flex gap-4 flex-wrap">
+                {% for m in markets %}
+                <label class="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" value="{{ m }}" x-model="selected" class="rounded">
+                    <span class="text-slate-700 dark:text-slate-300">{{ market_labels.get(m, m|upper) }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            <button @click="run()" :disabled="loading || selected.length === 0"
+                    class="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium disabled:opacity-60 hover:bg-primary/90">
+                ▶ 测试已选市场 (<span x-text="selected.length"></span>)
+            </button>
+            <span x-show="loading" style="display:none" class="text-sm text-slate-500">⏳ 搜索中（约30-60秒）...</span>
+        </div>
+    </div>
+
+    <!-- Error -->
+    <div x-show="error" x-cloak class="px-4 py-3 rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm" x-text="error"></div>
+
+    <!-- Results -->
+    <template x-if="results">
+        <div class="space-y-4">
+            <template x-for="[market, r] in Object.entries(results)" :key="market">
+                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <!-- 市场标题行 -->
+                    <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50">
+                        <div class="flex items-center justify-between mb-3">
+                            <span class="font-semibold text-slate-900 dark:text-white"
+                                  x-text="({'cn':'中文','en':'英文','my':'马来文','id':'印尼文','th':'泰文','vn':'越南文','ph':'菲律宾'}[market] || market.toUpperCase()) + '市场'"></span>
+                            <span x-show="r.error" class="px-2 py-1 rounded-full bg-red-100 text-red-600 text-xs font-medium" x-text="'调用失败: ' + r.error"></span>
+                        </div>
+                        <!-- 多品牌命中状态 -->
+                        <div x-show="!r.error && r.brand_analysis" class="flex flex-wrap gap-2">
+                            <template x-for="[brand, bdata] in Object.entries(r.brand_analysis || {})" :key="brand">
+                                <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border"
+                                      :class="{
+                                        'bg-green-50 text-green-700 border-green-200': bdata.mentioned === 'yes',
+                                        'bg-yellow-50 text-yellow-700 border-yellow-200': bdata.mentioned === 'indirect',
+                                        'bg-slate-100 text-slate-400 border-slate-200': bdata.mentioned === 'no'
+                                      }">
+                                    <span x-show="bdata.mentioned === 'yes'" class="text-green-500">✅</span>
+                                    <span x-show="bdata.mentioned === 'indirect'" class="text-yellow-500">⚠️</span>
+                                    <span x-show="bdata.mentioned === 'no'" class="text-slate-300">✗</span>
+                                    <span x-text="brand"></span>
+                                    <span x-show="bdata.mentioned === 'yes' && bdata.rank" class="text-xs opacity-70" x-text="'排名 #' + bdata.rank"></span>
+                                    <span x-show="bdata.mentioned === 'indirect'" class="text-xs opacity-70">间接提及</span>
+                                    <span x-show="bdata.mentioned === 'no'" class="text-xs opacity-60">未命中</span>
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="px-6 py-4 space-y-3">
+                        <div class="text-xs text-slate-500">
+                            <span class="font-medium">模拟搜索问题：</span>
+                            <span class="italic" x-text="r.query_text"></span>
+                        </div>
+                        <div x-show="r.ai_response">
+                            <div class="text-xs font-medium text-slate-500 mb-1">AI 的实际回答（用户会看到的内容）：</div>
+                            <div class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed max-h-64 overflow-y-auto bg-slate-50 dark:bg-slate-700/30 rounded-lg p-3"
+                                 x-html="r.ai_response ? (typeof marked !== 'undefined' ? marked.parse(r.ai_response) : r.ai_response.replace(/\n/g,'<br>')) : ''"></div>
+                        </div>
+                        <!-- 引用来源 -->
+                        <div x-show="r.cited_urls && r.cited_urls.length > 0">
+                            <div class="text-xs font-medium text-slate-500 mb-2">网络引用来源（共 <span x-text="r.cited_urls.length"></span> 条）— 点击「分析」获取 GEO 优化建议：</div>
+                            <div class="space-y-2">
+                                <template x-for="(ref, i) in r.cited_urls" :key="i">
+                                    <div class="border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden"
+                                         x-data="{ analyzing: false, analysis: null, analysisError: null, analysisOpen: true, generating: false, article: null, articleError: null, kbArticles: [] }">
+                                        <!-- 来源行 -->
+                                        <div class="flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800">
+                                            <span class="text-slate-400 text-xs flex-shrink-0" x-text="(i+1) + '.'"></span>
+                                            <div class="flex-1 min-w-0">
+                                                <a :href="ref.url" target="_blank"
+                                                   class="text-primary hover:underline text-xs font-medium block truncate"
+                                                   x-text="ref.title || ref.url"></a>
+                                                <div class="text-slate-400 text-xs truncate" x-text="ref.url"></div>
+                                            </div>
+                                            <button @click="
+                                                    analyzing = true; analysis = null; analysisError = null;
+                                                    fetch('{{ url_for('geo_monitor.analyze_url') }}', {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            'Content-Type': 'application/json',
+                                                            'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content
+                                                        },
+                                                        body: JSON.stringify({
+                                                            url: ref.url,
+                                                            title: ref.title,
+                                                            query_text: r.query_text,
+                                                            brand: '{{ settings.get('brand_name', 'Evertac').split(',')[0].strip() if settings else 'Evertac' }}'
+                                                        })
+                                                    })
+                                                    .then(res => res.json())
+                                                    .then(d => { analyzing = false; if(d.error) analysisError = d.error; else analysis = d.analysis; })
+                                                    .catch(e => { analyzing = false; analysisError = e.toString(); })
+                                                "
+                                                :disabled="analyzing"
+                                                class="flex-shrink-0 px-2.5 py-1 rounded text-xs font-medium border transition-colors"
+                                                :class="analysis ? 'bg-green-50 border-green-200 text-green-700' : 'bg-primary/5 border-primary/20 text-primary hover:bg-primary/10'">
+                                                <span x-show="!analyzing && !analysis">分析</span>
+                                                <span x-show="analyzing">分析中…</span>
+                                                <span x-show="analysis && !analyzing">重新分析</span>
+                                            </button>
+                                        </div>
+                                        <!-- 分析结果 -->
+                                        <div x-show="analysis || analysisError"
+                                             class="border-t border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/30">
+                                            <!-- 分析标题栏（可展开收起） -->
+                                            <div x-show="analysis"
+                                                 @click="analysisOpen = !analysisOpen"
+                                                 class="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700/50 select-none">
+                                                <span class="text-xs font-medium text-slate-500">GEO 分析结果</span>
+                                                <span class="text-slate-400 text-xs" x-text="analysisOpen ? '▲ 收起' : '▼ 展开'"></span>
+                                            </div>
+                                            <div x-show="analysisOpen" class="px-4 pb-3">
+                                                <div x-show="analysisError" class="text-xs text-red-500" x-text="analysisError"></div>
+                                                <div x-show="analysis"
+                                                     class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed geo-analysis"
+                                                     x-html="analysis ? (typeof marked !== 'undefined' ? marked.parse(analysis) : analysis.replace(/\n/g,'<br>')) : ''"></div>
+                                            </div>
+                                            <!-- 生成参考文章 -->
+                                            <div x-show="analysis" class="px-4 pb-3 pt-1 border-t border-slate-200 dark:border-slate-600">
+                                                <button x-show="!article && !generating"
+                                                        @click="
+                                                            generating = true; articleError = null;
+                                                            fetch('{{ url_for('geo_monitor.generate_article') }}', {
+                                                                method: 'POST',
+                                                                headers: {
+                                                                    'Content-Type': 'application/json',
+                                                                    'X-CSRFToken': document.querySelector('meta[name=csrf-token]').content
+                                                                },
+                                                                body: JSON.stringify({
+                                                                    url: ref.url,
+                                                                    query_text: r.query_text,
+                                                                    analysis: analysis,
+                                                                    brand: '{{ settings.get('brand_name', 'Evertac').split(',')[0].strip() if settings else 'Evertac' }}'
+                                                                })
+                                                            })
+                                                            .then(res => res.json())
+                                                            .then(d => { generating = false; if(d.error) articleError = d.error; else { article = d.article; kbArticles = d.kb_articles || []; } })
+                                                            .catch(e => { generating = false; articleError = e.toString(); })
+                                                        "
+                                                        class="px-3 py-1.5 rounded text-xs font-medium bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100">
+                                                    ✍ 生成参考文章
+                                                </button>
+                                                <span x-show="generating" class="text-xs text-slate-400">⏳ 正在生成文章...</span>
+                                                <div x-show="articleError" class="text-xs text-red-500 mt-1" x-text="articleError"></div>
+                                                <div x-show="article" class="mt-2">
+                                                    <!-- 文章标题栏 -->
+                                                    <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                                        <span class="text-xs font-medium text-indigo-700 dark:text-indigo-400">✍ 参考文章草稿</span>
+                                                        <div class="flex items-center gap-2 flex-wrap">
+                                                            <!-- 知识库来源（可点击弹窗） -->
+                                                            <template x-for="kb in kbArticles" :key="kb.title">
+                                                                <button @click="$dispatch('show-kb-article', {title: kb.title, content: kb.content})"
+                                                                        class="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-xs hover:bg-primary/10 hover:text-primary border border-transparent hover:border-primary/20"
+                                                                        x-text="'📄 ' + kb.title"></button>
+                                                            </template>
+                                                            <!-- 导出按钮 -->
+                                                            <button @click="
+                                                                    const blob = new Blob([article], {type: 'text/markdown'});
+                                                                    const a = document.createElement('a');
+                                                                    a.href = URL.createObjectURL(blob);
+                                                                    a.download = 'geo-article.md';
+                                                                    a.click();
+                                                                "
+                                                                class="px-2.5 py-1 rounded text-xs font-medium bg-slate-100 border border-slate-200 text-slate-600 hover:bg-slate-200">
+                                                                ↓ 导出 .md
+                                                            </button>
+                                                            <button @click="article = null; kbArticles = []"
+                                                                    class="text-xs text-slate-400 hover:text-slate-600">重新生成</button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed geo-analysis bg-white dark:bg-slate-800 rounded-lg p-4 border border-indigo-100 dark:border-indigo-900/40"
+                                                         x-html="article ? (typeof marked !== 'undefined' ? marked.parse(article) : article.replace(/\n/g,'<br>')) : ''"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        <div x-show="!r.cited_urls || r.cited_urls.length === 0" class="text-xs text-slate-400 italic">
+                            未使用网络搜索（AI 使用训练知识回答）
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </template>
+
+    <!-- 知识库文章弹窗 -->
+    <div x-show="kbModal.open" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4"
+         @keydown.escape.window="kbModal.open=false">
+        <div class="absolute inset-0 bg-black/40" @click="kbModal.open=false"></div>
+        <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+                <span class="font-medium text-slate-900 dark:text-white text-sm" x-text="kbModal.title"></span>
+                <button @click="kbModal.open=false" class="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+            </div>
+            <div class="overflow-y-auto px-5 py-4 flex-1">
+                <div class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed geo-analysis prose prose-sm max-w-none"
+                     x-html="kbModal.content ? (typeof marked !== 'undefined' ? marked.parse(kbModal.content) : kbModal.content.replace(/\n/g,'<br>')) : ''"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+function setupMarked() {
+    if (typeof marked === 'undefined') return;
+    const renderer = new marked.Renderer();
+    const origLink = renderer.link.bind(renderer);
+    renderer.link = function(href, title, text) {
+        return origLink(href, title, text).replace(/^<a /, '<a target="_blank" rel="noopener" ');
+    };
+    marked.use({ renderer });
+}
+// marked is defer-loaded, try immediately then retry
+setupMarked();
+document.addEventListener('DOMContentLoaded', setupMarked);
+
+function geoTestData() {
+    const markets = {{ markets | tojson }};
+    return {
         title: '',
-        markets: {{ markets | tojson }},
-        selected: {{ markets | tojson }},
+        markets: markets,
+        selected: markets.slice(),
+        kbModal: { open: false, title: '', content: '' },
         loading: false,
         results: null,
         error: null,
         async run() {
             if (!this.title.trim()) return;
-            this.loading = true; this.results = null; this.error = null;
+            this.loading = true;
+            this.results = null;
+            this.error = null;
             try {
                 const r = await fetch('{{ url_for("geo_monitor.test_run") }}', {
                     method: 'POST',
@@ -46,76 +306,9 @@
                 this.loading = false;
             }
         }
-     }">
-
-    <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-white">手动测试</h1>
-        <a href="{{ url_for('geo_monitor.dashboard') }}" class="text-sm text-primary hover:underline">← 返回概览</a>
-    </div>
-
-    <div class="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700 space-y-4">
-        <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">输入意图</label>
-            <input type="text" x-model="title"
-                   placeholder="例：数据中心应急通讯设备推荐"
-                   @keydown.enter="run()"
-                   class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
-        </div>
-        <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">测试市场</label>
-            <div class="flex gap-4 flex-wrap">
-                {% for m in markets %}
-                <label class="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="checkbox" :value="'{{ m }}'" x-model="selected" class="rounded">
-                    <span class="text-slate-700 dark:text-slate-300">{{ m|upper }}</span>
-                </label>
-                {% endfor %}
-            </div>
-        </div>
-        <div class="flex items-center gap-4">
-            <button @click="run()" :disabled="loading"
-                    class="px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium disabled:opacity-60 hover:bg-primary/90">
-                <span x-show="loading" style="display:none">⏳ 搜索中...</span>
-                <span x-show="!loading">▶ 同时测试所有市场</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Error -->
-    <div x-show="error" x-cloak class="px-4 py-3 rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm" x-text="error"></div>
-
-    <!-- Results -->
-    <template x-if="results">
-        <div class="space-y-4">
-            <template x-for="[market, r] in Object.entries(results)" :key="market">
-                <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                    <div class="px-6 py-3 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-700/50">
-                        <span class="font-semibold text-slate-900 dark:text-white" x-text="market.toUpperCase() + ' 结果'"></span>
-                        <span x-show="r.error" class="text-red-500 text-sm" x-text="'错误: ' + r.error"></span>
-                        <span x-show="!r.error && r.mentioned === 'yes'" class="text-green-600 font-medium text-sm">
-                            ✅ 已提及 <span x-show="r.rank" x-text="' 排名 #' + r.rank"></span>
-                        </span>
-                        <span x-show="!r.error && r.mentioned === 'indirect'" class="text-yellow-500 font-medium text-sm">⚠️ 间接提及</span>
-                        <span x-show="!r.error && r.mentioned === 'no'" class="text-red-500 font-medium text-sm">❌ 未提及</span>
-                    </div>
-                    <div class="px-6 py-4 space-y-3">
-                        <div class="text-xs text-slate-400">Query: <span class="italic" x-text="r.query_text"></span></div>
-                        <div x-show="r.ai_response"
-                             class="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto bg-slate-50 dark:bg-slate-700/30 rounded-lg p-3"
-                             x-text="r.ai_response"></div>
-                        <div x-show="r.cited_urls && r.cited_urls.length > 0">
-                            <div class="text-xs font-medium text-slate-500 mb-1">引用来源:</div>
-                            <template x-for="url in r.cited_urls" :key="url">
-                                <div class="text-xs text-primary truncate" x-text="url"></div>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-            </template>
-        </div>
-    </template>
-
-</div>
+    };
+}
+</script>
 {% endif %}
 {% endcall %}
 {{ render_tw_layout_script() }}

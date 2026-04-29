@@ -89,15 +89,10 @@ def upgrade():
                                          nullable=True,
                                          comment='分支路径，用于追踪审批分支'))
 
-    # 为分支相关字段创建索引以优化查询性能
-    try:
-        op.create_index('idx_approval_step_branch_level', 'approval_step', ['branch_level'])
-        op.create_index('idx_approval_step_parent_id', 'approval_step', ['parent_step_id'])
-        op.create_index('idx_approval_step_type', 'approval_step', ['step_type'])
-        op.create_index('idx_approval_step_branch_group', 'approval_step', ['branch_group_id'])
-    except Exception:
-        # 索引可能已存在，忽略错误
-        pass
+    op.execute("CREATE INDEX IF NOT EXISTS idx_approval_step_branch_level ON approval_step (branch_level)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_approval_step_parent_id ON approval_step (parent_step_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_approval_step_type ON approval_step (step_type)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_approval_step_branch_group ON approval_step (branch_group_id)")
 
 
 def downgrade():

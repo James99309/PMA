@@ -44,7 +44,7 @@
             <div class="grid grid-cols-2 gap-2">
                 {% for m in all_markets %}
                 <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                    <input type="checkbox" value="{{ m }}"
+                    <input type="checkbox" name="market_{{ m }}" value="{{ m }}"
                            {% if m in enabled_markets %}checked{% endif %}
                            @change="updateMarkets()"
                            class="rounded text-primary">
@@ -64,7 +64,7 @@
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">代理地址</label>
             <input type="text" name="proxy_url" value="{{ settings.get('proxy_url', '') }}"
                    class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm font-mono">
-            <p class="text-xs text-slate-400 mt-1">Mac Mini 代理地址，例：https://100.110.41.83:8317</p>
+            <p class="text-xs text-slate-400 mt-1">Mac Mini Anthropic 代理地址，例：https://100.110.41.83:8317</p>
         </div>
 
         <div>

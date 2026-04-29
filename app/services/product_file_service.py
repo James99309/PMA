@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # 文件类型配置
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 ALLOWED_PDF_EXTENSIONS = {'pdf'}
-MAX_FILE_SIZE = 12 * 1024 * 1024  # 12MB
+MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024  # 2GB（无实际限制）
 
 
 class ProductFileService:

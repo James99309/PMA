@@ -1,4 +1,5 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_modal_base.html' import tw_modal, tw_modal_content, tw_modal_footer, tw_close_btn %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 <head>
@@ -22,10 +23,37 @@
     <!-- Header -->
     <div class="flex items-center justify-between">
         <h1 class="text-2xl font-bold text-slate-900 dark:text-white">GEO 监控</h1>
-        <a href="{{ url_for('geo_monitor.test_page') }}"
-           class="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90">
-            手动测试
-        </a>
+        <div class="flex items-center gap-3">
+            <button onclick="document.getElementById('geoSettingsModal').classList.remove('hidden')"
+                    class="px-3 py-2 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 rounded-lg text-sm hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-1.5">
+                <span class="material-symbols-outlined text-base" style="font-size:16px">settings</span>
+                设置
+            </button>
+            <a href="{{ url_for('geo_monitor.test_page') }}"
+               class="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90">
+                手动测试
+            </a>
+        </div>
+    </div>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="px-4 py-3 rounded-lg {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200{% else %}bg-green-50 text-green-700 border border-green-200{% endif %} text-sm">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- 监控品牌展示 -->
+    {% set brands = settings.get('brand_name', 'Evertac').split(',') %}
+    <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <span>监控品牌：</span>
+        {% for b in brands %}
+        <span class="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">{{ b.strip() }}</span>
+        {% endfor %}
     </div>
 
     <!-- Metric Cards -->
@@ -75,14 +103,24 @@
                 {% set r = row.markets.get(market) %}
                 <td class="px-4 py-4 text-center">
                     {% if r %}
-                        {% if r.mentioned == 'yes' %}
+                        {% if r.error %}
+                            <span class="text-red-400 text-xs">错误</span>
+                        {% elif r.mentioned == 'yes' %}
                             <span class="text-green-600 font-medium">✅{% if r.rank %} #{{ r.rank }}{% endif %}</span>
                         {% elif r.mentioned == 'indirect' %}
-                            <span class="text-yellow-500">⚠️ 间接</span>
-                        {% elif r.error %}
-                            <span class="text-red-400 text-xs">错误</span>
+                            <span class="text-yellow-500">⚠️</span>
                         {% else %}
                             <span class="text-red-500">❌</span>
+                        {% endif %}
+                        <!-- 多品牌简报 -->
+                        {% if r.cited_urls and r.cited_urls is mapping %}
+                        <div class="mt-1 space-y-0.5">
+                            {% for brand, bdata in r.cited_urls.items() %}
+                            <div class="text-xs {% if bdata.get('mentioned') == 'yes' %}text-green-600{% elif bdata.get('mentioned') == 'indirect' %}text-yellow-500{% else %}text-slate-400{% endif %}">
+                                {{ brand }}: {% if bdata.get('mentioned') == 'yes' %}✓{% if bdata.get('rank') %} #{{ bdata.rank }}{% endif %}{% elif bdata.get('mentioned') == 'indirect' %}~{% else %}—{% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
                         {% endif %}
                     {% else %}
                         <span class="text-slate-400">—</span>
@@ -106,6 +144,68 @@
         </div>
     </div>
 </div>
+
+<!-- Settings Modal -->
+{% call tw_modal('geoSettingsModal', title='GEO 监控设置', close_action="document.getElementById('geoSettingsModal').classList.add('hidden')", show_close=true, max_width='max-w-lg') %}
+{% call tw_modal_content() %}
+<form id="geoSettingsForm" method="POST" action="{{ url_for('geo_monitor.settings') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="markets_enabled" id="marketsEnabledInput" value="{{ enabled_markets | join(',') }}">
+    <div class="space-y-5">
+
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">启用市场</label>
+            {% set market_labels = {'cn': '中文 CN', 'en': '英文 EN', 'my': '马来文 MY', 'id': '印尼文 ID', 'th': '泰文 TH', 'vn': '越南文 VN', 'ph': '菲律宾 PH'} %}
+            <div class="grid grid-cols-2 gap-2">
+                {% for m in all_markets %}
+                <label class="flex items-center gap-2 text-sm cursor-pointer p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <input type="checkbox" name="market_{{ m }}" value="{{ m }}"
+                           {% if m in enabled_markets %}checked{% endif %}
+                           onchange="updateMarketsInput()"
+                           class="rounded text-primary">
+                    <span class="text-slate-700 dark:text-slate-300">{{ market_labels[m] }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">监控品牌（多个用逗号分隔）</label>
+            <input type="text" name="brand_name" value="{{ settings.get('brand_name', 'Evertac') }}"
+                   placeholder="例：Evertac, Hytera, Motorola"
+                   class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm">
+            <p class="text-xs text-slate-400 mt-1">第一个为主品牌（用于判断提及率），其余为对比品牌</p>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">代理地址</label>
+            <input type="text" name="proxy_url" value="{{ settings.get('proxy_url', '') }}"
+                   class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm font-mono">
+            <p class="text-xs text-slate-400 mt-1">Mac Mini Anthropic 代理地址，例：https://100.110.41.83:8317</p>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Bearer Token</label>
+            <input type="password" name="proxy_token" value="{{ settings.get('proxy_token', '') }}"
+                   class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm font-mono">
+        </div>
+    </div>
+</form>
+{% endcall %}
+{{ tw_modal_footer(cancel_text='取消', submit_text='保存设置',
+                   cancel_onclick="document.getElementById('geoSettingsModal').classList.add('hidden')",
+                   submit_onclick="document.getElementById('geoSettingsForm').submit()",
+                   border=true) }}
+{% endcall %}
+
+<script>
+function updateMarketsInput() {
+    const checked = [...document.querySelectorAll('input[name^="market_"]')]
+        .filter(c => c.checked).map(c => c.value);
+    document.getElementById('marketsEnabledInput').value = checked.join(',');
+}
+</script>
+
 {% endif %}
 {% endcall %}
 {{ render_tw_layout_script() }}

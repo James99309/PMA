@@ -9,6 +9,14 @@ Create Date: 2025-06-05 10:21:57.790296
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import inspect
+
+
+def index_exists(table_name, index_name):
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    return any(idx['name'] == index_name for idx in inspector.get_indexes(table_name))
+
 
 # revision identifiers, used by Alembic.
 revision = '03eaf48bf549'
@@ -102,6 +110,9 @@ def upgrade():
                existing_comment='项目评分(1-5星)，NULL表示未评分',
                existing_nullable=True)
 
+    if index_exists('quotation_details', 'idx_quotation_details_implant_subtotal'):
+        op.drop_index('idx_quotation_details_implant_subtotal', table_name='quotation_details')
+
     with op.batch_alter_table('quotation_details', schema=None) as batch_op:
         batch_op.alter_column('implant_subtotal',
                existing_type=sa.NUMERIC(precision=12, scale=2),
@@ -110,7 +121,9 @@ def upgrade():
                existing_comment='植入小计：当产品品牌是和源通信时，零售价格 * 产品数量的值',
                existing_nullable=True,
                existing_server_default=sa.text('0.00'))
-        batch_op.drop_index('idx_quotation_details_implant_subtotal')
+
+    if index_exists('quotations', 'idx_quotations_implant_total_amount'):
+        op.drop_index('idx_quotations_implant_total_amount', table_name='quotations')
 
     with op.batch_alter_table('quotations', schema=None) as batch_op:
         batch_op.alter_column('implant_total_amount',
@@ -124,7 +137,6 @@ def upgrade():
                existing_type=postgresql.TIMESTAMP(timezone=True),
                type_=sa.DateTime(),
                existing_nullable=True)
-        batch_op.drop_index('idx_quotations_implant_total_amount')
 
     # ### end Alembic commands ###
 

@@ -12,14 +12,14 @@
    - delete_api: 删除API路径模板，{index}会被替换 (必需)
    - preview_api: 预览API路径模板，{index}会被替换 (必需)
    - accept_types: 接受的文件类型 (可选，默认 'image/*,.pdf')
-   - max_file_size: 最大文件大小，单位字节 (可选，默认 5MB)
+   - max_file_size: 最大文件大小，单位字节 (可选，默认 0=不限制)
    - max_files: 最大文件数量 (可选，默认 10)
    - readonly: 是否只读模式 (可选，默认 false)
    - label: 标签文本 (可选，默认 '附件')
    - show_label: 是否显示标签 (可选，默认 true)
 #}
 
-{% macro render_file_upload(container_id, entity_type, entity_id, files=[], upload_api='', delete_api='', preview_api='', accept_types='image/*,.pdf', max_file_size=5242880, max_files=10, readonly=false, label='附件', show_label=true) %}
+{% macro render_file_upload(container_id, entity_type, entity_id, files=[], upload_api='', delete_api='', preview_api='', accept_types='image/*,.pdf', max_file_size=0, max_files=10, readonly=false, label='附件', show_label=true) %}
 <div id="{{ container_id }}" class="file-upload-component"
      data-entity-type="{{ entity_type }}"
      data-entity-id="{{ entity_id }}"
@@ -65,9 +65,13 @@
 
     {# 上传进度提示 #}
     <div class="upload-progress hidden mt-2">
-        <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <div class="flex items-center gap-1 text-sm text-slate-500 dark:text-slate-400 mb-1">
             <span class="material-symbols-outlined animate-spin" style="font-size: 16px;">progress_activity</span>
             <span class="upload-progress-text">{{ _('上传中...') }}</span>
+            <span class="upload-progress-percent ml-auto text-xs font-medium">0%</span>
+        </div>
+        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+            <div class="upload-progress-bar bg-primary h-1.5 rounded-full transition-[width] duration-150 ease-out" style="width: 0%"></div>
         </div>
     </div>
 
@@ -220,7 +224,7 @@
 
 {# 用于新建日志时的附件上传（无entity_id） #}
 {# compact: 紧凑模式，只显示图标不显示文件名，适用于空间有限的场景 #}
-{% macro render_new_file_upload(container_id, entity_type, accept_types='image/*,.pdf', max_file_size=5242880, max_files=10, label='附件', show_label=true, compact=false) %}
+{% macro render_new_file_upload(container_id, entity_type, accept_types='image/*,.pdf', max_file_size=0, max_files=10, label='附件', show_label=true, compact=false) %}
 <div id="{{ container_id }}" class="file-upload-component file-upload-new"
      data-entity-type="{{ entity_type }}"
      data-entity-id=""

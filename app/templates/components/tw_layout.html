@@ -297,13 +297,20 @@ document.addEventListener('submit', function(e) {
                         <input type="file" multiple class="hidden" @change="handleQuickUpload($event)">
                     </label>
                     {# 上传列表 #}
-                    <div class="mt-3 max-h-32 overflow-y-auto" x-show="items.length > 0">
+                    <div class="mt-3 max-h-48 overflow-y-auto space-y-1" x-show="items.length > 0">
                         <template x-for="(item, idx) in items" :key="idx">
-                            <div class="flex items-center gap-2 py-1 text-xs">
-                                <span class="material-symbols-outlined text-sm animate-spin text-primary" x-show="item.status === 'uploading'">progress_activity</span>
-                                <span class="material-symbols-outlined text-sm text-green-500" x-show="item.status === 'done'">check_circle</span>
-                                <span class="material-symbols-outlined text-sm text-red-500" x-show="item.status === 'error'">error</span>
-                                <span class="truncate flex-1 text-slate-600 dark:text-slate-400" x-text="item.name"></span>
+                            <div class="py-1 text-xs">
+                                <div class="flex items-center gap-2">
+                                    <span class="material-symbols-outlined text-sm flex-shrink-0 animate-spin text-primary" x-show="item.status === 'uploading'">progress_activity</span>
+                                    <span class="material-symbols-outlined text-sm flex-shrink-0 text-green-500" x-show="item.status === 'done'">check_circle</span>
+                                    <span class="material-symbols-outlined text-sm flex-shrink-0 text-red-500" x-show="item.status === 'error'">error</span>
+                                    <span class="truncate flex-1 text-slate-600 dark:text-slate-400" x-text="item.name"></span>
+                                    <span class="flex-shrink-0 text-slate-400 tabular-nums" x-show="item.status === 'uploading'" x-text="item.progress + '%'"></span>
+                                </div>
+                                <div class="mt-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1 overflow-hidden" x-show="item.status === 'uploading'">
+                                    <div class="bg-primary h-1 rounded-full transition-[width] duration-150 ease-out" :style="'width:' + item.progress + '%'"></div>
+                                </div>
+                                <div class="mt-0.5 pl-5 text-red-500" x-show="item.status === 'error'" x-text="item.errorMsg"></div>
                             </div>
                         </template>
                     </div>
@@ -878,17 +885,46 @@ function quickUpload() {
         },
         async _doUpload(fileList) {
             for (const file of fileList) {
-                const item = { name: file.name, status: 'uploading' };
-                this.items.push(item);
+                const idx = this.items.length;
+                this.items.push({ name: file.name, status: 'uploading', progress: 0, errorMsg: '' });
+                try {
+                    const data = await this._uploadFile(file, (pct) => {
+                        if (this.items[idx]) this.items[idx].progress = pct;
+                    });
+                    if (this.items[idx]) {
+                        this.items[idx].status = data.success ? 'done' : 'error';
+                        if (!data.success) this.items[idx].errorMsg = data.message || '上传失败';
+                    }
+                } catch (e) {
+                    if (this.items[idx]) {
+                        this.items[idx].status = 'error';
+                        this.items[idx].errorMsg = e.message || '网络错误';
+                    }
+                }
+            }
+            setTimeout(() => { this.items = []; }, 6000);
+        },
+        _uploadFile(file, onProgress) {
+            return new Promise((resolve, reject) => {
                 const fd = new FormData();
                 fd.append('file', file);
-                try {
-                    const res = await fetch('/files/api/upload', { method: 'POST', body: fd });
-                    const data = await res.json();
-                    item.status = data.success ? 'done' : 'error';
-                } catch { item.status = 'error'; }
-            }
-            setTimeout(() => { this.items = this.items.filter(i => i.status === 'uploading'); }, 5000);
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const xhr = new XMLHttpRequest();
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable && onProgress) onProgress(Math.round(e.loaded / e.total * 100));
+                });
+                xhr.addEventListener('load', () => {
+                    try { resolve(JSON.parse(xhr.responseText)); }
+                    catch { reject(new Error('服务器返回异常')); }
+                });
+                xhr.addEventListener('error', () => reject(new Error('网络连接失败')));
+                xhr.addEventListener('timeout', () => reject(new Error('上传超时')));
+                xhr.open('POST', '/files/api/upload');
+                xhr.withCredentials = true;
+                xhr.setRequestHeader('X-CSRFToken', csrfToken);
+                xhr.timeout = 120000;
+                xhr.send(fd);
+            });
         }
     };
 }

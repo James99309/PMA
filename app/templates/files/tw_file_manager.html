@@ -517,11 +517,18 @@
                         <span class="text-xs text-slate-400" x-text="uploadQueue.length + ' {{ _('个文件') }}'"></span>
                     </div>
                     <template x-for="(item, idx) in uploadQueue" :key="idx">
-                        <div class="flex items-center gap-2 py-1">
-                            <span class="material-symbols-outlined text-sm animate-spin text-primary" x-show="item.status === 'uploading'">progress_activity</span>
-                            <span class="material-symbols-outlined text-sm text-green-500" x-show="item.status === 'done'">check_circle</span>
-                            <span class="material-symbols-outlined text-sm text-red-500" x-show="item.status === 'error'">error</span>
-                            <span class="text-xs text-slate-600 dark:text-slate-400 truncate flex-1" x-text="item.name"></span>
+                        <div class="py-1 text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="material-symbols-outlined text-sm flex-shrink-0 animate-spin text-primary" x-show="item.status === 'uploading'">progress_activity</span>
+                                <span class="material-symbols-outlined text-sm flex-shrink-0 text-green-500" x-show="item.status === 'done'">check_circle</span>
+                                <span class="material-symbols-outlined text-sm flex-shrink-0 text-red-500" x-show="item.status === 'error'">error</span>
+                                <span class="text-slate-600 dark:text-slate-400 truncate flex-1" x-text="item.name"></span>
+                                <span class="flex-shrink-0 text-slate-400 tabular-nums" x-show="item.status === 'uploading'" x-text="item.progress + '%'"></span>
+                            </div>
+                            <div class="mt-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full h-1 overflow-hidden" x-show="item.status === 'uploading'">
+                                <div class="bg-primary h-1 rounded-full transition-[width] duration-150 ease-out" :style="'width:' + item.progress + '%'"></div>
+                            </div>
+                            <div class="mt-0.5 pl-5 text-red-500" x-show="item.status === 'error'" x-text="item.errorMsg"></div>
                         </div>
                     </template>
                 </div>
