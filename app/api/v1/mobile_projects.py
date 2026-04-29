@@ -11,26 +11,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 # 实际使用的阶段值（来自 dictionary_helpers.py）
-STAGE_LABELS = {
-    'discover':   '发现',
-    'embed':      '植入',
-    'pre_tender': '标前',
-    'tendering':  '标中',
-    'awarded':    '中标',
-    'quoted':     '批价',
-    'signed':     '签约',
-    'lost':       '失败',
-    'paused':     '搁置',
-}
+from app.utils.dictionary_helpers import (
+    PROJECT_STAGE_LABELS, ACTIVITY_STATUS_LABELS
+)
 
-ACTIVITY_LABELS = {
-    'highly_active': '非常活跃',
-    'active':        '活跃',
-    'normal':        '正常',
-    'low_active':    '低活跃',
-    'inactive':      '不活跃',
-    'frozen':        '冻结',
-}
+def _stage_label(key):
+    """直接使用 PMA 字典，未知值原样返回"""
+    if not key:
+        return ''
+    return PROJECT_STAGE_LABELS.get(key, {}).get('zh', key)
+
+def _activity_label(key):
+    if not key:
+        return ''
+    return ACTIVITY_STATUS_LABELS.get(key, {}).get('zh', key)
 
 AUTH_STATUS_LABELS = {
     None:       '未申请',
@@ -39,6 +33,9 @@ AUTH_STATUS_LABELS = {
     'approved': '已授权',
 }
 
+# 保留供阶段选择器使用（标准可选阶段）
+STAGE_LABELS = {k: v['zh'] for k, v in PROJECT_STAGE_LABELS.items()}
+
 
 def _project_summary(p):
     amount = p.quotation_customer or 0
@@ -46,7 +43,7 @@ def _project_summary(p):
         'id': p.id,
         'name': p.project_name,
         'current_stage': p.current_stage,
-        'stage_label': STAGE_LABELS.get(p.current_stage, p.current_stage or ''),
+        'stage_label': _stage_label(p.current_stage),
         'status': p.status,
         'amount': round(amount / 10000, 2) if amount else 0,
         'currency': getattr(p, 'quotation_currency', 'CNY') or 'CNY',
@@ -61,7 +58,7 @@ def _project_detail(p):
         # 阶段与活跃度
         'stage_description': p.stage_description,
         'activity_status': p.activity_status,
-        'activity_label': ACTIVITY_LABELS.get(p.activity_status, p.activity_status or ''),
+        'activity_label': _activity_label(p.activity_status),
         # 授权信息（authorization_code 有值才是真正已获授权，status 在批准后会被清为 None）
         'authorization_status': p.authorization_status,
         'authorization_status_label': (
@@ -213,7 +210,7 @@ def mobile_project_update_stage(project_id):
     if result.get('error'):
         return api_response(success=False, code=400, message=result['error'])
 
-    new_label = STAGE_LABELS.get(new_stage, new_stage)
+    new_label = _stage_label(new_stage)
     return api_response(success=True, message=f"阶段已更新为「{new_label}」", data={
         'current_stage': new_stage,
         'stage_label': new_label,
