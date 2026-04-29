@@ -19,8 +19,8 @@ async function handleLogout() {
 
 <template>
   <div class="flex flex-col h-full bg-gray-50">
-    <!-- 顶部状态栏占位 -->
-    <div class="safe-top bg-white" />
+    <!-- 顶部安全区域占位（刘海/灵动岛）-->
+    <div class="bg-white" style="height: env(safe-area-inset-top)" />
 
     <!-- 主内容区 -->
     <div class="flex-1 overflow-hidden">
@@ -28,7 +28,7 @@ async function handleLogout() {
     </div>
 
     <!-- 底部导航 -->
-    <nav class="bg-white border-t border-gray-100 safe-bottom">
+    <nav class="bg-white border-t border-gray-100" style="padding-bottom: env(safe-area-inset-bottom)">
       <div class="flex">
         <RouterLink
           v-for="tab in tabs"

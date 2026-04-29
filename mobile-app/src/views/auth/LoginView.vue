@@ -22,7 +22,13 @@ async function handleLogin() {
     await auth.login(username.value, password.value)
     router.push('/')
   } catch (e) {
-    error.value = e.response?.data?.message || '登录失败，请重试'
+    if (e.code === 'ERR_NETWORK' || e.message === 'Network Error') {
+      error.value = `网络错误：无法连接服务器 (${e.config?.baseURL})`
+    } else if (e.code === 'ECONNABORTED') {
+      error.value = `超时：服务器无响应 (${e.config?.baseURL})`
+    } else {
+      error.value = e.response?.data?.message || `错误: ${e.message}`
+    }
   } finally {
     loading.value = false
   }

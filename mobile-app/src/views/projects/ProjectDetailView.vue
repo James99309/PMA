@@ -88,7 +88,7 @@ const stageLabel = {
         </div>
         <div v-if="project.stage_description" class="py-3 text-sm">
           <p class="text-gray-500 mb-1">阶段描述</p>
-          <p class="text-gray-800">{{ project.stage_description }}</p>
+          <p class="text-gray-800 break-words leading-relaxed line-clamp-6">{{ project.stage_description }}</p>
         </div>
       </div>
 
