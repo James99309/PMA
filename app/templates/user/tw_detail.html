@@ -1006,25 +1006,19 @@
                                 }
                             });
                         },
-                        sendDxt() {
+                        async sendDxt() {
                             const self = this;
-                            openConfirmModal('claudeToggleModal', {
-                                title: '发送 Claude Desktop 扩展',
-                                message: `将向用户邮箱发送 <strong>Claude Desktop 扩展安装文件（.dxt）</strong>，邮件中包含安装说明。<br><br>收件人：<strong>${self.data.email || '用户邮箱'}</strong>`,
-                                onConfirm: async () => {
-                                    self.loading = true;
-                                    try {
-                                        const r = await fetch(`/user/api/${self.userId}/claude-ai/send-dxt`, {method: 'POST'});
-                                        const d = await r.json();
-                                        if (!d.success) throw new Error(d.message || '发送失败');
-                                        self.flash('✓ 扩展安装邮件已发送至 ' + (self.data.email || '用户邮箱'), 'info');
-                                    } catch(e) {
-                                        self.flash('✗ ' + e.message, 'error');
-                                    } finally {
-                                        self.loading = false;
-                                    }
-                                }
-                            });
+                            self.loading = true;
+                            try {
+                                const r = await fetch(`/user/api/${self.userId}/claude-ai/send-dxt`, {method: 'POST'});
+                                const d = await r.json();
+                                if (!d.success) throw new Error(d.message || '发送失败');
+                                self.flash('✓ 扩展安装邮件已发送至 ' + (self.data.email || '用户邮箱'), 'info');
+                            } catch(e) {
+                                self.flash('✗ ' + e.message, 'error');
+                            } finally {
+                                self.loading = false;
+                            }
                         },
                         unlockDevice() {
                             const self = this;
