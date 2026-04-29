@@ -691,9 +691,9 @@ def send_claude_ai_token_email(user, token, is_reset=False, attach_dxt=True):
         attachments = None
         if attach_dxt and not is_reset:
             try:
-                real_name = user.real_name or user.username
                 dxt_bytes = generate_dxt_bytes(token, display_name='PMA')
-                attachments = [(f'pma-{real_name}.dxt', dxt_bytes)]
+                safe_name = (user.username or 'user').lower()
+                attachments = [(f'pma-{safe_name}.dxt', dxt_bytes)]
             except Exception as e:
                 logger.warning(f'生成 DXT 附件失败，继续发送邮件: {e}')
         return send_email(subject, user.email, None, html=html_content, async_send=False, attachments=attachments)
@@ -715,6 +715,7 @@ def send_dxt_install_email(user) -> bool:
             return False
 
         real_name = user.real_name or user.username
+        safe_name = (user.username or 'user').lower()
         db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
         is_cn = (db_type == 'sp8d')
 
@@ -741,7 +742,7 @@ def send_dxt_install_email(user) -> bool:
         <td style="padding:12px 16px;width:32px;font-size:20px;">1</td>
         <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
           <strong>下载附件</strong><br>
-          <span style="color:#545454;">保存邮件附件 <code style="font-family:monospace;background:#f5f5f5;padding:2px 6px;border-radius:3px;">pma-{real_name}.dxt</code> 到电脑</span>
+          <span style="color:#545454;">保存邮件附件 <code style="font-family:monospace;background:#f5f5f5;padding:2px 6px;border-radius:3px;">pma-{safe_name}.dxt</code> 到电脑</span>
         </td>
       </tr>
       <tr style="border-bottom:1px solid #e8e8e8;">
@@ -804,7 +805,7 @@ def send_dxt_install_email(user) -> bool:
         <td style="padding:12px 16px;width:32px;font-size:20px;">1</td>
         <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
           <strong>Download the attachment</strong><br>
-          <span style="color:#545454;">Save the email attachment <code style="font-family:monospace;background:#f5f5f5;padding:2px 6px;border-radius:3px;">pma-{real_name}.dxt</code> to your computer</span>
+          <span style="color:#545454;">Save the email attachment <code style="font-family:monospace;background:#f5f5f5;padding:2px 6px;border-radius:3px;">pma-{safe_name}.dxt</code> to your computer</span>
         </td>
       </tr>
       <tr style="border-bottom:1px solid #e8e8e8;">
@@ -839,7 +840,7 @@ def send_dxt_install_email(user) -> bool:
 </html>"""
 
         dxt_bytes = generate_dxt_bytes(user.claude_ai_token, display_name='PMA')
-        attachments = [(f'pma-{real_name}.dxt', dxt_bytes)]
+        attachments = [(f'pma-{safe_name}.dxt', dxt_bytes)]
         logger.info(f'发送 DXT 安装邮件给 {user.username} ({user.email})')
         return send_email(subject, user.email, None, html=html_content, async_send=False, attachments=attachments)
 
