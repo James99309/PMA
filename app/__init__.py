@@ -133,6 +133,17 @@ def create_app(config_class=Config):
     # 初始化登录管理器
     login_manager.login_view = 'auth.login'
     login_manager.init_app(app)
+
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        from flask import request, jsonify, redirect, url_for
+        # AJAX / API 请求返回 JSON 401，避免返回 HTML 重定向
+        if (request.is_json
+                or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+                or request.path.startswith('/api/')
+                or '/api/' in request.path):
+            return jsonify({'success': False, 'message': '会话已过期，请刷新页面重新登录'}), 401
+        return redirect(url_for('auth.login', next=request.url))
     
     # 初始化JWT
     jwt.init_app(app)

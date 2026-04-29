@@ -969,6 +969,8 @@
                                             headers: {'Content-Type': 'application/json'},
                                             body: JSON.stringify({quota: self.quotaInput})
                                         });
+                                        if (r.status === 401) throw new Error('会话已过期，请刷新页面重新登录');
+                                        if (r.status === 403) throw new Error('权限不足');
                                         const d = await r.json();
                                         if (!d.success) throw new Error(d.message || '操作失败');
                                         let msg = turnOn ? '✓ 已启用' : '✓ 已禁用';
