@@ -498,6 +498,11 @@ def create_app(config_class=Config):
     from app.routes.geo_monitor import geo_monitor_bp
     app.register_blueprint(geo_monitor_bp, url_prefix='/geo')
 
+    # 注册内部 API 蓝图（供 MCP Server 以用户身份查询数据，使用 X-Internal-Token 鉴权）
+    from app.routes.internal_api import internal_api_bp
+    app.register_blueprint(internal_api_bp)
+    csrf.exempt(internal_api_bp)  # 内部 API 使用 token 鉴权，豁免 CSRF
+
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
     app.register_blueprint(backup_bp)
@@ -677,6 +682,7 @@ def create_app(config_class=Config):
             '/health',  # 健康检查（Docker + OpenClaw 回调验证）
             '/system-diagram/s/',  # 系统设计图外部分享页面（邮箱验证访问）
             '/api/dingtalk/',  # 钉钉服务器回调（企业事件推送，自有签名验证）
+            '/internal/api/',  # 内部 API（MCP Server 专用，使用 X-Internal-Token 鉴权）
         ]
         
         # 检查当前路径是否需要登录
