@@ -80,7 +80,7 @@ def mobile_customer_detail(company_id):
     if not can_view_company(user, company):
         return api_response(success=False, code=403, message="无权访问此客户")
 
-    contacts = Contact.query.filter_by(company_id=company_id, is_deleted=False).all()
+    contacts = Contact.query.filter_by(company_id=company_id).all()
     return api_response(success=True, data={
         'id': company.id,
         'name': company.name,
@@ -115,7 +115,6 @@ def mobile_contact_search():
         Contact.query
         .filter(
             Contact.company_id.in_(viewable_company_ids),
-            Contact.is_deleted == False,
             (Contact.name.ilike(f'%{q}%') | Contact.phone.ilike(f'%{q}%'))
         )
         .limit(20)

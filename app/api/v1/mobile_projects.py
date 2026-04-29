@@ -16,14 +16,15 @@ STAGE_LABEL = {
 }
 
 def _project_summary(p):
+    amount = p.quotation_customer or 0  # 已是元单位，转万元
     return {
         'id': p.id,
-        'name': p.name,
+        'name': p.project_name,
         'current_stage': p.current_stage,
         'stage_label': STAGE_LABEL.get(p.current_stage, p.current_stage or ''),
         'status': p.status,
-        'amount': p.amount / 10000 if p.amount else 0,
-        'currency': getattr(p, 'currency', 'CNY'),
+        'amount': round(amount / 10000, 2) if amount else 0,
+        'currency': getattr(p, 'quotation_currency', 'CNY') or 'CNY',
         'owner_name': p.owner.real_name or p.owner.username if p.owner else '',
         'updated_at': p.updated_at.isoformat() if p.updated_at else None,
     }
@@ -64,7 +65,7 @@ def mobile_project_list():
     query = get_viewable_data(Project, user, [Project.is_deleted == False])
 
     if search:
-        query = query.filter(Project.name.ilike(f'%{search}%'))
+        query = query.filter(Project.project_name.ilike(f'%{search}%'))
     if stage:
         query = query.filter(Project.current_stage == stage)
 
