@@ -88,9 +88,13 @@ def _project_detail(p):
         'created_at': p.created_at.isoformat() if p.created_at else None,
     })
     try:
-        assocs = p.customer_associations if hasattr(p, 'customer_associations') else []
+        assocs = p.customer_associations.all() if hasattr(p, 'customer_associations') else []
         d['customers'] = [
-            {'id': a.company.id, 'name': a.company.name}
+            {
+                'id': a.company.id,
+                'name': a.company.company_name,
+                'type': a.customer_type,
+            }
             for a in assocs if a.company
         ]
     except Exception:
@@ -136,7 +140,7 @@ def _project_detail(p):
                 'phone': ct.phone,
                 'email': ct.email,
                 'company_id': ct.company_id,
-                'company_name': next((c['name'] for c in d['customers'] if c['id'] == ct.company_id), ''),
+                'company_name': next((c['name'] for c in d.get('customers', []) if c['id'] == ct.company_id), ''),
             }
             for ct in contacts
         ]
