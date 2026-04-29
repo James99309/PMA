@@ -1220,16 +1220,19 @@ def save_ai_research(prospect_id):
         stype = (entry.get('stakeholder_type') or 'other').strip().lower()
         if stype not in valid_types:
             stype = 'other'
+        def _trunc(s, n):
+            return s[:n] if s else s
+
         sk = ProspectStakeholder(
             prospect_id=p.id,
-            stakeholder_type=stype,
+            stakeholder_type=stype[:20],
             company_name=company_name[:200],
-            department=_clean(entry.get('department')),
-            address=_clean(entry.get('address')),
-            phone=_clean(entry.get('phone')),
-            contact_person=_clean(entry.get('contact_person')),
-            email=_clean(entry.get('email')),
-            website=_clean(entry.get('website')),
+            department=_trunc(_clean(entry.get('department')), 100),
+            address=_trunc(_clean(entry.get('address')), 300),
+            phone=_trunc(_clean(entry.get('phone')), 50),
+            contact_person=_trunc(_clean(entry.get('contact_person')), 50),
+            email=_trunc(_clean(entry.get('email')), 200),
+            website=_trunc(_clean(entry.get('website')), 300),
             business_scope=_clean(entry.get('business_scope')),
             notes=_clean(entry.get('notes')),
         )
