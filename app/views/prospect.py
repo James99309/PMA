@@ -876,13 +876,13 @@ Step 4 — Find System Integrator for ELV / Security / ICT:
       "city": "city / district (e.g. Johor Bahru, Batam) or null",
       "industry": "industry key — must be one of: datacenter / hospitality / healthcare / manufacturing / semiconductor / transportation / real_estate / shipbuilding / energy / education / government / other",
       "stage": "determine from research: planning (approved/announced, not yet started) / designing (design phase) / tendering (active tender/procurement underway) / construction (under construction) / completed (built and operational)",
-      "stage_data": {
+      "stage_data": {{
         "planning": "What is known about the planning/approval phase — English only — or null",
         "designing": "What is known about the design phase — English only — or null",
         "tendering": "Active tender or procurement details — English only — or null",
         "construction": "Construction progress — English only — or null",
         "completed": "Completion/handover info — English only — or null"
-      },
+      }},
       "total_investment": "amount with currency (e.g. USD 800M, SGD 1.2B, RM 500M) or null",
       "description": "2-4 sentence summary of project scope and scale — ENGLISH ONLY",
       "progress": "latest construction milestone with date (1-3 sentences) — ENGLISH ONLY — or null",
