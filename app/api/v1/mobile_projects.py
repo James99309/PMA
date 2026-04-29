@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # 实际使用的阶段值（来自 dictionary_helpers.py）
 from app.utils.dictionary_helpers import (
-    PROJECT_STAGE_LABELS, ACTIVITY_STATUS_LABELS
+    PROJECT_STAGE_LABELS, ACTIVITY_STATUS_LABELS, PROJECT_TYPE_LABELS
 )
 
 def _stage_label(key):
@@ -25,6 +25,11 @@ def _activity_label(key):
     if not key:
         return ''
     return ACTIVITY_STATUS_LABELS.get(key, {}).get('zh', key)
+
+def _project_type_label(key):
+    if not key:
+        return ''
+    return PROJECT_TYPE_LABELS.get(key, {}).get('zh', key)
 
 AUTH_STATUS_LABELS = {
     None:       '未申请',
@@ -68,6 +73,7 @@ def _project_detail(p):
         'authorization_code': p.authorization_code,
         # 项目基本信息
         'project_type': p.project_type,
+        'project_type_label': _project_type_label(p.project_type),
         'end_user': p.end_user,
         'dealer': p.dealer,
         'system_integrator': p.system_integrator,
@@ -89,6 +95,53 @@ def _project_detail(p):
         ]
     except Exception:
         d['customers'] = []
+
+    # 报价单（最近5条）
+    try:
+        from app.models.quotation import Quotation
+        quotations = (
+            Quotation.query
+            .filter_by(project_id=p.id, is_deleted=False)
+            .order_by(Quotation.created_at.desc())
+            .limit(5).all()
+        )
+        d['quotations'] = [
+            {
+                'id': q.id,
+                'number': q.quotation_number,
+                'total': round((q.total_amount or 0) / 10000, 2),
+                'currency': q.currency or 'CNY',
+                'status': q.approval_status,
+                'created_at': q.created_at.strftime('%Y-%m-%d') if q.created_at else None,
+            }
+            for q in quotations
+        ]
+        d['quotation_count'] = Quotation.query.filter_by(project_id=p.id, is_deleted=False).count()
+    except Exception:
+        d['quotations'] = []
+        d['quotation_count'] = 0
+
+    # 关联客户联系人
+    try:
+        from app.models.customer import Contact
+        company_ids = [c['id'] for c in d.get('customers', [])]
+        contacts = Contact.query.filter(
+            Contact.company_id.in_(company_ids)
+        ).limit(20).all() if company_ids else []
+        d['contacts'] = [
+            {
+                'id': ct.id,
+                'name': ct.name,
+                'title': ct.title,
+                'phone': ct.phone,
+                'email': ct.email,
+                'company_id': ct.company_id,
+                'company_name': next((c['name'] for c in d['customers'] if c['id'] == ct.company_id), ''),
+            }
+            for ct in contacts
+        ]
+    except Exception:
+        d['contacts'] = []
 
     # 最近跟进记录（Action 表）
     try:
