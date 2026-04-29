@@ -100,12 +100,12 @@ def _project_detail(p):
     except Exception:
         d['customers'] = []
 
-    # 报价单（最近5条）
+    # 报价单（最近5条，Quotation 无 is_deleted 字段）
     try:
         from app.models.quotation import Quotation
         quotations = (
             Quotation.query
-            .filter_by(project_id=p.id, is_deleted=False)
+            .filter_by(project_id=p.id)
             .order_by(Quotation.created_at.desc())
             .limit(5).all()
         )
@@ -113,15 +113,16 @@ def _project_detail(p):
             {
                 'id': q.id,
                 'number': q.quotation_number,
-                'total': round((q.total_amount or 0) / 10000, 2),
+                'total': round((q.amount or 0) / 10000, 2),
                 'currency': q.currency or 'CNY',
                 'status': q.approval_status,
                 'created_at': q.created_at.strftime('%Y-%m-%d') if q.created_at else None,
             }
             for q in quotations
         ]
-        d['quotation_count'] = Quotation.query.filter_by(project_id=p.id, is_deleted=False).count()
-    except Exception:
+        d['quotation_count'] = Quotation.query.filter_by(project_id=p.id).count()
+    except Exception as e:
+        logger.error(f"quotation query error: {e}")
         d['quotations'] = []
         d['quotation_count'] = 0
 
