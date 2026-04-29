@@ -968,11 +968,23 @@ Rules:
 def _run_batch_research_async(app, log_id, user_id, prompt, is_admin):
     """后台线程：执行调研并将结果写入 ProspectResearchLog.result_json。"""
     from app.services.claude_research_provider import send_claude_research_request
-    import json
+    import json, time
     with app.app_context():
         log = ProspectResearchLog.query.get(log_id)
         try:
-            raw = send_claude_research_request(prompt, timeout=300, user_id=user_id)
+            raw = None
+            last_err = None
+            for attempt in range(3):  # 最多重试 3 次
+                try:
+                    raw = send_claude_research_request(prompt, timeout=300, user_id=user_id)
+                    break
+                except RuntimeError as e:
+                    last_err = e
+                    app.logger.warning(f'[batch-research] 第 {attempt+1} 次失败: {e}')
+                    if attempt < 2:
+                        time.sleep(15 * (attempt + 1))  # 15s / 30s 退避
+            if raw is None:
+                raise last_err
             data = _extract_first_json(raw)
             if not data:
                 log.status = 'failed'

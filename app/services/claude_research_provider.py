@@ -18,8 +18,8 @@ import os
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = 'claude-sonnet-4-6'
-_MAX_ITERATIONS = 15  # 最多 tool 调用轮次
-_MAX_TOKENS = 8192
+_MAX_ITERATIONS = 10  # 最多 tool 调用轮次（降低避免上下文过大触发 api_error）
+_MAX_TOKENS = 16000   # 输出 token 上限（提高避免截断）
 
 
 def _log_research_usage(user_id: int, input_tokens: int, output_tokens: int) -> None:
