@@ -2817,6 +2817,7 @@ def api_claude_ai_requests(user_id):
 @user_bp.route('/api/<int:user_id>/claude-ai/send-dxt', methods=['POST'])
 @login_required
 @permission_required('user', 'edit')
+@csrf.exempt
 def api_claude_ai_send_dxt(user_id):
     """发送 Claude Desktop 扩展文件（.dxt）给用户"""
     err = _assert_admin()
