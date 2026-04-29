@@ -62,9 +62,12 @@ def _project_detail(p):
         'stage_description': p.stage_description,
         'activity_status': p.activity_status,
         'activity_label': ACTIVITY_LABELS.get(p.activity_status, p.activity_status or ''),
-        # 授权信息
+        # 授权信息（authorization_code 有值才是真正已获授权，status 在批准后会被清为 None）
         'authorization_status': p.authorization_status,
-        'authorization_status_label': AUTH_STATUS_LABELS.get(p.authorization_status, ''),
+        'authorization_status_label': (
+            '已获授权' if p.authorization_code else
+            AUTH_STATUS_LABELS.get(p.authorization_status, '未申请')
+        ),
         'authorization_code': p.authorization_code,
         # 项目基本信息
         'project_type': p.project_type,
@@ -89,6 +92,29 @@ def _project_detail(p):
         ]
     except Exception:
         d['customers'] = []
+
+    # 最近跟进记录（Action 表）
+    try:
+        from app.models.action import Action
+        actions = (
+            Action.query
+            .filter_by(project_id=p.id)
+            .order_by(Action.date.desc(), Action.created_at.desc())
+            .limit(20)
+            .all()
+        )
+        d['actions'] = [
+            {
+                'id': a.id,
+                'date': a.date.isoformat() if a.date else None,
+                'communication': a.communication,
+                'owner_name': a.owner.real_name or a.owner.username if a.owner else '',
+            }
+            for a in actions
+        ]
+    except Exception:
+        d['actions'] = []
+
     return d
 
 
@@ -260,13 +286,16 @@ def mobile_project_add_note(project_id):
         return api_response(success=False, code=400, message="跟进内容不超过500字")
 
     try:
-        from datetime import datetime
-        from zoneinfo import ZoneInfo
-        now = datetime.now(ZoneInfo('Asia/Shanghai')).strftime('%Y/%m/%d %H:%M')
-        name = user.real_name or user.username
-        entry = f'{now} {name} 【移动端跟进】：{content}'
-        existing = project.stage_description or ''
-        project.stage_description = (existing + ' ' + entry).strip() if existing else entry
+        from datetime import date
+        from app.models.action import Action
+        action = Action(
+            date=date.today(),
+            project_id=project_id,
+            communication=content,
+            owner_id=user_id,
+            is_shared=True,
+        )
+        db.session.add(action)
         db.session.commit()
         return api_response(success=True, message="跟进记录已添加")
     except Exception as e:

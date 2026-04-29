@@ -149,7 +149,7 @@ onMounted(load)
           <span :class="['text-xs px-2 py-0.5 rounded-full font-medium', STAGE_COLOR[project.current_stage] || 'bg-gray-100 text-gray-600']">
             {{ project.stage_label || project.current_stage }}
           </span>
-          <span :class="['text-xs px-2 py-0.5 rounded-full', AUTH_COLOR[project.authorization_status] || 'bg-gray-100 text-gray-500']">
+          <span :class="['text-xs px-2 py-0.5 rounded-full', project.authorization_code ? 'bg-green-100 text-green-700' : AUTH_COLOR[project.authorization_status] || 'bg-gray-100 text-gray-500']">
             授权：{{ project.authorization_status_label }}
           </span>
           <span v-if="project.authorization_code" class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 font-mono">
@@ -239,13 +239,25 @@ onMounted(load)
         </div>
       </div>
 
-      <!-- 阶段描述/跟进记录 -->
-      <div v-if="project.stage_description">
+      <!-- 跟进记录（Action 表） -->
+      <div v-if="project.actions?.length">
         <div class="h-2 bg-gray-50" />
         <div class="bg-white px-4 py-3">
-          <p class="text-xs text-gray-400 mb-2">跟进记录</p>
-          <p class="text-sm text-gray-700 break-words leading-relaxed whitespace-pre-wrap line-clamp-10">{{ project.stage_description }}</p>
+          <p class="text-xs text-gray-400 mb-3">跟进记录（{{ project.actions.length }}条）</p>
+          <ul class="space-y-3">
+            <li v-for="a in project.actions" :key="a.id" class="flex gap-2">
+              <div class="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
+              <div class="flex-1 min-w-0">
+                <p class="text-xs text-gray-400 mb-0.5">{{ a.date }} · {{ a.owner_name }}</p>
+                <p class="text-sm text-gray-800 break-words leading-relaxed">{{ a.communication }}</p>
+              </div>
+            </li>
+          </ul>
         </div>
+      </div>
+      <div v-else>
+        <div class="h-2 bg-gray-50" />
+        <div class="bg-white px-4 py-4 text-center text-xs text-gray-400">暂无跟进记录</div>
       </div>
 
       <!-- 跟进输入框 -->
