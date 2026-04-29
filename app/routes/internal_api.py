@@ -844,3 +844,123 @@ def dashboard():
     except Exception as e:
         logger.exception(f'[internal_api] dashboard error: {e}')
         return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 14: 知识库问答
+# GET /internal/api/wiki/search?q=问题
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/wiki/search', methods=['GET'])
+@internal_auth_required
+def wiki_search():
+    user = g.current_user
+    question = request.args.get('q', '').strip()
+    if not question:
+        return jsonify({'error': '问题不能为空'}), 400
+    try:
+        from app.services.wiki.querier import query_wiki
+        result = query_wiki(question, current_user_id=user.id)
+        return jsonify({
+            'answer': result.get('answer', ''),
+            'cited_articles': result.get('cited_articles', []),
+            'search_hit_count': result.get('search_hit_count', 0),
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] wiki_search error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 15: 文件列表
+# GET /internal/api/files?folder_id=
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/files', methods=['GET'])
+@internal_auth_required
+def list_files():
+    user = g.current_user
+    folder_id = request.args.get('folder_id')
+    if folder_id:
+        try:
+            folder_id = int(folder_id)
+        except ValueError:
+            folder_id = None
+    try:
+        from app.services.file_manager_service import FileManagerService
+        result = FileManagerService.list_files(user, folder_id=folder_id)
+        folders = [{'id': f['id'], 'name': f['name']} for f in result.get('folders', [])]
+        files = []
+        for f in result.get('files', []):
+            files.append({
+                'id': f['id'],
+                'name': f['display_name'],
+                'size': f.get('file_size'),
+                'mime_type': f.get('mime_type'),
+                'created_at': f.get('created_at'),
+            })
+        return jsonify({'folders': folders, 'files': files})
+    except Exception as e:
+        logger.exception(f'[internal_api] list_files error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 16: 读取文件内容（Base64）
+# GET /internal/api/files/<id>/content
+# ---------------------------------------------------------------------------
+
+FILE_SIZE_LIMIT = 10 * 1024 * 1024   # 10MB 硬限制
+FILE_SIZE_WARN  =  5 * 1024 * 1024   # 5MB 警告
+
+@internal_api_bp.route('/files/<int:file_ref_id>/content', methods=['GET'])
+@internal_auth_required
+def get_file_content(file_ref_id):
+    user = g.current_user
+    try:
+        import base64
+        from app.models.file_manager import UserFileRef
+        from app.utils.smart_storage_manager import SmartStorageManager
+
+        ref = UserFileRef.query.filter_by(
+            id=file_ref_id, user_id=user.id, is_deleted=False
+        ).first()
+        if not ref:
+            return jsonify({'error': '文件不存在或无权访问'}), 404
+
+        lib = ref.file_library
+        if not lib:
+            return jsonify({'error': '文件记录损坏'}), 500
+
+        file_size = lib.file_size or 0
+        mime_type = lib.mime_type or 'application/octet-stream'
+        display_name = ref.display_name
+
+        if file_size > FILE_SIZE_LIMIT:
+            size_mb = file_size / 1024 / 1024
+            return jsonify({
+                'error': f'文件过大（{size_mb:.1f} MB），超过 10MB 限制，请直接在 PMA 中查看',
+                'file_name': display_name,
+                'file_size': file_size,
+                'skipped': True,
+            }), 413
+
+        storage = SmartStorageManager()
+        data = storage.download_file(lib.storage_path, bucket_type='file_library')
+        if not data:
+            return jsonify({'error': '文件下载失败'}), 500
+
+        warn = None
+        if file_size > FILE_SIZE_WARN:
+            warn = f'文件较大（{file_size/1024/1024:.1f} MB），处理可能较慢'
+
+        return jsonify({
+            'file_name': display_name,
+            'mime_type': mime_type,
+            'file_size': file_size,
+            'data': base64.b64encode(data).decode('utf-8'),
+            'warning': warn,
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] get_file_content error: {e}')
+        return jsonify({'error': str(e)}), 500
