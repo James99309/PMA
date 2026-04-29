@@ -1726,11 +1726,16 @@ def stakeholder_update_fields(id, sid):
         'address', 'alternative_addresses', 'website',
         'business_scope', 'notes',
     }
+    _field_max = {'department': 100, 'contact_person': 50, 'phone': 50,
+                  'email': 200, 'address': 300, 'website': 300}
     updated = []
 
     for field, value in fields.items():
         if field in allowed:
-            setattr(s, field, str(value).strip() if value else None)
+            v = str(value).strip() if value else None
+            if v and field in _field_max:
+                v = v[:_field_max[field]]
+            setattr(s, field, v)
             updated.append(field)
 
     # 为每个被勾选的 additional contact 创建一个新的 ProspectStakeholder 行
@@ -1739,9 +1744,9 @@ def stakeholder_update_fields(id, sid):
     for item in additional:
         if not isinstance(item, dict):
             continue
-        person = (item.get('contact_person') or '').strip()
-        phone  = (item.get('phone') or '').strip()
-        dept   = (item.get('department') or '').strip()
+        person = (item.get('contact_person') or '').strip()[:50]
+        phone  = (item.get('phone') or '').strip()[:50]
+        dept   = (item.get('department') or '').strip()[:100]
         if not (person or phone or dept):
             continue
         new_row = ProspectStakeholder(
@@ -1751,7 +1756,7 @@ def stakeholder_update_fields(id, sid):
             department=dept or None,
             contact_person=person or None,
             phone=phone or None,
-            email=(item.get('email') or '').strip() or None,
+            email=((item.get('email') or '').strip() or None)[:200] if item.get('email') else None,
             notes=(item.get('role_description') or '').strip() or None,
         )
         db.session.add(new_row)
