@@ -439,20 +439,62 @@ def send_claude_ai_token_email(user, token, is_reset=False):
         quota_display = f'{int(quota):,}'
 
         real_name = user.real_name or user.username
-        subject_action = '重置' if is_reset else '开通'
-        subject = f'PMA Claude AI 代理已{subject_action} - {real_name}'
-        action_zh = '重置 token' if is_reset else '开通 Claude AI 代理'
         action_en = 'TOKEN RESET' if is_reset else 'CLAUDE AI ENABLED'
 
-        notice_text = (
-            '你之前的 token 已立即失效，请使用以下新 token 替换原有配置。'
-            if is_reset else
-            '你的 PMA 账号已被开通 Claude AI 代理使用权限。请按下方说明配置 Claude Desktop 或其他客户端。'
-        )
+        # 根据数据库类型判断语言（sp8d=CN中文，ovs=SG英文）
+        db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
+        is_cn = (db_type == 'sp8d')
+
+        if is_cn:
+            subject = f'PMA Claude AI 代理已{"重置" if is_reset else "开通"} - {real_name}'
+            notice_text = (
+                '你之前的 Token 已立即失效，请使用以下新 Token 替换原有配置。'
+                if is_reset else
+                '你的 PMA 账号已获得 Claude AI 工作助手的使用权限，请按下方说明完成配置。'
+            )
+            sec_title = '使用规范'
+            sec_body = (
+                'Claude AI 是公司提供的工作效率工具，请仅用于工作相关事务，并遵守公司 AI 工具保密规定，'
+                '勿将客户资料、商业机密等内部信息输入用于非工作目的。'
+                'Token 为个人专属凭证，请勿转让或共享。如怀疑泄漏，请登录 PMA 个人中心自助重置。'
+                '月度配额超限后请求将暂停至下月 1 日自动恢复。'
+            )
+            cred_title = '你的凭证'
+            cfg_title = 'Claude Desktop 配置'
+            field_col = '字段'
+            value_col = '值'
+            quota_label = '月度配额'
+            footer_copy = '&copy; 2026 PMA系统管理团队. All rights reserved.'
+            footer_note = '此邮件由系统自动发送，请勿直接回复'
+            lang = 'zh-CN'
+        else:
+            subject = f'PMA Claude AI Gateway {"Reset" if is_reset else "Enabled"} - {real_name}'
+            notice_text = (
+                f'Your previous token has been invalidated. Please update your configuration with the new token below.'
+                if is_reset else
+                f'Your PMA account has been granted access to the Claude AI Gateway. Please follow the instructions below to configure your client.'
+            )
+            sec_title = 'Usage Policy'
+            sec_body = (
+                'Claude AI is a company-provided productivity tool. Please use it exclusively for work-related purposes '
+                'and comply with the company\'s AI tool confidentiality policy. Do not input confidential client data, '
+                'trade secrets, or internal information for non-work purposes. '
+                'Your token is personal and non-transferable. If you suspect it has been compromised, '
+                'reset it immediately via your PMA profile. '
+                'Monthly quota will be automatically reset on the 1st of each month.'
+            )
+            cred_title = 'Your Credentials'
+            cfg_title = 'Claude Desktop Setup'
+            field_col = 'Field'
+            value_col = 'Value'
+            quota_label = 'Monthly Quota'
+            footer_copy = '&copy; 2026 PMA Team. All rights reserved.'
+            footer_note = 'This email was sent automatically. Please do not reply directly.'
+            lang = 'en'
 
         html_content = f"""
         <!DOCTYPE html>
-        <html lang="zh-CN">
+        <html lang="{lang}">
         <head>
             <meta charset="utf-8"/>
             <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
@@ -460,26 +502,26 @@ def send_claude_ai_token_email(user, token, is_reset=False):
         <body style="margin: 0; padding: 0; background-color: #ffffff; font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; -webkit-font-smoothing: antialiased;">
             <div style="max-width: 600px; margin: 0 auto; padding: 48px 24px;">
                 <div style="text-align: center; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid #a0a0a0;">
-                    <h1 style="font-size: 28px; font-weight: 300; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">PMA Claude AI 代理</h1>
+                    <h1 style="font-size: 28px; font-weight: 300; margin: 0 0 8px 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">PMA Claude AI</h1>
                     <p style="font-size: 16px; color: #545454; margin: 0; font-family: 'Roboto Mono', monospace; letter-spacing: -0.025em;">{action_en}</p>
                 </div>
 
                 <div style="text-align: center; padding-bottom: 32px; margin-bottom: 32px; border-bottom: 1px solid #a0a0a0;">
                     <p style="font-size: 18px; color: #404040; margin: 0; font-weight: 300;">
-                        尊敬的 <strong style="font-weight: 500;">{real_name}</strong>，{notice_text}
+                        <strong style="font-weight: 500;">{real_name}</strong>，{notice_text}
                     </p>
                 </div>
 
                 <div style="margin-bottom: 32px;">
                     <div style="display: flex; align-items: center; margin-bottom: 24px;">
                         <span style="font-size: 24px; font-weight: 300; color: #1a1a1a; margin-right: 12px;">I.</span>
-                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">你的凭证</h2>
+                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">{cred_title}</h2>
                     </div>
                     <div style="border-bottom: 1px solid #e8e8e8; padding-bottom: 24px;">
                         <table style="width: 100%; border-collapse: collapse;">
                             <tr>
                                 <td style="padding: 8px 0;">
-                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">代理地址 (Gateway URL)</span>
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">Gateway URL</span>
                                     <span style="font-size: 14px; color: #2c2c2c; font-family: 'Roboto Mono', monospace;">{public_url}</span>
                                 </td>
                             </tr>
@@ -491,7 +533,7 @@ def send_claude_ai_token_email(user, token, is_reset=False):
                             </tr>
                             <tr>
                                 <td style="padding: 8px 0;">
-                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">月度配额</span>
+                                    <span style="display: block; font-size: 12px; font-weight: 500; color: #545454; margin-bottom: 4px;">{quota_label}</span>
                                     <span style="font-size: 14px; color: #2c2c2c;">{quota_display} tokens</span>
                                 </td>
                             </tr>
@@ -502,12 +544,12 @@ def send_claude_ai_token_email(user, token, is_reset=False):
                 <div style="margin-bottom: 32px;">
                     <div style="display: flex; align-items: center; margin-bottom: 24px;">
                         <span style="font-size: 24px; font-weight: 300; color: #1a1a1a; margin-right: 12px;">II.</span>
-                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">Claude Desktop 配置</h2>
+                        <h2 style="font-size: 18px; font-weight: 400; margin: 0; text-transform: uppercase; letter-spacing: 0.05em; color: #1a1a1a;">{cfg_title}</h2>
                     </div>
                     <table style="width: 100%; border-collapse: collapse;">
                         <tr style="background-color: #e8e8e8;">
-                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">字段</td>
-                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">值</td>
+                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">{field_col}</td>
+                            <td style="padding: 12px 16px; font-size: 13px; font-weight: 600; color: #404040;">{value_col}</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #e8e8e8;">
                             <td style="padding: 12px 16px; font-size: 14px; font-weight: 500; color: #1a1a1a;">Connection</td>
@@ -529,19 +571,18 @@ def send_claude_ai_token_email(user, token, is_reset=False):
                 </div>
 
                 <div style="border: 1px solid #a0a0a0; padding: 24px; margin-bottom: 32px;">
-                    <h3 style="font-size: 16px; font-weight: 500; color: #2c2c2c; margin: 0 0 12px 0;">安全提醒</h3>
+                    <h3 style="font-size: 16px; font-weight: 500; color: #2c2c2c; margin: 0 0 12px 0;">{sec_title}</h3>
                     <p style="font-size: 14px; color: #545454; margin: 0; line-height: 1.6;">
-                        Token 是你的唯一凭证，请勿外泄给他人或截图分享。如怀疑泄漏，请登录 PMA 在个人中心自助重置。
-                        管理员可随时查看你的使用记录。月度配额超限后请求会被暂停，直到下月 1 日重置。
+                        {sec_body}
                     </p>
                 </div>
 
                 <div style="text-align: center; padding-top: 32px; border-top: 1px solid #a0a0a0;">
                     <p style="font-size: 12px; color: #686868; margin: 0; font-family: 'Roboto Mono', monospace;">
-                        &copy; 2026 PMA系统管理团队. All rights reserved.
+                        {footer_copy}
                     </p>
                     <p style="font-size: 11px; color: #a0a0a0; margin: 8px 0 0 0;">
-                        此邮件由系统自动发送，请勿直接回复
+                        {footer_note}
                     </p>
                 </div>
             </div>

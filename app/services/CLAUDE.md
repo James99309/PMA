@@ -48,4 +48,11 @@
 | #6422 | 6:36 PM | 🔵 | Performance Dashboard Service Provides Complete Aggregation Framework with Multi-Role Support | ~1188 |
 | #6421 | 6:35 PM | 🔵 | Performance Service Implements Core Statistical Calculations with Role-Specific Extensions | ~1023 |
 | #6420 | 6:34 PM | 🔵 | KPI Calculation Service Implements Configurable Data Source Aggregation Engine | ~963 |
+
+### Apr 29, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #8574 | 11:42 AM | 🔵 | Claude AI user enablement workflow with automatic Mac mini synchronization | ~493 |
+| #8573 | " | 🔵 | Claude AI token enablement workflow with automatic Mac mini sync | ~438 |
 </claude-mem-context>
