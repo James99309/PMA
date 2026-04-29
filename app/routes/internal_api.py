@@ -101,23 +101,37 @@ def list_quotations():
     limit = _parse_limit(default=50)
     status = request.args.get('status', '').strip()
     search = request.args.get('search', '').strip()
+    project_id = request.args.get('project_id', '').strip()
+    owner_name = request.args.get('owner_name', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
 
     try:
         from app.models.quotation import Quotation
 
         filters = [Quotation.is_deleted == False] if hasattr(Quotation, 'is_deleted') else []
-
         query = get_viewable_data(Quotation, user, filters)
 
         if status:
             query = query.filter(Quotation.approval_status == status)
-
         if search:
-            query = query.filter(
-                db.or_(
-                    Quotation.quotation_number.ilike(f'%{search}%'),
-                )
+            query = query.filter(Quotation.quotation_number.ilike(f'%{search}%'))
+        if project_id:
+            query = query.filter(Quotation.project_id == int(project_id))
+        if owner_name:
+            query = query.join(User, Quotation.owner_id == User.id).filter(
+                db.or_(User.real_name.ilike(f'%{owner_name}%'), User.username.ilike(f'%{owner_name}%'))
             )
+        if date_from:
+            try:
+                query = query.filter(Quotation.created_at >= datetime.fromisoformat(date_from))
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                query = query.filter(Quotation.created_at <= datetime.fromisoformat(date_to))
+            except ValueError:
+                pass
 
         items = query.order_by(Quotation.created_at.desc()).limit(limit).all()
 
@@ -367,12 +381,9 @@ def stats_summary():
         filters = [Quotation.is_deleted == False] if hasattr(Quotation, 'is_deleted') else []
         base_query = get_viewable_data(Quotation, user, filters)
 
-        # 本月报价单（按 created_at 过滤）
         this_month_query = base_query.filter(Quotation.created_at >= month_start)
-
         total_count = this_month_query.count()
 
-        # 状态分布
         status_counts = (
             this_month_query
             .with_entities(Quotation.approval_status, sqlfunc.count(Quotation.id))
@@ -381,7 +392,6 @@ def stats_summary():
         )
         status_map = {s: cnt for s, cnt in status_counts}
 
-        # 金额合计（仅 approved）
         approved_amount = (
             this_month_query
             .filter(Quotation.approval_status == 'approved')
@@ -401,4 +411,436 @@ def stats_summary():
         return jsonify({'error': 'Required models not available'}), 503
     except Exception as e:
         logger.exception(f'[internal_api] stats_summary error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 6: 报价单详情（含行项目）
+# GET /internal/api/quotations/<id>
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/quotations/<int:quotation_id>', methods=['GET'])
+@internal_auth_required
+def get_quotation_detail(quotation_id):
+    user = g.current_user
+    try:
+        from app.models.quotation import Quotation, QuotationDetail
+
+        filters = [Quotation.is_deleted == False] if hasattr(Quotation, 'is_deleted') else []
+        q = get_viewable_data(Quotation, user, filters).filter(Quotation.id == quotation_id).first()
+        if not q:
+            return jsonify({'error': 'Not found or no permission'}), 404
+
+        owner_name = (q.owner.real_name or q.owner.username) if q.owner else None
+        customer_name = q.customer.company_name if q.customer else None
+        contact_name = q.contact.name if q.contact else None
+        project_name = q.project.project_name if q.project else None
+
+        items = []
+        for d in q.details:
+            if d.row_type == 'section':
+                items.append({'row_type': 'section', 'section_label': d.section_label, 'sort_order': d.sort_order})
+            else:
+                items.append({
+                    'row_type': 'product',
+                    'product_name': d.product_name,
+                    'product_model': d.product_model,
+                    'product_mn': d.product_mn,
+                    'brand': d.brand,
+                    'unit': d.unit,
+                    'quantity': d.quantity,
+                    'unit_price': d.unit_price,
+                    'total_price': d.total_price,
+                    'currency': d.currency,
+                    'item_note': d.item_note,
+                    'sort_order': d.sort_order,
+                })
+
+        extra = q.extra_fields or {}
+        return jsonify({
+            'id': q.id,
+            'quotation_number': q.quotation_number,
+            'status': q.approval_status,
+            'amount': q.amount,
+            'currency': q.currency,
+            'project_id': q.project_id,
+            'project_name': project_name,
+            'customer_name': customer_name,
+            'contact_name': contact_name,
+            'owner_name': owner_name,
+            'owner_id': q.owner_id,
+            'project_stage': q.project_stage,
+            'project_type': q.project_type,
+            'notes': q.notes,
+            'payment_terms': extra.get('payment_terms'),
+            'delivery_terms': extra.get('delivery_terms'),
+            'validity': extra.get('validity'),
+            'created_at': _safe_datetime(q.created_at),
+            'updated_at': _safe_datetime(q.updated_at),
+            'items': items,
+            'items_count': len(items),
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] get_quotation_detail error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 7: 项目详情（含最近报价单摘要）
+# GET /internal/api/projects/<id>
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/projects/<int:project_id>', methods=['GET'])
+@internal_auth_required
+def get_project_detail(project_id):
+    user = g.current_user
+    try:
+        from app.models.project import Project
+        from app.models.quotation import Quotation
+
+        p = get_viewable_data(Project, user, [Project.is_deleted == False]).filter(Project.id == project_id).first()
+        if not p:
+            return jsonify({'error': 'Not found or no permission'}), 404
+
+        owner_name = (p.owner.real_name or p.owner.username) if p.owner else None
+
+        # 最近 5 份报价单摘要
+        q_filters = [Quotation.is_deleted == False, Quotation.project_id == project_id] if hasattr(Quotation, 'is_deleted') else [Quotation.project_id == project_id]
+        recent_quotations = (
+            get_viewable_data(Quotation, user, q_filters)
+            .order_by(Quotation.created_at.desc())
+            .limit(5).all()
+        )
+        total_quotation_count = get_viewable_data(Quotation, user, q_filters).count()
+
+        quotation_list = []
+        for q in recent_quotations:
+            quotation_list.append({
+                'id': q.id,
+                'quotation_number': q.quotation_number,
+                'status': q.approval_status,
+                'amount': q.amount,
+                'currency': q.currency,
+                'owner_name': (q.owner.real_name or q.owner.username) if q.owner else None,
+                'created_at': _safe_datetime(q.created_at),
+            })
+
+        return jsonify({
+            'id': p.id,
+            'project_name': p.project_name,
+            'project_type': p.project_type,
+            'current_stage': p.current_stage,
+            'status': p.status,
+            'activity_status': p.activity_status,
+            'industry': p.industry,
+            'owner_id': p.owner_id,
+            'owner_name': owner_name,
+            'delivery_forecast': _safe_datetime(p.delivery_forecast),
+            'report_time': _safe_datetime(p.report_time) if hasattr(p, 'report_time') else None,
+            'created_at': _safe_datetime(p.created_at) if hasattr(p, 'created_at') else None,
+            'quotations_total': total_quotation_count,
+            'quotations_recent': quotation_list,
+            'quotations_note': f'显示最近 {len(quotation_list)} 份，共 {total_quotation_count} 份' if total_quotation_count > 5 else None,
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] get_project_detail error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 8: 客户详情（含联系人）
+# GET /internal/api/customers/<id>
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/customers/<int:company_id>', methods=['GET'])
+@internal_auth_required
+def get_customer_detail(company_id):
+    user = g.current_user
+    try:
+        from app.models.customer import Company, Contact
+
+        c = get_viewable_data(Company, user, [Company.is_deleted == False]).filter(Company.id == company_id).first()
+        if not c:
+            return jsonify({'error': 'Not found or no permission'}), 404
+
+        owner_name = (c.owner.real_name or c.owner.username) if c.owner else None
+
+        contacts = Contact.query.filter_by(company_id=company_id).order_by(Contact.is_primary.desc()).all()
+        contact_list = [{
+            'id': ct.id,
+            'name': ct.name,
+            'department': getattr(ct, 'department', None),
+            'position': getattr(ct, 'position', None),
+            'phone': ct.phone,
+            'email': ct.email,
+            'is_primary': ct.is_primary,
+        } for ct in contacts]
+
+        return jsonify({
+            'id': c.id,
+            'company_code': getattr(c, 'company_code', None),
+            'company_name': c.company_name,
+            'company_type': c.company_type,
+            'industry': c.industry,
+            'country': c.country,
+            'city': getattr(c, 'city', None),
+            'address': getattr(c, 'address', None),
+            'status': c.status,
+            'owner_id': c.owner_id,
+            'owner_name': owner_name,
+            'created_at': _safe_datetime(c.created_at),
+            'contacts': contact_list,
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] get_customer_detail error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 9: 报销单列表
+# GET /internal/api/expenses?status=&search=&date_from=&date_to=&limit=
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/expenses', methods=['GET'])
+@internal_auth_required
+def list_expenses():
+    user = g.current_user
+    limit = _parse_limit(default=30)
+    status = request.args.get('status', '').strip()
+    search = request.args.get('search', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+
+    try:
+        from app.models.expense import Expense
+
+        filters = [Expense.is_deleted == False]
+        query = get_viewable_data(Expense, user, filters)
+
+        if status:
+            query = query.filter(Expense.status == status)
+        if search:
+            query = query.filter(Expense.title.ilike(f'%{search}%'))
+        if date_from:
+            try:
+                query = query.filter(Expense.created_at >= datetime.fromisoformat(date_from))
+            except ValueError:
+                pass
+        if date_to:
+            try:
+                query = query.filter(Expense.created_at <= datetime.fromisoformat(date_to))
+            except ValueError:
+                pass
+
+        items = query.order_by(Expense.created_at.desc()).limit(limit).all()
+
+        result = []
+        for e in items:
+            owner_name = (e.owner.real_name or e.owner.username) if e.owner else None
+            result.append({
+                'id': e.id,
+                'expense_number': getattr(e, 'expense_number', None),
+                'title': e.title,
+                'status': e.status,
+                'total_amount': e.total_amount,
+                'currency': getattr(e, 'currency', 'CNY'),
+                'payment_status': getattr(e, 'payment_status', None),
+                'owner_name': owner_name,
+                'owner_id': e.owner_id,
+                'created_at': _safe_datetime(e.created_at),
+            })
+        return jsonify(result)
+    except Exception as e:
+        logger.exception(f'[internal_api] list_expenses error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 10: 批价单列表
+# GET /internal/api/pricing-orders?status=&search=&limit=
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/pricing-orders', methods=['GET'])
+@internal_auth_required
+def list_pricing_orders():
+    user = g.current_user
+    limit = _parse_limit(default=30)
+    status = request.args.get('status', '').strip()
+    search = request.args.get('search', '').strip()
+
+    try:
+        from app.models.pricing_order import PricingOrder
+
+        query = get_viewable_data(PricingOrder, user, [])
+
+        if status:
+            query = query.filter(PricingOrder.status == status)
+        if search:
+            query = query.filter(PricingOrder.order_number.ilike(f'%{search}%'))
+
+        items = query.order_by(PricingOrder.id.desc()).limit(limit).all()
+
+        result = []
+        for p in items:
+            creator_name = None
+            try:
+                if p.creator:
+                    creator_name = p.creator.real_name or p.creator.username
+            except Exception:
+                pass
+            result.append({
+                'id': p.id,
+                'order_number': p.order_number,
+                'status': p.status,
+                'pricing_total_amount': p.pricing_total_amount,
+                'settlement_total_amount': p.settlement_total_amount,
+                'currency': p.currency,
+                'creator_name': creator_name,
+                'created_at': _safe_datetime(p.created_at) if hasattr(p, 'created_at') else None,
+            })
+        return jsonify(result)
+    except Exception as e:
+        logger.exception(f'[internal_api] list_pricing_orders error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 11: 产品搜索
+# GET /internal/api/products?search=&limit=
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/products', methods=['GET'])
+@internal_auth_required
+def list_products():
+    limit = _parse_limit(default=30)
+    search = request.args.get('search', '').strip()
+
+    try:
+        from app.models.product import Product
+
+        query = Product.query.filter(Product.status != 'deleted') if hasattr(Product, 'status') else Product.query
+
+        if search:
+            query = query.filter(
+                db.or_(
+                    Product.product_name.ilike(f'%{search}%'),
+                    Product.model.ilike(f'%{search}%') if hasattr(Product, 'model') else False,
+                )
+            )
+
+        items = query.order_by(Product.id.desc()).limit(limit).all()
+
+        result = []
+        for p in items:
+            result.append({
+                'id': p.id,
+                'product_name': p.product_name,
+                'model': getattr(p, 'model', None),
+                'brand': getattr(p, 'brand', None),
+                'category': getattr(p, 'category', None),
+                'retail_price': getattr(p, 'retail_price', None),
+                'currency': getattr(p, 'currency', None),
+                'status': getattr(p, 'status', None),
+            })
+        return jsonify(result)
+    except Exception as e:
+        logger.exception(f'[internal_api] list_products error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 12: 团队成员
+# GET /internal/api/users
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/users', methods=['GET'])
+@internal_auth_required
+def list_users():
+    user = g.current_user
+    try:
+        # 厂家管理员可看全部；其他人只看同公司
+        if user.is_vendor_user() and user.role == 'admin':
+            users = User.query.filter(User.is_active == True).order_by(User.real_name).all()
+        else:
+            users = User.query.filter(
+                User.is_active == True,
+                User.company_name == user.company_name,
+            ).order_by(User.real_name).all()
+
+        result = [{
+            'id': u.id,
+            'username': u.username,
+            'real_name': u.real_name,
+            'department': u.department,
+            'role': u.role,
+            'company_name': u.company_name,
+            'email': u.email,
+        } for u in users]
+        return jsonify(result)
+    except Exception as e:
+        logger.exception(f'[internal_api] list_users error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 13: 跨模块仪表盘
+# GET /internal/api/dashboard?period=this_month
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/dashboard', methods=['GET'])
+@internal_auth_required
+def dashboard():
+    user = g.current_user
+    try:
+        from app.models.quotation import Quotation
+        from app.models.project import Project
+        from app.models.approval import ApprovalInstance, ApprovalStatus
+        from app.helpers.approval_helpers import get_step_actual_approver
+        from sqlalchemy import func as sqlfunc
+
+        now = datetime.utcnow()
+        month_start = datetime(now.year, now.month, 1)
+
+        # 本月报价统计
+        q_filters = [Quotation.is_deleted == False] if hasattr(Quotation, 'is_deleted') else []
+        q_base = get_viewable_data(Quotation, user, q_filters)
+        q_month = q_base.filter(Quotation.created_at >= month_start)
+
+        q_total = q_month.count()
+        q_status = {s: c for s, c in q_month.with_entities(Quotation.approval_status, sqlfunc.count(Quotation.id)).group_by(Quotation.approval_status).all()}
+        q_amount = q_month.filter(Quotation.approval_status == 'approved').with_entities(sqlfunc.sum(Quotation.amount)).scalar() or 0
+
+        # 项目总数（活跃）
+        p_active = get_viewable_data(Project, user, [Project.is_deleted == False, Project.is_active == True]).count()
+
+        # 待审批数
+        pending_count = 0
+        try:
+            instances = ApprovalInstance.query.filter(ApprovalInstance.status == ApprovalStatus.PENDING).all()
+            for inst in instances:
+                try:
+                    step = inst.get_current_step_info()
+                    if step and get_step_actual_approver(step, inst) and get_step_actual_approver(step, inst).id == user.id:
+                        pending_count += 1
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return jsonify({
+            'period': f'{now.year}-{now.month:02d}',
+            'quotations': {
+                'total_this_month': q_total,
+                'by_status': q_status,
+                'approved_amount': q_amount,
+            },
+            'projects': {
+                'active_count': p_active,
+            },
+            'approvals': {
+                'pending_count': pending_count,
+            },
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] dashboard error: {e}')
         return jsonify({'error': str(e)}), 500
