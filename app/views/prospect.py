@@ -879,35 +879,20 @@ Use the web_search tool to find new-build / major-upgrade projects in {current_y
 TARGET COUNTRIES: {country_str}
 TARGET INDUSTRIES: {industry_str}
 
-[SEARCH STRATEGY — run several searches per country+industry]
+[SEARCH STRATEGY — 3-5 searches total, efficient]
 
-Step 1 — Find projects (per country + industry combo):
-- "[country] [industry keyword] new project {current_year} announcement developer"
-- "[country] [industry keyword] groundbreaking {current_year} site"
-- "[country] regulatory approval {current_year} [industry keyword]"  (BCA / URA / EDB for SG; CIDB for MY; PUPR / OSS for ID; BOI for TH)
+Step 1 — Find projects (run 1-2 searches per country+industry combo):
+- "[country] [industry keyword] new project {current_year} developer"
+- "[country] [industry keyword] construction {current_year} awarded"
 
-Step 2 — Find Main Contractor / General Contractor:
-- "[project name] main contractor awarded"
-- "[project name] general contractor contract"
-- "[developer] [project keyword] tender awarded main contractor"
+Step 2 — For each project found, one follow-up search for key stakeholders:
+- "[project name] main contractor M&E consultant ELV"
+- "[developer] [project] contractor consultant awarded"
 
-Step 3 — Find M&E / ELV / Security Consultant (where radio + intercom + PA scope is specified):
-- "[project name] M&E consultant" or "[project name] MEP consultant design"
-- "[project name] ELV consultant" or "[project name] security consultant"
-- "[project name] ICT consultant" / "[project name] IBMS consultant"
-- "[M&E consultant firm] ELV department contact"
-
-Step 4 — Find System Integrator for ELV / Security / ICT:
-- "[project name] ELV system integrator"
-- "[project name] security integrator CCTV access control"
-- "[project name] PA intercom radio system integrator"
-- "[project name] ICT system integrator LAN WiFi"
-
-[KEY DEPARTMENTS WORTH NAMING]
-- Data Center / Semiconductor / Hospital: ELV / ICT / IBMS team inside the M&E consultancy
-- Manufacturing / Shipyard: Engineering / E&I (electrical & instrumentation) team
-- Port / Airport / MRT: Communication & Control Systems team
-- Hotel / Real Estate: Building Services / Smart Building team
+[KEY DEPARTMENTS]
+- Data Center / Hospital: ELV / ICT team inside M&E consultancy
+- Manufacturing / Shipyard: Engineering / E&I team
+- Port / Airport: Communication & Control Systems team
 
 [OUTPUT FORMAT — strict JSON, output JSON only, no surrounding prose]
 {{
@@ -956,13 +941,12 @@ Stakeholder type guide (choose the MOST SPECIFIC type that applies):
 - other            → Any other party that does not fit the above (e.g. strategic infrastructure platform, connectivity partner, utility provider)
 
 Rules:
-1. Run at least 8-12 searches across multiple country + industry combos before producing output.
-2. Find a MINIMUM of 10 projects in total — spread across the target countries and industries.
-3. Each project must include at least: one owner, one main_contractor, and one consultant (MEP/ELV/Security).
-4. If a system integrator for ELV/security/ICT is found, always include them — they are high priority.
-5. Use null for any field not explicitly stated in search results — do not fabricate.
-6. ALL text values in the JSON must be in English. Translate if necessary.
-7. Output complete, valid JSON only."""
+1. Run 3-5 searches total — do not over-search.
+2. Find 3-6 projects across the target countries and industries.
+3. Each project must include at least one owner and one contractor or consultant.
+4. Use null for any field not found — do not fabricate.
+5. ALL text values must be in English.
+6. Output valid JSON only."""
 
 
 def _run_batch_research_async(app, log_id, user_id, prompt, is_admin):
