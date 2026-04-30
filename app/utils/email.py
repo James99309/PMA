@@ -701,19 +701,7 @@ def send_claude_ai_token_email(user, token, is_reset=False, attach_dxt=True):
         """
 
         logger.info(f'正在向 {user.username} 发送 Claude AI {"重置" if is_reset else "开通"} 邮件')
-        attachments = None
-        if attach_dxt and not is_reset:
-            try:
-                if is_cn:
-                    mcp_host, mcp_dxt_name, mcp_display = 'pma-mcp.jamesgpone.win', 'pma', 'PMA'
-                else:
-                    mcp_host, mcp_dxt_name, mcp_display = 'sg-pma-mcp.jamesgpone.win', 'pma-sg', 'PMA (SG)'
-                dxt_bytes = generate_dxt_bytes(token, display_name=mcp_display, host=mcp_host, dxt_name=mcp_dxt_name)
-                safe_name = (user.username or 'user').lower()
-                attachments = [(f'pma-{safe_name}.dxt', dxt_bytes)]
-            except Exception as e:
-                logger.warning(f'生成 DXT 附件失败，继续发送邮件: {e}')
-        return send_email(subject, user.email, None, html=html_content, async_send=False, attachments=attachments)
+        return send_email(subject, user.email, None, html=html_content, async_send=False)
 
     except Exception as e:
         logger.error(f'发送 Claude AI 邮件失败: {e}', exc_info=True)
@@ -735,6 +723,8 @@ def send_dxt_install_email(user) -> bool:
         safe_name = (user.username or 'user').lower()
         db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
         is_cn = (db_type == 'sp8d')
+        external_url = os.environ.get('EXTERNAL_URL', '').rstrip('/')
+        download_url = f'{external_url}/user/api/claude-ai/download-dxt'
 
         if is_cn:
             subject = f'PMA Claude Desktop 扩展安装指南 - {real_name}'
@@ -758,8 +748,9 @@ def send_dxt_install_email(user) -> bool:
       <tr style="border-bottom:1px solid #e8e8e8;">
         <td style="padding:12px 16px;width:32px;font-size:20px;">1</td>
         <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
-          <strong>下载附件</strong><br>
-          <span style="color:#545454;">保存邮件附件 <code style="font-family:monospace;background:#f5f5f5;padding:2px 6px;border-radius:3px;">pma-{safe_name}.dxt</code> 到电脑</span>
+          <strong>下载扩展文件</strong><br>
+          <span style="color:#545454;">登录 PMA 后点击下方链接下载：</span><br>
+          <a href="{download_url}" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;">下载 pma-{safe_name}.dxt</a>
         </td>
       </tr>
       <tr style="border-bottom:1px solid #e8e8e8;">
@@ -821,8 +812,9 @@ def send_dxt_install_email(user) -> bool:
       <tr style="border-bottom:1px solid #e8e8e8;">
         <td style="padding:12px 16px;width:32px;font-size:20px;">1</td>
         <td style="padding:12px 16px;font-size:14px;color:#1a1a1a;">
-          <strong>Download the attachment</strong><br>
-          <span style="color:#545454;">Save the email attachment <code style="font-family:monospace;background:#f5f5f5;padding:2px 6px;border-radius:3px;">pma-{safe_name}.dxt</code> to your computer</span>
+          <strong>Download the extension</strong><br>
+          <span style="color:#545454;">Log in to PMA and click the link below to download:</span><br>
+          <a href="{download_url}" style="display:inline-block;margin-top:8px;padding:8px 16px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;">Download pma-{safe_name}.dxt</a>
         </td>
       </tr>
       <tr style="border-bottom:1px solid #e8e8e8;">
@@ -856,14 +848,8 @@ def send_dxt_install_email(user) -> bool:
 </body>
 </html>"""
 
-        if is_cn:
-            mcp_host, mcp_dxt_name, mcp_display = 'pma-mcp.jamesgpone.win', 'pma', 'PMA'
-        else:
-            mcp_host, mcp_dxt_name, mcp_display = 'sg-pma-mcp.jamesgpone.win', 'pma-sg', 'PMA (SG)'
-        dxt_bytes = generate_dxt_bytes(user.claude_ai_token, display_name=mcp_display, host=mcp_host, dxt_name=mcp_dxt_name)
-        attachments = [(f'pma-{safe_name}.dxt', dxt_bytes)]
         logger.info(f'发送 DXT 安装邮件给 {user.username} ({user.email})')
-        return send_email(subject, user.email, None, html=html_content, async_send=False, attachments=attachments)
+        return send_email(subject, user.email, None, html=html_content, async_send=False)
 
     except Exception as e:
         logger.error(f'发送 DXT 安装邮件失败: {e}', exc_info=True)

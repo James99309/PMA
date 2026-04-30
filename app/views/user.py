@@ -2814,6 +2814,30 @@ def api_claude_ai_requests(user_id):
         return jsonify({'success': False, 'entries': [], 'dates': [], 'message': str(e)})
 
 
+@user_bp.route('/api/claude-ai/download-dxt')
+@login_required
+def api_claude_ai_download_dxt():
+    """当前登录用户下载自己的 .dxt 扩展文件（绕过 Gmail 附件拦截）"""
+    from app.utils.email import generate_dxt_bytes
+    import os
+    if not current_user.claude_ai_token:
+        return jsonify({'error': '未开通 Claude AI'}), 403
+    db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
+    is_cn = (db_type == 'sp8d')
+    if is_cn:
+        mcp_host, dxt_name, display = 'pma-mcp.jamesgpone.win', 'pma', 'PMA'
+    else:
+        mcp_host, dxt_name, display = 'sg-pma-mcp.jamesgpone.win', 'pma-sg', 'PMA (SG)'
+    dxt_bytes = generate_dxt_bytes(current_user.claude_ai_token, display_name=display, host=mcp_host, dxt_name=dxt_name)
+    safe_name = (current_user.username or 'user').lower()
+    from flask import Response
+    return Response(
+        dxt_bytes,
+        mimetype='application/zip',
+        headers={'Content-Disposition': f'attachment; filename="pma-{safe_name}.dxt"'}
+    )
+
+
 @user_bp.route('/api/<int:user_id>/claude-ai/send-dxt', methods=['POST'])
 @login_required
 @permission_required('user', 'edit')
