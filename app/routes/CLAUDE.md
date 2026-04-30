@@ -37,4 +37,12 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #8260 | 10:11 PM | 🔵 | PMA Quotation and Product Configuration Management | ~664 |
+
+### Apr 30, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #8628 | 8:45 PM | 🟣 | Implemented wiki API refactor with topic browsing and on-demand article retrieval | ~171 |
+| #8626 | 8:37 PM | 🔵 | Wiki topic infrastructure exists but not exposed via MCP or internal API | ~426 |
+| #8601 | 12:01 PM | 🔴 | Fixed currency mismatch for newly added products in quotation form | ~496 |
 </claude-mem-context>

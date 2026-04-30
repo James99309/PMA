@@ -257,6 +257,9 @@ class SettlementOrder(db.Model):
     # 货币字段
     currency = Column(String(10), default='CNY', comment='货币类型')
 
+    # 结算单备注
+    notes = Column(Text, nullable=True, comment='结算单备注')
+
     # 业务类型（从布尔字段推导）
     @hybrid_property
     def business_type(self):

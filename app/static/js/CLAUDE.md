@@ -26,4 +26,10 @@
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
 | #7479 | 10:52 AM | 🔴 | Fixed auto-layout port selection for vertical connections in system diagrams | ~491 |
+
+### Apr 30, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #8601 | 12:01 PM | 🔴 | Fixed currency mismatch for newly added products in quotation form | ~496 |
 </claude-mem-context>

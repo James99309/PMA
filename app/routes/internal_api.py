@@ -1072,48 +1072,130 @@ def submit_worklog(log_date):
 
 
 # ---------------------------------------------------------------------------
-# 端点 18: 知识库问答
-# GET /internal/api/wiki/search?q=问题
+# 端点 18a: 知识库分类目录
+# GET /internal/api/wiki/topics
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/wiki/topics', methods=['GET'])
+@internal_auth_required
+def wiki_topics():
+    """返回知识库所有 topic 分类及各自的文章数量。"""
+    try:
+        from app.models.knowledge import KnowledgeTopic, KnowledgeWikiArticle
+        from sqlalchemy import func
+
+        topics = KnowledgeTopic.query.order_by(KnowledgeTopic.sort_order, KnowledgeTopic.name).all()
+
+        # 统计每个 topic 的文章数
+        counts = dict(
+            db.session.query(KnowledgeWikiArticle.topic, func.count(KnowledgeWikiArticle.id))
+            .group_by(KnowledgeWikiArticle.topic)
+            .all()
+        )
+
+        result = []
+        for t in topics:
+            result.append({
+                'name': t.name,
+                'description': t.description or '',
+                'article_count': counts.get(t.name, 0),
+            })
+
+        # 若 KnowledgeTopic 表为空，退化为从文章表聚合
+        if not result:
+            rows = (
+                db.session.query(KnowledgeWikiArticle.topic, func.count(KnowledgeWikiArticle.id))
+                .group_by(KnowledgeWikiArticle.topic)
+                .order_by(KnowledgeWikiArticle.topic)
+                .all()
+            )
+            result = [{'name': r[0], 'description': '', 'article_count': r[1]} for r in rows]
+
+        return jsonify({'topics': result})
+    except Exception as e:
+        logger.exception(f'[internal_api] wiki_topics error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 18b: 知识库单篇文章全文
+# GET /internal/api/wiki/articles/<id>
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/wiki/articles/<int:article_id>', methods=['GET'])
+@internal_auth_required
+def wiki_article(article_id):
+    """按 ID 返回单篇文章的完整 Markdown 内容。"""
+    try:
+        from app.services.wiki import storage
+        from app.models.knowledge import KnowledgeWikiArticle
+
+        art = KnowledgeWikiArticle.query.get(article_id)
+        if not art:
+            return jsonify({'error': f'文章 {article_id} 不存在'}), 404
+
+        content = storage.read_article_content(art.file_path)
+        return jsonify({
+            'id': art.id,
+            'title': art.title,
+            'topic': art.topic,
+            'summary': art.summary,
+            'content': content,
+            'updated_at': art.updated_at.isoformat() if art.updated_at else None,
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] wiki_article error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 18c: 知识库搜索（仅返回摘要，不含全文）
+# GET /internal/api/wiki/search?q=问题&topic=可选
 # ---------------------------------------------------------------------------
 
 @internal_api_bp.route('/wiki/search', methods=['GET'])
 @internal_auth_required
 def wiki_search():
-    """全文检索知识库，返回匹配文章内容供 Claude 直接阅读分析。
-    不再内部调用 Claude API，由 MCP 调用方（Claude Desktop）负责理解。
+    """全文检索知识库，返回标题+摘要+内容预览，不含全文。
+    需要完整正文请用 GET /wiki/articles/<id>。
     """
     question = request.args.get('q', '').strip()
+    topic = request.args.get('topic', '').strip() or None
     top_k = min(int(request.args.get('top_k', 5)), 10)
     if not question:
         return jsonify({'error': '问题不能为空'}), 400
     try:
-        from app.services.wiki.querier import _full_text_search, _tokenize_query
+        from app.services.wiki.querier import _full_text_search
         from app.services.wiki import storage
         from app.models.knowledge import KnowledgeWikiArticle
 
-        hits = _full_text_search(question, top_k, topic=None)
+        hits = _full_text_search(question, top_k, topic=topic)
+        fts_hit = len(hits) > 0
 
-        # 全文检索 0 命中时退化为最近更新的文章
+        # 全文检索 0 命中时退化为最近更新的文章（不读全文，只返回摘要）
         if not hits:
-            hits = KnowledgeWikiArticle.query.order_by(
-                KnowledgeWikiArticle.updated_at.desc()
-            ).limit(top_k).all()
+            q = KnowledgeWikiArticle.query
+            if topic:
+                q = q.filter_by(topic=topic)
+            hits = q.order_by(KnowledgeWikiArticle.updated_at.desc()).limit(top_k).all()
 
         articles = []
         for art in hits:
+            # 读取内容只为生成预览，不返回全文
             content = storage.read_article_content(art.file_path)
+            preview = content[:300].rstrip() + ('…' if len(content) > 300 else '') if content else ''
             articles.append({
                 'id': art.id,
                 'title': art.title,
                 'topic': art.topic,
                 'summary': art.summary,
-                'content': content,
+                'preview': preview,
             })
 
         return jsonify({
             'question': question,
             'articles': articles,
-            'fts_hit': len(hits) > 0,
+            'fts_hit': fts_hit,
         })
     except Exception as e:
         logger.exception(f'[internal_api] wiki_search error: {e}')

@@ -94,4 +94,10 @@
 | #8260 | 10:11 PM | 🔵 | PMA Quotation and Product Configuration Management | ~664 |
 | #8259 | 10:10 PM | 🔵 | PMA File Management and Documentation System | ~577 |
 | #8258 | " | 🔵 | PMA Product Development Lifecycle Management Implementation | ~614 |
+
+### Apr 30, 2026
+
+| ID | Time | T | Title | Read |
+|----|------|---|-------|------|
+| #8626 | 8:37 PM | 🔵 | Wiki topic infrastructure exists but not exposed via MCP or internal API | ~426 |
 </claude-mem-context>

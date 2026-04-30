@@ -1,0 +1,1167 @@
+{#
+=============================================================================
+批价单 Excel 风格独立编辑页 v2
+=============================================================================
+路由: GET /pricing_order/<order_id>/excel-edit
+设计文档: docs/plans/2026-04-28-pricing-order-excel-design.md
+=============================================================================
+#}
+{% from 'components/tw_approval_flow.html' import render_tw_approval_flow_card, render_tw_approval_modals, render_tw_approval_flow_script with context %}
+
+{% set currency_symbol = pricing_order.currency_symbol %}
+{% set order_id = pricing_order.id %}
+{% set is_direct = pricing_order.is_direct_contract %}
+{% set so = pricing_order.settlement_orders[0] if pricing_order.settlement_orders else none %}
+
+{# 从 notes 解析交货日期（格式：首行 "交货日期:YYYY-MM-DD"） #}
+{% set raw_notes = pricing_order.notes or '' %}
+{% set delivery_date_val = '' %}
+{% set notes_body = raw_notes %}
+{% if raw_notes.startswith('交货日期:') %}
+  {% set parts = raw_notes.split('\n', 1) %}
+  {% set delivery_date_val = parts[0][5:] %}
+  {% set notes_body = parts[1] if parts|length > 1 else '' %}
+{% endif %}
+
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+  <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{{ pricing_order.order_number }}</title>
+
+  <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/excel-paper-editor.css') }}">
+  <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+  <script src="{{ url_for('static', filename='js/excel-editor-base.js') }}"></script>
+  <script src="{{ url_for('static', filename='vendor/sortablejs/Sortable.min.js') }}"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: { extend: { colors: { "primary": "#137fec" }, fontFamily: { "display": ["Inter","sans-serif"] } } }
+    }
+  </script>
+  <style>
+    /* ── Combobox 搜索下拉 ── */
+    .cb-wrap { position: relative; }
+    .cb-wrap input[type=text] { width: 100%; border: none; outline: none; background: transparent;
+      font-size: 11px; font-family: inherit; color: #000; cursor: text; }
+    .cb-wrap input[type=text]:disabled { color: #94a3b8; cursor: not-allowed; }
+    .cb-dropdown {
+      display: none; position: absolute; left: 0; top: 100%; min-width: 240px;
+      background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12); z-index: 100;
+      max-height: 220px; overflow-y: auto; margin-top: 2px;
+    }
+    .cb-item { padding: 7px 12px; font-size: 12px; cursor: pointer; color: #1e293b; }
+    .cb-item:hover, .cb-item.highlighted { background: #eff6ff; color: #1d4ed8; }
+    .cb-item.special { color: #b45309; font-weight: 600; background: #fffbeb; }
+    .cb-item.special:hover { background: #fef3c7; }
+    .cb-empty { padding: 8px 12px; font-size: 12px; color: #94a3b8; }
+
+    #tabBar {
+      background: #fff; border-bottom: 1px solid #e2e8f0;
+      padding: 0 24px; display: flex; align-items: center;
+      position: sticky; top: 56px; z-index: 29;
+      box-shadow: 0 1px 0 #e2e8f0;
+    }
+    .tab-btn {
+      padding: 10px 20px; font-size: 13px; font-weight: 500; cursor: pointer;
+      border: none; background: transparent; color: #64748b;
+      border-bottom: 2px solid transparent; transition: all .15s;
+      display: flex; align-items: center; gap: 6px; font-family: inherit;
+    }
+    .tab-btn.active { color: #137fec; border-bottom-color: #137fec; }
+    .tab-btn:hover:not(.active) { color: #1e293b; background: #f8fafc; }
+    .tab-btn .material-symbols-outlined { font-size: 15px; }
+
+    #pageScroll {
+      padding-top: 24px; overflow-y: auto;
+      height: calc(100vh - 56px - 41px);
+      transition: padding-right .25s;
+    }
+    #pageScroll.drawer-open { padding-right: 320px; }
+
+    /* 审批抽屉 */
+    #approvalDrawer {
+      position: fixed; top: 56px; right: 0; bottom: 0;
+      width: 0; overflow: hidden; transition: width .25s ease;
+      background: #fff; border-left: 1px solid #e2e8f0;
+      display: flex; flex-direction: column; z-index: 28;
+      box-shadow: -4px 0 16px rgba(0,0,0,0.08);
+    }
+    #approvalDrawer.open { width: 320px; }
+    .drawer-header {
+      padding: 12px 16px; border-bottom: 1px solid #e2e8f0;
+      display: flex; align-items: center; justify-content: space-between; background: #fff;
+      flex-shrink: 0;
+    }
+    .drawer-body { flex: 1; overflow-y: auto; padding: 16px; }
+
+    /* 结算提示横幅 */
+    .settle-banner {
+      background: #fffbeb; border-bottom: 1px solid #fde68a;
+      padding: 9px 32px; font-size: 12px; color: #92400e;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    /* 利润摘要卡片 */
+    .profit-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin: 16px 32px 32px; }
+    .profit-card { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 16px; background: #fff; }
+    .profit-card.green { background: #f0fdf4; border-color: #bbf7d0; }
+    .profit-card .pc-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+    .profit-card.green .pc-label { color: #166534; }
+    .profit-card .pc-value { font-size: 20px; font-weight: 700; color: #1e293b; }
+    .profit-card.green .pc-value { color: #16a34a; }
+
+    /* ── 公司表头 ── */
+    .company-name { font-size: 16px; font-weight: 700; border: none !important; background: transparent; padding: 6px 12px 2px; color: #1e293b; }
+    .company-info { font-size: 11px; color: #475569; border: none !important; background: transparent; padding: 1px 12px; }
+    .doc-title { text-align: center; font-size: 18px; font-weight: 700; letter-spacing: 6px; padding: 10px 0 14px; color: #1e293b; }
+    #pricingPaper .doc-title { color: #16a34a; }
+    #settlementPaper .doc-title { color: #2563eb; }
+    .logo-area { width: 120px; display: flex; align-items: center; }
+    .logo-area img { max-width: 120px; max-height: 56px; object-fit: contain; display: block; }
+    .logo-placeholder { width: 100px; height: 48px; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 10px; border-radius: 4px; }
+
+    /* ── 签字区 ── */
+    td.sign-blank { border: none !important; height: 48px; background: transparent; }
+    span.sign-line { display: inline-block; min-width: 160px; border-bottom: 1px solid #1e293b; padding-bottom: 2px; font-size: 12px; color: #1e293b; }
+
+    /* 厂商直签徽章 */
+    .direct-badge { font-size: 10px; background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; border-radius: 4px; padding: 1px 6px; font-weight: 600; }
+
+    /* 型号规格多行显示 */
+    .model-cell-display { line-height: 1.5; }
+    .model-cell-display .mn { font-size: 12px; color: #1e293b; }
+    .model-cell-display .md { font-size: 11px; color: #475569; margin-top: 1px; }
+    .model-cell-display .nd { font-size: 11px; color: #94a3b8; margin-top: 1px; white-space: pre-wrap; }
+
+    @media print {
+      #tabBar, #approvalDrawer { display: none !important; }
+      #pageScroll { height: auto; padding: 0; overflow: visible; }
+      .excel-paper { box-shadow: none !important; margin: 0 !important; padding: 20px !important; width: 100% !important; max-width: none !important; }
+      td.sign-blank { height: 40px !important; }
+    }
+  </style>
+</head>
+<body class="text-slate-900 excel-editor-page">
+
+<!-- ══ HEADER ══ -->
+<header class="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between sticky top-0 z-30 shadow-sm h-14">
+  <div class="flex items-center gap-3">
+    <a href="{{ url_for('quotation.view_quotation', id=pricing_order.quotation_id) }}" class="text-slate-500 hover:text-slate-700">
+      <span class="material-symbols-outlined">arrow_back</span>
+    </a>
+    <div>
+      <h1 class="text-sm font-semibold text-slate-900">批价单 · {{ pricing_order.order_number }}</h1>
+      {% if pricing_order.project %}<p class="text-xs text-slate-500">{{ pricing_order.project.project_name }}</p>{% endif %}
+    </div>
+    {% set status_classes = {'draft':'bg-slate-100 text-slate-600 border-slate-200','pending':'bg-amber-50 text-amber-700 border-amber-200','approved':'bg-green-50 text-green-700 border-green-200','rejected':'bg-red-50 text-red-700 border-red-200'} %}
+    {% set status_labels = {'draft':'草稿','pending':'审批中','approved':'已批准','rejected':'已拒绝'} %}
+    <span class="ml-1 text-[10px] font-medium px-2 py-0.5 rounded border {{ status_classes.get(pricing_order.status,'bg-slate-100 text-slate-600 border-slate-200') }}">
+      {{ status_labels.get(pricing_order.status, pricing_order.status) }}
+    </span>
+    {% if is_direct %}<span class="direct-badge ml-1">厂商直签</span>{% endif %}
+  </div>
+
+  <div class="flex items-center gap-2">
+    {# 利润 KPI（始终显示，结算单编辑后实时更新） #}
+    {% set gp = (pricing_order.pricing_total_amount or 0) - (pricing_order.settlement_total_amount or 0) %}
+    {% set gm = (gp / pricing_order.pricing_total_amount * 100) if pricing_order.pricing_total_amount and pricing_order.pricing_total_amount > 0 else 0 %}
+    <div class="flex items-center gap-3 mr-2 px-3 py-1 rounded-md bg-green-50 border border-green-200">
+      <div class="text-center">
+        <div class="text-[9px] text-green-600 font-semibold uppercase tracking-wide">毛利润</div>
+        <div class="text-sm font-bold text-green-700" id="kpiGrossProfit">{{ currency_symbol }} {{ '{:,.2f}'.format(gp) }}</div>
+      </div>
+      <div class="text-center">
+        <div class="text-[9px] text-green-600 font-semibold uppercase tracking-wide">毛利率</div>
+        <div class="text-sm font-bold text-green-700" id="kpiGrossMargin">{{ '%.1f' % gm }}%</div>
+      </div>
+    </div>
+
+    <button id="approvalToggleBtn" type="button"
+      class="px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
+      <span class="material-symbols-outlined text-base">approval</span>
+      <span id="drawerBtnText">审批流程 ›</span>
+    </button>
+
+    {% if can_edit_pricing %}
+    <button type="button" onclick="PricingEditor.addRow('custom')"
+      class="px-3 py-1.5 rounded-md text-sm bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-1.5">
+      <span class="material-symbols-outlined text-base">add</span>添加行
+    </button>
+    {% endif %}
+
+    <button type="button" onclick="window.print()"
+      class="px-3 py-1.5 rounded-md text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1.5">
+      <span class="material-symbols-outlined text-base">print</span>打印
+    </button>
+    <a href="{{ url_for('quotation.view_quotation', id=pricing_order.quotation_id) }}"
+      class="px-3 py-1.5 rounded-md text-sm bg-slate-100 hover:bg-slate-200 text-slate-700">取消</a>
+    {% if can_edit_pricing %}
+    <button type="button" onclick="PricingEditor.save()"
+      class="px-3 py-1.5 rounded-md text-sm bg-emerald-600 hover:bg-emerald-700 text-white">保存</button>
+    {% endif %}
+  </div>
+</header>
+
+<!-- ══ TAB BAR ══ -->
+<div id="tabBar">
+  <button class="tab-btn active" data-tab="pricing" type="button">
+    <span class="material-symbols-outlined">request_quote</span>批价单
+  </button>
+  {% if can_view_settlement %}
+  <button class="tab-btn" data-tab="settlement" type="button">
+    <span class="material-symbols-outlined">receipt_long</span>结算单
+  </button>
+  {% endif %}
+</div>
+
+<!-- ══ 滚动容器 ══ -->
+<div id="pageScroll">
+
+  <!-- ════ 批价单 TAB ════ -->
+  <div data-panel="pricing">
+    <div class="excel-paper" id="pricingPaper">
+
+      {# ── 公司表头（同报价单） ── #}
+      <table class="q-grid" style="margin-bottom:4px">
+        <colgroup><col style="width:140px"><col></colgroup>
+        <tbody>
+          <tr>
+            <td class="no-border" rowspan="3" style="padding:0 16px 0 0;vertical-align:middle">
+              <div class="logo-area">
+                {% if user_letterhead and user_letterhead.logo_url %}
+                  <img src="{{ user_letterhead.logo_url }}" alt="LOGO">
+                {% else %}
+                  <div class="logo-placeholder">LOGO</div>
+                {% endif %}
+              </div>
+            </td>
+            <td class="company-name">{{ user_letterhead.line1 if user_letterhead and user_letterhead.line1 else vendor_company_name }}</td>
+          </tr>
+          <tr><td class="company-info">{{ user_letterhead.line2 if user_letterhead and user_letterhead.line2 else '' }}</td></tr>
+          <tr><td class="company-info">{{ user_letterhead.line3 if user_letterhead and user_letterhead.line3 else '' }}</td></tr>
+        </tbody>
+      </table>
+
+      {# ── 文件标题 ── #}
+      <div class="doc-title">批价单</div>
+
+      {# ── 主表：信息行 + 产品行 + 合计行 + 备注行（同报价单单一表格结构） ── #}
+      <table class="q-grid" id="pricingGrid" style="position:relative">
+        <colgroup>
+          <col style="width:22px">{# drag #}
+          <col style="width:4%">{# S/N #}
+          <col class="col-mn" style="width:12%">{# 产品编码 #}
+          <col style="width:9%">{# 品牌 #}
+          <col>{# 型号规格 #}
+          <col style="width:5%">{# 数量 #}
+          <col class="col-market" style="width:10%">{# 市场价 #}
+          <col class="col-discount" style="width:7%">{# 折扣% #}
+          <col style="width:10%">{# 批价 #}
+          <col style="width:10%">{# 小计 #}
+          <col class="col-note" style="width:10%">{# 行备注 #}
+          <col style="width:22px">{# 删除 #}
+        </colgroup>
+
+        {# ── 信息区 ── #}
+        <tbody id="infoBody">
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="label" colspan="2">项目</td>
+            <td class="readonly" colspan="3">{{ pricing_order.project.project_name if pricing_order.project else '—' }}</td>
+            <td class="label" colspan="2">批价单号</td>
+            <td class="readonly" colspan="3">{{ pricing_order.order_number }}</td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="label" colspan="2">经销商</td>
+            <td class="editable" colspan="3" id="dealerCell">
+              {% if is_direct %}
+                <span class="text-slate-500 text-xs">{{ vendor_company_name }}（厂商直签）</span>
+                <input type="hidden" id="dealerHidden" value="__direct__">
+              {% else %}
+                <div class="cb-wrap">
+                  <input type="text" id="dealerInput" autocomplete="off"
+                    {% if not can_edit_basic_info %}disabled{% endif %}
+                    placeholder="输入关键词搜索经销商…"
+                    value="{% if pricing_order.dealer_id %}{% for d in dealers %}{% if d.id == pricing_order.dealer_id %}{{ d.company_name }}{% endif %}{% endfor %}{% endif %}">
+                  <input type="hidden" id="dealerHidden" value="{{ pricing_order.dealer_id or '' }}">
+                  <div class="cb-dropdown" id="dealerDropdown"></div>
+                </div>
+              {% endif %}
+            </td>
+            <td class="label" colspan="2">关联报价</td>
+            <td class="readonly" colspan="3">{{ pricing_order.quotation.quotation_number if pricing_order.quotation else '—' }}</td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="label" colspan="2">分销商</td>
+            <td class="editable" colspan="3" id="distributorCell">
+              {% if is_direct %}
+                <span class="text-slate-400 text-xs">（厂商直签，无分销商）</span>
+                <input type="hidden" id="distributorHidden" value="">
+              {% else %}
+                <div class="cb-wrap">
+                  <input type="text" id="distributorInput" autocomplete="off"
+                    {% if not can_edit_basic_info %}disabled{% endif %}
+                    placeholder="输入关键词搜索分销商…"
+                    value="{% if pricing_order.is_factory_pickup %}{{ vendor_company_name }}（厂商直提）{% elif pricing_order.distributor_id %}{% for d in distributors %}{% if d.id == pricing_order.distributor_id %}{{ d.company_name }}{% endif %}{% endfor %}{% endif %}">
+                  <input type="hidden" id="distributorHidden" value="{% if pricing_order.is_factory_pickup %}__vendor__{% else %}{{ pricing_order.distributor_id or '' }}{% endif %}">
+                  <div class="cb-dropdown" id="distributorDropdown"></div>
+                </div>
+              {% endif %}
+            </td>
+            <td class="label" colspan="2">批价日期</td>
+            <td class="{% if can_edit_basic_info %}editable{% else %}readonly{% endif %}" colspan="3">
+              <input type="date" id="pricingDate"
+                value="{{ pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '' }}"
+                {% if not can_edit_basic_info %}disabled{% endif %}
+                onchange="PricingEditor.syncDate(this.value)">
+            </td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="label" colspan="2">货币</td>
+            <td class="readonly" colspan="3">{{ pricing_order.currency }}</td>
+            <td class="label" colspan="2">交货日期</td>
+            <td class="{% if can_edit_basic_info %}editable{% else %}readonly{% endif %}" colspan="3">
+              <input type="date" id="deliveryDate" value="{{ delivery_date_val }}"
+                {% if not can_edit_basic_info %}disabled{% endif %}
+                onchange="PricingEditor.syncDelivery(this.value)">
+            </td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+        </tbody>
+
+        {# ── 产品表头 ── #}
+        <tbody>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="product-th">S/N</td>
+            <td class="product-th col-mn">产品编码</td>
+            <td class="product-th">品牌</td>
+            <td class="product-th">型号规格</td>
+            <td class="product-th">数量</td>
+            <td class="product-th col-market">市场价</td>
+            <td class="product-th col-discount">折扣%</td>
+            <td class="product-th">批价</td>
+            <td class="product-th">小计</td>
+            <td class="product-th col-note">行备注</td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+        </tbody>
+
+        {# ── 产品明细行 ── #}
+        <tbody id="pricingTbody">
+          {% set sn = namespace(val=0) %}
+          {% for detail in pricing_order.pricing_details %}
+          <tr class="product-row" data-id="{{ detail.id }}">
+            <td class="drag-handle"><span class="material-symbols-outlined" style="font-size:14px">drag_indicator</span></td>
+            <td class="readonly" style="text-align:center">{% set sn.val = sn.val + 1 %}{{ sn.val }}</td>
+            <td class="col-mn {% if can_edit_pricing %}editable{% else %}readonly{% endif %}">
+              <input class="cell-mn" value="{{ detail.product_mn or '' }}" {% if not can_edit_pricing %}disabled{% endif %}>
+            </td>
+            <td class="{% if can_edit_pricing %}editable{% else %}readonly{% endif %}">
+              <input class="cell-brand" value="{{ detail.brand or '' }}" {% if not can_edit_pricing %}disabled{% endif %}>
+            </td>
+            <td class="readonly" style="vertical-align:top;padding:5px 8px">
+              <div class="model-cell-display">
+                <div class="mn">{{ detail.product_name }}</div>
+                {% if detail.product_model %}<div class="md">{{ detail.product_model }}</div>{% endif %}
+                {% if detail.product_desc %}<div class="nd">{{ detail.product_desc }}</div>{% endif %}
+              </div>
+              {# 隐藏 input 供 save() 读取 #}
+              <input type="hidden" class="cell-model" value="{{ detail.product_name }}{% if detail.product_model %} {{ detail.product_model }}{% endif %}">
+            </td>
+            <td class="{% if can_edit_pricing %}editable{% else %}readonly{% endif %}" style="text-align:center">
+              <input type="number" class="cell-qty" value="{{ detail.quantity }}" min="1" style="text-align:center" {% if not can_edit_pricing %}disabled{% endif %}>
+            </td>
+            <td class="col-market {% if can_edit_pricing %}editable{% else %}readonly{% endif %}" style="text-align:right">
+              <input type="number" class="cell-market" value="{{ '%.2f' % detail.market_price }}" step="0.01" style="text-align:right" {% if not can_edit_pricing %}disabled{% endif %}>
+            </td>
+            <td class="col-discount {% if can_edit_pricing %}editable{% else %}readonly{% endif %}" style="text-align:center">
+              <div style="display:flex;align-items:center;justify-content:center;gap:1px">
+                <input type="number" class="cell-discount" value="{{ '%.1f' % (detail.discount_rate * 100) }}" min="0" max="100" step="0.1" style="text-align:right;width:calc(100% - 12px)" {% if not can_edit_pricing %}disabled{% endif %}>
+                <span style="color:#475569;font-size:11px;flex-shrink:0">%</span>
+              </div>
+            </td>
+            <td class="readonly" style="text-align:right">
+              <span class="cell-price">{{ '{:,.2f}'.format(detail.unit_price) }}</span>
+            </td>
+            <td class="readonly" style="text-align:right">
+              <span class="cell-subtotal">{{ '{:,.2f}'.format(detail.total_price) }}</span>
+            </td>
+            <td class="col-note {% if can_edit_pricing %}editable{% else %}readonly{% endif %}">
+              <input class="cell-note" value="{{ detail.item_note or '' }}" {% if not can_edit_pricing %}disabled{% endif %}>
+            </td>
+            <td class="delete-cell">
+              {% if can_edit_pricing %}
+              <span class="material-symbols-outlined" onclick="PricingEditor.deleteRow(this)" title="删除">delete</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+
+        {# ── 合计行 + 备注行 ── #}
+        <tbody id="totalBody">
+          <tr class="total-row total-final-row">
+            <td style="border:none;background:transparent"></td>
+            <td colspan="8" class="total-label" style="text-align:right;padding-right:12px">合计</td>
+            <td class="total-value" style="text-align:right;font-weight:700" id="pricingTotal">{{ currency_symbol }} {{ pricing_order.formatted_pricing_total_amount }}</td>
+            <td class="total-value col-note"></td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="label" colspan="2" style="vertical-align:top">备注</td>
+            <td class="{% if can_edit_pricing %}editable{% else %}readonly{% endif %}" colspan="8" style="vertical-align:top">
+              <textarea id="pricingNotes" rows="3" {% if not can_edit_pricing %}disabled{% endif %}
+                style="overflow:hidden;min-height:calc(1.35em * 3 + 4px)">{{ notes_body or quotation_notes }}</textarea>
+            </td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+        </tbody>
+      </table>
+
+      {# ── 签字区（同报价单） ── #}
+      <table class="q-grid" style="margin-top:40px">
+        <colgroup>
+          <col style="width:22px">
+          <col style="width:4%"><col style="width:12%"><col style="width:9%">
+          <col>
+          <col style="width:5%"><col style="width:10%">
+          <col style="width:7%"><col style="width:10%"><col style="width:10%">
+          <col style="width:12%"><col style="width:22px">
+        </colgroup>
+        <tbody>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="no-border" colspan="3" style="font-weight:700;font-size:12px;padding-left:12px">制单人:</td>
+            <td class="no-border" colspan="4" style="font-weight:700;font-size:12px;text-align:center">审批人:</td>
+            <td class="no-border" colspan="3" style="font-weight:700;font-size:12px;text-align:right;padding-right:24px">经销商确认:</td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="sign-blank" colspan="3"></td>
+            <td class="sign-blank" colspan="4"></td>
+            <td class="sign-blank" colspan="3"></td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="no-border" colspan="3" style="padding-left:12px;vertical-align:top">
+              <span class="sign-line">{{ pricing_order.creator.real_name or pricing_order.creator.username }}</span>
+            </td>
+            <td class="no-border" colspan="4" style="text-align:center;vertical-align:top">
+              <span class="sign-line"></span>
+            </td>
+            <td class="no-border" colspan="3" style="text-align:right;padding-right:24px;vertical-align:top">
+              <span class="sign-line"></span>
+            </td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div><!-- /excel-paper -->
+  </div><!-- /pane-pricing -->
+
+  <!-- ════ 结算单 TAB ════ -->
+  {% if can_view_settlement %}
+  <div data-panel="settlement" class="hidden">
+    <div class="excel-paper" id="settlementPaper">
+
+      {# ── 公司表头（同批价单） ── #}
+      <table class="q-grid" style="margin-bottom:4px">
+        <colgroup><col style="width:140px"><col></colgroup>
+        <tbody>
+          <tr>
+            <td class="no-border" rowspan="3" style="padding:0 16px 0 0;vertical-align:middle">
+              <div class="logo-area">
+                {% if user_letterhead and user_letterhead.logo_url %}
+                  <img src="{{ user_letterhead.logo_url }}" alt="LOGO">
+                {% else %}
+                  <div class="logo-placeholder">LOGO</div>
+                {% endif %}
+              </div>
+            </td>
+            <td class="company-name">{{ user_letterhead.line1 if user_letterhead and user_letterhead.line1 else vendor_company_name }}</td>
+          </tr>
+          <tr><td class="company-info">{{ user_letterhead.line2 if user_letterhead and user_letterhead.line2 else '' }}</td></tr>
+          <tr><td class="company-info">{{ user_letterhead.line3 if user_letterhead and user_letterhead.line3 else '' }}</td></tr>
+        </tbody>
+      </table>
+
+      {# ── 文件标题 ── #}
+      <div class="doc-title">结算单</div>
+
+      {# ── 主表：信息行 + 产品行 + 合计行 + 备注行（对齐批价单 12 列结构） ── #}
+      <table class="q-grid" id="settlementGrid">
+        <colgroup>
+          <col style="width:22px">{# 左边距 #}
+          <col style="width:4%">{# S/N #}
+          <col style="width:12%">{# 产品编码 #}
+          <col style="width:9%">{# 品牌 #}
+          <col>{# 型号规格 #}
+          <col style="width:5%">{# 数量 #}
+          <col class="col-market" style="width:10%">{# 市场价 #}
+          <col class="col-discount" style="width:7%">{# 折扣% #}
+          <col style="width:10%">{# 结算价 #}
+          <col style="width:10%">{# 小计 #}
+          <col class="col-note" style="width:10%">{# 行备注 #}
+          <col style="width:22px">{# 右边距 #}
+        </colgroup>
+
+        {# ── 信息区 ── #}
+        <tbody>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="label" colspan="2">结算单号</td>
+            <td class="readonly" colspan="3">{{ so.order_number if so else '—（保存后生成）' }}</td>
+            <td class="label" colspan="2">结算公司</td>
+            <td class="{% if can_edit_settlement %}editable{% else %}readonly{% endif %}" colspan="3">
+              {% if is_direct %}
+                <span class="text-slate-500 text-xs">{{ vendor_company_name }}（厂商直签）</span>
+              {% else %}
+                <div class="cb-wrap">
+                  <input type="text" id="settlementCoInput" autocomplete="off"
+                    {% if not can_edit_settlement %}disabled{% endif %}
+                    placeholder="输入关键词搜索…"
+                    value="{% if so and so.distributor_id %}{% for d in distributors %}{% if d.id == so.distributor_id %}{{ d.company_name }}{% endif %}{% endfor %}{% endif %}">
+                  <input type="hidden" id="settlementCoHidden" value="{{ so.distributor_id if so else '' }}">
+                  <div class="cb-dropdown" id="settlementCoDropdown"></div>
+                </div>
+              {% endif %}
+            </td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="label" colspan="2">结算日期</td>
+            <td class="{% if can_edit_settlement %}editable{% else %}readonly{% endif %}" colspan="3">
+              <input type="date" id="settlementDate"
+                value="{{ pricing_order.created_at.strftime('%Y-%m-%d') if pricing_order.created_at else '' }}"
+                {% if not can_edit_settlement %}disabled{% endif %}>
+            </td>
+            <td class="label" colspan="2">交货日期</td>
+            <td class="readonly" colspan="3">
+              <span id="settlementDelivery">{{ delivery_date_val or '—' }}</span>
+            </td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="label" colspan="2">批价单号</td>
+            <td class="readonly" colspan="3">{{ pricing_order.order_number }}</td>
+            <td class="label" colspan="2">货币</td>
+            <td class="readonly" colspan="3">{{ pricing_order.currency }}</td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+        </tbody>
+
+        {# ── 产品表头 ── #}
+        <tbody>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="product-th">S/N</td>
+            <td class="product-th">产品编码</td>
+            <td class="product-th">品牌</td>
+            <td class="product-th">型号规格</td>
+            <td class="product-th">数量</td>
+            <td class="product-th col-market">市场价</td>
+            <td class="product-th col-discount">折扣%</td>
+            <td class="product-th">结算价</td>
+            <td class="product-th">小计</td>
+            <td class="product-th col-note">行备注</td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+        </tbody>
+
+        {# ── 结算明细行 ── #}
+        <tbody id="settlementTbody">
+          {% set sn2 = namespace(val=0) %}
+          {% for detail in pricing_order.settlement_details %}
+          <tr class="product-row" data-id="{{ detail.id }}" data-pricing-detail-id="{{ detail.pricing_detail_id }}">
+            {% set sn2.val = sn2.val + 1 %}
+            <td style="border:none;background:transparent"></td>
+            <td class="readonly" style="text-align:center">{{ sn2.val }}</td>
+            <td class="readonly">{{ detail.product_mn or '' }}</td>
+            <td class="readonly">{{ detail.brand or '' }}</td>
+            <td class="readonly" style="vertical-align:top;padding:5px 8px">
+              <div class="model-cell-display">
+                <div class="mn">{{ detail.product_name }}</div>
+                {% if detail.product_model %}<div class="md">{{ detail.product_model }}</div>{% endif %}
+                {% if detail.product_desc %}<div class="nd">{{ detail.product_desc }}</div>{% endif %}
+              </div>
+            </td>
+            <td class="readonly" style="text-align:center">{{ detail.quantity }}</td>
+            <td class="readonly col-market" style="text-align:right">{{ '{:,.2f}'.format(detail.market_price) }}</td>
+            <td class="readonly col-discount" style="text-align:center">{{ '%.1f' % (detail.discount_rate * 100) }}%</td>
+            <td class="{% if can_edit_settlement %}editable{% else %}readonly{% endif %}" style="text-align:right">
+              <input type="number" class="cell-settle-price" data-detail-id="{{ detail.id }}"
+                value="{{ '%.2f' % detail.unit_price }}" step="0.01" style="text-align:right"
+                {% if not can_edit_settlement %}disabled{% endif %}
+                onchange="PricingEditor.updateSettlementDetail(this)">
+            </td>
+            <td class="readonly" style="text-align:right">
+              <span class="cell-settle-subtotal">{{ '{:,.2f}'.format(detail.total_price) }}</span>
+            </td>
+            <td class="{% if can_edit_settlement %}editable{% else %}readonly{% endif %} col-note">
+              <input class="cell-settle-note" value="{{ detail.item_note or '' }}"
+                data-detail-id="{{ detail.id }}"
+                {% if not can_edit_settlement %}disabled{% endif %}
+                onchange="PricingEditor.updateSettlementNote(this)">
+            </td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+
+        {# ── 合计行 + 备注行 ── #}
+        <tbody>
+          <tr class="total-row total-final-row">
+            <td style="border:none;background:transparent"></td>
+            <td colspan="8" class="total-label" style="text-align:right;padding-right:12px">结算合计</td>
+            <td class="total-value" style="text-align:right;font-weight:700" id="settlementTotal">{{ currency_symbol }} {{ pricing_order.formatted_settlement_total_amount }}</td>
+            <td class="total-value col-note"></td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="label" colspan="2" style="vertical-align:top">备注</td>
+            <td class="{% if can_edit_settlement %}editable{% else %}readonly{% endif %}" colspan="8" style="vertical-align:top">
+              <textarea id="settlementNotes" rows="3" {% if not can_edit_settlement %}disabled{% endif %}>{{ (so.notes if so and so.notes) or notes_body or quotation_notes }}</textarea>
+            </td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+        </tbody>
+      </table>
+
+      {# ── 签字区 ── #}
+      <table class="q-grid" style="margin-top:40px">
+        <colgroup>
+          <col style="width:22px">
+          <col style="width:4%"><col style="width:12%"><col style="width:9%">
+          <col>
+          <col style="width:5%"><col style="width:10%">
+          <col style="width:7%"><col style="width:10%"><col style="width:10%">
+          <col style="width:10%"><col style="width:22px">
+        </colgroup>
+        <tbody>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="no-border" colspan="3" style="font-weight:700;font-size:12px;padding-left:12px">制单人:</td>
+            <td class="no-border" colspan="4" style="font-weight:700;font-size:12px;text-align:center">审批人:</td>
+            <td class="no-border" colspan="3" style="font-weight:700;font-size:12px;text-align:right;padding-right:24px">分销商确认:</td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="sign-blank" colspan="3"></td>
+            <td class="sign-blank" colspan="4"></td>
+            <td class="sign-blank" colspan="3"></td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+          <tr>
+            <td style="border:none;background:transparent"></td>
+            <td class="no-border" colspan="3" style="padding-left:12px;vertical-align:top">
+              <span class="sign-line">{{ pricing_order.creator.real_name or pricing_order.creator.username }}</span>
+            </td>
+            <td class="no-border" colspan="4" style="text-align:center;vertical-align:top">
+              <span class="sign-line"></span>
+            </td>
+            <td class="no-border" colspan="3" style="text-align:right;padding-right:24px;vertical-align:top">
+              <span class="sign-line"></span>
+            </td>
+            <td style="border:none;background:transparent"></td>
+          </tr>
+        </tbody>
+      </table>
+
+    </div><!-- /excel-paper -->
+  </div><!-- /pane-settlement -->
+
+  </div><!-- /pane-settlement -->
+  {% endif %}
+
+</div><!-- /pageScroll -->
+
+<!-- ══ 审批流程抽屉 ══ -->
+<div id="approvalDrawer">
+  <div class="drawer-header">
+    <span class="text-sm font-semibold text-slate-900 flex items-center gap-2">
+      <span class="material-symbols-outlined text-base text-indigo-500">approval</span>审批流程
+    </span>
+    <button type="button" onclick="PricingEditor.closeDrawer()" class="text-slate-400 hover:text-slate-600">
+      <span class="material-symbols-outlined">close</span>
+    </button>
+  </div>
+  <div class="drawer-body" id="approvalDrawerBody">
+    {{ render_tw_approval_flow_card(pricing_order.status, container_id='approvalFlowContainer') }}
+  </div>
+</div>
+
+{{ render_tw_approval_modals() }}
+
+<!-- ══ 脚本 ══ -->
+<script>
+const ORDER_ID      = {{ order_id }};
+const CURRENCY_SYM  = "{{ currency_symbol }}";
+const VENDOR_NAME   = "{{ vendor_company_name | e }}";
+const IS_DIRECT     = {{ 'true' if is_direct else 'false' }};
+
+const PricingEditor = (() => {
+
+  /* ── Tab 切换 ── */
+  ExcelEditorBase.initTabs('[data-tab]', '[data-panel]');
+  document.querySelectorAll('[data-tab]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+
+  /* ── 审批抽屉 ── */
+  const drawerEl  = document.getElementById('approvalDrawer');
+  const scrollEl  = document.getElementById('pageScroll');
+  const btnTextEl = document.getElementById('drawerBtnText');
+
+  function toggleDrawer() {
+    const open = drawerEl.classList.toggle('open');
+    scrollEl.classList.toggle('drawer-open', open);
+    btnTextEl.textContent = open ? '收起 ‹' : '审批流程 ›';
+  }
+  function closeDrawer() {
+    drawerEl.classList.remove('open');
+    scrollEl.classList.remove('drawer-open');
+    btnTextEl.textContent = '审批流程 ›';
+  }
+  document.getElementById('approvalToggleBtn').addEventListener('click', toggleDrawer);
+
+  /* ── 关闭浮层菜单 ── */
+  // (菜单已移除，保留空调用以防引用)
+
+  /* ── Combobox 通用函数 ── */
+  function initCombobox(inputId, hiddenId, dropdownId, options, onChange) {
+    const input    = document.getElementById(inputId);
+    const hidden   = document.getElementById(hiddenId);
+    const dropdown = document.getElementById(dropdownId);
+    if (!input || !hidden || !dropdown) return;
+
+    function render(q) {
+      const lower = q.toLowerCase();
+      const hits  = q ? options.filter(o => o.text.toLowerCase().includes(lower)) : options;
+      if (!hits.length) {
+        dropdown.innerHTML = '<div class="cb-empty">无匹配结果</div>';
+      } else {
+        dropdown.innerHTML = hits.map(o =>
+          `<div class="cb-item${o.special?' special':''}" data-id="${o.id}" data-text="${o.text}">${o.text}</div>`
+        ).join('');
+      }
+      dropdown.style.display = 'block';
+    }
+
+    input.addEventListener('focus', () => render(input.value));
+    input.addEventListener('input', () => render(input.value));
+
+    dropdown.addEventListener('mousedown', e => {
+      const item = e.target.closest('.cb-item');
+      if (!item) return;
+      e.preventDefault();
+      input.value  = item.dataset.text;
+      hidden.value = item.dataset.id;
+      dropdown.style.display = 'none';
+      if (onChange) onChange(item.dataset.id, item.dataset.text);
+    });
+
+    input.addEventListener('blur', () => {
+      setTimeout(() => { dropdown.style.display = 'none'; }, 160);
+    });
+
+    // Allow clearing
+    input.addEventListener('change', () => {
+      if (!input.value.trim()) hidden.value = '';
+    });
+  }
+
+  /* ── 经销商 Combobox ── */
+  const dealerOptions = [
+    { id: '__direct__', text: VENDOR_NAME + '（厂商直签）', special: true },
+    {% for d in dealers %}
+    { id: '{{ d.id }}', text: '{{ d.company_name | e }}' },
+    {% endfor %}
+  ];
+  const distInput  = document.getElementById('distributorInput');
+  const distHidden = document.getElementById('distributorHidden');
+  initCombobox('dealerInput', 'dealerHidden', 'dealerDropdown', dealerOptions, (id) => {
+    if (id === '__direct__') {
+      // 厂商直签 → 清空并禁用分销商
+      if (distInput)  { distInput.value = '';  distInput.disabled = true; }
+      if (distHidden) distHidden.value = '';
+    } else {
+      if (distInput)  distInput.disabled = false;
+    }
+  });
+
+  /* ── 分销商 Combobox ── */
+  const distOptions = [
+    { id: '__vendor__', text: VENDOR_NAME + '（厂商直提）', special: true },
+    {% for d in distributors %}
+    { id: '{{ d.id }}', text: '{{ d.company_name | e }}' },
+    {% endfor %}
+  ];
+  initCombobox('distributorInput', 'distributorHidden', 'distributorDropdown', distOptions, (id, text) => {
+    const scInput  = document.getElementById('settlementCoInput');
+    const scHidden = document.getElementById('settlementCoHidden');
+    if (scInput)  scInput.value  = text;
+    if (scHidden) scHidden.value = id;
+  });
+
+  /* ── 结算公司 Combobox ── */
+  const settleCoOptions = [
+    { id: '__vendor__', text: VENDOR_NAME + '（厂商直提）', special: true },
+    {% for d in distributors %}
+    { id: '{{ d.id }}', text: '{{ d.company_name | e }}' },
+    {% endfor %}
+  ];
+  initCombobox('settlementCoInput', 'settlementCoHidden', 'settlementCoDropdown', settleCoOptions, null);
+
+  /* ── 批价日期同步到结算日期 ── */
+  function syncDate(val) {
+    const sd = document.getElementById('settlementDate');
+    if (sd) sd.value = val;
+    // 顺带刷新交货日期显示
+    const sdEl = document.getElementById('settlementDelivery');
+    if (sdEl) {
+      const dd = document.getElementById('deliveryDate');
+      if (dd) sdEl.textContent = dd.value || '—';
+    }
+  }
+
+  /* ── 交货日期同步到结算单显示 ── */
+  function syncDelivery(val) {
+    const sdEl = document.getElementById('settlementDelivery');
+    if (sdEl) sdEl.textContent = val || '—';
+  }
+
+  /* ── 备注跟随批价单 ── */
+  document.getElementById('pricingNotes')?.addEventListener('input', e => {
+    const sn = document.getElementById('settlementNotes');
+    if (sn && !sn._detached) sn.value = e.target.value;
+  });
+  document.getElementById('settlementNotes')?.addEventListener('input', e => {
+    e.target._detached = true;  // 用户手动编辑后脱离同步
+  });
+
+  /* ── 批价单行备注 → 结算单行备注同步 ── */
+  document.getElementById('pricingTbody').addEventListener('input', e => {
+    if (!e.target.matches('.cell-note')) return;
+    const pRow = e.target.closest('tr.product-row');
+    if (!pRow) return;
+    const pid = pRow.dataset.id;
+    let sRow;
+    if (pid) {
+      sRow = document.querySelector(`#settlementTbody tr[data-pricing-detail-id="${pid}"]`);
+    } else {
+      const pRows = [...document.querySelectorAll('#pricingTbody tr.product-row')];
+      const sRows = [...document.querySelectorAll('#settlementTbody tr.product-row')];
+      sRow = sRows[pRows.indexOf(pRow)] ?? null;
+    }
+    if (!sRow) return;
+    const noteInput = sRow.querySelector('.cell-settle-note');
+    if (noteInput && !noteInput._detached) noteInput.value = e.target.value;
+  });
+  document.getElementById('settlementTbody')?.addEventListener('input', e => {
+    if (e.target.matches('.cell-settle-note')) e.target._detached = true;
+  });
+
+  /* ── 行内计算：市场价 / 折扣% / 数量 → 批价 / 小计 ── */
+  document.getElementById('pricingTbody').addEventListener('input', e => {
+    const row = e.target.closest('tr.product-row');
+    if (!row || !e.target.matches('.cell-market,.cell-discount,.cell-qty')) return;
+    const market   = parseFloat(row.querySelector('.cell-market')?.value) || 0;
+    const disc     = parseFloat(row.querySelector('.cell-discount')?.value) || 0;
+    const qty      = parseInt(row.querySelector('.cell-qty')?.value) || 0;
+    const price    = market * disc / 100;
+    const subtotal = price * qty;
+    const priceEl  = row.querySelector('.cell-price');
+    const subEl    = row.querySelector('.cell-subtotal');
+    if (priceEl) priceEl.textContent = _fmt(price);
+    if (subEl)   subEl.textContent   = _fmt(subtotal);
+    _recalcPricingTotal();
+  });
+
+  function _fmt(n) { return n.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+  function _recalcPricingTotal() {
+    let total = 0;
+    document.querySelectorAll('#pricingTbody .cell-subtotal').forEach(el => {
+      total += parseFloat(el.textContent.replace(/,/g,'')) || 0;
+    });
+    const el = document.getElementById('pricingTotal');
+    if (el) el.textContent = `${CURRENCY_SYM} ${_fmt(total)}`;
+  }
+
+  /* ── 拖移行排序 + 同步结算单 ── */
+  new Sortable(document.getElementById('pricingTbody'), {
+    handle: '.drag-handle',
+    animation: 150,
+    onEnd: function() {
+      _renumberRows();
+      _syncSettlementOrder();
+    }
+  });
+
+  function _syncSettlementOrder() {
+    // 根据批价单行顺序，重排结算单行
+    const pricingRows = [...document.querySelectorAll('#pricingTbody tr.product-row')];
+    const settleTbody = document.getElementById('settlementTbody');
+    if (!settleTbody) return;
+    pricingRows.forEach((pRow, idx) => {
+      const pid = pRow.dataset.id;
+      if (!pid) return;
+      const sRow = settleTbody.querySelector(`tr[data-pricing-detail-id="${pid}"]`);
+      if (sRow) settleTbody.appendChild(sRow);
+    });
+    _renumberSettleRows();
+  }
+
+  /* ── 添加行 ── */
+  let _sn = {{ pricing_order.pricing_details | length }};
+
+  function addRow(kind) {
+    if (kind === 'section') { _insertSectionRow(); return; }
+    _insertProductRow();
+  }
+
+  function _insertProductRow(data = {}) {
+    _sn++;
+    const tr = document.createElement('tr');
+    tr.className = 'product-row';
+    tr.dataset.id = '';
+    tr.innerHTML = `
+      <td class="drag-handle"><span class="material-symbols-outlined" style="font-size:14px">drag_indicator</span></td>
+      <td class="readonly" style="text-align:center">${_sn}</td>
+      <td class="editable col-mn"><input class="cell-mn" value="${data.product_mn||''}"></td>
+      <td class="editable"><input class="cell-brand" value="${data.brand||''}"></td>
+      <td class="editable"><input class="cell-model" value="${data.product_name||''}"></td>
+      <td class="editable" style="text-align:center"><input type="number" class="cell-qty" value="${data.quantity||1}" min="1" style="text-align:center"></td>
+      <td class="editable col-market" style="text-align:right"><input type="number" class="cell-market" value="" step="0.01" style="text-align:right"></td>
+      <td class="editable col-discount" style="text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:1px"><input type="number" class="cell-discount" value="100" min="0" max="100" step="0.1" style="text-align:right;width:calc(100% - 12px)"><span style="color:#475569;font-size:11px;flex-shrink:0">%</span></div></td>
+      <td class="readonly" style="text-align:right"><span class="cell-price"></span></td>
+      <td class="readonly" style="text-align:right"><span class="cell-subtotal"></span></td>
+      <td class="editable col-note"><input class="cell-note" value=""></td>
+      <td class="delete-cell"><span class="material-symbols-outlined" onclick="PricingEditor.deleteRow(this)" style="cursor:pointer;color:transparent;font-size:14px;transition:color .15s">delete</span></td>`;
+    document.getElementById('pricingTbody').appendChild(tr);
+    // 同步添加到结算单
+    _insertSettleRow('', _sn);
+  }
+
+  function _insertSectionRow() {
+    const tr = document.createElement('tr');
+    tr.className = 'section-row';
+    tr.dataset.id = '';
+    tr.innerHTML = `
+      <td class="drag-handle"><span class="material-symbols-outlined" style="font-size:14px">drag_indicator</span></td>
+      <td colspan="10" class="section-label-cell">
+        <textarea rows="1" placeholder="标注行名称…" style="width:100%;border:none;background:transparent;outline:none;resize:none;font-size:11px;font-family:inherit"></textarea>
+      </td>
+      <td class="delete-cell"><span class="material-symbols-outlined" onclick="PricingEditor.deleteRow(this)" style="cursor:pointer;color:transparent;font-size:14px;transition:color .15s">delete</span></td>`;
+    document.getElementById('pricingTbody').appendChild(tr);
+  }
+
+  function _insertSettleRow(pricingDetailId, sn) {
+    const tbody = document.getElementById('settlementTbody');
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.className = 'product-row';
+    tr.dataset.id = '';
+    tr.dataset.pricingDetailId = pricingDetailId;
+    tr.innerHTML = `
+      <td style="border:none;background:transparent"></td>
+      <td class="readonly" style="text-align:center">${sn}</td>
+      <td class="readonly"></td>
+      <td class="readonly"></td>
+      <td class="readonly"></td>
+      <td class="readonly" style="text-align:center"></td>
+      <td class="readonly col-market" style="text-align:right"></td>
+      <td class="readonly col-discount" style="text-align:center"></td>
+      <td class="editable" style="text-align:right"><input type="number" class="cell-settle-price" step="0.0001" style="text-align:right" onchange="PricingEditor.updateSettlementDetail(this)"></td>
+      <td class="readonly" style="text-align:right"><span class="cell-settle-subtotal"></span></td>
+      <td class="readonly col-note"><input class="cell-settle-note" disabled></td>
+      <td style="border:none;background:transparent"></td>`;
+    tbody.appendChild(tr);
+  }
+
+  /* ── 删除行 + 同步结算单 ── */
+  function deleteRow(icon) {
+    const tr = icon.closest('tr');
+    if (!tr) return;
+    const pricingId = tr.dataset.id;
+    tr.remove();
+    // 同步删除结算单对应行
+    if (pricingId) {
+      const sRow = document.querySelector(`#settlementTbody tr[data-pricing-detail-id="${pricingId}"]`);
+      if (sRow) sRow.remove();
+    }
+    _renumberRows();
+    _renumberSettleRows();
+    _recalcPricingTotal();
+  }
+
+  function _renumberRows() {
+    let n = 0;
+    document.querySelectorAll('#pricingTbody tr.product-row').forEach(tr => {
+      n++; const c = tr.cells[1]; if (c) c.textContent = n;
+    });
+    _sn = n;
+  }
+
+  function _renumberSettleRows() {
+    let n = 0;
+    document.querySelectorAll('#settlementTbody tr.product-row').forEach(tr => {
+      n++; const c = tr.cells[1]; if (c) c.textContent = n;
+    });
+  }
+
+  /* ── 保存 ── */
+  async function save() {
+    const dealerVal  = document.getElementById('dealerHidden')?.value || '';
+    const distVal    = document.getElementById('distributorHidden')?.value || '';
+    const isDirect   = dealerVal === '__direct__' || IS_DIRECT;
+    const isVendorDist = distVal === '__vendor__';
+
+    const deliveryDate = document.getElementById('deliveryDate')?.value || '';
+    const notesRaw     = document.getElementById('pricingNotes')?.value || '';
+    const notesValue   = deliveryDate ? `交货日期:${deliveryDate}\n${notesRaw}` : notesRaw;
+
+    const basicData = {
+      dealer_id:          isDirect ? null : (dealerVal || null),
+      distributor_id:     (isDirect || isVendorDist) ? null : (distVal || null),
+      is_direct_contract: isDirect,
+      is_factory_pickup:  isVendorDist,
+    };
+
+    const rows = [];
+    document.querySelectorAll('#pricingTbody tr.product-row').forEach(tr => {
+      const market = parseFloat(tr.querySelector('.cell-market')?.value) || 0;
+      const disc   = parseFloat(tr.querySelector('.cell-discount')?.value) || 100;
+      const qty    = parseInt(tr.querySelector('.cell-qty')?.value) || 1;
+      const model  = tr.querySelector('.cell-model')?.value || '';
+      if (!model) return;
+      rows.push({
+        product_name:  model,
+        product_mn:    tr.querySelector('.cell-mn')?.value || '',
+        brand:         tr.querySelector('.cell-brand')?.value || '',
+        item_note:     tr.querySelector('.cell-note')?.value || '',
+        market_price:  market,
+        quantity:      qty,
+        discount_rate: disc
+      });
+    });
+
+    if (!rows.length) { alert('请至少添加一行产品明细'); return; }
+
+    const settlementNotesVal = document.getElementById('settlementNotes')?.value || '';
+
+    try {
+      await fetch(`/pricing_order/${ORDER_ID}/update_basic_info`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(basicData)
+      });
+
+      await fetch(`/pricing_order/${ORDER_ID}/update_notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: notesValue, settlement_notes: settlementNotesVal })
+      });
+
+      const res = await fetch(`/pricing_order/${ORDER_ID}/save_pricing_details`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ details: rows })
+      });
+      const data = await res.json();
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert('保存失败：' + (data.message || '未知错误'));
+      }
+    } catch (err) {
+      alert('请求失败：' + err.message);
+    }
+  }
+
+  /* ── 更新结算单明细 ── */
+  async function updateSettlementNote(input) {
+    const detailId = input.dataset.detailId;
+    if (!detailId) return;
+    try {
+      await fetch(`/pricing_order/${ORDER_ID}/update_settlement_detail`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ detail_id: parseInt(detailId), item_note: input.value })
+      });
+    } catch (err) { console.error('结算行备注保存失败', err); }
+  }
+
+  async function updateSettlementDetail(input) {
+    const detailId = input.dataset.detailId;
+    if (!detailId) return;
+    const unitPrice = parseFloat(input.value) || 0;
+    try {
+      const res = await fetch(`/pricing_order/${ORDER_ID}/update_settlement_detail`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ detail_id: parseInt(detailId), unit_price: unitPrice })
+      });
+      const data = await res.json();
+      if (data.success && data.updated_detail) {
+        const subEl = input.closest('tr')?.querySelector('.cell-settle-subtotal');
+        if (subEl) subEl.textContent = data.updated_detail.total_price.toFixed(2);
+        if (data.settlement_total_amount) _updateKPI(data.settlement_total_amount);
+      }
+    } catch (err) { console.error('结算明细更新失败', err); }
+  }
+
+  function _updateKPI(settlementTotalStr) {
+    const pt = parseFloat("{{ pricing_order.pricing_total_amount or 0 }}");
+    const st = parseFloat(String(settlementTotalStr).replace(/,/g, ''));
+    const gp = pt - st;
+    const gm = pt > 0 ? gp / pt * 100 : 0;
+    const stEl = document.getElementById('settlementTotal');
+    if (stEl) stEl.textContent = `${CURRENCY_SYM} ${settlementTotalStr}`;
+    const kpiGP = document.getElementById('kpiGrossProfit');
+    const kpiGM = document.getElementById('kpiGrossMargin');
+    if (kpiGP) kpiGP.textContent = `${CURRENCY_SYM} ${_fmt(gp)}`;
+    if (kpiGM) kpiGM.textContent = `${gm.toFixed(1)}%`;
+  }
+
+  return { addRow, deleteRow, save, updateSettlementDetail, updateSettlementNote, closeDrawer, syncDate, syncDelivery };
+})();
+</script>
+
+{{ render_tw_approval_flow_script(
+  'pricing_order',
+  pricing_order.id,
+  pricing_order.status,
+  pricing_order.creator.real_name or pricing_order.creator.username,
+  '/pricing_order/api/approval',
+  'approvalFlowContainer'
+) }}
+
+</body>
+</html>

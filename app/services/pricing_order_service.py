@@ -732,7 +732,7 @@ class PricingOrderService:
             return False, f"更新失败: {str(e)}"
     
     @staticmethod
-    def update_settlement_detail(pricing_order_id, detail_id, discount_rate=None, unit_price=None):
+    def update_settlement_detail(pricing_order_id, detail_id, discount_rate=None, unit_price=None, item_note=None):
         """更新结算单明细 - 只影响结算单，不影响批价单"""
         try:
             settlement_detail = SettlementOrderDetail.query.filter_by(
@@ -749,7 +749,9 @@ class PricingOrderService:
                 # 反算折扣率
                 if settlement_detail.market_price and settlement_detail.market_price > 0:
                     settlement_detail.discount_rate = unit_price / settlement_detail.market_price
-            
+            if item_note is not None:
+                settlement_detail.item_note = item_note
+
             settlement_detail.calculate_prices()
             
             # 🔥 关键修复：只重新计算结算单总额，不影响批价单

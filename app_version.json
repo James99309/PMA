@@ -1,13 +1,13 @@
 {
-  "app_version": "1.30.9",
+  "app_version": "2.0.0",
   "environment": "production",
-  "timestamp": "2026-04-29 20:39:31",
+  "timestamp": "2026-04-30 20:44:53",
   "modules": {
     "user": {
       "files": {
         "app/views/user.py": {
-          "hash": "c35c455e44bb321eb9a1e7e544c59237",
-          "last_modified": "2026-04-28 11:44:36"
+          "hash": "9e641b2951759220a0349318e1312cab",
+          "last_modified": "2026-04-30 15:04:52"
         },
         "app/models/user.py": {
           "hash": "edfe52e2413663fb790780afa2fa73ff",

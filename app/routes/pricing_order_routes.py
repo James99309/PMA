@@ -333,6 +333,85 @@ def edit_pricing_order(order_id):
         return redirect(url_for('project.list_projects'))
 
 
+@pricing_order_bp.route('/<int:order_id>/excel-edit')
+@login_required
+def excel_edit_pricing_order(order_id):
+    """批价单 Excel 风格独立编辑页"""
+    try:
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+
+        if not PricingOrderService.can_view_pricing_order(pricing_order, current_user):
+            flash('您没有权限查看该批价单', 'danger')
+            return redirect(url_for('project.list_projects'))
+
+        (can_edit_pricing, can_edit_settlement, _,
+         can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
+        can_view_settlement = PricingOrderService.can_view_settlement_tab(current_user)
+
+        from app.utils.access_control import get_viewable_data
+        dealers = get_viewable_data(Company, current_user, [Company.company_type.in_(['经销商', 'dealer'])]).all()
+        distributors = dealers
+
+        from app.services.discount_permission_service import DiscountPermissionService
+        discount_limits = DiscountPermissionService.get_user_discount_limits(current_user)
+
+        vendor_company_name = PricingOrderService.get_vendor_company_name()
+
+        # 优先取批价单创建者的信笺头，其次取报价单创建者，最后按货币匹配 CompanyEntity
+        def _get_letterhead(user_id):
+            from app.models.user import User
+            u = User.query.get(user_id)
+            return (getattr(u, 'quotation_letterhead', None) or {}) if u else {}
+
+        def _entity_letterhead(currency):
+            from app.models.company_entity import CompanyEntity
+            entity = (CompanyEntity.query.filter_by(currency_code=currency).first()
+                      or CompanyEntity.query.filter_by(is_default=True).first())
+            if entity:
+                return {'logo_url': entity.logo_url or '',
+                        'line1': entity.line1 or '',
+                        'line2': entity.line2 or '',
+                        'line3': entity.line3 or ''}
+            return {}
+
+        user_letterhead = (
+            _get_letterhead(pricing_order.created_by)
+            or (pricing_order.quotation and _get_letterhead(pricing_order.quotation.owner_id))
+            or getattr(current_user, 'quotation_letterhead', None)
+            or _entity_letterhead(pricing_order.currency or 'CNY')
+        )
+
+        # 报价单备注（当批价单备注为空时作为初始值显示）
+        quotation_notes = (pricing_order.quotation.notes or '') if pricing_order.quotation else ''
+
+        # 毛利润 / 毛利率（用于页头 KPI）
+        pricing_total = float(pricing_order.pricing_total_amount or 0)
+        settlement_total = float(pricing_order.settlement_total_amount or 0)
+        gp = pricing_total - settlement_total
+        gm = (gp / pricing_total * 100) if pricing_total > 0 else 0
+
+        return render_template(
+            'pricing_order/tw_edit.html',
+            pricing_order=pricing_order,
+            can_edit_pricing=can_edit_pricing,
+            can_edit_settlement=can_edit_settlement,
+            can_view_settlement=can_view_settlement,
+            can_edit_basic_info=can_edit_basic_info,
+            dealers=dealers,
+            distributors=distributors,
+            discount_limits=discount_limits,
+            vendor_company_name=vendor_company_name,
+            user_letterhead=user_letterhead,
+            quotation_notes=quotation_notes,
+            gp=gp,
+            gm=gm,
+        )
+    except Exception as e:
+        logger.error(f"访问批价单 Excel 编辑页失败: {str(e)}")
+        flash(f'访问失败: {str(e)}', 'danger')
+        return redirect(url_for('project.list_projects'))
+
+
 @pricing_order_bp.route('/<int:order_id>/update_basic_info', methods=['POST'])
 @login_required
 def update_basic_info(order_id):
@@ -539,6 +618,10 @@ def update_pricing_notes(order_id):
         return jsonify({'success': False, 'message': '没有权限编辑批价单'})
     data = request.get_json()
     pricing_order.notes = data.get('notes', '') or ''
+    if 'settlement_notes' in data:
+        so = SettlementOrder.query.filter_by(pricing_order_id=order_id).first()
+        if so:
+            so.notes = data['settlement_notes'] or ''
     db.session.commit()
     return jsonify({'success': True})
 
@@ -564,9 +647,10 @@ def update_settlement_detail(order_id):
         detail_id = data.get('detail_id')
         discount_rate = data.get('discount_rate')
         unit_price = data.get('unit_price')
-        
+        item_note = data.get('item_note')
+
         success, error = PricingOrderService.update_settlement_detail(
-            order_id, detail_id, discount_rate=discount_rate, unit_price=unit_price
+            order_id, detail_id, discount_rate=discount_rate, unit_price=unit_price, item_note=item_note
         )
         
         if not success:
@@ -1749,6 +1833,7 @@ def save_pricing_details(order_id):
                 market_price=float(detail_data.get('market_price', 0)),
                 quantity=int(detail_data.get('quantity', 1)),
                 discount_rate=float(detail_data.get('discount_rate', 100)) / 100,
+                item_note=detail_data.get('item_note', '') or '',
                 source_type='manual'
             )
             
@@ -1774,6 +1859,7 @@ def save_pricing_details(order_id):
                 unit_price=pricing_detail.unit_price,
                 quantity=pricing_detail.quantity,
                 discount_rate=pricing_detail.discount_rate,
+                item_note=pricing_detail.item_note or '',
                 pricing_detail_id=pricing_detail.id
             )
             settlement_detail.calculate_prices()

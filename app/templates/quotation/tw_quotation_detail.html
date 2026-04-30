@@ -145,7 +145,7 @@
             'onclick': 'confirmDeleteQuotation(' ~ quotation.id ~ ')'
         },
         extra_actions=[
-            {'show': can_show_pricing and active_pricing_order, 'label': _('批价单'), 'onclick': 'openPricingOrderModal(' ~ (active_pricing_order.id if active_pricing_order else 0) ~ ')', 'icon': 'request_quote', 'color': 'primary'},
+            {'show': can_show_pricing and active_pricing_order, 'label': _('批价单'), 'onclick': "window.location.href='/pricing_order/" ~ (active_pricing_order.id if active_pricing_order else 0) ~ "/excel-edit'", 'icon': 'request_quote', 'color': 'primary'},
             {'show': can_show_pricing and not active_pricing_order, 'label': _('生成批价单'), 'onclick': 'createPricingOrder()', 'icon': 'add_circle', 'color': 'success'},
             {'show': true, 'label': _('导出'), 'onclick': 'showExportInfoModal("quotationExportModal")', 'icon': 'download', 'color': 'slate'}
         ],
