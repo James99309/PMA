@@ -694,6 +694,7 @@ def create_app(config_class=Config):
             '/system-diagram/s/',  # 系统设计图外部分享页面（邮箱验证访问）
             '/api/dingtalk/',  # 钉钉服务器回调（企业事件推送，自有签名验证）
             '/internal/api/',  # 内部 API（MCP Server 专用，使用 X-Internal-Token 鉴权）
+            '/user/api/claude-ai/download-dxt',  # DXT 下载（使用 ?t=token 认证，无需登录）
         ]
         
         # 检查当前路径是否需要登录
