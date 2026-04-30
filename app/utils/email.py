@@ -50,14 +50,15 @@ def _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_
         logger.error(f"后台邮件发送失败: {str(e)}")
         return False
 
-def generate_dxt_bytes(token: str, display_name: str = 'PMA', host: str = 'pma-mcp.jamesgpone.win') -> bytes:
+def generate_dxt_bytes(token: str, display_name: str = 'PMA', host: str = 'pma-mcp.jamesgpone.win', dxt_name: str = 'pma') -> bytes:
     """生成用户专属的 .dxt 扩展包（内存中，返回 bytes）
     使用 Node.js bridge，依赖 Claude Desktop 内置 Node.js，无需用户安装任何环境。
     host: MCP 服务器域名，CN NAS 用 pma-mcp.jamesgpone.win，SG NAS 用 sg-pma-mcp.jamesgpone.win
+    dxt_name: 扩展包唯一标识，同一 Claude Desktop 安装两个不同 NAS 的 DXT 时不会冲突
     """
     manifest = f'''{{
   "dxt_version": "0.1",
-  "name": "pma",
+  "name": "{dxt_name}",
   "display_name": "{display_name}",
   "version": "1.1.0",
   "description": "连接 PMA 业务系统，查询报价单、项目、客户、审批等数据",
@@ -703,8 +704,11 @@ def send_claude_ai_token_email(user, token, is_reset=False, attach_dxt=True):
         attachments = None
         if attach_dxt and not is_reset:
             try:
-                mcp_host = 'sg-pma-mcp.jamesgpone.win' if not is_cn else 'pma-mcp.jamesgpone.win'
-                dxt_bytes = generate_dxt_bytes(token, display_name='PMA', host=mcp_host)
+                if is_cn:
+                    mcp_host, mcp_dxt_name, mcp_display = 'pma-mcp.jamesgpone.win', 'pma', 'PMA'
+                else:
+                    mcp_host, mcp_dxt_name, mcp_display = 'sg-pma-mcp.jamesgpone.win', 'pma-sg', 'PMA (SG)'
+                dxt_bytes = generate_dxt_bytes(token, display_name=mcp_display, host=mcp_host, dxt_name=mcp_dxt_name)
                 safe_name = (user.username or 'user').lower()
                 attachments = [(f'pma-{safe_name}.dxt', dxt_bytes)]
             except Exception as e:
@@ -852,8 +856,11 @@ def send_dxt_install_email(user) -> bool:
 </body>
 </html>"""
 
-        mcp_host = 'sg-pma-mcp.jamesgpone.win' if not is_cn else 'pma-mcp.jamesgpone.win'
-        dxt_bytes = generate_dxt_bytes(user.claude_ai_token, display_name='PMA', host=mcp_host)
+        if is_cn:
+            mcp_host, mcp_dxt_name, mcp_display = 'pma-mcp.jamesgpone.win', 'pma', 'PMA'
+        else:
+            mcp_host, mcp_dxt_name, mcp_display = 'sg-pma-mcp.jamesgpone.win', 'pma-sg', 'PMA (SG)'
+        dxt_bytes = generate_dxt_bytes(user.claude_ai_token, display_name=mcp_display, host=mcp_host, dxt_name=mcp_dxt_name)
         attachments = [(f'pma-{safe_name}.dxt', dxt_bytes)]
         logger.info(f'发送 DXT 安装邮件给 {user.username} ({user.email})')
         return send_email(subject, user.email, None, html=html_content, async_send=False, attachments=attachments)
