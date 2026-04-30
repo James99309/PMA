@@ -51,87 +51,98 @@ def _send_email_sync(smtp_server, smtp_port, sender_email, sender_password, use_
         return False
 
 def generate_dxt_bytes(token: str, display_name: str = 'PMA') -> bytes:
-    """生成用户专属的 .dxt 扩展包（内存中，返回 bytes）"""
+    """生成用户专属的 .dxt 扩展包（内存中，返回 bytes）
+    使用 Node.js bridge，依赖 Claude Desktop 内置 Node.js，无需用户安装任何环境。
+    """
     manifest = f'''{{
   "dxt_version": "0.1",
   "name": "pma",
   "display_name": "{display_name}",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "连接 PMA 业务系统，查询报价单、项目、客户、审批等数据",
   "author": {{"name": "Evertac"}},
   "server": {{
-    "type": "python",
-    "entry_point": "server/bridge.py",
+    "type": "node",
+    "entry_point": "server/bridge.js",
     "mcp_config": {{
-      "command": "python3",
-      "args": ["${{__dirname}}/server/bridge.py"]
+      "command": "node",
+      "args": ["${{__dirname}}/server/bridge.js"]
     }}
   }}
 }}'''
 
-    bridge = f'''#!/usr/bin/env python3
-"""PMA MCP stdio bridge"""
-import sys, json, ssl, http.client, os
+    bridge = f"""'use strict';
+// PMA MCP stdio bridge (Node.js)
+const https = require('https');
+const readline = require('readline');
 
-TOKEN = os.environ.get("PMA_TOKEN", "{token}")
-HOST  = "pma-mcp.jamesgpone.win"
-PATH  = f"/mcp?token={{TOKEN}}"
+const TOKEN = process.env.PMA_TOKEN || '{token}';
+const HOST  = 'pma-mcp.jamesgpone.win';
+const PATH  = '/mcp?token=' + TOKEN;
 
-_session_id = None
+let sessionId = null;
 
-def http_post(payload):
-    global _session_id
-    ctx  = ssl.create_default_context()
-    conn = http.client.HTTPSConnection(HOST, context=ctx, timeout=30)
-    body = json.dumps(payload).encode()
-    hdrs = {{
-        "Content-Type": "application/json",
-        "Accept": "application/json, text/event-stream",
-        "mcp-protocol-version": "2024-11-05",
-        "Content-Length": str(len(body)),
+function httpPost(payload) {{
+  return new Promise((resolve, reject) => {{
+    const body = JSON.stringify(payload);
+    const headers = {{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/event-stream',
+      'mcp-protocol-version': '2024-11-05',
+      'Content-Length': Buffer.byteLength(body),
+    }};
+    if (sessionId) headers['mcp-session-id'] = sessionId;
+
+    const req = https.request({{ hostname: HOST, path: PATH, method: 'POST', headers }}, (res) => {{
+      const sid = res.headers['mcp-session-id'];
+      if (sid) sessionId = sid;
+      const ct = res.headers['content-type'] || '';
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {{
+        if (ct.includes('text/event-stream')) {{
+          for (const line of data.split('\\n')) {{
+            if (line.startsWith('data: ')) {{
+              try {{ resolve(JSON.parse(line.slice(6))); return; }} catch (_) {{}}
+            }}
+          }}
+          resolve(null);
+        }} else {{
+          try {{ resolve(JSON.parse(data)); }} catch (e) {{ reject(e); }}
+        }}
+      }});
+    }});
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  }});
+}}
+
+const rl = readline.createInterface({{ input: process.stdin }});
+rl.on('line', async (line) => {{
+  line = line.trim();
+  if (!line) return;
+  try {{
+    const msg  = JSON.parse(line);
+    const resp = await httpPost(msg);
+    if (resp) process.stdout.write(JSON.stringify(resp) + '\\n');
+  }} catch (e) {{
+    let mid = null;
+    try {{ mid = JSON.parse(line).id; }} catch (_) {{}}
+    if (mid !== null && mid !== undefined) {{
+      process.stdout.write(JSON.stringify({{
+        jsonrpc: '2.0', id: mid,
+        error: {{ code: -32603, message: String(e) }}
+      }}) + '\\n');
     }}
-    if _session_id:
-        hdrs["mcp-session-id"] = _session_id
-    conn.request("POST", PATH, body=body, headers=hdrs)
-    r   = conn.getresponse()
-    raw = r.read().decode()
-    sid = r.getheader("mcp-session-id")
-    if sid:
-        _session_id = sid
-    ct  = r.getheader("content-type", "")
-    conn.close()
-    if "text/event-stream" in ct:
-        for line in raw.split("\\n"):
-            if line.startswith("data: "):
-                return json.loads(line[6:])
-        return None
-    return json.loads(raw)
-
-def out(msg):
-    sys.stdout.write(json.dumps(msg) + "\\n")
-    sys.stdout.flush()
-
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    try:
-        msg  = json.loads(line)
-        resp = http_post(msg)
-        if resp:
-            out(resp)
-    except Exception as e:
-        mid = None
-        try: mid = json.loads(line).get("id")
-        except: pass
-        if mid is not None:
-            out({{"jsonrpc":"2.0","id":mid,"error":{{"code":-32603,"message":str(e)}}}})
-'''
+  }}
+}});
+"""
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr('manifest.json', manifest)
-        zf.writestr('server/bridge.py', bridge)
+        zf.writestr('server/bridge.js', bridge)
     return buf.getvalue()
 
 
