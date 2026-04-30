@@ -724,7 +724,7 @@ def send_dxt_install_email(user) -> bool:
         db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
         is_cn = (db_type == 'sp8d')
         external_url = os.environ.get('EXTERNAL_URL', '').rstrip('/')
-        download_url = f'{external_url}/user/api/claude-ai/download-dxt'
+        download_url = f'{external_url}/user/api/claude-ai/download-dxt?t={user.claude_ai_token}'
 
         if is_cn:
             subject = f'PMA Claude Desktop 扩展安装指南 - {real_name}'

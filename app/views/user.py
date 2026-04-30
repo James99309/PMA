@@ -2815,22 +2815,37 @@ def api_claude_ai_requests(user_id):
 
 
 @user_bp.route('/api/claude-ai/download-dxt')
-@login_required
 def api_claude_ai_download_dxt():
-    """当前登录用户下载自己的 .dxt 扩展文件（绕过 Gmail 附件拦截）"""
+    """下载 .dxt 扩展文件。支持两种认证方式：
+    1. 已登录会话（直接访问）
+    2. ?t=<claude_ai_token>（邮件链接，无需登录）
+    """
     from app.utils.email import generate_dxt_bytes
+    from flask import Response
     import os
-    if not current_user.claude_ai_token:
+
+    t = request.args.get('t', '').strip()
+    if t:
+        user = User.query.filter_by(claude_ai_token=t).first()
+        if not user:
+            return jsonify({'error': 'Invalid token'}), 403
+    elif current_user.is_authenticated:
+        user = current_user
+    else:
+        from flask import redirect, url_for
+        return redirect(url_for('auth.login', next=request.url))
+
+    if not user.claude_ai_token:
         return jsonify({'error': '未开通 Claude AI'}), 403
+
     db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', 'sp8d')
     is_cn = (db_type == 'sp8d')
     if is_cn:
         mcp_host, dxt_name, display = 'pma-mcp.jamesgpone.win', 'pma', 'PMA'
     else:
         mcp_host, dxt_name, display = 'sg-pma-mcp.jamesgpone.win', 'pma-sg', 'PMA (SG)'
-    dxt_bytes = generate_dxt_bytes(current_user.claude_ai_token, display_name=display, host=mcp_host, dxt_name=dxt_name)
-    safe_name = (current_user.username or 'user').lower()
-    from flask import Response
+    dxt_bytes = generate_dxt_bytes(user.claude_ai_token, display_name=display, host=mcp_host, dxt_name=dxt_name)
+    safe_name = (user.username or 'user').lower()
     return Response(
         dxt_bytes,
         mimetype='application/zip',
