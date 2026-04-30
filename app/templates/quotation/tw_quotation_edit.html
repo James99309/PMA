@@ -893,6 +893,37 @@ window.QuotationEditor = (function() {
           rows.splice(rowIdx + 1, 0, ...accessoryRows);
         }
         renderProductRows();
+
+        // 若当前货币与产品库默认货币不同，立刻用地区面价覆盖刚刚填入的默认价
+        const curCurrency = document.getElementById('currencySelect')?.value;
+        if (curCurrency && data.product_id && !data.is_temp) {
+          const idsToFetch = [...new Set(
+            [data.product_id, ...accessoryRows.filter(r => r.data.product_id).map(r => r.data.product_id)]
+          )];
+          fetch('/api/products/region-prices/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify({ product_ids: idsToFetch, currency: curCurrency }),
+          }).then(r => r.json()).then(priceData => {
+            const prices = priceData.prices || {};
+            // 更新主产品行
+            const mp = prices[data.product_id];
+            if (mp !== undefined && mp !== null) {
+              data.market_price = parseFloat(mp) || 0;
+              data.unit_price = data.market_price * (parseFloat(data.discount_rate) || 100) / 100;
+            }
+            // 更新配件行（accessoryRows 与 rows 内是同一对象引用）
+            accessoryRows.forEach(ar => {
+              if (!ar.data.product_id) return;
+              const amp = prices[ar.data.product_id];
+              if (amp !== undefined && amp !== null) {
+                ar.data.market_price = parseFloat(amp) || 0;
+                ar.data.unit_price = ar.data.market_price * (parseFloat(ar.data.discount_rate) || 100) / 100;
+              }
+            });
+            renderProductRows();
+          }).catch(err => console.error('获取地区面价失败', err));
+        }
       },
     });
     return _productSelector;
