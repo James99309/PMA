@@ -428,18 +428,21 @@ function close() { emit('update:modelValue', false) }
               </div>
             </div>
 
-            <!-- ── 地区 (project only - input 形式) ── -->
+            <!-- ── 地区 (project chip 选择器，与 customer 一致) ── -->
             <div v-if="variant === 'project'">
               <div class="flex items-center justify-between mb-2.5">
                 <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">地区</p>
                 <p class="text-[11px] text-[#7A7570]">{{ local.region || '未选' }}</p>
               </div>
-              <div class="flex items-center justify-between bg-white rounded-xl px-4 py-3 border border-[#E0DDD9]">
-                <input v-model="local.region" type="text" placeholder="选择地区或城市"
-                  class="flex-1 bg-transparent text-[14px] text-[#1A1A1A] outline-none placeholder-[#C2BBB3]" />
-                <svg class="w-4 h-4 text-[#C2BBB3] shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6" />
-                </svg>
+              <div class="flex flex-wrap gap-2">
+                <button v-for="opt in REGION_OPTIONS" :key="opt.value" type="button"
+                  @click="local.region = local.region === opt.value ? '' : opt.value"
+                  class="px-3.5 py-1.5 rounded-full text-[13px] font-medium transition-colors active:opacity-70"
+                  :style="local.region === opt.value
+                    ? { background: 'var(--color-ink)', color: '#fff', border: 'none', fontWeight: 600 }
+                    : { background: 'var(--color-card)', color: 'var(--color-ink-2)', border: '1px solid var(--color-divider-strong)' }">
+                  {{ opt.value }}
+                </button>
               </div>
             </div>
 

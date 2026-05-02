@@ -272,7 +272,9 @@ def mobile_project_list():
     if activity:
         query = query.filter(Project.activity_status == activity)
     if region:
-        query = query.filter((Project.city == region) | (Project.region == region))
+        # LIKE 兼容 "上海" vs "上海市"
+        like = f'%{region}%'
+        query = query.filter((Project.city.like(like)) | (Project.region.like(like)))
     if owner_names:
         query = query.join(User, User.id == Project.owner_id) \
                      .filter(User.real_name.in_(owner_names) | User.username.in_(owner_names))

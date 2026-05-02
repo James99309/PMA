@@ -134,8 +134,9 @@ def mobile_customer_list():
     if status_f:
         query = query.filter(Company.status == status_f)
     if region:
-        # 命中 city 或 region 任一
-        query = query.filter((Company.city == region) | (Company.region == region))
+        # 命中 city 或 region 任一（LIKE 兼容 "上海" vs "上海市"）
+        like = f'%{region}%'
+        query = query.filter((Company.city.like(like)) | (Company.region.like(like)))
 
     query = query.order_by(Company.updated_at.desc())
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
