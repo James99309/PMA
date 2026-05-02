@@ -96,6 +96,7 @@ def mobile_chat_send(conv_id):
             sender_id=user_id,
             content=content,
             reply_to_id=data.get('reply_to_id'),
+            refs=data.get('refs'),  # 项目/客户引用卡
         ))
     except Exception as e:
         logger.error(f"mobile chat send error: {e}", exc_info=True)

@@ -93,6 +93,10 @@ async function send() {
   const t = inputText.value.trim()
   if (!t || sending.value) return
   sending.value = true
+  // 抓快照（pushUser 会 clearRefs，要先存）
+  const refsSnapshot = mention.pendingRefs.value.length
+    ? mention.pendingRefs.value.map(r => ({ type: r.type, item: r.item }))
+    : null
   const isAt = pushUser(t)            // 本地立即显示用户消息
   inputText.value = ''
   await scrollToBottom()
@@ -145,9 +149,10 @@ async function send() {
     return
   }
 
-  // 分支 2：普通消息直接 apiSend（无 AI 卷入）
+  // 分支 2：普通消息直接 apiSend（含可能的 #/$ 引用卡）
   if (numericId) {
-    try { await apiSend(numericId, t) } catch (e) { console.error('send message failed', e) }
+    try { await apiSend(numericId, t, null, refsSnapshot) }
+    catch (e) { console.error('send message failed', e) }
   }
   sending.value = false
 }
@@ -165,7 +170,19 @@ function appendBackendMessage(m) {
   const isMine = m.is_mine || m.is_self
   const isAi   = m.is_ai_response
   const isStageAdv = m.message_type === 'stage_advance'
-  const isSystem = !isStageAdv && (m.message_type === 'system' || (m.sender_id == null && !isAi))
+  const isTextRefs = m.message_type === 'text_refs'
+  const isSystem = !isStageAdv && !isTextRefs && (m.message_type === 'system' || (m.sender_id == null && !isAi))
+
+  // 解析带引用卡的消息：content 是 JSON {text, refs}
+  let displayText = m.content
+  let attachedRefs
+  if (isTextRefs && m.content) {
+    try {
+      const payload = JSON.parse(m.content)
+      displayText = payload.text || ''
+      attachedRefs = payload.refs || null
+    } catch {}
+  }
 
   if (isStageAdv) {
     let payload = {}
@@ -189,7 +206,8 @@ function appendBackendMessage(m) {
     from: isAi ? '源助手' : (m.sender_name || '?'),
     initial: isAi ? 'P' : ((m.sender_name || '?')[0]),
     time: formatChatTime(m.created_at),
-    text: m.content,
+    text: displayText,
+    refs: attachedRefs || undefined,
     _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
     recalled: !!m.is_deleted,
   })

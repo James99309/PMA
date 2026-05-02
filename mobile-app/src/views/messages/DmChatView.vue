@@ -118,15 +118,19 @@ async function send() {
   const mm = String(now.getMinutes()).padStart(2, '0')
   // 检测 @AI
   const isAtAi = t.includes('@AI') || t.includes('@源助手')
+  // 抓引用快照（clearRefs 之前）
+  const refsSnapshot = mention.pendingRefs.value.length
+    ? mention.pendingRefs.value.map(r => ({ type: r.type, item: r.item }))
+    : null
   // 乐观插入用户消息（标记 _local + 内容 hash 用于轮询去重）
   const localId = `local-${Date.now()}`
   const nowMs = Date.now()
   messages.value.push({
     id: localId, kind: 'me', time: `今天 ${hh}:${mm}`, text: t,
-    refs: mention.pendingRefs.value.length ? [...mention.pendingRefs.value] : undefined,
+    refs: refsSnapshot || undefined,
     _created_at_ms: nowMs,
     _local: true,
-    _content: t,  // 用于后续与后端消息匹配
+    _content: t,
   })
   inputText.value = ''
   mention.clearRefs()
@@ -172,9 +176,10 @@ async function send() {
     return
   }
 
-  // 分支 2：普通 DM 消息
+  // 分支 2：普通 DM 消息（含可能的 #/$ 引用卡）
   if (convId) {
-    try { await apiSend(convId, t) } catch (e) { console.error('dm send failed', e) }
+    try { await apiSend(convId, t, null, refsSnapshot) }
+    catch (e) { console.error('dm send failed', e) }
   }
   sending.value = false
 }

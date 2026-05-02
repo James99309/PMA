@@ -11,8 +11,11 @@ export const deleteConversation  = id => client.delete(`/mobile/chat/conversatio
 // 消息
 export const getMessages = (convId, params = {}) =>
   client.get(`/mobile/chat/conversations/${convId}/messages`, { params })
-export const sendMessage = (convId, content, replyToId = null) =>
-  client.post(`/mobile/chat/conversations/${convId}/messages`, { content, reply_to_id: replyToId })
+export const sendMessage = (convId, content, replyToId = null, refs = null) =>
+  client.post(`/mobile/chat/conversations/${convId}/messages`, {
+    content, reply_to_id: replyToId,
+    ...(refs?.length ? { refs } : {}),
+  })
 export const markAsRead  = convId => client.post(`/mobile/chat/conversations/${convId}/read`)
 export const recallMessage = msgId => client.post(`/mobile/chat/messages/${msgId}/recall`)
 export const forwardMessage = (msgId, targetConvIds = [], userIds = [], note = null) =>

@@ -618,26 +618,14 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
 # 6. 发送消息
 # ---------------------------------------------------------------------------
 
-def send_message(conversation_id, sender_id, content, reply_to_id=None):
+def send_message(conversation_id, sender_id, content, reply_to_id=None, refs=None):
     """
     发送消息到对话。
 
-    流程：
-    1. 验证发送者是对话参与者
-    2. 检测消息语言
-    3. 创建消息记录
-    4. 更新对话的 updated_at 时间戳
-    5. 更新发送者的 last_read_at
-    6. 触发翻译（异步 / 后台）
-
     Args:
-        conversation_id: 对话 ID
-        sender_id: 发送者用户 ID
-        content: 消息文本内容
-        reply_to_id: 回复的消息 ID（可选）
-
-    Returns:
-        dict: {'success': True, 'data': {...}} 或错误信息
+        refs: optional list of {type:'#'|'$', item:{...}} —— 项目/客户引用卡
+              如果有 refs，message_type 设为 'text_refs'，content 序列化为
+              JSON {"text": <原文>, "refs": [...]}
     """
     try:
         if not content or not content.strip():
@@ -654,11 +642,22 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None):
         # 检测语言
         source_lang = detect_language(content)
 
+        # 引用附件 → 序列化进 content + message_type='text_refs'
+        msg_type = 'text'
+        msg_content = content.strip()
+        if refs:
+            msg_type = 'text_refs'
+            msg_content = json.dumps(
+                {'text': content.strip(), 'refs': refs},
+                ensure_ascii=False,
+            )
+
         # 创建消息
         message = ChatMessage(
             conversation_id=conversation_id,
             sender_id=sender_id,
-            content=content.strip(),
+            content=msg_content,
+            message_type=msg_type,
             source_language=source_lang,
             reply_to_id=reply_to_id,
         )
