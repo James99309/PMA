@@ -99,13 +99,24 @@ class ClaudeClient(BaseLLMClient):
         if not urls:
             urls = [None]  # 直连 api.anthropic.com
 
+        # Mac mini oat_proxy 经 CF Tunnel 鉴权要 Authorization: Bearer，
+        # 而 anthropic SDK 默认只发 x-api-key。env 开关 ANTHROPIC_USE_BEARER=true
+        # 时额外注入 Bearer header（生产 Tailscale 直连场景默认关闭，行为不变）。
+        use_bearer = os.environ.get('ANTHROPIC_USE_BEARER', '').lower() in ('1', 'true', 'yes')
+        extra_headers = {'Authorization': f'Bearer {key}'} if use_bearer else None
+
         self._clients: list[Anthropic] = []
         for u in urls:
             kw: dict = {'api_key': key, 'http_client': http}
             if u:
                 kw['base_url'] = u
+            if extra_headers:
+                kw['default_headers'] = extra_headers
             self._clients.append(Anthropic(**kw))
-            logger.info(f'[CLI Agent LLM] 注册代理: {u or "api.anthropic.com (direct)"}')
+            logger.info(
+                f'[CLI Agent LLM] 注册代理: {u or "api.anthropic.com (direct)"}'
+                + (' (+Bearer)' if extra_headers else '')
+            )
 
         # 向后兼容：保留 _client 指向当前活跃客户端
         self._client = self._clients[0]
