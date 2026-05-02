@@ -427,7 +427,7 @@ def create_app(config_class=Config):
     from flask_cors import CORS
     CORS(app, resources={r'/api/v1/*': {
         'origins': '*',
-        'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        'methods': ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         'allow_headers': ['Content-Type', 'Authorization'],
     }}, supports_credentials=False)
 
