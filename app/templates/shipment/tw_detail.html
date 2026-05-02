@@ -1,6 +1,6 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
-{% from 'components/tw_info_card.html' import tw_info_card, tw_info_row with context %}
-{% from 'components/tw_table_card.html' import tw_table_card with context %}
+{% from 'components/tw_info_card.html' import tw_info_card, tw_info_row %}
+{% from 'components/tw_table_card.html' import render_tw_table_card %}
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
 <!DOCTYPE html>
@@ -131,7 +131,7 @@
                     {% endif %}
 
                     <!-- 发货明细 -->
-                    {% call tw_table_card(title=_('发货明细'), icon='inventory_2', count=shipment.details|length) %}
+                    {% call render_tw_table_card(title=_('发货明细')) %}
                     <table class="w-full">
                         <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                             <tr>
@@ -233,7 +233,7 @@
 
                     <!-- 元数据 -->
                     {{ tw_metadata_card_simple(
-                        created_by=shipment.created_by,
+                        creator=shipment.created_by,
                         created_at=shipment.created_at,
                         updated_at=shipment.updated_at
                     ) }}

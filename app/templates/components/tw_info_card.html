@@ -76,14 +76,18 @@ Tailwind 信息卡片组件
     show_action=true,
     empty_text=none,
     card_class='',
-    footer=none
+    footer=none,
+    icon=''
 ) %}
 {% set default_empty = empty_text or _('未指定') %}
 <div class="p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 {{ card_class }}">
     {% if title or (show_action and action_btn) %}
     <div class="flex items-center justify-between mb-3 sm:mb-4">
         {% if title %}
-        <h3 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white">{{ title }}</h3>
+        <h3 class="text-base sm:text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+            {% if icon %}<span class="material-symbols-outlined text-base text-slate-400">{{ icon }}</span>{% endif %}
+            {{ title }}
+        </h3>
         {% endif %}
         {% if show_action and action_btn %}
         {% if action_btn.href %}
@@ -142,6 +146,12 @@ Tailwind 信息卡片组件
         {% endif %}
         {% endfor %}
     </div>
+
+    {% if caller is defined %}
+    <div class="divide-y divide-slate-100 dark:divide-slate-800 mt-2">
+        {{ caller() }}
+    </div>
+    {% endif %}
 
     {% if footer %}
     <div class="mt-6">

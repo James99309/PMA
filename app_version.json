@@ -1,7 +1,7 @@
 {
-  "app_version": "2.0.0",
+  "app_version": "2.0.1",
   "environment": "production",
-  "timestamp": "2026-04-30 20:44:53",
+  "timestamp": "2026-05-02 13:10:23",
   "modules": {
     "user": {
       "files": {
@@ -53,8 +53,8 @@
     "quotation": {
       "files": {
         "app/views/quotation.py": {
-          "hash": "09d8340cd6e4055df85b61eb600c145a",
-          "last_modified": "2026-04-28 22:59:28"
+          "hash": "defde2d932cfca8e90edaebbcbf4352a",
+          "last_modified": "2026-05-01 09:21:49"
         },
         "app/models/quotation.py": {
           "hash": "c5233d5c8c7f6df9b80f57a2b868e083",

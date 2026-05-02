@@ -1,7 +1,6 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
-{% from 'components/tw_detail_layout.html' import render_tw_detail_layout with context %}
-{% from 'components/tw_info_card.html' import tw_info_card, tw_info_row with context %}
-{% from 'components/tw_table_card.html' import tw_table_card with context %}
+{% from 'components/tw_info_card.html' import tw_info_card, tw_info_row %}
+{% from 'components/tw_table_card.html' import render_tw_table_card %}
 {% from 'components/tw_metadata_card.html' import tw_metadata_card_simple with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
 <!DOCTYPE html>
@@ -126,7 +125,7 @@
                     {% endcall %}
 
                     <!-- 订单明细 -->
-                    {% call tw_table_card(title=_('订单明细'), icon='inventory_2', count=order.details|length) %}
+                    {% call render_tw_table_card(title=_('订单明细')) %}
                     <table class="w-full">
                         <thead class="bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
                             <tr>
@@ -236,7 +235,7 @@
 
                     <!-- 元数据 -->
                     {{ tw_metadata_card_simple(
-                        created_by=order.created_by,
+                        creator=order.created_by,
                         created_at=order.created_at,
                         updated_at=order.updated_at
                     ) }}
@@ -253,7 +252,7 @@
         message=_('确定要取消此订单吗？此操作不可恢复。'),
         confirm_text=_('确认取消'),
         cancel_text=_('返回'),
-        confirm_style='danger'
+        variant='danger'
     ) }}
 
     <!-- 创建发货单模态框 -->

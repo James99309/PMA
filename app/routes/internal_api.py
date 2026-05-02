@@ -906,6 +906,39 @@ def get_expense_detail(expense_id):
 
 
 # ---------------------------------------------------------------------------
+# 端点 14b: 工作类型字典
+# GET /internal/api/work-types
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/work-types', methods=['GET'])
+@internal_auth_required
+def list_work_types():
+    """返回工作日志支持的所有工作类型（code → label），按分组整理。"""
+    from app.models.worklog import WorkItem
+    hidden = {'market_planning', 'brand_promotion', 'event_execution'}
+    groups = [
+        ('通用',   ['meeting', 'internal_training', 'other']),
+        ('行销',   ['customer_visit', 'presales_support', 'business_negotiation', 'customer_maintenance']),
+        ('市场',   ['video_production', 'material_design', 'social_media_operation', 'channel_activity', 'brand_event']),
+        ('服务',   ['onsite_maintenance', 'service_response', 'technical_support', 'troubleshooting']),
+        ('行政',   ['admin_affairs', 'office_management', 'asset_management']),
+        ('人事',   ['hr_affairs', 'recruitment', 'employee_relations', 'performance_management']),
+        ('财务',   ['finance_work', 'expense_review', 'accounting']),
+        ('产品',   ['product_research', 'requirement_analysis', 'product_planning']),
+        ('供应链', ['procurement', 'inventory_management', 'logistics', 'quality_tracking']),
+        ('任务',   ['product_confirmation', 'task_work']),
+    ]
+    result = []
+    for group_name, codes in groups:
+        items = []
+        for code in codes:
+            label = WorkItem.TYPE_LABELS.get(code, code)
+            items.append({'code': code, 'label': label})
+        result.append({'group': group_name, 'types': items})
+    return jsonify({'groups': result})
+
+
+# ---------------------------------------------------------------------------
 # 端点 15: 创建行动记录
 # POST /internal/api/actions
 # ---------------------------------------------------------------------------
@@ -993,6 +1026,17 @@ def create_worklog_item():
             except ValueError:
                 pass
 
+        # 解析时间跨度（可选，HH:MM 或 HH:MM:SS）
+        from datetime import time as _time
+        def _parse_time(v):
+            if not v: return None
+            try:
+                return _time.fromisoformat(str(v))
+            except ValueError:
+                return None
+        start_time = _parse_time(data.get('start_time'))
+        end_time = _parse_time(data.get('end_time'))
+
         # 获取或创建当日日志
         worklog = WorkLog.get_or_create(user.id, log_date)
         if worklog.status == 'submitted':
@@ -1005,6 +1049,8 @@ def create_worklog_item():
             work_type=data.get('work_type', 'other'),
             status=data.get('status', 'completed'),
             actual_hours=data.get('actual_hours'),
+            start_time=start_time,
+            end_time=end_time,
             project_id=data.get('project_id'),
             customer_id=data.get('company_id'),
             owner_id=user.id,
@@ -1068,6 +1114,196 @@ def submit_worklog(log_date):
     except Exception as e:
         db.session.rollback()
         logger.exception(f'[internal_api] submit_worklog error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# 端点 18-implant: 植入分析
+# GET /internal/api/implant/overview?year=0
+# GET /internal/api/implant/records?search=&project_id=&owner_name=&year=&limit=20
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/implant/overview', methods=['GET'])
+@internal_auth_required
+def implant_overview():
+    """植入分析概览：总植入额、数量、项目数、本月/上月环比。year=0 表示全部年份。"""
+    try:
+        from app.models.quotation import Quotation, QuotationDetail
+        from app.models.project import Project
+        from app.utils.access_control import get_viewable_data
+        from sqlalchemy import func, and_
+
+        user = g.current_user
+        year = int(request.args.get('year', datetime.utcnow().year))
+
+        # 最新报价单子查询（每项目只统计最新一份）
+        latest_subq = db.session.query(
+            Quotation.project_id,
+            func.max(Quotation.id).label('latest_id')
+        ).group_by(Quotation.project_id).subquery()
+
+        # 基础查询：用户可见报价单 JOIN 最新子查询 JOIN 项目 JOIN 明细（implant_subtotal > 0）
+        q_filters = [Quotation.is_deleted == False] if hasattr(Quotation, 'is_deleted') else []
+        visible_q_ids = get_viewable_data(Quotation, user, q_filters).with_entities(Quotation.id)
+
+        base = db.session.query(
+            QuotationDetail.total_price,
+            QuotationDetail.quantity,
+            QuotationDetail.created_at,
+            Project.id.label('project_id'),
+        ).join(
+            Quotation, QuotationDetail.quotation_id == Quotation.id
+        ).join(
+            latest_subq, and_(
+                Quotation.project_id == latest_subq.c.project_id,
+                Quotation.id == latest_subq.c.latest_id
+            )
+        ).join(
+            Project, Quotation.project_id == Project.id
+        ).filter(
+            Quotation.id.in_(visible_q_ids),
+            QuotationDetail.implant_subtotal > 0,
+            Project.is_deleted == False,
+        )
+
+        if year > 0:
+            base = base.filter(
+                QuotationDetail.created_at >= datetime(year, 1, 1),
+                QuotationDetail.created_at < datetime(year + 1, 1, 1),
+            )
+
+        stats = base.with_entities(
+            func.sum(QuotationDetail.total_price).label('total_amount'),
+            func.sum(QuotationDetail.quantity).label('total_qty'),
+            func.count(func.distinct(Project.id)).label('project_count'),
+        ).first()
+
+        now = datetime.utcnow()
+        this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        last_month_start = datetime(now.year - 1, 12, 1) if now.month == 1 else datetime(now.year, now.month - 1, 1)
+
+        this_amt = base.filter(QuotationDetail.created_at >= this_month_start).with_entities(
+            func.sum(QuotationDetail.total_price)).scalar() or 0
+        last_amt = base.filter(
+            QuotationDetail.created_at >= last_month_start,
+            QuotationDetail.created_at < this_month_start,
+        ).with_entities(func.sum(QuotationDetail.total_price)).scalar() or 0
+
+        mom = round((float(this_amt) - float(last_amt)) / float(last_amt) * 100, 1) if last_amt else 0
+
+        return jsonify({
+            'year': year if year > 0 else 'all',
+            'total_amount': float(stats.total_amount or 0),
+            'total_quantity': int(stats.total_qty or 0),
+            'project_count': int(stats.project_count or 0),
+            'this_month_amount': float(this_amt),
+            'last_month_amount': float(last_amt),
+            'mom_rate': mom,
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] implant_overview error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+@internal_api_bp.route('/implant/records', methods=['GET'])
+@internal_auth_required
+def implant_records():
+    """植入明细记录：按项目+产品展示，支持搜索/项目/负责人/年份筛选。"""
+    try:
+        from app.models.quotation import Quotation, QuotationDetail
+        from app.models.project import Project
+        from app.models.user import User
+        from app.utils.access_control import get_viewable_data
+        from sqlalchemy import func, or_, and_
+
+        user = g.current_user
+        search = request.args.get('search', '').strip()
+        project_id = request.args.get('project_id', type=int)
+        owner_name = request.args.get('owner_name', '').strip()
+        year = request.args.get('year', type=int)
+        limit = min(int(request.args.get('limit', 30)), 100)
+
+        latest_subq = db.session.query(
+            Quotation.project_id,
+            func.max(Quotation.id).label('latest_id')
+        ).group_by(Quotation.project_id).subquery()
+
+        q_filters = [Quotation.is_deleted == False] if hasattr(Quotation, 'is_deleted') else []
+        visible_q_ids = get_viewable_data(Quotation, user, q_filters).with_entities(Quotation.id)
+
+        q = db.session.query(
+            QuotationDetail.product_name,
+            QuotationDetail.product_model,
+            QuotationDetail.product_mn,
+            QuotationDetail.quantity,
+            QuotationDetail.unit_price,
+            QuotationDetail.total_price,
+            QuotationDetail.implant_subtotal,
+            QuotationDetail.created_at,
+            Quotation.id.label('quotation_id'),
+            Quotation.quotation_number,
+            Project.id.label('project_id'),
+            Project.project_name,
+            Project.current_stage,
+            User.real_name.label('owner_name'),
+        ).join(
+            Quotation, QuotationDetail.quotation_id == Quotation.id
+        ).join(
+            latest_subq, and_(
+                Quotation.project_id == latest_subq.c.project_id,
+                Quotation.id == latest_subq.c.latest_id
+            )
+        ).join(
+            Project, Quotation.project_id == Project.id
+        ).join(
+            User, Quotation.owner_id == User.id
+        ).filter(
+            Quotation.id.in_(visible_q_ids),
+            QuotationDetail.implant_subtotal > 0,
+            Project.is_deleted == False,
+        )
+
+        if year:
+            q = q.filter(
+                QuotationDetail.created_at >= datetime(year, 1, 1),
+                QuotationDetail.created_at < datetime(year + 1, 1, 1),
+            )
+        if project_id:
+            q = q.filter(Project.id == project_id)
+        if owner_name:
+            q = q.filter(User.real_name.ilike(f'%{owner_name}%'))
+        if search:
+            q = q.filter(or_(
+                QuotationDetail.product_name.ilike(f'%{search}%'),
+                QuotationDetail.product_model.ilike(f'%{search}%'),
+                Project.project_name.ilike(f'%{search}%'),
+            ))
+
+        rows = q.order_by(QuotationDetail.implant_subtotal.desc()).limit(limit).all()
+
+        records = []
+        for r in rows:
+            records.append({
+                'product_name': r.product_name or '',
+                'product_model': r.product_model or '',
+                'product_mn': r.product_mn or '',
+                'quantity': int(r.quantity or 0),
+                'unit_price': float(r.unit_price or 0),
+                'total_price': float(r.total_price or 0),
+                'implant_subtotal': float(r.implant_subtotal or 0),
+                'project_name': r.project_name or '',
+                'project_id': r.project_id,
+                'stage': r.current_stage or '',
+                'quotation_number': r.quotation_number or '',
+                'quotation_id': r.quotation_id,
+                'owner_name': r.owner_name or '',
+                'created_at': r.created_at.strftime('%Y-%m-%d') if r.created_at else '',
+            })
+
+        return jsonify({'records': records, 'count': len(records)})
+    except Exception as e:
+        logger.exception(f'[internal_api] implant_records error: {e}')
         return jsonify({'error': str(e)}), 500
 
 
@@ -1294,4 +1530,278 @@ def get_file_content(file_ref_id):
         })
     except Exception as e:
         logger.exception(f'[internal_api] get_file_content error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 19: 行动记录搜索
+# GET /internal/api/actions?search=&company_id=&project_id=&days=30&limit=30
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/actions', methods=['GET'])
+@internal_auth_required
+def list_actions():
+    """行动记录列表，支持关键词/客户/项目/时间范围筛选。"""
+    user = g.current_user
+    try:
+        from app.models.action import Action
+        from app.models.customer import Company, Contact
+        from app.models.project import Project
+        from app.utils.access_control import get_viewable_data
+        from sqlalchemy import or_
+
+        search = request.args.get('search', '').strip()
+        company_id = request.args.get('company_id', type=int)
+        project_id = request.args.get('project_id', type=int)
+        days = request.args.get('days', type=int)
+        limit = min(int(request.args.get('limit', 30)), 100)
+
+        q = get_viewable_data(Action, user, []).order_by(Action.date.desc(), Action.created_at.desc())
+
+        if search:
+            q = q.filter(Action.communication.ilike(f'%{search}%'))
+        if company_id:
+            q = q.filter(Action.company_id == company_id)
+        if project_id:
+            q = q.filter(Action.project_id == project_id)
+        if days:
+            from datetime import timedelta
+            cutoff = datetime.utcnow().date() - timedelta(days=days)
+            q = q.filter(Action.date >= cutoff)
+
+        actions = q.limit(limit).all()
+
+        result = []
+        for a in actions:
+            company_name = a.company.company_name if a.company else ''
+            project_name = a.project.project_name if a.project else ''
+            contact_name = (a.contact.name if a.contact else '') if a.contact_id else ''
+            owner_name = (a.owner.real_name or a.owner.username) if a.owner else ''
+            result.append({
+                'id': a.id,
+                'date': a.date.isoformat() if a.date else '',
+                'communication': a.communication or '',
+                'company_id': a.company_id,
+                'company_name': company_name,
+                'project_id': a.project_id,
+                'project_name': project_name,
+                'contact_name': contact_name,
+                'owner_name': owner_name,
+                'created_at': a.created_at.strftime('%Y-%m-%d') if a.created_at else '',
+            })
+
+        return jsonify({'actions': result, 'count': len(result)})
+    except Exception as e:
+        logger.exception(f'[internal_api] list_actions error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 20: 工作项搜索
+# GET /internal/api/work-items?search=&work_type=&days=30&limit=30
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/work-items', methods=['GET'])
+@internal_auth_required
+def list_work_items():
+    """工作项列表，支持关键词/类型/时间范围筛选。"""
+    user = g.current_user
+    try:
+        from app.models.worklog import WorkItem
+
+        search = request.args.get('search', '').strip()
+        work_type = request.args.get('work_type', '').strip()
+        days = request.args.get('days', type=int)
+        limit = min(int(request.args.get('limit', 30)), 100)
+
+        q = WorkItem.query.filter(
+            WorkItem.owner_id == user.id,
+            WorkItem.is_deleted == False,
+        ).order_by(WorkItem.planned_date.desc())
+
+        if search:
+            q = q.filter(WorkItem.title.ilike(f'%{search}%'))
+        if work_type:
+            q = q.filter(WorkItem.work_type == work_type)
+        if days:
+            from datetime import timedelta
+            cutoff = datetime.utcnow().date() - timedelta(days=days)
+            q = q.filter(WorkItem.planned_date >= cutoff)
+
+        items = q.limit(limit).all()
+
+        result = []
+        for w in items:
+            result.append({
+                'id': w.id,
+                'title': w.title or '',
+                'work_type': w.work_type or '',
+                'type_label': WorkItem.TYPE_LABELS.get(w.work_type, w.work_type or ''),
+                'planned_date': w.planned_date.isoformat() if w.planned_date else '',
+                'status': w.status or '',
+                'actual_hours': w.actual_hours,
+                'project_id': w.project_id,
+                'notes': w.execution_notes or '',
+            })
+
+        return jsonify({'items': result, 'count': len(result)})
+    except Exception as e:
+        logger.exception(f'[internal_api] list_work_items error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 21: 批价单详情
+# GET /internal/api/pricing-orders/<id>
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/pricing-orders/<int:order_id>', methods=['GET'])
+@internal_auth_required
+def get_pricing_order_detail(order_id):
+    """批价单完整详情，含行项目和审批状态。"""
+    user = g.current_user
+    try:
+        from app.models.pricing_order import PricingOrder, PricingOrderDetail
+
+        order = get_viewable_data(PricingOrder, user, []).filter(PricingOrder.id == order_id).first()
+        if not order:
+            return jsonify({'error': '批价单不存在或无权访问'}), 404
+
+        details = []
+        for d in order.pricing_details:
+            details.append({
+                'id': d.id,
+                'product_name': d.product_name or '',
+                'product_model': d.product_model or '',
+                'product_mn': d.product_mn or '',
+                'quantity': d.quantity,
+                'market_price': float(d.market_price or 0),
+                'unit_price': float(d.unit_price or 0),
+                'discount_rate': float(d.discount_rate or 1),
+                'total_price': float(d.total_price or 0),
+            })
+
+        project_name = order.project.project_name if order.project else ''
+        dealer_name = order.dealer.name if order.dealer else ''
+        distributor_name = order.distributor.name if order.distributor else ''
+        creator_name = ''
+        if order.creator:
+            creator_name = order.creator.real_name or order.creator.username
+
+        return jsonify({
+            'id': order.id,
+            'order_number': order.order_number,
+            'project_id': order.project_id,
+            'project_name': project_name,
+            'dealer_name': dealer_name,
+            'distributor_name': distributor_name,
+            'is_direct_contract': order.is_direct_contract,
+            'status': order.status,
+            'currency': order.currency,
+            'pricing_total_amount': float(order.pricing_total_amount or 0),
+            'settlement_total_amount': float(order.settlement_total_amount or 0),
+            'notes': order.notes or '',
+            'creator_name': creator_name,
+            'created_at': order.created_at.strftime('%Y-%m-%d') if order.created_at else '',
+            'details': details,
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] get_pricing_order_detail error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 22: 产品详情
+# GET /internal/api/products/<id>
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/products/<int:product_id>', methods=['GET'])
+@internal_auth_required
+def get_product_detail(product_id):
+    """产品详情，含规格参数。"""
+    try:
+        from app.models.product import Product
+
+        p = Product.query.get(product_id)
+        if not p:
+            return jsonify({'error': '产品不存在'}), 404
+
+        specs = []
+        if hasattr(p, 'specs'):
+            for s in p.specs.order_by('display_order').limit(30).all():
+                specs.append({'field': s.field_name or '', 'value': s.field_value or ''})
+
+        return jsonify({
+            'id': p.id,
+            'product_name': p.product_name or '',
+            'model': p.model or '',
+            'product_mn': p.product_mn or '',
+            'type': p.type or '',
+            'category': p.category or '',
+            'brand': p.brand or '',
+            'unit': p.unit or '',
+            'retail_price': float(p.retail_price or 0),
+            'currency': p.currency or 'CNY',
+            'status': p.status or '',
+            'specification': p.specification or '',
+            'is_vendor_product': p.is_vendor_product,
+            'specs': specs,
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] get_product_detail error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 23: 销售订单搜索
+# GET /internal/api/sales-orders?search=&status=&limit=20
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/sales-orders', methods=['GET'])
+@internal_auth_required
+def list_sales_orders():
+    """销售订单列表，支持关键词/状态筛选。"""
+    user = g.current_user
+    try:
+        from app.models.sales_order import SalesOrder
+        from app.utils.access_control import get_viewable_data
+
+        search = request.args.get('search', '').strip()
+        status = request.args.get('status', '').strip()
+        limit = min(int(request.args.get('limit', 20)), 100)
+
+        from app.models.user import User as UserModel
+        is_admin = user.role in ('admin', 'ceo', 'finance_director', 'finace_director')
+        q = SalesOrder.query.order_by(SalesOrder.created_at.desc())
+        if not is_admin:
+            q = q.filter(SalesOrder.created_by_id == user.id)
+
+        if search:
+            q = q.filter(SalesOrder.order_number.ilike(f'%{search}%'))
+        if status:
+            q = q.filter(SalesOrder.status == status)
+
+        orders = q.limit(limit).all()
+
+        result = []
+        for o in orders:
+            customer_name = o.customer.name if o.customer else ''
+            project_name = o.project.project_name if o.project else ''
+            creator_name = (o.creator.real_name or o.creator.username) if o.creator else ''
+            result.append({
+                'id': o.id,
+                'order_number': o.order_number,
+                'status': o.status,
+                'customer_name': customer_name,
+                'project_id': o.project_id,
+                'project_name': project_name,
+                'total_amount': float(o.total_amount or 0),
+                'currency': o.currency,
+                'creator_name': creator_name,
+                'created_at': o.created_at.strftime('%Y-%m-%d') if o.created_at else '',
+            })
+
+        return jsonify({'orders': result, 'count': len(result)})
+    except Exception as e:
+        logger.exception(f'[internal_api] list_sales_orders error: {e}')
         return jsonify({'error': str(e)}), 500

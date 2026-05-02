@@ -261,7 +261,7 @@ def list_quotations():
         else:
             amount_unit = Config.AMOUNT_UNIT
             amount_divisor = Config.AMOUNT_DIVISOR
-        default_currency = get_default_currency()
+        default_currency = Config.DEFAULT_CURRENCY
         currency_symbol = get_currency_symbol(default_currency)
 
         # 计算统计数据 —— count 仍用 SQL 聚合，amount 用 MultiCurrencyAggregationService 做跨货币换算
@@ -551,8 +551,7 @@ def list_quotations():
         }
         
         # 获取默认货币（用于模态框）
-        from app.utils.i18n import get_default_currency
-        default_currency = get_default_currency()
+        default_currency = Config.DEFAULT_CURRENCY
 
         return render_template('quotation/tw_list.html',
                               quotations=quotations,
@@ -586,11 +585,11 @@ def list_quotations():
             logger.error(f"数据库事务回滚失败: {str(rollback_error)}")
 
         # 获取错误处理器需要的默认配置变量
-        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
+        from app.utils.i18n import get_current_language, get_currency_symbol
         current_lang = get_current_language()
         # 使用系统货币配置的金额单位
         amount_unit = Config.AMOUNT_UNIT
-        default_currency = get_default_currency()
+        default_currency = Config.DEFAULT_CURRENCY
         currency_symbol = get_currency_symbol(default_currency)
 
         # 创建错误时的默认配置
@@ -902,9 +901,9 @@ def quotations_list_ajax():
             rejected_count = rejected_amount = 0
         
         # 获取货币配置信息（复用项目管理的成功逻辑）
-        from app.utils.i18n import get_current_language, get_default_currency, get_currency_symbol
+        from app.utils.i18n import get_current_language, get_currency_symbol
         current_lang = get_current_language()
-        default_currency = get_default_currency()
+        default_currency = Config.DEFAULT_CURRENCY
         currency_symbol = get_currency_symbol(default_currency)
 
         # 调试输出 API 货币信息

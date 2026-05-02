@@ -191,7 +191,7 @@ def start_pricing_process(project_id):
                 'success': True,
                 'pricing_order_id': existing_pending_order.id,
                 'message': f'该报价单已有未完成的批价单 {existing_pending_order.order_number}，将跳转到该批价单',
-                'redirect_url': url_for('pricing_order.edit_pricing_order', order_id=existing_pending_order.id)
+                'redirect_url': url_for('pricing_order.excel_edit_pricing_order', order_id=existing_pending_order.id)
             })
         
         # 创建新的批价单 - V2逻辑支持
@@ -227,7 +227,7 @@ def start_pricing_process(project_id):
         return jsonify({
             'success': True,
             'pricing_order_id': pricing_order.id,
-            'redirect_url': url_for('pricing_order.edit_pricing_order', order_id=pricing_order.id)
+            'redirect_url': url_for('pricing_order.excel_edit_pricing_order', order_id=pricing_order.id)
         })
         
     except Exception as e:
@@ -390,6 +390,13 @@ def excel_edit_pricing_order(order_id):
         gp = pricing_total - settlement_total
         gm = (gp / pricing_total * 100) if pricing_total > 0 else 0
 
+        # 返回目标：来源页或批价单列表
+        referrer = request.referrer or ''
+        if pricing_order.quotation_id and url_for('quotation.view_quotation', id=pricing_order.quotation_id) in referrer:
+            back_url = url_for('quotation.view_quotation', id=pricing_order.quotation_id)
+        else:
+            back_url = url_for('pricing_order.list_pricing_orders')
+
         return render_template(
             'pricing_order/tw_edit.html',
             pricing_order=pricing_order,
@@ -405,6 +412,7 @@ def excel_edit_pricing_order(order_id):
             quotation_notes=quotation_notes,
             gp=gp,
             gm=gm,
+            back_url=back_url,
         )
     except Exception as e:
         logger.error(f"访问批价单 Excel 编辑页失败: {str(e)}")
@@ -1290,9 +1298,25 @@ def _build_pricing_order_query(current_user):
     """构建批价单查询（含权限过滤），供列表和AJAX共用"""
     from app.utils.access_control import get_viewable_data
     from sqlalchemy.orm import joinedload
+    from app.models.approval import ApprovalInstance, ApprovalRecord
 
-    query = get_viewable_data(PricingOrder, current_user)
-    query = query.options(
+    # 权限可见的 ID 子查询
+    visible_subq = get_viewable_data(PricingOrder, current_user).with_entities(PricingOrder.id).subquery()
+
+    # 作为审批人（当前或历史）参与过的批价单 ID 子查询
+    approval_subq = db.session.query(ApprovalInstance.object_id).join(
+        ApprovalRecord, ApprovalRecord.instance_id == ApprovalInstance.id
+    ).filter(
+        ApprovalInstance.object_type == 'pricing_order',
+        ApprovalRecord.approver_id == current_user.id
+    ).subquery()
+
+    query = PricingOrder.query.filter(
+        db.or_(
+            PricingOrder.id.in_(visible_subq),
+            PricingOrder.id.in_(approval_subq)
+        )
+    ).options(
         joinedload(PricingOrder.project),
         joinedload(PricingOrder.creator)
     )
@@ -2541,7 +2565,7 @@ def export_pdf(order_id, pdf_type):
                     result = word_generator.generate_settlement_order_pdf(pricing_order, include_notes=include_notes)
                 else:
                     flash('无效的PDF类型', 'danger')
-                    return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+                    return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
 
             except Exception as word_error:
                 logger.warning(f"Word模板生成PDF失败，回退到HTML模板: {str(word_error)}")
@@ -2557,7 +2581,7 @@ def export_pdf(order_id, pdf_type):
                 result = pdf_generator.generate_settlement_order_pdf(pricing_order, include_notes=include_notes)
             else:
                 flash('无效的PDF类型', 'danger')
-                return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+                return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
 
         # 返回PDF文件
         pdf_io = BytesIO(result['content'])
@@ -2573,7 +2597,7 @@ def export_pdf(order_id, pdf_type):
     except Exception as e:
         logger.error(f"导出PDF失败: {str(e)}")
         flash(f'PDF导出失败: {str(e)}', 'danger')
-        return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+        return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
 
 
 @pricing_order_bp.route('/<int:order_id>/export_word/<doc_type>')
@@ -2611,7 +2635,7 @@ def export_word(order_id, doc_type):
             result = word_generator.generate_settlement_order_word_v2(pricing_order, include_notes=include_notes)
         else:
             flash('无效的文档类型', 'danger')
-            return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+            return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
 
         logger.info(f"[Word导出] ✅ 生成成功: {result['filename']}, 大小: {len(result['content'])} 字节")
 
@@ -2631,7 +2655,7 @@ def export_word(order_id, doc_type):
         logger.error(f"[Word导出] ❌ 导出失败: {str(e)}")
         logger.error(f"[Word导出] 详细错误: {traceback.format_exc()}")
         flash(f'Word导出失败: {str(e)}', 'danger')
-        return redirect(url_for('pricing_order.edit_pricing_order', order_id=order_id))
+        return redirect(url_for('pricing_order.excel_edit_pricing_order', order_id=order_id))
 
 
 @pricing_order_bp.route('/<int:order_id>/admin_rollback', methods=['POST'])
@@ -2911,6 +2935,40 @@ def resubmit_pricing_order_approval(order_id):
         return jsonify({
             'success': False,
             'message': f'重新提交失败: {str(e)}'
+        }), 500
+
+
+@pricing_order_bp.route('/api/approval/<int:order_id>/recall', methods=['POST'])
+@login_required
+@permission_required('pricing_order', 'view')
+def recall_pricing_order_approval(order_id):
+    """召回批价单审批 - V2统一审批系统"""
+    try:
+        logger.info(f"[V2审批] 召回批价单审批: order_id={order_id}, user_id={current_user.id}")
+
+        pricing_order = PricingOrder.query.get_or_404(order_id)
+
+        if pricing_order.created_by != current_user.id and current_user.role != 'admin':
+            return jsonify({
+                'success': False,
+                'message': '只有创建人可以召回审批'
+            }), 403
+
+        data = request.get_json(silent=True) or {}
+        reason = data.get('reason', '')
+
+        success, error = PricingOrderService.recall_pricing_order(order_id, current_user.id, reason)
+        if not success:
+            return jsonify({'success': False, 'message': error}), 400
+
+        return jsonify({'success': True, 'message': '批价单已成功召回'})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"[V2审批] 召回失败: order_id={order_id}, error={str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'召回失败: {str(e)}'
         }), 500
 
 

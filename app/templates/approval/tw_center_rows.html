@@ -39,9 +39,7 @@ render_tw_business_type_badge, render_tw_approver_badge with context %}
             {{ item.approval_number or ('APV-' ~ item.id) }}
         </a>
         {% elif item.object_type == 'pricing_order' %}
-        {# 批价单使用TW风格模态框 #}
-        <a href="javascript:void(0)"
-           onclick="openPricingOrderModal({{ item.object_id }})"
+        <a href="{{ url_for('pricing_order.excel_edit_pricing_order', order_id=item.object_id) }}"
            class="text-sm font-medium text-primary hover:text-primary/80 transition-colors font-mono">
             {{ item.approval_number or ('APV-' ~ item.id) }}
         </a>
