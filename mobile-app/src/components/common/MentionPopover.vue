@@ -44,6 +44,8 @@ function normalizeProjects(rows) {
     name: p.project_name,
     stage: p.current_stage || '',
     amount: ((p.quotation_customer || 0) / 10000).toFixed(2),
+    owner: p.owner_name || '',
+    region: p.city || '',
   }))
 }
 function normalizeCompanies(rows) {
@@ -52,6 +54,7 @@ function normalizeCompanies(rows) {
     name: c.company_name,
     tier: '',
     value: '',
+    contact: [c.contact_name, c.contact_position].filter(Boolean).join(' · '),
   }))
 }
 

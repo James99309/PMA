@@ -7,6 +7,7 @@ import Section     from '@/components/common/Section.vue'
 import StageDot    from '@/components/common/StageDot.vue'
 import Avatar      from '@/components/common/Avatar.vue'
 import FilledField from '@/components/common/FilledField.vue'
+import NoteSheet   from '@/components/common/NoteSheet.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -15,8 +16,6 @@ const loading = ref(true)
 
 // 跟进
 const showNoteBox = ref(false)
-const noteText = ref('')
-const addingNote = ref(false)
 
 // 新增联系人 sheet（对标 customer-screens.jsx AddContactSheet）
 const showContactSheet = ref(false)
@@ -44,17 +43,9 @@ async function load() {
   }
 }
 
-async function submitNote() {
-  if (!noteText.value.trim()) return
-  addingNote.value = true
-  try {
-    await addCustomerNote(route.params.id, noteText.value.trim())
-    noteText.value = ''
-    showNoteBox.value = false
-    await load()
-  } finally {
-    addingNote.value = false
-  }
+async function submitNote(text) {
+  await addCustomerNote(route.params.id, text)
+  await load()
 }
 
 async function submitContact() {
@@ -290,31 +281,8 @@ onMounted(load)
       </div>
     </div>
 
-    <!-- ─── 跟进输入弹层 ────────────────────────────── -->
-    <Transition name="sheet">
-      <div v-if="showNoteBox" class="absolute inset-0 z-40">
-        <div class="absolute inset-0 bg-black/30" @click="showNoteBox = false" />
-        <div class="absolute left-0 right-0 bottom-0 px-5 pt-3 pb-8 rounded-t-3xl"
-          style="background: var(--color-card);">
-          <div class="mx-auto mb-3 w-9 h-1 rounded-full" style="background: rgba(0,0,0,0.15);" />
-          <div class="text-[11px] font-semibold uppercase mb-2"
-            style="color: var(--color-ink-3); letter-spacing: 1px;">添加跟进记录</div>
-          <textarea v-model="noteText" rows="4" placeholder="输入跟进内容..."
-            class="w-full rounded-xl px-3 py-2.5 text-[14px] outline-none resize-none"
-            style="border: 1px solid var(--color-divider); background: var(--color-bg); color: var(--color-ink);" />
-          <div class="flex gap-2 mt-3">
-            <button @click="showNoteBox = false"
-              class="flex-1 rounded-2xl py-3 text-[15px]"
-              style="border: 1px solid var(--color-divider); color: var(--color-ink-2);">取消</button>
-            <button @click="submitNote" :disabled="addingNote || !noteText.trim()"
-              class="flex-1 rounded-2xl py-3 text-[15px] font-semibold text-white disabled:opacity-50"
-              style="background: var(--color-accent);">
-              {{ addingNote ? '提交中…' : '提交' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
+    <!-- ─── 跟进输入弹层（公用组件，与 ProjectDetailView 共用） ────── -->
+    <NoteSheet v-model="showNoteBox" :submit="submitNote" />
 
     <!-- ─── 新增联系人 sheet（对标 AddContactSheet） ───── -->
     <Transition name="sheet">

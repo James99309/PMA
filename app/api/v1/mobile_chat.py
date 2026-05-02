@@ -336,6 +336,8 @@ def mobile_chat_entity_projects():
             'project_name': p.project_name,
             'current_stage': project_stage_label(p.current_stage) if p.current_stage else '',
             'quotation_customer': p.quotation_customer or 0,
+            'owner_name': (p.owner.real_name or p.owner.username) if p.owner else '',
+            'city': p.city or '',
         } for p in projects]})
     except Exception as e:
         logger.error(f"mobile chat search projects error: {e}", exc_info=True)
@@ -360,12 +362,24 @@ def mobile_chat_entity_companies():
         companies = get_viewable_data(Company, user, filters).order_by(
             Company.company_name
         ).limit(20).all()
-        return jsonify({'success': True, 'data': [{
-            'id': c.id,
-            'company_name': c.company_name,
-            'country': c.country or '',
-            'region': c.region or '',
-        } for c in companies]})
+        # 主要联系人（is_primary=True 优先，否则取首个）
+        def _primary_contact(co):
+            if not co.contacts:
+                return None
+            primary = next((x for x in co.contacts if getattr(x, 'is_primary', False)), None)
+            return primary or co.contacts[0]
+        result = []
+        for c in companies:
+            contact = _primary_contact(c)
+            result.append({
+                'id': c.id,
+                'company_name': c.company_name,
+                'country': c.country or '',
+                'region': c.region or '',
+                'contact_name': contact.name if contact else '',
+                'contact_position': (contact.position or '') if contact else '',
+            })
+        return jsonify({'success': True, 'data': result})
     except Exception as e:
         logger.error(f"mobile chat search companies error: {e}", exc_info=True)
         return api_response(success=False, code=500, message=str(e))

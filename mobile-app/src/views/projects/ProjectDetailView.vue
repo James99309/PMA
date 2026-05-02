@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProject, addProjectNote } from '@/api/projects'
 import { searchUsers, createConversation } from '@/api/chat'
@@ -10,6 +10,7 @@ import MessageText from '@/components/common/MessageText.vue'
 import MessageRefs from '@/components/common/MessageRefs.vue'
 import PendingRefsPreview from '@/components/common/PendingRefsPreview.vue'
 import StageAdvanceCard from '@/components/common/StageAdvanceCard.vue'
+import NoteSheet from '@/components/common/NoteSheet.vue'
 import { useChatStore } from '@/stores/chat'
 import { useDictionariesStore } from '@/stores/dictionaries'
 import { useMention } from '@/composables/useMention'
@@ -22,8 +23,6 @@ const router = useRouter()
 const project = ref(null)
 const loading = ref(true)
 
-const noteText = ref('')
-const addingNote = ref(false)
 const showNoteBox = ref(false)
 
 // ─── 项目讨论卡片 · 行内快速回复（共享 store，与 GroupChatView 同源）────────
@@ -153,8 +152,6 @@ function sendChatReply() {
   chatReplyInput.value?.blur()
   setTimeout(() => { chatReplySending.value = false }, 200)
 }
-const noteTextareaRef = ref(null)
-
 const showStagePicker = ref(false)
 const updatingStage = ref(false)
 const selectedStage = ref(null)
@@ -163,7 +160,6 @@ const showAllQuotations = ref(false)
 const showAuthModal = ref(false)
 const authNote = ref('')
 const submittingAuth = ref(false)
-const showMoreMenu = ref(false)
 
 // 主流程进度条阶段 keys（横向 dots） —— 终止态 lost/paused 不在 track 上
 const STAGE_TRACK_KEYS = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed']
@@ -337,23 +333,13 @@ async function load() {
   }
 }
 
-async function openNoteBox() {
+function openNoteBox() {
   showNoteBox.value = true
-  await nextTick()
-  noteTextareaRef.value?.focus()
 }
 
-async function submitNote() {
-  if (!noteText.value.trim()) return
-  addingNote.value = true
-  try {
-    await addProjectNote(route.params.id, noteText.value.trim())
-    noteText.value = ''
-    showNoteBox.value = false
-    await load()
-  } finally {
-    addingNote.value = false
-  }
+async function submitNote(text) {
+  await addProjectNote(route.params.id, text)
+  await load()
 }
 
 function openStagePicker() {
@@ -424,7 +410,9 @@ onMounted(() => {
         </svg>
         <span class="text-[15px]">项目</span>
       </button>
-      <button @click="showMoreMenu = true" class="text-[18px] font-bold active:opacity-60 px-2"
+      <button v-if="project?.can_edit"
+        @click="router.push(`/projects/${project.id}/edit`)"
+        class="text-[18px] font-bold active:opacity-60 px-2"
         style="color: var(--color-ink);">···</button>
     </div>
 
@@ -490,25 +478,28 @@ onMounted(() => {
 
       <!-- CTA row — 推进按钮 + 跟进按钮 -->
       <div class="px-5 pb-2 flex gap-2.5">
-        <button v-if="canAdvanceStage" @click="openStagePicker" type="button"
-          class="flex-1 h-12 rounded-2xl text-white text-[15px] font-semibold active:opacity-90"
+        <!-- 已签约 → 显示成功态；其余情况一律显示橙色推进按钮，无权时仅视觉禁用 -->
+        <div v-if="project.current_stage === 'signed'"
+          class="flex-1 h-12 rounded-2xl text-[15px] flex items-center justify-center"
+          style="background: var(--color-card); color: var(--color-ink-3); border: 1px solid var(--color-divider);">
+          已签约
+        </div>
+        <button v-else type="button"
+          @click="canAdvanceStage ? openStagePicker() : null"
+          :disabled="!canAdvanceStage"
+          class="flex-1 h-12 rounded-2xl text-white text-[15px] font-semibold active:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:opacity-50"
           style="background: var(--color-accent); border: none;">
           推进到 {{ nextTrackStage?.label || '下一阶段' }} →
         </button>
-        <div v-else
-          class="flex-1 h-12 rounded-2xl text-[15px] flex items-center justify-center"
-          style="background: var(--color-card); color: var(--color-ink-3); border: 1px solid var(--color-divider);">
-          {{ project.current_stage === 'signed' ? '已签约' : '项目已锁定' }}
-        </div>
         <!-- 添加跟进快捷入口（与"跟进记录 +添加"等价） -->
-        <button @click="openNoteBox" type="button"
+        <button type="button" @click.stop="openNoteBox"
           class="h-12 px-3.5 rounded-2xl flex items-center gap-1.5 active:opacity-70 shrink-0"
-          style="background: var(--color-card); border: 1px solid var(--color-divider); pointer-events: auto;">
-          <svg width="14" height="14" viewBox="0 0 18 18" fill="none" style="pointer-events: none;">
+          style="background: var(--color-card); border: 1px solid var(--color-divider);">
+          <svg width="14" height="14" viewBox="0 0 18 18" fill="none" class="pointer-events-none">
             <path d="M9 2v14M2 9h14" stroke="var(--color-ink-2)"
               stroke-width="2" stroke-linecap="round" />
           </svg>
-          <span class="text-[12px]" style="color: var(--color-ink-2); pointer-events: none;">跟进</span>
+          <span class="text-[12px] pointer-events-none" style="color: var(--color-ink-2);">跟进</span>
         </button>
       </div>
 
@@ -880,66 +871,9 @@ onMounted(() => {
       </Transition>
     </Teleport>
 
-    <!-- ── Note box bottom sheet ── -->
-    <Teleport to="body">
-      <Transition name="sheet">
-        <div v-if="showNoteBox" class="fixed inset-0 z-50 flex flex-col justify-end">
-          <div class="absolute inset-0 bg-black/40" @click="showNoteBox = false" />
-          <div class="relative bg-[#F7F5F2] rounded-t-3xl px-5 pt-4"
-            :style="{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }">
-            <div class="w-10 h-1 bg-[#D0CBC4] rounded-full mx-auto mb-4" />
-            <p class="font-serif text-[17px] font-semibold text-[#1A1A1A] mb-3">添加跟进记录</p>
-            <textarea ref="noteTextareaRef" v-model="noteText" rows="4"
-              placeholder="输入跟进内容..."
-              class="w-full bg-white border border-[#E8E4E0] rounded-xl px-3 py-2.5 outline-none focus:border-[#D97757] resize-none text-[#1A1A1A] placeholder-[#9CA3AF]"
-              style="font-size:16px" />
-            <div class="flex gap-2 mt-3">
-              <button @click="showNoteBox = false"
-                class="flex-1 border border-[#E8E4E0] text-[#4A4540] rounded-xl py-2.5 text-sm active:opacity-60">
-                取消
-              </button>
-              <button @click="submitNote" :disabled="addingNote"
-                class="flex-1 bg-[#1A1A1A] text-white rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 active:bg-[#333]">
-                {{ addingNote ? '提交中…' : '提交' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- ── Note box bottom sheet（公用组件，与 CustomerDetailView 共用） ── -->
+    <NoteSheet v-model="showNoteBox" :submit="submitNote" />
 
-    <!-- ── More menu (auth request etc.) ── -->
-    <Teleport to="body">
-      <Transition name="sheet">
-        <div v-if="showMoreMenu" class="fixed inset-0 z-50 flex flex-col justify-end">
-          <div class="absolute inset-0 bg-black/40" @click="showMoreMenu = false" />
-          <div class="relative bg-[#F7F5F2] rounded-t-3xl px-4 pt-4"
-            :style="{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }">
-            <div class="w-10 h-1 bg-[#D0CBC4] rounded-full mx-auto mb-3" />
-            <div class="bg-white rounded-2xl overflow-hidden divide-y divide-[#F7F5F2]">
-              <button v-if="project.can_edit"
-                @click="showMoreMenu = false; router.push(`/projects/${project.id}/edit`)"
-                class="w-full py-4 text-[15px] text-[#1A1A1A] font-medium active:bg-[#F7F5F2]">
-                编辑项目
-              </button>
-              <button v-if="showAuthButton && project.can_apply_auth"
-                @click="showMoreMenu = false; showAuthModal = true"
-                class="w-full py-4 text-[15px] text-[#1A1A1A] font-medium active:bg-[#F7F5F2]">
-                申请授权
-              </button>
-              <div v-if="!project.can_edit && !(showAuthButton && project.can_apply_auth)"
-                class="w-full py-4 text-[13px] text-center text-[#9CA3AF]">
-                您只有查看权限
-              </div>
-            </div>
-            <button @click="showMoreMenu = false"
-              class="w-full mt-2 bg-white rounded-2xl py-4 text-[15px] text-[#9CA3AF] active:opacity-60">
-              取消
-            </button>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
 
     <!-- ── Auth request bottom sheet ── -->
     <Teleport to="body">
