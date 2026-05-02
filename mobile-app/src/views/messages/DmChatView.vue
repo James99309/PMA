@@ -302,18 +302,19 @@ function onViewLocation({ lat, lon }) {
   locationView.value = { lat, lon }
   showLocationSheet.value = true
 }
-async function sendLocation(lat, lon) {
+async function sendLocation(lat, lon, meta = {}) {
   if (!convId) throw new Error('无效会话')
-  // 乐观插入
+  const fullMeta = { lat, lon, name: meta.name || '', address: meta.address || '' }
   const localId = `local-loc-${Date.now()}`
   messages.value.push({
-    id: localId, kind: 'me', time: '刚刚', text: '',
-    attachment: { type: 'location', url: '', meta: { lat, lon } },
+    id: localId, kind: 'me',
+    time: formatChatTime(new Date().toISOString()), text: '',
+    attachment: { type: 'location', url: '', meta: fullMeta },
     _local: true, _content: '', _created_at_ms: Date.now(),
   })
   await scrollToBottom()
   await apiSend(convId, '', null, null, {
-    message_type: 'location', file_url: null, file_meta: { lat, lon },
+    message_type: 'location', file_url: null, file_meta: fullMeta,
   })
 }
 async function onSendVoice(blob, durationSec) {
@@ -331,7 +332,7 @@ const lp = useLongPress((m) => { actionMessage.value = m })
 function closeActions() { actionMessage.value = null }
 function onRecalled({ id }) {
   const idx = messages.value.findIndex(m => m.id === id)
-  if (idx >= 0) messages.value[idx] = { ...messages.value[idx], recalled: true, text: '' }
+  if (idx >= 0) messages.value[idx] = { ...messages.value[idx], recalled: true, text: '', attachment: null, refs: null }
 }
 function onForwarded() { console.log('转发成功') }
 
@@ -438,7 +439,7 @@ async function pollNewMessages() {
     const recalledIds = res.data.recalled_ids || []
     recalledIds.forEach(({ id }) => {
       const idx = messages.value.findIndex(x => x.id === `srv-${id}`)
-      if (idx >= 0) messages.value[idx] = { ...messages.value[idx], recalled: true, text: '' }
+      if (idx >= 0) messages.value[idx] = { ...messages.value[idx], recalled: true, text: '', attachment: null, refs: null }
     })
     if (added > 0) {
       await scrollToBottom()
@@ -582,11 +583,17 @@ onUnmounted(() => {
                 <MessageRefs v-if="m.refs?.length" :refs="m.refs" :class="m.text ? 'mt-2' : ''" />
               </div>
               <!-- 附件（image / file / voice / location）-->
-              <MessageAttachment v-if="m.attachment"
-                :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
-                @view-location="onViewLocation"
-                @media-loaded="scrollToBottom"
-                :class="m.text ? 'mt-1.5' : ''" />
+              <div v-if="m.attachment"
+                :class="m.text ? 'mt-1.5' : ''"
+                @touchstart="lp.onTouchStart($event, m)"
+                @touchmove="lp.onTouchMove"
+                @touchend="lp.onTouchEnd"
+                @touchcancel="lp.onTouchCancel">
+                <MessageAttachment
+                  :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
+                  @view-location="onViewLocation"
+                  @media-loaded="scrollToBottom" />
+              </div>
               <!-- 文件 -->
               <FileCard v-if="m.file" v-bind="m.file" :inverted="false" />
               <!-- 语音 -->
@@ -612,7 +619,11 @@ onUnmounted(() => {
             <MessageRefs v-if="m.refs?.length" :refs="m.refs" :class="m.text ? 'mt-2' : ''" />
           </div>
           <!-- 附件（image / file / voice / location）-->
-          <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''">
+          <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''"
+            @touchstart="lp.onTouchStart($event, m)"
+            @touchmove="lp.onTouchMove"
+            @touchend="lp.onTouchEnd"
+            @touchcancel="lp.onTouchCancel">
             <MessageAttachment inverted
               :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
               @view-location="onViewLocation"

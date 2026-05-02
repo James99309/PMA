@@ -76,23 +76,61 @@ class ChatConversation(db.Model):
         ).order_by(ChatMessage.created_at.desc()).first()
         if last_message:
             # 附件消息显示类型标签
-            lm_content = last_message.content[:50] if last_message.content else ''
-            if not lm_content and last_message.message_type == 'image':
-                lm_content = '[图片]'
-            elif not lm_content and last_message.message_type == 'video':
-                lm_content = '[视频]'
-            elif not lm_content and last_message.message_type == 'file':
-                lm_content = f'[文件] {last_message.file_name or ""}'
-            elif last_message.message_type == 'customer_card':
-                lm_content = '[客户卡片]'
-            elif last_message.message_type == 'project_card':
-                lm_content = '[项目卡片]'
-            elif last_message.message_type == 'form_result_card':
+            mt = last_message.message_type
+            # 尝试解析 content 里的可选说明文字 (text)
+            caption = ''
+            if last_message.content:
                 try:
-                    import json
-                    card = json.loads(last_message.content or '{}')
+                    import json as _json
+                    payload = _json.loads(last_message.content)
+                    if isinstance(payload, dict):
+                        caption = (payload.get('text') or '').strip()
+                except (ValueError, TypeError):
+                    pass
+            lm_content = last_message.content[:50] if last_message.content else ''
+            if mt == 'image':
+                lm_content = f'[图片]{" " + caption if caption else ""}'
+            elif mt == 'video':
+                lm_content = f'[视频]{" " + caption if caption else ""}'
+            elif mt == 'file':
+                # 优先尝试从 content JSON 拿 name，否则 file_name 字段
+                name = ''
+                if last_message.content:
+                    try:
+                        import json as _json
+                        p = _json.loads(last_message.content)
+                        if isinstance(p, dict):
+                            name = p.get('name') or ''
+                    except (ValueError, TypeError):
+                        pass
+                lm_content = f'[文件] {name or last_message.file_name or ""}'.strip()
+            elif mt == 'voice':
+                lm_content = '[语音]'
+            elif mt == 'location':
+                # 地点名优先；否则坐标
+                loc_name = ''
+                if last_message.content:
+                    try:
+                        import json as _json
+                        p = _json.loads(last_message.content)
+                        if isinstance(p, dict):
+                            loc_name = p.get('name') or ''
+                    except (ValueError, TypeError):
+                        pass
+                lm_content = f'[位置]{" " + loc_name if loc_name else ""}'
+            elif mt == 'customer_card':
+                lm_content = '[客户卡片]'
+            elif mt == 'project_card':
+                lm_content = '[项目卡片]'
+            elif mt == 'text_refs':
+                # 引用卡: 只显示文本部分
+                lm_content = caption or '[卡片]'
+            elif mt == 'form_result_card':
+                try:
+                    import json as _json
+                    card = _json.loads(last_message.content or '{}')
                     lm_content = f'[已创建: {card.get("entity_name", "记录")}]'
-                except (json.JSONDecodeError, TypeError):
+                except (ValueError, TypeError):
                     lm_content = '[表单操作]'
             result['last_message'] = {
                 'id': last_message.id,

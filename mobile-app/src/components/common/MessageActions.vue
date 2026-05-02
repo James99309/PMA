@@ -142,8 +142,29 @@ async function doRecall() {
   }
 }
 
+function getCopyText() {
+  const m = props.message
+  if (!m) return ''
+  if (m.text) return m.text
+  const a = m.attachment
+  if (!a) return ''
+  if (a.type === 'image') return a.url || ''
+  if (a.type === 'file')  return [a.meta?.name, a.url].filter(Boolean).join('\n')
+  if (a.type === 'voice') return a.url || ''
+  if (a.type === 'location') {
+    const meta = a.meta || {}
+    const parts = []
+    if (meta.name) parts.push(meta.name)
+    if (meta.address) parts.push(meta.address)
+    if (meta.lat != null && meta.lon != null) parts.push(`${meta.lat}, ${meta.lon}`)
+    return parts.join('\n')
+  }
+  return ''
+}
+
 async function doCopy() {
-  const text = props.message?.text || ''
+  const text = getCopyText()
+  if (!text) { emit('close'); return }
   try {
     if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text)
     else {

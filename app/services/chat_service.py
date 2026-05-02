@@ -228,12 +228,28 @@ def get_user_conversations(user_id, viewer_language=None):
                     lm_content = '[客户卡片]'
                 elif msg_type == 'project_card':
                     lm_content = '[项目卡片]'
-                elif msg_type == 'image':
-                    lm_content = '[图片]'
-                elif msg_type == 'video':
-                    lm_content = '[视频]'
-                elif msg_type == 'file':
-                    lm_content = f'[文件] {last_msg.file_name or ""}'
+                elif msg_type in ('image', 'video', 'file', 'voice', 'location'):
+                    # 附件 content 是 JSON {text, name, address, ...}; 解析说明文字
+                    name = ''; caption = ''
+                    if last_msg.content:
+                        try:
+                            import json as _j
+                            payload = _j.loads(last_msg.content)
+                            if isinstance(payload, dict):
+                                name = (payload.get('name') or '').strip()
+                                caption = (payload.get('text') or '').strip()
+                        except Exception:
+                            pass
+                    if msg_type == 'image':
+                        lm_content = f'[图片]{" " + caption if caption else ""}'
+                    elif msg_type == 'video':
+                        lm_content = f'[视频]{" " + caption if caption else ""}'
+                    elif msg_type == 'file':
+                        lm_content = f'[文件] {name or last_msg.file_name or ""}'.rstrip()
+                    elif msg_type == 'voice':
+                        lm_content = '[语音]'
+                    else:  # location
+                        lm_content = f'[位置]{" " + name if name else ""}'
                 elif msg_type == 'text_refs':
                     # 引用卡消息：取出 text 部分预览，并在末尾标记引用数
                     try:

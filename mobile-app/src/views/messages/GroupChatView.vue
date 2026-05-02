@@ -265,19 +265,20 @@ function onViewLocation({ lat, lon }) {
   locationView.value = { lat, lon }
   showLocationSheet.value = true
 }
-async function sendLocation(lat, lon) {
+async function sendLocation(lat, lon, meta = {}) {
   const cid = _convId()
   if (!cid) throw new Error('无效会话')
+  const fullMeta = { lat, lon, name: meta.name || '', address: meta.address || '' }
   const localId = `local-loc-${Date.now()}`
   chatStore.appendToGroup(groupId, {
     id: localId, kind: 'me', from: '我', initial: '我',
     time: formatChatTime(new Date().toISOString()), text: '',
-    attachment: { type: 'location', url: '', meta: { lat, lon } },
+    attachment: { type: 'location', url: '', meta: fullMeta },
     _local: true, _content: '', _created_at_ms: Date.now(),
   })
   await scrollToBottom()
   await apiSend(cid, '', null, null, {
-    message_type: 'location', file_url: null, file_meta: { lat, lon },
+    message_type: 'location', file_url: null, file_meta: fullMeta,
   })
 }
 async function onSendVoice(blob, durationSec) {
@@ -400,7 +401,7 @@ async function pollNewMessages() {
     if (list.length) lastMsgIso = list[list.length - 1].created_at
     // 同步撤回
     const recalledIds = res.data.recalled_ids || []
-    recalledIds.forEach(({ id }) => chatStore.replaceMessage(groupId, `srv-${id}`, { recalled: true, text: '' }))
+    recalledIds.forEach(({ id }) => chatStore.replaceMessage(groupId, `srv-${id}`, { recalled: true, text: '', attachment: null, refs: null }))
     if (added > 0) {
       await scrollToBottom()
       try { await markAsRead(numericId) } catch {}
@@ -415,7 +416,7 @@ const actionMessage = ref(null)
 const lp = useLongPress((m) => { actionMessage.value = m })
 function closeActions() { actionMessage.value = null }
 function onRecalled({ id }) {
-  chatStore.replaceMessage(groupId, id, { recalled: true, text: '' })
+  chatStore.replaceMessage(groupId, id, { recalled: true, text: '', attachment: null, refs: null })
 }
 function onForwarded() {
   // 弱提示：暂时不打扰用户
@@ -530,7 +531,11 @@ onUnmounted(() => {
               <MessageText v-if="m.text" :text="m.text" inverted />
               <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
             </div>
-            <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''">
+            <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''"
+              @touchstart="lp.onTouchStart($event, m)"
+              @touchmove="lp.onTouchMove"
+              @touchend="lp.onTouchEnd"
+              @touchcancel="lp.onTouchCancel">
               <MessageAttachment inverted
                 :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
                 @view-location="onViewLocation"
@@ -573,11 +578,17 @@ onUnmounted(() => {
                 <MessageText v-if="m.text" :text="m.text" />
                 <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
               </div>
-              <MessageAttachment v-if="m.attachment"
-                :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
-                @view-location="onViewLocation"
-                @media-loaded="scrollToBottom"
-                :class="m.text ? 'mt-1.5' : ''" />
+              <div v-if="m.attachment"
+                :class="m.text ? 'mt-1.5' : ''"
+                @touchstart="lp.onTouchStart($event, m)"
+                @touchmove="lp.onTouchMove"
+                @touchend="lp.onTouchEnd"
+                @touchcancel="lp.onTouchCancel">
+                <MessageAttachment
+                  :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
+                  @view-location="onViewLocation"
+                  @media-loaded="scrollToBottom" />
+              </div>
             </template>
           </div>
         </div>

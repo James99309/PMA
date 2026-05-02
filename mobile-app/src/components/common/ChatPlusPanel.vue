@@ -2,6 +2,7 @@
 // Composer + 按钮展开后的 4 操作面板：相册 / 拍照 / 位置 / 文件
 // 严格对齐 chat-input-states.jsx ChatPlusPanel 设计
 import { ref } from 'vue'
+import { Capacitor } from '@capacitor/core'
 
 const emit = defineEmits([
   'pick-image',  // 用户选了图片 → File[]
@@ -31,6 +32,31 @@ function onFile(e) {
   e.target.value = ''
 }
 
+// 原生 iPhone 相机：完整聚焦/变焦/视频切换 UI（需要 @capacitor/camera 插件 + 原生重建）
+async function openNativeCamera() {
+  try {
+    const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
+    const photo = await Camera.getPhoto({
+      quality: 85,
+      allowEditing: false,
+      resultType: CameraResultType.Uri,
+      source: CameraSource.Camera,
+      saveToGallery: false,
+    })
+    // photo.webPath 是 capacitor:// 本地 URI；fetch 后转 File
+    const res = await fetch(photo.webPath)
+    const blob = await res.blob()
+    const ext = (photo.format || 'jpeg').replace('jpg', 'jpeg')
+    const file = new File([blob], `photo_${Date.now()}.${ext === 'jpeg' ? 'jpg' : ext}`,
+      { type: blob.type || `image/${ext}` })
+    emit('pick-camera', file)
+  } catch (e) {
+    // 用户取消 / 插件未装 → 回退到 HTML capture input
+    if (e?.message?.includes('cancelled') || e?.message?.includes('canceled')) return
+    cameraInput.value?.click()
+  }
+}
+
 const ACTIONS = [
   { key: 'gallery', label: '相册', color: 'var(--color-accent)' },
   { key: 'camera',  label: '拍照', color: '#3a8c5a' },
@@ -40,7 +66,11 @@ const ACTIONS = [
 
 function handleAction(key) {
   if (key === 'gallery')  galleryInput.value?.click()
-  else if (key === 'camera')   cameraInput.value?.click()
+  else if (key === 'camera')   {
+    // 原生 iOS 用 Capacitor Camera 插件; web 环境 fallback HTML capture
+    if (Capacitor.isNativePlatform?.()) openNativeCamera()
+    else cameraInput.value?.click()
+  }
   else if (key === 'location') emit('share-location')
   else if (key === 'file')     fileInput.value?.click()
 }
