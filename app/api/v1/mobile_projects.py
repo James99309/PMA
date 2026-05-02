@@ -350,8 +350,9 @@ def mobile_project_detail(project_id):
     if not project:
         return api_response(success=False, code=404, message="项目不存在")
 
-    from app.utils.access_control import can_view_project
-    if not can_view_project(user, project):
+    # 与列表口径一致（含权限级别 + content_filters + 共享）
+    viewable = get_viewable_data(Project, user, [Project.id == project_id]).first()
+    if not viewable:
         return api_response(success=False, code=403, message="无权访问此项目")
 
     return api_response(success=True, data=_project_detail(project, current_user_id=user_id))
@@ -454,8 +455,8 @@ def mobile_project_update_stage(project_id):
     if not project:
         return api_response(success=False, code=404, message="项目不存在")
 
-    from app.utils.access_control import can_view_project
-    if not can_view_project(user, project):
+    viewable = get_viewable_data(Project, user, [Project.id == project_id]).first()
+    if not viewable:
         return api_response(success=False, code=403, message="无权访问此项目")
 
     data = request.get_json() or {}
@@ -546,8 +547,8 @@ def mobile_project_add_note(project_id):
     if not project:
         return api_response(success=False, code=404, message="项目不存在")
 
-    from app.utils.access_control import can_view_project
-    if not can_view_project(user, project):
+    viewable = get_viewable_data(Project, user, [Project.id == project_id]).first()
+    if not viewable:
         return api_response(success=False, code=403, message="无权访问此项目")
 
     data = request.get_json()

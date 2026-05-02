@@ -353,8 +353,8 @@ onUnmounted(() => {
               @touchcancel="lp.onTouchCancel">
               <span v-if="m.mention" class="font-semibold" style="color: #5FA5FF;">{{ m.mention }}&nbsp;</span>
               <MessageText :text="m.text" inverted />
+              <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
             </div>
-            <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-1.5 w-full" />
             <div class="text-[10px] mt-1" style="color: var(--color-ink-3);">{{ m.time }}</div>
           </template>
         </div>
@@ -382,8 +382,8 @@ onUnmounted(() => {
                   style="color: var(--color-accent);">@我&nbsp;</span>
                 <span v-else-if="typeof m.mention === 'string' && m.mention !== '@我'" class="font-semibold" style="color: #2F66D6;">{{ m.mention }}&nbsp;</span>
                 <MessageText :text="m.text" />
+                <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
               </div>
-              <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-1.5" />
             </template>
           </div>
         </div>

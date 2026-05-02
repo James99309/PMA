@@ -27,13 +27,21 @@ async function checkUpdate() {
         url: latest.url,
         version: latest.version,
       })
-      bundleStatus.value = `下载完成，正在切换…`
+      bundleStatus.value = `下载完成，重启 App 生效`
       await CapacitorUpdater.set({ id: dl.id })
     } else {
-      bundleStatus.value = '已是最新'
+      bundleStatus.value = '已是最新版本'
     }
   } catch (e) {
-    bundleStatus.value = `检查失败: ${e.message || e}`
+    // Capgo 在"无新版本"时也会抛 no_new_version_available 等错误码
+    // 这些都视为"已是最新"，只对真实错误（网络/签名等）保留报错
+    const msg = e?.message || String(e || '')
+    const benign = ['no_new_version_available', 'no_channel', 'already_set']
+    if (benign.some(k => msg.includes(k))) {
+      bundleStatus.value = '已是最新版本'
+    } else {
+      bundleStatus.value = `检查失败: ${msg}`
+    }
   }
 }
 

@@ -391,8 +391,8 @@ onUnmounted(() => {
             <div v-if="m.recalled" class="text-[12px] italic"
               style="color: var(--color-ink-3);">{{ peer.name }} 撤回了一条消息</div>
             <template v-else>
-              <!-- 文本气泡 -->
-              <div v-if="m.text" class="inline-block max-w-[300px]"
+              <!-- 文本气泡（含可能的引用卡）-->
+              <div v-if="m.text || m.refs?.length" class="inline-block max-w-[300px]"
                 style="background: var(--color-card); border: 1px solid var(--color-divider);
                        border-radius: 18px 18px 18px 4px; padding: 9px 13px;
                        font-size: 15px; line-height: 1.4; font-family: var(--font-sans);"
@@ -400,13 +400,13 @@ onUnmounted(() => {
                 @touchmove="lp.onTouchMove"
                 @touchend="lp.onTouchEnd"
                 @touchcancel="lp.onTouchCancel">
-                <MessageText :text="m.text" />
+                <MessageText v-if="m.text" :text="m.text" />
+                <MessageRefs v-if="m.refs?.length" :refs="m.refs" :class="m.text ? 'mt-2' : ''" />
               </div>
               <!-- 文件 -->
               <FileCard v-if="m.file" v-bind="m.file" :inverted="false" />
               <!-- 语音 -->
               <VoiceMsg v-if="m.voice" v-bind="m.voice" :inverted="false" />
-              <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-1.5" />
             </template>
           </div>
         </div>
@@ -416,21 +416,21 @@ onUnmounted(() => {
           <div v-if="m.recalled" class="text-[12px] italic"
             style="color: var(--color-ink-3);">你撤回了一条消息</div>
           <template v-else>
-          <!-- 文本气泡 -->
-          <div v-if="m.text" class="text-white max-w-[300px]"
+          <!-- 文本气泡（含可能的引用卡）-->
+          <div v-if="m.text || m.refs?.length" class="text-white max-w-[300px]"
             style="background: var(--color-ink); border-radius: 18px 18px 4px 18px;
                    padding: 9px 13px; font-size: 15px; line-height: 1.4; font-family: var(--font-sans);"
             @touchstart="lp.onTouchStart($event, m)"
             @touchmove="lp.onTouchMove"
             @touchend="lp.onTouchEnd"
             @touchcancel="lp.onTouchCancel">
-            <MessageText :text="m.text" inverted />
+            <MessageText v-if="m.text" :text="m.text" inverted />
+            <MessageRefs v-if="m.refs?.length" :refs="m.refs" :class="m.text ? 'mt-2' : ''" />
           </div>
           <!-- 文件 -->
           <FileCard v-if="m.file" v-bind="m.file" inverted class="mt-1.5" />
           <!-- 语音 -->
           <VoiceMsg v-if="m.voice" v-bind="m.voice" inverted class="mt-1.5" />
-          <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-1.5 w-full max-w-[300px]" />
           <!-- 时间 + 已读回执 -->
           <div class="text-[10px] mt-1 inline-flex items-center gap-1" style="color: var(--color-ink-3);">
             <span>{{ m.time }}</span>

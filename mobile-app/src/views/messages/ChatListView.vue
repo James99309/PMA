@@ -214,7 +214,7 @@ function closePicker() {
       </div>
       <button @click="showPicker = true"
         class="w-9 h-9 rounded-full inline-flex items-center justify-center"
-        style="background: var(--color-card); border: 1px solid var(--color-divider-strong); color: var(--color-ink); font-size: 18px;">+</button>
+        style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300;">+</button>
     </div>
 
     <!-- 加载中 -->
