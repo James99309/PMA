@@ -1,6 +1,6 @@
 <script setup>
 // 私聊 + AI 草稿区 —— 严格对齐 ai-chat.jsx DMAIDraft (line 383-459)
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PixelP from '@/components/common/PixelP.vue'
 import MentionPopover from '@/components/common/MentionPopover.vue'
@@ -183,23 +183,37 @@ function onRecalled({ id }) {
 }
 function onForwarded() { console.log('转发成功') }
 
+// 增量轮询 + 已读回执
+let lastMsgIso = null
+const peerLastReadMs = ref(0)  // 对方上次已读时间（ms）
+let msgPollTimer = null
+
+function appendBackendMessage(m) {
+  const id = `srv-${m.id}`
+  if (messages.value.some(x => x.id === id)) return false
+  const isMine = m.is_mine || m.is_self
+  messages.value.push({
+    id,
+    kind: isMine ? 'me' : 'them',
+    time: formatChatTime(m.created_at),
+    text: m.content,
+    _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+    recalled: !!m.is_deleted,
+  })
+  return true
+}
+
 async function loadHistory() {
   if (!convId) return
   try {
     const res = await getMessages(convId, { limit: 50 })
     if (!res.data?.success) return
     const list = res.data.data || []
-    list.forEach(m => {
-      const isMine = m.is_mine || m.is_self
-      messages.value.push({
-        id: `srv-${m.id}`,
-        kind: isMine ? 'me' : 'them',
-        time: formatChatTime(m.created_at),
-        text: m.content,
-        _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-        recalled: !!m.is_deleted,
-      })
-    })
+    list.forEach(appendBackendMessage)
+    if (list.length) lastMsgIso = list[list.length - 1].created_at
+    if (res.data.peer_last_read_at) {
+      peerLastReadMs.value = new Date(res.data.peer_last_read_at).getTime()
+    }
     // 顺便从消息里推断 peer 真实姓名（取第一条非我的消息的 sender_name）
     const otherMsg = list.find(m => !(m.is_mine || m.is_self) && m.sender_name)
     if (otherMsg && !route.query.name) {
@@ -213,9 +227,46 @@ async function loadHistory() {
   }
 }
 
+async function pollNewMessages() {
+  if (!convId) return
+  try {
+    const res = await getMessages(convId, { limit: 50, since: lastMsgIso })
+    if (!res.data?.success) return
+    const list = res.data.data || []
+    let added = 0
+    list.forEach(m => { if (appendBackendMessage(m)) added++ })
+    if (list.length) lastMsgIso = list[list.length - 1].created_at
+    if (res.data.peer_last_read_at) {
+      peerLastReadMs.value = new Date(res.data.peer_last_read_at).getTime()
+    }
+    const recalledIds = res.data.recalled_ids || []
+    recalledIds.forEach(({ id }) => {
+      const idx = messages.value.findIndex(x => x.id === `srv-${id}`)
+      if (idx >= 0) messages.value[idx] = { ...messages.value[idx], recalled: true, text: '' }
+    })
+    if (added > 0) {
+      await scrollToBottom()
+      try { await markAsRead(convId) } catch {}
+    }
+  } catch (e) {
+    console.warn('dm poll failed', e)
+  }
+}
+
+// 我发的某条消息 → 对方是否已读？
+function isMessageRead(m) {
+  if (m.kind !== 'me' || !peerLastReadMs.value) return false
+  return m._created_at_ms && m._created_at_ms <= peerLastReadMs.value
+}
+
 onMounted(async () => {
   await scrollToBottom()
   await loadHistory()
+  msgPollTimer = setInterval(pollNewMessages, 3000)
+})
+
+onUnmounted(() => {
+  if (msgPollTimer) clearInterval(msgPollTimer)
 })
 </script>
 
@@ -336,7 +387,7 @@ onMounted(async () => {
           <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-1.5 w-full max-w-[300px]" />
           <!-- 时间 + 已读回执 -->
           <div class="text-[10px] mt-1" style="color: var(--color-ink-3);">
-            {{ m.time }}<span v-if="m.read" class="ml-1">· ✓✓ 已读</span>
+            {{ m.time }}<span v-if="isMessageRead(m)" class="ml-1" style="color: #5FA5FF;">· ✓✓ 已读</span>
           </div>
           </template>
         </div>

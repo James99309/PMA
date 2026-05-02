@@ -13,6 +13,10 @@ import './style.css'
 
 createApp(App).use(createPinia()).use(router).mount('#app')
 
+// ─── Capgo OTA：通知 native 端 web 已准备好（释放冷启等待，autoUpdate 会自动检查新版本）
+import { CapacitorUpdater } from '@capgo/capacitor-updater'
+CapacitorUpdater.notifyAppReady().catch(() => {})
+
 // iOS WebView 键盘弹起会把整个 WebView frame 上推（默认 KeyboardResize.Native 行为），
 // 导致顶部头被推进状态栏区域。下面强制把 window.scrollTop 锁回 0，
 // 让 iOS 不再上推，输入框依然由底部 flex 布局保持可见。

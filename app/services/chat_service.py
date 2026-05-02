@@ -591,7 +591,23 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
             )
             recalled_ids = [{'id': r.id, 'sender_id': r.sender_id} for r in recalled]
 
-        return {'success': True, 'data': data, 'recalled_ids': recalled_ids}
+        # 私聊场景：返回对方的 last_read_at，前端据此渲染"已读"
+        peer_last_read_at = None
+        conv = ChatConversation.query.get(conversation_id)
+        if conv and conv.type == 'private':
+            peer = ChatParticipant.query.filter(
+                ChatParticipant.conversation_id == conversation_id,
+                ChatParticipant.user_id != user_id,
+            ).first()
+            if peer and peer.last_read_at:
+                peer_last_read_at = _utc_iso(peer.last_read_at)
+
+        return {
+            'success': True,
+            'data': data,
+            'recalled_ids': recalled_ids,
+            'peer_last_read_at': peer_last_read_at,
+        }
 
     except Exception as e:
         logger.error(f"获取消息失败: {e}", exc_info=True)

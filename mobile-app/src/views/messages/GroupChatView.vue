@@ -2,7 +2,7 @@
 // 群聊 + @AI —— 严格对齐 ai-chat.jsx GroupAtAI (line 309-381)
 // + 引用项目卡用 components/common/refs/ProjectRefCard.vue
 // + 共享 chat store：与 ProjectDetailView 项目讨论卡同源
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PixelP from '@/components/common/PixelP.vue'
 import MentionPopover from '@/components/common/MentionPopover.vue'
@@ -152,6 +152,50 @@ async function send() {
   sending.value = false
 }
 
+// 已知本地最新消息时间（增量轮询用）
+let lastMsgIso = null
+
+// 把后端消息 dict 映射到 store 并追加（去重）
+function appendBackendMessage(m) {
+  const id = `srv-${m.id}`
+  // 去重：store 已有则跳过
+  const existing = chatStore.getGroup(groupId, []).find(x => x.id === id)
+  if (existing) return false
+
+  const isMine = m.is_mine || m.is_self
+  const isAi   = m.is_ai_response
+  const isStageAdv = m.message_type === 'stage_advance'
+  const isSystem = !isStageAdv && (m.message_type === 'system' || (m.sender_id == null && !isAi))
+
+  if (isStageAdv) {
+    let payload = {}
+    try { payload = JSON.parse(m.content || '{}') } catch {}
+    chatStore.appendToGroup(groupId, {
+      id, kind: 'stage-advance',
+      fromStage: payload.from_stage_label || '',
+      toStage:   payload.to_stage_label || '',
+      byName:    payload.by_name || '',
+      byInitial: payload.by_initial || (payload.by_name || '?')[0],
+      time: formatChatTime(m.created_at),
+      note: payload.note || '',
+      _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+    })
+    return true
+  }
+
+  const kind = isSystem ? 'system' : isAi ? 'ai' : isMine ? 'me' : 'them'
+  chatStore.appendToGroup(groupId, {
+    id, kind,
+    from: isAi ? '源助手' : (m.sender_name || '?'),
+    initial: isAi ? 'P' : ((m.sender_name || '?')[0]),
+    time: formatChatTime(m.created_at),
+    text: m.content,
+    _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+    recalled: !!m.is_deleted,
+  })
+  return true
+}
+
 // 拉真消息历史（项目群 'proj-*' 跳过，仅普通群）
 async function loadHistory() {
   const numericId = /^\d+$/.test(String(groupId)) ? Number(groupId) : null
@@ -160,48 +204,36 @@ async function loadHistory() {
     const res = await getMessages(numericId, { limit: 50 })
     if (!res.data?.success) return
     const list = res.data.data || []
-    // 用真后端消息覆盖 store
-    list.forEach(m => {
-      const isMine = m.is_mine || m.is_self
-      const isAi   = m.is_ai_response
-      const isStageAdv = m.message_type === 'stage_advance'
-      const isSystem = !isStageAdv && (m.message_type === 'system' || (m.sender_id == null && !isAi))
-
-      // 阶段推进富卡：解析 JSON content
-      if (isStageAdv) {
-        let payload = {}
-        try { payload = JSON.parse(m.content || '{}') } catch {}
-        chatStore.appendToGroup(groupId, {
-          id: `srv-${m.id}`,
-          kind: 'stage-advance',
-          fromStage: payload.from_stage_label || '',
-          toStage:   payload.to_stage_label || '',
-          byName:    payload.by_name || '',
-          byInitial: payload.by_initial || (payload.by_name || '?')[0],
-          time: formatChatTime(m.created_at),
-          note: payload.note || '',
-          _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-        })
-        return
-      }
-
-      const kind = isSystem ? 'system' : isAi ? 'ai' : isMine ? 'me' : 'them'
-      chatStore.appendToGroup(groupId, {
-        id: `srv-${m.id}`,
-        kind,
-        from: isAi ? '源助手' : (m.sender_name || '?'),
-        initial: isAi ? 'P' : ((m.sender_name || '?')[0]),
-        time: formatChatTime(m.created_at),
-        text: m.content,
-        _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-        recalled: !!m.is_deleted,
-      })
-    })
+    if (list.length) lastMsgIso = list[list.length - 1].created_at
+    list.forEach(appendBackendMessage)
     await scrollToBottom()
-    // 标记已读
     try { await markAsRead(numericId) } catch {}
   } catch (e) {
     console.error('load history failed', e)
+  }
+}
+
+// 增量轮询新消息（每 3 秒）
+let msgPollTimer = null
+async function pollNewMessages() {
+  const numericId = /^\d+$/.test(String(groupId)) ? Number(groupId) : null
+  if (!numericId) return
+  try {
+    const res = await getMessages(numericId, { limit: 50, since: lastMsgIso })
+    if (!res.data?.success) return
+    const list = res.data.data || []
+    let added = 0
+    list.forEach(m => { if (appendBackendMessage(m)) added++ })
+    if (list.length) lastMsgIso = list[list.length - 1].created_at
+    // 同步撤回
+    const recalledIds = res.data.recalled_ids || []
+    recalledIds.forEach(({ id }) => chatStore.replaceMessage(groupId, `srv-${id}`, { recalled: true, text: '' }))
+    if (added > 0) {
+      await scrollToBottom()
+      try { await markAsRead(numericId) } catch {}
+    }
+  } catch (e) {
+    console.warn('poll messages failed', e)
   }
 }
 
@@ -236,6 +268,12 @@ async function loadGroupInfo() {
 onMounted(async () => {
   await scrollToBottom()
   await Promise.all([loadHistory(), loadGroupInfo()])
+  // 启动 3 秒增量轮询
+  msgPollTimer = setInterval(pollNewMessages, 3000)
+})
+
+onUnmounted(() => {
+  if (msgPollTimer) clearInterval(msgPollTimer)
 })
 </script>
 
