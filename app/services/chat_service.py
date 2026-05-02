@@ -234,6 +234,21 @@ def get_user_conversations(user_id, viewer_language=None):
                     lm_content = '[视频]'
                 elif msg_type == 'file':
                     lm_content = f'[文件] {last_msg.file_name or ""}'
+                elif msg_type == 'text_refs':
+                    # 引用卡消息：取出 text 部分预览，并在末尾标记引用数
+                    try:
+                        import json as _j
+                        payload = _j.loads(last_msg.content or '{}')
+                        txt = (payload.get('text') or '').strip()[:40]
+                        ref_count = len(payload.get('refs') or [])
+                        suffix = f" [引用 ×{ref_count}]" if ref_count else ''
+                        lm_content = (txt or '[引用卡片]') + suffix
+                    except Exception:
+                        lm_content = '[引用消息]'
+                elif msg_type == 'stage_advance':
+                    lm_content = '[阶段推进]'
+                elif msg_type == 'system':
+                    lm_content = last_msg.content[:50] if last_msg.content else '[系统消息]'
                 else:
                     lm_content = last_msg.content[:50] if last_msg.content else ''
 

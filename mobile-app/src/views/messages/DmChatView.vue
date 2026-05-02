@@ -204,23 +204,36 @@ function appendBackendMessage(m) {
   if (messages.value.some(x => x.id === id)) return false
 
   const isMine = m.is_mine || m.is_self
+
+  // 解析带引用卡的消息：content 是 JSON {text, refs}
+  let displayText = m.content
+  let attachedRefs
+  if (m.message_type === 'text_refs' && m.content) {
+    try {
+      const payload = JSON.parse(m.content)
+      displayText = payload.text || ''
+      attachedRefs = payload.refs || null
+    } catch {}
+  }
+
   const newMsg = {
     id,
     kind: isMine ? 'me' : 'them',
     time: formatChatTime(m.created_at),
-    text: m.content,
+    text: displayText,
+    refs: attachedRefs || undefined,
     _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
     recalled: !!m.is_deleted,
   }
 
-  // 如果是自己发的消息，找匹配的本地乐观消息（同内容 + 30 秒内 + _local 标志）→ 替换
+  // 如果是自己发的消息，找匹配的本地乐观消息 → 替换
   if (isMine) {
     const localIdx = messages.value.findIndex(x =>
-      x._local && x._content === m.content &&
+      x._local && x._content === displayText &&
       Math.abs((x._created_at_ms || 0) - newMsg._created_at_ms) < 30000
     )
     if (localIdx >= 0) {
-      messages.value[localIdx] = newMsg  // 替换占位
+      messages.value[localIdx] = newMsg
       return false
     }
   }
