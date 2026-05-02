@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getCustomer, updateCustomer, archiveCustomer } from '@/api/customers'
 import EditField from '@/components/common/EditField.vue'
+import EditFormHeader from '@/components/common/EditFormHeader.vue'
 import PickerSheet from '@/components/common/PickerSheet.vue'
 import AddressPickerSheet from '@/components/common/AddressPickerSheet.vue'
 import { useDictionariesStore } from '@/stores/dictionaries'
@@ -151,17 +152,13 @@ onMounted(() => {
 <template>
   <div class="flex flex-col h-full overflow-y-auto" style="background: var(--color-bg);">
 
-    <!-- Header — 取消 / 编辑客户 / 保存 -->
-    <div class="flex items-center justify-between px-5 py-3 shrink-0">
-      <button @click="router.back()" class="text-[15px] active:opacity-60"
-        style="color: var(--color-accent);">取消</button>
-      <span class="font-serif text-[16px] font-medium">编辑客户</span>
-      <button @click="save" :disabled="saving || !form.company_name.trim()"
-        class="text-[15px] font-bold active:opacity-60 disabled:opacity-40"
-        style="color: var(--color-accent);">
-        {{ saving ? '保存中…' : '保存' }}
-      </button>
-    </div>
+    <EditFormHeader
+      title="编辑客户"
+      :saving="saving"
+      :dirty="true"
+      :missing-count="form.company_name?.trim() ? 0 : 1"
+      @cancel="router.back()"
+      @save="save" />
 
     <div v-if="loading" class="flex justify-center items-center flex-1">
       <div class="w-6 h-6 border-2 rounded-full animate-spin"

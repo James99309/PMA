@@ -3,7 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProject, updateProject, getVendorSalesManagers } from '@/api/projects'
 import EditField from '@/components/common/EditField.vue'
+import EditFormHeader from '@/components/common/EditFormHeader.vue'
 import PickerSheet from '@/components/common/PickerSheet.vue'
+import PersonPickerSheet from '@/components/common/PersonPickerSheet.vue'
 import AddressPickerSheet from '@/components/common/AddressPickerSheet.vue'
 import { useDictionariesStore } from '@/stores/dictionaries'
 
@@ -12,7 +14,7 @@ const router = useRouter()
 
 const loading = ref(true)
 const saving = ref(false)
-const focusedKey = ref('project_name')
+const dirty = ref(false)
 
 const form = ref({
   project_name: '',
@@ -30,28 +32,6 @@ const form = ref({
   longitude: null,
   vendor_sales_manager_id: null,
 })
-
-// 厂商销售负责人候选 + label
-const vendorSalesManagers = ref([])
-const vsmLabel = computed(() => {
-  const u = vendorSalesManagers.value.find(x => x.id === form.value.vendor_sales_manager_id)
-  return u ? u.name : ''
-})
-const VSM_OPTIONS = computed(() => vendorSalesManagers.value.map(u => ({
-  value: u.id,
-  label: u.department ? `${u.name} · ${u.department}` : u.name,
-})))
-
-// 产品情况
-const PRODUCT_SITUATION_OPTIONS = [
-  { value: 'qualified',    label: '入围' },
-  { value: 'controlled',   label: '受控' },
-  { value: 'not_required', label: '无要求' },
-  { value: 'unqualified',  label: '未入围' },
-]
-const productSituationLabel = computed(() =>
-  PRODUCT_SITUATION_OPTIONS.find(o => o.value === form.value.product_situation)?.label || ''
-)
 
 const isLocked = ref(false)
 const dictStore = useDictionariesStore()
@@ -74,11 +54,33 @@ const INDUSTRY_OPTIONS = [
   { value: 'finance',       label: '金融' },
   { value: 'other',         label: '其他' },
 ]
+const PRODUCT_SITUATION_OPTIONS = [
+  { value: 'qualified',    label: '入围' },
+  { value: 'controlled',   label: '受控' },
+  { value: 'not_required', label: '无要求' },
+  { value: 'unqualified',  label: '未入围' },
+]
 const PROJECT_TYPE_OPTIONS = computed(() =>
   dictStore.list('project_type').map(d => ({ value: d.key, label: d.label }))
 )
+
+// 厂商销售
+const vendorSalesManagers = ref([])
+const vsmDisplay = computed(() => {
+  const u = vendorSalesManagers.value.find(x => x.id === form.value.vendor_sales_manager_id)
+  return u ? (u.department ? `${u.name} · ${u.department}` : u.name) : ''
+})
+// 适配 PersonPickerSheet 的 options 格式
+const VSM_PERSON_OPTIONS = computed(() => vendorSalesManagers.value.map(u => ({
+  id: u.id, name: u.name, department: u.department,
+})))
+
+// labels for display
 const projectTypeLabel = computed(() => dictStore.label('project_type', form.value.project_type))
 const industryLabel = computed(() => INDUSTRY_OPTIONS.find(o => o.value === form.value.industry)?.label || form.value.industry)
+const productSituationLabel = computed(() =>
+  PRODUCT_SITUATION_OPTIONS.find(o => o.value === form.value.product_situation)?.label || ''
+)
 
 // Picker 开关
 const showProjectTypePicker = ref(false)
@@ -94,7 +96,16 @@ function onAddressSelect(d) {
   form.value.address  = d.address
   form.value.latitude = d.latitude
   form.value.longitude = d.longitude
+  dirty.value = true
 }
+
+// 必填检查（项目名 + 厂商销售）
+const missingCount = computed(() => {
+  let n = 0
+  if (!form.value.project_name?.trim()) n++
+  if (!form.value.vendor_sales_manager_id) n++
+  return n
+})
 
 async function load() {
   try {
@@ -117,16 +128,23 @@ async function load() {
       longitude:    p.longitude || null,
       vendor_sales_manager_id: p.vendor_sales_manager_id || null,
     }
+    dirty.value = false
   } finally {
     loading.value = false
   }
 }
 
-async function save() {
-  if (isLocked.value) {
-    alert('项目已锁定，无法编辑')
-    return
+async function loadVsm() {
+  try {
+    const r = await getVendorSalesManagers()
+    vendorSalesManagers.value = r.data?.data || []
+  } catch (e) {
+    console.warn('load vsm failed', e)
   }
+}
+
+async function save() {
+  if (isLocked.value) { alert('项目已锁定，无法编辑'); return }
   saving.value = true
   try {
     await updateProject(route.params.id, form.value)
@@ -138,14 +156,8 @@ async function save() {
   }
 }
 
-async function loadVsm() {
-  try {
-    const r = await getVendorSalesManagers()
-    vendorSalesManagers.value = r.data?.data || []
-  } catch (e) {
-    console.warn('load vendor sales managers failed', e)
-  }
-}
+// 任何字段变化标记 dirty
+function onChange() { dirty.value = true }
 
 onMounted(() => {
   dictStore.ensure('project_type')
@@ -155,81 +167,102 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full overflow-y-auto" style="background: var(--color-bg);">
+  <div class="flex flex-col h-full" style="background: var(--color-bg);">
 
-    <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-3 shrink-0">
-      <button @click="router.back()" class="text-[15px] active:opacity-60"
-        style="color: var(--color-accent);">取消</button>
-      <span class="font-serif text-[16px] font-medium">编辑项目</span>
-      <button @click="save" :disabled="saving || !form.project_name.trim() || isLocked"
-        class="text-[15px] font-bold active:opacity-60 disabled:opacity-40"
-        style="color: var(--color-accent);">
-        {{ saving ? '保存中…' : '保存' }}
-      </button>
-    </div>
+    <EditFormHeader
+      title="编辑项目"
+      :saving="saving"
+      :dirty="dirty"
+      :missing-count="missingCount"
+      @cancel="router.back()"
+      @save="save" />
 
     <div v-if="loading" class="flex justify-center items-center flex-1">
       <div class="w-6 h-6 border-2 rounded-full animate-spin"
         style="border-color: var(--color-accent); border-top-color: transparent;" />
     </div>
 
-    <template v-else>
-      <div v-if="isLocked" class="mx-5 mt-3 px-4 py-3 rounded-xl text-[13px]"
+    <div v-else class="flex-1 overflow-y-auto" style="padding: 8px 0 100px;">
+      <div v-if="isLocked" class="mx-6 mt-3 px-4 py-3 rounded-xl text-[13px]"
         style="background: #FEF3C7; color: #92400E;">
-        ⚠️ 项目已锁定，所有字段只读。如需修改请先解锁。
+        ⚠️ 项目已锁定，所有字段只读
       </div>
 
       <!-- 基本信息 -->
-      <div class="px-7 pt-5 pb-1 text-[11px] font-semibold uppercase"
-        style="color: var(--color-ink-3); letter-spacing: 1px;">基本信息</div>
-      <div class="mx-5 rounded-2xl py-1"
-        style="background: var(--color-card); border: 1px solid var(--color-divider);">
-        <EditField label="项目名称" v-model="form.project_name"
-          :focused="focusedKey === 'project_name'" @click="focusedKey = 'project_name'" />
-        <EditField label="项目类型" :model-value="projectTypeLabel" arrow
-          :focused="focusedKey === 'project_type'"
-          @click="focusedKey = 'project_type'; showProjectTypePicker = true" />
-        <EditField label="行业" :model-value="industryLabel" arrow
-          :focused="focusedKey === 'industry'"
-          @click="focusedKey = 'industry'; showIndustryPicker = true" />
-        <EditField label="地址" :model-value="form.address" arrow
-          :focused="focusedKey === 'address'"
-          @click="focusedKey = 'address'; showAddressPicker = true" />
-        <EditField label="预计交付" v-model="form.delivery_forecast" type="date"
-          :focused="focusedKey === 'delivery_forecast'" @click="focusedKey = 'delivery_forecast'" />
+      <div style="padding: 20px 24px 10px;">
+        <div style="font-size: 11px; font-weight: 600; color: var(--color-ink-3); letter-spacing: 1px; text-transform: uppercase;">基本信息</div>
+      </div>
+      <div class="mx-6 overflow-hidden"
+        style="background: var(--color-card); border-radius: 14px; border: 1px solid var(--color-divider);">
+        <EditField label="项目名称" v-model="form.project_name" required @update:modelValue="onChange" />
+        <EditField label="项目类型" :model-value="projectTypeLabel" arrow placeholder="请选择"
+          @click="showProjectTypePicker = true" />
+        <EditField label="行业" :model-value="industryLabel" arrow placeholder="请选择"
+          @click="showIndustryPicker = true" />
+        <EditField label="地址" :model-value="form.address" arrow placeholder="请选择地址"
+          @click="showAddressPicker = true" />
+        <EditField label="预计交付" v-model="form.delivery_forecast" type="date" last
+          @update:modelValue="onChange" />
       </div>
 
-      <!-- 详细描述 -->
-      <div class="px-7 pt-5 pb-1 text-[11px] font-semibold uppercase"
-        style="color: var(--color-ink-3); letter-spacing: 1px;">详细</div>
-      <div class="mx-5 rounded-2xl py-1"
-        style="background: var(--color-card); border: 1px solid var(--color-divider);">
-        <EditField label="产品情况" :model-value="productSituationLabel" arrow
-          :focused="focusedKey === 'product_situation'"
-          @click="focusedKey = 'product_situation'; showProductSituationPicker = true" />
-        <EditField label="厂商销售" :model-value="vsmLabel" arrow
-          :focused="focusedKey === 'vsm'"
-          @click="focusedKey = 'vsm'; showVsmPicker = true" />
-        <EditField label="设计要点" v-model="form.design_issues"
-          :focused="focusedKey === 'design_issues'" @click="focusedKey = 'design_issues'" />
+      <!-- 详细 -->
+      <div style="padding: 20px 24px 10px;">
+        <div style="font-size: 11px; font-weight: 600; color: var(--color-ink-3); letter-spacing: 1px; text-transform: uppercase;">详细</div>
+      </div>
+      <div class="mx-6 overflow-hidden"
+        style="background: var(--color-card); border-radius: 14px; border: 1px solid var(--color-divider);">
+        <EditField label="产品情况" :model-value="productSituationLabel" arrow placeholder="请选择" last
+          @click="showProductSituationPicker = true" />
+      </div>
+
+      <!-- 厂商销售（必填，未填高亮）-->
+      <div style="height: 12px;" />
+      <div class="mx-6 overflow-hidden"
+        :style="{
+          background: !form.vendor_sales_manager_id ? '#FBE9DF' : 'var(--color-card)',
+          borderRadius: '14px',
+          border: !form.vendor_sales_manager_id
+            ? '1px solid var(--color-accent-soft)'
+            : '1px solid var(--color-divider)',
+        }">
+        <EditField
+          label="厂商销售"
+          required
+          arrow
+          :highlight="!form.vendor_sales_manager_id"
+          :model-value="vsmDisplay"
+          placeholder="请选择销售负责人"
+          last
+          @click="showVsmPicker = true" />
+      </div>
+
+      <!-- 备注/详细 -->
+      <div style="height: 12px;" />
+      <div class="mx-6 overflow-hidden"
+        style="background: var(--color-card); border-radius: 14px; border: 1px solid var(--color-divider);">
+        <EditField label="设计要点" v-model="form.design_issues" placeholder="补充设计要点（选填）"
+          @update:modelValue="onChange" />
         <EditField label="阶段说明" v-model="form.stage_description"
-          :focused="focusedKey === 'stage_description'" @click="focusedKey = 'stage_description'" />
+          placeholder="补充阶段说明（选填）" multiline last
+          @update:modelValue="onChange" />
       </div>
-
-      <div class="h-16" />
-    </template>
+    </div>
 
     <!-- Pickers -->
     <PickerSheet v-model="showProjectTypePicker" title="选择项目类型"
-      :options="PROJECT_TYPE_OPTIONS" v-model:selected="form.project_type" />
+      :options="PROJECT_TYPE_OPTIONS" :selected="form.project_type"
+      @update:selected="(v) => { form.project_type = v; onChange() }" />
     <PickerSheet v-model="showIndustryPicker" title="选择行业"
-      :options="INDUSTRY_OPTIONS" v-model:selected="form.industry" />
+      :options="INDUSTRY_OPTIONS" :selected="form.industry"
+      @update:selected="(v) => { form.industry = v; onChange() }" />
+    <PickerSheet v-model="showProductSituationPicker" title="选择产品情况"
+      :options="PRODUCT_SITUATION_OPTIONS" :selected="form.product_situation"
+      @update:selected="(v) => { form.product_situation = v; onChange() }" />
     <AddressPickerSheet v-model="showAddressPicker"
       :initial-address="form.address" @select="onAddressSelect" />
-    <PickerSheet v-model="showProductSituationPicker" title="选择产品情况"
-      :options="PRODUCT_SITUATION_OPTIONS" v-model:selected="form.product_situation" />
-    <PickerSheet v-model="showVsmPicker" title="选择厂商销售负责人"
-      :options="VSM_OPTIONS" v-model:selected="form.vendor_sales_manager_id" />
+    <PersonPickerSheet v-model="showVsmPicker" title="选择厂商销售负责人"
+      :options="VSM_PERSON_OPTIONS"
+      :selected="form.vendor_sales_manager_id"
+      @update:selected="(v) => { form.vendor_sales_manager_id = v; onChange() }" />
   </div>
 </template>
