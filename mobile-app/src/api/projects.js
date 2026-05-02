@@ -20,3 +20,6 @@ export const createProject = data =>
 
 export const updateProject = (id, data) =>
   client.patch(`/mobile/projects/${id}`, data)
+
+export const getVendorSalesManagers = () =>
+  client.get('/mobile/projects/vendor-sales-managers')

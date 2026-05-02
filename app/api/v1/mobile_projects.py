@@ -59,6 +59,15 @@ def _project_type_label(key):
         return ''
     return PROJECT_TYPE_LABELS.get(key, {}).get('zh', key)
 
+_PRODUCT_SITUATION_LABELS = {
+    'qualified':    '入围',
+    'controlled':   '受控',
+    'not_required': '无要求',
+    'unqualified':  '未入围',
+}
+def _product_situation_label(key):
+    return _PRODUCT_SITUATION_LABELS.get(key, key or '')
+
 AUTH_STATUS_LABELS = {
     None:       '未申请',
     'pending':  '申请中',
@@ -109,7 +118,14 @@ def _project_detail(p, current_user_id=None):
         'contractor': p.contractor,
         'system_integrator': p.system_integrator,
         'product_situation': p.product_situation,
+        'product_situation_label': _product_situation_label(p.product_situation),
         'design_issues': p.design_issues,
+        # 厂商销售负责人
+        'vendor_sales_manager_id': getattr(p, 'vendor_sales_manager_id', None),
+        'vendor_sales_manager_name': (
+            (p.vendor_sales_manager.real_name or p.vendor_sales_manager.username)
+            if getattr(p, 'vendor_sales_manager', None) else ''
+        ),
         'delivery_forecast': p.delivery_forecast.isoformat() if p.delivery_forecast else None,
         # 地理位置
         'address':   p.address or '',
@@ -341,6 +357,34 @@ def mobile_project_detail(project_id):
     return api_response(success=True, data=_project_detail(project, current_user_id=user_id))
 
 
+# 厂商销售负责人候选列表（用于项目编辑）
+@api_v1_bp.route('/mobile/projects/vendor-sales-managers', methods=['GET'])
+@jwt_required()
+def mobile_vendor_sales_managers():
+    """返回所有可作为"厂商销售负责人"的用户（同公司 sales 系列角色）"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+    try:
+        # 同公司的所有 active 用户（排除 dealer/distributor 等外部角色）
+        roles_external = ('dealer', 'distributor', 'customer_sales')
+        q = User.query.filter(User._is_active == True)
+        if user.company_name:
+            q = q.filter(User.company_name == user.company_name)
+        users = q.filter(~User.role.in_(roles_external)).order_by(User.real_name).all()
+        return api_response(success=True, data=[{
+            'id': u.id,
+            'name': u.real_name or u.username,
+            'username': u.username,
+            'department': u.department or '',
+            'role': u.role,
+        } for u in users])
+    except Exception as e:
+        logger.error(f"vendor sales managers error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
+
+
 # 编辑项目基本信息
 @api_v1_bp.route('/mobile/projects/<int:project_id>', methods=['PATCH', 'PUT'])
 @jwt_required()
@@ -368,7 +412,8 @@ def mobile_project_update(project_id):
     allowed = ['project_name', 'project_type', 'industry',
                'product_situation', 'design_issues', 'stage_description',
                'address', 'country', 'region', 'city',
-               'latitude', 'longitude']
+               'latitude', 'longitude',
+               'vendor_sales_manager_id']
 
     for k in allowed:
         if k in data:

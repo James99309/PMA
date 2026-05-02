@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getProject, updateProject } from '@/api/projects'
+import { getProject, updateProject, getVendorSalesManagers } from '@/api/projects'
 import EditField from '@/components/common/EditField.vue'
 import PickerSheet from '@/components/common/PickerSheet.vue'
 import AddressPickerSheet from '@/components/common/AddressPickerSheet.vue'
@@ -28,7 +28,30 @@ const form = ref({
   city: '',
   latitude: null,
   longitude: null,
+  vendor_sales_manager_id: null,
 })
+
+// 厂商销售负责人候选 + label
+const vendorSalesManagers = ref([])
+const vsmLabel = computed(() => {
+  const u = vendorSalesManagers.value.find(x => x.id === form.value.vendor_sales_manager_id)
+  return u ? u.name : ''
+})
+const VSM_OPTIONS = computed(() => vendorSalesManagers.value.map(u => ({
+  value: u.id,
+  label: u.department ? `${u.name} · ${u.department}` : u.name,
+})))
+
+// 产品情况
+const PRODUCT_SITUATION_OPTIONS = [
+  { value: 'qualified',    label: '入围' },
+  { value: 'controlled',   label: '受控' },
+  { value: 'not_required', label: '无要求' },
+  { value: 'unqualified',  label: '未入围' },
+]
+const productSituationLabel = computed(() =>
+  PRODUCT_SITUATION_OPTIONS.find(o => o.value === form.value.product_situation)?.label || ''
+)
 
 const isLocked = ref(false)
 const dictStore = useDictionariesStore()
@@ -61,6 +84,8 @@ const industryLabel = computed(() => INDUSTRY_OPTIONS.find(o => o.value === form
 const showProjectTypePicker = ref(false)
 const showIndustryPicker = ref(false)
 const showAddressPicker = ref(false)
+const showProductSituationPicker = ref(false)
+const showVsmPicker = ref(false)
 
 function onAddressSelect(d) {
   form.value.country  = d.country
@@ -90,6 +115,7 @@ async function load() {
       city:         p.city    || '',
       latitude:     p.latitude  || null,
       longitude:    p.longitude || null,
+      vendor_sales_manager_id: p.vendor_sales_manager_id || null,
     }
   } finally {
     loading.value = false
@@ -112,8 +138,18 @@ async function save() {
   }
 }
 
+async function loadVsm() {
+  try {
+    const r = await getVendorSalesManagers()
+    vendorSalesManagers.value = r.data?.data || []
+  } catch (e) {
+    console.warn('load vendor sales managers failed', e)
+  }
+}
+
 onMounted(() => {
   dictStore.ensure('project_type')
+  loadVsm()
   load()
 })
 </script>
@@ -169,8 +205,12 @@ onMounted(() => {
         style="color: var(--color-ink-3); letter-spacing: 1px;">详细</div>
       <div class="mx-5 rounded-2xl py-1"
         style="background: var(--color-card); border: 1px solid var(--color-divider);">
-        <EditField label="产品情况" v-model="form.product_situation"
-          :focused="focusedKey === 'product_situation'" @click="focusedKey = 'product_situation'" />
+        <EditField label="产品情况" :model-value="productSituationLabel" arrow
+          :focused="focusedKey === 'product_situation'"
+          @click="focusedKey = 'product_situation'; showProductSituationPicker = true" />
+        <EditField label="厂商销售" :model-value="vsmLabel" arrow
+          :focused="focusedKey === 'vsm'"
+          @click="focusedKey = 'vsm'; showVsmPicker = true" />
         <EditField label="设计要点" v-model="form.design_issues"
           :focused="focusedKey === 'design_issues'" @click="focusedKey = 'design_issues'" />
         <EditField label="阶段说明" v-model="form.stage_description"
@@ -187,5 +227,9 @@ onMounted(() => {
       :options="INDUSTRY_OPTIONS" v-model:selected="form.industry" />
     <AddressPickerSheet v-model="showAddressPicker"
       :initial-address="form.address" @select="onAddressSelect" />
+    <PickerSheet v-model="showProductSituationPicker" title="选择产品情况"
+      :options="PRODUCT_SITUATION_OPTIONS" v-model:selected="form.product_situation" />
+    <PickerSheet v-model="showVsmPicker" title="选择厂商销售负责人"
+      :options="VSM_OPTIONS" v-model:selected="form.vendor_sales_manager_id" />
   </div>
 </template>
