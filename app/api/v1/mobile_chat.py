@@ -123,7 +123,8 @@ def mobile_chat_upload():
     if not f:
         return api_response(success=False, code=400, message="未提供文件")
     kind = (request.form.get('kind') or 'file').lower()  # image / file / voice
-    file_type = {'image': 'image', 'voice': 'audio'}.get(kind, 'attachment')
+    # 本地存储仅认 image/pdf/attachment/video；voice 落到 attachment 桶
+    file_type = 'image' if kind == 'image' else 'attachment'
     try:
         from app.utils.smart_storage_manager import get_smart_storage
         storage = get_smart_storage()

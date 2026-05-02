@@ -9,6 +9,7 @@ import MessageRefs from '@/components/common/MessageRefs.vue'
 import MessageAttachment from '@/components/common/MessageAttachment.vue'
 import ChatPlusPanel from '@/components/common/ChatPlusPanel.vue'
 import VoiceRecordSheet from '@/components/common/VoiceRecordSheet.vue'
+import LocationSheet from '@/components/common/LocationSheet.vue'
 import PendingRefsPreview from '@/components/common/PendingRefsPreview.vue'
 import FileCard from '@/components/common/FileCard.vue'
 import VoiceMsg from '@/components/common/VoiceMsg.vue'
@@ -187,70 +188,113 @@ async function send() {
   sending.value = false
 }
 
-// ── 附件上传 / + 面板 / 录音 ──
+// ── 附件上传 / + 面板 / 录音 / 位置 ──
 const showPlusPanel = ref(false)
 const showVoiceSheet = ref(false)
-const uploading = ref(false)
+const showLocationSheet = ref(false)
+const locationView = ref(null)        // {lat, lon} 用于查看模式
+const locationMode = ref('share')
 
+// 乐观插入"上传中"消息气泡 → 上传完成后替换为正式附件消息
 async function uploadAndSend(file, kind, fallbackName = null) {
-  if (!convId || uploading.value) return
-  uploading.value = true
+  if (!convId) return
+  const localId = `local-up-${Date.now()}-${Math.random()}`
+  // 本地预览：图片/视频用 blob URL，文件/语音用 meta
+  const previewUrl = (kind === 'image') ? URL.createObjectURL(file) : ''
+  const meta = {
+    name: fallbackName || file.name || `chat_${kind}`,
+    size: file.size || 0,
+    ...(kind === 'voice' && file.duration ? { duration: file.duration } : {}),
+  }
+  messages.value.push({
+    id: localId,
+    kind: 'me',
+    time: '刚刚',
+    text: '',
+    attachment: {
+      type: kind === 'voice' ? 'voice' : (kind === 'image' ? 'image' : 'file'),
+      url: previewUrl,
+      meta,
+    },
+    _local: true,
+    _uploading: true,
+    _created_at_ms: Date.now(),
+  })
+  await scrollToBottom()
+
   try {
     const r = await uploadChatFile(file, kind, fallbackName)
     const data = r.data?.data || r.data
     if (!data?.file_url) throw new Error('上传失败')
+    // 上传成功 → 标记 _local 为 sent（轮询会插入服务器版并替换本地的）
+    const local = messages.value.find(m => m.id === localId)
+    if (local) {
+      local._uploading = false
+      local._content = ''  // 服务器消息匹配靠 _content；附件消息正文为空
+    }
     await apiSend(convId, '', null, null, {
       message_type: kind === 'voice' ? 'voice' : (kind === 'image' ? 'image' : 'file'),
       file_url: data.file_url,
-      file_meta: { name: data.file_name, size: data.file_size },
+      file_meta: { ...meta, duration: meta.duration },
     })
   } catch (e) {
-    alert('发送失败：' + (e?.message || e))
+    const idx = messages.value.findIndex(m => m.id === localId)
+    if (idx >= 0) messages.value[idx]._error = e?.message || '上传失败'
+    alert('上传失败：' + (e?.message || e))
   } finally {
-    uploading.value = false
+    if (previewUrl) {
+      // 5 秒后回收本地 blob URL（保证服务器版加载好）
+      setTimeout(() => URL.revokeObjectURL(previewUrl), 8000)
+    }
   }
 }
 
 async function onPickImages(files) {
   showPlusPanel.value = false
-  for (const f of files) await uploadAndSend(f, 'image')
+  // 并发上传（独立气泡），不阻塞 UI
+  files.forEach(f => uploadAndSend(f, 'image'))
 }
 async function onPickCamera(file) {
   showPlusPanel.value = false
-  await uploadAndSend(file, 'image')
+  uploadAndSend(file, 'image')
 }
 async function onPickFile(file) {
   showPlusPanel.value = false
-  await uploadAndSend(file, 'file')
+  uploadAndSend(file, 'file')
 }
-async function onShareLocation({ lat, lon }) {
+function onRequestShareLocation() {
   showPlusPanel.value = false
-  if (!convId) return
-  try {
-    await apiSend(convId, '', null, null, {
-      message_type: 'location',
-      file_url: null,
-      file_meta: { lat, lon },
-    })
-  } catch (e) { alert('发送失败：' + (e?.message || e)) }
+  locationMode.value = 'share'
+  locationView.value = null
+  showLocationSheet.value = true
+}
+function onViewLocation({ lat, lon }) {
+  locationMode.value = 'view'
+  locationView.value = { lat, lon }
+  showLocationSheet.value = true
+}
+async function sendLocation(lat, lon) {
+  if (!convId) throw new Error('无效会话')
+  // 乐观插入
+  const localId = `local-loc-${Date.now()}`
+  messages.value.push({
+    id: localId, kind: 'me', time: '刚刚', text: '',
+    attachment: { type: 'location', url: '', meta: { lat, lon } },
+    _local: true, _content: '', _created_at_ms: Date.now(),
+  })
+  await scrollToBottom()
+  await apiSend(convId, '', null, null, {
+    message_type: 'location', file_url: null, file_meta: { lat, lon },
+  })
 }
 async function onSendVoice(blob, durationSec) {
   const ext = (blob.type.includes('webm') ? 'webm' : 'm4a')
   const fname = `voice_${Date.now()}.${ext}`
-  if (!convId) return
-  uploading.value = true
-  try {
-    const r = await uploadChatFile(blob, 'voice', fname)
-    const data = r.data?.data || r.data
-    if (!data?.file_url) throw new Error('上传失败')
-    await apiSend(convId, '', null, null, {
-      message_type: 'voice',
-      file_url: data.file_url,
-      file_meta: { name: fname, size: data.file_size, duration: durationSec },
-    })
-  } finally {
-    uploading.value = false
-  }
+  blob.duration = durationSec  // 透传给乐观气泡的 meta
+  // 包装为 File 以复用 uploadAndSend
+  const f = new File([blob], fname, { type: blob.type })
+  f.duration = durationSec
+  await uploadAndSend(f, 'voice', fname)
 }
 
 // ── 消息长按 actions ──
@@ -482,6 +526,7 @@ onUnmounted(() => {
               <!-- 附件（image / file / voice / location）-->
               <MessageAttachment v-if="m.attachment"
                 :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
+                @view-location="onViewLocation"
                 :class="m.text ? 'mt-1.5' : ''" />
               <!-- 文件 -->
               <FileCard v-if="m.file" v-bind="m.file" :inverted="false" />
@@ -508,9 +553,19 @@ onUnmounted(() => {
             <MessageRefs v-if="m.refs?.length" :refs="m.refs" :class="m.text ? 'mt-2' : ''" />
           </div>
           <!-- 附件（image / file / voice / location）-->
-          <MessageAttachment v-if="m.attachment" inverted
-            :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
-            :class="m.text ? 'mt-1.5' : ''" />
+          <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''">
+            <MessageAttachment inverted
+              :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
+              @view-location="onViewLocation" />
+            <span v-if="m._uploading"
+              class="absolute inset-0 rounded-xl flex items-center justify-center pointer-events-none"
+              style="background: rgba(0,0,0,0.45);">
+              <span class="text-white text-[11px] inline-flex items-center gap-1.5">
+                <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                上传中
+              </span>
+            </span>
+          </div>
           <!-- 文件 -->
           <FileCard v-if="m.file" v-bind="m.file" inverted class="mt-1.5" />
           <!-- 语音 -->
@@ -638,13 +693,7 @@ onUnmounted(() => {
         @pick-image="onPickImages"
         @pick-camera="onPickCamera"
         @pick-file="onPickFile"
-        @share-location="onShareLocation" />
-
-      <!-- 上传中提示条 -->
-      <div v-if="uploading" class="text-center text-[12px] py-1.5"
-        style="color: var(--color-ink-3); background: var(--color-bg);">
-        上传中…
-      </div>
+        @share-location="onRequestShareLocation" />
 
       <!-- 引用快捷入口：项目 / 客户 -->
       <div class="px-4 pb-3 flex items-center gap-2">
@@ -675,6 +724,13 @@ onUnmounted(() => {
 
     <!-- 语音录制 sheet -->
     <VoiceRecordSheet v-model="showVoiceSheet" :send="onSendVoice" />
+
+    <!-- 位置 sheet（共享 / 查看 共用）-->
+    <LocationSheet v-model="showLocationSheet"
+      :mode="locationMode"
+      :lat="locationView?.lat"
+      :lon="locationView?.lon"
+      :send="locationMode==='share' ? sendLocation : null" />
   </div>
 </template>
 

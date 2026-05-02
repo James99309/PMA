@@ -2,20 +2,18 @@
 // Composer + 按钮展开后的 4 操作面板：相册 / 拍照 / 位置 / 文件
 // 严格对齐 chat-input-states.jsx ChatPlusPanel 设计
 import { ref } from 'vue'
-import { Geolocation } from '@capacitor/geolocation'
 
 const emit = defineEmits([
   'pick-image',  // 用户选了图片 → File[]
   'pick-camera', // 用户拍照后 → File
   'pick-file',   // 用户选了文件 → File
-  'share-location', // 用户点了位置 → { lat, lon, address? }
+  'share-location', // 用户点了位置 → 由父组件打开 LocationSheet
   'close',
 ])
 
 const galleryInput = ref(null)
 const cameraInput = ref(null)
 const fileInput = ref(null)
-const loadingLoc = ref(false)
 
 function onGallery(e) {
   const files = Array.from(e.target.files || [])
@@ -32,24 +30,6 @@ function onFile(e) {
   if (f) emit('pick-file', f)
   e.target.value = ''
 }
-async function shareLocation() {
-  if (loadingLoc.value) return
-  loadingLoc.value = true
-  try {
-    const pos = await Geolocation.getCurrentPosition({
-      enableHighAccuracy: false,
-      timeout: 8000,
-    })
-    emit('share-location', {
-      lat: pos.coords.latitude,
-      lon: pos.coords.longitude,
-    })
-  } catch (e) {
-    alert('获取位置失败：' + (e?.message || e))
-  } finally {
-    loadingLoc.value = false
-  }
-}
 
 const ACTIONS = [
   { key: 'gallery', label: '相册', color: 'var(--color-accent)' },
@@ -61,7 +41,7 @@ const ACTIONS = [
 function handleAction(key) {
   if (key === 'gallery')  galleryInput.value?.click()
   else if (key === 'camera')   cameraInput.value?.click()
-  else if (key === 'location') shareLocation()
+  else if (key === 'location') emit('share-location')
   else if (key === 'file')     fileInput.value?.click()
 }
 </script>
@@ -103,9 +83,7 @@ function handleAction(key) {
             <path d="M14 3v5h5" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
           </svg>
         </div>
-        <span class="text-[12px] font-medium" style="color: var(--color-ink-2);">
-          {{ a.label }}<span v-if="a.key==='location' && loadingLoc"> …</span>
-        </span>
+        <span class="text-[12px] font-medium" style="color: var(--color-ink-2);">{{ a.label }}</span>
       </button>
     </div>
 

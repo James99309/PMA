@@ -11,6 +11,7 @@ const props = defineProps({
   meta: { type: Object, default: () => ({}) },// { name, size, duration?, lat?, lon? }
   inverted: { type: Boolean, default: false },
 })
+const emit = defineEmits(['view-location', 'view-image'])
 
 // 把后端返回的相对 URL 拼成完整地址，并把 JWT 作为 ?token= 注入（用于 img/audio 直接访问）
 const fullUrl = computed(() => {
@@ -54,10 +55,8 @@ async function openFile() {
 
 function openMap() {
   const { lat, lon } = props.meta || {}
-  if (!lat || !lon) return
-  // iOS 优先打开 Apple Maps；其它平台 OSM
-  const url = `https://maps.apple.com/?q=${lat},${lon}`
-  Browser.open({ url }).catch(() => window.open(url, '_blank'))
+  if (lat == null || lon == null) return
+  emit('view-location', { lat, lon })
 }
 </script>
 
