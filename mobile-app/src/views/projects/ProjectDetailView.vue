@@ -239,7 +239,9 @@ const stageColor = computed(() =>
 
 const canAdvanceStage = computed(() => {
   if (!project.value) return false
-  return project.value.current_stage !== 'signed' && !project.value.is_locked
+  return project.value.current_stage !== 'signed'
+    && !project.value.is_locked
+    && project.value.can_edit !== false
 })
 
 const showAuthButton = computed(() => {
@@ -450,13 +452,15 @@ onMounted(() => {
           <span v-else-if="project.authorization_status === 'rejected'"
             class="text-[11px] px-2 py-0.5 rounded-full font-medium"
             style="color: #DC2626; background: #FEE2E2;">授权已拒绝</span>
-          <!-- 未授权状态：纯橙色文字，可点直接发起申请 -->
-          <button v-else
+          <!-- 未授权状态：可申请人显示橙色按钮，无权人灰色提示 -->
+          <button v-else-if="project.can_apply_auth"
             @click="showAuthModal = true" type="button"
             class="text-[11px] font-medium active:opacity-60"
             style="color: var(--color-accent); background: transparent; border: none; padding: 0;">
             未授权 · 申请
           </button>
+          <span v-else class="text-[11px]"
+            style="color: var(--color-ink-3);">未授权</span>
         </div>
 
         <!-- 项目名 — 30px 衬线 weight 500 line-height 1.2 letter-spacing -0.3 -->
@@ -913,15 +917,20 @@ onMounted(() => {
             :style="{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }">
             <div class="w-10 h-1 bg-[#D0CBC4] rounded-full mx-auto mb-3" />
             <div class="bg-white rounded-2xl overflow-hidden divide-y divide-[#F7F5F2]">
-              <button @click="showMoreMenu = false; router.push(`/projects/${project.id}/edit`)"
+              <button v-if="project.can_edit"
+                @click="showMoreMenu = false; router.push(`/projects/${project.id}/edit`)"
                 class="w-full py-4 text-[15px] text-[#1A1A1A] font-medium active:bg-[#F7F5F2]">
                 编辑项目
               </button>
-              <button v-if="showAuthButton"
+              <button v-if="showAuthButton && project.can_apply_auth"
                 @click="showMoreMenu = false; showAuthModal = true"
                 class="w-full py-4 text-[15px] text-[#1A1A1A] font-medium active:bg-[#F7F5F2]">
                 申请授权
               </button>
+              <div v-if="!project.can_edit && !(showAuthButton && project.can_apply_auth)"
+                class="w-full py-4 text-[13px] text-center text-[#9CA3AF]">
+                您只有查看权限
+              </div>
             </div>
             <button @click="showMoreMenu = false"
               class="w-full mt-2 bg-white rounded-2xl py-4 text-[15px] text-[#9CA3AF] active:opacity-60">

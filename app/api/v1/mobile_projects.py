@@ -142,6 +142,24 @@ def _project_detail(p, current_user_id=None):
         # 时间
         'created_at': p.created_at.isoformat() if p.created_at else None,
     })
+    # 当前用户对该项目的可操作权限（前端按此显示/隐藏按钮）
+    try:
+        if current_user_id:
+            from app.models.user import User as _U
+            _u = _U.query.get(current_user_id)
+            d['can_edit'] = bool(_u and _u.has_permission('project', 'edit')) and not p.is_locked
+            # 申请授权：项目负责人 / 厂商销售经理 / admin
+            vendor_mgr_id = getattr(p, 'vendor_sales_manager_id', None)
+            d['can_apply_auth'] = bool(_u and (
+                _u.role == 'admin' or current_user_id == p.owner_id or current_user_id == vendor_mgr_id
+            ))
+        else:
+            d['can_edit'] = False
+            d['can_apply_auth'] = False
+    except Exception:
+        d['can_edit'] = False
+        d['can_apply_auth'] = False
+
     # 项目讨论群：是否已绑定（None 则前端要走"创建讨论群"流程）
     try:
         from app.services import chat_service as _cs
@@ -399,11 +417,12 @@ def mobile_project_update(project_id):
     if not project:
         return api_response(success=False, code=404, message="项目不存在")
 
-    # 用 get_viewable_data 的口径（与列表一致），CEO/admin/owner 等可见者皆可编辑
-    from app.utils.access_control import get_viewable_data
+    # 双层检查：可见 + 有 project:edit 权限
     viewable = get_viewable_data(Project, user, [Project.id == project_id]).first()
     if not viewable:
-        return api_response(success=False, code=403, message="无权编辑此项目")
+        return api_response(success=False, code=403, message="无权访问此项目")
+    if not user.has_permission('project', 'edit'):
+        return api_response(success=False, code=403, message="您只有查看权限，无法编辑项目")
     if project.is_locked:
         return api_response(success=False, code=403, message=f"项目已锁定: {project.locked_reason or '无法编辑'}")
 
@@ -458,6 +477,8 @@ def mobile_project_update_stage(project_id):
     viewable = get_viewable_data(Project, user, [Project.id == project_id]).first()
     if not viewable:
         return api_response(success=False, code=403, message="无权访问此项目")
+    if not user.has_permission('project', 'edit'):
+        return api_response(success=False, code=403, message="您只有查看权限，无法推进阶段")
 
     data = request.get_json() or {}
     new_stage = data.get('stage', '').strip()
