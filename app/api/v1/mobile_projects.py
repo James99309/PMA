@@ -253,6 +253,11 @@ def mobile_project_list():
     search = request.args.get('search', '').strip()
     stage = request.args.get('stage', '').strip()
     industry = request.args.get('industry', '').strip()
+    activity = request.args.get('activity', '').strip()
+    owner_name = request.args.get('owner_name', '').strip()
+    region = request.args.get('region', '').strip()
+    amount_min = request.args.get('amount_min', type=float)
+    amount_max = request.args.get('amount_max', type=float)
     page = max(1, int(request.args.get('page', 1)))
     per_page = min(50, int(request.args.get('per_page', 20)))
 
@@ -263,6 +268,18 @@ def mobile_project_list():
         query = query.filter(Project.current_stage == stage)
     if industry:
         query = query.filter(Project.industry == industry)
+    if activity:
+        query = query.filter(Project.activity_status == activity)
+    if region:
+        query = query.filter((Project.city == region) | (Project.region == region))
+    if owner_name:
+        query = query.join(User, User.id == Project.owner_id) \
+                     .filter((User.real_name == owner_name) | (User.username == owner_name))
+    # 金额单位：前端传万元，DB 存元
+    if amount_min is not None and amount_min > 0:
+        query = query.filter(Project.quotation_customer >= amount_min * 10000)
+    if amount_max is not None and amount_max > 0:
+        query = query.filter(Project.quotation_customer <= amount_max * 10000)
 
     # 汇总金额必须在 ORDER BY 之前计算，否则 PostgreSQL 报 GroupingError
     from sqlalchemy import func as sa_func
