@@ -1,14 +1,51 @@
 <script setup>
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { CapacitorUpdater } from '@capgo/capacitor-updater'
 
 const router = useRouter()
 const auth = useAuthStore()
+
+// Bundle 版本（Capgo 当前激活的）
+const bundleId = ref('builtin')
+const bundleVer = ref('-')
+const bundleStatus = ref('')
 
 async function handleLogout() {
   await auth.logout()
   router.push('/login')
 }
+
+async function checkUpdate() {
+  bundleStatus.value = '检查中…'
+  try {
+    const latest = await CapacitorUpdater.getLatest()
+    if (latest?.version && latest.version !== bundleVer.value) {
+      bundleStatus.value = `发现新版 ${latest.version}，下载中…`
+      const dl = await CapacitorUpdater.download({
+        url: latest.url,
+        version: latest.version,
+      })
+      bundleStatus.value = `下载完成，正在切换…`
+      await CapacitorUpdater.set({ id: dl.id })
+    } else {
+      bundleStatus.value = '已是最新'
+    }
+  } catch (e) {
+    bundleStatus.value = `检查失败: ${e.message || e}`
+  }
+}
+
+onMounted(async () => {
+  try {
+    const info = await CapacitorUpdater.current()
+    bundleId.value = info?.bundle?.id || 'builtin'
+    bundleVer.value = info?.bundle?.version || 'builtin'
+  } catch {
+    // Web/dev 环境调用会失败，忽略
+  }
+})
 </script>
 
 <template>
@@ -45,6 +82,20 @@ async function handleLogout() {
           <svg width="7" height="11" viewBox="0 0 7 11">
             <path d="M1 1l4 4.5L1 10" stroke="#7A7570" stroke-width="1.4" fill="none" stroke-linecap="round" />
           </svg>
+        </button>
+      </div>
+
+      <!-- 版本 / OTA 状态 -->
+      <div class="bg-white rounded-2xl overflow-hidden">
+        <div class="px-4 py-3 flex items-center justify-between"
+          style="border-bottom: 1px solid var(--color-divider);">
+          <span class="text-[13px]" style="color: var(--color-ink-2);">App 版本</span>
+          <span class="text-[12px] tabular" style="color: var(--color-ink-3);">{{ bundleVer }}</span>
+        </div>
+        <button @click="checkUpdate"
+          class="w-full px-4 py-3 flex items-center justify-between active:bg-gray-50 text-left">
+          <span class="text-[13px]" style="color: var(--color-accent); font-weight: 500;">检查更新</span>
+          <span class="text-[11px]" style="color: var(--color-ink-3);">{{ bundleStatus }}</span>
         </button>
       </div>
 

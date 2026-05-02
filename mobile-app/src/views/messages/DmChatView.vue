@@ -117,10 +117,15 @@ async function send() {
   const mm = String(now.getMinutes()).padStart(2, '0')
   // 检测 @AI
   const isAtAi = t.includes('@AI') || t.includes('@源助手')
-  // 乐观插入用户消息
+  // 乐观插入用户消息（标记 _local + 内容 hash 用于轮询去重）
+  const localId = `local-${Date.now()}`
+  const nowMs = Date.now()
   messages.value.push({
-    id: Date.now(), kind: 'me', time: `今天 ${hh}:${mm}`, text: t,
+    id: localId, kind: 'me', time: `今天 ${hh}:${mm}`, text: t,
     refs: mention.pendingRefs.value.length ? [...mention.pendingRefs.value] : undefined,
+    _created_at_ms: nowMs,
+    _local: true,
+    _content: t,  // 用于后续与后端消息匹配
   })
   inputText.value = ''
   mention.clearRefs()
@@ -191,15 +196,30 @@ let msgPollTimer = null
 function appendBackendMessage(m) {
   const id = `srv-${m.id}`
   if (messages.value.some(x => x.id === id)) return false
+
   const isMine = m.is_mine || m.is_self
-  messages.value.push({
+  const newMsg = {
     id,
     kind: isMine ? 'me' : 'them',
     time: formatChatTime(m.created_at),
     text: m.content,
     _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
     recalled: !!m.is_deleted,
-  })
+  }
+
+  // 如果是自己发的消息，找匹配的本地乐观消息（同内容 + 30 秒内 + _local 标志）→ 替换
+  if (isMine) {
+    const localIdx = messages.value.findIndex(x =>
+      x._local && x._content === m.content &&
+      Math.abs((x._created_at_ms || 0) - newMsg._created_at_ms) < 30000
+    )
+    if (localIdx >= 0) {
+      messages.value[localIdx] = newMsg  // 替换占位
+      return false
+    }
+  }
+
+  messages.value.push(newMsg)
   return true
 }
 

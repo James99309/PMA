@@ -57,6 +57,12 @@ export async function streamAi({ content, conversationId, onEvent, signal }) {
   })
   if (!res.ok) {
     const text = await res.text()
+    if (res.status === 401) {
+      // token 失效，清掉跳登录
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('user')
+      window.location.hash = '#/login'
+    }
     throw new Error(`AI stream failed: ${res.status} ${text.slice(0, 200)}`)
   }
   const reader = res.body.getReader()

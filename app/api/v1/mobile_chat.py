@@ -384,9 +384,14 @@ def mobile_chat_ai_stream():
     if not token:
         return api_response(success=False, code=401, message="缺少认证 token")
     try:
-        decoded = decode_token(token)
+        # 用 PyJWT 直解，配 app 的 JWT_SECRET_KEY，避免 flask_jwt_extended 的内部上下文问题
+        import jwt as _pyjwt
+        from flask import current_app
+        secret = current_app.config.get('JWT_SECRET_KEY') or current_app.config.get('SECRET_KEY')
+        decoded = _pyjwt.decode(token, secret, algorithms=['HS256'])
         user_id = int(decoded['sub'])
     except Exception as e:
+        logger.warning(f"AI stream token decode failed: {type(e).__name__}: {e}")
         return api_response(success=False, code=401, message=f"无效 token: {e}")
 
     user = User.query.get(user_id)
