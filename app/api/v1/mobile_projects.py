@@ -106,8 +106,17 @@ def _project_detail(p, current_user_id=None):
         'project_type_label': _project_type_label(p.project_type),
         'end_user': p.end_user,
         'dealer': p.dealer,
+        'contractor': p.contractor,
         'system_integrator': p.system_integrator,
+        'product_situation': p.product_situation,
+        'design_issues': p.design_issues,
         'delivery_forecast': p.delivery_forecast.isoformat() if p.delivery_forecast else None,
+        # 地理位置
+        'address':   p.address or '',
+        'country':   p.country or '',
+        'region':    p.region or '',
+        'latitude':  p.latitude,
+        'longitude': p.longitude,
         # 锁定状态
         'is_locked': bool(p.is_locked),
         'locked_reason': p.locked_reason,
