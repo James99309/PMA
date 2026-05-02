@@ -99,11 +99,17 @@ class ClaudeClient(BaseLLMClient):
         if not urls:
             urls = [None]  # 直连 api.anthropic.com
 
-        # Mac mini oat_proxy 经 CF Tunnel 鉴权要 Authorization: Bearer，
-        # 而 anthropic SDK 默认只发 x-api-key。env 开关 ANTHROPIC_USE_BEARER=true
-        # 时额外注入 Bearer header（生产 Tailscale 直连场景默认关闭，行为不变）。
+        # Mac mini oat_proxy 走 Anthropic OAT (claude.ai OAuth)，要求：
+        # 1. Authorization: Bearer <user_token>（CF Tunnel 鉴权）
+        # 2. anthropic-beta: oauth-2025-04-20（Anthropic OAuth 协议头）
+        # env 开关 ANTHROPIC_USE_BEARER=true 时同时注入两个头；默认关闭，生产无影响。
         use_bearer = os.environ.get('ANTHROPIC_USE_BEARER', '').lower() in ('1', 'true', 'yes')
-        extra_headers = {'Authorization': f'Bearer {key}'} if use_bearer else None
+        extra_headers = None
+        if use_bearer:
+            extra_headers = {
+                'Authorization': f'Bearer {key}',
+                'anthropic-beta': 'oauth-2025-04-20',
+            }
 
         self._clients: list[Anthropic] = []
         for u in urls:
