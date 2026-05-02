@@ -18,10 +18,6 @@ const form = ref({
   project_name: '',
   project_type: '',
   industry: '',
-  end_user: '',
-  dealer: '',
-  contractor: '',
-  system_integrator: '',
   product_situation: '',
   design_issues: '',
   stage_description: '',
@@ -84,10 +80,6 @@ async function load() {
       project_name: p.name || '',
       project_type: p.project_type || '',
       industry:     p.industry || '',
-      end_user:     p.end_user || '',
-      dealer:       p.dealer || '',
-      contractor:   p.contractor || '',
-      system_integrator: p.system_integrator || '',
       product_situation: p.product_situation || '',
       design_issues:     p.design_issues || '',
       stage_description: p.stage_description || '',
@@ -170,21 +162,6 @@ onMounted(() => {
           @click="focusedKey = 'address'; showAddressPicker = true" />
         <EditField label="预计交付" v-model="form.delivery_forecast" type="date"
           :focused="focusedKey === 'delivery_forecast'" @click="focusedKey = 'delivery_forecast'" />
-      </div>
-
-      <!-- 客户角色 -->
-      <div class="px-7 pt-5 pb-1 text-[11px] font-semibold uppercase"
-        style="color: var(--color-ink-3); letter-spacing: 1px;">参与方</div>
-      <div class="mx-5 rounded-2xl py-1"
-        style="background: var(--color-card); border: 1px solid var(--color-divider);">
-        <EditField label="最终用户" v-model="form.end_user"
-          :focused="focusedKey === 'end_user'" @click="focusedKey = 'end_user'" />
-        <EditField label="经销商" v-model="form.dealer"
-          :focused="focusedKey === 'dealer'" @click="focusedKey = 'dealer'" />
-        <EditField label="总包商" v-model="form.contractor"
-          :focused="focusedKey === 'contractor'" @click="focusedKey = 'contractor'" />
-        <EditField label="系统集成" v-model="form.system_integrator"
-          :focused="focusedKey === 'system_integrator'" @click="focusedKey = 'system_integrator'" />
       </div>
 
       <!-- 详细描述 -->

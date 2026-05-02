@@ -345,17 +345,18 @@ def mobile_project_update(project_id):
     if not project:
         return api_response(success=False, code=404, message="项目不存在")
 
-    from app.utils.access_control import can_view_project
-    if not can_view_project(user, project):
+    # 用 get_viewable_data 的口径（与列表一致），CEO/admin/owner 等可见者皆可编辑
+    from app.utils.access_control import get_viewable_data
+    viewable = get_viewable_data(Project, user, [Project.id == project_id]).first()
+    if not viewable:
         return api_response(success=False, code=403, message="无权编辑此项目")
     if project.is_locked:
         return api_response(success=False, code=403, message=f"项目已锁定: {project.locked_reason or '无法编辑'}")
 
     data = request.get_json() or {}
 
-    # 允许编辑字段（不含 stage / authorization / status / lock 等业务流字段）
-    allowed = ['project_name', 'project_type', 'industry', 'end_user',
-               'dealer', 'contractor', 'system_integrator',
+    # 允许编辑字段（不含 stage / authorization / status / lock / 客户关联）
+    allowed = ['project_name', 'project_type', 'industry',
                'product_situation', 'design_issues', 'stage_description',
                'address', 'country', 'region', 'city',
                'latitude', 'longitude']
