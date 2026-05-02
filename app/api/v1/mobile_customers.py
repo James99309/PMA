@@ -146,7 +146,8 @@ def mobile_customer_list():
         )
         for cid, stage, amt in rows:
             stat = proj_stats.setdefault(cid, {'value': 0.0, 'open': 0})
-            if stage == 'signed':
+            # 累计价值：所有非失败/搁置项目都计入（含已签 + 在跟）
+            if stage not in ('lost', 'paused'):
                 stat['value'] += (amt or 0)
             if stage not in ('signed', 'lost', 'paused'):
                 stat['open'] += 1
@@ -221,8 +222,13 @@ def mobile_customer_detail(company_id):
     lost_count = sum(1 for p in all_projects if p.current_stage == 'lost')
     total_count = len(all_projects)
 
-    # 累计客户价值 = 已签约项目 quotation_customer 求和（万元）
-    value_raw = sum((p.quotation_customer or 0) for p in all_projects if p.current_stage == 'signed')
+    # 累计客户价值 = 所有"在飞"项目 quotation_customer 求和（万元）
+    # 不含 lost/paused —— 但已签约 + 任何在跟项目都计入（反映客户业务总量+潜在价值）
+    value_raw = sum(
+        (p.quotation_customer or 0)
+        for p in all_projects
+        if p.current_stage not in ('lost', 'paused')
+    )
     value_wan = round(value_raw / 10000, 2)
 
     projects_payload = []
