@@ -1,34 +1,202 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getProjects } from '@/api/projects'
+import FilterSheet from '@/components/FilterSheet.vue'
 
 const router = useRouter()
 const projects = ref([])
 const total = ref(0)
+const totalAmount = ref(0)
 const loading = ref(false)
 const search = ref('')
 const page = ref(1)
+const showFilter = ref(false)
+const searchFocused = ref(false)
+const showSortMenu = ref(false)
+const sortMenuTop = ref(0)
+const sortTabsEl = ref(null)
+const filters = ref({})
+const sortBy = ref('updated_at')
 
-const STAGE_STYLE = {
-  discover:   'background:linear-gradient(135deg,#d3e3fc,#b8d4f8,#9dc5f4);color:#0d47a1',
-  embed:      'background:linear-gradient(135deg,#b7ddc8,#9fd3b3,#87c99e);color:#1b5e20',
-  pre_tender: 'background:linear-gradient(135deg,#91c79f,#7bb88a,#65a975);color:#1b5e20',
-  tendering:  'background:linear-gradient(135deg,#6daf6c,#5a9259,#4d7c4c);color:#fff',
-  awarded:    'background:linear-gradient(135deg,#559c4c,#477f3f,#3a6832);color:#fff',
-  quoted:     'background:linear-gradient(135deg,#3c8c2c,#327326,#285e20);color:#fff',
-  signed:     'background:linear-gradient(135deg,#216822,#1b541d,#154518);color:#fff',
-  lost:       'background:linear-gradient(135deg,#6e2b23,#5a241e,#4a1f1a);color:#fff',
-  paused:     'background:linear-gradient(135deg,#9e9e9e,#858585,#6c6c6c);color:#fff',
+const now = new Date()
+const quarter = `${now.getFullYear()} · Q${Math.ceil((now.getMonth() + 1) / 3)}`
+
+// 严格对齐 unified-lists / customer-screens StageDot tone map
+const STAGE_COLOR = {
+  discover:   '#7A7570',  // ink-3
+  embed:      '#7A7570',
+  pre_tender: '#7A7570',
+  tendering:  '#D97757',  // accent
+  awarded:    '#D97757',
+  quoted:     '#D97757',
+  signed:     '#1A1A1A',  // ink
+  lost:       '#C2BBB3',  // ink-4
+  paused:     '#C2BBB3',
+}
+
+const STAGE_LABEL_MAP = {
+  '':          '全部',
+  discover:    '发现',
+  embed:       '嵌入',
+  pre_tender:  '预招标',
+  tendering:   '招标中',
+  awarded:     '授权',
+  quoted:      '已报价',
+  signed:      '签约',
+  lost:        '丢单',
+  paused:      '暂停',
+}
+
+const INDUSTRY_LABEL_MAP = {
+  manufacturing:      '制造',
+  datacenter:         '数据',
+  chemical:           '化工',
+  energy:             '能源',
+  transportation:     '交通',
+  tunnel_underground: '隧道',
+  real_estate:        '地产',
+  hospitality:        '酒店',
+  government:         '政府',
+  education:          '教育',
+  healthcare:         '医疗',
+  technology:         '科技',
+  semiconductor:      '半导体',
+  shipbuilding:       '造船',
+  finance:            '金融',
+  other:              '其他',
+}
+
+const ACTIVITY_LABEL_MAP = {
+  active:  '活跃',
+  cooling: '冷却',
+  stalled: '停滞',
+}
+
+// Sort options (shown in dropdown)
+const SORT_OPTIONS = [
+  { value: 'amount_desc', label: '金额 高 → 低', tab: 'amount' },
+  { value: 'amount_asc',  label: '金额 低 → 高', tab: 'amount' },
+  { value: 'updated_at',  label: '最近活跃',     tab: 'recent' },
+  { value: 'created_at',  label: '创建时间',     tab: 'recent' },
+  { value: 'stage',       label: '阶段进度',     tab: 'stage'  },
+]
+
+// Three tab labels mapping to sort groups
+const SORT_TABS = [
+  { tab: 'recent', label: '最近活跃' },
+  { tab: 'amount', label: '金额' },
+  { tab: 'stage',  label: '阶段' },
+]
+
+const activeSortTab = computed(() =>
+  SORT_OPTIONS.find(o => o.value === sortBy.value)?.tab || 'recent'
+)
+
+function tabDisplayLabel(tab) {
+  if (activeSortTab.value !== tab.tab) return tab.label
+  const arrow = sortBy.value === 'amount_asc' ? ' ↑' : ' ↓'
+  return tab.label + arrow
+}
+
+function openSortMenu() {
+  if (sortTabsEl.value) {
+    const rect = sortTabsEl.value.getBoundingClientRect()
+    sortMenuTop.value = rect.bottom + 4
+  }
+  showSortMenu.value = true
+}
+
+function selectSort(val) {
+  sortBy.value = val
+  showSortMenu.value = false
+  load(true)
+}
+
+// Active filter chips for display
+const activeFilterChips = computed(() => {
+  const chips = []
+  const f = filters.value
+  if (f.stage)      chips.push({ key: 'stage',      label: STAGE_LABEL_MAP[f.stage] || f.stage })
+  if (f.activity)   chips.push({ key: 'activity',   label: ACTIVITY_LABEL_MAP[f.activity] || f.activity })
+  if (f.amount_min != null || f.amount_max != null) {
+    const mn = f.amount_min || 0
+    const mx = f.amount_max
+    if (mx != null) chips.push({ key: 'amount', label: `¥${mn}-${mx}万` })
+    else chips.push({ key: 'amount', label: `≥¥${mn}万` })
+  }
+  if (f.owner_name) chips.push({ key: 'owner_name', label: f.owner_name })
+  if (f.region)     chips.push({ key: 'region',     label: f.region })
+  if (f.industry)   chips.push({ key: 'industry',   label: INDUSTRY_LABEL_MAP[f.industry] || f.industry })
+  return chips
+})
+
+const activeFilterCount = computed(() => activeFilterChips.value.length)
+
+// Derive unique owner options from loaded projects (V1: from visible data only)
+const ownerOptions = computed(() => {
+  const map = new Map()
+  projects.value.forEach(p => {
+    if (p.owner_name && !map.has(p.owner_name)) {
+      map.set(p.owner_name, { name: p.owner_name })
+    }
+  })
+  return Array.from(map.values()).slice(0, 8)
+})
+
+function removeChip(chip) {
+  const f = { ...filters.value }
+  if (chip.key === 'amount') {
+    delete f.amount_min
+    delete f.amount_max
+  } else {
+    delete f[chip.key]
+  }
+  applyFilters(f)
+}
+
+function clearAllFilters() {
+  applyFilters({})
+}
+
+function formatDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${m}-${day}`
+}
+
+function formatAmount(amount) {
+  if (!amount) return '—'
+  return `¥${amount.toFixed(2)}万`
+}
+
+function ownerCity(p) {
+  return [p.owner_name, p.city].filter(Boolean).join(' · ')
+}
+
+// Map frontend sort values to backend param
+function backendSort(val) {
+  if (val === 'amount_desc') return 'amount'
+  if (val === 'amount_asc')  return 'amount_asc'
+  return val
 }
 
 async function load(reset = false) {
   if (reset) { page.value = 1; projects.value = [] }
   loading.value = true
   try {
-    const res = await getProjects({ search: search.value, page: page.value, per_page: 20 })
+    const res = await getProjects({
+      search: search.value,
+      page: page.value,
+      per_page: 20,
+      sort: backendSort(sortBy.value),
+      ...filters.value,
+    })
     const data = res.data.data
     total.value = data.total
+    totalAmount.value = data.total_amount || 0
     projects.value = reset ? data.items : [...projects.value, ...data.items]
   } finally {
     loading.value = false
@@ -42,68 +210,196 @@ function loadMore() {
   }
 }
 
+function applyFilters(f) {
+  filters.value = f
+  load(true)
+}
+
 onMounted(() => load(true))
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
-    <!-- 搜索栏 -->
-    <div class="bg-white px-4 py-3 border-b border-gray-100">
-      <div class="flex items-center bg-gray-100 rounded-xl px-3 py-2 gap-2">
-        <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          v-model="search"
-          type="search"
-          placeholder="搜索项目..."
-          @keyup.enter="load(true)"
-          class="flex-1 bg-transparent text-sm outline-none placeholder-gray-400"
-        />
+  <div class="flex flex-col h-full" style="background: var(--color-bg);">
+
+    <!-- ─── PageHead 严格对齐 unified-lists.PageHead ─────────────── -->
+    <div class="px-6 pt-3.5 shrink-0">
+      <div class="flex items-start justify-between">
+        <div>
+          <div class="text-[11px] font-medium uppercase"
+            style="color: var(--color-ink-3); letter-spacing: 1.2px;">{{ quarter }}</div>
+          <h1 class="font-serif m-0 mt-1"
+            style="font-size: 32px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">项目</h1>
+        </div>
+        <button @click="router.push('/projects/new')"
+          class="w-9 h-9 rounded-full inline-flex items-center justify-center"
+          style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300;">+</button>
       </div>
+      <div class="text-[12px] mt-1.5" style="color: var(--color-ink-3);">
+        共 {{ total }} 项<template v-if="totalAmount"> · 总额 ¥{{ totalAmount.toFixed(2) }}万</template>
+      </div>
+
+      <!-- 搜索 + 筛选 行 -->
+      <div class="flex gap-2 mt-3.5 mb-3">
+        <div class="flex-1 h-[38px] rounded-full flex items-center gap-2 px-3.5 transition-colors"
+          :style="{
+            background: searchFocused ? 'var(--color-card)' : 'rgba(0,0,0,0.04)',
+            border: searchFocused ? '1.5px solid var(--color-accent)' : '1px solid transparent',
+          }">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <circle cx="7" cy="7" r="5" :stroke="searchFocused ? 'var(--color-accent)' : 'var(--color-ink-3)'" stroke-width="1.4" />
+            <path d="M11 11l3 3" :stroke="searchFocused ? 'var(--color-accent)' : 'var(--color-ink-3)'" stroke-width="1.4" stroke-linecap="round" />
+          </svg>
+          <input v-model="search" type="search" placeholder="搜索项目、客户、负责人"
+            @focus="searchFocused = true" @blur="searchFocused = false"
+            @keyup.enter="load(true)"
+            class="flex-1 bg-transparent text-[14px] outline-none font-serif"
+            style="color: var(--color-ink);" />
+          <button v-if="search" @click="search = ''; load(true)"
+            class="text-[12px] font-medium" style="color: var(--color-accent);">取消</button>
+        </div>
+        <button @click="showFilter = true"
+          class="w-[38px] h-[38px] rounded-full flex items-center justify-center relative"
+          :style="{ background: activeFilterCount > 0 ? 'var(--color-accent-soft)' : 'rgba(0,0,0,0.04)' }">
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+            <path d="M2 4h14l-5 6v5l-4-2v-3L2 4z"
+              :stroke="activeFilterCount > 0 ? 'var(--color-accent)' : 'var(--color-ink-2)'"
+              stroke-width="1.4" stroke-linejoin="round"
+              :fill="activeFilterCount > 0 ? 'var(--color-accent-soft)' : 'none'" />
+          </svg>
+          <span v-if="activeFilterCount > 0"
+            class="absolute w-[7px] h-[7px] rounded-full"
+            style="top: 7px; right: 7px; background: var(--color-accent); border: 1.5px solid var(--color-bg);" />
+        </button>
+      </div>
+    </div>
+
+    <!-- FilterBanner 已激活筛选条 — 对齐 unified-lists FilterBanner -->
+    <div v-if="activeFilterCount > 0" class="mx-6 mb-3 px-3 py-2.5 rounded-xl flex items-center gap-2"
+      style="background: var(--color-accent-bg);">
+      <span class="text-[12px] font-serif italic" style="color: var(--color-ink-2);">已按</span>
+      <div class="flex flex-wrap gap-1.5 flex-1">
+        <button v-for="chip in activeFilterChips" :key="chip.key" @click="removeChip(chip)"
+          class="inline-flex items-center gap-1 px-2.5 py-[3px] rounded-full text-[12px] font-medium text-white active:opacity-70"
+          style="background: var(--color-ink);">
+          {{ chip.label }}
+          <svg width="9" height="9" viewBox="0 0 10 10">
+            <path d="M2 2l6 6M8 2l-6 6" stroke="#fff" stroke-width="1.4" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+      <button @click="clearAllFilters" class="text-[12px] font-semibold active:opacity-60"
+        style="color: var(--color-accent);">清除</button>
+    </div>
+
+    <!-- SortRow — 对齐 unified-lists.SortRow -->
+    <div ref="sortTabsEl" class="flex items-center gap-3.5 px-6 pb-2.5 shrink-0">
+      <button v-for="tab in SORT_TABS" :key="tab.tab" @click="openSortMenu"
+        class="text-[12px] active:opacity-70"
+        :style="{
+          color: activeSortTab === tab.tab ? 'var(--color-ink-2)' : 'var(--color-ink-3)',
+          fontWeight: activeSortTab === tab.tab ? 600 : 400,
+        }">
+        {{ tabDisplayLabel(tab) }}
+      </button>
+      <span class="ml-auto text-[12px]" style="color: var(--color-ink-3);">{{ total }} 条</span>
     </div>
 
     <!-- 列表 -->
     <div class="flex-1 overflow-y-auto">
       <div v-if="loading && projects.length === 0" class="flex justify-center items-center h-40">
-        <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <div class="w-6 h-6 border-2 rounded-full animate-spin"
+          style="border-color: var(--color-accent); border-top-color: transparent;" />
       </div>
 
-      <div v-else-if="projects.length === 0" class="flex flex-col items-center justify-center h-40 text-gray-400 text-sm">
-        暂无项目
-      </div>
+      <div v-else-if="projects.length === 0"
+        class="flex flex-col items-center justify-center h-40 text-[13px]"
+        style="color: var(--color-ink-3);">暂无项目</div>
 
-      <ul v-else class="divide-y divide-gray-100">
-        <li
-          v-for="p in projects"
-          :key="p.id"
+      <div v-else style="background: var(--color-card);">
+        <!-- ProjectRow — 对齐 unified-lists.ProjectRow -->
+        <div v-for="(p, i) in projects" :key="p.id"
           @click="router.push(`/projects/${p.id}`)"
-          class="bg-white px-4 py-4 active:bg-gray-50 transition cursor-pointer"
-        >
-          <div class="flex items-start justify-between gap-2">
-            <div class="flex-1 min-w-0">
-              <p class="font-medium text-gray-900 truncate">{{ p.name }}</p>
-              <p class="text-xs text-gray-400 mt-0.5">{{ p.owner_name }}</p>
+          class="px-6 py-3.5 cursor-pointer active:bg-bg flex flex-col gap-1.5"
+          :style="i < projects.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
+          <!-- title + amount -->
+          <div class="flex items-baseline justify-between gap-3">
+            <div class="font-serif flex-1 min-w-0 truncate"
+              style="font-size: 16px; font-weight: 500; color: var(--color-ink); line-height: 1.3;">
+              {{ p.name }}
             </div>
-            <div class="flex flex-col items-end gap-1 shrink-0">
-              <span class="text-xs px-2 py-0.5 rounded-full font-medium"
-                :style="STAGE_STYLE[p.current_stage] || 'background:#e5e7eb;color:#4b5563'">
-                {{ p.stage_label }}
-              </span>
-              <span class="text-sm font-semibold text-gray-700">
-                {{ p.amount ? p.amount.toFixed(2) + '万' : '-' }}
-              </span>
+            <div class="text-[15px] font-semibold tabular whitespace-nowrap">
+              <template v-if="p.amount">
+                ¥{{ p.amount.toFixed(2) }}<span class="text-[10px] ml-0.5" style="color: var(--color-ink-3);">万</span>
+              </template>
+              <span v-else class="text-[13px]" style="color: var(--color-ink-3);">—</span>
             </div>
           </div>
-        </li>
-      </ul>
+          <!-- meta line: stage + owner·region + date -->
+          <div class="flex items-center gap-3 text-[12px]" style="color: var(--color-ink-3);">
+            <span class="inline-flex items-center gap-1.5 font-medium shrink-0"
+              :style="{ color: STAGE_COLOR[p.current_stage] || 'var(--color-ink-3)' }">
+              <span class="w-[5px] h-[5px] rounded-[3px]"
+                :style="{ background: STAGE_COLOR[p.current_stage] || 'var(--color-ink-3)' }" />
+              {{ p.stage_label }}
+            </span>
+            <span class="truncate">{{ ownerCity(p) }}</span>
+            <span class="ml-auto tabular shrink-0">{{ formatDate(p.updated_at) }}</span>
+          </div>
+        </div>
 
-      <!-- 加载更多 -->
-      <div v-if="projects.length < total" class="py-4 text-center">
-        <button @click="loadMore" :disabled="loading" class="text-blue-500 text-sm disabled:opacity-50">
-          {{ loading ? '加载中...' : '加载更多' }}
-        </button>
+        <div v-if="projects.length < total" class="py-5 text-center"
+          style="border-top: 1px solid var(--color-divider);">
+          <button @click="loadMore" :disabled="loading"
+            class="text-[13px] font-medium disabled:opacity-40"
+            style="color: var(--color-accent);">
+            {{ loading ? '加载中…' : '加载更多' }}
+          </button>
+        </div>
       </div>
     </div>
+
+    <FilterSheet
+      v-model="showFilter"
+      :owner-options="ownerOptions"
+      :filters="filters"
+      @apply="applyFilters" />
+
+    <!-- 排序下拉菜单 -->
+    <Teleport to="body">
+      <div v-if="showSortMenu" class="fixed inset-0 z-40" @click="showSortMenu = false">
+        <div class="absolute left-4 right-4 bg-white rounded-2xl shadow-2xl overflow-hidden"
+          :style="{ top: sortMenuTop + 'px' }"
+          @click.stop>
+          <button
+            v-for="(opt, i) in SORT_OPTIONS" :key="opt.value"
+            @click="selectSort(opt.value)"
+            class="flex items-center justify-between w-full px-5 py-3.5 text-[14px] font-medium active:bg-bg transition-colors"
+            :style="{
+              color: sortBy === opt.value ? 'var(--color-accent)' : 'var(--color-ink)',
+              borderBottom: i < SORT_OPTIONS.length - 1 ? '1px solid var(--color-divider)' : 'none',
+            }">
+            <span>{{ opt.label }}</span>
+            <svg v-if="sortBy === opt.value" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.search-drop-enter-active,
+.search-drop-leave-active {
+  transition: max-height 0.22s ease, opacity 0.18s ease;
+  max-height: 80px;
+}
+.search-drop-enter-from,
+.search-drop-leave-to {
+  max-height: 0;
+  opacity: 0;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>

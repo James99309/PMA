@@ -15,6 +15,34 @@ from app.utils.dictionary_helpers import (
     PROJECT_STAGE_LABELS, ACTIVITY_STATUS_LABELS, PROJECT_TYPE_LABELS
 )
 
+def _mobile_project_query(user):
+    """mobile 专用查询：基于 ownership 权限，不应用桌面端的 content_filters。"""
+    base = Project.query.filter(Project.is_deleted == False)
+    permission_level = user.get_permission_level('project')
+    if not user.has_permission('project', 'view'):
+        return base.filter(False)
+    if permission_level == 'system':
+        return base
+    if permission_level == 'company' and user.company_name:
+        from app.utils.access_control import get_company_user_ids
+        ids = get_company_user_ids(user)
+        return base.filter(
+            db.or_(Project.owner_id.in_(ids), Project.vendor_sales_manager_id == user.id)
+        )
+    if permission_level == 'department' and user.department:
+        from app.utils.access_control import get_department_user_ids
+        ids = get_department_user_ids(user)
+        return base.filter(
+            db.or_(Project.owner_id.in_(ids), Project.vendor_sales_manager_id == user.id)
+        )
+    # personal
+    from app.utils.access_control import get_personal_viewable_user_ids
+    ids = get_personal_viewable_user_ids(user)
+    return base.filter(
+        db.or_(Project.owner_id.in_(ids), Project.vendor_sales_manager_id == user.id)
+    )
+
+
 def _stage_label(key):
     """直接使用 PMA 字典，未知值原样返回"""
     if not key:
@@ -53,11 +81,13 @@ def _project_summary(p):
         'amount': round(amount / 10000, 2) if amount else 0,
         'currency': getattr(p, 'quotation_currency', 'CNY') or 'CNY',
         'owner_name': p.owner.real_name or p.owner.username if p.owner else '',
+        'city': p.city or '',
+        'industry': p.industry or '',
         'updated_at': p.updated_at.isoformat() if p.updated_at else None,
     }
 
 
-def _project_detail(p):
+def _project_detail(p, current_user_id=None):
     d = _project_summary(p)
     d.update({
         # 阶段与活跃度
@@ -87,6 +117,45 @@ def _project_detail(p):
         # 时间
         'created_at': p.created_at.isoformat() if p.created_at else None,
     })
+    # 项目讨论群：是否已绑定（None 则前端要走"创建讨论群"流程）
+    try:
+        from app.services import chat_service as _cs
+        d['discussion_conversation_id'] = (
+            _cs.find_project_conversation(current_user_id, p.id) if current_user_id else None
+        )
+    except Exception as e:
+        logger.warning(f"查找讨论群失败 project={p.id}: {e}")
+        d['discussion_conversation_id'] = None
+
+    # 项目成员：owner + shared_with_users（用于项目群 / 讨论卡）
+    try:
+        member_ids = []
+        if p.owner_id:
+            member_ids.append(p.owner_id)
+        for uid in (p.shared_with_users or []):
+            if uid not in member_ids:
+                member_ids.append(uid)
+        members = []
+        if member_ids:
+            users = User.query.filter(User.id.in_(member_ids)).all()
+            user_map = {u.id: u for u in users}
+            for uid in member_ids:
+                u = user_map.get(uid)
+                if not u:
+                    continue
+                name = u.real_name or u.username or ''
+                members.append({
+                    'id': u.id,
+                    'name': name,
+                    'avatar': name[0] if name else '?',
+                    'department': u.department or '',
+                    'is_owner': uid == p.owner_id,
+                })
+        d['members'] = members
+    except Exception as e:
+        logger.warning(f"加载项目成员失败 project={p.id}: {e}")
+        d['members'] = []
+
     try:
         assocs = p.customer_associations.all() if hasattr(p, 'customer_associations') else []
         d['customers'] = [
@@ -183,21 +252,37 @@ def mobile_project_list():
 
     search = request.args.get('search', '').strip()
     stage = request.args.get('stage', '').strip()
+    industry = request.args.get('industry', '').strip()
     page = max(1, int(request.args.get('page', 1)))
     per_page = min(50, int(request.args.get('per_page', 20)))
 
-    query = get_viewable_data(Project, user, [Project.is_deleted == False])
+    query = _mobile_project_query(user)
     if search:
         query = query.filter(Project.project_name.ilike(f'%{search}%'))
     if stage:
         query = query.filter(Project.current_stage == stage)
+    if industry:
+        query = query.filter(Project.industry == industry)
 
-    query = query.order_by(Project.updated_at.desc())
+    # 汇总金额必须在 ORDER BY 之前计算，否则 PostgreSQL 报 GroupingError
+    from sqlalchemy import func as sa_func
+    total_amount_raw = query.with_entities(sa_func.sum(Project.quotation_customer)).scalar() or 0
+    total_amount_wan = round(total_amount_raw / 10000, 2)
+
+    sort = request.args.get('sort', 'updated_at')
+    if sort == 'amount':
+        query = query.order_by(Project.quotation_customer.desc().nullslast())
+    elif sort == 'amount_asc':
+        query = query.order_by(Project.quotation_customer.asc().nullslast())
+    else:
+        query = query.order_by(Project.updated_at.desc())
+
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
     return api_response(success=True, data={
         'items': [_project_summary(p) for p in pagination.items],
         'total': pagination.total,
+        'total_amount': total_amount_wan,
         'page': page,
         'per_page': per_page,
         'pages': pagination.pages,
@@ -221,7 +306,7 @@ def mobile_project_detail(project_id):
     if not can_view_project(user, project):
         return api_response(success=False, code=403, message="无权访问此项目")
 
-    return api_response(success=True, data=_project_detail(project))
+    return api_response(success=True, data=_project_detail(project, current_user_id=user_id))
 
 
 @api_v1_bp.route('/mobile/projects/<int:project_id>/stage', methods=['POST'])
@@ -357,3 +442,96 @@ def mobile_project_add_note(project_id):
         db.session.rollback()
         logger.error(f"mobile add note error: {e}")
         return api_response(success=False, code=500, message="添加失败，请重试")
+
+
+@api_v1_bp.route('/mobile/check-name/project', methods=['POST'])
+@jwt_required()
+def mobile_check_project_name():
+    """项目名称实时查重"""
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return api_response(success=True, data={'similar': []})
+
+    try:
+        from app.utils.text_similarity import is_similar_project_name
+        projects = Project.query.filter(
+            Project.is_deleted == False,
+            db.or_(Project.authorization_status != 'rejected', Project.authorization_status.is_(None))
+        ).with_entities(Project.id, Project.project_name, Project.authorization_code).all()
+
+        similar = []
+        for p in projects:
+            pn = p.project_name or ''
+            if not pn:
+                continue
+            is_sim, score = is_similar_project_name(name, pn, threshold=55)
+            if is_sim:
+                similar.append({
+                    'id': p.id,
+                    'name': pn,
+                    'auth_code': p.authorization_code,
+                    'score': round(score),
+                })
+        similar.sort(key=lambda x: x['score'], reverse=True)
+        return api_response(success=True, data={'similar': similar[:5]})
+    except Exception as e:
+        logger.error(f"mobile check project name error: {e}")
+        return api_response(success=False, code=500, message=str(e))
+
+
+@api_v1_bp.route('/mobile/projects', methods=['POST'])
+@jwt_required()
+def mobile_create_project():
+    """新建项目"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    industry = (data.get('industry') or '').strip()
+    description = (data.get('description') or '').strip()
+
+    if not name:
+        return api_response(success=False, code=400, message='项目名称不能为空')
+    if not industry:
+        return api_response(success=False, code=400, message='项目行业不能为空')
+    if not description:
+        return api_response(success=False, code=400, message='项目描述不能为空')
+
+    from datetime import datetime, date as date_type
+    delivery_forecast = None
+    if data.get('delivery_forecast'):
+        try:
+            delivery_forecast = datetime.strptime(data['delivery_forecast'], '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    try:
+        project = Project(
+            project_name=name,
+            industry=industry,
+            stage_description=description,
+            report_source=data.get('report_source') or None,
+            project_type=data.get('project_type') or None,
+            product_situation=data.get('product_situation') or None,
+            delivery_forecast=delivery_forecast,
+            country=data.get('country') or None,
+            region=data.get('region') or None,
+            city=data.get('city') or None,
+            address=data.get('address') or None,
+            latitude=data.get('latitude') or None,
+            longitude=data.get('longitude') or None,
+            current_stage='discover',
+            created_by=user_id,
+            owner_id=user_id,
+        )
+        db.session.add(project)
+        db.session.commit()
+        return api_response(success=True, message='项目已创建', data={'id': project.id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"mobile create project error: {e}")
+        return api_response(success=False, code=500, message='创建失败，请重试')

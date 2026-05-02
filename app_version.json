@@ -1,25 +1,25 @@
 {
   "app_version": "1.30.5",
   "environment": "production",
-  "timestamp": "2026-04-28 18:34:51",
+  "timestamp": "2026-05-02 12:06:11",
   "modules": {
     "user": {
       "files": {
         "app/views/user.py": {
           "hash": "c35c455e44bb321eb9a1e7e544c59237",
-          "last_modified": "2026-04-28 11:44:36"
+          "last_modified": "2026-04-29 08:11:03"
         },
         "app/models/user.py": {
-          "hash": "edfe52e2413663fb790780afa2fa73ff",
-          "last_modified": "2026-04-28 12:40:45"
+          "hash": "53214f6b368eb3ca68fd1a04cd5a9206",
+          "last_modified": "2026-04-29 08:14:22"
         },
         "app/permissions.py": {
           "hash": "4ab5d1191816348aa07763489d8722ca",
-          "last_modified": "2026-02-12 22:50:04"
+          "last_modified": "2026-04-29 08:11:02"
         },
         "app/utils/permissions.py": {
           "hash": "f51fae6a675827dac69156c59ce533db",
-          "last_modified": "2026-03-18 22:44:14"
+          "last_modified": "2026-04-29 08:11:03"
         }
       },
       "status": "ok"
@@ -28,11 +28,11 @@
       "files": {
         "app/views/customer.py": {
           "hash": "8242950ac75c684f94b8a4b38c989b24",
-          "last_modified": "2026-04-21 15:37:58"
+          "last_modified": "2026-04-29 08:11:03"
         },
         "app/models/customer.py": {
           "hash": "07ea97b23f8e67d2cce30d689b5e1495",
-          "last_modified": "2026-02-21 15:14:19"
+          "last_modified": "2026-04-29 08:11:02"
         }
       },
       "status": "ok"
@@ -40,12 +40,12 @@
     "project": {
       "files": {
         "app/views/project.py": {
-          "hash": "cddd7982e9c0636bd7010863fa4e257e",
-          "last_modified": "2026-04-26 00:43:01"
+          "hash": "4d2067387b573dec9c7732fd4f627b80",
+          "last_modified": "2026-05-02 12:06:08"
         },
         "app/models/project.py": {
-          "hash": "1c4bb4362c074cd90311f3323358c75e",
-          "last_modified": "2026-04-21 07:40:15"
+          "hash": "df250006ac6c09b4ad9ef808ad008249",
+          "last_modified": "2026-04-30 18:42:30"
         }
       },
       "status": "ok"
@@ -53,12 +53,12 @@
     "quotation": {
       "files": {
         "app/views/quotation.py": {
-          "hash": "14b0a3463a52d7d58ff4b28ee6156e03",
-          "last_modified": "2026-04-28 18:28:01"
+          "hash": "385e610dfbf44b944422c76f00155a51",
+          "last_modified": "2026-04-29 20:31:13"
         },
         "app/models/quotation.py": {
           "hash": "c5233d5c8c7f6df9b80f57a2b868e083",
-          "last_modified": "2026-04-28 18:28:01"
+          "last_modified": "2026-04-29 08:11:02"
         }
       },
       "status": "ok"
@@ -67,11 +67,11 @@
       "files": {
         "app/routes/product.py": {
           "hash": "c671529fbc5fc45d72b00a62d995e7b2",
-          "last_modified": "2026-04-18 10:18:42"
+          "last_modified": "2026-04-29 08:11:02"
         },
         "app/models/product.py": {
           "hash": "0d0b359b41daa5187dad642da4af6937",
-          "last_modified": "2026-04-18 10:18:42"
+          "last_modified": "2026-04-29 08:11:02"
         }
       },
       "status": "ok"

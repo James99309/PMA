@@ -8,3 +8,12 @@ export const getProject = id =>
 
 export const addProjectNote = (id, content) =>
   client.post(`/mobile/projects/${id}/notes`, { content })
+
+export const getQuotationDetail = quotationId =>
+  client.get(`/mobile/quotations/${quotationId}`)
+
+export const checkProjectName = name =>
+  client.post('/mobile/check-name/project', { name })
+
+export const createProject = data =>
+  client.post('/mobile/projects', data)

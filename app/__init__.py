@@ -423,6 +423,14 @@ def create_app(config_class=Config):
     app.register_blueprint(api_v1_bp, url_prefix='/api/v1')
     csrf.exempt(api_v1_bp)  # 豁免API v1蓝图的CSRF保护（供外部系统调用）
 
+    # 为移动端 API 添加 CORS（允许 Capacitor WebView 跨域访问）
+    from flask_cors import CORS
+    CORS(app, resources={r'/api/v1/*': {
+        'origins': '*',
+        'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        'allow_headers': ['Content-Type', 'Authorization'],
+    }}, supports_credentials=False)
+
     # 注册外部API蓝图（供Stargirl培训系统等外部系统调用）
     from app.api.external import external_api_bp
     app.register_blueprint(external_api_bp)
@@ -683,6 +691,7 @@ def create_app(config_class=Config):
             '/health',  # 健康检查（Docker + OpenClaw 回调验证）
             '/system-diagram/s/',  # 系统设计图外部分享页面（邮箱验证访问）
             '/api/dingtalk/',  # 钉钉服务器回调（企业事件推送，自有签名验证）
+            '/quotation/mobile-view/',  # 移动端报价单预览（JWT token 自包含鉴权）
         ]
         
         # 检查当前路径是否需要登录

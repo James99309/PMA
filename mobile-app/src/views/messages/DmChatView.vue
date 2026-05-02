@@ -1,0 +1,455 @@
+<script setup>
+// 私聊 + AI 草稿区 —— 严格对齐 ai-chat.jsx DMAIDraft (line 383-459)
+import { ref, nextTick, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import PixelP from '@/components/common/PixelP.vue'
+import MentionPopover from '@/components/common/MentionPopover.vue'
+import MessageText from '@/components/common/MessageText.vue'
+import MessageRefs from '@/components/common/MessageRefs.vue'
+import PendingRefsPreview from '@/components/common/PendingRefsPreview.vue'
+import FileCard from '@/components/common/FileCard.vue'
+import VoiceMsg from '@/components/common/VoiceMsg.vue'
+import MessageActions from '@/components/common/MessageActions.vue'
+import { useMention } from '@/composables/useMention'
+import { useLongPress } from '@/composables/useLongPress'
+import { getMessages, sendMessage as apiSend, markAsRead, streamAi } from '@/api/chat'
+import { formatChatTime } from '@/utils/chatTime'
+
+const route = useRoute()
+const router = useRouter()
+
+const inputRef = ref(null)
+const mention = useMention(inputRef)
+function handleInput(e) {
+  mention.onInput(e.target.value, e.target.selectionStart)
+}
+function handleMentionSelect(payload) {
+  mention.onSelect(payload, inputText.value, t => { inputText.value = t })
+}
+
+// 联系人信息（从 query 串接，实际拉历史时由后端 participants 补全）
+const peer = ref({
+  name: route.query.name || '私聊',
+  initial: (route.query.name || '?')[0],
+  role: route.query.role || '',
+  company: route.query.company || '',
+})
+
+// 消息列表
+// 真后端 DM（数字 id）：空数组，loadHistory 拉真历史
+// 非数字 id（罕见，比如未来的虚拟会话）：保留富媒体演示种子
+const isRealDm = /^\d+$/.test(String(route.params.id))
+const messages = ref(isRealDm ? [] : [
+  { id: 1, kind: 'them', day: '昨天', time: '昨天 17:42',
+    text: '深圳那个项目方案 PDF 你有吗？' },
+  { id: 2, kind: 'me', time: '昨天 17:45', text: '有，我现在发给你。', read: true },
+  { id: 3, kind: 'me', time: '昨天 17:45',
+    file: { name: '深圳半导体方案 V3.pdf', size: '2.4 MB', pages: 12, type: 'PDF' }, read: true },
+  { id: 4, kind: 'them', day: '今天', time: '今天 09:02',
+    text: '收到了，谢谢！客户那边什么时候反馈？' },
+  { id: 5, kind: 'them', time: '今天 09:03',
+    voice: { duration: '00:08', waveform: [6, 11, 8, 15, 12, 18, 9, 14, 7, 11, 5, 9, 12, 8] } },
+])
+
+// AI 草稿（独立浮层）
+const draft = ref({
+  visible: true,
+  time: '今天 09:12',
+  label: '建议回复 · 已结合客户偏好与历史报价',
+  text: '李经理您好，报价方面我这边已经申请到约 5% 的让利空间，稍后单独发您。工期方面，90 天是有挑战但可以做，前提是设备分两批进场。今晚我先把更新版方案发您，明天我们当面对一遍？',
+  meta: ['语气：专业但温暖', '引用：历史 5% 让利记录'],
+})
+
+const SUGGEST_TAGS = ['更简短一点', '更正式一点', '加一句关于产能的']
+
+const inputText = ref('')
+const sending = ref(false)
+const scrollEl = ref(null)
+// AI 草稿区只在 mock 场景默认显示；真后端 DM 默认隐藏（用户主动 @AI 才弹 AI 气泡）
+const showDraftSection = ref(!isRealDm)
+
+async function scrollToBottom() {
+  await nextTick()
+  if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+}
+
+function adoptDraft() {
+  inputText.value = draft.value.text
+  draft.value.visible = false
+  showDraftSection.value = false
+}
+
+function regenerateDraft() {
+  draft.value = {
+    ...draft.value,
+    text: '李经理，关于报价和工期我都听到了，给我半天时间打个新版方案，今晚发您；同时我会争取约个见面机会，把细节当面对一下。',
+    meta: ['语气：直接果断', '换一版 · 更短'],
+  }
+}
+
+function dismissDraft() {
+  draft.value.visible = false
+  showDraftSection.value = false
+}
+
+function adjustDraft(tag) {
+  // 假装重新生成，把 tag 加入 meta
+  draft.value = {
+    ...draft.value,
+    text: tag.includes('简短') ?
+      '李经理您好，报价我争取 5% 让利、工期 90 天可行。明天面聊一下细节？' :
+      tag.includes('正式') ?
+      '尊敬的李经理：关于您提到的报价及工期事项，我方已重新评估，可让利约 5%，工期也可压缩至 90 天（需分两批进场）。建议明日面谈细节。' :
+      '李经理，报价 5% 让利 + 工期 90 天可行（设备分两批）。补充：产能方面我们二期已扩产 30%，可保进度。',
+    meta: [`语气：${tag.replace('一点', '').replace('加一句关于', '加')}`, ...draft.value.meta.slice(1)],
+  }
+}
+
+// route.params.id：纯数字 → 真后端 conversation id；非数字 → 仅 mock
+const convId = /^\d+$/.test(String(route.params.id)) ? Number(route.params.id) : null
+
+async function send() {
+  const t = inputText.value.trim()
+  if (!t || sending.value) return
+  sending.value = true
+  const now = new Date()
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  // 检测 @AI
+  const isAtAi = t.includes('@AI') || t.includes('@源助手')
+  // 乐观插入用户消息
+  messages.value.push({
+    id: Date.now(), kind: 'me', time: `今天 ${hh}:${mm}`, text: t,
+    refs: mention.pendingRefs.value.length ? [...mention.pendingRefs.value] : undefined,
+  })
+  inputText.value = ''
+  mention.clearRefs()
+  draft.value.visible = false
+  showDraftSection.value = false
+  await scrollToBottom()
+
+  // 分支 1：私聊里 @源助手 → 走 AI SSE，AI 回复仅你可见（写入 DM 会话历史）
+  if (isAtAi && convId) {
+    const aiId = `ai-${Date.now()}`
+    messages.value.push({
+      id: aiId, kind: 'ai', time: `今天 ${String(new Date().getHours()).padStart(2,'0')}:${String(new Date().getMinutes()).padStart(2,'0')}`,
+      body: { type: 'stream', text: '' },
+    })
+    await scrollToBottom()
+    let streamed = ''
+    try {
+      await streamAi({
+        content: t,
+        conversationId: convId,
+        onEvent: async (ev) => {
+          const aiMsg = messages.value.find(m => m.id === aiId)
+          if (!aiMsg) return
+          if (ev.type === 'content') {
+            streamed += ev.text || ''
+            aiMsg.body = { type: 'stream', text: streamed }
+            await scrollToBottom()
+          } else if (ev.type === 'status') {
+            aiMsg.body = { type: 'status', text: ev.message || '思考中…' }
+          } else if (ev.type === 'error' || ev.type === 'context_exhausted') {
+            aiMsg.body = { type: 'error', text: ev.message || 'AI 服务异常' }
+          }
+        },
+      })
+    } catch (e) {
+      console.error('dm AI stream failed', e)
+      const aiMsg = messages.value.find(m => m.id === aiId)
+      if (aiMsg) aiMsg.body = { type: 'error', text: `连接失败：${e.message}` }
+    } finally {
+      sending.value = false
+      await scrollToBottom()
+    }
+    return
+  }
+
+  // 分支 2：普通 DM 消息
+  if (convId) {
+    try { await apiSend(convId, t) } catch (e) { console.error('dm send failed', e) }
+  }
+  sending.value = false
+}
+
+// ── 消息长按 actions ──
+const actionMessage = ref(null)
+const lp = useLongPress((m) => { actionMessage.value = m })
+function closeActions() { actionMessage.value = null }
+function onRecalled({ id }) {
+  const idx = messages.value.findIndex(m => m.id === id)
+  if (idx >= 0) messages.value[idx] = { ...messages.value[idx], recalled: true, text: '' }
+}
+function onForwarded() { console.log('转发成功') }
+
+async function loadHistory() {
+  if (!convId) return
+  try {
+    const res = await getMessages(convId, { limit: 50 })
+    if (!res.data?.success) return
+    const list = res.data.data || []
+    list.forEach(m => {
+      const isMine = m.is_mine || m.is_self
+      messages.value.push({
+        id: `srv-${m.id}`,
+        kind: isMine ? 'me' : 'them',
+        time: formatChatTime(m.created_at),
+        text: m.content,
+        _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+        recalled: !!m.is_deleted,
+      })
+    })
+    // 顺便从消息里推断 peer 真实姓名（取第一条非我的消息的 sender_name）
+    const otherMsg = list.find(m => !(m.is_mine || m.is_self) && m.sender_name)
+    if (otherMsg && !route.query.name) {
+      peer.value.name = otherMsg.sender_name
+      peer.value.initial = otherMsg.sender_name[0]
+    }
+    await scrollToBottom()
+    try { await markAsRead(convId) } catch {}
+  } catch (e) {
+    console.error('load dm history failed', e)
+  }
+}
+
+onMounted(async () => {
+  await scrollToBottom()
+  await loadHistory()
+})
+</script>
+
+<template>
+  <div class="flex flex-col h-full" style="background: var(--color-bg);">
+
+    <!-- Nav -->
+    <div class="flex items-center gap-2.5 px-4 py-2 shrink-0"
+      style="background: var(--color-card); border-bottom: 1px solid var(--color-divider);">
+      <button @click="router.back()" class="active:opacity-60 px-1">
+        <svg width="9" height="14" viewBox="0 0 9 14">
+          <path d="M7 1L1 7l6 6" fill="none" stroke="var(--color-ink-2)" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+      <div class="w-[30px] h-[30px] rounded-full inline-flex items-center justify-center font-serif text-[13px] font-semibold"
+        style="background: var(--color-accent-soft); color: var(--color-accent);">{{ peer.initial }}</div>
+      <div class="flex-1 min-w-0">
+        <div class="font-serif" style="font-size: 15px; font-weight: 600;">{{ peer.name }}</div>
+        <div v-if="peer.role || peer.company" class="text-[11px]" style="color: var(--color-ink-3);">
+          {{ [peer.role, peer.company].filter(Boolean).join(' · ') }}
+        </div>
+      </div>
+      <span class="text-[18px]" style="color: var(--color-ink-3);">···</span>
+    </div>
+
+    <!-- Messages -->
+    <div ref="scrollEl" class="flex-1 overflow-y-auto py-3">
+      <template v-for="m in messages" :key="m.id">
+
+        <!-- 日期分隔条 -->
+        <div v-if="m.day" class="flex justify-center py-2">
+          <span class="text-[10px] uppercase font-semibold px-3 py-1 rounded-full"
+            style="background: var(--color-card); color: var(--color-ink-3);
+                   border: 1px solid var(--color-divider); letter-spacing: 0.5px;">{{ m.day }}</span>
+        </div>
+
+        <!-- AI 流式回复（私聊里 @源助手 触发）-->
+        <div v-if="m.kind === 'ai'" class="px-4 py-1.5 flex gap-2.5 items-start">
+          <PixelP :size="22" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline gap-1.5 mb-1">
+              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">源助手</span>
+              <span class="text-[10px]" style="color: var(--color-ink-3);">{{ m.time }}</span>
+            </div>
+            <div class="font-serif"
+              style="background: rgba(47,102,214,0.06); border: 1px solid rgba(47,102,214,0.18);
+                     border-radius: 4px 14px 14px 14px; padding: 12px 14px;
+                     font-size: 14px; line-height: 1.55; color: var(--color-ink);">
+              <template v-if="m.body && m.body.type === 'stream'">
+                <div class="whitespace-pre-wrap">{{ m.body.text || '…' }}</div>
+              </template>
+              <template v-else-if="m.body && m.body.type === 'status'">
+                <div class="flex items-center gap-2 py-1">
+                  <span class="inline-flex gap-1">
+                    <span v-for="i in 3" :key="i" class="w-1.5 h-1.5 rounded-full"
+                      style="background: #2F66D6;"
+                      :style="{ animation: `aiDot 1.4s ${(i-1)*0.16}s infinite` }" />
+                  </span>
+                  <span class="text-[12px] italic" style="color: var(--color-ink-3);">{{ m.body.text }}</span>
+                </div>
+              </template>
+              <template v-else-if="m.body && m.body.type === 'error'">
+                <div class="text-[13px]" style="color: #A04848;">⚠️ {{ m.body.text }}</div>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- 对方消息（带头像）-->
+        <div v-else-if="m.kind === 'them'" class="px-4 py-1.5 flex gap-2.5">
+          <div class="w-7 h-7 rounded-full inline-flex items-center justify-center font-serif text-[12px] font-semibold shrink-0"
+            style="background: var(--color-accent-soft); color: var(--color-accent);">{{ peer.initial }}</div>
+          <div class="flex-1 min-w-0">
+            <div class="text-[11px] mb-1" style="color: var(--color-ink-3);">{{ m.time }}</div>
+            <div v-if="m.recalled" class="text-[12px] italic"
+              style="color: var(--color-ink-3);">{{ peer.name }} 撤回了一条消息</div>
+            <template v-else>
+              <!-- 文本气泡 -->
+              <div v-if="m.text" class="font-serif inline-block max-w-[300px]"
+                style="background: var(--color-card); border: 1px solid var(--color-divider);
+                       border-radius: 14px 14px 14px 4px; padding: 10px 14px;
+                       font-size: 14px; line-height: 1.45;"
+                @touchstart="lp.onTouchStart($event, m)"
+                @touchmove="lp.onTouchMove"
+                @touchend="lp.onTouchEnd"
+                @touchcancel="lp.onTouchCancel">
+                <MessageText :text="m.text" />
+              </div>
+              <!-- 文件 -->
+              <FileCard v-if="m.file" v-bind="m.file" :inverted="false" />
+              <!-- 语音 -->
+              <VoiceMsg v-if="m.voice" v-bind="m.voice" :inverted="false" />
+              <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-1.5" />
+            </template>
+          </div>
+        </div>
+
+        <!-- 我的消息（右对齐 ink 黑底）-->
+        <div v-else class="px-4 py-1.5 flex flex-col items-end">
+          <div v-if="m.recalled" class="text-[12px] italic"
+            style="color: var(--color-ink-3);">你撤回了一条消息</div>
+          <template v-else>
+          <!-- 文本气泡 -->
+          <div v-if="m.text" class="font-serif text-white max-w-[300px]"
+            style="background: var(--color-ink); border-radius: 14px 14px 4px 14px;
+                   padding: 10px 14px; font-size: 14px; line-height: 1.5;"
+            @touchstart="lp.onTouchStart($event, m)"
+            @touchmove="lp.onTouchMove"
+            @touchend="lp.onTouchEnd"
+            @touchcancel="lp.onTouchCancel">
+            <MessageText :text="m.text" inverted />
+          </div>
+          <!-- 文件 -->
+          <FileCard v-if="m.file" v-bind="m.file" inverted class="mt-1.5" />
+          <!-- 语音 -->
+          <VoiceMsg v-if="m.voice" v-bind="m.voice" inverted class="mt-1.5" />
+          <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-1.5 w-full max-w-[300px]" />
+          <!-- 时间 + 已读回执 -->
+          <div class="text-[10px] mt-1" style="color: var(--color-ink-3);">
+            {{ m.time }}<span v-if="m.read" class="ml-1">· ✓✓ 已读</span>
+          </div>
+          </template>
+        </div>
+      </template>
+
+      <!-- AI 草稿区（仅你可见）-->
+      <template v-if="showDraftSection">
+        <div class="py-3 px-4 flex justify-center">
+          <span class="text-[10px] font-semibold tracking-wide px-2.5 py-1 rounded-full"
+            style="color: #2F66D6; background: #E5EEFB;">✨ 仅你可见 · AI 草稿区</span>
+        </div>
+
+        <div v-if="draft.visible" class="px-4 py-1.5 flex gap-2.5 items-start">
+          <PixelP :size="22" />
+          <div class="flex-1 min-w-0">
+            <div class="flex items-baseline gap-1.5 mb-1">
+              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">源助手</span>
+              <span class="text-[10px]" style="color: var(--color-ink-3);">{{ draft.time }}</span>
+            </div>
+            <div class="font-serif"
+              style="background: rgba(47,102,214,0.06); border: 1px solid rgba(47,102,214,0.18);
+                     border-radius: 4px 14px 14px 14px; padding: 12px 14px;
+                     font-size: 14px; line-height: 1.55; color: var(--color-ink);">
+              <div class="text-[11px] font-semibold mb-1.5" style="color: #2F66D6;">{{ draft.label }}</div>
+              <div class="rounded-lg p-3 mt-1 font-serif"
+                style="background: var(--color-card); border: 1px dashed var(--color-divider-strong);
+                       line-height: 1.6; color: var(--color-ink);">
+                {{ draft.text }}
+              </div>
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                <span v-for="(tag, i) in draft.meta" :key="i"
+                  class="text-[10px] px-2 py-0.5 rounded-full font-serif italic"
+                  style="background: rgba(47,102,214,0.06); color: var(--color-ink-3);">{{ tag }}</span>
+              </div>
+            </div>
+
+            <!-- 操作行 -->
+            <div class="flex gap-2 mt-2">
+              <button @click="adoptDraft"
+                class="flex-1 py-2.5 rounded-xl text-white text-[13px] font-semibold active:opacity-80"
+                style="background: #2F66D6; border: none;">采用 · 填入输入框</button>
+              <button @click="regenerateDraft"
+                class="px-3.5 py-2.5 rounded-xl text-[13px] active:opacity-70"
+                style="background: var(--color-card); color: var(--color-ink-2); border: 1px solid var(--color-divider-strong);">换一版</button>
+              <button @click="dismissDraft"
+                class="px-3.5 py-2.5 rounded-xl text-[13px] active:opacity-70"
+                style="background: var(--color-card); color: var(--color-ink-2); border: 1px solid var(--color-divider-strong);">×</button>
+            </div>
+
+            <!-- 微调追问 chip -->
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              <button v-for="t in SUGGEST_TAGS" :key="t" @click="adjustDraft(t)"
+                class="text-[12px] font-serif italic px-3 py-1.5 rounded-full active:opacity-70"
+                style="background: var(--color-card); color: var(--color-ink-2);
+                       border: 1px solid var(--color-divider-strong);">{{ t }}</button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Composer (含 @ 提及 popover) -->
+    <div class="shrink-0 safe-bottom relative"
+      style="background: var(--color-card); border-top: 1px solid var(--color-divider);">
+
+      <MentionPopover
+        :visible="mention.popoverVisible.value"
+        :type="mention.popoverType.value"
+        :query="mention.popoverQuery.value"
+        ai-only
+        @select="handleMentionSelect"
+        @switch-type="mention.switchType" />
+
+      <PendingRefsPreview class="px-3 pt-2"
+        :refs="mention.pendingRefs.value"
+        @remove="mention.removeRef" />
+
+      <div class="px-3 py-3 flex items-center gap-2">
+        <button class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[18px]"
+          style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">+</button>
+        <div class="flex-1 rounded-full px-3.5 py-2.5 flex items-center gap-2"
+          :style="{
+            background: 'var(--color-bg)',
+            border: mention.popoverVisible.value ? '1.5px solid var(--color-accent)' : '1px solid var(--color-divider-strong)',
+          }">
+          <input ref="inputRef" v-model="inputText" type="text"
+            :placeholder="`给${peer.name}回复…  @ # $ 引用`"
+            @input="handleInput"
+            @keyup.enter="send"
+            :disabled="sending"
+            class="flex-1 bg-transparent outline-none font-serif text-[14px]"
+            style="color: var(--color-ink);" />
+          <span class="text-[11px]" style="color: var(--color-ink-4); font-family: ui-monospace, monospace;">@ # $</span>
+        </div>
+        <button v-if="inputText.trim()" @click="send" :disabled="sending"
+          class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[14px] font-bold text-white disabled:opacity-40"
+          style="background: var(--color-accent);">↑</button>
+      </div>
+    </div>
+
+    <!-- 消息长按 actions -->
+    <MessageActions
+      :message="actionMessage"
+      :is-mine="actionMessage?.kind === 'me'"
+      @close="closeActions"
+      @recalled="onRecalled"
+      @forwarded="onForwarded" />
+  </div>
+</template>
+
+<style scoped>
+@keyframes aiDot {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+</style>

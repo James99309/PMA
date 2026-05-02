@@ -8,4 +8,12 @@ export default defineConfig({
   resolve: {
     alias: { '@': resolve(__dirname, 'src') },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5012',
+        changeOrigin: true,
+      },
+    },
+  },
 })
