@@ -58,10 +58,14 @@ const REGION_OPTIONS = [
 
 const VALUE_MAX = 800  // 客户累计价值上限（万元）
 
+// 活跃度 6 级 —— 配色与 ProjectDetailView ACTIVITY_COLORS 完全一致
 const ACTIVITY_OPTIONS = [
-  { value: 'active',  label: '活跃', dot: '#22C55E' },
-  { value: 'cooling', label: '冷却', dot: '#F59E0B' },
-  { value: 'stalled', label: '停滞', dot: '#9CA3AF' },
+  { value: 'highly_active', label: '高度活跃', dot: '#166534' },
+  { value: 'active',        label: '活跃',     dot: '#1E40AF' },
+  { value: 'normal',        label: '正常',     dot: '#0369A1' },
+  { value: 'to_follow',     label: '待跟进',   dot: '#A16207' },
+  { value: 'dormant',       label: '休眠',     dot: '#C2410C' },
+  { value: 'churned',       label: '流失',     dot: '#4B5563' },
 ]
 
 const INDUSTRY_OPTIONS = [
@@ -129,7 +133,7 @@ function initLocal() {
       industry:    f.industry    || '',
     }
   }
-  return { stage: f.stage || '', owner_name: f.owner_name || '', amount_min: f.amount_min ?? 0, amount_max: f.amount_max ?? AMOUNT_MAX, activity: f.activity || '', region: f.region || '', industry: f.industry || '' }
+  return { stage: f.stage || '', owner_names: Array.isArray(f.owner_names) ? [...f.owner_names] : [], amount_min: f.amount_min ?? 0, amount_max: f.amount_max ?? AMOUNT_MAX, activity: f.activity || '', region: f.region || '', industry: f.industry || '' }
 }
 
 const local = ref(initLocal())
@@ -147,7 +151,7 @@ const pendingCount = computed(() => {
     if (local.value.industry)    n++
   } else {
     if (local.value.stage) n++
-    if (local.value.owner_name) n++
+    if (local.value.owner_names?.length) n++
     if (local.value.amount_min > 0 || local.value.amount_max < AMOUNT_MAX) n++
     if (local.value.activity) n++
     if (local.value.region) n++
@@ -163,10 +167,19 @@ function blankState() {
       open_bucket: '', region: '', industry: '',
     }
   }
-  return { stage: '', owner_name: '', amount_min: 0, amount_max: AMOUNT_MAX, activity: '', region: '', industry: '' }
+  return { stage: '', owner_names: [], amount_min: 0, amount_max: AMOUNT_MAX, activity: '', region: '', industry: '' }
 }
 
-function reset() { local.value = blankState() }
+function reset() { local.value = blankState(); showAllOwners.value = false }
+
+const showAllOwners = ref(false)
+
+function toggleOwner(name) {
+  if (!local.value.owner_names) local.value.owner_names = []
+  const idx = local.value.owner_names.indexOf(name)
+  if (idx >= 0) local.value.owner_names.splice(idx, 1)
+  else local.value.owner_names.push(name)
+}
 
 function apply() {
   const r = { ...local.value }
@@ -179,6 +192,7 @@ function apply() {
   } else {
     if ((r.amount_min ?? 0) <= 0) delete r.amount_min
     if ((r.amount_max ?? AMOUNT_MAX) >= AMOUNT_MAX) delete r.amount_max
+    if (!r.owner_names?.length) delete r.owner_names  // 空数组 → 不发
   }
   emit('apply', r)
   emit('update:modelValue', false)
@@ -330,26 +344,39 @@ function close() { emit('update:modelValue', false) }
             <div v-if="variant === 'project' && ownerOptions.length > 0">
               <div class="flex items-center justify-between mb-3">
                 <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">负责人</p>
-                <p class="text-[11px] text-[#7A7570]">{{ local.owner_name ? '已选 1' : '多选·未选' }}</p>
+                <p class="text-[11px] text-[#7A7570]">
+                  {{ local.owner_names?.length ? `已选 ${local.owner_names.length}` : '多选·未选' }}
+                </p>
               </div>
               <div class="flex flex-wrap gap-4">
-                <button v-for="(owner, idx) in ownerOptions.slice(0, 7)" :key="owner.name"
-                  @click="local.owner_name = local.owner_name === owner.name ? '' : owner.name"
+                <button v-for="(owner, idx) in (showAllOwners ? ownerOptions : ownerOptions.slice(0, 7))"
+                  :key="owner.name"
+                  @click="toggleOwner(owner.name)" type="button"
                   class="flex flex-col items-center gap-1 active:opacity-70">
                   <div class="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-bold text-white transition-all"
-                    :style="{ background: local.owner_name === owner.name ? '#D97757' : ownerColor(idx) }"
-                    :class="local.owner_name === owner.name ? 'ring-2 ring-offset-1 ring-[#D97757]' : ''">
+                    :style="{ background: local.owner_names?.includes(owner.name) ? '#D97757' : ownerColor(idx) }"
+                    :class="local.owner_names?.includes(owner.name) ? 'ring-2 ring-offset-1 ring-[#D97757]' : ''">
                     {{ owner.name[0] }}
                   </div>
                   <span class="text-[11px] text-[#7A7570] max-w-[40px] text-center truncate">
                     {{ owner.name.slice(0, 2) }}
                   </span>
                 </button>
-                <button v-if="ownerOptions.length > 7" class="flex flex-col items-center gap-1">
+                <button v-if="!showAllOwners && ownerOptions.length > 7"
+                  @click="showAllOwners = true" type="button"
+                  class="flex flex-col items-center gap-1 active:opacity-70">
                   <div class="w-10 h-10 rounded-full bg-[#ECEAE7] flex items-center justify-center text-[12px] font-medium text-[#7A7570]">
                     +{{ ownerOptions.length - 7 }}
                   </div>
                   <span class="text-[11px] text-[#7A7570]">更多</span>
+                </button>
+                <button v-if="showAllOwners && ownerOptions.length > 7"
+                  @click="showAllOwners = false" type="button"
+                  class="flex flex-col items-center gap-1 active:opacity-70">
+                  <div class="w-10 h-10 rounded-full bg-[#ECEAE7] flex items-center justify-center text-[14px] font-medium text-[#7A7570]">
+                    ‹
+                  </div>
+                  <span class="text-[11px] text-[#7A7570]">收起</span>
                 </button>
               </div>
             </div>
@@ -384,13 +411,13 @@ function close() { emit('update:modelValue', false) }
               </div>
             </div>
 
-            <!-- ── PROJECT: 活跃度 ── -->
+            <!-- ── PROJECT: 活跃度（6 级，3x2 网格）── -->
             <div v-if="variant === 'project'">
               <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider mb-2.5">活跃度</p>
-              <div class="flex gap-2.5">
+              <div class="grid grid-cols-3 gap-2">
                 <button v-for="opt in ACTIVITY_OPTIONS" :key="opt.value"
                   @click="local.activity = local.activity === opt.value ? '' : opt.value"
-                  class="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl border text-[13px] font-medium transition-colors active:opacity-70"
+                  class="flex items-center justify-center gap-1.5 py-2.5 rounded-2xl border text-[12px] font-medium transition-colors active:opacity-70"
                   :class="local.activity === opt.value
                     ? 'bg-[#1A1A1A] text-white border-[#1A1A1A]'
                     : 'bg-white text-[#4A4540] border-[#E0DDD9]'">

@@ -254,7 +254,8 @@ def mobile_project_list():
     stage = request.args.get('stage', '').strip()
     industry = request.args.get('industry', '').strip()
     activity = request.args.get('activity', '').strip()
-    owner_name = request.args.get('owner_name', '').strip()
+    owner_names = request.args.getlist('owner_names')  # 多选
+    owner_name = request.args.get('owner_name', '').strip()  # 兼容旧单选
     region = request.args.get('region', '').strip()
     amount_min = request.args.get('amount_min', type=float)
     amount_max = request.args.get('amount_max', type=float)
@@ -272,7 +273,10 @@ def mobile_project_list():
         query = query.filter(Project.activity_status == activity)
     if region:
         query = query.filter((Project.city == region) | (Project.region == region))
-    if owner_name:
+    if owner_names:
+        query = query.join(User, User.id == Project.owner_id) \
+                     .filter(User.real_name.in_(owner_names) | User.username.in_(owner_names))
+    elif owner_name:
         query = query.join(User, User.id == Project.owner_id) \
                      .filter((User.real_name == owner_name) | (User.username == owner_name))
     # 金额单位：前端传万元，DB 存元

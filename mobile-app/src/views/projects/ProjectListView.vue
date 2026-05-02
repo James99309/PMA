@@ -68,9 +68,13 @@ const INDUSTRY_LABEL_MAP = {
 }
 
 const ACTIVITY_LABEL_MAP = {
-  active:  '活跃',
-  cooling: '冷却',
-  stalled: '停滞',
+  highly_active: '高度活跃',
+  active:        '活跃',
+  normal:        '正常',
+  to_follow:     '待跟进',
+  dormant:       '休眠',
+  churned:       '流失',
+  frozen:        '已冻结',
 }
 
 // Sort options (shown in dropdown)
@@ -125,7 +129,10 @@ const activeFilterChips = computed(() => {
     if (mx != null) chips.push({ key: 'amount', label: `¥${mn}-${mx}万` })
     else chips.push({ key: 'amount', label: `≥¥${mn}万` })
   }
-  if (f.owner_name) chips.push({ key: 'owner_name', label: f.owner_name })
+  if (f.owner_names?.length) chips.push({
+    key: 'owner_names',
+    label: f.owner_names.length === 1 ? f.owner_names[0] : `负责人 ${f.owner_names.length}`,
+  })
   if (f.region)     chips.push({ key: 'region',     label: f.region })
   if (f.industry)   chips.push({ key: 'industry',   label: INDUSTRY_LABEL_MAP[f.industry] || f.industry })
   return chips

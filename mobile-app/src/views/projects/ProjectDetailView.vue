@@ -214,10 +214,15 @@ const STAGE_COLORS = {
   paused:     '#C2BBB3',
 }
 
+// 6 级活跃度配色（覆盖后端所有 status，避免 fallback 到黑色）
 const ACTIVITY_COLORS = {
-  active:  '#D97757',
-  cooling: '#7A7570',
-  stalled: '#C2BBB3',
+  highly_active: '#166534',  // 深绿
+  active:        '#1E40AF',  // 深蓝
+  normal:        '#0369A1',  // 深青
+  to_follow:     '#A16207',  // 深黄
+  dormant:       '#C2410C',  // 深橙
+  churned:       '#4B5563',  // 深灰
+  frozen:        '#6B7280',  // 中灰
 }
 
 const INDUSTRY_LABELS = {

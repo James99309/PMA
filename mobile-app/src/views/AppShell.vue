@@ -1,10 +1,28 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
+import { getUnreadCount } from '@/api/chat'
 
 const route = useRoute()
 // 进入聊天详情、设置、广播等沉浸页时隐藏 tab bar（避免和聊天 composer 冲突）
 const hideTabBar = computed(() => route.meta?.hideTabBar === true)
+
+// 未读消息数 —— 30s 轮询 /unread-count
+const unreadTotal = ref(0)
+let unreadTimer = null
+async function refreshUnread() {
+  try {
+    const r = await getUnreadCount()
+    unreadTotal.value = r.data?.data?.total_unread || 0
+  } catch {
+    // 静默失败，不打扰
+  }
+}
+onMounted(() => {
+  refreshUnread()
+  unreadTimer = setInterval(refreshUnread, 30000)
+})
+onUnmounted(() => { if (unreadTimer) clearInterval(unreadTimer) })
 
 const tabs = [
   {
@@ -55,18 +73,26 @@ const tabs = [
           v-for="tab in tabs"
           :key="tab.path"
           :to="tab.path"
-          class="flex-1 flex flex-col items-center py-2 gap-0.5 text-[11px] font-medium transition-colors"
+          class="flex-1 flex flex-col items-center py-2 gap-0.5 text-[11px] font-medium transition-colors relative"
           :class="$route.path.startsWith(tab.path) ? 'text-[var(--color-accent)]' : 'text-[var(--color-ink-3)]'"
         >
-          <svg
-            class="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            :stroke-width="$route.path.startsWith(tab.path) ? '2.2' : '1.7'"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" :d="tab.iconD" />
-          </svg>
+          <div class="relative">
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              :stroke-width="$route.path.startsWith(tab.path) ? '2.2' : '1.7'"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" :d="tab.iconD" />
+            </svg>
+            <!-- 聊天 tab 角标 -->
+            <span v-if="tab.path === '/messages' && unreadTotal > 0"
+              class="absolute -top-1 -right-2 min-w-[18px] h-[18px] px-1 rounded-full inline-flex items-center justify-center text-[10px] font-bold text-white"
+              style="background: #FF3B30;">
+              {{ unreadTotal > 99 ? '99+' : unreadTotal }}
+            </span>
+          </div>
           {{ tab.label }}
         </RouterLink>
       </div>
