@@ -332,6 +332,60 @@ def mobile_project_detail(project_id):
     return api_response(success=True, data=_project_detail(project, current_user_id=user_id))
 
 
+# 编辑项目基本信息
+@api_v1_bp.route('/mobile/projects/<int:project_id>', methods=['PATCH', 'PUT'])
+@jwt_required()
+def mobile_project_update(project_id):
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+
+    project = Project.query.filter_by(id=project_id, is_deleted=False).first()
+    if not project:
+        return api_response(success=False, code=404, message="项目不存在")
+
+    from app.utils.access_control import can_view_project
+    if not can_view_project(user, project):
+        return api_response(success=False, code=403, message="无权编辑此项目")
+    if project.is_locked:
+        return api_response(success=False, code=403, message=f"项目已锁定: {project.locked_reason or '无法编辑'}")
+
+    data = request.get_json() or {}
+
+    # 允许编辑字段（不含 stage / authorization / status / lock 等业务流字段）
+    allowed = ['project_name', 'project_type', 'industry', 'end_user',
+               'dealer', 'contractor', 'system_integrator',
+               'product_situation', 'design_issues', 'stage_description',
+               'address', 'country', 'region', 'city',
+               'latitude', 'longitude']
+
+    for k in allowed:
+        if k in data:
+            setattr(project, k, data[k] or None)
+
+    # 日期字段单独处理
+    if 'delivery_forecast' in data:
+        from datetime import datetime as _dt
+        v = data['delivery_forecast']
+        if v:
+            try:
+                project.delivery_forecast = _dt.fromisoformat(v.replace('Z', '+00:00')).date() \
+                    if 'T' in v else _dt.strptime(v, '%Y-%m-%d').date()
+            except Exception:
+                pass
+        else:
+            project.delivery_forecast = None
+
+    try:
+        db.session.commit()
+        return api_response(success=True, data=_project_detail(project, current_user_id=user_id))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"项目更新失败 project={project_id}: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=f"更新失败: {str(e)}")
+
+
 @api_v1_bp.route('/mobile/projects/<int:project_id>/stage', methods=['POST'])
 @jwt_required()
 def mobile_project_update_stage(project_id):

@@ -276,11 +276,11 @@ onMounted(load)
             <div class="text-[11px] tabular mb-1" style="color: var(--color-ink-3);">
               {{ a.date }} — {{ a.owner_name }}
             </div>
-            <div class="font-serif"
-              :style="{
-                fontSize: '16px',
-                lineHeight: '1.55',
+            <div :style="{
+                fontSize: '14px',
+                lineHeight: '1.5',
                 color: i === 0 ? 'var(--color-ink)' : 'var(--color-ink-2)',
+                fontFamily: 'var(--font-sans)',
               }">
               {{ a.communication }}
             </div>

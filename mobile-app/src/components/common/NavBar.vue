@@ -19,7 +19,9 @@ defineEmits(['back', 'more'])
       </slot>
     </button>
     <div v-if="title" class="font-serif text-[16px] font-medium">{{ title }}</div>
-    <button @click="$emit('more')" class="text-ink-3 text-[14px] active:opacity-60">
+    <button @click="$emit('more')"
+      class="text-[18px] font-bold active:opacity-60 px-2"
+      style="color: var(--color-ink);">
       <slot name="right">···</slot>
     </button>
   </div>

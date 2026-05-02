@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getCustomer, updateCustomer, archiveCustomer } from '@/api/customers'
 import EditField from '@/components/common/EditField.vue'
+import PickerSheet from '@/components/common/PickerSheet.vue'
+import AddressPickerSheet from '@/components/common/AddressPickerSheet.vue'
+import { useDictionariesStore } from '@/stores/dictionaries'
 
 const route = useRoute()
 const router = useRouter()
@@ -17,11 +20,73 @@ const form = ref({
   company_type: '',
   industry: '',
   address: '',
+  country: '',
+  region: '',
+  city: '',
+  latitude: null,
+  longitude: null,
   status: '',
   source: '',
 })
 
 const totalCount = ref(0)  // 名下项目数
+
+// 字典 + 静态选项
+const dictStore = useDictionariesStore()
+
+// 行业（PMA 没存 DB 字典，硬编码）
+const INDUSTRY_OPTIONS = [
+  { value: 'manufacturing', label: '制造业' },
+  { value: 'datacenter',    label: '数据中心' },
+  { value: 'chemical',      label: '化工' },
+  { value: 'energy',        label: '能源' },
+  { value: 'transportation',label: '交通' },
+  { value: 'tunnel_underground', label: '隧道/地下' },
+  { value: 'real_estate',   label: '地产' },
+  { value: 'hospitality',   label: '酒店' },
+  { value: 'government',    label: '政府' },
+  { value: 'education',     label: '教育' },
+  { value: 'healthcare',    label: '医疗' },
+  { value: 'technology',    label: '科技' },
+  { value: 'semiconductor', label: '半导体' },
+  { value: 'shipbuilding',  label: '造船' },
+  { value: 'finance',       label: '金融' },
+  { value: 'other',         label: '其他' },
+]
+const STATUS_OPTIONS = [
+  { value: '高度活跃', label: '高度活跃' },
+  { value: '活跃',     label: '活跃' },
+  { value: '正常',     label: '正常' },
+  { value: '待跟进',   label: '待跟进' },
+  { value: '休眠',     label: '休眠' },
+  { value: '流失',     label: '流失' },
+]
+const SOURCE_OPTIONS = computed(() =>
+  dictStore.list('report_source').map(d => ({ value: d.label, label: d.label }))
+  // source 后端存中文，所以 value 也用 label
+)
+const COMPANY_TYPE_OPTIONS = computed(() =>
+  dictStore.list('company_type').map(d => ({ value: d.key, label: d.label }))
+)
+
+// 显示用 label
+const companyTypeLabel = computed(() => dictStore.label('company_type', form.value.company_type))
+const industryLabel = computed(() => INDUSTRY_OPTIONS.find(o => o.value === form.value.industry)?.label || form.value.industry)
+
+// Picker 开关
+const showCompanyTypePicker = ref(false)
+const showIndustryPicker = ref(false)
+const showSourcePicker = ref(false)
+const showAddressPicker = ref(false)
+
+function onAddressSelect(d) {
+  form.value.country  = d.country
+  form.value.region   = d.region
+  form.value.city     = d.city
+  form.value.address  = d.address
+  form.value.latitude = d.latitude
+  form.value.longitude = d.longitude
+}
 
 async function load() {
   try {
@@ -32,6 +97,11 @@ async function load() {
       company_type: c.company_type || '',
       industry:     c.industry || '',
       address:      c.address || '',
+      country:      c.country || '',
+      region:       c.region  || '',
+      city:         c.city    || '',
+      latitude:     c.latitude  || null,
+      longitude:    c.longitude || null,
       status:       c.status || '活跃',
       source:       c.source || '',
     }
@@ -57,17 +127,8 @@ async function save() {
   }
 }
 
-async function archive() {
-  if (!confirm(`确认归档客户「${form.value.company_name}」？归档后不再出现在列表中。`)) return
-  archiving.value = true
-  try {
-    await archiveCustomer(route.params.id)
-    router.replace('/customers')
-  } catch (e) {
-    alert(e.response?.data?.message || '归档失败')
-  } finally {
-    archiving.value = false
-  }
+function archive() {
+  alert('归档功能开发中（流程未确定）')
 }
 
 function transferOwner() {
@@ -80,7 +141,11 @@ function deleteCustomer() {
     : '硬删除功能开发中，请先归档客户。')
 }
 
-onMounted(load)
+onMounted(() => {
+  dictStore.ensure('company_type')
+  dictStore.ensure('report_source')
+  load()
+})
 </script>
 
 <template>
@@ -117,23 +182,25 @@ onMounted(load)
         style="background: var(--color-card); border: 1px solid var(--color-divider);">
         <EditField label="公司名称" v-model="form.company_name"
           :focused="focusedKey === 'company_name'" @click="focusedKey = 'company_name'" />
-        <EditField label="企业类型" v-model="form.company_type"
-          :focused="focusedKey === 'company_type'" @click="focusedKey = 'company_type'" />
-        <EditField label="行业" v-model="form.industry" arrow
-          :focused="focusedKey === 'industry'" @click="focusedKey = 'industry'" />
-        <EditField label="地址" v-model="form.address"
-          :focused="focusedKey === 'address'" @click="focusedKey = 'address'" />
+        <EditField label="企业类型" :model-value="companyTypeLabel" arrow
+          :focused="focusedKey === 'company_type'"
+          @click="focusedKey = 'company_type'; showCompanyTypePicker = true" />
+        <EditField label="行业" :model-value="industryLabel" arrow
+          :focused="focusedKey === 'industry'"
+          @click="focusedKey = 'industry'; showIndustryPicker = true" />
+        <EditField label="地址" :model-value="form.address" arrow
+          :focused="focusedKey === 'address'"
+          @click="focusedKey = 'address'; showAddressPicker = true" />
       </div>
 
-      <!-- 分级 / 状态 -->
+      <!-- 来源 -->
       <div class="px-7 pt-5 pb-1 text-[11px] font-semibold uppercase"
-        style="color: var(--color-ink-3); letter-spacing: 1px;">分级</div>
+        style="color: var(--color-ink-3); letter-spacing: 1px;">来源</div>
       <div class="mx-5 rounded-2xl py-1"
         style="background: var(--color-card); border: 1px solid var(--color-divider);">
-        <EditField label="状态" v-model="form.status" arrow
-          :focused="focusedKey === 'status'" @click="focusedKey = 'status'" />
-        <EditField label="来源" v-model="form.source"
-          :focused="focusedKey === 'source'" @click="focusedKey = 'source'" />
+        <EditField label="来源" :model-value="form.source" arrow
+          :focused="focusedKey === 'source'"
+          @click="focusedKey = 'source'; showSourcePicker = true" />
       </div>
 
       <!-- 危险区 -->
@@ -148,10 +215,10 @@ onMounted(load)
             <path d="M1 1l4 4.5L1 10" stroke="var(--color-ink-3)" stroke-width="1.4" fill="none" stroke-linecap="round" />
           </svg>
         </button>
-        <button @click="archive" :disabled="archiving"
-          class="px-4 py-3.5 rounded-xl text-left text-[14px] active:opacity-70 disabled:opacity-40"
+        <button @click="archive"
+          class="px-4 py-3.5 rounded-xl text-left text-[14px] active:opacity-70"
           style="background: var(--color-card); border: 1px solid var(--color-divider); color: #A8533A;">
-          {{ archiving ? '归档中…' : '归档客户' }}
+          归档客户
         </button>
         <button @click="deleteCustomer"
           class="px-4 py-3.5 rounded-xl text-center text-[14px] font-medium active:opacity-70 mt-2"
@@ -162,5 +229,15 @@ onMounted(load)
 
       <div class="h-16" />
     </template>
+
+    <!-- Pickers -->
+    <PickerSheet v-model="showCompanyTypePicker" title="选择企业类型"
+      :options="COMPANY_TYPE_OPTIONS" v-model:selected="form.company_type" />
+    <PickerSheet v-model="showIndustryPicker" title="选择行业"
+      :options="INDUSTRY_OPTIONS" v-model:selected="form.industry" />
+    <PickerSheet v-model="showSourcePicker" title="选择来源"
+      :options="SOURCE_OPTIONS" v-model:selected="form.source" />
+    <AddressPickerSheet v-model="showAddressPicker"
+      :initial-address="form.address" @select="onAddressSelect" />
   </div>
 </template>

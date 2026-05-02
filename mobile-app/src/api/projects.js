@@ -17,3 +17,6 @@ export const checkProjectName = name =>
 
 export const createProject = data =>
   client.post('/mobile/projects', data)
+
+export const updateProject = (id, data) =>
+  client.patch(`/mobile/projects/${id}`, data)

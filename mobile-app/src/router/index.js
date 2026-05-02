@@ -12,6 +12,7 @@ const routes = [
       { path: 'projects', component: () => import('@/views/projects/ProjectListView.vue') },
       { path: 'projects/new', component: () => import('@/views/projects/ProjectCreateView.vue') },
       { path: 'projects/:id', component: () => import('@/views/projects/ProjectDetailView.vue') },
+      { path: 'projects/:id/edit', component: () => import('@/views/projects/ProjectEditView.vue') },
       { path: 'approval', component: () => import('@/views/approval/ApprovalView.vue') },
       { path: 'messages',           component: () => import('@/views/messages/ChatListView.vue') },
       { path: 'messages/ai',        component: () => import('@/views/messages/AiChatView.vue'),
