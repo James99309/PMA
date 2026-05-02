@@ -51,6 +51,17 @@ _STATUS_LABEL = {
 }
 
 
+def _source_label(key):
+    """source 字段映射到中文（复用 PMA 主系统字典）"""
+    if not key:
+        return ''
+    try:
+        from app.utils.dictionary_helpers import report_source_label
+        return report_source_label(key)
+    except Exception:
+        return key
+
+
 def _relative_date(d):
     """返回 '今天' / '昨天' / '本周' / '上周' / '本月' / '上月' 等相对描述"""
     if not d:
@@ -251,7 +262,7 @@ def mobile_customer_detail(company_id):
         'address':       company.address,
         'website':       getattr(company, 'website', None),
         'company_type':  company.company_type,
-        'source':        company.source,
+        'source':        _source_label(company.source) if company.source else '',
         'status':        _STATUS_LABEL.get(company.status, company.status or '正常'),
         'owner_name':    company.owner.real_name or company.owner.username if company.owner else '',
         'last_touch':    _relative_date(last_action_date),

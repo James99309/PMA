@@ -17,25 +17,22 @@ createApp(App).use(createPinia()).use(router).mount('#app')
 import { CapacitorUpdater } from '@capgo/capacitor-updater'
 CapacitorUpdater.notifyAppReady().catch(() => {})
 
-// iOS WebView 键盘弹起会把整个 WebView frame 上推（默认 KeyboardResize.Native 行为），
-// 导致顶部头被推进状态栏区域。下面强制把 window.scrollTop 锁回 0，
-// 让 iOS 不再上推，输入框依然由底部 flex 布局保持可见。
-function lockScroll() {
-  if (window.scrollY !== 0) window.scrollTo(0, 0)
-  if (document.scrollingElement) document.scrollingElement.scrollTop = 0
-  if (document.body) document.body.scrollTop = 0
+// ─── Capacitor Keyboard：用 Body 模式让键盘弹起时压缩页面
+// 防御性动态 import：如果原生层未安装该插件（旧 Xcode build），不会崩溃
+import { Capacitor } from '@capacitor/core'
+if (Capacitor.isNativePlatform()) {
+  import('@capacitor/keyboard')
+    .then(({ Keyboard, KeyboardResize }) => {
+      Keyboard.setResizeMode({ mode: KeyboardResize.Body }).catch(() => {})
+      Keyboard.setScroll({ isDisabled: true }).catch(() => {})
+      Keyboard.addListener('keyboardWillShow', (info) => {
+        document.documentElement.style.setProperty('--kb-height', `${info.keyboardHeight}px`)
+        document.documentElement.classList.add('kb-open')
+      })
+      Keyboard.addListener('keyboardWillHide', () => {
+        document.documentElement.style.setProperty('--kb-height', '0px')
+        document.documentElement.classList.remove('kb-open')
+      })
+    })
+    .catch((e) => console.warn('Keyboard plugin not installed natively:', e?.message))
 }
-window.addEventListener('focusin', (e) => {
-  const tag = e.target?.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA') {
-    // 聚焦后多次回调，对抗 iOS 异步 reflow
-    requestAnimationFrame(lockScroll)
-    setTimeout(lockScroll, 0)
-    setTimeout(lockScroll, 100)
-    setTimeout(lockScroll, 300)
-  }
-})
-window.addEventListener('focusout', () => {
-  setTimeout(lockScroll, 0)
-})
-window.addEventListener('scroll', lockScroll, { passive: true })

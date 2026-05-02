@@ -472,9 +472,9 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- CTA row — 推进按钮 + 48 方形 + 按钮（添加跟进） -->
+      <!-- CTA row — 推进按钮 + 跟进按钮 -->
       <div class="px-5 pb-2 flex gap-2.5">
-        <button v-if="canAdvanceStage" @click="openStagePicker"
+        <button v-if="canAdvanceStage" @click="openStagePicker" type="button"
           class="flex-1 h-12 rounded-2xl text-white text-[15px] font-semibold active:opacity-90"
           style="background: var(--color-accent); border: none;">
           推进到 {{ nextTrackStage?.label || '下一阶段' }} →
@@ -484,13 +484,15 @@ onMounted(() => {
           style="background: var(--color-card); color: var(--color-ink-3); border: 1px solid var(--color-divider);">
           {{ project.current_stage === 'signed' ? '已签约' : '项目已锁定' }}
         </div>
-        <button @click="openNoteBox"
-          class="w-12 h-12 rounded-2xl flex items-center justify-center active:bg-bg shrink-0"
-          style="background: var(--color-card); border: 1px solid var(--color-divider);">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+        <!-- 添加跟进快捷入口（与"跟进记录 +添加"等价） -->
+        <button @click="openNoteBox" type="button"
+          class="h-12 px-3.5 rounded-2xl flex items-center gap-1.5 active:opacity-70 shrink-0"
+          style="background: var(--color-card); border: 1px solid var(--color-divider); pointer-events: auto;">
+          <svg width="14" height="14" viewBox="0 0 18 18" fill="none" style="pointer-events: none;">
             <path d="M9 2v14M2 9h14" stroke="var(--color-ink-2)"
-              stroke-width="1.5" stroke-linecap="round" />
+              stroke-width="2" stroke-linecap="round" />
           </svg>
+          <span class="text-[12px]" style="color: var(--color-ink-2); pointer-events: none;">跟进</span>
         </button>
       </div>
 

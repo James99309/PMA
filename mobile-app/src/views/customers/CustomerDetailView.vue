@@ -132,25 +132,18 @@ onMounted(load)
 
       <!-- ─── CTA row ──────────────────────────────────── -->
       <div class="px-5 pb-2 flex gap-2.5">
-        <button @click="newProject"
+        <button @click="newProject" type="button"
           class="flex-1 h-12 rounded-2xl text-white text-[15px] font-semibold active:opacity-90"
           style="background: var(--color-accent); border: none;">
           新建项目 →
         </button>
-        <button @click="company.contacts?.[0]?.phone && callPhone(company.contacts[0].phone)"
-          class="w-12 h-12 rounded-2xl flex items-center justify-center active:bg-bg"
+        <button @click="showNoteBox = true" type="button"
+          class="h-12 px-3.5 rounded-2xl flex items-center gap-1.5 active:opacity-70 shrink-0"
           style="background: var(--color-card); border: 1px solid var(--color-divider);">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 2l2 3-1.5 1.5a8 8 0 004 4L9 9l3 2-1 2.5a1 1 0 01-1 .5C5.5 14 0 8.5 0 4a1 1 0 01.5-1L3 2z"
-              fill="var(--color-ink-2)" />
+          <svg width="14" height="14" viewBox="0 0 18 18" fill="none" style="pointer-events: none;">
+            <path d="M9 2v14M2 9h14" stroke="var(--color-ink-2)" stroke-width="2" stroke-linecap="round" />
           </svg>
-        </button>
-        <button class="w-12 h-12 rounded-2xl flex items-center justify-center active:bg-bg"
-          style="background: var(--color-card); border: 1px solid var(--color-divider);">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8h10M9 4l4 4-4 4" stroke="var(--color-ink-2)" stroke-width="1.5"
-              stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
+          <span class="text-[12px]" style="color: var(--color-ink-2); pointer-events: none;">跟进</span>
         </button>
       </div>
 

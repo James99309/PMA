@@ -11,8 +11,8 @@ echo "=== 1/3 · npm build ==="
 npm run build
 
 echo "=== 2/3 · 上传 bundle 到 Capgo ==="
-# 用时间戳生成唯一 bundle 版本号，每次必新
-BUNDLE_VER="0.0.$(date +%Y%m%d%H%M%S)"
+# 1.0.x 系列（须 ≥ native CFBundleShortVersionString=1.0），用时间戳保证唯一
+BUNDLE_VER="1.0.$(date +%Y%m%d%H%M%S)"
 echo "bundle version: $BUNDLE_VER"
 npx @capgo/cli@latest bundle upload \
   --bundle "$BUNDLE_VER" \

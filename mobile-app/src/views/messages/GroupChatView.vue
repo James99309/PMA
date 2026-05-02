@@ -326,9 +326,9 @@ onUnmounted(() => {
           <div v-if="m.recalled" class="text-[12px] italic"
             style="color: var(--color-ink-3);">你撤回了一条消息</div>
           <template v-else>
-            <div class="font-serif text-white max-w-[300px]"
-              style="background: var(--color-ink); border-radius: 14px 14px 4px 14px;
-                     padding: 10px 14px; font-size: 14px; line-height: 1.5;"
+            <div class="text-white max-w-[300px]"
+              style="background: var(--color-ink); border-radius: 18px 18px 4px 18px;
+                     padding: 9px 13px; font-size: 15px; line-height: 1.4; font-family: var(--font-sans);"
               @touchstart="lp.onTouchStart($event, m)"
               @touchmove="lp.onTouchMove"
               @touchend="lp.onTouchEnd"
@@ -352,10 +352,10 @@ onUnmounted(() => {
             <div v-if="m.recalled" class="text-[12px] italic"
               style="color: var(--color-ink-3);">{{ m.from }} 撤回了一条消息</div>
             <template v-else>
-              <div class="font-serif inline-block max-w-[300px]"
+              <div class="inline-block max-w-[300px]"
                 style="background: var(--color-card); border: 1px solid var(--color-divider);
-                       border-radius: 14px 14px 14px 4px; padding: 10px 14px;
-                       font-size: 14px; line-height: 1.45;"
+                       border-radius: 18px 18px 18px 4px; padding: 9px 13px;
+                       font-size: 15px; line-height: 1.4; font-family: var(--font-sans);"
                 @touchstart="lp.onTouchStart($event, m)"
                 @touchmove="lp.onTouchMove"
                 @touchend="lp.onTouchEnd"
@@ -464,8 +464,8 @@ onUnmounted(() => {
         :refs="mention.pendingRefs.value"
         @remove="mention.removeRef" />
 
-      <div class="px-3 py-3 flex items-center gap-2">
-        <button class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[18px]"
+      <div class="px-3 pt-3 pb-1 flex items-center gap-2">
+        <button class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[18px] shrink-0"
           style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">+</button>
         <div class="flex-1 rounded-full px-3.5 py-2.5 flex items-center gap-2"
           :style="{
@@ -473,17 +473,35 @@ onUnmounted(() => {
             border: mention.popoverVisible.value ? '1.5px solid var(--color-accent)' : '1px solid var(--color-divider-strong)',
           }">
           <input ref="inputRef" v-model="inputText" type="text"
-            placeholder="说点什么…  输入 @ # $ 引用"
+            placeholder="说点什么… 输入 @ 通知"
             @input="handleInput"
             @keyup.enter="send"
             :disabled="sending"
-            class="flex-1 bg-transparent outline-none font-serif text-[14px]"
-            style="color: var(--color-ink);" />
-          <span class="text-[11px]" style="color: var(--color-ink-4); font-family: ui-monospace, monospace;">@ # $</span>
+            class="flex-1 bg-transparent outline-none text-[15px]"
+            style="color: var(--color-ink); font-family: var(--font-sans);" />
         </div>
         <button v-if="inputText.trim()" @click="send" :disabled="sending"
-          class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[14px] font-bold text-white disabled:opacity-40"
+          class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[14px] font-bold text-white disabled:opacity-40 shrink-0"
           style="background: var(--color-accent);">↑</button>
+      </div>
+
+      <!-- 引用快捷入口：项目 / 客户 -->
+      <div class="px-4 pb-3 flex items-center gap-2">
+        <button @click="mention.openPicker('#')"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] active:opacity-70"
+          style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
+          <span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] text-white font-bold"
+            style="background: var(--color-ink);">#</span>
+          项目
+        </button>
+        <button @click="mention.openPicker('$')"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] active:opacity-70"
+          style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
+          <span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] text-white font-bold"
+            style="background: var(--color-accent);">$</span>
+          客户
+        </button>
+        <span class="ml-auto text-[10px]" style="color: var(--color-ink-4);">直接输入 @ 通知成员</span>
       </div>
     </div>
 

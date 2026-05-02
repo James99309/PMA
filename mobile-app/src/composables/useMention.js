@@ -1,10 +1,11 @@
 // 输入框 ↔ MentionPopover 联动 composable
-// 检测最后一个未关闭的 @/#/$ token，触发 popover open + 实时 query
-// 选中后替换该 token 为 trigger + 完整名称 + 空格
-// 同时跟踪 pendingRefs：用户选中 #/$ 时自动收集，发送时随消息附挂
+// - 输入 @ → 自动弹 popover（@ 通知是普遍习惯保留）
+// - # / $ 不再走输入文字触发，由外部图标按钮调 openPicker('#') / openPicker('$')
+// - @ 选中后留 @全名 token 在文字里；# / $ 选中后只挂卡片，不进文字
 import { ref, computed, watch } from 'vue'
 
-const TRIGGERS = ['@', '#', '$']
+// 仅 @ 触发输入文字检测；# / $ 改用图标按钮主动调用
+const TRIGGERS = ['@']
 
 export function useMention(inputRef) {
   const popoverVisible = ref(false)
@@ -14,7 +15,7 @@ export function useMention(inputRef) {
   // 待发引用（# 项目 / $ 客户），@ 人不挂卡所以不进
   const pendingRefs = ref([])
 
-  // 内部状态：当前 token 的起始位置（用于替换）
+  // 内部状态：当前 token 的起始位置（用于替换）；-1 = 无 token；-2 = 图标触发（无文字 token 要删）
   let tokenStart = -1
 
   /** input 值变化时调用，传入当前文本 + 光标位置 */
@@ -54,19 +55,43 @@ export function useMention(inputRef) {
     popoverVisible.value = true
   }
 
-  /** 用户在 popover 里点了一项，把 trigger+token 替换为 trigger+全称+空格 */
+  /** 由外部图标按钮调用：直接打开 # 或 $ 选择器，无文字 token */
+  function openPicker(type) {
+    if (type !== '#' && type !== '$') return
+    popoverType.value = type
+    popoverQuery.value = ''
+    tokenStart = -2  // 图标触发，无 token 文字要删
+    popoverVisible.value = true
+  }
+
+  /** 用户在 popover 里点了一项
+   * - @ 用户：把 @xxx 替换为 @全名+空格 留在文字里（@ 通知功能要保留 token）
+   * - # 项目 / $ 客户：仅挂卡片，不动输入文字（图标触发无 token；输入触发也直接清掉）
+   */
   function onSelect(payload, currentText, setText) {
     const { type, item } = payload
     if (tokenStart === -1) return
-    const before = currentText.slice(0, tokenStart)
-    const replacement = `${type}${item.name || item.no} `
-    const afterStart = tokenStart + 1 + popoverQuery.value.length
-    const after = currentText.slice(afterStart)
-    const newText = before + replacement + after
-    setText(newText)
+
+    if (type === '@') {
+      // @ 必走文字 token 替换
+      if (tokenStart < 0) { closePopover(); return }
+      const before = currentText.slice(0, tokenStart)
+      const afterStart = tokenStart + 1 + popoverQuery.value.length
+      const after = currentText.slice(afterStart)
+      const replacement = `${type}${item.name || item.no} `
+      setText(before + replacement + after)
+    } else {
+      // # / $ 只挂卡片
+      if (tokenStart >= 0) {
+        // 输入触发：清掉 #xxx 文字
+        const before = currentText.slice(0, tokenStart)
+        const afterStart = tokenStart + 1 + popoverQuery.value.length
+        const after = currentText.slice(afterStart)
+        setText(before + after)
+      }
+      pendingRefs.value.push(payload)
+    }
     closePopover()
-    // 自动收集 ref（@ 不挂卡）
-    if (type !== '@') pendingRefs.value.push(payload)
     inputRef.value?.focus?.()
   }
 
@@ -94,6 +119,7 @@ export function useMention(inputRef) {
     pendingRefs,
     onInput,
     onSelect,
+    openPicker,
     switchType,
     closePopover,
     removeRef,
