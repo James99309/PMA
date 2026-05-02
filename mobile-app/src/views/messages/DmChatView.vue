@@ -10,6 +10,7 @@ import MessageAttachment from '@/components/common/MessageAttachment.vue'
 import ChatPlusPanel from '@/components/common/ChatPlusPanel.vue'
 import VoiceRecordSheet from '@/components/common/VoiceRecordSheet.vue'
 import LocationSheet from '@/components/common/LocationSheet.vue'
+import { processImage } from '@/utils/imageProcessor'
 import PendingRefsPreview from '@/components/common/PendingRefsPreview.vue'
 import FileCard from '@/components/common/FileCard.vue'
 import VoiceMsg from '@/components/common/VoiceMsg.vue'
@@ -17,6 +18,7 @@ import MessageActions from '@/components/common/MessageActions.vue'
 import ReadReceipt from '@/components/common/ReadReceipt.vue'
 import { useMention } from '@/composables/useMention'
 import { useLongPress } from '@/composables/useLongPress'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 import { getMessages, sendMessage as apiSend, markAsRead, streamAi, uploadChatFile } from '@/api/chat'
 import { formatChatTime } from '@/utils/chatTime'
 
@@ -190,26 +192,35 @@ async function send() {
 
 // ── 附件上传 / + 面板 / 录音 / 位置 ──
 const showPlusPanel = ref(false)
+const inputFocused = ref(false)
+const { kbOffset } = useKeyboardOffset()
+function blurInput() {
+  if (inputRef.value) inputRef.value.blur()
+  showPlusPanel.value = false
+}
+// 延迟 blur，防止点击 chip 时先触发 blur 把 chip 隐藏导致点击落空
+let blurTimer = null
+function onComposerBlur() {
+  blurTimer = setTimeout(() => { inputFocused.value = false }, 150)
+}
+function onComposerFocus() {
+  if (blurTimer) { clearTimeout(blurTimer); blurTimer = null }
+  inputFocused.value = true
+  showPlusPanel.value = false
+}
 const showVoiceSheet = ref(false)
 const showLocationSheet = ref(false)
 const locationView = ref(null)        // {lat, lon} 用于查看模式
 const locationMode = ref('share')
 
-// 乐观插入"上传中"消息气泡 → 上传完成后替换为正式附件消息
-async function uploadAndSend(file, kind, fallbackName = null) {
-  if (!convId) return
+// 立即插入气泡（用原图预览）→ 后台压缩 + 上传
+function insertOptimistic(file, kind, meta) {
   const localId = `local-up-${Date.now()}-${Math.random()}`
-  // 本地预览：图片/视频用 blob URL，文件/语音用 meta
   const previewUrl = (kind === 'image') ? URL.createObjectURL(file) : ''
-  const meta = {
-    name: fallbackName || file.name || `chat_${kind}`,
-    size: file.size || 0,
-    ...(kind === 'voice' && file.duration ? { duration: file.duration } : {}),
-  }
   messages.value.push({
     id: localId,
     kind: 'me',
-    time: '刚刚',
+    time: formatChatTime(new Date().toISOString()),
     text: '',
     attachment: {
       type: kind === 'voice' ? 'voice' : (kind === 'image' ? 'image' : 'file'),
@@ -218,49 +229,67 @@ async function uploadAndSend(file, kind, fallbackName = null) {
     },
     _local: true,
     _uploading: true,
+    _previewUrl: previewUrl,
+    _content: '',
     _created_at_ms: Date.now(),
   })
-  await scrollToBottom()
+  scrollToBottom()
+  return localId
+}
 
+async function processAndUpload(localId, file, kind, meta) {
+  if (!convId) return
+  let toUpload = file
+  // 图片：后台压缩 + EXIF 翻正
+  if (kind === 'image') {
+    try { toUpload = await processImage(file) } catch {}
+  }
   try {
-    const r = await uploadChatFile(file, kind, fallbackName)
+    const r = await uploadChatFile(toUpload, kind, meta.name)
     const data = r.data?.data || r.data
     if (!data?.file_url) throw new Error('上传失败')
-    // 上传成功 → 标记 _local 为 sent（轮询会插入服务器版并替换本地的）
     const local = messages.value.find(m => m.id === localId)
     if (local) {
       local._uploading = false
-      local._content = ''  // 服务器消息匹配靠 _content；附件消息正文为空
+      local._serverFileUrl = data.file_url   // 用作 server 消息精准匹配
     }
     await apiSend(convId, '', null, null, {
       message_type: kind === 'voice' ? 'voice' : (kind === 'image' ? 'image' : 'file'),
       file_url: data.file_url,
-      file_meta: { ...meta, duration: meta.duration },
+      file_meta: { ...meta, size: toUpload.size || meta.size },
     })
   } catch (e) {
-    const idx = messages.value.findIndex(m => m.id === localId)
-    if (idx >= 0) messages.value[idx]._error = e?.message || '上传失败'
+    const local = messages.value.find(m => m.id === localId)
+    if (local) local._error = e?.message || '上传失败'
     alert('上传失败：' + (e?.message || e))
   } finally {
-    if (previewUrl) {
-      // 5 秒后回收本地 blob URL（保证服务器版加载好）
-      setTimeout(() => URL.revokeObjectURL(previewUrl), 8000)
+    const local = messages.value.find(m => m.id === localId)
+    if (local?._previewUrl) {
+      setTimeout(() => URL.revokeObjectURL(local._previewUrl), 8000)
     }
   }
 }
 
-async function onPickImages(files) {
+function onPickImages(files) {
   showPlusPanel.value = false
-  // 并发上传（独立气泡），不阻塞 UI
-  files.forEach(f => uploadAndSend(f, 'image'))
+  // 立即所有原图气泡插入；压缩+上传都在背景里跑
+  for (const f of files) {
+    const meta = { name: f.name || 'image', size: f.size || 0 }
+    const id = insertOptimistic(f, 'image', meta)
+    processAndUpload(id, f, 'image', meta)
+  }
 }
-async function onPickCamera(file) {
+function onPickCamera(file) {
   showPlusPanel.value = false
-  uploadAndSend(file, 'image')
+  const meta = { name: file.name || 'photo.jpg', size: file.size || 0 }
+  const id = insertOptimistic(file, 'image', meta)
+  processAndUpload(id, file, 'image', meta)
 }
-async function onPickFile(file) {
+function onPickFile(file) {
   showPlusPanel.value = false
-  uploadAndSend(file, 'file')
+  const meta = { name: file.name || 'file', size: file.size || 0 }
+  const id = insertOptimistic(file, 'file', meta)
+  processAndUpload(id, file, 'file', meta)
 }
 function onRequestShareLocation() {
   showPlusPanel.value = false
@@ -290,11 +319,10 @@ async function sendLocation(lat, lon) {
 async function onSendVoice(blob, durationSec) {
   const ext = (blob.type.includes('webm') ? 'webm' : 'm4a')
   const fname = `voice_${Date.now()}.${ext}`
-  blob.duration = durationSec  // 透传给乐观气泡的 meta
-  // 包装为 File 以复用 uploadAndSend
   const f = new File([blob], fname, { type: blob.type })
-  f.duration = durationSec
-  await uploadAndSend(f, 'voice', fname)
+  const meta = { name: fname, size: f.size, duration: durationSec }
+  const id = insertOptimistic(f, 'voice', meta)
+  processAndUpload(id, f, 'voice', meta)
 }
 
 // ── 消息长按 actions ──
@@ -322,13 +350,14 @@ function appendBackendMessage(m) {
   let displayText = m.content
   let attachedRefs
   let attachment
+  const isAttachment = ['image', 'file', 'voice', 'location'].includes(m.message_type)
   if (m.message_type === 'text_refs' && m.content) {
     try {
       const payload = JSON.parse(m.content)
       displayText = payload.text || ''
       attachedRefs = payload.refs || null
     } catch {}
-  } else if (['image', 'file', 'voice', 'location'].includes(m.message_type)) {
+  } else if (isAttachment) {
     let payload = {}
     try { payload = m.content ? JSON.parse(m.content) : {} } catch {}
     displayText = payload.text || ''
@@ -348,10 +377,18 @@ function appendBackendMessage(m) {
 
   // 如果是自己发的消息，找匹配的本地乐观消息 → 替换
   if (isMine) {
-    const localIdx = messages.value.findIndex(x =>
-      x._local && x._content === displayText &&
-      Math.abs((x._created_at_ms || 0) - newMsg._created_at_ms) < 30000
-    )
+    let localIdx = -1
+    if (isAttachment && m.file_url) {
+      // 附件消息：上传完成后我们把 file_url 写到 local._serverFileUrl，靠它精准匹配
+      localIdx = messages.value.findIndex(x => x._local && x._serverFileUrl === m.file_url)
+    }
+    if (localIdx < 0) {
+      // 文本消息：用 _content + 30s 时间窗
+      localIdx = messages.value.findIndex(x =>
+        x._local && x._content === displayText &&
+        Math.abs((x._created_at_ms || 0) - newMsg._created_at_ms) < 30000
+      )
+    }
     if (localIdx >= 0) {
       messages.value[localIdx] = newMsg
       return false
@@ -425,19 +462,40 @@ function messageStatus(m) {
   return 'delivered'
 }
 
+function startPolling() {
+  if (msgPollTimer) return
+  msgPollTimer = setInterval(() => {
+    if (document.visibilityState === 'hidden') return
+    pollNewMessages()
+  }, 5000)
+}
+function stopPolling() {
+  if (msgPollTimer) { clearInterval(msgPollTimer); msgPollTimer = null }
+}
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') pollNewMessages()
+}
+
 onMounted(async () => {
   await scrollToBottom()
   await loadHistory()
-  msgPollTimer = setInterval(pollNewMessages, 3000)
+  startPolling()
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
 onUnmounted(() => {
-  if (msgPollTimer) clearInterval(msgPollTimer)
+  stopPolling()
+  document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>
 
 <template>
-  <div class="flex flex-col h-full" style="background: var(--color-bg);">
+  <div class="flex flex-col h-full"
+    :style="{
+      background: 'var(--color-bg)',
+      paddingBottom: kbOffset + 'px',
+      transition: 'padding-bottom 0.25s cubic-bezier(.25,.46,.45,.94)',
+    }">
 
     <!-- Nav -->
     <div class="flex items-center gap-2.5 px-4 py-2 shrink-0"
@@ -460,7 +518,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Messages -->
-    <div ref="scrollEl" class="flex-1 overflow-y-auto py-3">
+    <div ref="scrollEl" class="flex-1 overflow-y-auto py-3" @click="blurInput">
       <template v-for="m in messages" :key="m.id">
 
         <!-- 日期分隔条 -->
@@ -527,6 +585,7 @@ onUnmounted(() => {
               <MessageAttachment v-if="m.attachment"
                 :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
                 @view-location="onViewLocation"
+                @media-loaded="scrollToBottom"
                 :class="m.text ? 'mt-1.5' : ''" />
               <!-- 文件 -->
               <FileCard v-if="m.file" v-bind="m.file" :inverted="false" />
@@ -556,7 +615,8 @@ onUnmounted(() => {
           <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''">
             <MessageAttachment inverted
               :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
-              @view-location="onViewLocation" />
+              @view-location="onViewLocation"
+              @media-loaded="scrollToBottom" />
             <span v-if="m._uploading"
               class="absolute inset-0 rounded-xl flex items-center justify-center pointer-events-none"
               style="background: rgba(0,0,0,0.45);">
@@ -653,12 +713,15 @@ onUnmounted(() => {
 
       <div class="px-3 pt-3 pb-1 flex items-center gap-2">
         <button type="button" @click="showPlusPanel = !showPlusPanel"
-          class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[18px] shrink-0 transition-transform"
+          class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[18px] shrink-0"
           :style="{
-            background: 'var(--color-bg)',
-            border: '1px solid var(--color-divider-strong)',
-            color: 'var(--color-ink-2)',
+            background: showPlusPanel ? 'var(--color-ink)' : 'var(--color-bg)',
+            border: showPlusPanel ? '1px solid var(--color-ink)' : '1px solid var(--color-divider-strong)',
+            color: showPlusPanel ? '#fff' : 'var(--color-ink-2)',
             transform: showPlusPanel ? 'rotate(45deg)' : 'none',
+            transition: 'transform 0.2s ease, background 0.2s ease, color 0.2s ease',
+            fontWeight: 200,
+            lineHeight: 1,
           }">+</button>
         <div class="flex-1 rounded-full px-3.5 py-2.5 flex items-center gap-2"
           :style="{
@@ -669,7 +732,8 @@ onUnmounted(() => {
             :placeholder="`给${peer.name}回复…`"
             @input="handleInput"
             @keyup.enter="send"
-            @focus="showPlusPanel = false"
+            @focus="onComposerFocus"
+            @blur="onComposerBlur"
             :disabled="sending"
             class="flex-1 bg-transparent outline-none text-[15px]"
             style="color: var(--color-ink); font-family: var(--font-sans);" />
@@ -695,16 +759,16 @@ onUnmounted(() => {
         @pick-file="onPickFile"
         @share-location="onRequestShareLocation" />
 
-      <!-- 引用快捷入口：项目 / 客户 -->
-      <div class="px-4 pb-3 flex items-center gap-2">
-        <button @click="mention.openPicker('#')"
+      <!-- 引用快捷入口：项目 / 客户（始终渲染、靠 display 切换避免聚焦时 mount 延迟）-->
+      <div v-show="inputFocused" class="px-4 pb-3 flex items-center gap-2">
+        <button @mousedown.prevent @click="mention.openPicker('#')"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] active:opacity-70"
           style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
           <span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] text-white font-bold"
             style="background: var(--color-ink);">#</span>
           项目
         </button>
-        <button @click="mention.openPicker('$')"
+        <button @mousedown.prevent @click="mention.openPicker('$')"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] active:opacity-70"
           style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
           <span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] text-white font-bold"

@@ -11,17 +11,22 @@ const props = defineProps({
   meta: { type: Object, default: () => ({}) },// { name, size, duration?, lat?, lon? }
   inverted: { type: Boolean, default: false },
 })
-const emit = defineEmits(['view-location', 'view-image'])
+const emit = defineEmits(['view-location', 'view-image', 'media-loaded'])
+
+// 模块级缓存 baseURL + token，避免每次渲染都读 localStorage / 改正则
+const _baseHost = (client.defaults.baseURL || '').replace(/\/api\/v1\/?$/, '')
+let _cachedToken = null
+function _getToken() {
+  if (_cachedToken == null) _cachedToken = localStorage.getItem('access_token') || ''
+  return _cachedToken
+}
 
 // 把后端返回的相对 URL 拼成完整地址，并把 JWT 作为 ?token= 注入（用于 img/audio 直接访问）
 const fullUrl = computed(() => {
   if (!props.url) return ''
   if (/^https?:\/\//.test(props.url)) return props.url
-  // axios baseURL = `${BASE_URL}/api/v1`，但 file_url 已含 /api/v1 前缀
-  const base = (client.defaults.baseURL || '').replace(/\/api\/v1\/?$/, '')
   const sep = props.url.includes('?') ? '&' : '?'
-  const token = localStorage.getItem('access_token') || ''
-  return `${base}${props.url}${sep}token=${encodeURIComponent(token)}`
+  return `${_baseHost}${props.url}${sep}token=${encodeURIComponent(_getToken())}`
 })
 
 function fmtSize(b) {
@@ -66,7 +71,8 @@ function openMap() {
     style="max-width: 220px; max-height: 280px;">
     <img :src="fullUrl" alt="" loading="lazy"
       class="block w-full h-auto"
-      @click="openFile" />
+      @click="openFile"
+      @load="emit('media-loaded')" />
   </div>
 
   <!-- ── 文件 ── -->

@@ -129,8 +129,7 @@ const bars = Array.from({ length: 38 }, (_, i) => {
           <div class="flex items-center justify-between mb-3">
             <span class="inline-flex items-center gap-1.5 text-[12px]"
               style="color: var(--color-ink-3);">
-              <span v-if="recording" class="w-[7px] h-[7px] rounded-full"
-                style="background: #C44; animation: vrPulse 1.2s infinite;" />
+              <span v-if="recording" class="w-[7px] h-[7px] rounded-full vr-pulse-dot" />
               <span v-else class="w-[7px] h-[7px] rounded-full"
                 style="background: var(--color-ink-4);" />
               {{ recording ? '录音中' : (blob ? '已录制' : '准备录音') }}
@@ -138,20 +137,16 @@ const bars = Array.from({ length: 38 }, (_, i) => {
             <span class="text-[14px] font-semibold tabular"
               style="color: var(--color-ink);">{{ display }}</span>
           </div>
-          <style>@keyframes vrPulse { 0%,100%{opacity:.4} 50%{opacity:1} }</style>
 
           <!-- 波形显示区 -->
           <div class="rounded-[18px] flex items-center justify-center gap-[3px] h-[70px] px-4"
+            :class="{ 'vr-bars-active': recording, 'vr-bars-rest': !recording && !blob, 'vr-bars-recorded': blob }"
             :style="{
               background: 'var(--color-card)',
               border: '1px solid var(--color-divider)',
             }">
-            <span v-for="(h, i) in bars" :key="i"
-              :style="{
-                width: '3px', height: h+'px', borderRadius: '2px',
-                background: 'var(--color-accent)',
-                opacity: recording ? (Math.random() > 0.3 ? 1 : 0.35) : (blob ? 0.85 : 0.25),
-              }" />
+            <span v-for="(h, i) in bars" :key="i" class="vr-bar"
+              :style="{ height: h + 'px', '--vr-delay': (i * 60) + 'ms' }" />
           </div>
 
           <!-- 已录制 → 试听 -->
@@ -202,4 +197,24 @@ const bars = Array.from({ length: 38 }, (_, i) => {
 <style scoped>
 .sheet-enter-active, .sheet-leave-active { transition: opacity .2s ease; }
 .sheet-enter-from, .sheet-leave-to       { opacity: 0; }
+
+@keyframes vrPulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+.vr-pulse-dot { background: #C44; animation: vrPulse 1.2s infinite; }
+
+.vr-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  opacity: 0.25;
+}
+.vr-bars-recorded .vr-bar { opacity: 0.85; }
+
+@keyframes vrFlick {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+.vr-bars-active .vr-bar {
+  animation: vrFlick 0.6s ease-in-out infinite;
+  animation-delay: var(--vr-delay);
+}
 </style>

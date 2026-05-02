@@ -23,7 +23,8 @@ import { Capacitor } from '@capacitor/core'
 if (Capacitor.isNativePlatform()) {
   import('@capacitor/keyboard')
     .then(({ Keyboard, KeyboardResize }) => {
-      Keyboard.setResizeMode({ mode: KeyboardResize.Body }).catch(() => {})
+      // None 模式：webview/body 都不自动 resize → 由各页面 composer 用 kbOffset 同步 transform
+      Keyboard.setResizeMode({ mode: KeyboardResize.None }).catch(() => {})
       Keyboard.setScroll({ isDisabled: true }).catch(() => {})
       Keyboard.addListener('keyboardWillShow', (info) => {
         document.documentElement.style.setProperty('--kb-height', `${info.keyboardHeight}px`)
