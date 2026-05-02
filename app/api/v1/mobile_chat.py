@@ -79,7 +79,7 @@ def mobile_chat_messages(conv_id):
         return api_response(success=False, code=500, message=str(e))
 
 
-# ─── 4. 发文本消息 ────────────────────────────────────────────────
+# ─── 4. 发文本/附件消息 ───────────────────────────────────────────
 @api_v1_bp.route('/mobile/chat/conversations/<int:conv_id>/messages', methods=['POST'])
 @jwt_required()
 def mobile_chat_send(conv_id):
@@ -89,17 +89,123 @@ def mobile_chat_send(conv_id):
     try:
         data = request.get_json() or {}
         content = (data.get('content') or '').strip()
-        if not content:
+        msg_type = data.get('message_type') or 'text'
+        file_url = data.get('file_url')
+        # 文本消息要求非空；附件消息允许 content 为空
+        if msg_type == 'text' and not content:
             return api_response(success=False, code=400, message="消息内容不能为空")
+        if msg_type in ('image', 'file', 'voice', 'location') and not (file_url or msg_type == 'location'):
+            return api_response(success=False, code=400, message="附件消息缺少 file_url")
         return jsonify(chat_service.send_message(
             conversation_id=conv_id,
             sender_id=user_id,
             content=content,
             reply_to_id=data.get('reply_to_id'),
-            refs=data.get('refs'),  # 项目/客户引用卡
+            refs=data.get('refs'),
+            message_type=msg_type,
+            file_url=file_url,
+            file_meta=data.get('file_meta'),
         ))
     except Exception as e:
         logger.error(f"mobile chat send error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
+
+
+# ─── 4b. 上传附件（图片/文件/语音）──────────────────────────────
+@api_v1_bp.route('/mobile/chat/upload', methods=['POST'])
+@jwt_required()
+def mobile_chat_upload():
+    """multipart/form-data 上传到 NAS chat 桶, 返回 file_url + meta"""
+    user, user_id = _current_user()
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+    f = request.files.get('file')
+    if not f:
+        return api_response(success=False, code=400, message="未提供文件")
+    kind = (request.form.get('kind') or 'file').lower()  # image / file / voice
+    file_type = {'image': 'image', 'voice': 'audio'}.get(kind, 'attachment')
+    try:
+        from app.utils.smart_storage_manager import get_smart_storage
+        storage = get_smart_storage()
+        result = storage.upload_file(
+            object_id=user_id,
+            file=f.stream,
+            filename=f.filename or f'chat_{kind}',
+            file_type=file_type,
+            bucket_type='chat',
+            business_type='chat',
+        )
+        if not result or not result.get('url'):
+            return api_response(success=False, code=500, message="上传失败")
+        # 估算大小（multipart 已读取 stream，回到结果里）
+        size = 0
+        try:
+            f.stream.seek(0, 2); size = f.stream.tell(); f.stream.seek(0)
+        except Exception:
+            pass
+        # 用 mobile-only 下载端点封装 path（带 JWT 鉴权），避免依赖 web session
+        from urllib.parse import quote
+        nas_path = result.get('nas_path') or result.get('storage_path') or ''
+        # 去掉 bucket 前缀（chat_files/...）— 下载端点会重新拼
+        rel_path = nas_path.split('/', 1)[1] if '/' in nas_path else nas_path
+        file_url = f'/api/v1/mobile/chat/file?path={quote(rel_path)}'
+        return jsonify({
+            'success': True,
+            'data': {
+                'file_url': file_url,
+                'file_name': f.filename,
+                'file_size': size,
+                'kind': kind,
+            },
+        })
+    except Exception as e:
+        logger.error(f"mobile chat upload error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
+
+
+# ─── 4c. 下载附件（JWT 鉴权代理 NAS 文件）─────────────────────
+@api_v1_bp.route('/mobile/chat/file', methods=['GET'])
+def mobile_chat_file():
+    """聊天附件下载代理。
+    支持两种鉴权：JWT（Authorization header）或 ?token=<jwt>（用于 <img src> / <audio src>）
+    """
+    # 手动校验 JWT（支持 query 参数）
+    from flask_jwt_extended import decode_token
+    token = request.headers.get('Authorization', '').replace('Bearer ', '') or request.args.get('token', '')
+    if not token:
+        return api_response(success=False, code=401, message="缺少 token")
+    try:
+        decode_token(token)
+    except Exception:
+        return api_response(success=False, code=401, message="token 无效")
+
+    rel_path = request.args.get('path', '')
+    if not rel_path or '..' in rel_path or rel_path.startswith('/'):
+        return api_response(success=False, code=400, message="非法路径")
+    bucket_type = 'chat'
+    try:
+        from app.utils.smart_storage_manager import get_smart_storage
+        storage = get_smart_storage()
+        nas_subdir = storage.bucket_mapping.get(bucket_type, bucket_type)
+        full_path = f'{nas_subdir}/{rel_path}'
+        data = storage.download_file(full_path, bucket_type=bucket_type)
+        if not data:
+            return api_response(success=False, code=404, message="文件不存在")
+        # 推断 content type
+        ext = (rel_path.rsplit('.', 1)[-1] or '').lower()
+        ct = {
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+            'gif': 'image/gif', 'webp': 'image/webp',
+            'mp4': 'video/mp4', 'm4a': 'audio/mp4', 'webm': 'audio/webm',
+            'mp3': 'audio/mpeg', 'wav': 'audio/wav',
+            'pdf': 'application/pdf',
+        }.get(ext, 'application/octet-stream')
+        return Response(data, mimetype=ct, headers={
+            'Cache-Control': 'private, max-age=3600',
+            'Content-Disposition': f'inline; filename="{rel_path.split("/")[-1]}"',
+        })
+    except Exception as e:
+        logger.error(f"mobile chat file download error: {e}", exc_info=True)
         return api_response(success=False, code=500, message=str(e))
 
 

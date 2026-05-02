@@ -11,11 +11,28 @@ export const deleteConversation  = id => client.delete(`/mobile/chat/conversatio
 // 消息
 export const getMessages = (convId, params = {}) =>
   client.get(`/mobile/chat/conversations/${convId}/messages`, { params })
-export const sendMessage = (convId, content, replyToId = null, refs = null) =>
+export const sendMessage = (convId, content, replyToId = null, refs = null, attachment = null) =>
   client.post(`/mobile/chat/conversations/${convId}/messages`, {
-    content, reply_to_id: replyToId,
+    content,
+    reply_to_id: replyToId,
     ...(refs?.length ? { refs } : {}),
+    ...(attachment ? {
+      message_type: attachment.message_type,
+      file_url: attachment.file_url,
+      file_meta: attachment.file_meta,
+    } : {}),
   })
+
+// 上传附件到 NAS chat 桶（图片 / 文件 / 语音）
+// kind: 'image' | 'file' | 'voice'
+export function uploadChatFile(file, kind = 'file', filename = null) {
+  const fd = new FormData()
+  fd.append('file', file, filename || file.name || `chat_${kind}`)
+  fd.append('kind', kind)
+  return client.post('/mobile/chat/upload', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+}
 export const markAsRead  = convId => client.post(`/mobile/chat/conversations/${convId}/read`)
 export const recallMessage = msgId => client.post(`/mobile/chat/messages/${msgId}/recall`)
 export const forwardMessage = (msgId, targetConvIds = [], userIds = [], note = null) =>

@@ -8,13 +8,16 @@ import PixelP from '@/components/common/PixelP.vue'
 import MentionPopover from '@/components/common/MentionPopover.vue'
 import MessageText from '@/components/common/MessageText.vue'
 import MessageRefs from '@/components/common/MessageRefs.vue'
+import MessageAttachment from '@/components/common/MessageAttachment.vue'
+import ChatPlusPanel from '@/components/common/ChatPlusPanel.vue'
+import VoiceRecordSheet from '@/components/common/VoiceRecordSheet.vue'
 import PendingRefsPreview from '@/components/common/PendingRefsPreview.vue'
 import StageAdvanceCard from '@/components/common/StageAdvanceCard.vue'
 import MessageActions from '@/components/common/MessageActions.vue'
 import { useLongPress } from '@/composables/useLongPress'
 import { useChatStore } from '@/stores/chat'
 import { useMention } from '@/composables/useMention'
-import { getMessages, sendMessage as apiSend, markAsRead, streamAi, getConversation } from '@/api/chat'
+import { getMessages, sendMessage as apiSend, markAsRead, streamAi, getConversation, uploadChatFile } from '@/api/chat'
 import { formatChatTime } from '@/utils/chatTime'
 
 const inputRef = ref(null)
@@ -157,6 +160,63 @@ async function send() {
   sending.value = false
 }
 
+// ── 附件上传 / + 面板 / 录音 ──
+const showPlusPanel = ref(false)
+const showVoiceSheet = ref(false)
+const uploading = ref(false)
+function _convId() { return /^\d+$/.test(String(groupId)) ? Number(groupId) : null }
+
+async function uploadAndSend(file, kind, fallbackName = null) {
+  const cid = _convId()
+  if (!cid || uploading.value) return
+  uploading.value = true
+  try {
+    const r = await uploadChatFile(file, kind, fallbackName)
+    const data = r.data?.data || r.data
+    if (!data?.file_url) throw new Error('上传失败')
+    await apiSend(cid, '', null, null, {
+      message_type: kind === 'voice' ? 'voice' : (kind === 'image' ? 'image' : 'file'),
+      file_url: data.file_url,
+      file_meta: { name: data.file_name, size: data.file_size },
+    })
+  } catch (e) {
+    alert('发送失败：' + (e?.message || e))
+  } finally {
+    uploading.value = false
+  }
+}
+async function onPickImages(files) { showPlusPanel.value = false; for (const f of files) await uploadAndSend(f, 'image') }
+async function onPickCamera(file)  { showPlusPanel.value = false; await uploadAndSend(file, 'image') }
+async function onPickFile(file)    { showPlusPanel.value = false; await uploadAndSend(file, 'file') }
+async function onShareLocation({ lat, lon }) {
+  showPlusPanel.value = false
+  const cid = _convId()
+  if (!cid) return
+  try {
+    await apiSend(cid, '', null, null, {
+      message_type: 'location', file_url: null, file_meta: { lat, lon },
+    })
+  } catch (e) { alert('发送失败：' + (e?.message || e)) }
+}
+async function onSendVoice(blob, durationSec) {
+  const cid = _convId()
+  if (!cid) return
+  const ext = blob.type.includes('webm') ? 'webm' : 'm4a'
+  const fname = `voice_${Date.now()}.${ext}`
+  uploading.value = true
+  try {
+    const r = await uploadChatFile(blob, 'voice', fname)
+    const data = r.data?.data || r.data
+    if (!data?.file_url) throw new Error('上传失败')
+    await apiSend(cid, '', null, null, {
+      message_type: 'voice', file_url: data.file_url,
+      file_meta: { name: fname, size: data.file_size, duration: durationSec },
+    })
+  } finally {
+    uploading.value = false
+  }
+}
+
 // 已知本地最新消息时间（增量轮询用）
 let lastMsgIso = null
 
@@ -176,12 +236,18 @@ function appendBackendMessage(m) {
   // 解析带引用卡的消息：content 是 JSON {text, refs}
   let displayText = m.content
   let attachedRefs
+  let attachment
   if (isTextRefs && m.content) {
     try {
       const payload = JSON.parse(m.content)
       displayText = payload.text || ''
       attachedRefs = payload.refs || null
     } catch {}
+  } else if (['image', 'file', 'voice', 'location'].includes(m.message_type)) {
+    let payload = {}
+    try { payload = m.content ? JSON.parse(m.content) : {} } catch {}
+    displayText = payload.text || ''
+    attachment = { type: m.message_type, url: m.file_url || '', meta: payload }
   }
 
   if (isStageAdv) {
@@ -208,6 +274,7 @@ function appendBackendMessage(m) {
     time: formatChatTime(m.created_at),
     text: displayText,
     refs: attachedRefs || undefined,
+    attachment,
     _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
     recalled: !!m.is_deleted,
   })
@@ -352,9 +419,12 @@ onUnmounted(() => {
               @touchend="lp.onTouchEnd"
               @touchcancel="lp.onTouchCancel">
               <span v-if="m.mention" class="font-semibold" style="color: #5FA5FF;">{{ m.mention }}&nbsp;</span>
-              <MessageText :text="m.text" inverted />
+              <MessageText v-if="m.text" :text="m.text" inverted />
               <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
             </div>
+            <MessageAttachment v-if="m.attachment" inverted
+              :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
+              :class="m.text ? 'mt-1.5' : ''" />
             <div class="text-[10px] mt-1" style="color: var(--color-ink-3);">{{ m.time }}</div>
           </template>
         </div>
@@ -381,9 +451,12 @@ onUnmounted(() => {
                 <span v-if="m.mention === true || m.mention === '@我'" class="font-semibold"
                   style="color: var(--color-accent);">@我&nbsp;</span>
                 <span v-else-if="typeof m.mention === 'string' && m.mention !== '@我'" class="font-semibold" style="color: #2F66D6;">{{ m.mention }}&nbsp;</span>
-                <MessageText :text="m.text" />
+                <MessageText v-if="m.text" :text="m.text" />
                 <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
               </div>
+              <MessageAttachment v-if="m.attachment"
+                :type="m.attachment.type" :url="m.attachment.url" :meta="m.attachment.meta"
+                :class="m.text ? 'mt-1.5' : ''" />
             </template>
           </div>
         </div>
@@ -483,8 +556,14 @@ onUnmounted(() => {
         @remove="mention.removeRef" />
 
       <div class="px-3 pt-3 pb-1 flex items-center gap-2">
-        <button class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[18px] shrink-0"
-          style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">+</button>
+        <button type="button" @click="showPlusPanel = !showPlusPanel"
+          class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[18px] shrink-0 transition-transform"
+          :style="{
+            background: 'var(--color-bg)',
+            border: '1px solid var(--color-divider-strong)',
+            color: 'var(--color-ink-2)',
+            transform: showPlusPanel ? 'rotate(45deg)' : 'none',
+          }">+</button>
         <div class="flex-1 rounded-full px-3.5 py-2.5 flex items-center gap-2"
           :style="{
             background: 'var(--color-bg)',
@@ -494,6 +573,7 @@ onUnmounted(() => {
             placeholder="说点什么… 输入 @ 通知"
             @input="handleInput"
             @keyup.enter="send"
+            @focus="showPlusPanel = false"
             :disabled="sending"
             class="flex-1 bg-transparent outline-none text-[15px]"
             style="color: var(--color-ink); font-family: var(--font-sans);" />
@@ -501,7 +581,24 @@ onUnmounted(() => {
         <button v-if="inputText.trim()" @click="send" :disabled="sending"
           class="w-9 h-9 rounded-full inline-flex items-center justify-center text-[14px] font-bold text-white disabled:opacity-40 shrink-0"
           style="background: var(--color-accent);">↑</button>
+        <button v-else type="button" @click="showVoiceSheet = true"
+          class="w-9 h-9 rounded-full inline-flex items-center justify-center shrink-0"
+          style="background: var(--color-bg); border: 1px solid var(--color-divider-strong);">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="6" y="2" width="4" height="8" rx="2" stroke="var(--color-ink-2)" stroke-width="1.4"/>
+            <path d="M3.5 8a4.5 4.5 0 009 0M8 12.5V14" stroke="var(--color-ink-2)" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
+
+      <ChatPlusPanel v-if="showPlusPanel"
+        @pick-image="onPickImages"
+        @pick-camera="onPickCamera"
+        @pick-file="onPickFile"
+        @share-location="onShareLocation" />
+
+      <div v-if="uploading" class="text-center text-[12px] py-1.5"
+        style="color: var(--color-ink-3); background: var(--color-bg);">上传中…</div>
 
       <!-- 引用快捷入口：项目 / 客户 -->
       <div class="px-4 pb-3 flex items-center gap-2">
@@ -530,6 +627,9 @@ onUnmounted(() => {
       @close="closeActions"
       @recalled="onRecalled"
       @forwarded="onForwarded" />
+
+    <!-- 语音录制 sheet -->
+    <VoiceRecordSheet v-model="showVoiceSheet" :send="onSendVoice" />
   </div>
 </template>
 

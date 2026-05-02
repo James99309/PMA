@@ -633,7 +633,8 @@ def get_messages(conversation_id, user_id, since=None, limit=50):
 # 6. 发送消息
 # ---------------------------------------------------------------------------
 
-def send_message(conversation_id, sender_id, content, reply_to_id=None, refs=None):
+def send_message(conversation_id, sender_id, content, reply_to_id=None, refs=None,
+                 message_type='text', file_url=None, file_meta=None):
     """
     发送消息到对话。
 
@@ -641,9 +642,13 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None, refs=Non
         refs: optional list of {type:'#'|'$', item:{...}} —— 项目/客户引用卡
               如果有 refs，message_type 设为 'text_refs'，content 序列化为
               JSON {"text": <原文>, "refs": [...]}
+        message_type: 'text' / 'image' / 'file' / 'voice' / 'location'
+        file_url:   附件 URL（NAS 路径），image/file/voice 时必填
+        file_meta:  dict {name, size, duration?, lat?, lon?} → 序列化进 content
     """
     try:
-        if not content or not content.strip():
+        is_attachment = message_type in ('image', 'file', 'voice', 'location')
+        if not is_attachment and (not content or not content.strip()):
             return {'success': False, 'message': '消息内容不能为空'}
 
         # 验证参与者身份
@@ -654,18 +659,24 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None, refs=Non
         if not participant:
             return {'success': False, 'message': '您不是该对话的参与者'}
 
-        # 检测语言
-        source_lang = detect_language(content)
+        # 检测语言（仅文本时）
+        source_lang = detect_language(content) if content else None
 
-        # 引用附件 → 序列化进 content + message_type='text_refs'
-        msg_type = 'text'
-        msg_content = content.strip()
-        if refs:
+        # 决定最终 message_type / content
+        msg_type = message_type or 'text'
+        msg_content = (content or '').strip()
+        if refs and not is_attachment:
             msg_type = 'text_refs'
             msg_content = json.dumps(
-                {'text': content.strip(), 'refs': refs},
+                {'text': msg_content, 'refs': refs},
                 ensure_ascii=False,
             )
+        elif is_attachment:
+            # 附件 meta 与可选说明文字打包进 content（前端按 type 解析）
+            payload = {'text': msg_content}
+            if file_meta:
+                payload.update(file_meta)
+            msg_content = json.dumps(payload, ensure_ascii=False)
 
         # 创建消息
         message = ChatMessage(
@@ -675,6 +686,7 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None, refs=Non
             message_type=msg_type,
             source_language=source_lang,
             reply_to_id=reply_to_id,
+            file_url=file_url,
         )
         db.session.add(message)
 
