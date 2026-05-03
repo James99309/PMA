@@ -75,6 +75,7 @@ def wiki_page():
         'knowledge/tw_wiki.html',
         is_admin=_is_admin(),
         is_dept_manager=getattr(current_user, 'is_department_manager', False),
+        current_user_id=current_user.id,
     )
 
 

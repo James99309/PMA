@@ -333,6 +333,60 @@
                         </div>
                     </div>
                     <div class="wiki-md prose prose-slate dark:prose-invert max-w-none" x-html="renderedContent"></div>
+
+                    <!-- 图片管理面板 (L1: 替换) -->
+                    <template x-if="currentArticle.image_manifest && currentArticle.image_manifest.length > 0 && canEditCurrentArticle()">
+                        <details class="mt-6 border border-slate-200 dark:border-slate-800 rounded-lg" :open="imagePanelOpen">
+                            <summary class="px-4 py-2 cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-300 select-none flex items-center gap-2">
+                                <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                <span>{{ _('图片管理') }}</span>
+                                <span class="text-xs text-slate-400" x-text="`(${currentArticle.image_manifest.length} {{ _('张') }})`"></span>
+                                <span x-show="currentArticle.manually_edited"
+                                      class="ml-auto inline-flex px-2 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                    {{ _('已手工编辑') }}
+                                </span>
+                            </summary>
+                            <div class="p-4 space-y-3 border-t border-slate-100 dark:border-slate-800">
+                                <p class="text-xs text-slate-500">
+                                    {{ _('替换图片会备份原版到 .history/，并把文章标记为「已手工编辑」（重新编译时不会自动覆盖）。') }}
+                                </p>
+                                <template x-for="img in currentArticle.image_manifest" :key="img.index">
+                                    <div class="flex items-start gap-3 p-2 border border-slate-100 dark:border-slate-800 rounded">
+                                        <img :src="`/api/wiki/articles/${currentArticle.id}/asset/${img.path}`"
+                                             :alt="img.caption || ''"
+                                             class="w-24 h-24 object-cover rounded shadow-sm bg-slate-50 dark:bg-slate-800"
+                                             loading="lazy">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-xs text-slate-500" x-text="`#${img.index} · ${img.path}`"></div>
+                                            <div class="text-sm font-medium truncate" x-text="img.caption || '{{ _('（无说明）') }}'"></div>
+                                            <div class="text-[11px] text-slate-400 mt-1">
+                                                <span x-show="img.manually_replaced"
+                                                      class="inline-flex px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                                                    {{ _('已替换') }}
+                                                </span>
+                                                <span x-show="img.replaced_at" x-text="'· ' + formatDate(img.replaced_at)"></span>
+                                                <span x-show="img.size_bytes"
+                                                      x-text="'· ' + Math.round((img.size_bytes || 0) / 1024) + ' KB'"></span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <button type="button"
+                                                    @click="triggerImageReplace(img.index)"
+                                                    :disabled="replacingImageIndex === img.index"
+                                                    class="px-3 py-1.5 text-xs font-medium rounded bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50">
+                                                <span x-show="replacingImageIndex !== img.index">{{ _('替换') }}</span>
+                                                <span x-show="replacingImageIndex === img.index">{{ _('上传中...') }}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                                <input type="file" x-ref="imageReplaceInput" accept="image/*" class="hidden" @change="handleImageReplaceFile">
+                            </div>
+                        </details>
+                    </template>
                 </div>
             </template>
         </section>
@@ -882,6 +936,12 @@ function wikiApp() {
         renderedContent: '',
         loadingArticle: false,
 
+        // ── 图片管理面板 ─────────────────
+        imagePanelOpen: false,
+        replacingImageIndex: null,
+        _pendingReplaceIndex: null,
+        currentUserId: {{ current_user_id|tojson }},
+
         // ── 问答 ─────────────────
         chatExpanded: false,
         chatMessages: [],
@@ -1071,6 +1131,66 @@ function wikiApp() {
                 console.error(e);
             } finally {
                 this.loadingArticle = false;
+            }
+        },
+
+        // ── 图片管理 ─────────────────
+        canEditCurrentArticle() {
+            if (!this.currentArticle) return false;
+            {% if is_admin %}return true;{% endif %}
+            return this.currentArticle.owner_id === this.currentUserId;
+        },
+
+        triggerImageReplace(index) {
+            this._pendingReplaceIndex = index;
+            this.$refs.imageReplaceInput.value = '';
+            this.$refs.imageReplaceInput.click();
+        },
+
+        async handleImageReplaceFile(ev) {
+            const file = ev.target.files && ev.target.files[0];
+            const index = this._pendingReplaceIndex;
+            if (!file || index == null || !this.currentArticle) return;
+            if (!file.type.startsWith('image/')) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('请选择图片文件') }}', message: file.type });
+                return;
+            }
+            this.replacingImageIndex = index;
+            try {
+                const fd = new FormData();
+                fd.append('image', file);
+                const r = await fetch(
+                    `/api/wiki/articles/${this.currentArticle.id}/image/${index}/replace`,
+                    { method: 'POST', body: fd, credentials: 'same-origin' }
+                );
+                const j = await r.json();
+                if (!r.ok || !j.success) {
+                    openConfirmModal('wikiConfirmModal', {
+                        title: '{{ _('替换失败') }}',
+                        message: j.message || `HTTP ${r.status}`,
+                    });
+                    return;
+                }
+                // Update manifest entry locally
+                const i = this.currentArticle.image_manifest.findIndex(m => m.index === index);
+                if (i >= 0) this.currentArticle.image_manifest[i] = j.image;
+                this.currentArticle.manually_edited = true;
+                // Force img refresh by appending a cache-busting param
+                const ts = Date.now();
+                this.currentArticle.image_manifest = this.currentArticle.image_manifest.map(m =>
+                    m.index === index ? { ...m, _v: ts } : m
+                );
+                // Re-render with cache-bust marker so <img> reloads
+                const baseHtml = this.renderArticleMarkdown(this.currentArticle.content || '', this.currentArticle.id);
+                this.renderedContent = baseHtml.replaceAll(
+                    `/api/wiki/articles/${this.currentArticle.id}/asset/${j.image.path}`,
+                    `/api/wiki/articles/${this.currentArticle.id}/asset/${j.image.path}?v=${ts}`,
+                );
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('替换失败') }}', message: String(e) });
+            } finally {
+                this.replacingImageIndex = null;
+                this._pendingReplaceIndex = null;
             }
         },
 
