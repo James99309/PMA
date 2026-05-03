@@ -436,6 +436,63 @@ def serve_article_asset(article_id, rel):
     return send_file(str(abs_path))
 
 
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/image/<int:index>/replace', methods=['POST'])
+@login_required
+def replace_article_image_endpoint(article_id, index):
+    """替换文章 image_manifest 中指定 index 的图片。
+
+    旧文件备份到 _assets/<slug>/.history/，更新 manifest 条目，并将
+    article.manually_edited 置为 True。
+    """
+    from datetime import datetime
+    from app.services.wiki.scope import can_manage_article
+
+    art = KnowledgeWikiArticle.query.get_or_404(article_id)
+    if not can_manage_article(current_user, art):
+        return jsonify({'success': False, 'message': '无权编辑此文章'}), 403
+
+    f = request.files.get('image')
+    if not f or not (f.mimetype or '').startswith('image/'):
+        return jsonify({'success': False, 'message': '请上传图片文件 (image/*)'}), 400
+
+    manifest = list(art.image_manifest or [])
+    entry = next((m for m in manifest if m.get('index') == index), None)
+    if entry is None:
+        return jsonify({'success': False, 'message': f'图片 index={index} 不在 manifest 中'}), 404
+
+    data = f.read()
+    MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+    if len(data) == 0:
+        return jsonify({'success': False, 'message': '上传文件为空'}), 400
+    if len(data) > MAX_BYTES:
+        return jsonify({'success': False, 'message': f'文件过大 (>{MAX_BYTES // 1024 // 1024}MB)'}), 400
+
+    try:
+        new_rel = storage.replace_article_image(art.topic, art.slug, index, data, f.mimetype)
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+    entry['path'] = new_rel
+    entry['manually_replaced'] = True
+    entry['replaced_at'] = datetime.utcnow().isoformat()
+    entry['sha256'] = storage.sha256_bytes(data)
+    entry['size_bytes'] = len(data)
+    # 用全新 list[dict] 触发 SQLAlchemy JSON 列变更检测（直接 mutate 嵌套 dict
+    # 不会被识别为 dirty）；为安全起见再显式 flag_modified
+    from sqlalchemy.orm.attributes import flag_modified
+    art.image_manifest = [dict(m) for m in manifest]
+    flag_modified(art, 'image_manifest')
+    art.manually_edited = True
+    db.session.commit()
+
+    logger.info(
+        f'[Wiki] user={current_user.id} replaced image article_id={art.id} '
+        f'topic={art.topic} slug={art.slug} index={index} '
+        f'size={len(data)} sha256={entry["sha256"][:8]}'
+    )
+    return jsonify({'success': True, 'image': entry, 'manually_edited': True})
+
+
 @knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>', methods=['DELETE'])
 @login_required
 def delete_article(article_id):
