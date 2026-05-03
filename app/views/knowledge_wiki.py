@@ -23,7 +23,7 @@ Blueprint: knowledge_wiki_bp  url_prefix: ''  (前端页面和 /api/wiki/* 混�
 import logging
 import threading
 
-from flask import Blueprint, jsonify, render_template, request, current_app
+from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort
 from flask_login import current_user, login_required
 
 from app import db
@@ -33,7 +33,7 @@ from app.models.message import Message
 from app.models.user import User
 from app.services.file_manager_service import FileManagerService
 from app.services.wiki import compiler, linter, querier, storage
-from app.services.wiki.paths import ensure_wiki_structure
+from app.services.wiki.paths import ensure_wiki_structure, get_wiki_dir
 
 logger = logging.getLogger(__name__)
 
@@ -398,6 +398,42 @@ def get_article(article_id):
     if not art:
         return jsonify({'success': False, 'message': '文章不存在'}), 404
     return jsonify({'success': True, 'data': art.to_dict(include_content=True)})
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/asset/<path:rel>')
+@login_required
+def serve_article_asset(article_id, rel):
+    """Serve an image from wiki/<topic>/_assets/<slug>/...
+
+    Guards:
+    - login_required (above)
+    - 用户必须对该文章有可见权限（复用 visible_articles_query）
+    - 路径穿越防护：rel 必须以 _assets/<slug>/ 开头，且解析后必须在 wiki/<topic>/ 目录内
+    """
+    from app.services.wiki.scope import visible_articles_query
+
+    art = visible_articles_query(current_user).filter(
+        KnowledgeWikiArticle.id == article_id
+    ).first()
+    if art is None:
+        # 文章不存在或用户无权限 —— 一律 404，避免泄露存在性
+        abort(404)
+
+    expected_prefix = f'_assets/{art.slug}/'
+    if '..' in rel or not rel.startswith(expected_prefix):
+        abort(400)
+
+    base = (get_wiki_dir() / art.topic).resolve()
+    abs_path = (get_wiki_dir() / art.topic / rel).resolve()
+    try:
+        abs_path.relative_to(base)
+    except ValueError:
+        abort(400)
+
+    if not abs_path.is_file():
+        abort(404)
+
+    return send_file(str(abs_path))
 
 
 @knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>', methods=['DELETE'])
