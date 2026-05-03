@@ -58,7 +58,7 @@ def query_wiki(
     Returns:
         {
             'answer': str,              # Claude 回答的 Markdown
-            'cited_articles': [...],    # [{id, topic, slug, title}, ...]
+            'cited_articles': [...],    # [{id, topic, slug, title, summary, images}, ...]
             'usage': {...},
             'search_hit_count': int,    # 全文检索命中数（0 = 退化）
         }
@@ -99,6 +99,10 @@ def query_wiki(
             'slug': art.slug,
             'title': art.title,
             'summary': art.summary,
+            'images': [
+                {'index': m['index'], 'path': m['path'], 'caption': m.get('caption', '')}
+                for m in (art.image_manifest or [])
+            ],
         })
 
     # 4. 组装 prompt
