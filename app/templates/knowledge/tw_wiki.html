@@ -422,7 +422,7 @@
                         <div class="max-w-[85%] px-3 py-2 text-sm"
                              :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai wiki-md'"
                              @click="msg.role === 'ai' && handleChatLinkClick($event)"
-                             x-html="msg.role === 'user' ? escapeHtml(msg.text) : renderChatMarkdown(msg.text)"></div>
+                             x-html="msg.role === 'user' ? escapeHtml(msg.text) : renderChatMarkdown(msg.text, msg.citedSlugMap)"></div>
                     </div>
                 </template>
                 <div x-show="chatLoading" class="flex">
@@ -1318,7 +1318,14 @@ function wikiApp() {
                 });
                 const j = await r.json();
                 if (j.success) {
-                    this.chatMessages.push({ role: 'ai', text: j.data.answer });
+                    const cited = j.data.cited_articles || [];
+                    const slugMap = {};
+                    for (const c of cited) slugMap[c.slug] = c.id;
+                    this.chatMessages.push({
+                        role: 'ai',
+                        text: j.data.answer,
+                        citedSlugMap: slugMap,
+                    });
                 } else {
                     this.chatMessages.push({ role: 'ai', text: '❌ ' + (j.message || '{{ _('请求失败') }}') });
                 }
@@ -1811,11 +1818,34 @@ function wikiApp() {
         // `<a href="topic/slug.md">xxx.md</a>` 的引用改造成：
         //   - 文本替换为文章 title（LLM 若把 slug.md 当文本时修正）
         //   - href 置 '#' + data-article-id，由 handleChatLinkClick 拦截
-        renderChatMarkdown(text) {
+        renderChatMarkdown(text, citedSlugMap) {
             const html = this.renderMarkdown(text);
             if (!html) return '';
             const wrap = document.createElement('div');
             wrap.innerHTML = html;
+
+            // 重写图片路径 (_assets/<slug>/...) → /api/wiki/articles/<id>/asset/_assets/<slug>/...
+            // citedSlugMap: {slug: article_id} 来自 cited_articles
+            const map = citedSlugMap || {};
+            wrap.querySelectorAll('img').forEach(img => {
+                const src = (img.getAttribute('src') || '').trim();
+                const m = src.match(/^_assets\/([^\/]+)\//);
+                if (!m) return;
+                const slug = m[1];
+                const articleId = map[slug];
+                if (!articleId) {
+                    // slug 未在 cited_articles 中 — 兜底用 findArticleByTopicSlug
+                    const art = this.findArticleByTopicSlug('', slug);
+                    if (!art) return;
+                    img.setAttribute('src', `/api/wiki/articles/${art.id}/asset/${src}`);
+                } else {
+                    img.setAttribute('src', `/api/wiki/articles/${articleId}/asset/${src}`);
+                }
+                const cls = (img.getAttribute('class') || '') + ' my-2 rounded-lg shadow-sm max-w-full h-auto';
+                img.setAttribute('class', cls.trim());
+                img.setAttribute('loading', 'lazy');
+            });
+
             wrap.querySelectorAll('a').forEach(a => {
                 const href = (a.getAttribute('href') || '').trim();
                 // 允许 ./topic/slug.md 或 topic/slug.md 或 slug.md
