@@ -1371,6 +1371,10 @@ def wiki_article(article_id):
             return jsonify({'error': f'文章 {article_id} 不存在'}), 404
 
         content = storage.read_article_content(art.file_path)
+        images = [
+            {'index': m['index'], 'path': m['path'], 'caption': m.get('caption', '')}
+            for m in (art.image_manifest or [])
+        ]
         return jsonify({
             'id': art.id,
             'title': art.title,
@@ -1378,10 +1382,46 @@ def wiki_article(article_id):
             'summary': art.summary,
             'content': content,
             'updated_at': art.updated_at.isoformat() if art.updated_at else None,
+            'images': images,
+            'asset_base_url': f'/internal/api/wiki/articles/{art.id}/asset/',
         })
     except Exception as e:
         logger.exception(f'[internal_api] wiki_article error: {e}')
         return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 18b-asset: 知识库文章图片资产（内部 API 版）
+# GET /internal/api/wiki/articles/<id>/asset/<path:rel>
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/wiki/articles/<int:article_id>/asset/<path:rel>', methods=['GET'])
+@internal_auth_required
+def wiki_article_asset(article_id, rel):
+    """Serve an image from wiki/<topic>/_assets/<slug>/...
+    Internal API variant — uses internal_auth_required (not session login).
+    """
+    from flask import send_file, abort
+    from app.services.wiki.paths import get_wiki_dir
+    from app.models.knowledge import KnowledgeWikiArticle
+
+    art = KnowledgeWikiArticle.query.get(article_id)
+    if art is None:
+        abort(404)
+
+    expected_prefix = f'_assets/{art.slug}/'
+    if '..' in rel or not rel.startswith(expected_prefix):
+        abort(400)
+
+    abs_path = (get_wiki_dir() / art.topic / rel).resolve()
+    base = (get_wiki_dir() / art.topic).resolve()
+    try:
+        abs_path.relative_to(base)
+    except ValueError:
+        abort(400)
+    if not abs_path.is_file():
+        abort(404)
+    return send_file(str(abs_path))
 
 
 # ---------------------------------------------------------------------------
@@ -1426,6 +1466,11 @@ def wiki_search():
                 'topic': art.topic,
                 'summary': art.summary,
                 'preview': preview,
+                'images': [
+                    {'index': m['index'], 'path': m['path'], 'caption': m.get('caption', '')}
+                    for m in (art.image_manifest or [])
+                ],
+                'asset_base_url': f'/internal/api/wiki/articles/{art.id}/asset/',
             })
 
         return jsonify({
