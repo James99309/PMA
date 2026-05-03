@@ -141,6 +141,17 @@ class KnowledgeWikiArticle(db.Model):
 
     last_compiled_at = Column(DateTime, nullable=True)
     compile_model = Column(String(100), nullable=True)  # 记录用了哪个 Claude 模型
+
+    # 图片清单：从原始文档抽取的图片元数据
+    image_manifest = Column(JSON, nullable=True)
+    # 结构: [{'index': 1, 'path': '_assets/<slug>/img-1.png',
+    #         'caption': str, 'source': {'type': 'docx_para', 'paragraph_index': 12},
+    #         'manually_replaced': False, 'replaced_at': None,
+    #         'sha256': str, 'size_bytes': int}, ...]
+
+    # 是否已被人工编辑（编辑后再次编译时需保护）
+    manually_edited = Column(Boolean, nullable=False, default=False, server_default='false')
+
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
 
@@ -171,6 +182,8 @@ class KnowledgeWikiArticle(db.Model):
             'outbound_refs': self.outbound_refs or [],
             'last_compiled_at': self.last_compiled_at.isoformat() if self.last_compiled_at else None,
             'compile_model': self.compile_model,
+            'image_manifest': self.image_manifest or [],
+            'manually_edited': bool(self.manually_edited),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'scope': self.scope,
