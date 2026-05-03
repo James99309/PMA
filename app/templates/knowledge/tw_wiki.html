@@ -53,6 +53,7 @@
         .wiki-md a:hover { color: rgb(14,99,184); }
         .wiki-md hr { border: 0; border-top: 1px solid rgb(226 232 240); margin: 1rem 0; }
         .dark .wiki-md hr { border-color: rgb(51 65 85); }
+        .wiki-md img { display: block; margin-left: auto; margin-right: auto; max-height: 600px; }
 
         /* 聊天区域 */
         .chat-bubble-user { background: rgb(19,127,236); color: white; border-radius: 14px 14px 4px 14px; }
@@ -1059,7 +1060,7 @@ function wikiApp() {
                 const j = await r.json();
                 if (j.success) {
                     this.currentArticle = j.data;
-                    this.renderedContent = this.renderMarkdown(j.data.content || '');
+                    this.renderedContent = this.renderArticleMarkdown(j.data.content || '', id);
                     this.markAsRead(id);
                     if (j.data.topic && !this.expandedTopics.includes(j.data.topic)) {
                         this.expandedTopics.push(j.data.topic);
@@ -1650,6 +1651,27 @@ function wikiApp() {
             const div = document.createElement('div');
             div.textContent = s || '';
             return div.innerHTML;
+        },
+
+        // 渲染文章正文：在 renderMarkdown 基础上，把 _assets/<slug>/img-N.<ext> 形式的相对路径
+        // 重写为 /api/wiki/articles/<id>/asset/<rel>，让浏览器经过权限校验后的路由获取图片字节。
+        // 注意：仅文章详情场景调用，AI 答案/索引场景仍用 renderMarkdown。
+        renderArticleMarkdown(text, articleId) {
+            const html = this.renderMarkdown(text);
+            if (!html || !articleId) return html;
+            const wrap = document.createElement('div');
+            wrap.innerHTML = html;
+            wrap.querySelectorAll('img').forEach(img => {
+                const src = (img.getAttribute('src') || '').trim();
+                if (src.startsWith('_assets/')) {
+                    img.setAttribute('src', `/api/wiki/articles/${articleId}/asset/${src}`);
+                    // Tailwind 内联样式：圆角、阴影、最大宽度，避免破坏排版
+                    const cls = (img.getAttribute('class') || '') + ' my-3 rounded-lg shadow-sm max-w-full h-auto';
+                    img.setAttribute('class', cls.trim());
+                    img.setAttribute('loading', 'lazy');
+                }
+            });
+            return wrap.innerHTML;
         },
 
         // 在 tree 中按 topic+slug 定位文章；topic 为空时跨 topic 兜底
