@@ -709,3 +709,157 @@ def test_ingest_failure_after_image_persist_rolls_back_assets(app_ctx, wiki_root
         KnowledgeWikiArticle.query.filter_by(slug=slug).delete()
         KnowledgeRawFile.query.filter_by(id=raw_id).delete()
         db.session.commit()
+
+
+def test_ingest_skips_manually_edited_article_by_default(app_ctx, wiki_root):
+    """When an article is manually_edited, a fresh ingest must NOT overwrite it."""
+    import json
+    from unittest.mock import MagicMock
+    from app import db
+    from app.models import User
+    from app.models.file_manager import FileLibrary
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki.compiler import ingest_raw_file
+    from app.services.wiki.storage import save_raw_file, write_article
+
+    admin = User.query.filter_by(role='admin').first()
+    fl = FileLibrary.query.first()
+
+    # Pre-populate an article with manually_edited=True and a known body
+    write_article('product', 'test-protected-article', '# Protected\n\nORIGINAL BODY\n')
+    art = KnowledgeWikiArticle(
+        topic='product', slug='test-protected-article',
+        title='Protected', file_path='wiki/product/test-protected-article.md',
+        summary='protected', content_length=20, scope='company', owner_id=admin.id,
+        manually_edited=True,
+    )
+    db.session.add(art)
+    db.session.commit()
+    art_id = art.id
+
+    raw_path = save_raw_file('product', '2026-05-03-test-protected.md', b'# Some new material')
+    raw = KnowledgeRawFile(
+        file_library_id=fl.id, topic='product', raw_path=raw_path,
+        title='New material targeting protected article', added_by=admin.id,
+        owner_id=admin.id,
+    )
+    db.session.add(raw)
+    db.session.commit()
+    raw_id = raw.id
+
+    try:
+        # Mock Claude to attempt update of the protected article
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text=json.dumps({
+                'operations': [{
+                    'action': 'update',
+                    'topic': 'product',
+                    'slug': 'test-protected-article',
+                    'title': 'Should not stick',
+                    'content': '# OVERWRITTEN BODY\n',
+                    'summary': 's',
+                    'source_raw_ids': [raw_id],
+                    'outbound_refs': [],
+                    'rationale': 't',
+                }],
+                'index_update': '# Index\n',
+                'log_entry': 'attempt overwrite',
+            }, ensure_ascii=False),
+            usage={'input_tokens': 10, 'output_tokens': 5, 'model': 'test'},
+        )
+
+        result = ingest_raw_file(raw_id, claude=fake)
+
+        # Op marked as noop with reason
+        ops = result['operations']
+        assert any(op.get('skipped_reason') == 'manually_edited' for op in ops)
+
+        # Body unchanged
+        from app.services.wiki.storage import read_article_content
+        body = read_article_content('wiki/product/test-protected-article.md')
+        assert 'ORIGINAL BODY' in body
+        assert 'OVERWRITTEN' not in body
+
+        # Article record fields unchanged
+        db.session.refresh(art)
+        assert art.title == 'Protected'
+        assert art.manually_edited is True
+
+    finally:
+        KnowledgeWikiArticle.query.filter_by(id=art_id).delete()
+        KnowledgeRawFile.query.filter_by(id=raw_id).delete()
+        db.session.commit()
+
+
+def test_ingest_force_true_overrides_manually_edited(app_ctx, wiki_root):
+    """force=True allows overwriting a manually_edited article."""
+    import json
+    from unittest.mock import MagicMock
+    from app import db
+    from app.models import User
+    from app.models.file_manager import FileLibrary
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki.compiler import ingest_raw_file
+    from app.services.wiki.storage import save_raw_file, write_article, read_article_content
+
+    admin = User.query.filter_by(role='admin').first()
+    fl = FileLibrary.query.first()
+
+    write_article('product', 'test-force-article', '# Protected\n\nORIGINAL BODY\n')
+    art = KnowledgeWikiArticle(
+        topic='product', slug='test-force-article',
+        title='Protected', file_path='wiki/product/test-force-article.md',
+        summary='protected', content_length=20, scope='company', owner_id=admin.id,
+        manually_edited=True,
+    )
+    db.session.add(art)
+    db.session.commit()
+    art_id = art.id
+
+    raw_path = save_raw_file('product', '2026-05-03-test-force.md', b'# Some new material')
+    raw = KnowledgeRawFile(
+        file_library_id=fl.id, topic='product', raw_path=raw_path,
+        title='Force overwrite test', added_by=admin.id,
+        owner_id=admin.id,
+    )
+    db.session.add(raw)
+    db.session.commit()
+    raw_id = raw.id
+
+    try:
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text=json.dumps({
+                'operations': [{
+                    'action': 'update',
+                    'topic': 'product',
+                    'slug': 'test-force-article',
+                    'title': 'Force-updated',
+                    'content': '# OVERWRITTEN BODY\n',
+                    'summary': 's',
+                    'source_raw_ids': [raw_id],
+                    'outbound_refs': [],
+                    'rationale': 't',
+                }],
+                'index_update': '# Index\n',
+                'log_entry': 'force overwrite',
+            }, ensure_ascii=False),
+            usage={'input_tokens': 10, 'output_tokens': 5, 'model': 'test'},
+        )
+
+        result = ingest_raw_file(raw_id, claude=fake, force=True)
+
+        # No skip reason
+        ops = result['operations']
+        assert not any(op.get('skipped_reason') == 'manually_edited' for op in ops)
+
+        # Body now contains OVERWRITTEN
+        body = read_article_content('wiki/product/test-force-article.md')
+        assert 'OVERWRITTEN' in body
+        assert 'ORIGINAL BODY' not in body
+
+    finally:
+        KnowledgeWikiArticle.query.filter_by(id=art_id).delete()
+        KnowledgeRawFile.query.filter_by(id=raw_id).delete()
+        db.session.commit()

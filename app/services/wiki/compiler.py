@@ -50,6 +50,7 @@ def ingest_raw_file(
     raw_file_id: int,
     *,
     claude: claude_client.WikiClaudeClient | None = None,
+    force: bool = False,
 ) -> dict:
     """把一个原始文件编译入 Wiki。
 
@@ -234,7 +235,7 @@ def ingest_raw_file(
         _apply_operations(operations, raw_id=raw.id, rollback_state=rollback_state,
                          scope=raw.scope, owner_id=raw.owner_id,
                          owner_department=raw.owner_department,
-                         op_manifests=op_manifests)
+                         op_manifests=op_manifests, force=force)
 
         # 9. 写 index.md（记入 rollback_state 以便失败恢复）
         index_updated = False
@@ -724,7 +725,8 @@ def _persist_embedded_images_and_rewrite_md(
 def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: dict,
                       scope: str = 'company', owner_id: int = 1,
                       owner_department: str | None = None,
-                      op_manifests: dict[int, list[dict]] | None = None):
+                      op_manifests: dict[int, list[dict]] | None = None,
+                      force: bool = False):
     """把 Claude 返回的 operations 应用到 Wiki（磁盘 + 数据库）。
 
     支持三种 action：
@@ -776,6 +778,14 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                 topic=topic, slug=slug
             ).first()
             if existing_art is not None:
+                # Respect manual edits (Task 13): skip if user has hand-edited this article and force=False.
+                if existing_art.manually_edited and not force:
+                    op['skipped_reason'] = 'manually_edited'
+                    op['action'] = 'noop'
+                    logger.info(
+                        f'[Ingest] skipping {topic}/{slug} — manually_edited=True (force=False)'
+                    )
+                    continue
                 old_content = storage.read_article_content(existing_art.file_path)
                 updated_backups[existing_art.file_path] = old_content
                 # 更新已有记录,不创建新 row(避免 unique constraint 冲突)
@@ -856,6 +866,14 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                 )
                 db.session.add(art)
             else:
+                # Respect manual edits (Task 13): skip if user has hand-edited this article and force=False.
+                if art.manually_edited and not force:
+                    op['skipped_reason'] = 'manually_edited'
+                    op['action'] = 'noop'
+                    logger.info(
+                        f'[Ingest] skipping {topic}/{slug} — manually_edited=True (force=False)'
+                    )
+                    continue
                 # 备份旧正文用于回滚
                 old_content = storage.read_article_content(art.file_path)
                 updated_backups[art.file_path] = old_content
