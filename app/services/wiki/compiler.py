@@ -224,10 +224,10 @@ def ingest_raw_file(
             except storage.WikiPathError as e:
                 raise IngestError(f'Claude 返回的 operations[{i}] 非法: {e}') from e
 
-        # 7.5 落盘嵌入图 + 重写 AUTO_IMG: 占位符（仅 text 模式；vision 模式 Task 6 处理）
+        # 7.5 落盘嵌入图 + 重写 AUTO_IMG: 占位符（text 和 vision 两种模式都走这里）
         op_manifests = _persist_embedded_images_and_rewrite_md(
             operations,
-            raw_content.embedded_images if not is_vision else [],
+            raw_content.embedded_images,
             rollback_state,
         )
 
@@ -443,6 +443,21 @@ def _build_ingest_vision_prompt(
             context_parts.append('')
 
     blocks.append({'type': 'text', 'text': '\n'.join(context_parts)})
+
+    # 嵌入图片清单 - 教 Claude 如何用 AUTO_IMG:N 引用各页（与 text 模式 docx 一致）
+    if images:
+        img_list_lines = [
+            '',
+            '## 嵌入图片清单',
+            '上述每页 PNG 在文章正文中可用 `![描述](AUTO_IMG:N)` 引用，N 为页码。'
+            '请按 system prompt「图片处理规则」就近放置，每张图给一个简洁有信息的中文 caption。',
+            '',
+        ]
+        for img in images:
+            img_list_lines.append(
+                f'- 图 #{img["page"] + 1}: 来自 PDF 第 {img["page"] + 1} 页, 类型 {img["media_type"]}'
+            )
+        blocks.append({'type': 'text', 'text': '\n'.join(img_list_lines)})
 
     return blocks
 
@@ -699,14 +714,18 @@ def _persist_embedded_images_and_rewrite_md(
             # rel 形如 '_assets/<slug>/img-N.png'，相对文章 .md
             # rollback 路径需要相对 wiki_root（即加上 wiki/<topic>/ 前缀）
             rollback_state['created_files'].append(f'wiki/{_topic}/{rel}')
+            # 区分图片来源（docx 段落 / pdf 页图）
+            if 'paragraph_index' in img:
+                source = {'type': 'docx_para', 'paragraph_index': img['paragraph_index']}
+            elif 'page_index' in img:
+                source = {'type': 'pdf_page', 'page_index': img['page_index']}
+            else:
+                source = {'type': 'unknown'}
             used_entries.append({
                 'index': order,
                 'path': rel,
                 'caption': caption,
-                'source': {
-                    'type': 'docx_para',
-                    'paragraph_index': img.get('paragraph_index'),
-                },
+                'source': source,
                 'manually_replaced': False,
                 'replaced_at': None,
                 'sha256': storage.sha256_bytes(img['data']),

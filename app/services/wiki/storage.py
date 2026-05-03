@@ -424,11 +424,26 @@ def _pdf_to_vision_images(abs_path: Path, total_pages: int) -> RawFileContent:
         f'{"(downgraded)" if downgraded else ""}'
     )
 
+    # 构造 embedded_images 与 _persist_embedded_images_and_rewrite_md 兼容
+    # 让 vision 模式 PDF 页图也能走 AUTO_IMG:N → _assets 持久化流程
+    embedded = []
+    for i, img in enumerate(final_images):
+        raw_bytes = base64.b64decode(img['base64'])
+        ext = 'jpg' if img['media_type'] == 'image/jpeg' else 'png'
+        embedded.append({
+            'order': i + 1,                # 1-based for AUTO_IMG:N
+            'page_index': img['page'],     # 0-based page number
+            'data': raw_bytes,
+            'media_type': img['media_type'],
+            'original_name': f'page-{img["page"] + 1}.{ext}',
+        })
+
     return RawFileContent(
         content_type='images',
         images=final_images,
         total_pages=total_pages,
         extracted_pages=pages_to_extract,
+        embedded_images=embedded,
     )
 
 

@@ -863,3 +863,107 @@ def test_ingest_force_true_overrides_manually_edited(app_ctx, wiki_root):
         KnowledgeWikiArticle.query.filter_by(id=art_id).delete()
         KnowledgeRawFile.query.filter_by(id=raw_id).delete()
         db.session.commit()
+
+
+def test_ingest_vision_pdf_persists_page_images_and_writes_manifest(app_ctx, wiki_root):
+    """Vision-mode PDF (无文字层) 的页图也要走 AUTO_IMG:N 流程，落到 _assets 并写入 manifest。"""
+    from io import BytesIO
+    from PIL import Image as PILImage
+    from app import db
+    from app.models import User
+    from app.models.file_manager import FileLibrary
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki.compiler import ingest_raw_file
+    from app.services.wiki.storage import save_raw_file
+
+    # 构造一个 2 页、无文字层的 PDF（每页只是一张纯色图片）
+    import fitz
+    doc = fitz.open()
+    for color in [(255, 100, 100), (100, 100, 255)]:
+        im = PILImage.new('RGB', (200, 200), color=color)
+        buf = BytesIO()
+        im.save(buf, format='PNG')
+        page = doc.new_page(width=200, height=200)
+        page.insert_image(fitz.Rect(0, 0, 200, 200), stream=buf.getvalue())
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    raw_path = save_raw_file('product', '2026-05-03-vision-test.pdf', pdf_bytes)
+    admin = User.query.filter_by(role='admin').first()
+    fl = FileLibrary.query.first()
+    raw = KnowledgeRawFile(
+        file_library_id=fl.id, topic='product', raw_path=raw_path,
+        title='Vision Test PDF', added_by=admin.id, owner_id=admin.id,
+    )
+    db.session.add(raw)
+    db.session.commit()
+    raw_id = raw.id
+    slug = 'test-vision-pdf'
+
+    # 前置清理可能残留
+    KnowledgeWikiArticle.query.filter_by(slug=slug).delete()
+    db.session.commit()
+
+    try:
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text=json.dumps({
+                'operations': [{
+                    'action': 'create',
+                    'topic': 'product',
+                    'slug': slug,
+                    'title': '视觉测试 PDF',
+                    'content': (
+                        '# 视觉测试\n\n第一页是红色背景。\n\n'
+                        '![红色页](AUTO_IMG:1)\n\n第二页是蓝色背景。\n\n'
+                        '![蓝色页](AUTO_IMG:2)\n\n## See Also\n（无）\n'
+                    ),
+                    'summary': '测试 vision 模式',
+                    'source_raw_ids': [raw_id], 'outbound_refs': [],
+                    'rationale': 'test',
+                }],
+                'index_update': '# Index\n', 'log_entry': 'test',
+            }, ensure_ascii=False),
+            usage={'input_tokens': 10, 'output_tokens': 5, 'model': 'test'},
+        )
+
+        result = ingest_raw_file(raw_id, claude=fake)
+        assert len(result['operations']) == 1
+
+        art = KnowledgeWikiArticle.query.filter_by(slug=slug).first()
+        assert art is not None
+        assert art.image_manifest is not None
+        assert len(art.image_manifest) == 2
+        assert art.image_manifest[0]['index'] == 1
+        # path 后缀可能是 jpg（vision 默认 JPEG）也可能是 png（PIL 不可用兜底）
+        assert art.image_manifest[0]['path'] in (
+            f'_assets/{slug}/img-1.jpg',
+            f'_assets/{slug}/img-1.png',
+        )
+        assert art.image_manifest[0]['source']['type'] == 'pdf_page'
+        assert art.image_manifest[0]['source']['page_index'] == 0
+        assert art.image_manifest[1]['source']['type'] == 'pdf_page'
+        assert art.image_manifest[1]['source']['page_index'] == 1
+
+        # Files on disk (jpg or png depending on PIL availability)
+        for idx in (1, 2):
+            found = False
+            for ext in ('jpg', 'png'):
+                p = wiki_root / 'wiki' / 'product' / '_assets' / slug / f'img-{idx}.{ext}'
+                if p.exists():
+                    found = True
+                    break
+            assert found, f'img-{idx} not saved as jpg or png'
+
+        # .md no AUTO_IMG remaining
+        md_path = wiki_root / art.file_path
+        md_text = md_path.read_text(encoding='utf-8')
+        assert 'AUTO_IMG:' not in md_text
+        assert f'_assets/{slug}/img-1.' in md_text
+        assert f'_assets/{slug}/img-2.' in md_text
+
+        print(f'\n[REPORT] vision image_manifest = {json.dumps(art.image_manifest, ensure_ascii=False, indent=2)}')
+    finally:
+        KnowledgeWikiArticle.query.filter_by(slug=slug).delete()
+        KnowledgeRawFile.query.filter_by(id=raw_id).delete()
+        db.session.commit()
