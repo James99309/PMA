@@ -705,43 +705,170 @@ def list_pricing_orders():
 
 
 # ---------------------------------------------------------------------------
-# 端点 11: 产品搜索
-# GET /internal/api/products?search=&limit=
+# 端点 11: 产品搜索 (扩展版,支持 system-config skill 选型)
+# GET /internal/api/products?search=&category=&category_id=&status=&frequency=&include_specs=&limit=
+#
+# 参数:
+#   search        : 模糊匹配 product_name / model
+#   category      : 分类名(如"合路平台")或 ID(如"2");支持中文名直查
+#   category_id   : 同 category,但只接 int (兼容)
+#   status        : 'active' (默认,只查在产) / 'discontinued' / 'upcoming' / 'any'
+#   frequency     : 频率交集过滤,如 "350-470" / "UHF"(=350-470) / "VHF"(=136-174)
+#                   只返回工作频率范围与该范围有交集的产品
+#                   双工 "TX:.../RX:..." 取整体跨度匹配
+#   include_specs : "1"=列表里附带每个产品的关键 specs(频率/载波/工作模式等)
+#   limit         : 默认 30,上限 200
 # ---------------------------------------------------------------------------
+
+# 频率常用别名
+_FREQ_ALIASES = {
+    'UHF': '350-470',
+    'VHF': '136-174',
+    'FM':  '87-108',
+    '800': '800-870',
+}
+
+# 列表里要返回的关键规格字段
+_KEY_SPEC_FIELDS = [
+    '工作频率', '载波容量支持', '载波容量', '工作模式', '辐射方向',
+    '增益', '安装方式', '防护等级', '光口数量', '光口类型',
+    '定位功能', '输出功率',
+]
+
+
+def _parse_freq_ranges(value: str):
+    """解析频率字段值为 [(low, high), ...] 区间列表。
+
+    支持:
+      "400-470"                    → [(400.0, 470.0)]
+      "TX:361-366 / RX:351-356"    → [(351.0, 366.0)]    取整体跨度
+      "400-470 MHz"                → [(400.0, 470.0)]
+      "350-470" + UHF/VHF 别名     → [(350.0, 470.0)]
+
+    解析失败返回 [];skill 端按"无频率信息"跳过。
+    """
+    import re
+    if not value:
+        return []
+
+    # 别名展开
+    v = value.strip().upper()
+    for alias, real in _FREQ_ALIASES.items():
+        if v == alias:
+            value = real
+            break
+
+    # 提取所有数字-数字段
+    matches = re.findall(r'(\d+(?:\.\d+)?)\s*[-~]\s*(\d+(?:\.\d+)?)', value)
+    if not matches:
+        return []
+
+    nums = [(float(a), float(b)) for a, b in matches]
+    # 双工 TX/RX 等多段时,取整体范围
+    if len(nums) > 1:
+        lo = min(min(a, b) for a, b in nums)
+        hi = max(max(a, b) for a, b in nums)
+        return [(lo, hi)]
+    a, b = nums[0]
+    return [(min(a, b), max(a, b))]
+
+
+def _freq_overlaps(spec_value: str, target: str) -> bool:
+    """判断产品频率字段 spec_value 与目标频率 target 是否有交集。"""
+    s = _parse_freq_ranges(spec_value)
+    t = _parse_freq_ranges(target)
+    if not s or not t:
+        return False
+    return any(sa <= tb and ta <= sb for sa, sb in s for ta, tb in t)
+
 
 @internal_api_bp.route('/products', methods=['GET'])
 @internal_auth_required
 def list_products():
-    limit = _parse_limit(default=30)
+    limit = min(_parse_limit(default=30), 200)
     search = request.args.get('search', '').strip()
+    category_arg = (request.args.get('category', '') or request.args.get('category_id', '')).strip()
+    status_arg = request.args.get('status', 'active').strip().lower()
+    frequency = request.args.get('frequency', '').strip()
+    include_specs = request.args.get('include_specs', '').strip() in ('1', 'true', 'yes')
 
     try:
         from app.models.product import Product
+        from app.models.product_code import ProductCategory
+        from app.models.product_spec import ProductSpec
 
-        query = Product.query.filter(Product.status != 'deleted') if hasattr(Product, 'status') else Product.query
+        query = Product.query.filter(Product.is_deleted == False)
 
+        # 状态过滤
+        if status_arg != 'any':
+            query = query.filter(Product.status == status_arg)
+
+        # 文本搜索
         if search:
             query = query.filter(
                 db.or_(
                     Product.product_name.ilike(f'%{search}%'),
-                    Product.model.ilike(f'%{search}%') if hasattr(Product, 'model') else False,
+                    Product.model.ilike(f'%{search}%'),
+                    Product.product_mn.ilike(f'%{search}%'),
                 )
             )
 
-        items = query.order_by(Product.id.desc()).limit(limit).all()
+        # 分类过滤(支持名称或 ID)
+        if category_arg:
+            if category_arg.isdigit():
+                query = query.filter(Product.category_id == int(category_arg))
+            else:
+                cat = ProductCategory.query.filter(ProductCategory.name == category_arg).first()
+                if cat:
+                    query = query.filter(Product.category_id == cat.id)
+                else:
+                    return jsonify([])
 
+        # 没有频率筛选时直接走数据库 limit
+        if not frequency:
+            items = query.order_by(Product.product_name).limit(limit).all()
+        else:
+            # 频率筛选要在 Python 层做(范围交集逻辑非简单 SQL)
+            # 取适度大窗口后用 _freq_overlaps 过滤,避免全表扫
+            candidate_limit = min(limit * 5, 1000)
+            candidates = query.order_by(Product.product_name).limit(candidate_limit).all()
+            items = []
+            for p in candidates:
+                # 取该产品的"工作频率"spec
+                freq_spec = ProductSpec.query.filter_by(
+                    product_id=p.id, field_name='工作频率'
+                ).first()
+                if freq_spec and _freq_overlaps(freq_spec.field_value, frequency):
+                    items.append(p)
+                if len(items) >= limit:
+                    break
+
+        # 序列化
         result = []
         for p in items:
-            result.append({
+            row = {
                 'id': p.id,
+                'product_mn': getattr(p, 'product_mn', None),
                 'product_name': p.product_name,
                 'model': getattr(p, 'model', None),
                 'brand': getattr(p, 'brand', None),
                 'category': getattr(p, 'category', None),
+                'category_id': getattr(p, 'category_id', None),
                 'retail_price': getattr(p, 'retail_price', None),
                 'currency': getattr(p, 'currency', None),
                 'status': getattr(p, 'status', None),
-            })
+                'unit': getattr(p, 'unit', None),
+            }
+            if include_specs:
+                key_specs = {}
+                specs = ProductSpec.query.filter(
+                    ProductSpec.product_id == p.id,
+                    ProductSpec.field_name.in_(_KEY_SPEC_FIELDS),
+                ).all()
+                for s in specs:
+                    key_specs[s.field_name] = s.field_value
+                row['key_specs'] = key_specs
+            result.append(row)
         return jsonify(result)
     except Exception as e:
         logger.exception(f'[internal_api] list_products error: {e}')
