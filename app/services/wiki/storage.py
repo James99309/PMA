@@ -7,6 +7,7 @@
     raw/product/2026-04-09-datasheet.pdf
 """
 import base64
+import hashlib
 import logging
 import os
 import re
@@ -17,6 +18,8 @@ from typing import List
 from zoneinfo import ZoneInfo
 
 from app.services.wiki.paths import (
+    article_image_relative_path,
+    assets_dir_for_article,
     get_index_path,
     get_log_path,
     get_raw_dir,
@@ -531,3 +534,59 @@ def delete_raw_file(raw_path: str) -> bool:
         abs_path.unlink()
         return True
     return False
+
+
+# ══════════════════════════════════════════════════════════════════
+# 文章资源（图片）保存与历史备份
+# ══════════════════════════════════════════════════════════════════
+
+_MEDIA_TYPE_EXT = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+}
+
+
+def _ext_for_media(media_type: str) -> str:
+    ext = _MEDIA_TYPE_EXT.get((media_type or '').lower())
+    if not ext:
+        raise ValueError(f'不支持的图片类型: {media_type}')
+    return ext
+
+
+def save_article_image(topic: str, slug: str, index: int, data: bytes, media_type: str) -> str:
+    """保存图片到 _assets/<slug>/img-<index>.<ext>，返回相对 article 的路径。"""
+    validate_topic_slug(topic, slug)
+    if index < 1:
+        raise ValueError('index 从 1 开始')
+    ext = _ext_for_media(media_type)
+    out_dir = assets_dir_for_article(topic, slug)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f'img-{index}.{ext}'
+    out_path.write_bytes(data)
+    return article_image_relative_path(slug, index, ext)
+
+
+def replace_article_image(topic: str, slug: str, index: int, data: bytes, media_type: str) -> str:
+    """覆盖现有图片，旧文件备份到 .history/。返回相对路径。"""
+    validate_topic_slug(topic, slug)
+    if index < 1:
+        raise ValueError('index 从 1 开始')
+    ext = _ext_for_media(media_type)
+    out_dir = assets_dir_for_article(topic, slug)
+    out_path = out_dir / f'img-{index}.{ext}'
+    if out_path.exists():
+        history_dir = out_dir / '.history'
+        history_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime('%Y%m%d-%H%M%S')
+        backup = history_dir / f'img-{index}.{ext}.{ts}.bak'
+        backup.write_bytes(out_path.read_bytes())
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(data)
+    return article_image_relative_path(slug, index, ext)
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
