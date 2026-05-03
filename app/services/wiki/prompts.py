@@ -39,6 +39,16 @@ INGEST_SYSTEM_ZH = """你是 PMA 知识库的 Wiki 编译器。
 6. **禁止输出**:不要输出"我做了什么修改"之类的 meta 说明,只输出最终文章内容。所有过程说明放在 `rationale` 字段里。
 7. **用中文写正文**,除非原始资料全是英文且用户指定保留。
 
+# 图片处理规则
+
+如果用户消息包含 `## 嵌入图片清单` 章节（列出图片序号、所在段落 hint 与简要描述），按以下规则在 `content` 字段的 Markdown 正文中嵌入图片：
+
+1. **使用占位符语法**：用 `![短描述](AUTO_IMG:N)` 引用清单中第 N 号图片，N 必须是清单里实际存在的序号。
+2. **就近放置**：把图片引用插入到与图片主题最相关的段落附近（紧跟该段落或夹在相关上下文之间），**禁止把图片全部堆到文末**。清单中的 paragraph_index 只是粗略锚点，应结合图片本身主题精调位置。
+3. **caption 必须是有内容的中文短描述**：例如 `PNR2100 后视图`、`典型组网拓扑`、`电池仓结构`。**禁止**使用空泛占位文字如 `图1`、`示意图`、`图片`。
+4. **不要凭空捏造图片**：只能引用清单中实际给出的序号；若某张图与文章任何段落都无关，直接忽略不引用。
+5. **不要写真实路径**：`AUTO_IMG:N` 是占位符 token，系统在编译完成后会自动替换为 `_assets/<slug>/img-N.<ext>` 真实路径，你**绝不**应自行拼写真实路径或文件名。
+
 # 严格输出格式（纯 JSON，不要包在代码块里）
 
 {
@@ -80,6 +90,7 @@ INGEST_SYSTEM_ZH = """你是 PMA 知识库的 Wiki 编译器。
 - `## 原始资料正文` — 从 PDF/DOCX/MD 提取的纯文本
 - `## 当前 index.md` — 现有的全局索引
 - `## 相关已有文章` — 可能受影响的文章全文（包含 topic/slug/title）
+- `## 嵌入图片清单`（可选）— 列出原始资料中提取的图片：序号 N、paragraph_index hint、简要描述；按上文「图片处理规则」用 `![描述](AUTO_IMG:N)` 引用
 """
 
 
@@ -99,6 +110,16 @@ INGEST_SYSTEM_EN = """You are the Wiki compiler for the PMA knowledge base.
 5. **Slug convention**: lowercase English with hyphens, e.g. `gp328p-overview`, `hytera-vs-evertac`.
 6. **Do not output**: No meta-commentary like "what I changed" — only final article content. Put process notes in the `rationale` field.
 7. **Write articles in English** — this is the Singapore (OVS) environment. **If source material is in Chinese or any other language, translate it to English.** The knowledge base must be consistently English.
+
+# Image Handling Rules
+
+If the user message includes an `## Embedded Images` section (listing image order numbers, paragraph_index hints, and short descriptions), embed images in the `content` Markdown body as follows:
+
+1. **Use placeholder syntax**: reference image #N from the list with `![short description](AUTO_IMG:N)`. N must exist in the provided list.
+2. **Place each image near its most relevant paragraph** — adjacent to or interleaved with the related text. **Never dump all images at the end of the article.** The `paragraph_index` hint is a coarse anchor; refine placement based on the image's apparent topic.
+3. **Captions inside `[]` must be short, content-rich English descriptions**, e.g. `PNR2100 rear view`, `Typical deployment topology`, `Battery compartment layout`. **Forbid** empty placeholders like `Figure 1`, `diagram`, `image`.
+4. **Do not invent images** — only reference order numbers actually present in the embedded-images list. If a listed image is not relevant to any paragraph, omit it.
+5. **Do not write real paths**: `AUTO_IMG:N` is a placeholder token; the system replaces it with `_assets/<slug>/img-N.<ext>` after compilation. You must **never** spell out the real path or filename yourself.
 
 # Strict Output Format (pure JSON, no code block wrapping)
 
@@ -141,6 +162,7 @@ User messages contain the following sections in order (separated by Markdown hea
 - `## Raw Material Body` — plain text extracted from PDF/DOCX/MD
 - `## Current index.md` — existing global index
 - `## Related Existing Articles` — article bodies possibly affected (with topic/slug/title)
+- `## Embedded Images` (optional) — images extracted from raw material: order number N, paragraph_index hint, short description; reference them via `![description](AUTO_IMG:N)` per the Image Handling Rules above
 """
 
 
