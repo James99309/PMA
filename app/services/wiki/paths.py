@@ -57,6 +57,16 @@ def wiki_article_path(topic: str, slug: str) -> Path:
     return get_wiki_dir() / topic / f'{slug}.md'
 
 
+def assets_dir_for_article(topic: str, slug: str) -> Path:
+    """返回某篇文章的 _assets 目录绝对路径，如 wiki/product/_assets/gp328p/"""
+    return get_wiki_dir() / topic / '_assets' / slug
+
+
+def article_image_relative_path(slug: str, index: int, ext: str) -> str:
+    """返回相对 article .md 的 markdown 引用路径，如 _assets/gp328p/img-1.png"""
+    return f'_assets/{slug}/img-{index}.{ext.lstrip(".")}'
+
+
 def ensure_wiki_structure():
     """首次初始化目录结构与 index/log 占位内容。
 

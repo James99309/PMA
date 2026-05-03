@@ -481,3 +481,489 @@ def test_ingest_rollback_restores_file_on_failure(app_ctx, wiki_root, test_raw_f
         topic='product', slug='test-gp328p-orig'
     ).first()
     assert art_db.title == 'GP328P 原版'
+
+
+# ══════════════════════════════════════════════════════════════════
+# Task 4: docx 嵌入图片 → _assets 落盘 + AUTO_IMG 占位符重写
+# ══════════════════════════════════════════════════════════════════
+
+def _make_raw_docx_with_images(app_ctx, slug_prefix='test-doc-with-images'):
+    """复制 sample_with_images.docx fixture 到 raw/，建 KnowledgeRawFile 记录。返回 raw_id。"""
+    from app import db
+    from app.models import User
+    from app.models.file_manager import FileLibrary
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki.storage import save_raw_file
+
+    # 前置清理
+    KnowledgeWikiArticle.query.filter(
+        KnowledgeWikiArticle.slug.like(f'{slug_prefix}%')
+    ).delete(synchronize_session=False)
+    db.session.commit()
+
+    fixture = Path(__file__).parent / 'fixtures' / 'sample_with_images.docx'
+    raw_bytes = fixture.read_bytes()
+    raw_path = save_raw_file('product', '2026-05-03-sample-with-images.docx', raw_bytes)
+
+    admin = User.query.filter_by(role='admin').first()
+    fl = FileLibrary.query.first()
+    raw = KnowledgeRawFile(
+        file_library_id=fl.id, topic='product', raw_path=raw_path,
+        title='测试含图 docx', added_by=admin.id,
+        owner_id=admin.id,
+    )
+    db.session.add(raw)
+    db.session.commit()
+    return raw.id
+
+
+def test_ingest_docx_with_images_persists_assets_and_writes_manifest(app_ctx, wiki_root):
+    """完整链路：docx 含 2 张图 → 编译 → _assets 落盘 + .md 引用真实路径 + image_manifest 写入"""
+    from app import db
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki.compiler import ingest_raw_file
+
+    raw_id = _make_raw_docx_with_images(app_ctx)
+    slug = 'test-doc-with-images'
+
+    try:
+        # Mock Claude to return create op with both AUTO_IMG references
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text=json.dumps({
+                'operations': [{
+                    'action': 'create',
+                    'topic': 'product',
+                    'slug': slug,
+                    'title': '测试含图文章',
+                    'content': '# 测试\n\n第一段。\n\n![红色示意图](AUTO_IMG:1)\n\n说明红色图。\n\n![蓝色示意图](AUTO_IMG:2)\n\n## See Also\n（无）\n',
+                    'summary': '测试用图文混排',
+                    'source_raw_ids': [raw_id],
+                    'outbound_refs': [],
+                    'rationale': 'test',
+                }],
+                'index_update': '# Index\n',
+                'log_entry': 'test',
+            }, ensure_ascii=False),
+            usage={'input_tokens': 100, 'output_tokens': 50, 'model': 'test'},
+        )
+
+        result = ingest_raw_file(raw_id, claude=fake)
+        assert len(result['operations']) == 1
+
+        # 文章已创建且带 manifest
+        art = KnowledgeWikiArticle.query.filter_by(slug=slug).first()
+        assert art is not None
+        assert art.image_manifest is not None
+        assert len(art.image_manifest) == 2
+
+        m1 = art.image_manifest[0]
+        assert m1['index'] == 1
+        assert m1['path'] == '_assets/test-doc-with-images/img-1.png'
+        assert m1['caption'] == '红色示意图'
+        # paragraph_index：fixture 里图1在 para 1
+        assert m1['source']['type'] == 'docx_para'
+        assert m1['source']['paragraph_index'] == 1
+        assert m1['manually_replaced'] is False
+        assert m1['replaced_at'] is None
+        assert m1['size_bytes'] > 0
+        assert len(m1['sha256']) == 64
+
+        m2 = art.image_manifest[1]
+        assert m2['index'] == 2
+        assert m2['path'] == '_assets/test-doc-with-images/img-2.png'
+        # fixture 里图2在 para 3
+        assert m2['source']['paragraph_index'] == 3
+
+        assert art.manually_edited is False
+
+        # _assets 落盘
+        assert (wiki_root / 'wiki' / 'product' / '_assets' / slug / 'img-1.png').exists()
+        assert (wiki_root / 'wiki' / 'product' / '_assets' / slug / 'img-2.png').exists()
+
+        # .md 内容已重写为真实路径（无 AUTO_IMG 残留）
+        md_abs = wiki_root / art.file_path
+        md_text = md_abs.read_text(encoding='utf-8')
+        assert 'AUTO_IMG:' not in md_text
+        assert '_assets/test-doc-with-images/img-1.png' in md_text
+        assert '_assets/test-doc-with-images/img-2.png' in md_text
+
+        # 输出 manifest 用于报告
+        print(f'\n[REPORT] image_manifest = {json.dumps(art.image_manifest, ensure_ascii=False, indent=2)}')
+
+    finally:
+        KnowledgeWikiArticle.query.filter_by(slug=slug).delete()
+        KnowledgeRawFile.query.filter_by(id=raw_id).delete()
+        db.session.commit()
+
+
+def test_ingest_drops_unknown_AUTO_IMG_refs(app_ctx, wiki_root):
+    """Claude 引用了不存在的 AUTO_IMG:5 → 该引用应被静默丢弃，仅有效引用被保留。"""
+    from app import db
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki.compiler import ingest_raw_file
+
+    raw_id = _make_raw_docx_with_images(app_ctx, slug_prefix='test-doc-unknown-ref')
+    slug = 'test-doc-unknown-ref'
+
+    try:
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text=json.dumps({
+                'operations': [{
+                    'action': 'create',
+                    'topic': 'product',
+                    'slug': slug,
+                    'title': '未知图片引用测试',
+                    # 引用 AUTO_IMG:1（合法）+ AUTO_IMG:5（不存在）
+                    'content': '# 测试\n\n![合法图](AUTO_IMG:1)\n\n中间。\n\n![不存在图](AUTO_IMG:5)\n\n结尾。\n',
+                    'summary': 'test unknown',
+                    'source_raw_ids': [raw_id],
+                    'outbound_refs': [],
+                }],
+                'index_update': '# Index\n',
+                'log_entry': 'test',
+            }, ensure_ascii=False),
+            usage={'input_tokens': 1, 'output_tokens': 1, 'model': 'fake'},
+        )
+
+        ingest_raw_file(raw_id, claude=fake)
+
+        art = KnowledgeWikiArticle.query.filter_by(slug=slug).first()
+        assert art is not None
+        # 只有 AUTO_IMG:1 被保留
+        assert art.image_manifest is not None
+        assert len(art.image_manifest) == 1
+        assert art.image_manifest[0]['index'] == 1
+
+        md_abs = wiki_root / art.file_path
+        md_text = md_abs.read_text(encoding='utf-8')
+        assert 'AUTO_IMG:5' not in md_text
+        assert 'AUTO_IMG:1' not in md_text
+        assert '_assets/test-doc-unknown-ref/img-1.png' in md_text
+        # AUTO_IMG:5 占位符被替换为空字符串（整个 ![..](AUTO_IMG:5) 删除）
+        assert '不存在图' not in md_text
+
+        # 仅 img-1 落盘
+        assert (wiki_root / 'wiki' / 'product' / '_assets' / slug / 'img-1.png').exists()
+        assert not (wiki_root / 'wiki' / 'product' / '_assets' / slug / 'img-5.png').exists()
+
+    finally:
+        KnowledgeWikiArticle.query.filter_by(slug=slug).delete()
+        KnowledgeRawFile.query.filter_by(id=raw_id).delete()
+        db.session.commit()
+
+
+def test_ingest_failure_after_image_persist_rolls_back_assets(app_ctx, wiki_root, monkeypatch):
+    """图片落盘后若发生失败（write_index 抛异常），_assets 文件应被回滚删除。"""
+    from app import db
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki import compiler, storage
+    from app.services.wiki.compiler import ingest_raw_file
+
+    raw_id = _make_raw_docx_with_images(app_ctx, slug_prefix='test-rollback-assets')
+    slug = 'test-rollback-assets'
+
+    try:
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text=json.dumps({
+                'operations': [{
+                    'action': 'create',
+                    'topic': 'product',
+                    'slug': slug,
+                    'title': '回滚测试',
+                    'content': '# 回滚\n\n![测试图](AUTO_IMG:1)\n',
+                    'summary': 't',
+                    'source_raw_ids': [raw_id],
+                    'outbound_refs': [],
+                }],
+                'index_update': '# new idx\n',
+                'log_entry': 'rollback test',
+            }, ensure_ascii=False),
+            usage={'input_tokens': 1, 'output_tokens': 1, 'model': 'fake'},
+        )
+
+        # write_index 抛异常 → 触发回滚（图片已持久化但要被删）
+        def boom_write_index(content):
+            raise RuntimeError('模拟写 index 失败')
+
+        monkeypatch.setattr(compiler.storage, 'write_index', boom_write_index)
+
+        with pytest.raises(Exception, match='模拟写 index 失败'):
+            ingest_raw_file(raw_id, claude=fake)
+
+        # 关键断言：_assets 文件已被回滚（不存在）
+        img_path = wiki_root / 'wiki' / 'product' / '_assets' / slug / 'img-1.png'
+        assert not img_path.exists(), f'图片应该被回滚删除，但仍存在: {img_path}'
+
+        # 文章 .md 也应被回滚（不存在）
+        md_abs = wiki_root / 'wiki' / 'product' / f'{slug}.md'
+        assert not md_abs.exists()
+
+        # raw 状态 = error
+        raw = KnowledgeRawFile.query.get(raw_id)
+        assert raw.ingest_status == 'error'
+
+    finally:
+        KnowledgeWikiArticle.query.filter_by(slug=slug).delete()
+        KnowledgeRawFile.query.filter_by(id=raw_id).delete()
+        db.session.commit()
+
+
+def test_ingest_skips_manually_edited_article_by_default(app_ctx, wiki_root):
+    """When an article is manually_edited, a fresh ingest must NOT overwrite it."""
+    import json
+    from unittest.mock import MagicMock
+    from app import db
+    from app.models import User
+    from app.models.file_manager import FileLibrary
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki.compiler import ingest_raw_file
+    from app.services.wiki.storage import save_raw_file, write_article
+
+    admin = User.query.filter_by(role='admin').first()
+    fl = FileLibrary.query.first()
+
+    # Pre-populate an article with manually_edited=True and a known body
+    write_article('product', 'test-protected-article', '# Protected\n\nORIGINAL BODY\n')
+    art = KnowledgeWikiArticle(
+        topic='product', slug='test-protected-article',
+        title='Protected', file_path='wiki/product/test-protected-article.md',
+        summary='protected', content_length=20, scope='company', owner_id=admin.id,
+        manually_edited=True,
+    )
+    db.session.add(art)
+    db.session.commit()
+    art_id = art.id
+
+    raw_path = save_raw_file('product', '2026-05-03-test-protected.md', b'# Some new material')
+    raw = KnowledgeRawFile(
+        file_library_id=fl.id, topic='product', raw_path=raw_path,
+        title='New material targeting protected article', added_by=admin.id,
+        owner_id=admin.id,
+    )
+    db.session.add(raw)
+    db.session.commit()
+    raw_id = raw.id
+
+    try:
+        # Mock Claude to attempt update of the protected article
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text=json.dumps({
+                'operations': [{
+                    'action': 'update',
+                    'topic': 'product',
+                    'slug': 'test-protected-article',
+                    'title': 'Should not stick',
+                    'content': '# OVERWRITTEN BODY\n',
+                    'summary': 's',
+                    'source_raw_ids': [raw_id],
+                    'outbound_refs': [],
+                    'rationale': 't',
+                }],
+                'index_update': '# Index\n',
+                'log_entry': 'attempt overwrite',
+            }, ensure_ascii=False),
+            usage={'input_tokens': 10, 'output_tokens': 5, 'model': 'test'},
+        )
+
+        result = ingest_raw_file(raw_id, claude=fake)
+
+        # Op marked as noop with reason
+        ops = result['operations']
+        assert any(op.get('skipped_reason') == 'manually_edited' for op in ops)
+
+        # Body unchanged
+        from app.services.wiki.storage import read_article_content
+        body = read_article_content('wiki/product/test-protected-article.md')
+        assert 'ORIGINAL BODY' in body
+        assert 'OVERWRITTEN' not in body
+
+        # Article record fields unchanged
+        db.session.refresh(art)
+        assert art.title == 'Protected'
+        assert art.manually_edited is True
+
+    finally:
+        KnowledgeWikiArticle.query.filter_by(id=art_id).delete()
+        KnowledgeRawFile.query.filter_by(id=raw_id).delete()
+        db.session.commit()
+
+
+def test_ingest_force_true_overrides_manually_edited(app_ctx, wiki_root):
+    """force=True allows overwriting a manually_edited article."""
+    import json
+    from unittest.mock import MagicMock
+    from app import db
+    from app.models import User
+    from app.models.file_manager import FileLibrary
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki.compiler import ingest_raw_file
+    from app.services.wiki.storage import save_raw_file, write_article, read_article_content
+
+    admin = User.query.filter_by(role='admin').first()
+    fl = FileLibrary.query.first()
+
+    write_article('product', 'test-force-article', '# Protected\n\nORIGINAL BODY\n')
+    art = KnowledgeWikiArticle(
+        topic='product', slug='test-force-article',
+        title='Protected', file_path='wiki/product/test-force-article.md',
+        summary='protected', content_length=20, scope='company', owner_id=admin.id,
+        manually_edited=True,
+    )
+    db.session.add(art)
+    db.session.commit()
+    art_id = art.id
+
+    raw_path = save_raw_file('product', '2026-05-03-test-force.md', b'# Some new material')
+    raw = KnowledgeRawFile(
+        file_library_id=fl.id, topic='product', raw_path=raw_path,
+        title='Force overwrite test', added_by=admin.id,
+        owner_id=admin.id,
+    )
+    db.session.add(raw)
+    db.session.commit()
+    raw_id = raw.id
+
+    try:
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text=json.dumps({
+                'operations': [{
+                    'action': 'update',
+                    'topic': 'product',
+                    'slug': 'test-force-article',
+                    'title': 'Force-updated',
+                    'content': '# OVERWRITTEN BODY\n',
+                    'summary': 's',
+                    'source_raw_ids': [raw_id],
+                    'outbound_refs': [],
+                    'rationale': 't',
+                }],
+                'index_update': '# Index\n',
+                'log_entry': 'force overwrite',
+            }, ensure_ascii=False),
+            usage={'input_tokens': 10, 'output_tokens': 5, 'model': 'test'},
+        )
+
+        result = ingest_raw_file(raw_id, claude=fake, force=True)
+
+        # No skip reason
+        ops = result['operations']
+        assert not any(op.get('skipped_reason') == 'manually_edited' for op in ops)
+
+        # Body now contains OVERWRITTEN
+        body = read_article_content('wiki/product/test-force-article.md')
+        assert 'OVERWRITTEN' in body
+        assert 'ORIGINAL BODY' not in body
+
+    finally:
+        KnowledgeWikiArticle.query.filter_by(id=art_id).delete()
+        KnowledgeRawFile.query.filter_by(id=raw_id).delete()
+        db.session.commit()
+
+
+def test_ingest_vision_pdf_persists_page_images_and_writes_manifest(app_ctx, wiki_root):
+    """Vision-mode PDF (无文字层) 的页图也要走 AUTO_IMG:N 流程，落到 _assets 并写入 manifest。"""
+    from io import BytesIO
+    from PIL import Image as PILImage
+    from app import db
+    from app.models import User
+    from app.models.file_manager import FileLibrary
+    from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+    from app.services.wiki.compiler import ingest_raw_file
+    from app.services.wiki.storage import save_raw_file
+
+    # 构造一个 2 页、无文字层的 PDF（每页只是一张纯色图片）
+    import fitz
+    doc = fitz.open()
+    for color in [(255, 100, 100), (100, 100, 255)]:
+        im = PILImage.new('RGB', (200, 200), color=color)
+        buf = BytesIO()
+        im.save(buf, format='PNG')
+        page = doc.new_page(width=200, height=200)
+        page.insert_image(fitz.Rect(0, 0, 200, 200), stream=buf.getvalue())
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    raw_path = save_raw_file('product', '2026-05-03-vision-test.pdf', pdf_bytes)
+    admin = User.query.filter_by(role='admin').first()
+    fl = FileLibrary.query.first()
+    raw = KnowledgeRawFile(
+        file_library_id=fl.id, topic='product', raw_path=raw_path,
+        title='Vision Test PDF', added_by=admin.id, owner_id=admin.id,
+    )
+    db.session.add(raw)
+    db.session.commit()
+    raw_id = raw.id
+    slug = 'test-vision-pdf'
+
+    # 前置清理可能残留
+    KnowledgeWikiArticle.query.filter_by(slug=slug).delete()
+    db.session.commit()
+
+    try:
+        fake = MagicMock()
+        fake.complete.return_value = MagicMock(
+            text=json.dumps({
+                'operations': [{
+                    'action': 'create',
+                    'topic': 'product',
+                    'slug': slug,
+                    'title': '视觉测试 PDF',
+                    'content': (
+                        '# 视觉测试\n\n第一页是红色背景。\n\n'
+                        '![红色页](AUTO_IMG:1)\n\n第二页是蓝色背景。\n\n'
+                        '![蓝色页](AUTO_IMG:2)\n\n## See Also\n（无）\n'
+                    ),
+                    'summary': '测试 vision 模式',
+                    'source_raw_ids': [raw_id], 'outbound_refs': [],
+                    'rationale': 'test',
+                }],
+                'index_update': '# Index\n', 'log_entry': 'test',
+            }, ensure_ascii=False),
+            usage={'input_tokens': 10, 'output_tokens': 5, 'model': 'test'},
+        )
+
+        result = ingest_raw_file(raw_id, claude=fake)
+        assert len(result['operations']) == 1
+
+        art = KnowledgeWikiArticle.query.filter_by(slug=slug).first()
+        assert art is not None
+        assert art.image_manifest is not None
+        assert len(art.image_manifest) == 2
+        assert art.image_manifest[0]['index'] == 1
+        # path 后缀可能是 jpg（vision 默认 JPEG）也可能是 png（PIL 不可用兜底）
+        assert art.image_manifest[0]['path'] in (
+            f'_assets/{slug}/img-1.jpg',
+            f'_assets/{slug}/img-1.png',
+        )
+        assert art.image_manifest[0]['source']['type'] == 'pdf_page'
+        assert art.image_manifest[0]['source']['page_index'] == 0
+        assert art.image_manifest[1]['source']['type'] == 'pdf_page'
+        assert art.image_manifest[1]['source']['page_index'] == 1
+
+        # Files on disk (jpg or png depending on PIL availability)
+        for idx in (1, 2):
+            found = False
+            for ext in ('jpg', 'png'):
+                p = wiki_root / 'wiki' / 'product' / '_assets' / slug / f'img-{idx}.{ext}'
+                if p.exists():
+                    found = True
+                    break
+            assert found, f'img-{idx} not saved as jpg or png'
+
+        # .md no AUTO_IMG remaining
+        md_path = wiki_root / art.file_path
+        md_text = md_path.read_text(encoding='utf-8')
+        assert 'AUTO_IMG:' not in md_text
+        assert f'_assets/{slug}/img-1.' in md_text
+        assert f'_assets/{slug}/img-2.' in md_text
+
+        print(f'\n[REPORT] vision image_manifest = {json.dumps(art.image_manifest, ensure_ascii=False, indent=2)}')
+    finally:
+        KnowledgeWikiArticle.query.filter_by(slug=slug).delete()
+        KnowledgeRawFile.query.filter_by(id=raw_id).delete()
+        db.session.commit()

@@ -53,6 +53,7 @@
         .wiki-md a:hover { color: rgb(14,99,184); }
         .wiki-md hr { border: 0; border-top: 1px solid rgb(226 232 240); margin: 1rem 0; }
         .dark .wiki-md hr { border-color: rgb(51 65 85); }
+        .wiki-md img { display: block; margin-left: auto; margin-right: auto; max-height: 600px; }
 
         /* 聊天区域 */
         .chat-bubble-user { background: rgb(19,127,236); color: white; border-radius: 14px 14px 4px 14px; }
@@ -332,6 +333,60 @@
                         </div>
                     </div>
                     <div class="wiki-md prose prose-slate dark:prose-invert max-w-none" x-html="renderedContent"></div>
+
+                    <!-- 图片管理面板 (L1: 替换) -->
+                    <template x-if="currentArticle.image_manifest && currentArticle.image_manifest.length > 0 && canEditCurrentArticle()">
+                        <details class="mt-6 border border-slate-200 dark:border-slate-800 rounded-lg" :open="imagePanelOpen">
+                            <summary class="px-4 py-2 cursor-pointer text-sm font-medium text-slate-700 dark:text-slate-300 select-none flex items-center gap-2">
+                                <svg class="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                </svg>
+                                <span>{{ _('图片管理') }}</span>
+                                <span class="text-xs text-slate-400" x-text="`(${currentArticle.image_manifest.length} {{ _('张') }})`"></span>
+                                <span x-show="currentArticle.manually_edited"
+                                      class="ml-auto inline-flex px-2 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                    {{ _('已手工编辑') }}
+                                </span>
+                            </summary>
+                            <div class="p-4 space-y-3 border-t border-slate-100 dark:border-slate-800">
+                                <p class="text-xs text-slate-500">
+                                    {{ _('替换图片会备份原版到 .history/，并把文章标记为「已手工编辑」（重新编译时不会自动覆盖）。') }}
+                                </p>
+                                <template x-for="img in currentArticle.image_manifest" :key="img.index">
+                                    <div class="flex items-start gap-3 p-2 border border-slate-100 dark:border-slate-800 rounded">
+                                        <img :src="`/api/wiki/articles/${currentArticle.id}/asset/${img.path}`"
+                                             :alt="img.caption || ''"
+                                             class="w-24 h-24 object-cover rounded shadow-sm bg-slate-50 dark:bg-slate-800"
+                                             loading="lazy">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-xs text-slate-500" x-text="`#${img.index} · ${img.path}`"></div>
+                                            <div class="text-sm font-medium truncate" x-text="img.caption || '{{ _('（无说明）') }}'"></div>
+                                            <div class="text-[11px] text-slate-400 mt-1">
+                                                <span x-show="img.manually_replaced"
+                                                      class="inline-flex px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                                                    {{ _('已替换') }}
+                                                </span>
+                                                <span x-show="img.replaced_at" x-text="'· ' + formatDate(img.replaced_at)"></span>
+                                                <span x-show="img.size_bytes"
+                                                      x-text="'· ' + Math.round((img.size_bytes || 0) / 1024) + ' KB'"></span>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <button type="button"
+                                                    @click="triggerImageReplace(img.index)"
+                                                    :disabled="replacingImageIndex === img.index"
+                                                    class="px-3 py-1.5 text-xs font-medium rounded bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50">
+                                                <span x-show="replacingImageIndex !== img.index">{{ _('替换') }}</span>
+                                                <span x-show="replacingImageIndex === img.index">{{ _('上传中...') }}</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </template>
+                                <input type="file" x-ref="imageReplaceInput" accept="image/*" class="hidden" @change="handleImageReplaceFile">
+                            </div>
+                        </details>
+                    </template>
                 </div>
             </template>
         </section>
@@ -367,7 +422,7 @@
                         <div class="max-w-[85%] px-3 py-2 text-sm"
                              :class="msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai wiki-md'"
                              @click="msg.role === 'ai' && handleChatLinkClick($event)"
-                             x-html="msg.role === 'user' ? escapeHtml(msg.text) : renderChatMarkdown(msg.text)"></div>
+                             x-html="msg.role === 'user' ? escapeHtml(msg.text) : renderChatMarkdown(msg.text, msg.citedSlugMap)"></div>
                     </div>
                 </template>
                 <div x-show="chatLoading" class="flex">
@@ -881,6 +936,12 @@ function wikiApp() {
         renderedContent: '',
         loadingArticle: false,
 
+        // ── 图片管理面板 ─────────────────
+        imagePanelOpen: false,
+        replacingImageIndex: null,
+        _pendingReplaceIndex: null,
+        currentUserId: {{ current_user_id|tojson }},
+
         // ── 问答 ─────────────────
         chatExpanded: false,
         chatMessages: [],
@@ -1059,7 +1120,7 @@ function wikiApp() {
                 const j = await r.json();
                 if (j.success) {
                     this.currentArticle = j.data;
-                    this.renderedContent = this.renderMarkdown(j.data.content || '');
+                    this.renderedContent = this.renderArticleMarkdown(j.data.content || '', id);
                     this.markAsRead(id);
                     if (j.data.topic && !this.expandedTopics.includes(j.data.topic)) {
                         this.expandedTopics.push(j.data.topic);
@@ -1070,6 +1131,66 @@ function wikiApp() {
                 console.error(e);
             } finally {
                 this.loadingArticle = false;
+            }
+        },
+
+        // ── 图片管理 ─────────────────
+        canEditCurrentArticle() {
+            if (!this.currentArticle) return false;
+            {% if is_admin %}return true;{% endif %}
+            return this.currentArticle.owner_id === this.currentUserId;
+        },
+
+        triggerImageReplace(index) {
+            this._pendingReplaceIndex = index;
+            this.$refs.imageReplaceInput.value = '';
+            this.$refs.imageReplaceInput.click();
+        },
+
+        async handleImageReplaceFile(ev) {
+            const file = ev.target.files && ev.target.files[0];
+            const index = this._pendingReplaceIndex;
+            if (!file || index == null || !this.currentArticle) return;
+            if (!file.type.startsWith('image/')) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('请选择图片文件') }}', message: file.type });
+                return;
+            }
+            this.replacingImageIndex = index;
+            try {
+                const fd = new FormData();
+                fd.append('image', file);
+                const r = await fetch(
+                    `/api/wiki/articles/${this.currentArticle.id}/image/${index}/replace`,
+                    { method: 'POST', body: fd, credentials: 'same-origin' }
+                );
+                const j = await r.json();
+                if (!r.ok || !j.success) {
+                    openConfirmModal('wikiConfirmModal', {
+                        title: '{{ _('替换失败') }}',
+                        message: j.message || `HTTP ${r.status}`,
+                    });
+                    return;
+                }
+                // Update manifest entry locally
+                const i = this.currentArticle.image_manifest.findIndex(m => m.index === index);
+                if (i >= 0) this.currentArticle.image_manifest[i] = j.image;
+                this.currentArticle.manually_edited = true;
+                // Force img refresh by appending a cache-busting param
+                const ts = Date.now();
+                this.currentArticle.image_manifest = this.currentArticle.image_manifest.map(m =>
+                    m.index === index ? { ...m, _v: ts } : m
+                );
+                // Re-render with cache-bust marker so <img> reloads
+                const baseHtml = this.renderArticleMarkdown(this.currentArticle.content || '', this.currentArticle.id);
+                this.renderedContent = baseHtml.replaceAll(
+                    `/api/wiki/articles/${this.currentArticle.id}/asset/${j.image.path}`,
+                    `/api/wiki/articles/${this.currentArticle.id}/asset/${j.image.path}?v=${ts}`,
+                );
+            } catch (e) {
+                openConfirmModal('wikiConfirmModal', { title: '{{ _('替换失败') }}', message: String(e) });
+            } finally {
+                this.replacingImageIndex = null;
+                this._pendingReplaceIndex = null;
             }
         },
 
@@ -1197,7 +1318,14 @@ function wikiApp() {
                 });
                 const j = await r.json();
                 if (j.success) {
-                    this.chatMessages.push({ role: 'ai', text: j.data.answer });
+                    const cited = j.data.cited_articles || [];
+                    const slugMap = {};
+                    for (const c of cited) slugMap[c.slug] = c.id;
+                    this.chatMessages.push({
+                        role: 'ai',
+                        text: j.data.answer,
+                        citedSlugMap: slugMap,
+                    });
                 } else {
                     this.chatMessages.push({ role: 'ai', text: '❌ ' + (j.message || '{{ _('请求失败') }}') });
                 }
@@ -1652,6 +1780,27 @@ function wikiApp() {
             return div.innerHTML;
         },
 
+        // 渲染文章正文：在 renderMarkdown 基础上，把 _assets/<slug>/img-N.<ext> 形式的相对路径
+        // 重写为 /api/wiki/articles/<id>/asset/<rel>，让浏览器经过权限校验后的路由获取图片字节。
+        // 注意：仅文章详情场景调用，AI 答案/索引场景仍用 renderMarkdown。
+        renderArticleMarkdown(text, articleId) {
+            const html = this.renderMarkdown(text);
+            if (!html || !articleId) return html;
+            const wrap = document.createElement('div');
+            wrap.innerHTML = html;
+            wrap.querySelectorAll('img').forEach(img => {
+                const src = (img.getAttribute('src') || '').trim();
+                if (src.startsWith('_assets/')) {
+                    img.setAttribute('src', `/api/wiki/articles/${articleId}/asset/${src}`);
+                    // Tailwind 内联样式：圆角、阴影、最大宽度，避免破坏排版
+                    const cls = (img.getAttribute('class') || '') + ' my-3 rounded-lg shadow-sm max-w-full h-auto';
+                    img.setAttribute('class', cls.trim());
+                    img.setAttribute('loading', 'lazy');
+                }
+            });
+            return wrap.innerHTML;
+        },
+
         // 在 tree 中按 topic+slug 定位文章；topic 为空时跨 topic 兜底
         findArticleByTopicSlug(topic, slug) {
             if (topic && this.tree[topic]) {
@@ -1669,11 +1818,34 @@ function wikiApp() {
         // `<a href="topic/slug.md">xxx.md</a>` 的引用改造成：
         //   - 文本替换为文章 title（LLM 若把 slug.md 当文本时修正）
         //   - href 置 '#' + data-article-id，由 handleChatLinkClick 拦截
-        renderChatMarkdown(text) {
+        renderChatMarkdown(text, citedSlugMap) {
             const html = this.renderMarkdown(text);
             if (!html) return '';
             const wrap = document.createElement('div');
             wrap.innerHTML = html;
+
+            // 重写图片路径 (_assets/<slug>/...) → /api/wiki/articles/<id>/asset/_assets/<slug>/...
+            // citedSlugMap: {slug: article_id} 来自 cited_articles
+            const map = citedSlugMap || {};
+            wrap.querySelectorAll('img').forEach(img => {
+                const src = (img.getAttribute('src') || '').trim();
+                const m = src.match(/^_assets\/([^\/]+)\//);
+                if (!m) return;
+                const slug = m[1];
+                const articleId = map[slug];
+                if (!articleId) {
+                    // slug 未在 cited_articles 中 — 兜底用 findArticleByTopicSlug
+                    const art = this.findArticleByTopicSlug('', slug);
+                    if (!art) return;
+                    img.setAttribute('src', `/api/wiki/articles/${art.id}/asset/${src}`);
+                } else {
+                    img.setAttribute('src', `/api/wiki/articles/${articleId}/asset/${src}`);
+                }
+                const cls = (img.getAttribute('class') || '') + ' my-2 rounded-lg shadow-sm max-w-full h-auto';
+                img.setAttribute('class', cls.trim());
+                img.setAttribute('loading', 'lazy');
+            });
+
             wrap.querySelectorAll('a').forEach(a => {
                 const href = (a.getAttribute('href') || '').trim();
                 // 允许 ./topic/slug.md 或 topic/slug.md 或 slug.md

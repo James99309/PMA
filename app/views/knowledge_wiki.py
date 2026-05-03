@@ -23,7 +23,7 @@ Blueprint: knowledge_wiki_bp  url_prefix: ''  (前端页面和 /api/wiki/* 混�
 import logging
 import threading
 
-from flask import Blueprint, jsonify, render_template, request, current_app
+from flask import Blueprint, jsonify, render_template, request, current_app, send_file, abort
 from flask_login import current_user, login_required
 
 from app import db
@@ -33,7 +33,7 @@ from app.models.message import Message
 from app.models.user import User
 from app.services.file_manager_service import FileManagerService
 from app.services.wiki import compiler, linter, querier, storage
-from app.services.wiki.paths import ensure_wiki_structure
+from app.services.wiki.paths import ensure_wiki_structure, get_wiki_dir
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,7 @@ def wiki_page():
         'knowledge/tw_wiki.html',
         is_admin=_is_admin(),
         is_dept_manager=getattr(current_user, 'is_department_manager', False),
+        current_user_id=current_user.id,
     )
 
 
@@ -398,6 +399,103 @@ def get_article(article_id):
     if not art:
         return jsonify({'success': False, 'message': '文章不存在'}), 404
     return jsonify({'success': True, 'data': art.to_dict(include_content=True)})
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/asset/<path:rel>')
+@login_required
+def serve_article_asset(article_id, rel):
+    """Serve an image from wiki/<topic>/_assets/<slug>/...
+
+    Guards:
+    - login_required (above)
+    - 用户必须对该文章有可见权限（复用 visible_articles_query）
+    - 路径穿越防护：rel 必须以 _assets/<slug>/ 开头，且解析后必须在 wiki/<topic>/ 目录内
+    """
+    from app.services.wiki.scope import visible_articles_query
+
+    art = visible_articles_query(current_user).filter(
+        KnowledgeWikiArticle.id == article_id
+    ).first()
+    if art is None:
+        # 文章不存在或用户无权限 —— 一律 404，避免泄露存在性
+        abort(404)
+
+    expected_prefix = f'_assets/{art.slug}/'
+    if '..' in rel or not rel.startswith(expected_prefix):
+        abort(400)
+
+    base = (get_wiki_dir() / art.topic).resolve()
+    abs_path = (get_wiki_dir() / art.topic / rel).resolve()
+    try:
+        abs_path.relative_to(base)
+    except ValueError:
+        abort(400)
+
+    if not abs_path.is_file():
+        abort(404)
+
+    return send_file(str(abs_path))
+
+
+@knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>/image/<int:index>/replace', methods=['POST'])
+@login_required
+def replace_article_image_endpoint(article_id, index):
+    """替换文章 image_manifest 中指定 index 的图片。
+
+    旧文件备份到 _assets/<slug>/.history/，更新 manifest 条目，并将
+    article.manually_edited 置为 True。
+    """
+    from datetime import datetime
+
+    art = KnowledgeWikiArticle.query.get_or_404(article_id)
+    # 图片替换权限严格收紧：仅文章作者 + admin/ceo
+    # 不复用 can_manage_article（它放行同部门 department-scope 的部门经理，
+    # 范围太宽——图片替换是不可逆的内容改动，不该让非作者的同部门同事动手）
+    is_admin = current_user.role in ('admin', 'ceo')
+    is_owner = art.owner_id == current_user.id
+    if not (is_admin or is_owner):
+        return jsonify({'success': False, 'message': '无权编辑此文章（仅作者和管理员可替换图片）'}), 403
+
+    f = request.files.get('image')
+    if not f or not (f.mimetype or '').startswith('image/'):
+        return jsonify({'success': False, 'message': '请上传图片文件 (image/*)'}), 400
+
+    manifest = list(art.image_manifest or [])
+    entry = next((m for m in manifest if m.get('index') == index), None)
+    if entry is None:
+        return jsonify({'success': False, 'message': f'图片 index={index} 不在 manifest 中'}), 404
+
+    data = f.read()
+    MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+    if len(data) == 0:
+        return jsonify({'success': False, 'message': '上传文件为空'}), 400
+    if len(data) > MAX_BYTES:
+        return jsonify({'success': False, 'message': f'文件过大 (>{MAX_BYTES // 1024 // 1024}MB)'}), 400
+
+    try:
+        new_rel = storage.replace_article_image(art.topic, art.slug, index, data, f.mimetype)
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+    entry['path'] = new_rel
+    entry['manually_replaced'] = True
+    entry['replaced_at'] = datetime.utcnow().isoformat()
+    entry['sha256'] = storage.sha256_bytes(data)
+    entry['size_bytes'] = len(data)
+    # 用全新 list[dict] 触发 SQLAlchemy JSON 列变更检测（直接 mutate 嵌套 dict
+    # 不会被识别为 dirty）；为安全起见再显式 flag_modified
+    from sqlalchemy.orm.attributes import flag_modified
+    art.image_manifest = [dict(m) for m in manifest]
+    flag_modified(art, 'image_manifest')
+    art.manually_edited = True
+    db.session.commit()
+
+    logger.info(
+        f'[Wiki] user={current_user.id} replaced image article_id={art.id} '
+        f'topic={art.topic} slug={art.slug} index={index} '
+        f'size={len(data)} sha256={entry["sha256"][:8]}'
+    )
+    return jsonify({'success': True, 'image': entry, 'manually_edited': True})
 
 
 @knowledge_wiki_bp.route('/api/wiki/articles/<int:article_id>', methods=['DELETE'])

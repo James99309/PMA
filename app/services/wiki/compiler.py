@@ -50,6 +50,7 @@ def ingest_raw_file(
     raw_file_id: int,
     *,
     claude: claude_client.WikiClaudeClient | None = None,
+    force: bool = False,
 ) -> dict:
     """把一个原始文件编译入 Wiki。
 
@@ -188,6 +189,7 @@ def ingest_raw_file(
                 raw_text=raw_text,
                 index_md=index_md,
                 related_articles=related_context,
+                embedded_images=raw_content.embedded_images,
             )
 
         # 5. 调 Opus
@@ -222,10 +224,18 @@ def ingest_raw_file(
             except storage.WikiPathError as e:
                 raise IngestError(f'Claude 返回的 operations[{i}] 非法: {e}') from e
 
+        # 7.5 落盘嵌入图 + 重写 AUTO_IMG: 占位符（text 和 vision 两种模式都走这里）
+        op_manifests = _persist_embedded_images_and_rewrite_md(
+            operations,
+            raw_content.embedded_images,
+            rollback_state,
+        )
+
         # 8. 应用 operations(追踪 rollback 状态,但不 commit)
         _apply_operations(operations, raw_id=raw.id, rollback_state=rollback_state,
                          scope=raw.scope, owner_id=raw.owner_id,
-                         owner_department=raw.owner_department)
+                         owner_department=raw.owner_department,
+                         op_manifests=op_manifests, force=force)
 
         # 9. 写 index.md（记入 rollback_state 以便失败恢复）
         index_updated = False
@@ -324,8 +334,13 @@ def _build_ingest_user_prompt(
     raw_text: str,
     index_md: str,
     related_articles: list[dict],
+    embedded_images: list | None = None,
 ) -> str:
-    """构造传给 Claude 的 user 消息（纯文本模式，Markdown 章节格式）。"""
+    """构造传给 Claude 的 user 消息（纯文本模式，Markdown 章节格式）。
+
+    若 embedded_images 非空（来自 docx 嵌入图），会附加 `## 嵌入图片清单` 段，
+    Claude 应按 system prompt 用 `![描述](AUTO_IMG:N)` 在文章正文中引用。
+    """
     parts: list[str] = []
 
     parts.append('## 原始资料元数据')
@@ -351,6 +366,20 @@ def _build_ingest_user_prompt(
             parts.append('')
             parts.append(art['content'] or '（空文件）')
             parts.append('')
+
+    if embedded_images:
+        parts.append('## 嵌入图片清单')
+        parts.append(
+            '原始资料含以下嵌入图片，按出现顺序编号。请按 system prompt'
+            '「图片处理规则」用 `![描述](AUTO_IMG:N)` 在文章正文中嵌入引用。'
+        )
+        parts.append('')
+        for img in embedded_images:
+            parts.append(
+                f'- 图 #{img["order"]}: 出现在第 {img["paragraph_index"]} 段附近, '
+                f'类型 {img["media_type"]}, 原文件名 {img.get("original_name", "?")}'
+            )
+        parts.append('')
 
     return '\n'.join(parts)
 
@@ -414,6 +443,21 @@ def _build_ingest_vision_prompt(
             context_parts.append('')
 
     blocks.append({'type': 'text', 'text': '\n'.join(context_parts)})
+
+    # 嵌入图片清单 - 教 Claude 如何用 AUTO_IMG:N 引用各页（与 text 模式 docx 一致）
+    if images:
+        img_list_lines = [
+            '',
+            '## 嵌入图片清单',
+            '上述每页 PNG 在文章正文中可用 `![描述](AUTO_IMG:N)` 引用，N 为页码。'
+            '请按 system prompt「图片处理规则」就近放置，每张图给一个简洁有信息的中文 caption。',
+            '',
+        ]
+        for img in images:
+            img_list_lines.append(
+                f'- 图 #{img["page"] + 1}: 来自 PDF 第 {img["page"] + 1} 页, 类型 {img["media_type"]}'
+            )
+        blocks.append({'type': 'text', 'text': '\n'.join(img_list_lines)})
 
     return blocks
 
@@ -610,9 +654,98 @@ def _award_wiki_cited(old_refs: list, new_refs: list):
         logger.warning(f"[Ingest] _award_wiki_cited 整体失败: {e}")
 
 
+def _persist_embedded_images_and_rewrite_md(
+    operations: list[dict],
+    embedded_images: list[dict],
+    rollback_state: dict,
+) -> dict[int, list[dict]]:
+    """把每个 create/update op 内容里的 `![cap](AUTO_IMG:N)` 替换为真实
+    `_assets/<slug>/img-N.<ext>` 路径，把图片字节落盘，并构造 manifest 条目。
+
+    Returns:
+        {op_index: [manifest_entry, ...]}
+
+    Manifest entry 形如：
+      {'index': N, 'path': str (相对文章 .md),
+       'caption': str, 'source': {'type':'docx_para','paragraph_index':int},
+       'manually_replaced': False, 'replaced_at': None,
+       'sha256': str, 'size_bytes': int}
+
+    落盘的文件路径（相对 wiki_root）会追加到 rollback_state['created_files']
+    以便失败时被 _rollback_file_changes 删除。
+    """
+    import re
+
+    if not embedded_images:
+        return {}
+
+    pattern = re.compile(r'!\[([^\]]*)\]\(AUTO_IMG:(\d+)\)')
+    img_by_order = {img['order']: img for img in embedded_images}
+    manifests: dict[int, list[dict]] = {}
+
+    for op_idx, op in enumerate(operations):
+        action = (op.get('action') or '').lower()
+        if action not in ('create', 'update'):
+            continue
+        body = op.get('content') or ''
+        topic = op.get('topic')
+        slug = op.get('slug')
+        if not topic or not slug:
+            continue
+
+        used_indices: set[int] = set()
+        used_entries: list[dict] = []
+
+        def _sub(m, _topic=topic, _slug=slug):
+            caption = m.group(1).strip()
+            order = int(m.group(2))
+            img = img_by_order.get(order)
+            if not img:
+                # 引用未知图片 → 静默丢弃整个 markdown 引用
+                return ''
+            if order in used_indices:
+                # 同一张图被多次引用 → 复用首次落盘路径
+                existing = next((e for e in used_entries if e['index'] == order), None)
+                if existing:
+                    return f'![{caption}]({existing["path"]})'
+                return ''
+            used_indices.add(order)
+            rel = storage.save_article_image(_topic, _slug, order, img['data'], img['media_type'])
+            # rel 形如 '_assets/<slug>/img-N.png'，相对文章 .md
+            # rollback 路径需要相对 wiki_root（即加上 wiki/<topic>/ 前缀）
+            rollback_state['created_files'].append(f'wiki/{_topic}/{rel}')
+            # 区分图片来源（docx 段落 / pdf 页图）
+            if 'paragraph_index' in img:
+                source = {'type': 'docx_para', 'paragraph_index': img['paragraph_index']}
+            elif 'page_index' in img:
+                source = {'type': 'pdf_page', 'page_index': img['page_index']}
+            else:
+                source = {'type': 'unknown'}
+            used_entries.append({
+                'index': order,
+                'path': rel,
+                'caption': caption,
+                'source': source,
+                'manually_replaced': False,
+                'replaced_at': None,
+                'sha256': storage.sha256_bytes(img['data']),
+                'size_bytes': len(img['data']),
+            })
+            return f'![{caption}]({rel})'
+
+        new_body = pattern.sub(_sub, body)
+        op['content'] = new_body
+        if used_entries:
+            manifests[op_idx] = used_entries
+
+    return manifests
+
+
 def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: dict,
                       scope: str = 'company', owner_id: int = 1,
-                      owner_department: str | None = None):
+                      owner_department: str | None = None,
+                      op_manifests: dict[int, list[dict]] | None = None,
+                      force: bool = False):
     """把 Claude 返回的 operations 应用到 Wiki（磁盘 + 数据库）。
 
     支持三种 action：
@@ -633,6 +766,7 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
     compile_model = claude_client.INGEST_MODEL
     created_files = rollback_state['created_files']
     updated_backups = rollback_state['updated_backups']
+    op_manifests = op_manifests or {}
 
     for i, op in enumerate(operations):
         action = (op.get('action') or '').lower()
@@ -663,6 +797,14 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                 topic=topic, slug=slug
             ).first()
             if existing_art is not None:
+                # Respect manual edits (Task 13): skip if user has hand-edited this article and force=False.
+                if existing_art.manually_edited and not force:
+                    op['skipped_reason'] = 'manually_edited'
+                    op['action'] = 'noop'
+                    logger.info(
+                        f'[Ingest] skipping {topic}/{slug} — manually_edited=True (force=False)'
+                    )
+                    continue
                 old_content = storage.read_article_content(existing_art.file_path)
                 updated_backups[existing_art.file_path] = old_content
                 # 更新已有记录,不创建新 row(避免 unique constraint 冲突)
@@ -679,6 +821,10 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                 existing_art.outbound_refs = list(outbound_refs)
                 existing_art.last_compiled_at = now
                 existing_art.compile_model = compile_model
+                # 重新 ingest 视为新一轮图片集合，覆盖旧 manifest（仅当本次有图）
+                manifest = op_manifests.get(i)
+                if manifest is not None:
+                    existing_art.image_manifest = manifest
                 logger.info(f'[Ingest] create(→update) {topic}/{slug}')
             else:
                 file_path = storage.write_article(topic, slug, content)
@@ -697,6 +843,7 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                     scope=scope,
                     owner_id=owner_id,
                     owner_department=owner_department,
+                    image_manifest=op_manifests.get(i),
                 )
                 db.session.add(art)
                 db.session.flush()  # 确保 art.id 已生成
@@ -734,9 +881,18 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                     scope=scope,
                     owner_id=owner_id,
                     owner_department=owner_department,
+                    image_manifest=op_manifests.get(i),
                 )
                 db.session.add(art)
             else:
+                # Respect manual edits (Task 13): skip if user has hand-edited this article and force=False.
+                if art.manually_edited and not force:
+                    op['skipped_reason'] = 'manually_edited'
+                    op['action'] = 'noop'
+                    logger.info(
+                        f'[Ingest] skipping {topic}/{slug} — manually_edited=True (force=False)'
+                    )
+                    continue
                 # 备份旧正文用于回滚
                 old_content = storage.read_article_content(art.file_path)
                 updated_backups[art.file_path] = old_content
@@ -757,6 +913,10 @@ def _apply_operations(operations: list[dict], *, raw_id: int, rollback_state: di
                     art.outbound_refs = list(outbound_refs)
                 art.last_compiled_at = now
                 art.compile_model = compile_model
+                # 重新 ingest 视为新一轮图片集合，覆盖旧 manifest（仅当本次有图）
+                manifest = op_manifests.get(i)
+                if manifest is not None:
+                    art.image_manifest = manifest
                 logger.info(f'[Ingest] update {topic}/{slug}')
 
         else:

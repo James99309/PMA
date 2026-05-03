@@ -7,6 +7,7 @@
     raw/product/2026-04-09-datasheet.pdf
 """
 import base64
+import hashlib
 import logging
 import os
 import re
@@ -17,6 +18,8 @@ from typing import List
 from zoneinfo import ZoneInfo
 
 from app.services.wiki.paths import (
+    article_image_relative_path,
+    assets_dir_for_article,
     get_index_path,
     get_log_path,
     get_raw_dir,
@@ -265,6 +268,9 @@ class RawFileContent:
     # images: [{'page': int, 'base64': str, 'media_type': 'image/png'}, ...]
     total_pages: int = 0
     extracted_pages: int = 0
+    # embedded_images: text 模式下从 docx 嵌入图提取出来的清单
+    # [{'order':1,'paragraph_index':12,'data':bytes,'media_type':'image/png','original_name':'image1.png'}, ...]
+    embedded_images: list = field(default_factory=list)
 
 
 def extract_raw_file_content(raw_path: str) -> RawFileContent:
@@ -294,7 +300,14 @@ def extract_raw_file_content(raw_path: str) -> RawFileContent:
     # 非 PDF 走纯文本
     if ext != '.pdf':
         text = _extract_text_non_pdf(abs_path, ext)
-        return RawFileContent(content_type='text', text=text)
+        embedded = []
+        if ext == '.docx':
+            try:
+                from app.services.wiki.docx_images import extract_docx_images
+                embedded = extract_docx_images(abs_path)
+            except Exception as e:
+                logger.warning(f'[Storage] docx 抽图失败 {raw_path}: {e}')
+        return RawFileContent(content_type='text', text=text, embedded_images=embedded)
 
     # PDF:先尝试文字提取
     try:
@@ -411,11 +424,26 @@ def _pdf_to_vision_images(abs_path: Path, total_pages: int) -> RawFileContent:
         f'{"(downgraded)" if downgraded else ""}'
     )
 
+    # 构造 embedded_images 与 _persist_embedded_images_and_rewrite_md 兼容
+    # 让 vision 模式 PDF 页图也能走 AUTO_IMG:N → _assets 持久化流程
+    embedded = []
+    for i, img in enumerate(final_images):
+        raw_bytes = base64.b64decode(img['base64'])
+        ext = 'jpg' if img['media_type'] == 'image/jpeg' else 'png'
+        embedded.append({
+            'order': i + 1,                # 1-based for AUTO_IMG:N
+            'page_index': img['page'],     # 0-based page number
+            'data': raw_bytes,
+            'media_type': img['media_type'],
+            'original_name': f'page-{img["page"] + 1}.{ext}',
+        })
+
     return RawFileContent(
         content_type='images',
         images=final_images,
         total_pages=total_pages,
         extracted_pages=pages_to_extract,
+        embedded_images=embedded,
     )
 
 
@@ -531,3 +559,59 @@ def delete_raw_file(raw_path: str) -> bool:
         abs_path.unlink()
         return True
     return False
+
+
+# ══════════════════════════════════════════════════════════════════
+# 文章资源（图片）保存与历史备份
+# ══════════════════════════════════════════════════════════════════
+
+_MEDIA_TYPE_EXT = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/jpg': 'jpg',
+    'image/gif': 'gif',
+    'image/webp': 'webp',
+}
+
+
+def _ext_for_media(media_type: str) -> str:
+    ext = _MEDIA_TYPE_EXT.get((media_type or '').lower())
+    if not ext:
+        raise ValueError(f'不支持的图片类型: {media_type}')
+    return ext
+
+
+def save_article_image(topic: str, slug: str, index: int, data: bytes, media_type: str) -> str:
+    """保存图片到 _assets/<slug>/img-<index>.<ext>，返回相对 article 的路径。"""
+    validate_topic_slug(topic, slug)
+    if index < 1:
+        raise ValueError('index 从 1 开始')
+    ext = _ext_for_media(media_type)
+    out_dir = assets_dir_for_article(topic, slug)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f'img-{index}.{ext}'
+    out_path.write_bytes(data)
+    return article_image_relative_path(slug, index, ext)
+
+
+def replace_article_image(topic: str, slug: str, index: int, data: bytes, media_type: str) -> str:
+    """覆盖现有图片，旧文件备份到 .history/。返回相对路径。"""
+    validate_topic_slug(topic, slug)
+    if index < 1:
+        raise ValueError('index 从 1 开始')
+    ext = _ext_for_media(media_type)
+    out_dir = assets_dir_for_article(topic, slug)
+    out_path = out_dir / f'img-{index}.{ext}'
+    if out_path.exists():
+        history_dir = out_dir / '.history'
+        history_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now().strftime('%Y%m%d-%H%M%S')
+        backup = history_dir / f'img-{index}.{ext}.{ts}.bak'
+        backup.write_bytes(out_path.read_bytes())
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(data)
+    return article_image_relative_path(slug, index, ext)
+
+
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
