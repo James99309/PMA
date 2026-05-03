@@ -446,11 +446,15 @@ def replace_article_image_endpoint(article_id, index):
     article.manually_edited 置为 True。
     """
     from datetime import datetime
-    from app.services.wiki.scope import can_manage_article
 
     art = KnowledgeWikiArticle.query.get_or_404(article_id)
-    if not can_manage_article(current_user, art):
-        return jsonify({'success': False, 'message': '无权编辑此文章'}), 403
+    # 图片替换权限严格收紧：仅文章作者 + admin/ceo
+    # 不复用 can_manage_article（它放行同部门 department-scope 的部门经理，
+    # 范围太宽——图片替换是不可逆的内容改动，不该让非作者的同部门同事动手）
+    is_admin = current_user.role in ('admin', 'ceo')
+    is_owner = art.owner_id == current_user.id
+    if not (is_admin or is_owner):
+        return jsonify({'success': False, 'message': '无权编辑此文章（仅作者和管理员可替换图片）'}), 403
 
     f = request.files.get('image')
     if not f or not (f.mimetype or '').startswith('image/'):

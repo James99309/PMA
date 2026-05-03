@@ -185,6 +185,43 @@ def test_replace_image_403_for_non_owner_personal_article(client, app_ctx, wiki_
     assert resp.status_code == 403, resp.data
 
 
+def test_replace_image_403_for_department_manager_of_others_article(client, app_ctx, wiki_root):
+    """同部门部门经理 ≠ 文章作者 → 403。
+    替换图片是不可逆改动；不放行 can_manage_article 里的部门经理白名单。"""
+    owner = _create_user(department='dept-x')
+    dept_mgr = _create_user(department='dept-x')
+    dept_mgr.is_department_manager = True
+    db.session.commit()
+    art = _create_article_with_image(owner, wiki_root, scope='department')
+    # 确保元数据反映 department-scope + 同部门
+    art.scope = 'department'
+    art.owner_department = 'dept-x'
+    db.session.commit()
+
+    _login(client, dept_mgr)
+    resp = client.post(
+        f'/api/wiki/articles/{art.id}/image/1/replace',
+        data={'image': (io.BytesIO(b'NEW'), 'new.png', 'image/png')},
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 403, resp.data
+
+
+def test_replace_image_200_for_admin(client, app_ctx, wiki_root):
+    """admin 角色对任意文章都能替换图。"""
+    owner = _create_user()
+    admin = _create_user(role='admin')
+    art = _create_article_with_image(owner, wiki_root, scope='personal')
+
+    _login(client, admin)
+    resp = client.post(
+        f'/api/wiki/articles/{art.id}/image/1/replace',
+        data={'image': (io.BytesIO(b'NEW'), 'new.png', 'image/png')},
+        content_type='multipart/form-data',
+    )
+    assert resp.status_code == 200, resp.data
+
+
 def test_replace_image_404_for_unknown_index(client, app_ctx, wiki_root):
     """manifest 只有 index=1，请求 index=99 → 404。"""
     owner = _create_user()
