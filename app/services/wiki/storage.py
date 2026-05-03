@@ -268,6 +268,9 @@ class RawFileContent:
     # images: [{'page': int, 'base64': str, 'media_type': 'image/png'}, ...]
     total_pages: int = 0
     extracted_pages: int = 0
+    # embedded_images: text 模式下从 docx 嵌入图提取出来的清单
+    # [{'order':1,'paragraph_index':12,'data':bytes,'media_type':'image/png','original_name':'image1.png'}, ...]
+    embedded_images: list = field(default_factory=list)
 
 
 def extract_raw_file_content(raw_path: str) -> RawFileContent:
@@ -297,7 +300,14 @@ def extract_raw_file_content(raw_path: str) -> RawFileContent:
     # 非 PDF 走纯文本
     if ext != '.pdf':
         text = _extract_text_non_pdf(abs_path, ext)
-        return RawFileContent(content_type='text', text=text)
+        embedded = []
+        if ext == '.docx':
+            try:
+                from app.services.wiki.docx_images import extract_docx_images
+                embedded = extract_docx_images(abs_path)
+            except Exception as e:
+                logger.warning(f'[Storage] docx 抽图失败 {raw_path}: {e}')
+        return RawFileContent(content_type='text', text=text, embedded_images=embedded)
 
     # PDF:先尝试文字提取
     try:
