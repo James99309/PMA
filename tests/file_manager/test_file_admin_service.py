@@ -135,3 +135,117 @@ def test_list_user_files_excludes_deleted(app_ctx):
         FileLibrary.query.filter_by(id=lib.id).delete()
         User.query.filter_by(id=u.id).delete()
         db.session.commit()
+
+
+def test_set_admin_lock_records_actor_and_time(app_ctx):
+    from app.services.file_admin_service import set_admin_lock
+    u = _mk_user(); admin = _mk_user(role='admin')
+    lib = _mk_lib(); ref = _mk_ref(u, lib)
+    try:
+        ok, msg = set_admin_lock(ref.id, locked=True, by_user=admin)
+        assert ok, msg
+        db.session.refresh(ref)
+        assert ref.is_admin_locked is True
+        assert ref.admin_locked_by == admin.id
+        assert ref.admin_locked_at is not None
+        ok2, msg2 = set_admin_lock(ref.id, locked=False, by_user=admin)
+        assert ok2, msg2
+        db.session.refresh(ref)
+        assert ref.is_admin_locked is False
+        assert ref.admin_locked_at is None
+        assert ref.admin_locked_by is None
+    finally:
+        UserFileRef.query.filter_by(id=ref.id).delete()
+        FileLibrary.query.filter_by(id=lib.id).delete()
+        User.query.filter(User.id.in_([u.id, admin.id])).delete()
+        db.session.commit()
+
+
+def test_transfer_changes_owner(app_ctx):
+    from app.services.file_admin_service import transfer_file
+    a = _mk_user(); b = _mk_user(); admin = _mk_user(role='admin')
+    lib = _mk_lib(); ref = _mk_ref(a, lib)
+    try:
+        ok, msg = transfer_file(ref.id, to_user_id=b.id, to_folder_id=None, by_user=admin)
+        assert ok, msg
+        db.session.refresh(ref)
+        assert ref.user_id == b.id
+        assert ref.folder_id is None
+    finally:
+        UserFileRef.query.filter_by(id=ref.id).delete()
+        FileLibrary.query.filter_by(id=lib.id).delete()
+        User.query.filter(User.id.in_([a.id, b.id, admin.id])).delete()
+        db.session.commit()
+
+
+def test_transfer_rejects_invalid_target_folder(app_ctx):
+    from app.services.file_admin_service import transfer_file
+    a = _mk_user(); b = _mk_user(); admin = _mk_user(role='admin')
+    lib = _mk_lib(); ref = _mk_ref(a, lib)
+    a_folder = UserFolder(user_id=a.id, name='A的文件夹', parent_id=None)
+    db.session.add(a_folder); db.session.commit()
+    try:
+        ok, msg = transfer_file(ref.id, to_user_id=b.id, to_folder_id=a_folder.id, by_user=admin)
+        assert not ok
+        assert '不属于目标用户' in msg
+    finally:
+        UserFolder.query.filter_by(id=a_folder.id).delete()
+        UserFileRef.query.filter_by(id=ref.id).delete()
+        FileLibrary.query.filter_by(id=lib.id).delete()
+        User.query.filter(User.id.in_([a.id, b.id, admin.id])).delete()
+        db.session.commit()
+
+
+def test_ingest_to_wiki_creates_raw_file(app_ctx):
+    """转 wiki 时把 file_library 内容落到 raw/ 目录并创建 KnowledgeRawFile 记录。"""
+    from app.services.file_admin_service import ingest_to_wiki
+    from app.models.knowledge import KnowledgeRawFile
+    import os, uuid
+
+    u = _mk_user(); admin = _mk_user(role='admin')
+
+    # FileManagerService._read_library_content 用 ./storage + storage_path 读本地文件
+    # 所以需要把测试 docx 落到 ./storage/<rel_path>
+    rel_path = f'test_admin_ingest/{uuid.uuid4().hex}.docx'
+    abs_storage_path = os.path.join('./storage', rel_path)
+    os.makedirs(os.path.dirname(abs_storage_path), exist_ok=True)
+
+    from docx import Document
+    _doc = Document()
+    _doc.add_paragraph('test content for wiki')
+    _doc.save(abs_storage_path)
+
+    sha = uuid.uuid4().hex
+    lib = FileLibrary(sha256_hash=sha, original_filename='test.docx',
+                      file_size=os.path.getsize(abs_storage_path),
+                      storage_path=rel_path, storage_type='local',
+                      mime_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    db.session.add(lib); db.session.commit()
+    ref = _mk_ref(u, lib)
+
+    try:
+        ok, raw_id_or_msg = ingest_to_wiki(ref.id, topic='product', scope='personal', by_user=admin)
+        assert ok, raw_id_or_msg
+        raw = KnowledgeRawFile.query.get(raw_id_or_msg)
+        assert raw is not None
+        assert raw.file_library_id == lib.id
+        assert raw.added_by == admin.id
+        assert raw.owner_id == admin.id
+        assert raw.ingest_status == 'pending'
+    finally:
+        from app.models.knowledge import KnowledgeRawFile
+        # 清理 wiki raw 文件
+        try:
+            from app.services.wiki.paths import get_wiki_root
+            for r in KnowledgeRawFile.query.filter_by(file_library_id=lib.id).all():
+                try: (get_wiki_root() / r.raw_path).unlink(missing_ok=True)
+                except Exception: pass
+        except Exception:
+            pass
+        KnowledgeRawFile.query.filter_by(file_library_id=lib.id).delete()
+        UserFileRef.query.filter_by(id=ref.id).delete()
+        FileLibrary.query.filter_by(id=lib.id).delete()
+        User.query.filter(User.id.in_([u.id, admin.id])).delete()
+        db.session.commit()
+        try: os.unlink(abs_storage_path)
+        except: pass

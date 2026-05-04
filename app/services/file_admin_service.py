@@ -125,3 +125,106 @@ def _folder_path(folder: UserFolder) -> str:
         parts.append(cur.name)
         cur = cur.parent if cur.parent_id else None
     return '/' + '/'.join(reversed(parts))
+
+
+from app.models.file_manager import get_local_time
+
+
+def set_admin_lock(file_ref_id: int, *, locked: bool, by_user) -> tuple[bool, str]:
+    """锁定/取消锁定 UserFileRef。锁定后被永久清理路径保护。"""
+    ref = UserFileRef.query.get(file_ref_id)
+    if ref is None:
+        return False, '文件不存在'
+    if locked:
+        ref.is_admin_locked = True
+        ref.admin_locked_at = get_local_time()
+        ref.admin_locked_by = by_user.id
+    else:
+        ref.is_admin_locked = False
+        ref.admin_locked_at = None
+        ref.admin_locked_by = None
+    db.session.commit()
+    return True, '已锁定' if locked else '已取消锁定'
+
+
+def transfer_file(file_ref_id: int, *, to_user_id: int, to_folder_id: int | None,
+                  by_user) -> tuple[bool, str]:
+    """转移文件到其他用户的文件夹（或根目录）。"""
+    import logging
+    ref = UserFileRef.query.get(file_ref_id)
+    if ref is None:
+        return False, '文件不存在'
+
+    target_user = User.query.get(to_user_id)
+    if target_user is None or not target_user.is_active:
+        return False, '目标用户不存在或已停用'
+
+    if to_folder_id is not None:
+        folder = UserFolder.query.get(to_folder_id)
+        if folder is None or folder.is_deleted:
+            return False, '目标文件夹不存在'
+        if folder.user_id != to_user_id:
+            return False, '目标文件夹不属于目标用户'
+
+    ref.user_id = to_user_id
+    ref.folder_id = to_folder_id
+    db.session.commit()
+    logging.getLogger(__name__).info(
+        f'[FileAdmin] user={by_user.id} 转移 file_ref={ref.id} → user={to_user_id} folder={to_folder_id}'
+    )
+    return True, '已转移'
+
+
+def ingest_to_wiki(file_ref_id: int, *, topic: str, scope: str, by_user) -> tuple[bool, object]:
+    """把 file_ref 对应的 file_library 文件登记为 wiki raw file（不立即编译）。
+    返回 (True, raw_id) 或 (False, error_msg)。
+    """
+    from app.services.file_manager_service import FileManagerService
+    from app.models.knowledge import KnowledgeRawFile
+    from app.services.wiki import storage as wiki_storage
+    from app.services.wiki.paths import get_wiki_root
+
+    ref = UserFileRef.query.get(file_ref_id)
+    if ref is None:
+        return False, '文件不存在'
+
+    lib = ref.file_library
+    if lib is None:
+        return False, '文件库记录缺失'
+
+    # 校验 topic
+    try:
+        wiki_storage.validate_topic(topic)
+    except wiki_storage.WikiPathError as e:
+        return False, str(e)
+
+    if scope not in ('personal', 'department', 'company', 'system'):
+        return False, '非法 scope'
+
+    # 读字节
+    content = FileManagerService.read_file_content_auto_decompress(lib)
+    if content is None:
+        return False, '无法读取文件内容'
+
+    # 落 raw 目录
+    safe_name = wiki_storage.dated_filename(lib.original_filename)
+    raw_path = wiki_storage.save_raw_file(topic, safe_name, content)
+
+    # 体量校验
+    abs_path = get_wiki_root() / raw_path
+    reason = wiki_storage.validate_raw_file_for_wiki(abs_path)
+    if reason:
+        try:
+            abs_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return False, reason
+
+    raw = KnowledgeRawFile(
+        file_library_id=lib.id, topic=topic, raw_path=raw_path,
+        title=lib.original_filename, added_by=by_user.id,
+        scope=scope, owner_id=by_user.id,
+        owner_department=getattr(by_user, 'department', None),
+    )
+    db.session.add(raw); db.session.commit()
+    return True, raw.id
