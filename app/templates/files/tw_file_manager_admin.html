@@ -1,8 +1,43 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
 
-{% block title %}{{ _('文件管理 - 全部用户') }}{% endblock %}
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ _('文件管理 - 全部用户') }} - PMA</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
+                    },
+                    fontFamily: { "display": ["Inter", "sans-serif"] }
+                }
+            }
+        }
+    </script>
+</head>
 
-{% block content %}
+<body class="bg-background-light dark:bg-background-dark min-h-screen">
 {% call(slot) render_tw_layout(active_page='file_manager', show_search=false) %}
   {% if slot == 'content' %}
   <div class="flex h-full" x-data="adminFileManager()" x-init="init()">
@@ -306,4 +341,5 @@
   {% endif %}
 {% endcall %}
 {{ render_tw_layout_script() }}
-{% endblock %}
+</body>
+</html>
