@@ -120,6 +120,7 @@ class UserFileRef(db.Model):
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
 
     # 关系
+    # foreign_keys 显式指定：admin_locked_by 也是 users 外键，不指明会触发 SQLAlchemy 歧义
     user = relationship('User', foreign_keys=[user_id], backref=backref('file_refs', lazy='dynamic'))
     folder = relationship('UserFolder', backref=backref('files', lazy='dynamic'))
     file_library = relationship('FileLibrary', backref=backref('refs', lazy='dynamic'))
