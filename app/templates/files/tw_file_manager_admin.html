@@ -52,7 +52,7 @@
         </a>
         <h2 class="text-sm font-semibold mb-2 text-slate-900 dark:text-white">{{ _('全部用户') }} (<span x-text="users.length"></span>)</h2>
         <input x-model="userSearch" type="text" placeholder="{{ _('搜索用户') }}"
-               class="w-full px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded mb-2 bg-transparent">
+               class="w-full px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded mb-2 bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
         <ul class="space-y-1">
           <template x-for="u in filteredUsers()" :key="u.user_id">
             <li>
@@ -84,9 +84,9 @@
         <div class="ml-auto flex items-center gap-2">
           <input x-model="fileSearch" @input.debounce.300ms="loadFiles()"
                  type="text" placeholder="{{ _('搜索文件') }}"
-                 class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent">
+                 class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
           <select x-model="fileType" @change="loadFiles()"
-                  class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent">
+                  class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
             <option value="">{{ _('全部类型') }}</option>
             <option value="pdf">PDF</option>
             <option value="office">Office</option>
@@ -94,7 +94,7 @@
             <option value="video">{{ _('视频') }}</option>
           </select>
           <select x-model="sort" @change="loadFiles()"
-                  class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent">
+                  class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
             <option value="recent">{{ _('最新') }}</option>
             <option value="name">{{ _('文件名') }}</option>
             <option value="size">{{ _('大小') }}</option>
@@ -172,7 +172,7 @@
         <h3 class="font-semibold mb-3">{{ _('转移文件给其他用户') }}</h3>
         <p class="text-xs text-slate-500 mb-3" x-text="'文件: ' + (transferModal.file?.original_filename || '')"></p>
         <select x-model="transferModal.targetUserId"
-                class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded mb-3 bg-transparent">
+                class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded mb-3 bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
           <option value="">{{ _('选择目标用户') }}</option>
           <template x-for="u in users.filter(x => x.user_id !== selectedUserId)" :key="u.user_id">
             <option :value="u.user_id" x-text="(u.real_name || u.username) + ' (' + (u.department || '-') + ')'"></option>
@@ -194,10 +194,10 @@
         <p class="text-xs text-slate-500 mb-3" x-text="'文件: ' + (wikiModal.file?.original_filename || '')"></p>
         <label class="block text-xs mb-1">{{ _('Topic（分类目录）') }}</label>
         <input x-model="wikiModal.topic" type="text" placeholder="例如: product / sales / HR"
-               class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded mb-3 bg-transparent">
+               class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded mb-3 bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
         <label class="block text-xs mb-1">{{ _('权限范围') }}</label>
         <select x-model="wikiModal.scope"
-                class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded mb-3 bg-transparent">
+                class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded mb-3 bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
           <option value="personal">{{ _('个人') }}</option>
           <option value="department">{{ _('部门') }}</option>
           <option value="company">{{ _('公司') }}</option>
