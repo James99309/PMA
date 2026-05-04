@@ -403,6 +403,11 @@ def create_app(config_class=Config):
     app.register_blueprint(file_manager_bp)
     csrf.exempt(file_manager_bp)  # 豁免文件管理蓝图的CSRF保护（用于文件上传）
 
+    # 注册管理员视角的文件管理蓝图
+    from app.views.file_manager_admin import file_manager_admin_bp
+    app.register_blueprint(file_manager_admin_bp)
+    csrf.exempt(file_manager_admin_bp)
+
     # 注册会议录音纪要蓝图
     from app.views.meeting import meeting
     app.register_blueprint(meeting)
