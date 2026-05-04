@@ -239,6 +239,89 @@ def save_raw_file(topic: str, filename: str, data: bytes) -> str:
 
 
 # ══════════════════════════════════════════════════════════════════
+# 入库前体量校验（防止 111 页全图 PRD 类的不合适文档进入 wiki）
+# ══════════════════════════════════════════════════════════════════
+
+# 文件大小上限：超过则拒绝
+WIKI_RAW_MAX_SIZE_BYTES = int(os.environ.get('WIKI_RAW_MAX_SIZE_BYTES', str(10 * 1024 * 1024)))  # 10 MB
+# PDF 页数上限：超过则拒绝
+WIKI_PDF_MAX_PAGES_FOR_INGEST = int(os.environ.get('WIKI_PDF_MAX_PAGES_FOR_INGEST', '30'))
+# PDF 文字密度阈值（字符/页），低于此值且页数 > MIN 时拒绝（图为主的扫描/排版 PDF）
+WIKI_PDF_LOW_TEXT_DENSITY = int(os.environ.get('WIKI_PDF_LOW_TEXT_DENSITY', '200'))
+WIKI_PDF_LOW_TEXT_MIN_PAGES = int(os.environ.get('WIKI_PDF_LOW_TEXT_MIN_PAGES', '5'))
+# DOCX 字符数上限（粗略对应 40 页文档），超过则拒绝
+WIKI_DOCX_MAX_CHARS = int(os.environ.get('WIKI_DOCX_MAX_CHARS', '60000'))
+
+
+def validate_raw_file_for_wiki(abs_path) -> str | None:
+    """检查文件是否适合入 wiki。返回 None 表示通过；否则返回中文拒绝原因。
+
+    设计目标：拦住 wiki 一篇文章承载不下的过大 / 过长 / 图为主的文档，
+    引导用户拆分或先整理摘要。误判时返回 None（让下游处理而非误拒）。
+    """
+    abs_path = Path(abs_path)
+    try:
+        size = abs_path.stat().st_size
+    except OSError:
+        return None
+    if size > WIKI_RAW_MAX_SIZE_BYTES:
+        size_mb = size / 1024 / 1024
+        return (
+            f'文件过大（{size_mb:.1f} MB > 上限 {WIKI_RAW_MAX_SIZE_BYTES/1024/1024:.0f} MB），'
+            f'wiki 一篇文章承载不下。建议拆分为 ≤10 页章节后分别上传，'
+            f'或先整理成 5K 字以内的总结再加入。'
+        )
+
+    ext = abs_path.suffix.lower().lstrip('.')
+
+    if ext == 'pdf':
+        try:
+            import fitz
+            doc = fitz.open(str(abs_path))
+            pages = len(doc)
+            text_chars = sum(len(p.get_text() or '') for p in doc)
+            doc.close()
+        except Exception:
+            return None
+
+        if pages > WIKI_PDF_MAX_PAGES_FOR_INGEST:
+            return (
+                f'PDF 页数过多（{pages} 页 > 上限 {WIKI_PDF_MAX_PAGES_FOR_INGEST}）。'
+                f'建议按章节拆分为 ≤10 页的多份后再上传。'
+            )
+
+        if pages > WIKI_PDF_LOW_TEXT_MIN_PAGES:
+            density = text_chars // max(pages, 1)
+            if density < WIKI_PDF_LOW_TEXT_DENSITY:
+                return (
+                    f'PDF 内容以图片为主（{pages} 页，文字层平均 {density} 字符/页 '
+                    f'< 阈值 {WIKI_PDF_LOW_TEXT_DENSITY}）。这种文档通常是 mockup / 截图集，'
+                    f'wiki 不适合直接容纳。建议截取核心几张图整理成简短文章再上传。'
+                )
+
+    elif ext == 'docx':
+        try:
+            import zipfile
+            from xml.etree import ElementTree as ET
+            with zipfile.ZipFile(str(abs_path)) as zf:
+                doc_xml = zf.read('word/document.xml')
+            root = ET.fromstring(doc_xml)
+            ns_t = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t'
+            text_chars = sum(len(t.text or '') for t in root.iter(ns_t))
+        except Exception:
+            return None
+
+        if text_chars > WIKI_DOCX_MAX_CHARS:
+            return (
+                f'docx 内容过长（约 {text_chars:,} 字符 > 上限 {WIKI_DOCX_MAX_CHARS:,}，'
+                f'相当于 {text_chars // 1500} 多页）。'
+                f'建议先整理成简洁版本（5K 字以内）再上传。'
+            )
+
+    return None
+
+
+# ══════════════════════════════════════════════════════════════════
 # PDF 扫描件 → 图片提取（Claude Vision）
 # ══════════════════════════════════════════════════════════════════
 

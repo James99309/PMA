@@ -33,7 +33,7 @@ from app.models.message import Message
 from app.models.user import User
 from app.services.file_manager_service import FileManagerService
 from app.services.wiki import compiler, linter, querier, storage
-from app.services.wiki.paths import ensure_wiki_structure, get_wiki_dir
+from app.services.wiki.paths import ensure_wiki_structure, get_wiki_dir, get_wiki_root
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,22 @@ def _require_admin():
     if not _is_admin():
         return jsonify({'success': False, 'message': '仅管理员可执行此操作'}), 403
     return None
+
+
+def _reject_if_unsuitable_for_wiki(raw_path: str):
+    """文件落盘后调用：检查是否适合入 wiki。
+    若不合适：unlink 该文件，返回 (jsonify_response, status_code)；适合则返回 None。
+    """
+    abs_path = get_wiki_root() / raw_path
+    reason = storage.validate_raw_file_for_wiki(abs_path)
+    if not reason:
+        return None
+    try:
+        abs_path.unlink(missing_ok=True)
+    except Exception:
+        logger.warning(f'[Wiki] 拒绝 {raw_path} 后清理文件失败')
+    logger.info(f'[Wiki] 拒绝入库 {raw_path}: {reason}')
+    return jsonify({'success': False, 'message': reason}), 400
 
 
 def _get_allowed_topic_names() -> set[str]:
@@ -140,6 +156,9 @@ def add_raw_file():
     # 保存到 raw/<topic>/<safe-dated-name>
     safe_name = storage.dated_filename(fl.original_filename)
     raw_path = storage.save_raw_file(topic, safe_name, content)
+    rejected = _reject_if_unsuitable_for_wiki(raw_path)
+    if rejected is not None:
+        return rejected
 
     # scope 参数（默认 personal）
     scope = (data.get('scope') or 'personal').strip()
@@ -216,6 +235,9 @@ def upload_and_add():
 
     safe_name = storage.dated_filename(fl.original_filename)
     raw_path = storage.save_raw_file(topic, safe_name, content)
+    rejected = _reject_if_unsuitable_for_wiki(raw_path)
+    if rejected is not None:
+        return rejected
 
     # scope 参数
     scope = (request.form.get('scope') or 'personal').strip()
@@ -290,6 +312,9 @@ def add_raw_from_file_ref():
 
     safe_name = storage.dated_filename(fl.original_filename)
     raw_path = storage.save_raw_file(topic, safe_name, content)
+    rejected = _reject_if_unsuitable_for_wiki(raw_path)
+    if rejected is not None:
+        return rejected
 
     # scope 参数
     scope = (data.get('scope') or 'personal').strip()
