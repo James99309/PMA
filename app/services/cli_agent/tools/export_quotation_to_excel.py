@@ -174,500 +174,197 @@ def _row_h(ws, row, height):
 def _build_excel(data: dict, db_type: str) -> bytes:
     """根据 plain dict 数据生成报价单 Excel bytes。
 
-    OVS（海外英文版）走 _build_excel_ovs，视觉对照网页 tw_quotation_edit.html。
-    其余（SP8D 中国中文版）保留原版式 + 升级 logo 为图片。
+    单一布局，视觉对照网页 tw_quotation_edit.html。
+    OVS（海外）/ SP8D（中国）只在 logo / 抬头 / 字体 / 标签三处不同，
+    通过 _VARIANT 字典参数化，避免双份代码漂移。
 
     data 结构:
-        quotation_number, project_name, company_name, contact_name,
-        contact_phone, quote_date (str YYYY-MM-DD), total_amount (float),
-        owner_name (str), details (list of dict)
-        【OVS 额外字段】company_address, currency, payment_terms,
-        shipping_terms, validity, ref_no, gst_percent, remarks
+        quotation_number, project_name, company_name, company_address,
+        contact_name, contact_phone, quote_date (str), total_amount (float),
+        owner_name, currency, payment_terms, shipping_terms, validity,
+        ref_no, gst_percent, remarks, details (list of dict)
     detail dict:
         mn (料号), product_name, product_model, product_desc, brand, unit,
-        quantity, discount (float|None), market_price (float|None),
-        unit_price (float), total_price (float)
+        quantity, discount, market_price, unit_price, total_price
     """
-    if (db_type or '').upper() == 'OVS':
-        return _build_excel_ovs(data)
-    return _build_excel_sp8d(data)
+    cfg = _VARIANT.get((db_type or '').upper(), _VARIANT['SP8D'])
+    return _build_excel_unified(data, cfg)
 
 
-def _build_excel_sp8d(data: dict) -> bytes:
-    """中国中文版 — 与 OVS 同款双列网页式布局，字段全部中文化。"""
+# 标签字典：OVS 英文 / SP8D 中文（对应网页 i18n）
+_LABELS_OVS = {
+    'title':           'QUOTATION',
+    'company_name':    'Company Name:',
+    'company_address': 'Company Address:',
+    'contact_name':    'Contact Person:',
+    'contact_phone':   'Contact No.:',
+    'project':         'Project:',
+    'currency':        'Currency:',
+    'quotation_no':    'Quotation No.:',
+    'quote_date':      'Quotation Date:',
+    'payment_terms':   'Payment Terms:',
+    'shipping_terms':  'Shipping Terms:',
+    'validity':        'Validity:',
+    'ref_no':          'Ref No.:',
+    'col_sn':          'S/N',
+    'col_item_no':     'Item No.',
+    'col_brand':       'Brand',
+    'col_desc':        'Description',
+    'col_disc':        'Disc%',
+    'col_market':      'Market',
+    'col_unit_price':  'Unit Price',
+    'col_qty':         'Qty',
+    'col_amount':      'Amount',
+    'subtotal':        'Total before GST',
+    'tax':             'GST',
+    'grand_total':     'Total after GST',
+    'remarks':         'Remarks:',
+    'sign':            'Signed and Accepted by Customer:',
+}
+
+_LABELS_SP8D = {
+    'title':           '销 售 报 价 单',
+    'company_name':    '客户名称：',
+    'company_address': '客户地址：',
+    'contact_name':    '联系人：',
+    'contact_phone':   '联系电话：',
+    'project':         '项目名称：',
+    'currency':        '货币：',
+    'quotation_no':    '报价编号：',
+    'quote_date':      '报价日期：',
+    'payment_terms':   '付款条件：',
+    'shipping_terms':  '交付条件：',
+    'validity':        '有效期：',
+    'ref_no':          '参考编号：',
+    'col_sn':          '序号',
+    'col_item_no':     '产品编码',
+    'col_brand':       '品牌',
+    'col_desc':        '型号规格',
+    'col_disc':        '折扣%',
+    'col_market':      '市场价',
+    'col_unit_price':  '单价',
+    'col_qty':         '数量',
+    'col_amount':      '小计',
+    'subtotal':        '不含税合计',
+    'tax':             '增值税',
+    'grand_total':     '含税合计',
+    'remarks':         '备注：',
+    'sign':            '签收：',
+}
+
+# 版式配置：变量 = logo + 抬头 + 字体 + 标签字典 + 货币格式 + 表名
+_VARIANT = {
+    'OVS': {
+        'logo':           _LOGO_OVS,
+        'logo_ratio':     _LOGO_OVS_RATIO,
+        'header_lines':   _OVS_HEADER_LINES,
+        'labels':         _LABELS_OVS,
+        'font':           'Arial',
+        'currency_fmt':   '#,##0.00',
+        'sheet_title':    'Quotation',
+        'default_currency': '',
+    },
+    'SP8D': {
+        'logo':           _LOGO_SP8D,
+        'logo_ratio':     _LOGO_SP8D_RATIO,
+        'header_lines':   _SP8D_HEADER_LINES,
+        'labels':         _LABELS_SP8D,
+        'font':           '微软雅黑',
+        'currency_fmt':   '¥#,##0.00',
+        'sheet_title':    '销售报价单',
+        'default_currency': 'CNY',
+    },
+}
+
+
+def _build_excel_unified(data: dict, cfg: dict) -> bytes:
+    """统一渲染逻辑 — 布局 100% 相同，仅 logo/抬头/标签/字体按 cfg 切换。"""
     from openpyxl import Workbook
     from openpyxl.drawing.image import Image as XLImage
     from io import BytesIO
 
+    L    = cfg['labels']
+    FONT = cfg['font']
+    FMT  = cfg['currency_fmt']
+
     wb = Workbook()
     ws = wb.active
-    ws.title = '销售报价单'
+    ws.title = cfg['sheet_title']
 
-    # 复用 OVS 列宽（A 边距 / B-J 9 数据列 / K 边距）
+    # 列宽（与网页 9 数据列布局一致）
     for col, w in _OVS_COL_WIDTHS.items():
         ws.column_dimensions[col].width = w
 
     # Row 1-3: logo + 抬头三行
     for r in (1, 2, 3):
         _row_h(ws, r, 22)
-    if os.path.exists(_LOGO_SP8D):
+    if os.path.exists(cfg['logo']):
         try:
-            img = XLImage(_LOGO_SP8D)
+            img = XLImage(cfg['logo'])
             img.width  = 160
-            img.height = int(160 / _LOGO_SP8D_RATIO)
+            img.height = int(160 / cfg['logo_ratio'])
             ws.add_image(img, 'B1')
         except Exception as e:
-            logger.warning(f'[export_quotation_to_excel] SP8D logo 插入失败: {e}')
+            logger.warning(f'[export_quotation_to_excel] logo 插入失败: {e}')
 
+    head = cfg['header_lines']
     _merge(ws, 1, 4, 1, 10)
-    _set_cell(ws, 1, 4, _SP8D_HEADER_LINES[0], font_name='微软雅黑', font_size=14,
-              bold=True, h_align='left')
+    _set_cell(ws, 1, 4, head[0] if len(head) > 0 else '',
+              font_name=FONT, font_size=14, bold=True, h_align='left')
     _merge(ws, 2, 4, 2, 10)
-    _set_cell(ws, 2, 4, _SP8D_HEADER_LINES[1], font_name='微软雅黑', font_size=10,
-              h_align='left')
+    _set_cell(ws, 2, 4, head[1] if len(head) > 1 else '',
+              font_name=FONT, font_size=10, h_align='left')
     _merge(ws, 3, 4, 3, 10)
-    _set_cell(ws, 3, 4, _SP8D_HEADER_LINES[2], font_name='微软雅黑', font_size=10,
-              h_align='left')
+    _set_cell(ws, 3, 4, head[2] if len(head) > 2 else '',
+              font_name=FONT, font_size=10, h_align='left')
 
     # Row 4: 空白
     _row_h(ws, 4, 18)
 
-    # Row 5: 销售报价单 大标题
+    # Row 5: 大标题
     _row_h(ws, 5, 38)
     _merge(ws, 5, 2, 5, 10)
-    _set_cell(ws, 5, 2, '销 售 报 价 单', font_name='微软雅黑', font_size=22,
+    _set_cell(ws, 5, 2, L['title'], font_name=FONT, font_size=22,
               bold=True, h_align='center')
 
-    # Row 6-11: metadata 双列（中文标签）
+    # Row 6-11: metadata 双列（左右对称，对应网页布局）
     info_left = [
-        ('客户名称：', data.get('company_name', '')),
-        ('客户地址：', data.get('company_address', '')),
-        ('联系人：',   data.get('contact_name', '')),
-        ('联系电话：', data.get('contact_phone', '')),
-        ('项目名称：', data.get('project_name', '')),
-        ('货币：',     data.get('currency', '') or 'CNY'),
+        (L['company_name'],    data.get('company_name', '')),
+        (L['company_address'], data.get('company_address', '')),
+        (L['contact_name'],    data.get('contact_name', '')),
+        (L['contact_phone'],   data.get('contact_phone', '')),
+        (L['project'],         data.get('project_name', '')),
+        (L['currency'],        data.get('currency') or cfg['default_currency']),
     ]
     info_right = [
-        ('报价编号：', data.get('quotation_number', '')),
-        ('报价日期：', data.get('quote_date', '')),
-        ('付款条件：', data.get('payment_terms', '')),
-        ('交付条件：', data.get('shipping_terms', '')),
-        ('有效期：',   data.get('validity', '')),
-        ('参考编号：', data.get('ref_no', '')),
+        (L['quotation_no'],    data.get('quotation_number', '')),
+        (L['quote_date'],      data.get('quote_date', '')),
+        (L['payment_terms'],   data.get('payment_terms', '')),
+        (L['shipping_terms'],  data.get('shipping_terms', '')),
+        (L['validity'],        data.get('validity', '')),
+        (L['ref_no'],          data.get('ref_no', '')),
     ]
     info_start = 6
     for i, ((lL, vL), (lR, vR)) in enumerate(zip(info_left, info_right)):
         r = info_start + i
         _row_h(ws, r, 22)
         _merge(ws, r, 2, r, 3)
-        _set_cell(ws, r, 2, lL, font_name='微软雅黑', font_size=10, bold=True, h_align='left')
+        _set_cell(ws, r, 2, lL, font_name=FONT, font_size=10, bold=True, h_align='left')
         _merge(ws, r, 4, r, 6)
-        _set_cell(ws, r, 4, vL, font_name='微软雅黑', font_size=10, h_align='left')
+        _set_cell(ws, r, 4, vL, font_name=FONT, font_size=10, h_align='left')
         _merge(ws, r, 7, r, 8)
-        _set_cell(ws, r, 7, lR, font_name='微软雅黑', font_size=10, bold=True, h_align='left')
+        _set_cell(ws, r, 7, lR, font_name=FONT, font_size=10, bold=True, h_align='left')
         _merge(ws, r, 9, r, 10)
-        _set_cell(ws, r, 9, vR, font_name='微软雅黑', font_size=10, h_align='left')
-
-    # 表头（中文）
-    header_row = info_start + len(info_left)
-    _row_h(ws, header_row, 28)
-    headers_cn = ['序号', '产品编码', '品牌', '型号规格', '折扣%', '市场价',
-                  '单价', '数量', '小计']
-    for ci, h in enumerate(headers_cn):
-        _set_cell(ws, header_row, ci + 2, h, font_name='微软雅黑', font_size=10,
-                  bold=True, h_align='center', fill_color=_HEADER_BG)
-
-    # 明细行
-    details = data.get('details', [])
-    data_start = header_row + 1
-    for i, d in enumerate(details):
-        r = data_start + i
-        _row_h(ws, r, 60)
-        discount = d.get('discount')
-        disc_pct = f"{int((discount or 1) * 100)}%" if discount is not None else '100%'
-        unit_price = d.get('unit_price') or 0
-        qty        = d.get('quantity') or 0
-        amount     = d.get('total_price') or (unit_price * qty)
-        market     = d.get('market_price') or unit_price
-
-        _set_cell(ws, r, 2, i + 1, font_name='微软雅黑', font_size=10, h_align='center')
-        _set_cell(ws, r, 3, d.get('mn') or '', font_name='微软雅黑', font_size=10,
-                  h_align='left')
-        _set_cell(ws, r, 4, d.get('brand') or '', font_name='微软雅黑', font_size=10,
-                  h_align='left')
-        # 型号规格 = product_name + product_model + product_desc 三段
-        desc_lines = []
-        if d.get('product_name'):  desc_lines.append(d['product_name'])
-        if d.get('product_model'): desc_lines.append(d['product_model'])
-        if d.get('product_desc'):  desc_lines.append(d['product_desc'])
-        _set_cell(ws, r, 5, '\n'.join(desc_lines), font_name='微软雅黑', font_size=10,
-                  h_align='left', v_align='top', wrap=True)
-        _set_cell(ws, r, 6, disc_pct, font_name='微软雅黑', font_size=10, h_align='center')
-        _set_cell(ws, r, 7, market, font_name='微软雅黑', font_size=10, h_align='right',
-                  num_format='¥#,##0.00')
-        _set_cell(ws, r, 8, unit_price, font_name='微软雅黑', font_size=10, h_align='right',
-                  num_format='¥#,##0.00')
-        _set_cell(ws, r, 9, qty, font_name='微软雅黑', font_size=10, h_align='center')
-        _set_cell(ws, r, 10, amount, font_name='微软雅黑', font_size=10, h_align='right',
-                  num_format='¥#,##0.00')
-
-    # 汇总：不含税合计 / 增值税 N% / 含税合计（结构同 OVS，字段中文化）
-    sub_row = data_start + len(details)
-    subtotal = sum((d.get('total_price') or 0) for d in details)
-    vat_pct  = data.get('gst_percent', 0) or 0   # SP8D 用 gst_percent 当增值税率
-    vat_amt  = subtotal * vat_pct / 100
-    grand    = subtotal + vat_amt
-
-    _row_h(ws, sub_row, 26)
-    _merge(ws, sub_row, 6, sub_row, 9)
-    _set_cell(ws, sub_row, 6, '不含税合计', font_name='微软雅黑', font_size=10,
-              bold=True, h_align='right')
-    _set_cell(ws, sub_row, 10, subtotal, font_name='微软雅黑', font_size=10,
-              bold=True, h_align='right', num_format='¥#,##0.00')
-
-    vat_row = sub_row + 1
-    _row_h(ws, vat_row, 26)
-    _merge(ws, vat_row, 6, vat_row, 7)
-    _set_cell(ws, vat_row, 6, '增值税', font_name='微软雅黑', font_size=10,
-              bold=True, h_align='right')
-    _merge(ws, vat_row, 8, vat_row, 9)
-    _set_cell(ws, vat_row, 8, f'{vat_pct}%', font_name='微软雅黑', font_size=10,
-              h_align='right')
-    _set_cell(ws, vat_row, 10, vat_amt, font_name='微软雅黑', font_size=10,
-              h_align='right', num_format='¥#,##0.00')
-
-    final_row = vat_row + 1
-    _row_h(ws, final_row, 26)
-    _merge(ws, final_row, 6, final_row, 9)
-    _set_cell(ws, final_row, 6, '含税合计', font_name='微软雅黑', font_size=10,
-              bold=True, h_align='right', fill_color=_GST_BG)
-    _set_cell(ws, final_row, 10, grand, font_name='微软雅黑', font_size=10,
-              bold=True, h_align='right', fill_color=_GST_BG, num_format='¥#,##0.00')
-
-    # 大写金额（保留中国习惯）
-    cn_amount_row = final_row + 1
-    _row_h(ws, cn_amount_row, 26)
-    _merge(ws, cn_amount_row, 2, cn_amount_row, 3)
-    _set_cell(ws, cn_amount_row, 2, '金额大写：', font_name='微软雅黑', font_size=10,
-              bold=True, h_align='left')
-    _merge(ws, cn_amount_row, 4, cn_amount_row, 10)
-    _set_cell(ws, cn_amount_row, 4, _num_to_chinese(grand), font_name='微软雅黑',
-              font_size=10, bold=True, h_align='left')
-
-    # 备注框
-    remark_row = cn_amount_row + 1
-    _row_h(ws, remark_row, 60)
-    _merge(ws, remark_row, 2, remark_row, 3)
-    _set_cell(ws, remark_row, 2, '备注：', font_name='微软雅黑', font_size=10,
-              bold=True, h_align='left', v_align='top')
-    _merge(ws, remark_row, 4, remark_row, 10)
-    _set_cell(ws, remark_row, 4, data.get('remarks', '') or '', font_name='微软雅黑',
-              font_size=10, h_align='left', v_align='top', wrap=True)
-
-    # 签字栏
-    sig_row = remark_row + 2
-    _row_h(ws, sig_row, 30)
-    _merge(ws, sig_row, 7, sig_row, 10)
-    owner = data.get('owner_name', '')
-    _set_cell(ws, sig_row, 7, f'报价人：{owner}    日期：{data.get("quote_date", "")}',
-              font_name='微软雅黑', font_size=10, bold=True, h_align='right')
-
-    # 边框（表头到备注）
-    _fill_borders(ws, header_row, 2, remark_row, 10)
-
-    # 打印
-    ws.print_area = f'A1:K{sig_row}'
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToPage = True
-    ws.print_options.horizontalCentered = True
-    ws.page_margins.left = 0.5
-    ws.page_margins.right = 0.5
-    ws.page_margins.top = 0.5
-    ws.page_margins.bottom = 0.5
-
-    buf = BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
-
-
-def _build_excel_sp8d_legacy(data: dict) -> bytes:
-    """旧版 SP8D（保留以备回退）— 不再使用。"""
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment
-    from openpyxl.drawing.image import Image as XLImage
-    from io import BytesIO
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = '销售报价单'
-
-    for col_letter, width in _COL_WIDTHS.items():
-        ws.column_dimensions[col_letter].width = width
-
-    # ── Row 1: 公司抬头 + 真实图片 logo ──────────────────────────────────────
-    _row_h(ws, 1, 50.25)
-    _merge(ws, 1, 2, 1, 5)
-    # logo 图片（按真实比例 2.954:1，宽 160 → 高 ≈ 54）
-    if os.path.exists(_LOGO_SP8D):
-        try:
-            img = XLImage(_LOGO_SP8D)
-            img.width  = 160
-            img.height = int(160 / _LOGO_SP8D_RATIO)
-            ws.add_image(img, 'B1')
-        except Exception as e:
-            logger.warning(f'[export_quotation_to_excel] SP8D logo 插入失败: {e}')
-            # 兜底：保留旧版文字 logo
-            c_logo = ws.cell(row=1, column=2, value='和源通信')
-            c_logo.font = Font(name='微软雅黑', size=22, bold=True)
-            c_logo.alignment = Alignment(horizontal='center', vertical='center')
-    else:
-        c_logo = ws.cell(row=1, column=2, value='和源通信')
-        c_logo.font = Font(name='微软雅黑', size=22, bold=True)
-        c_logo.alignment = Alignment(horizontal='center', vertical='center')
-
-    _merge(ws, 1, 7, 1, 12)
-    c = ws.cell(row=1, column=7, value=_SP8D_HEADER)
-    c.font = Font(name='微软雅黑', size=8)
-    c.alignment = Alignment(horizontal='right', vertical='center', wrap_text=True)
-
-    # ── Row 2: 标题 ──────────────────────────────────────────────────────────
-    _row_h(ws, 2, 53.25)
-    _merge(ws, 2, 2, 2, 12)
-    c = ws.cell(row=2, column=2, value='销 售 报 价 单')
-    c.font = Font(name='微软雅黑', size=16)
-    c.alignment = Alignment(horizontal='center', vertical='center')
-
-    # ── Row 3: 空白分隔 ──────────────────────────────────────────────────────
-    _row_h(ws, 3, 19.5)
-    _merge(ws, 3, 2, 3, 12)
-
-    # ── Row 4: 报价主题 ──────────────────────────────────────────────────────
-    _row_h(ws, 4, 21.0)
-    _merge(ws, 4, 2, 4, 3)
-    _merge(ws, 4, 4, 4, 12)
-    _set_cell(ws, 4, 2, '报价主题', h_align='left')
-    _set_cell(ws, 4, 4, data.get('project_name', ''), h_align='left')
-
-    # ── Row 5: 公司 / 接收人 ─────────────────────────────────────────────────
-    _row_h(ws, 5, 21.0)
-    _merge(ws, 5, 2, 5, 3)
-    _merge(ws, 5, 4, 5, 5)
-    _merge(ws, 5, 7, 5, 12)
-    _set_cell(ws, 5, 2, '公司', h_align='left')
-    _set_cell(ws, 5, 4, data.get('company_name', ''), h_align='left')
-    _set_cell(ws, 5, 6, '接收人', h_align='left')
-    _set_cell(ws, 5, 7, data.get('contact_name', ''), h_align='left')
-
-    # ── Row 6: 联系方式 / 报价日期 ────────────────────────────────────────────
-    _row_h(ws, 6, 21.0)
-    _merge(ws, 6, 2, 6, 3)
-    _merge(ws, 6, 4, 6, 5)
-    _merge(ws, 6, 7, 6, 12)
-    _set_cell(ws, 6, 2, '联系方式', h_align='left')
-    _set_cell(ws, 6, 4, data.get('contact_phone', ''), h_align='left')
-    _set_cell(ws, 6, 6, '报价日期', h_align='left')
-    quote_date = data.get('quote_date', '')
-    _set_cell(ws, 6, 7, quote_date, h_align='center')
-
-    # ── Row 7: 报价明细标题 ──────────────────────────────────────────────────
-    _row_h(ws, 7, 21.75)
-    _merge(ws, 7, 2, 7, 12)
-    _set_cell(ws, 7, 2, '报 价 明 细', bold=False, h_align='center')
-
-    # ── Row 8: 表头 ──────────────────────────────────────────────────────────
-    _row_h(ws, 8, 21.75)
-    headers = ['ID', '产品名称', '产品型号', '产品规格', '产品品牌',
-               '产品单位', '数量', '折扣', '单价', '小计']
-    for ci, h in enumerate(headers):
-        _set_cell(ws, 8, ci + 2, h, bold=True, h_align='center', fill_color=_HEADER_BG)
-
-    # ── 明细行 ───────────────────────────────────────────────────────────────
-    details = data.get('details', [])
-    data_start = 9
-    for i, d in enumerate(details):
-        r = data_start + i
-        _row_h(ws, r, 21.75)
-        discount = d.get('discount')
-        discount_pct = f'{int((discount or 1) * 100)}%' if discount else '100%'
-        row_vals = [
-            i + 1,
-            d.get('product_name') or '',
-            d.get('product_model') or '',
-            d.get('product_desc') or '',
-            d.get('brand') or '',
-            d.get('unit') or '',
-            d.get('quantity') or 0,
-            discount_pct,
-            d.get('unit_price') or 0,
-            d.get('total_price') or 0,
-        ]
-        for ci, val in enumerate(row_vals):
-            col = ci + 2
-            if col in (9, 10):
-                _set_cell(ws, r, col, val, h_align='right', num_format='#,##0.00')
-            elif col == 7:
-                _set_cell(ws, r, col, val, h_align='center')
-            elif col == 2:
-                _set_cell(ws, r, col, val, h_align='center')
-            else:
-                _set_cell(ws, r, col, val, h_align='left')
-
-    # ── 小计行 ───────────────────────────────────────────────────────────────
-    subtotal_row = data_start + len(details)
-    _row_h(ws, subtotal_row, 22.5)
-    _merge(ws, subtotal_row, 10, subtotal_row, 11)
-    _set_cell(ws, subtotal_row, 3, '小计', h_align='center', fill_color=_HEADER_BG)
-    total_amount = data.get('total_amount') or sum(d.get('total_price') or 0 for d in details)
-    _set_cell(ws, subtotal_row, 10, total_amount, h_align='center',
-              fill_color=_HEADER_BG, num_format='#,##0.00')
-
-    # ── 金额说明 ──────────────────────────────────────────────────────────────
-    note_row = subtotal_row + 1
-    _row_h(ws, note_row, 22.5)
-    _merge(ws, note_row, 2, note_row, 12)
-    _set_cell(ws, note_row, 2,
-              '金额计算说明：本单总金额 = 产品报价金额 * 优惠折扣 - 抹零金额',
-              v_align='center')
-
-    # ── 空行分隔 ──────────────────────────────────────────────────────────────
-    sep_row = note_row + 1
-    _row_h(ws, sep_row, 22.5)
-    _merge(ws, sep_row, 2, sep_row, 12)
-
-    # ── 报价总额行 ────────────────────────────────────────────────────────────
-    total_row = sep_row + 1
-    _row_h(ws, total_row, 22.5)
-    _merge(ws, total_row, 4, total_row, 5)
-    _merge(ws, total_row, 8, total_row, 12)
-    _set_cell(ws, total_row, 2, '一', h_align='left')
-    _set_cell(ws, total_row, 3, '报价总额【小写】', h_align='left')
-    _set_cell(ws, total_row, 4, total_amount, bold=True, h_align='left',
-              num_format='#,##0.00')
-    _set_cell(ws, total_row, 6, '报价总额【大写】', h_align='left')
-    _set_cell(ws, total_row, 8, _num_to_chinese(total_amount), bold=True, h_align='left')
-
-    # ── 付款方式 / 交付说明 / 备注 ────────────────────────────────────────────
-    extra_rows = [('二', '付款方式'), ('三', '交付说明'), ('四', '备注')]
-    for idx, (num, label) in enumerate(extra_rows):
-        r = total_row + 1 + idx
-        _row_h(ws, r, 21.75)
-        _merge(ws, r, 4, r, 12)
-        _set_cell(ws, r, 2, num, h_align='left')
-        _set_cell(ws, r, 3, label, h_align='left')
-        _set_cell(ws, r, 4, '', h_align='left')
-
-    # ── 签章行 ────────────────────────────────────────────────────────────────
-    sig_row = total_row + len(extra_rows) + 3
-    _row_h(ws, sig_row, 21.75)
-    _merge(ws, sig_row, 7, sig_row, 10)
-    _set_cell(ws, sig_row, 4, '盖章', bold=True, h_align='center')
-    _set_cell(ws, sig_row, 6, f'报价人：{data.get("owner_name", "")}', bold=True)
-    _set_cell(ws, sig_row, 7, f'日期：{quote_date}', bold=True)
-
-    # ── 边框 ──────────────────────────────────────────────────────────────────
-    last_footer_row = total_row + len(extra_rows)
-    _fill_borders(ws, 4, 2, last_footer_row, 12)
-
-    # ── 打印设置 ──────────────────────────────────────────────────────────────
-    ws.print_area = f'A1:L{sig_row}'
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToPage = True
-    ws.print_options.horizontalCentered = True
-    ws.page_margins.left = 0.5
-    ws.page_margins.right = 0.5
-    ws.page_margins.top = 0.5
-    ws.page_margins.bottom = 0.5
-
-    buf = BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
-
-
-def _build_excel_ovs(data: dict) -> bytes:
-    """海外英文版 — 严格对照网页 tw_quotation_edit.html 视觉。
-
-    9 列表头: S/N | Item No. | Brand | Description | Disc% | Market | Unit Price | Qty | Amount
-    汇总三行: Total before GST / GST n% / Total after GST (高亮)
-    """
-    from openpyxl import Workbook
-    from openpyxl.drawing.image import Image as XLImage
-    from io import BytesIO
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = 'Quotation'
-
-    for col, w in _OVS_COL_WIDTHS.items():
-        ws.column_dimensions[col].width = w
-
-    # Row 1-3: logo + 公司抬头 3 行
-    for r in (1, 2, 3):
-        _row_h(ws, r, 22)
-    if os.path.exists(_LOGO_OVS):
-        try:
-            img = XLImage(_LOGO_OVS)
-            img.width  = 160
-            img.height = int(160 / _LOGO_OVS_RATIO)  # ≈ 43
-            ws.add_image(img, 'B1')
-        except Exception as e:
-            logger.warning(f'[export_quotation_to_excel] OVS logo 插入失败: {e}')
-
-    _merge(ws, 1, 4, 1, 10)
-    _set_cell(ws, 1, 4, _OVS_HEADER_LINES[0], font_name='Arial', font_size=14,
-              bold=True, h_align='left')
-    _merge(ws, 2, 4, 2, 10)
-    _set_cell(ws, 2, 4, _OVS_HEADER_LINES[1], font_name='Arial', font_size=10,
-              h_align='left')
-    _merge(ws, 3, 4, 3, 10)
-    _set_cell(ws, 3, 4, _OVS_HEADER_LINES[2], font_name='Arial', font_size=10,
-              h_align='left')
-
-    # Row 4: 空白
-    _row_h(ws, 4, 18)
-
-    # Row 5: QUOTATION 大标题
-    _row_h(ws, 5, 38)
-    _merge(ws, 5, 2, 5, 10)
-    _set_cell(ws, 5, 2, 'QUOTATION', font_name='Arial', font_size=22, bold=True,
-              h_align='center')
-
-    # Row 6-11: metadata 左右两列
-    info_left = [
-        ('Company Name:',    data.get('company_name', '')),
-        ('Company Address:', data.get('company_address', '')),
-        ('Contact Person:',  data.get('contact_name', '')),
-        ('Contact No.:',     data.get('contact_phone', '')),
-        ('Project:',         data.get('project_name', '')),
-        ('Currency:',        data.get('currency', '')),
-    ]
-    info_right = [
-        ('Quotation No.:',   data.get('quotation_number', '')),
-        ('Quotation Date:',  data.get('quote_date', '')),
-        ('Payment Terms:',   data.get('payment_terms', '')),
-        ('Shipping Terms:',  data.get('shipping_terms', '')),
-        ('Validity:',        data.get('validity', '')),
-        ('Ref No.:',         data.get('ref_no', '')),
-    ]
-    info_start = 6
-    for i, ((lL, vL), (lR, vR)) in enumerate(zip(info_left, info_right)):
-        r = info_start + i
-        _row_h(ws, r, 22)
-        _merge(ws, r, 2, r, 3)
-        _set_cell(ws, r, 2, lL, font_name='Arial', font_size=10, bold=True, h_align='left')
-        _merge(ws, r, 4, r, 6)
-        _set_cell(ws, r, 4, vL, font_name='Arial', font_size=10, h_align='left')
-        _merge(ws, r, 7, r, 8)
-        _set_cell(ws, r, 7, lR, font_name='Arial', font_size=10, bold=True, h_align='left')
-        _merge(ws, r, 9, r, 10)
-        _set_cell(ws, r, 9, vR, font_name='Arial', font_size=10, h_align='left')
+        _set_cell(ws, r, 9, vR, font_name=FONT, font_size=10, h_align='left')
 
     # 表头
     header_row = info_start + len(info_left)
     _row_h(ws, header_row, 28)
-    headers = ['S/N', 'Item No.', 'Brand', 'Description', 'Disc%', 'Market',
-               'Unit Price', 'Qty', 'Amount']
+    headers = [L['col_sn'], L['col_item_no'], L['col_brand'], L['col_desc'],
+               L['col_disc'], L['col_market'], L['col_unit_price'], L['col_qty'],
+               L['col_amount']]
     for ci, h in enumerate(headers):
-        _set_cell(ws, header_row, ci + 2, h, font_name='Arial', font_size=10,
+        _set_cell(ws, header_row, ci + 2, h, font_name=FONT, font_size=10,
                   bold=True, h_align='center', fill_color=_HEADER_BG)
 
     # 明细行
@@ -683,79 +380,75 @@ def _build_excel_ovs(data: dict) -> bytes:
         amount     = d.get('total_price') or (unit_price * qty)
         market     = d.get('market_price') or unit_price
 
-        _set_cell(ws, r, 2, i + 1, font_name='Arial', font_size=10, h_align='center')
-        # Item No. = mn 料号（不是 product_model）
-        _set_cell(ws, r, 3, d.get('mn') or '', font_name='Arial', font_size=10,
-                  h_align='left')
-        _set_cell(ws, r, 4, d.get('brand') or '', font_name='Arial', font_size=10,
-                  h_align='left')
-        # Description = product_name + product_model + product_desc 三段
+        _set_cell(ws, r, 2, i + 1, font_name=FONT, font_size=10, h_align='center')
+        _set_cell(ws, r, 3, d.get('mn') or '', font_name=FONT, font_size=10, h_align='left')
+        _set_cell(ws, r, 4, d.get('brand') or '', font_name=FONT, font_size=10, h_align='left')
+        # 型号规格 = product_name + product_model + product_desc
         desc_lines = []
         if d.get('product_name'):  desc_lines.append(d['product_name'])
         if d.get('product_model'): desc_lines.append(d['product_model'])
         if d.get('product_desc'):  desc_lines.append(d['product_desc'])
-        _set_cell(ws, r, 5, '\n'.join(desc_lines), font_name='Arial', font_size=10,
+        _set_cell(ws, r, 5, '\n'.join(desc_lines), font_name=FONT, font_size=10,
                   h_align='left', v_align='top', wrap=True)
-        _set_cell(ws, r, 6, disc_pct, font_name='Arial', font_size=10, h_align='center')
-        _set_cell(ws, r, 7, market, font_name='Arial', font_size=10, h_align='right',
-                  num_format='#,##0.00')
-        _set_cell(ws, r, 8, unit_price, font_name='Arial', font_size=10, h_align='right',
-                  num_format='#,##0.00')
-        _set_cell(ws, r, 9, qty, font_name='Arial', font_size=10, h_align='center')
-        _set_cell(ws, r, 10, amount, font_name='Arial', font_size=10, h_align='right',
-                  num_format='#,##0.00')
+        _set_cell(ws, r, 6, disc_pct, font_name=FONT, font_size=10, h_align='center')
+        _set_cell(ws, r, 7, market, font_name=FONT, font_size=10, h_align='right',
+                  num_format=FMT)
+        _set_cell(ws, r, 8, unit_price, font_name=FONT, font_size=10, h_align='right',
+                  num_format=FMT)
+        _set_cell(ws, r, 9, qty, font_name=FONT, font_size=10, h_align='center')
+        _set_cell(ws, r, 10, amount, font_name=FONT, font_size=10, h_align='right',
+                  num_format=FMT)
 
-    # 汇总：4 列空 | 4 列标签 | 1 列数值（严格对照模板 colspan）
+    # 汇总三行：subtotal / tax / grand_total（结构对应网页 colspan=4 + 1）
     sub_row = data_start + len(details)
     subtotal = sum((d.get('total_price') or 0) for d in details)
-    gst_pct  = data.get('gst_percent', 0) or 0
-    gst_amt  = subtotal * gst_pct / 100
-    total_after_gst = subtotal + gst_amt
+    tax_pct  = data.get('gst_percent', 0) or 0
+    tax_amt  = subtotal * tax_pct / 100
+    grand    = subtotal + tax_amt
 
     _row_h(ws, sub_row, 26)
     _merge(ws, sub_row, 6, sub_row, 9)
-    _set_cell(ws, sub_row, 6, 'Total before GST', font_name='Arial', font_size=10,
+    _set_cell(ws, sub_row, 6, L['subtotal'], font_name=FONT, font_size=10,
               bold=True, h_align='right')
-    _set_cell(ws, sub_row, 10, subtotal, font_name='Arial', font_size=10, bold=True,
-              h_align='right', num_format='#,##0.00')
+    _set_cell(ws, sub_row, 10, subtotal, font_name=FONT, font_size=10,
+              bold=True, h_align='right', num_format=FMT)
 
-    gst_row = sub_row + 1
-    _row_h(ws, gst_row, 26)
-    _merge(ws, gst_row, 6, gst_row, 7)
-    _set_cell(ws, gst_row, 6, 'GST', font_name='Arial', font_size=10, bold=True,
-              h_align='right')
-    _merge(ws, gst_row, 8, gst_row, 9)
-    _set_cell(ws, gst_row, 8, f'{gst_pct} %', font_name='Arial', font_size=10,
-              h_align='right')
-    _set_cell(ws, gst_row, 10, gst_amt, font_name='Arial', font_size=10, h_align='right',
-              num_format='#,##0.00')
+    tax_row = sub_row + 1
+    _row_h(ws, tax_row, 26)
+    _merge(ws, tax_row, 6, tax_row, 7)
+    _set_cell(ws, tax_row, 6, L['tax'], font_name=FONT, font_size=10,
+              bold=True, h_align='right')
+    _merge(ws, tax_row, 8, tax_row, 9)
+    _set_cell(ws, tax_row, 8, f'{tax_pct} %', font_name=FONT, font_size=10, h_align='right')
+    _set_cell(ws, tax_row, 10, tax_amt, font_name=FONT, font_size=10,
+              h_align='right', num_format=FMT)
 
-    final_row = gst_row + 1
+    final_row = tax_row + 1
     _row_h(ws, final_row, 26)
     _merge(ws, final_row, 6, final_row, 9)
-    _set_cell(ws, final_row, 6, 'Total after GST', font_name='Arial', font_size=10,
+    _set_cell(ws, final_row, 6, L['grand_total'], font_name=FONT, font_size=10,
               bold=True, h_align='right', fill_color=_GST_BG)
-    _set_cell(ws, final_row, 10, total_after_gst, font_name='Arial', font_size=10,
-              bold=True, h_align='right', fill_color=_GST_BG, num_format='#,##0.00')
+    _set_cell(ws, final_row, 10, grand, font_name=FONT, font_size=10,
+              bold=True, h_align='right', fill_color=_GST_BG, num_format=FMT)
 
     # Remarks
     remark_row = final_row + 1
     _row_h(ws, remark_row, 60)
     _merge(ws, remark_row, 2, remark_row, 3)
-    _set_cell(ws, remark_row, 2, 'Remarks:', font_name='Arial', font_size=10,
+    _set_cell(ws, remark_row, 2, L['remarks'], font_name=FONT, font_size=10,
               bold=True, h_align='left', v_align='top')
     _merge(ws, remark_row, 4, remark_row, 10)
-    _set_cell(ws, remark_row, 4, data.get('remarks', '') or '', font_name='Arial',
+    _set_cell(ws, remark_row, 4, data.get('remarks', '') or '', font_name=FONT,
               font_size=10, h_align='left', v_align='top', wrap=True)
 
-    # Signed and Accepted by Customer
+    # 签字栏
     sig_row = remark_row + 2
     _row_h(ws, sig_row, 30)
     _merge(ws, sig_row, 7, sig_row, 10)
-    _set_cell(ws, sig_row, 7, 'Signed and Accepted by Customer:', font_name='Arial',
-              font_size=10, bold=True, h_align='right')
+    _set_cell(ws, sig_row, 7, L['sign'], font_name=FONT, font_size=10,
+              bold=True, h_align='right')
 
-    # 边框（表头到 Remarks）
+    # 边框
     _fill_borders(ws, header_row, 2, remark_row, 10)
 
     # 打印
@@ -771,6 +464,7 @@ def _build_excel_ovs(data: dict) -> bytes:
     buf = BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
 
 
 # ── 工具类 ────────────────────────────────────────────────────────────────────
