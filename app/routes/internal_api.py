@@ -1977,3 +1977,327 @@ def list_sales_orders():
     except Exception as e:
         logger.exception(f'[internal_api] list_sales_orders error: {e}')
         return jsonify({'error': str(e)}), 500
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Wiki 写入端点（MCP 上传/编译/去重）
+# ═══════════════════════════════════════════════════════════════════
+
+# ---------------------------------------------------------------------------
+# 端点 W1: 上传文件到个人文件夹（base64）
+# POST /internal/api/files/upload
+# Body JSON: { content_base64, filename, folder_id?(int) }
+# Returns: { file_id, file_library_id, sha256, size }
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/files/upload', methods=['POST'])
+@internal_auth_required
+def upload_file_to_personal_folder():
+    """通用文件上传到 PMA 个人文件夹。返回 file_id（UserFileRef.id）。"""
+    user = g.current_user
+    data = request.get_json(silent=True) or {}
+    content_b64 = data.get('content_base64', '')
+    filename = (data.get('filename') or '').strip()
+    folder_id = data.get('folder_id')
+
+    if not content_b64 or not filename:
+        return jsonify({'error': 'content_base64 和 filename 必填'}), 400
+
+    try:
+        import base64
+        try:
+            file_data = base64.b64decode(content_b64, validate=True)
+        except Exception as e:
+            return jsonify({'error': f'base64 解码失败: {e}'}), 400
+
+        if len(file_data) > 10 * 1024 * 1024:
+            return jsonify({
+                'error': f'文件过大（{len(file_data)/1024/1024:.1f}MB > 10MB）'
+            }), 413
+
+        from app.services.file_manager_service import FileManagerService
+        ok, result = FileManagerService.upload_file_from_bytes(
+            user, file_data, filename, folder_id=folder_id
+        )
+        if not ok:
+            return jsonify({'error': str(result)}), 400
+
+        # result 是 UserFileRef.to_dict()
+        return jsonify({
+            'file_id': result.get('id'),
+            'file_library_id': result.get('file_library_id'),
+            'filename': result.get('display_name') or filename,
+            'size': len(file_data),
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] upload_file error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 W2: 添加 wiki 原始文件（自动异步编译）
+# POST /internal/api/wiki/raw-files
+# Body JSON: { file_id(UserFileRef.id), topic, title?, scope? }
+# Returns: { raw_id, ingest_status, topic, scope, title }
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/wiki/raw-files', methods=['POST'])
+@internal_auth_required
+def wiki_add_raw_file():
+    """从用户个人文件夹的 file_id（UserFileRef）添加为 wiki 原始资料。
+    成功后自动后台异步编译 + 发送站内通知。
+    """
+    user = g.current_user
+    data = request.get_json(silent=True) or {}
+    file_id = data.get('file_id')
+    topic = (data.get('topic') or '').strip()
+    title = (data.get('title') or '').strip()
+    scope = (data.get('scope') or 'personal').strip()
+
+    if not file_id or not topic:
+        return jsonify({'error': 'file_id 和 topic 必填'}), 400
+    if scope not in ('personal', 'department', 'company', 'system'):
+        return jsonify({'error': f'非法 scope: {scope}'}), 400
+
+    try:
+        import threading
+        from app.services.wiki import storage, compiler
+        from app.services.wiki.scope import can_write_scope
+        from app.services.wiki.paths import ensure_wiki_structure
+        from app.models.knowledge import KnowledgeRawFile, KnowledgeTopic
+        from app.models.file_manager import UserFileRef
+        from app.models.file_library import FileLibrary
+        from app.services.file_manager_service import FileManagerService
+
+        # 1. topic 校验
+        try:
+            storage.validate_topic(topic)
+        except storage.WikiPathError as e:
+            return jsonify({'error': str(e)}), 400
+
+        if user.role not in ('admin', 'ceo'):
+            allowed = {t[0] for t in db.session.query(KnowledgeTopic.name).all()}
+            if topic not in allowed:
+                return jsonify({'error': f'topic "{topic}" 不在预定义列表中，请联系管理员创建'}), 403
+
+        # 2. scope 权限
+        if not can_write_scope(user, scope):
+            return jsonify({'error': f'无权限写入 {scope} 级别'}), 403
+
+        # 3. 解析 file_ref → file_library
+        ref = UserFileRef.query.filter_by(id=file_id, user_id=user.id).first()
+        if not ref:
+            return jsonify({'error': f'file_id {file_id} 不存在或非本人文件'}), 404
+
+        fl = FileLibrary.query.get(ref.file_library_id)
+        if not fl:
+            return jsonify({'error': '关联的 file_library 记录不存在'}), 404
+
+        content = FileManagerService.read_file_content_auto_decompress(fl)
+        if content is None:
+            return jsonify({'error': '无法读取文件内容'}), 500
+
+        # 4. 落盘 + 体检
+        ensure_wiki_structure()
+        safe_name = storage.dated_filename(fl.original_filename)
+        raw_path = storage.save_raw_file(topic, safe_name, content)
+
+        from pathlib import Path
+        from app.services.wiki.paths import get_wiki_root
+        abs_path = get_wiki_root() / raw_path
+        reason = storage.validate_raw_file_for_wiki(abs_path)
+        if reason:
+            try:
+                abs_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return jsonify({'error': reason}), 400
+
+        # 5. 创建 raw 记录
+        raw = KnowledgeRawFile(
+            file_library_id=fl.id,
+            topic=topic,
+            raw_path=raw_path,
+            title=title or ref.display_name or fl.original_filename,
+            added_by=user.id,
+            scope=scope,
+            owner_id=user.id,
+            owner_department=user.department,
+        )
+        db.session.add(raw)
+        db.session.commit()
+
+        logger.info(f'[internal_api/wiki] add_raw user={user.id} ref={file_id} → raw_id={raw.id}')
+
+        # 6. 异步触发编译 + 通知（复用 knowledge_wiki._async_ingest_and_notify）
+        from app.views.knowledge_wiki import _async_ingest_and_notify
+        app = current_app._get_current_object()
+        threading.Thread(
+            target=_async_ingest_and_notify,
+            args=(raw.id, user.id, app),
+            daemon=True,
+        ).start()
+
+        return jsonify({
+            'raw_id': raw.id,
+            'ingest_status': raw.ingest_status,
+            'topic': raw.topic,
+            'scope': raw.scope,
+            'title': raw.title,
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] wiki_add_raw error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 W3: 查询 raw 文件编译状态
+# GET /internal/api/wiki/raw-files/<id>/status
+# Returns: { raw_id, ingest_status, ingest_error?, ingested_at?, article_ids[] }
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/wiki/raw-files/<int:raw_id>/status', methods=['GET'])
+@internal_auth_required
+def wiki_raw_file_status(raw_id):
+    """查 raw 文件的编译状态 + 已生成的文章 ID。
+    可见性：所有者 / admin / ceo / 部门经理(department scope) — 复用现有 visible_raw_files_query
+    """
+    user = g.current_user
+    try:
+        from app.models.knowledge import KnowledgeRawFile, KnowledgeWikiArticle
+        from app.services.wiki.scope import visible_raw_files_query
+
+        raw = visible_raw_files_query(user).filter_by(id=raw_id).first()
+        if not raw:
+            return jsonify({'error': f'raw_id {raw_id} 不存在或无权查看'}), 404
+
+        # 反查由本 raw 贡献的 articles
+        article_ids = []
+        try:
+            arts = KnowledgeWikiArticle.query.filter(
+                KnowledgeWikiArticle.source_raw_ids.isnot(None)
+            ).all()
+            for a in arts:
+                if raw.id in (a.source_raw_ids or []):
+                    article_ids.append({'id': a.id, 'title': a.title, 'topic': a.topic, 'slug': a.slug})
+        except Exception:
+            pass
+
+        return jsonify({
+            'raw_id': raw.id,
+            'topic': raw.topic,
+            'title': raw.title,
+            'ingest_status': raw.ingest_status,
+            'ingest_error': raw.ingest_error,
+            'ingested_at': raw.ingested_at.isoformat() if raw.ingested_at else None,
+            'article_ids': article_ids,
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] wiki_raw_status error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 W4: 批量去重检查
+# POST /internal/api/wiki/check-files
+# Body JSON: { file_library_ids: [int, ...] }
+# Returns: { results: { "<file_library_id>": { in_wiki, raw_id?, status?, topic? } } }
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/wiki/check-files', methods=['POST'])
+@internal_auth_required
+def wiki_check_files():
+    """批量查 file_library_ids 是否已在 wiki。"""
+    data = request.get_json(silent=True) or {}
+    fl_ids = data.get('file_library_ids') or []
+    if not isinstance(fl_ids, list) or not fl_ids:
+        return jsonify({'error': 'file_library_ids 必填且为非空数组'}), 400
+
+    try:
+        from app.models.knowledge import KnowledgeRawFile
+
+        raws = KnowledgeRawFile.query.filter(
+            KnowledgeRawFile.file_library_id.in_(fl_ids)
+        ).all()
+
+        # 同一 file_library_id 可能有多条 raw（不同 topic 多次入库），取最新
+        status_map = {}
+        for raw in raws:
+            fid = str(raw.file_library_id)
+            existing = status_map.get(fid)
+            if not existing or (raw.created_at and raw.created_at > existing.get('_t')):
+                status_map[fid] = {
+                    'in_wiki': raw.ingest_status == 'ingested',
+                    'raw_id': raw.id,
+                    'status': raw.ingest_status,
+                    'topic': raw.topic,
+                    'title': raw.title,
+                    '_t': raw.created_at,
+                }
+
+        for v in status_map.values():
+            v.pop('_t', None)
+        for fid in fl_ids:
+            if str(fid) not in status_map:
+                status_map[str(fid)] = {'in_wiki': False}
+
+        return jsonify({'results': status_map})
+    except Exception as e:
+        logger.exception(f'[internal_api] wiki_check_files error: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# 端点 W5: 同步重新编译（失败重试）
+# POST /internal/api/wiki/raw-files/<id>/ingest
+# Body JSON (可选): { async: bool, default true }
+# Returns:
+#   async=true → { triggered: true, raw_id }
+#   async=false → 同步等待 30-60s，返回 { raw_id, operations: [...] }
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/wiki/raw-files/<int:raw_id>/ingest', methods=['POST'])
+@internal_auth_required
+def wiki_ingest_raw_file(raw_id):
+    """触发某个 raw 文件的（重新）编译。默认异步，async=false 时同步阻塞。"""
+    user = g.current_user
+    data = request.get_json(silent=True) or {}
+    is_async = data.get('async', True)
+
+    try:
+        from app.models.knowledge import KnowledgeRawFile
+        from app.services.wiki import compiler
+
+        raw = KnowledgeRawFile.query.get(raw_id)
+        if not raw:
+            return jsonify({'error': f'raw_id {raw_id} 不存在'}), 404
+
+        is_admin = user.role in ('admin', 'ceo')
+        if not is_admin and raw.owner_id != user.id:
+            return jsonify({'error': '只有文件所有者或管理员可以触发编译'}), 403
+
+        if is_async:
+            import threading
+            from app.views.knowledge_wiki import _async_ingest_and_notify
+            app = current_app._get_current_object()
+            threading.Thread(
+                target=_async_ingest_and_notify,
+                args=(raw.id, user.id, app),
+                daemon=True,
+            ).start()
+            return jsonify({'triggered': True, 'raw_id': raw.id, 'mode': 'async'})
+
+        # 同步模式（仅用于失败重试少量文件）
+        try:
+            result = compiler.ingest_raw_file(raw_id)
+        except compiler.IngestError as e:
+            return jsonify({'error': str(e)}), 400
+
+        return jsonify({
+            'raw_id': raw.id,
+            'mode': 'sync',
+            'operations': result.get('operations', []),
+        })
+    except Exception as e:
+        logger.exception(f'[internal_api] wiki_ingest error: {e}')
+        return jsonify({'error': str(e)}), 500
