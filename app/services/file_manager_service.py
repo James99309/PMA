@@ -536,6 +536,10 @@ class FileManagerService:
         if not ref:
             return False, '文件不存在或不在回收站中'
 
+        # Admin 锁定保护：拒绝永久清理
+        if ref.is_admin_locked:
+            return False, '该文件已被管理员锁定，禁止永久删除'
+
         lib = ref.file_library
         file_size = lib.file_size if lib else 0
 
@@ -562,7 +566,11 @@ class FileManagerService:
         ).all()
 
         total_freed = 0
+        skipped_locked = 0
         for ref in refs:
+            if ref.is_admin_locked:
+                skipped_locked += 1
+                continue  # 锁定文件保留
             lib = ref.file_library
             if lib:
                 total_freed += lib.file_size
@@ -573,7 +581,10 @@ class FileManagerService:
 
         user.storage_used = max((user.storage_used or 0) - total_freed, 0)
         db.session.commit()
-        return True, f'已清空回收站，释放 {FileManagerService.format_size(total_freed)}'
+        msg = f'已清空回收站，释放 {FileManagerService.format_size(total_freed)}'
+        if skipped_locked:
+            msg += f'（{skipped_locked} 个被锁定文件已保留）'
+        return True, msg
 
     @staticmethod
     def _delete_from_storage(storage_path, storage_type='nas'):
@@ -779,6 +790,17 @@ class FileManagerService:
                 )
             )
         ).all()
+
+        # Admin 锁定保护：任何锁定 ref 的 lib 不自动压缩
+        if libs:
+            locked_lib_ids = {
+                r.file_library_id for r in
+                UserFileRef.query.filter(
+                    UserFileRef.file_library_id.in_([l.id for l in libs]),
+                    UserFileRef.is_admin_locked == True,
+                ).all()
+            }
+            libs = [l for l in libs if l.id not in locked_lib_ids]
 
         archived_count = 0
         for lib in libs:

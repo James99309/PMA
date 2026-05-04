@@ -112,11 +112,16 @@ class UserFileRef(db.Model):
     display_name = Column(String(500), nullable=False)  # 用户可重命名的显示名
     is_deleted = Column(Boolean, default=False)  # 软删除（回收站）
     deleted_at = Column(DateTime, nullable=True)  # 删除时间
+    # 管理员锁定标记：被锁定的 ref 在永久清理 / 自动压缩路径中被保护
+    is_admin_locked = Column(Boolean, nullable=False, default=False, server_default='false', index=True)
+    admin_locked_at = Column(DateTime, nullable=True)
+    admin_locked_by = Column(Integer, ForeignKey('users.id'), nullable=True)
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
 
     # 关系
-    user = relationship('User', backref=backref('file_refs', lazy='dynamic'))
+    # foreign_keys 显式指定：admin_locked_by 也是 users 外键，不指明会触发 SQLAlchemy 歧义
+    user = relationship('User', foreign_keys=[user_id], backref=backref('file_refs', lazy='dynamic'))
     folder = relationship('UserFolder', backref=backref('files', lazy='dynamic'))
     file_library = relationship('FileLibrary', backref=backref('refs', lazy='dynamic'))
 
@@ -134,6 +139,9 @@ class UserFileRef(db.Model):
             'display_name': self.display_name,
             'is_deleted': self.is_deleted,
             'deleted_at': self.deleted_at.isoformat() if self.deleted_at else None,
+            'is_admin_locked': bool(self.is_admin_locked),
+            'admin_locked_at': self.admin_locked_at.isoformat() if self.admin_locked_at else None,
+            'admin_locked_by': self.admin_locked_by,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             # 物理文件信息

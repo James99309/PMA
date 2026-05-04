@@ -235,6 +235,14 @@
                     <input type="file" multiple class="hidden" @change="handleFileUpload($event)">
                 </label>
 
+                {% if current_user.role in ('admin', 'ceo') %}
+                <a href="{{ url_for('file_manager_admin.admin_page') }}"
+                   class="ml-2 inline-flex items-center gap-1 px-3 py-1 text-xs bg-violet-600 text-white rounded hover:bg-violet-700">
+                  <span class="material-symbols-outlined text-sm">manage_accounts</span>
+                  {{ _('全部用户视图') }}
+                </a>
+                {% endif %}
+
                 {# 批量操作 #}
                 <template x-if="selectedFiles.length > 0">
                     <div class="flex items-center gap-2 ml-2 pl-2 border-l border-slate-300 dark:border-slate-600">

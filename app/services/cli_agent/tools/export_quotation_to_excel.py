@@ -88,15 +88,45 @@ def _num_to_chinese(amount: float) -> str:
 
 _HEADER_BG  = 'F3F3F3'   # 表头灰底（来自模板）
 _BORDER_CLR = '000000'
+_GST_BG     = 'FFF8DC'   # OVS Total after GST 高亮
 
-_SP8D_HEADER = '和源通信(上海)股份有限公司\n上海市普陀区武威路88弄中鑫企业广场 19号楼6层\n021-62596028'
-_OVS_HEADER  = 'Evertac Solutions\nSingapore'
+# Logo 资源（PMA 静态资源）+ 真实比例
+_LOGO_DIR = os.path.normpath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    '..', '..', '..', 'static', 'img', 'company_logos'
+))
+_LOGO_OVS  = os.path.join(_LOGO_DIR, 'evertac_solutions.png')  # 1913x519, ratio 3.686
+_LOGO_SP8D = os.path.join(_LOGO_DIR, 'evertac_cn.png')         # 1678x568, ratio 2.954
+_LOGO_OVS_RATIO  = 3.686
+_LOGO_SP8D_RATIO = 2.954
 
-# 列宽（按模板原值）
+# OVS 海外英文版抬头（3 行平铺，对应网页报价单）
+_OVS_HEADER_LINES = [
+    'EVERTAC SOLUTIONS SINGAPORE PTE. LTD.',
+    '18 Boon Lay Way, #03-117 Tradehub 21, Singapore 609966',
+    'UEN No/GST Reg. No.: 202230146C    Website: www.evertac-solutions.com',
+]
+_SP8D_HEADER_LINES = [
+    '和源通信(上海)股份有限公司',
+    '上海市普陀区武威路88弄中鑫企业广场 19号楼6层',
+    '电话: 021-62596028',
+]
+
+# 兼容旧调用（其他模块可能引用）
+_SP8D_HEADER = '\n'.join(_SP8D_HEADER_LINES)
+_OVS_HEADER  = '\n'.join(_OVS_HEADER_LINES[:2])
+
+# SP8D 列宽（中文版，11 列 B-L）
 _COL_WIDTHS = {
     'A': 5.5,   'B': 5.0,   'C': 15.5,  'D': 10.33,
     'E': 34.5,  'F': 8.16,  'G': 6.33,  'H': 5.33,
     'I': 7.5,   'J': 8.0,   'K': 9.83,  'L': 12.66,
+}
+
+# OVS 列宽（英文版，9 个数据列 B-J，K 留边距）
+_OVS_COL_WIDTHS = {
+    'A': 1.5,  'B': 6,   'C': 14, 'D': 16, 'E': 38,
+    'F': 7,    'G': 10,  'H': 11, 'I': 6,  'J': 12, 'K': 1.5,
 }
 
 
@@ -144,177 +174,285 @@ def _row_h(ws, row, height):
 def _build_excel(data: dict, db_type: str) -> bytes:
     """根据 plain dict 数据生成报价单 Excel bytes。
 
+    单一布局，视觉对照网页 tw_quotation_edit.html。
+    OVS（海外）/ SP8D（中国）只在 logo / 抬头 / 字体 / 标签三处不同，
+    通过 _VARIANT 字典参数化，避免双份代码漂移。
+
     data 结构:
-        quotation_number, project_name, company_name, contact_name,
-        contact_phone, quote_date (str YYYY-MM-DD), total_amount (float),
-        owner_name (str), details (list of dict)
+        quotation_number, project_name, company_name, company_address,
+        contact_name, contact_phone, quote_date (str), total_amount (float),
+        owner_name, currency, payment_terms, shipping_terms, validity,
+        ref_no, gst_percent, remarks, details (list of dict)
     detail dict:
-        product_name, product_model, product_desc, brand, unit,
-        quantity, discount (float|None), unit_price (float), total_price (float)
+        mn (料号), product_name, product_model, product_desc, brand, unit,
+        quantity, discount, market_price, unit_price, total_price
     """
+    cfg = _VARIANT.get((db_type or '').upper(), _VARIANT['SP8D'])
+    return _build_excel_unified(data, cfg)
+
+
+# 标签字典：OVS 英文 / SP8D 中文（对应网页 i18n）
+_LABELS_OVS = {
+    'title':           'QUOTATION',
+    'company_name':    'Company Name:',
+    'company_address': 'Company Address:',
+    'contact_name':    'Contact Person:',
+    'contact_phone':   'Contact No.:',
+    'project':         'Project:',
+    'currency':        'Currency:',
+    'quotation_no':    'Quotation No.:',
+    'quote_date':      'Quotation Date:',
+    'payment_terms':   'Payment Terms:',
+    'shipping_terms':  'Shipping Terms:',
+    'validity':        'Validity:',
+    'ref_no':          'Ref No.:',
+    'col_sn':          'S/N',
+    'col_item_no':     'Item No.',
+    'col_brand':       'Brand',
+    'col_desc':        'Description',
+    'col_disc':        'Disc%',
+    'col_market':      'Market',
+    'col_unit_price':  'Unit Price',
+    'col_qty':         'Qty',
+    'col_amount':      'Amount',
+    'subtotal':        'Total before GST',
+    'tax':             'GST',
+    'grand_total':     'Total after GST',
+    'remarks':         'Remarks:',
+    'sign':            'Signed and Accepted by Customer:',
+}
+
+_LABELS_SP8D = {
+    'title':           '销 售 报 价 单',
+    'company_name':    '客户名称：',
+    'company_address': '客户地址：',
+    'contact_name':    '联系人：',
+    'contact_phone':   '联系电话：',
+    'project':         '项目名称：',
+    'currency':        '货币：',
+    'quotation_no':    '报价编号：',
+    'quote_date':      '报价日期：',
+    'payment_terms':   '付款条件：',
+    'shipping_terms':  '交付条件：',
+    'validity':        '有效期：',
+    'ref_no':          '参考编号：',
+    'col_sn':          '序号',
+    'col_item_no':     '产品编码',
+    'col_brand':       '品牌',
+    'col_desc':        '型号规格',
+    'col_disc':        '折扣%',
+    'col_market':      '市场价',
+    'col_unit_price':  '单价',
+    'col_qty':         '数量',
+    'col_amount':      '小计',
+    'subtotal':        '不含税合计',
+    'tax':             '增值税',
+    'grand_total':     '含税合计',
+    'remarks':         '备注：',
+    'sign':            '签收：',
+}
+
+# 版式配置：变量 = logo + 抬头 + 字体 + 标签字典 + 货币格式 + 表名
+_VARIANT = {
+    'OVS': {
+        'logo':           _LOGO_OVS,
+        'logo_ratio':     _LOGO_OVS_RATIO,
+        'header_lines':   _OVS_HEADER_LINES,
+        'labels':         _LABELS_OVS,
+        'font':           'Arial',
+        'currency_fmt':   '#,##0.00',
+        'sheet_title':    'Quotation',
+        'default_currency': '',
+    },
+    'SP8D': {
+        'logo':           _LOGO_SP8D,
+        'logo_ratio':     _LOGO_SP8D_RATIO,
+        'header_lines':   _SP8D_HEADER_LINES,
+        'labels':         _LABELS_SP8D,
+        'font':           '微软雅黑',
+        'currency_fmt':   '¥#,##0.00',
+        'sheet_title':    '销售报价单',
+        'default_currency': 'CNY',
+    },
+}
+
+
+def _build_excel_unified(data: dict, cfg: dict) -> bytes:
+    """统一渲染逻辑 — 布局 100% 相同，仅 logo/抬头/标签/字体按 cfg 切换。"""
     from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment
+    from openpyxl.drawing.image import Image as XLImage
     from io import BytesIO
+
+    L    = cfg['labels']
+    FONT = cfg['font']
+    FMT  = cfg['currency_fmt']
 
     wb = Workbook()
     ws = wb.active
-    ws.title = '销售报价单'
+    ws.title = cfg['sheet_title']
 
-    for col_letter, width in _COL_WIDTHS.items():
-        ws.column_dimensions[col_letter].width = width
+    # 列宽（与网页 9 数据列布局一致）
+    for col, w in _OVS_COL_WIDTHS.items():
+        ws.column_dimensions[col].width = w
 
-    # ── Row 1: 公司抬头 ──────────────────────────────────────────────────────
-    _row_h(ws, 1, 50.25)
-    _merge(ws, 1, 2, 1, 5)
-    c_logo = ws.cell(row=1, column=2, value='和源通信')
-    c_logo.font = Font(name='微软雅黑', size=22, bold=True)
-    c_logo.alignment = Alignment(horizontal='center', vertical='center')
-    _merge(ws, 1, 7, 1, 12)
-    header_text = _SP8D_HEADER if db_type.upper() != 'OVS' else _OVS_HEADER
-    c = ws.cell(row=1, column=7, value=header_text)
-    c.font = Font(name='微软雅黑', size=8)
-    c.alignment = Alignment(horizontal='right', vertical='center', wrap_text=True)
+    # Row 1-3: logo + 抬头三行
+    for r in (1, 2, 3):
+        _row_h(ws, r, 22)
+    if os.path.exists(cfg['logo']):
+        try:
+            img = XLImage(cfg['logo'])
+            img.width  = 160
+            img.height = int(160 / cfg['logo_ratio'])
+            ws.add_image(img, 'B1')
+        except Exception as e:
+            logger.warning(f'[export_quotation_to_excel] logo 插入失败: {e}')
 
-    # ── Row 2: 标题 ──────────────────────────────────────────────────────────
-    _row_h(ws, 2, 53.25)
-    _merge(ws, 2, 2, 2, 12)
-    c = ws.cell(row=2, column=2, value='销 售 报 价 单')
-    c.font = Font(name='微软雅黑', size=16)
-    c.alignment = Alignment(horizontal='center', vertical='center')
+    head = cfg['header_lines']
+    _merge(ws, 1, 4, 1, 10)
+    _set_cell(ws, 1, 4, head[0] if len(head) > 0 else '',
+              font_name=FONT, font_size=14, bold=True, h_align='left')
+    _merge(ws, 2, 4, 2, 10)
+    _set_cell(ws, 2, 4, head[1] if len(head) > 1 else '',
+              font_name=FONT, font_size=10, h_align='left')
+    _merge(ws, 3, 4, 3, 10)
+    _set_cell(ws, 3, 4, head[2] if len(head) > 2 else '',
+              font_name=FONT, font_size=10, h_align='left')
 
-    # ── Row 3: 空白分隔 ──────────────────────────────────────────────────────
-    _row_h(ws, 3, 19.5)
-    _merge(ws, 3, 2, 3, 12)
+    # Row 4: 空白
+    _row_h(ws, 4, 18)
 
-    # ── Row 4: 报价主题 ──────────────────────────────────────────────────────
-    _row_h(ws, 4, 21.0)
-    _merge(ws, 4, 2, 4, 3)
-    _merge(ws, 4, 4, 4, 12)
-    _set_cell(ws, 4, 2, '报价主题', h_align='left')
-    _set_cell(ws, 4, 4, data.get('project_name', ''), h_align='left')
+    # Row 5: 大标题
+    _row_h(ws, 5, 38)
+    _merge(ws, 5, 2, 5, 10)
+    _set_cell(ws, 5, 2, L['title'], font_name=FONT, font_size=22,
+              bold=True, h_align='center')
 
-    # ── Row 5: 公司 / 接收人 ─────────────────────────────────────────────────
-    _row_h(ws, 5, 21.0)
-    _merge(ws, 5, 2, 5, 3)
-    _merge(ws, 5, 4, 5, 5)
-    _merge(ws, 5, 7, 5, 12)
-    _set_cell(ws, 5, 2, '公司', h_align='left')
-    _set_cell(ws, 5, 4, data.get('company_name', ''), h_align='left')
-    _set_cell(ws, 5, 6, '接收人', h_align='left')
-    _set_cell(ws, 5, 7, data.get('contact_name', ''), h_align='left')
+    # Row 6-11: metadata 双列（左右对称，对应网页布局）
+    info_left = [
+        (L['company_name'],    data.get('company_name', '')),
+        (L['company_address'], data.get('company_address', '')),
+        (L['contact_name'],    data.get('contact_name', '')),
+        (L['contact_phone'],   data.get('contact_phone', '')),
+        (L['project'],         data.get('project_name', '')),
+        (L['currency'],        data.get('currency') or cfg['default_currency']),
+    ]
+    info_right = [
+        (L['quotation_no'],    data.get('quotation_number', '')),
+        (L['quote_date'],      data.get('quote_date', '')),
+        (L['payment_terms'],   data.get('payment_terms', '')),
+        (L['shipping_terms'],  data.get('shipping_terms', '')),
+        (L['validity'],        data.get('validity', '')),
+        (L['ref_no'],          data.get('ref_no', '')),
+    ]
+    info_start = 6
+    for i, ((lL, vL), (lR, vR)) in enumerate(zip(info_left, info_right)):
+        r = info_start + i
+        _row_h(ws, r, 22)
+        _merge(ws, r, 2, r, 3)
+        _set_cell(ws, r, 2, lL, font_name=FONT, font_size=10, bold=True, h_align='left')
+        _merge(ws, r, 4, r, 6)
+        _set_cell(ws, r, 4, vL, font_name=FONT, font_size=10, h_align='left')
+        _merge(ws, r, 7, r, 8)
+        _set_cell(ws, r, 7, lR, font_name=FONT, font_size=10, bold=True, h_align='left')
+        _merge(ws, r, 9, r, 10)
+        _set_cell(ws, r, 9, vR, font_name=FONT, font_size=10, h_align='left')
 
-    # ── Row 6: 联系方式 / 报价日期 ────────────────────────────────────────────
-    _row_h(ws, 6, 21.0)
-    _merge(ws, 6, 2, 6, 3)
-    _merge(ws, 6, 4, 6, 5)
-    _merge(ws, 6, 7, 6, 12)
-    _set_cell(ws, 6, 2, '联系方式', h_align='left')
-    _set_cell(ws, 6, 4, data.get('contact_phone', ''), h_align='left')
-    _set_cell(ws, 6, 6, '报价日期', h_align='left')
-    quote_date = data.get('quote_date', '')
-    _set_cell(ws, 6, 7, quote_date, h_align='center')
-
-    # ── Row 7: 报价明细标题 ──────────────────────────────────────────────────
-    _row_h(ws, 7, 21.75)
-    _merge(ws, 7, 2, 7, 12)
-    _set_cell(ws, 7, 2, '报 价 明 细', bold=False, h_align='center')
-
-    # ── Row 8: 表头 ──────────────────────────────────────────────────────────
-    _row_h(ws, 8, 21.75)
-    headers = ['ID', '产品名称', '产品型号', '产品规格', '产品品牌',
-               '产品单位', '数量', '折扣', '单价', '小计']
+    # 表头
+    header_row = info_start + len(info_left)
+    _row_h(ws, header_row, 28)
+    headers = [L['col_sn'], L['col_item_no'], L['col_brand'], L['col_desc'],
+               L['col_disc'], L['col_market'], L['col_unit_price'], L['col_qty'],
+               L['col_amount']]
     for ci, h in enumerate(headers):
-        _set_cell(ws, 8, ci + 2, h, bold=True, h_align='center', fill_color=_HEADER_BG)
+        _set_cell(ws, header_row, ci + 2, h, font_name=FONT, font_size=10,
+                  bold=True, h_align='center', fill_color=_HEADER_BG)
 
-    # ── 明细行 ───────────────────────────────────────────────────────────────
+    # 明细行
     details = data.get('details', [])
-    data_start = 9
+    data_start = header_row + 1
     for i, d in enumerate(details):
         r = data_start + i
-        _row_h(ws, r, 21.75)
+        _row_h(ws, r, 80)
         discount = d.get('discount')
-        discount_pct = f'{int((discount or 1) * 100)}%' if discount else '100%'
-        row_vals = [
-            i + 1,
-            d.get('product_name') or '',
-            d.get('product_model') or '',
-            d.get('product_desc') or '',
-            d.get('brand') or '',
-            d.get('unit') or '',
-            d.get('quantity') or 0,
-            discount_pct,
-            d.get('unit_price') or 0,
-            d.get('total_price') or 0,
-        ]
-        for ci, val in enumerate(row_vals):
-            col = ci + 2
-            if col in (9, 10):
-                _set_cell(ws, r, col, val, h_align='right', num_format='#,##0.00')
-            elif col == 7:
-                _set_cell(ws, r, col, val, h_align='center')
-            elif col == 2:
-                _set_cell(ws, r, col, val, h_align='center')
-            else:
-                _set_cell(ws, r, col, val, h_align='left')
+        disc_pct = f"{int((discount or 1) * 100)} %" if discount is not None else '100 %'
+        unit_price = d.get('unit_price') or 0
+        qty        = d.get('quantity') or 0
+        amount     = d.get('total_price') or (unit_price * qty)
+        market     = d.get('market_price') or unit_price
 
-    # ── 小计行 ───────────────────────────────────────────────────────────────
-    subtotal_row = data_start + len(details)
-    _row_h(ws, subtotal_row, 22.5)
-    _merge(ws, subtotal_row, 10, subtotal_row, 11)
-    _set_cell(ws, subtotal_row, 3, '小计', h_align='center', fill_color=_HEADER_BG)
-    total_amount = data.get('total_amount') or sum(d.get('total_price') or 0 for d in details)
-    _set_cell(ws, subtotal_row, 10, total_amount, h_align='center',
-              fill_color=_HEADER_BG, num_format='#,##0.00')
+        _set_cell(ws, r, 2, i + 1, font_name=FONT, font_size=10, h_align='center')
+        _set_cell(ws, r, 3, d.get('mn') or '', font_name=FONT, font_size=10, h_align='left')
+        _set_cell(ws, r, 4, d.get('brand') or '', font_name=FONT, font_size=10, h_align='left')
+        # 型号规格 = product_name + product_model + product_desc
+        desc_lines = []
+        if d.get('product_name'):  desc_lines.append(d['product_name'])
+        if d.get('product_model'): desc_lines.append(d['product_model'])
+        if d.get('product_desc'):  desc_lines.append(d['product_desc'])
+        _set_cell(ws, r, 5, '\n'.join(desc_lines), font_name=FONT, font_size=10,
+                  h_align='left', v_align='top', wrap=True)
+        _set_cell(ws, r, 6, disc_pct, font_name=FONT, font_size=10, h_align='center')
+        _set_cell(ws, r, 7, market, font_name=FONT, font_size=10, h_align='right',
+                  num_format=FMT)
+        _set_cell(ws, r, 8, unit_price, font_name=FONT, font_size=10, h_align='right',
+                  num_format=FMT)
+        _set_cell(ws, r, 9, qty, font_name=FONT, font_size=10, h_align='center')
+        _set_cell(ws, r, 10, amount, font_name=FONT, font_size=10, h_align='right',
+                  num_format=FMT)
 
-    # ── 金额说明 ──────────────────────────────────────────────────────────────
-    note_row = subtotal_row + 1
-    _row_h(ws, note_row, 22.5)
-    _merge(ws, note_row, 2, note_row, 12)
-    _set_cell(ws, note_row, 2,
-              '金额计算说明：本单总金额 = 产品报价金额 * 优惠折扣 - 抹零金额',
-              v_align='center')
+    # 汇总三行：subtotal / tax / grand_total（结构对应网页 colspan=4 + 1）
+    sub_row = data_start + len(details)
+    subtotal = sum((d.get('total_price') or 0) for d in details)
+    tax_pct  = data.get('gst_percent', 0) or 0
+    tax_amt  = subtotal * tax_pct / 100
+    grand    = subtotal + tax_amt
 
-    # ── 空行分隔 ──────────────────────────────────────────────────────────────
-    sep_row = note_row + 1
-    _row_h(ws, sep_row, 22.5)
-    _merge(ws, sep_row, 2, sep_row, 12)
+    _row_h(ws, sub_row, 26)
+    _merge(ws, sub_row, 6, sub_row, 9)
+    _set_cell(ws, sub_row, 6, L['subtotal'], font_name=FONT, font_size=10,
+              bold=True, h_align='right')
+    _set_cell(ws, sub_row, 10, subtotal, font_name=FONT, font_size=10,
+              bold=True, h_align='right', num_format=FMT)
 
-    # ── 报价总额行 ────────────────────────────────────────────────────────────
-    total_row = sep_row + 1
-    _row_h(ws, total_row, 22.5)
-    _merge(ws, total_row, 4, total_row, 5)
-    _merge(ws, total_row, 8, total_row, 12)
-    _set_cell(ws, total_row, 2, '一', h_align='left')
-    _set_cell(ws, total_row, 3, '报价总额【小写】', h_align='left')
-    _set_cell(ws, total_row, 4, total_amount, bold=True, h_align='left',
-              num_format='#,##0.00')
-    _set_cell(ws, total_row, 6, '报价总额【大写】', h_align='left')
-    _set_cell(ws, total_row, 8, _num_to_chinese(total_amount), bold=True, h_align='left')
+    tax_row = sub_row + 1
+    _row_h(ws, tax_row, 26)
+    _merge(ws, tax_row, 6, tax_row, 7)
+    _set_cell(ws, tax_row, 6, L['tax'], font_name=FONT, font_size=10,
+              bold=True, h_align='right')
+    _merge(ws, tax_row, 8, tax_row, 9)
+    _set_cell(ws, tax_row, 8, f'{tax_pct} %', font_name=FONT, font_size=10, h_align='right')
+    _set_cell(ws, tax_row, 10, tax_amt, font_name=FONT, font_size=10,
+              h_align='right', num_format=FMT)
 
-    # ── 付款方式 / 交付说明 / 备注 ────────────────────────────────────────────
-    extra_rows = [('二', '付款方式'), ('三', '交付说明'), ('四', '备注')]
-    for idx, (num, label) in enumerate(extra_rows):
-        r = total_row + 1 + idx
-        _row_h(ws, r, 21.75)
-        _merge(ws, r, 4, r, 12)
-        _set_cell(ws, r, 2, num, h_align='left')
-        _set_cell(ws, r, 3, label, h_align='left')
-        _set_cell(ws, r, 4, '', h_align='left')
+    final_row = tax_row + 1
+    _row_h(ws, final_row, 26)
+    _merge(ws, final_row, 6, final_row, 9)
+    _set_cell(ws, final_row, 6, L['grand_total'], font_name=FONT, font_size=10,
+              bold=True, h_align='right', fill_color=_GST_BG)
+    _set_cell(ws, final_row, 10, grand, font_name=FONT, font_size=10,
+              bold=True, h_align='right', fill_color=_GST_BG, num_format=FMT)
 
-    # ── 签章行 ────────────────────────────────────────────────────────────────
-    sig_row = total_row + len(extra_rows) + 3
-    _row_h(ws, sig_row, 21.75)
+    # Remarks
+    remark_row = final_row + 1
+    _row_h(ws, remark_row, 60)
+    _merge(ws, remark_row, 2, remark_row, 3)
+    _set_cell(ws, remark_row, 2, L['remarks'], font_name=FONT, font_size=10,
+              bold=True, h_align='left', v_align='top')
+    _merge(ws, remark_row, 4, remark_row, 10)
+    _set_cell(ws, remark_row, 4, data.get('remarks', '') or '', font_name=FONT,
+              font_size=10, h_align='left', v_align='top', wrap=True)
+
+    # 签字栏
+    sig_row = remark_row + 2
+    _row_h(ws, sig_row, 30)
     _merge(ws, sig_row, 7, sig_row, 10)
-    _set_cell(ws, sig_row, 4, '盖章', bold=True, h_align='center')
-    _set_cell(ws, sig_row, 6, f'报价人：{data.get("owner_name", "")}', bold=True)
-    _set_cell(ws, sig_row, 7, f'日期：{quote_date}', bold=True)
+    _set_cell(ws, sig_row, 7, L['sign'], font_name=FONT, font_size=10,
+              bold=True, h_align='right')
 
-    # ── 边框 ──────────────────────────────────────────────────────────────────
-    last_footer_row = total_row + len(extra_rows)
-    _fill_borders(ws, 4, 2, last_footer_row, 12)
+    # 边框
+    _fill_borders(ws, header_row, 2, remark_row, 10)
 
-    # ── 打印设置 ──────────────────────────────────────────────────────────────
-    ws.print_area = f'A1:L{sig_row}'
+    # 打印
+    ws.print_area = f'A1:K{sig_row}'
     ws.page_setup.fitToWidth = 1
     ws.page_setup.fitToPage = True
     ws.print_options.horizontalCentered = True
@@ -328,21 +466,23 @@ def _build_excel(data: dict, db_type: str) -> bytes:
     return buf.getvalue()
 
 
+
 # ── 工具类 ────────────────────────────────────────────────────────────────────
 
 class ExportQuotationToExcelTool(BaseTool):
     name = 'export_quotation_to_excel'
     description = (
-        '将 PMA 系统中的报价单导出为格式化 Excel 文件（.xlsx）。\n'
-        '当用户说"导出报价单"、"导出报价单Excel"、"生成报价Excel"时使用。\n\n'
-        '**重要：必须先获取真实的 quotation_number 才能调用。**\n'
-        '若当前上下文没有从 quotations 表直接读到 quotation_number，请先执行：\n'
-        '  query_pma_database → "SELECT id, quotation_number FROM quotations WHERE ..."\n'
+        '生成报价单 Excel（.xlsx）。两种入参模式：\n\n'
+        '【模式 A — 现有报价单导出】当用户说"导出报价单"、"导出报价单Excel"时\n'
+        '  必须先获取真实的 quotation_number 才能调用。\n'
+        '  若当前上下文没有从 quotations 表直接读到 quotation_number，请先执行：\n'
+        '    query_pma_database → "SELECT id, quotation_number FROM quotations WHERE ..."\n'
         '  再用查出的 quotation_number 调用本工具。\n'
-        '**禁止**根据明细行数据或上下文猜测 quotation_number 或 quotation_id。\n\n'
-        '参数（二选一）：\n'
-        '- quotation_number（优先）：从 quotations 表查到的报价单编号，如 "QU202604-036"\n'
-        '- quotation_id（备选）：quotations 表的主键 id（非明细行 id）\n\n'
+        '  **禁止**根据明细行数据或上下文猜测 quotation_number 或 quotation_id。\n'
+        '  参数：quotation_number（优先）或 quotation_id\n\n'
+        '【模式 B — 直接渲染 BOM 草稿】skill 推导出方案 BOM 后直接出 Excel\n'
+        '  不写入数据库，仅生成方案草稿文件。\n'
+        '  参数：bom_data（dict，结构见下）\n\n'
         '返回结果包含 download_url，回复"报价单Excel已生成"即可。'
     )
     input_schema = {
@@ -350,17 +490,37 @@ class ExportQuotationToExcelTool(BaseTool):
         'properties': {
             'quotation_number': {
                 'type': 'string',
-                'description': '报价单编号，如 HY2024001',
+                'description': '【模式 A】报价单编号，如 QU202604-036',
             },
             'quotation_id': {
                 'type': 'integer',
-                'description': '报价单 ID（整数）',
+                'description': '【模式 A】报价单 ID（整数）',
+            },
+            'bom_data': {
+                'type': 'object',
+                'description': (
+                    '【模式 B】BOM 草稿数据，包含：\n'
+                    '  region: "CN" 或 "SG"（决定中文/英文版式 + logo）\n'
+                    '  project_name: 项目名 / company_name: 客户公司 / contact_name: 联系人\n'
+                    '  contact_phone: 电话 / quote_date: YYYY-MM-DD\n'
+                    '  currency: 货币(SGD/USD/CNY) / payment_terms / shipping_terms / validity / ref_no\n'
+                    '  gst_percent: GST 百分比(海外用,默认 0) / remarks: 备注\n'
+                    '  items: [{mn, product_name, product_model, product_desc,\n'
+                    '           brand, unit, quantity, discount, market_price, unit_price, total_price?}]\n'
+                    '  注：total_price 不传时按 unit_price * quantity 计算'
+                ),
             },
         },
     }
 
     def execute(self, tool_input: dict, context: dict) -> Any:
         tool_input = tool_input or {}
+        # ── 模式 B: 直接从 BOM 数据渲染（skill 草稿场景） ──
+        bom_data = tool_input.get('bom_data')
+        if bom_data:
+            return self._execute_from_bom(bom_data, context)
+
+        # ── 模式 A: 按 quotation_number/quotation_id 从数据库导出（原有逻辑） ──
         qnum = tool_input.get('quotation_number', '').strip()
         qid  = tool_input.get('quotation_id')
         user = context.get('user')
@@ -523,6 +683,112 @@ class ExportQuotationToExcelTool(BaseTool):
             'quotation_number': real_number,
             'download_url': f'/cli/api/exports/{filename}',
             'note': '下载按钮已显示在终端中，只需简短回复"报价单Excel已生成"即可。',
+        }
+
+
+    def _execute_from_bom(self, bom_data: dict, context: dict) -> Any:
+        """模式 B：直接从 BOM 数据生成 Excel（不写库，方案草稿场景）。
+
+        skill 推完 BOM → 调本方法 → 拿 download_url。无需 quotation_number。
+        """
+        if not isinstance(bom_data, dict):
+            return {'error': 'bom_data 必须是 dict'}
+
+        items = bom_data.get('items') or []
+        if not items:
+            return {'error': 'bom_data.items 不能为空'}
+
+        # region → db_type 映射（决定中文/英文版式 + logo）
+        region = (bom_data.get('region') or '').upper()
+        if region in ('SG', 'OVS'):
+            db_type = 'OVS'
+        elif region in ('CN', 'SP8D'):
+            db_type = 'SP8D'
+        else:
+            # 没传 region，按 Flask 当前实例配置兜底
+            try:
+                from flask import current_app
+                db_type = 'OVS' if current_app.config.get('IS_OVS') else 'SP8D'
+            except Exception:
+                db_type = 'SP8D'
+
+        # 字段映射：skill items → _build_excel data['details']
+        details = []
+        for it in items:
+            qty   = it.get('quantity') or it.get('qty') or 0
+            price = it.get('unit_price') or it.get('price') or 0
+            total = it.get('total_price')
+            if total is None and price:
+                total = price * qty
+            details.append({
+                'mn':            it.get('mn') or it.get('product_mn') or '',
+                'product_name':  it.get('product_name') or it.get('name') or it.get('name_cn') or '',
+                'product_model': it.get('product_model') or it.get('model') or '',
+                'product_desc':  it.get('product_desc') or it.get('spec') or it.get('spec_bilingual') or '',
+                'brand':         it.get('brand') or '',
+                'unit':          it.get('unit') or '',
+                'quantity':      qty,
+                'discount':      it.get('discount'),
+                'market_price':  it.get('market_price'),
+                'unit_price':    price or 0,
+                'total_price':   total or 0,
+            })
+
+        # 组装 data dict
+        user = context.get('user') if context else None
+        owner_name = ''
+        if user:
+            owner_name = getattr(user, 'real_name', None) or getattr(user, 'username', '') or ''
+
+        quote_date = bom_data.get('quote_date') or datetime.now().strftime('%Y-%m-%d')
+        project_name = bom_data.get('project_name', '') or '方案草稿'
+        # 草稿编号：DRAFT-时间戳，避免与正式报价单冲突
+        draft_no = bom_data.get('quotation_number') or f'DRAFT-{datetime.now().strftime("%Y%m%d-%H%M")}'
+
+        data = {
+            'quotation_number': draft_no,
+            'project_name':     project_name,
+            'company_name':     bom_data.get('company_name', ''),
+            'company_address':  bom_data.get('company_address', ''),
+            'contact_name':     bom_data.get('contact_name', ''),
+            'contact_phone':    bom_data.get('contact_phone', ''),
+            'quote_date':       quote_date,
+            'currency':         bom_data.get('currency', ''),
+            'payment_terms':    bom_data.get('payment_terms', ''),
+            'shipping_terms':   bom_data.get('shipping_terms', ''),
+            'validity':         bom_data.get('validity', ''),
+            'ref_no':           bom_data.get('ref_no', ''),
+            'gst_percent':      bom_data.get('gst_percent', 0) or 0,
+            'remarks':          bom_data.get('remarks', ''),
+            'total_amount':     sum((d.get('total_price') or 0) for d in details),
+            'owner_name':       owner_name,
+            'details':          details,
+        }
+
+        # 生成 Excel
+        try:
+            xlsx_bytes = _build_excel(data, db_type)
+        except Exception as e:
+            logger.exception('[export_quotation_to_excel] BOM 模式 Excel 生成异常')
+            return {'error': f'Excel 生成失败: {e}'}
+
+        # 保存
+        os.makedirs(_STORAGE_DIR, exist_ok=True)
+        safe_proj = re.sub(r'[^\w一-鿿]+', '_', project_name)[:40]
+        date_str = datetime.now().strftime('%Y%m%d_%H%M')
+        filename = f'方案草稿_{safe_proj}_{date_str}.xlsx'
+        file_path = os.path.join(_STORAGE_DIR, filename)
+        Path(file_path).write_bytes(xlsx_bytes)
+        self._try_upload_nas(file_path, filename, user)
+
+        logger.info(f'[export_quotation_to_excel] BOM 模式生成: {filename}（{db_type}）')
+        return {
+            'success': True,
+            'filename': filename,
+            'mode': 'bom_draft',
+            'region': db_type,
+            'download_url': f'/cli/api/exports/{filename}',
+            'note': '方案草稿 Excel 已生成（未写入 PMA），客户复制后自行建单。',
         }
 
 
