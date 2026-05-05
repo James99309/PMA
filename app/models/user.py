@@ -141,7 +141,14 @@ class User(db.Model, UserMixin):
             'linked_company_id': self.linked_company_id,
             'created_at': self.created_at,
             'updated_at': self.updated_at,
-            'last_login': self.last_login
+            'last_login': self.last_login,
+            # 跨系统镜像 (Federation Lite)
+            'cross_team_visible': bool(getattr(self, 'cross_team_visible', False)),
+            'cross_team_label': getattr(self, 'cross_team_label', None),
+            'is_mirror': bool(getattr(self, 'is_mirror', False)),
+            'source_system': getattr(self, 'source_system', None),
+            'source_user_id': getattr(self, 'source_user_id', None),
+            'mirrored_at': getattr(self, 'mirrored_at', None),
         }
     
     def _load_permission_cache(self):

@@ -1,7 +1,7 @@
 {
   "app_version": "1.30.5",
   "environment": "production",
-  "timestamp": "2026-05-05 16:02:47",
+  "timestamp": "2026-05-05 17:44:37",
   "modules": {
     "user": {
       "files": {
@@ -10,8 +10,8 @@
           "last_modified": "2026-05-05 16:02:25"
         },
         "app/models/user.py": {
-          "hash": "81093bb6109a1cb563d0e6d0d748c4be",
-          "last_modified": "2026-05-05 15:41:50"
+          "hash": "739854822e9ba8695b9fa315cbab22f7",
+          "last_modified": "2026-05-05 17:41:17"
         },
         "app/permissions.py": {
           "hash": "4ab5d1191816348aa07763489d8722ca",

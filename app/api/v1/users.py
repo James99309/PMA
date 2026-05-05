@@ -228,6 +228,11 @@ def update_user(user_id):
     is_active = data.get('is_active', user.is_active)
     settlement_currency = data.get('settlement_currency')
     managed_department_ids = data.get('managed_department_ids')
+    # 跨系统镜像 (Federation Lite) - 仅 admin 可改, 镜像用户行不允许改
+    from flask_login import current_user as _cu
+    can_cross = (getattr(_cu, 'role', None) == 'admin') and not bool(getattr(user, 'is_mirror', False))
+    cross_team_visible = data.get('cross_team_visible') if can_cross else None
+    cross_team_label = data.get('cross_team_label') if can_cross else None
 
     # 验证邮箱是否已被其他用户使用
     if email and email != user.email:
@@ -260,6 +265,13 @@ def update_user(user_id):
 
     user.is_department_manager = is_department_manager
     user.is_active = is_active
+    # 跨系统镜像变化追踪 (用于决定是否触发对端推送)
+    old_cross_visible = bool(getattr(user, 'cross_team_visible', False))
+    if can_cross:
+        if cross_team_visible is not None:
+            user.cross_team_visible = bool(cross_team_visible)
+        if cross_team_label is not None:
+            user.cross_team_label = (cross_team_label or '').strip() or None
 
     # 处理管理部门关系
     if managed_department_ids is not None:
@@ -281,12 +293,30 @@ def update_user(user_id):
 
     try:
         db.session.commit()
-        
+
         # 如果角色发生变化，记录日志并清除用户会话（强制重新登录）
         if role and old_role != role:
             logger.info(f"用户 {user.username} (ID: {user.id}) 的角色从 {old_role} 更改为 {role}")
-            # 注意：这里无法直接清除特定用户的会话，需要用户重新登录才能获取新角色
-        
+
+        # 跨系统镜像同步 (Federation Lite)
+        if can_cross:
+            try:
+                from app.services import cross_team_mirror as ctm
+                new_cross = bool(getattr(user, 'cross_team_visible', False))
+                if not old_cross_visible and new_cross:
+                    ok, info = ctm.push_mirror(user)
+                    if not ok and info.get('code') == 'CONFLICT':
+                        existing_id = info.get('existing_id')
+                        if existing_id:
+                            ctm.push_promote(user, existing_id)
+                elif old_cross_visible and not new_cross:
+                    ctm.push_disable(user)
+                elif new_cross:
+                    ctm.push_mirror(user)  # 幂等 upsert (label/active 同步)
+                db.session.commit()  # 持久化 mirrored_at
+            except Exception as ce:
+                logger.exception(f'[cross-team] mirror sync failed: {ce}')
+
         return api_response(
             success=True,
             message="用户信息更新成功" + ("，角色已更改，用户需要重新登录才能生效" if role and old_role != role else ""),
