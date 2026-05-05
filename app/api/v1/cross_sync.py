@@ -537,3 +537,38 @@ def cross_sync_promote_to_mirror():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_v1_bp.route('/cross-sync/users-search', methods=['GET'])
+@require_api_key_or_jwt
+def cross_sync_users_search():
+    """对端聊天 @ 搜索 fan-out: 仅返回 cross_team_visible=true 的本地用户"""
+    from app.models.user import User
+    from sqlalchemy import or_, func
+    q = (request.args.get('q') or '').strip()
+    limit = min(int(request.args.get('limit', 20) or 20), 50)
+    query = User.query.filter(
+        User._is_active == True,
+        User.cross_team_visible == True,
+        # 镜像用户在对方端不应再被搜出 (避免循环)
+        User.is_mirror == False,
+    )
+    if q:
+        like = f'%{q}%'
+        query = query.filter(or_(
+            func.lower(User.username).like(like.lower()),
+            User.real_name.ilike(like),
+            User.email.ilike(like),
+        ))
+    rows = query.order_by(User.real_name.asc().nullslast(), User.username.asc()).limit(limit).all()
+    return jsonify({
+        'success': True,
+        'data': [{
+            'id': u.id,
+            'username': u.username,
+            'name': u.real_name or u.username,
+            'dept': u.department or '',
+            'email': u.email or '',
+            'label': u.cross_team_label or '海外支持',
+        } for u in rows],
+    })

@@ -111,6 +111,29 @@ def push_disable(user) -> tuple[bool, dict]:
     return ok, data
 
 
+def search_remote_users(q: str, limit: int = 20) -> tuple[bool, list]:
+    """对端聊天 @ 搜索 fan-out (GET 方式)
+    返回 [{id, username, name, dept, email, label}, ...]; 失败返回空列表
+    """
+    base, key, _ = _peer()
+    if not (base and key):
+        return False, []
+    try:
+        r = requests.get(
+            f'{base}/api/v1/cross-sync/users-search',
+            params={'q': q, 'limit': limit},
+            headers={'X-API-Key': key},
+            timeout=6,
+        )
+        if r.status_code >= 300:
+            return False, []
+        data = r.json() or {}
+        return bool(data.get('success')), data.get('data', []) or []
+    except Exception as e:
+        logger.warning(f'search_remote_users failed: {e}')
+        return False, []
+
+
 def push_promote(user, conflicting_local_id: int) -> tuple[bool, dict]:
     """SG 端已存在同名/同 email 账号 → 调用对端 promote_to_mirror 把它转为正式 mirror"""
     _, _, local_id = _peer()

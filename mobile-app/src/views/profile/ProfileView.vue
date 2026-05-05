@@ -116,33 +116,34 @@ onMounted(async () => {
         </button>
       </div>
 
-      <!-- 区域切换 (Federation Lite) — 醒目可点 -->
+      <!-- 区域切换 (Federation Lite) — 左右分段控件, 当前橙色, 点对方切换 -->
       <div v-if="auth.hasOtherRegionToken"
-        class="rounded-2xl overflow-hidden"
-        style="background: linear-gradient(135deg, var(--color-accent-soft) 0%, #fff 100%);
-               border: 1px solid var(--color-divider);">
-        <div class="px-4 py-3 flex items-center justify-between"
-          style="border-bottom: 1px solid var(--color-divider);">
-          <div class="flex items-center gap-2">
-            <span class="text-[13px]" style="color: var(--color-ink-3);">当前区域</span>
-            <span class="text-[15px] font-semibold" style="color: var(--color-ink);">
-              {{ auth.region.flag }} {{ auth.region.label }}
-            </span>
+        class="bg-white rounded-2xl overflow-hidden">
+        <div class="px-4 pt-3 pb-2">
+          <div class="text-[11px] font-semibold uppercase mb-2"
+            style="color: var(--color-ink-3); letter-spacing: 1px;">区域</div>
+          <div class="flex gap-2">
+            <button v-for="r in [auth.region, otherRegion]" :key="r.id"
+              @click="r.id === auth.regionId ? null : openSwitchConfirm()"
+              :disabled="r.id === auth.regionId"
+              class="flex-1 py-3 rounded-xl flex flex-col items-center gap-0.5 transition-all"
+              :style="{
+                background: r.id === auth.regionId ? 'var(--color-accent)' : 'var(--color-bg)',
+                color: r.id === auth.regionId ? '#fff' : 'var(--color-ink-2)',
+                border: r.id === auth.regionId ? 'none' : '1px solid var(--color-divider-strong)',
+                cursor: r.id === auth.regionId ? 'default' : 'pointer',
+              }">
+              <span class="text-[22px] leading-none">{{ r.flag }}</span>
+              <span class="text-[13px] font-semibold mt-0.5">{{ r.label }}</span>
+              <span class="text-[10px] mt-0.5"
+                :style="{ opacity: r.id === auth.regionId ? 0.85 : 0.6 }">
+                {{ r.id === auth.regionId ? '当前' : '点击切换' }}
+              </span>
+            </button>
           </div>
         </div>
-        <button @click="openSwitchConfirm"
-          class="w-full px-4 py-4 flex items-center gap-3 active:opacity-70"
-          style="background: var(--color-accent); color: white;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" class="shrink-0">
-            <path d="M7 16l-4-4 4-4M3 12h13M17 8l4 4-4 4M21 12H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span class="text-[15px] font-semibold flex-1 text-left">
-            切换到 {{ otherRegion.flag }} {{ otherRegion.label }}
-          </span>
-          <span class="text-[12px] opacity-80">已授权</span>
-        </button>
       </div>
-      <!-- 仅有单边账号时不显示切换 -->
+      <!-- 单边账号 fallback -->
       <div v-else class="bg-white rounded-2xl overflow-hidden">
         <div class="px-4 py-3 flex items-center justify-between">
           <span class="text-[13px]" style="color: var(--color-ink-2);">当前区域</span>

@@ -365,6 +365,17 @@ def mobile_chat_users_search():
         q = request.args.get('q', '').strip()
         conv_id = request.args.get('conversation_id', type=int)
         project_id = request.args.get('project_id', type=int)
+        # cross_system: 'peer' 或对端 system id ('sp8d'/'ovs') → fan-out 到对端 NAS
+        cross_system = (request.args.get('cross_system') or '').strip().lower()
+        if cross_system in ('peer', 'sp8d', 'ovs'):
+            from app.services import cross_team_mirror as ctm
+            ok, remote_users = ctm.search_remote_users(q, limit=20)
+            # remote_users 已是 {id, username, name, dept, email, label} 的 list
+            # 加 region 标识让前端区分
+            for r in remote_users:
+                r['source_system'] = cross_system
+                r['avatar'] = (r.get('name') or '?')[0]
+            return jsonify({'success': True, 'data': remote_users, 'cross_system': cross_system})
 
         # ── 计算允许的 user_id 集合
         allowed_ids = None  # None 表示无 scope，走全员

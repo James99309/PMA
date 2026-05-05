@@ -60,8 +60,9 @@ const SCATTER_GAP = 6
 <template>
   <div class="login-root safe-top safe-bottom"
     :style="{
-      paddingBottom: kbOffset > 0 ? kbOffset + 'px' : null,
-      transition: 'padding-bottom 0.25s cubic-bezier(.25,.46,.45,.94)',
+      // 键盘弹起 → 内容整体上移, 让登录表单保持在键盘上方可见; 上移量不超过 hero 高度 ~280px
+      transform: kbOffset > 0 ? `translateY(-${Math.min(kbOffset, 240)}px)` : 'translateY(0)',
+      transition: 'transform 0.25s cubic-bezier(.25,.46,.45,.94)',
     }">
     <!-- 装饰用散落像素 (上右角) -->
     <div class="scattered-pixels">
