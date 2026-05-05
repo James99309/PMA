@@ -115,6 +115,12 @@ function adjustDraft(tag) {
 // route.params.id：纯数字 → 真后端 conversation id；非数字 → 仅 mock
 const convId = /^\d+$/.test(String(route.params.id)) ? Number(route.params.id) : null
 
+// 拦截中文 IME 候选确认时的 Enter（e.isComposing / keyCode 229 都是 IME 状态）
+function onEnterKey(e) {
+  if (e?.isComposing || e?.keyCode === 229) return
+  send()
+}
+
 async function send() {
   const t = inputText.value.trim()
   if (!t || sending.value) return
@@ -742,7 +748,7 @@ onUnmounted(() => {
           <input ref="inputRef" v-model="inputText" type="text"
             :placeholder="`给${peer.name}回复…`"
             @input="handleInput"
-            @keyup.enter="send"
+            @keyup.enter="onEnterKey"
             @focus="onComposerFocus"
             @blur="onComposerBlur"
             :disabled="sending"

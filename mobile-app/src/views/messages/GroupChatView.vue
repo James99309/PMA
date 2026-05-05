@@ -95,6 +95,12 @@ function replaceAi(id, body) {
   chatStore.replaceMessage(groupId, id, { thinking: false, body })
 }
 
+// 拦截中文 IME 候选确认时的 Enter
+function onEnterKey(e) {
+  if (e?.isComposing || e?.keyCode === 229) return
+  send()
+}
+
 async function send() {
   const t = inputText.value.trim()
   if (!t || sending.value) return
@@ -707,7 +713,7 @@ onUnmounted(() => {
           <input ref="inputRef" v-model="inputText" type="text"
             placeholder="说点什么… 输入 @ 通知"
             @input="handleInput"
-            @keyup.enter="send"
+            @keyup.enter="onEnterKey"
             @focus="onComposerFocus"
             @blur="onComposerBlur"
             :disabled="sending"

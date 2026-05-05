@@ -350,3 +350,187 @@ def cross_sync_display_order():
         db.session.rollback()
         logger.error(f'产品排序同步接收失败: {category_code}{subcategory_code}, {e}')
         return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ═══ 用户镜像（Federation Lite Phase 1）═══════════════════════════════════
+# CN admin 把用户标为「海外支持」→ 后端调本族 SG NAS 的下面 3 个端点：
+#   POST /cross-sync/mirror_user      创建/更新镜像用户
+#   POST /cross-sync/sync_password    密码同步
+#   POST /cross-sync/disable_mirror   取消镜像 (设 is_active=false, 历史保留)
+
+
+@api_v1_bp.route('/cross-sync/mirror_user', methods=['POST'])
+@require_api_key_or_jwt
+def cross_sync_mirror_user():
+    """接收对等系统推送的用户镜像
+    payload:
+      {source_system: 'sp8d', source_user_id: 123,
+       username, real_name, email, password_hash, is_active,
+       cross_team_label}
+    upsert by (source_system, source_user_id)
+    """
+    import time
+    from app.models.user import User
+
+    data = request.get_json() or {}
+    required = ['source_system', 'source_user_id', 'username', 'password_hash']
+    missing = [f for f in required if not data.get(f)]
+    if missing:
+        return jsonify({'success': False, 'message': f'缺少字段: {missing}'}), 400
+
+    src_sys = data['source_system']
+    src_id = int(data['source_user_id'])
+
+    # upsert
+    user = User.query.filter_by(
+        source_system=src_sys, source_user_id=src_id, is_mirror=True
+    ).first()
+
+    is_new = False
+    if not user:
+        # 检查 username/email 在本地是否已存在（伪镜像 / 同名冲突）
+        existing = User.query.filter(
+            (User.username == data['username']) |
+            (User.email == data.get('email'))
+        ).first()
+        if existing:
+            return jsonify({
+                'success': False,
+                'code': 'CONFLICT',
+                'message': f'本地已存在 username={existing.username} / email={existing.email}, '
+                           f'需先用 /cross-sync/promote_to_mirror 把伪镜像转换',
+                'existing_id': existing.id,
+            }), 409
+        user = User()
+        user.is_mirror = True
+        user.source_system = src_sys
+        user.source_user_id = src_id
+        user._is_active = bool(data.get('is_active', True))
+        is_new = True
+        db.session.add(user)
+
+    # 同步身份字段（角色 / 权限不同步, SG admin 自己设）
+    user.username = data['username']
+    user.real_name = data.get('real_name') or user.username
+    user.email = data.get('email')
+    user.password_hash = data['password_hash']
+    user.cross_team_label = data.get('cross_team_label')
+    user.mirrored_at = time.time()
+    if 'is_active' in data:
+        user._is_active = bool(data['is_active'])
+
+    try:
+        db.session.commit()
+        logger.info(f'cross_sync mirror_user {"created" if is_new else "updated"}: '
+                    f'src={src_sys}#{src_id} → local#{user.id}')
+        return jsonify({
+            'success': True,
+            'data': {'id': user.id, 'is_new': is_new},
+        })
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'cross_sync mirror_user 失败: {e}', exc_info=True)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_v1_bp.route('/cross-sync/sync_password', methods=['POST'])
+@require_api_key_or_jwt
+def cross_sync_sync_password():
+    """对等系统推送密码变更"""
+    import time
+    from app.models.user import User
+    data = request.get_json() or {}
+    src_sys = data.get('source_system')
+    src_id = data.get('source_user_id')
+    pw_hash = data.get('password_hash')
+    if not (src_sys and src_id and pw_hash):
+        return jsonify({'success': False, 'message': '缺少字段'}), 400
+    user = User.query.filter_by(
+        source_system=src_sys, source_user_id=int(src_id), is_mirror=True
+    ).first()
+    if not user:
+        return jsonify({'success': False, 'message': '镜像用户不存在'}), 404
+    user.password_hash = pw_hash
+    user.mirrored_at = time.time()
+    try:
+        db.session.commit()
+        logger.info(f'cross_sync sync_password: src={src_sys}#{src_id} → local#{user.id}')
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_v1_bp.route('/cross-sync/disable_mirror', methods=['POST'])
+@require_api_key_or_jwt
+def cross_sync_disable_mirror():
+    """对等系统通知取消镜像 (用户 is_active=false, 不删除以保留历史)"""
+    import time
+    from app.models.user import User
+    data = request.get_json() or {}
+    src_sys = data.get('source_system')
+    src_id = data.get('source_user_id')
+    if not (src_sys and src_id):
+        return jsonify({'success': False, 'message': '缺少字段'}), 400
+    user = User.query.filter_by(
+        source_system=src_sys, source_user_id=int(src_id), is_mirror=True
+    ).first()
+    if not user:
+        return jsonify({'success': True, 'message': '镜像不存在 (已是 disabled)'})
+    user._is_active = False
+    user.mirrored_at = time.time()
+    try:
+        db.session.commit()
+        logger.info(f'cross_sync disable_mirror: src={src_sys}#{src_id} → local#{user.id}')
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@api_v1_bp.route('/cross-sync/promote_to_mirror', methods=['POST'])
+@require_api_key_or_jwt
+def cross_sync_promote_to_mirror():
+    """把已有的本地"伪镜像"账号转为正式 mirror。
+    用于迁移：CN 端有 jing@evertac.cn, SG 端 admin 早就手工建过 jing@evertac.cn,
+    现在把 SG 那行加上 source_system + source_user_id + is_mirror=true,
+    并用 CN 推过来的 password_hash 覆盖。
+    payload:
+      {source_system, source_user_id, local_user_id,
+       username, password_hash, real_name, email, cross_team_label}
+    校验：local_user_id 这行的 username AND email 必须与 payload 一致 (双重确认避免误转)
+    """
+    import time
+    from app.models.user import User
+    data = request.get_json() or {}
+    src_sys = data.get('source_system')
+    src_id = data.get('source_user_id')
+    local_id = data.get('local_user_id')
+    if not (src_sys and src_id and local_id):
+        return jsonify({'success': False, 'message': '缺少字段'}), 400
+    user = User.query.get(int(local_id))
+    if not user:
+        return jsonify({'success': False, 'message': '本地用户不存在'}), 404
+    if user.is_mirror:
+        return jsonify({'success': False, 'message': '已是镜像，请用 mirror_user 端点'}), 400
+    # 双重确认：username + email 必须都匹配
+    if user.username != data.get('username') or (user.email or '') != (data.get('email') or ''):
+        return jsonify({
+            'success': False,
+            'message': f'用户名/邮箱不匹配，本地({user.username}/{user.email}) vs 推送({data.get("username")}/{data.get("email")})',
+        }), 400
+    user.is_mirror = True
+    user.source_system = src_sys
+    user.source_user_id = int(src_id)
+    user.password_hash = data['password_hash']
+    user.cross_team_label = data.get('cross_team_label')
+    if data.get('real_name'):
+        user.real_name = data['real_name']
+    user.mirrored_at = time.time()
+    try:
+        db.session.commit()
+        logger.info(f'cross_sync promote_to_mirror: local#{user.id} → mirror of {src_sys}#{src_id}')
+        return jsonify({'success': True, 'data': {'id': user.id}})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500

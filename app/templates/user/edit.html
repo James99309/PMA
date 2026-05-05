@@ -121,6 +121,45 @@
                         </div>
                     </div>
 
+                    {# 跨系统镜像（Federation Lite Phase 1）— 仅 admin 可改, 镜像用户行不显示此区 #}
+                    {% if current_user.role == 'admin' and not (user and user.is_mirror) %}
+                    <div class="row mb-3 p-2" style="background:#FFF8F0;border:1px dashed #D97757;border-radius:6px;">
+                        <div class="col-12 mb-2">
+                            <strong style="color:#D97757;">🌏 跨系统协作（海外支持）</strong>
+                            <small class="text-muted d-block">
+                                勾选后，此账户会自动镜像到对方 NAS，用同样用户名/密码可登录对方系统。
+                                角色和权限需对方 admin 在对方后台单独配置。
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="cross_team_visible" name="cross_team_visible"
+                                       {% if user and user.cross_team_visible %}checked{% endif %}>
+                                <label class="form-check-label" for="cross_team_visible">
+                                    {{ _('设为海外支持 / 镜像到对方系统') }}
+                                </label>
+                            </div>
+                            {% if user and user.mirrored_at %}
+                            <small class="text-success d-block mt-1">
+                                ✓ 已镜像 · 上次同步 {{ user.mirrored_at|int }}
+                            </small>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label for="cross_team_label" class="form-label">{{ _('对外身份标签') }}</label>
+                            <input type="text" class="form-control" id="cross_team_label" name="cross_team_label"
+                                   placeholder="例如：海外技术支持 / 区域销售联络"
+                                   value="{{ user.cross_team_label or '' if user else '' }}">
+                        </div>
+                    </div>
+                    {% elif user and user.is_mirror %}
+                    <div class="alert alert-info py-2 mb-3" style="font-size:13px;">
+                        🔗 此账号是来自 <b>{{ user.source_system|upper }}</b> 系统的镜像用户。
+                        姓名 / 邮箱 / 密码由源系统管理，本地不可改。
+                        本系统下的角色和权限可正常配置。
+                    </div>
+                    {% endif %}
+
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="role" class="form-label">{{ _('用户角色') }} <span class="text-danger">*</span></label>

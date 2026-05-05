@@ -54,6 +54,16 @@ class User(db.Model, UserMixin):
     created_at = db.Column(db.Float, default=time.time)
     updated_at = db.Column(db.Float, default=time.time, onupdate=time.time)
     last_login = db.Column(db.Float)  # 最后登录时间
+
+    # ─── 跨系统镜像 (Federation Lite) ───────────────────────────────
+    # 当前用户是否对另一个系统可见（CN 端勾选 → 自动 mirror 到 SG）
+    cross_team_visible = db.Column(db.Boolean, default=False, nullable=False)
+    cross_team_label = db.Column(db.String(50), nullable=True)  # 对外身份标签, 如"海外技术支持"
+    # 镜像账户标记 (本行是从对方系统镜像过来的)
+    source_system = db.Column(db.String(20), nullable=True)     # 'sp8d' / 'ovs' / NULL=本地原生
+    source_user_id = db.Column(db.Integer, nullable=True)        # 源系统的 user.id
+    is_mirror = db.Column(db.Boolean, default=False, nullable=False)
+    mirrored_at = db.Column(db.Float, nullable=True)             # 上次同步时间
     
     # 关系
     permissions = db.relationship('Permission', backref='user', lazy='dynamic', cascade='all, delete-orphan')
