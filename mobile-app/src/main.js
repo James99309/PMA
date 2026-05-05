@@ -25,7 +25,8 @@ if (Capacitor.isNativePlatform()) {
     .then(({ Keyboard, KeyboardResize }) => {
       // None 模式：webview/body 都不自动 resize → 由各页面 composer 用 kbOffset 同步 transform
       Keyboard.setResizeMode({ mode: KeyboardResize.None }).catch(() => {})
-      Keyboard.setScroll({ isDisabled: true }).catch(() => {})
+      // 让 iOS 自动滚动聚焦的输入框到可见区 (覆盖普通表单页) — 聊天 composer 用 kbOffset 自管, 不冲突
+      Keyboard.setScroll({ isDisabled: false }).catch(() => {})
       Keyboard.addListener('keyboardWillShow', (info) => {
         document.documentElement.style.setProperty('--kb-height', `${info.keyboardHeight}px`)
         document.documentElement.classList.add('kb-open')

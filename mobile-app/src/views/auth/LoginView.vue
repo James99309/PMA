@@ -4,6 +4,9 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import PixelP from '@/components/common/PixelP.vue'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbOffset } = useKeyboardOffset()
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -24,6 +27,7 @@ async function handleLogin() {
   loading.value = true
   error.value = ''
   try {
+    // 智能并行登: 自动同时试 CN + SG, 两边都成功就两份 token 都缓存
     await auth.login(username.value, password.value)
     router.push('/')
   } catch (e) {
@@ -54,7 +58,11 @@ const SCATTER_GAP = 6
 </script>
 
 <template>
-  <div class="login-root safe-top safe-bottom">
+  <div class="login-root safe-top safe-bottom"
+    :style="{
+      paddingBottom: kbOffset > 0 ? kbOffset + 'px' : null,
+      transition: 'padding-bottom 0.25s cubic-bezier(.25,.46,.45,.94)',
+    }">
     <!-- 装饰用散落像素 (上右角) -->
     <div class="scattered-pixels">
       <div v-for="(p, i) in SCATTERED" :key="i"
@@ -146,7 +154,8 @@ const SCATTER_GAP = 6
   display: flex;
   flex-direction: column;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   font-family: var(--font-sans);
   color: var(--color-ink);
 }
