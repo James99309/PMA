@@ -772,7 +772,7 @@ class ExportQuotationToExcelTool(BaseTool):
             logger.exception('[export_quotation_to_excel] BOM 模式 Excel 生成异常')
             return {'error': f'Excel 生成失败: {e}'}
 
-        # 保存
+        # 保存到本地 storage/exports(供 PMA Web /cli 终端下载)
         os.makedirs(_STORAGE_DIR, exist_ok=True)
         safe_proj = re.sub(r'[^\w一-鿿]+', '_', project_name)[:40]
         date_str = datetime.now().strftime('%Y%m%d_%H%M')
@@ -781,15 +781,38 @@ class ExportQuotationToExcelTool(BaseTool):
         Path(file_path).write_bytes(xlsx_bytes)
         self._try_upload_nas(file_path, filename, user)
 
-        logger.info(f'[export_quotation_to_excel] BOM 模式生成: {filename}（{db_type}）')
-        return {
+        # 同时上传到用户 PMA 个人文件夹（供 Claude 桌面 / 浏览器 PMA 直接下载）
+        personal_file_id = self._try_upload_personal_folder(xlsx_bytes, filename, user)
+
+        logger.info(f'[export_quotation_to_excel] BOM 模式生成: {filename}（{db_type}, file_id={personal_file_id}）')
+
+        # 拼完整下载 URL（带域名,登录 PMA 的浏览器可直接打开）
+        try:
+            from flask import request as _req
+            host = _req.host_url.rstrip('/')   # http://server/
+        except Exception:
+            host = ''
+        full_download_url = f'{host}/cli/api/exports/{filename}' if host else f'/cli/api/exports/{filename}'
+
+        result = {
             'success': True,
             'filename': filename,
             'mode': 'bom_draft',
             'region': db_type,
-            'download_url': f'/cli/api/exports/{filename}',
+            'download_url': full_download_url,
             'note': '方案草稿 Excel 已生成（未写入 PMA），客户复制后自行建单。',
         }
+
+        if personal_file_id:
+            result['personal_folder_file_id'] = personal_file_id
+            result['note'] = (
+                '方案草稿 Excel 已生成,已存入 PMA 个人文件夹（file_id='
+                f'{personal_file_id}）。两种下载方式:\n'
+                f'  1. 登录 PMA 后访问 个人文件夹 → 找 {filename}\n'
+                f'  2. 已登录 PMA 的浏览器粘贴: {full_download_url}'
+            )
+
+        return result
 
 
     @staticmethod
@@ -805,3 +828,20 @@ class ExportQuotationToExcelTool(BaseTool):
                 client.upload(f'{remote_dir}/{filename}', f.read())
         except Exception as e:
             logger.debug(f'[export_quotation_to_excel] NAS 上传跳过: {e}')
+
+    @staticmethod
+    def _try_upload_personal_folder(file_data: bytes, filename: str, user) -> int | None:
+        """同时上传到用户 PMA 个人文件夹根目录,返回 UserFileRef.id（失败返回 None）。"""
+        if not user:
+            return None
+        try:
+            from app.services.file_manager_service import FileManagerService
+            ok, result = FileManagerService.upload_file_from_bytes(
+                user, file_data, filename, folder_id=None
+            )
+            if ok and isinstance(result, dict):
+                return result.get('id')
+            logger.warning(f'[export_quotation_to_excel] 个人文件夹上传失败: {result}')
+        except Exception as e:
+            logger.warning(f'[export_quotation_to_excel] 个人文件夹上传异常: {e}')
+        return None
