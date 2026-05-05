@@ -2301,3 +2301,41 @@ def wiki_ingest_raw_file(raw_id):
     except Exception as e:
         logger.exception(f'[internal_api] wiki_ingest error: {e}')
         return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# POST /internal/api/render-quotation-excel
+# Body: { bom_data: { project_name, company_name, items: [...], region?, currency? } }
+# 给 MCP server 暴露的报价单 Excel 渲染端点。
+#   - 接收 BOM dict，调 export_quotation_to_excel 工具的 _execute_from_bom 逻辑
+#   - 返回 download_url（前端可下载）+ filename + region
+#   - 不写入数据库，仅生成方案草稿
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/render-quotation-excel', methods=['POST'])
+@internal_auth_required
+def render_quotation_excel():
+    """渲染报价单 Excel(BOM 草稿模式) — 暴露给 MCP server 调用。"""
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+    bom_data = payload.get('bom_data')
+
+    if not isinstance(bom_data, dict):
+        return jsonify({'error': 'bom_data 必须是 JSON object'}), 400
+    if not bom_data.get('items'):
+        return jsonify({'error': 'bom_data.items 不能为空'}), 400
+
+    try:
+        from app.services.cli_agent.tools.export_quotation_to_excel import (
+            ExportQuotationToExcelTool,
+        )
+        tool = ExportQuotationToExcelTool()
+        result = tool._execute_from_bom(bom_data, {'user': user})
+    except Exception as e:
+        logger.exception(f'[internal_api] render_quotation_excel error: {e}')
+        return jsonify({'error': f'渲染异常: {e}'}), 500
+
+    if isinstance(result, dict) and result.get('error'):
+        return jsonify(result), 400
+
+    return jsonify(result)
