@@ -2339,3 +2339,79 @@ def render_quotation_excel():
         return jsonify(result), 400
 
     return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# POST /internal/api/quotations
+# Body JSON: {
+#   project_id (必填,用户必须有项目查看权限),
+#   customer_id?, contact_id?, currency?, notes?,
+#   items: [{product_name, product_model, mn, product_desc, brand, unit,
+#            quantity, discount?, market_price?, unit_price, total_price?}]
+# }
+# Returns: { quotation_id, quotation_number, approval_status, amount, redirect_url }
+#
+# 写入正式报价单(skill 端: system-config 推完 BOM,用户确认关联项目后调用)。
+# 默认 approval_status=pending(走 PMA 标准审批流)。
+# ---------------------------------------------------------------------------
+
+@internal_api_bp.route('/quotations', methods=['POST'])
+@internal_auth_required
+def create_quotation_from_skill():
+    """skill 创建正式报价单 - 委托 quotation_service.create_quotation_from_bom。"""
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+
+    project_id_raw = payload.get('project_id')
+    if not project_id_raw:
+        return jsonify({'error': 'project_id 必填(没有项目 → 仅出 Excel 草稿,不能写入)'}), 400
+    try:
+        project_id = int(project_id_raw)
+    except (ValueError, TypeError):
+        return jsonify({'error': f'project_id 必须是整数,收到: {project_id_raw!r}'}), 400
+
+    items = payload.get('items')
+    if not isinstance(items, list) or not items:
+        return jsonify({'error': 'items 必填且非空'}), 400
+
+    # 项目查看权限校验(有查看权限即可创建报价单 — 用户决策)
+    try:
+        from app.utils.access_control import get_viewable_data
+        from app.models.project import Project as _P
+        project = get_viewable_data(_P, user, [_P.id == project_id]).first()
+        if not project:
+            return jsonify({
+                'error': f'项目 {project_id} 不存在,或您没有该项目的查看权限'
+            }), 403
+    except Exception as e:
+        logger.exception(f'[internal_api] 项目权限检查异常: {e}')
+        return jsonify({'error': f'权限检查失败: {e}'}), 500
+
+    try:
+        from app.services.quotation_service import create_quotation_from_bom
+        quotation = create_quotation_from_bom(
+            user=user,
+            project=project,
+            items=items,
+            customer_id=payload.get('customer_id'),
+            contact_id=payload.get('contact_id'),
+            currency=payload.get('currency'),
+            notes=payload.get('notes', ''),
+            # 显式不继承(skill 已显式问过用户客户名;若用户没选则真留空)
+            inherit_customer_from_history=False,
+        )
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.exception(f'[internal_api] create_quotation error: {e}')
+        return jsonify({'error': f'创建失败: {e}'}), 500
+
+    return jsonify({
+        'quotation_id': quotation.id,
+        'quotation_number': quotation.quotation_number,
+        'approval_status': quotation.approval_status,
+        'amount': float(quotation.amount or 0),
+        'project_id': quotation.project_id,
+        'project_name': project.project_name,
+        'redirect_url': f'/quotation/{quotation.id}',
+    })

@@ -870,10 +870,7 @@ def _get_products_data():
 @login_required
 @permission_required('quotation', 'create')
 def api_create_quotation_from_bom(diagram_id):
-    """从系统图 BOM 数据创建报价单"""
-    from app.models.quotation import Quotation, QuotationDetail
-    from config import Config
-
+    """从系统图 BOM 数据创建报价单(委托 quotation_service.create_quotation_from_bom)"""
     diagram = SystemDiagram.query.get_or_404(diagram_id)
     if diagram.is_deleted:
         return jsonify({'success': False, 'message': _('系统图不存在')}), 404
@@ -888,77 +885,14 @@ def api_create_quotation_from_bom(diagram_id):
     if not data or not data.get('details'):
         return jsonify({'success': False, 'message': _('无效的请求数据')}), 400
 
-    details_data = data['details']
-    if not isinstance(details_data, list) or len(details_data) == 0:
-        return jsonify({'success': False, 'message': _('报价单必须包含至少一个明细项')}), 400
-
     try:
-        # Look up customer_id from existing quotations of this project, or leave null
-        customer_id = None
-        existing_q = Quotation.query.filter_by(project_id=project.id).order_by(Quotation.id.desc()).first()
-        if existing_q and existing_q.customer_id:
-            customer_id = existing_q.customer_id
-
-        quotation = Quotation(
-            project_id=project.id,
-            customer_id=customer_id,
-            amount=0,
-            project_stage=project.current_stage or '',
-            project_type=project.project_type or '',
-            currency=Config.DEFAULT_CURRENCY,
-            owner_id=current_user.id
+        from app.services.quotation_service import create_quotation_from_bom
+        quotation = create_quotation_from_bom(
+            user=current_user,
+            project=project,
+            items=data['details'],
+            inherit_customer_from_history=True,  # 系统图原行为
         )
-        db.session.add(quotation)
-
-        total_amount = 0
-        for idx, item in enumerate(details_data):
-            if not isinstance(item, dict):
-                continue
-            product_name = (item.get('product_name') or '').strip()
-            if not product_name:
-                continue
-
-            quantity = max(1, int(item.get('quantity', 1) or 1))
-            market_price = float(item.get('market_price', 0) or 0)
-            unit_price = float(item.get('unit_price', 0) or 0)
-            total_price = unit_price * quantity
-
-            detail = QuotationDetail(
-                product_name=product_name,
-                product_model=item.get('product_model', ''),
-                product_mn=item.get('product_mn', ''),
-                product_desc=item.get('product_desc', ''),
-                brand=item.get('brand', ''),
-                unit=item.get('unit', ''),
-                quantity=quantity,
-                discount=1.0,
-                market_price=market_price,
-                unit_price=unit_price,
-                total_price=total_price,
-                currency=Config.DEFAULT_CURRENCY
-            )
-            quotation.details.append(detail)
-            total_amount += total_price
-
-        quotation.amount = total_amount
-        quotation.calculate_implant_total_amount()
-
-        # Generate product signature
-        import hashlib, json as json_lib
-        sig_data = [{'product_name': d.product_name, 'product_model': d.product_model,
-                     'quantity': d.quantity, 'unit_price': d.unit_price} for d in quotation.details]
-        quotation.product_signature = hashlib.md5(json_lib.dumps(sig_data, sort_keys=True).encode()).hexdigest()[:16]
-        quotation.updated_at = datetime.now()
-
-        db.session.commit()
-
-        # Update project activity
-        try:
-            from app.utils.activity_tracker import update_active_status
-            update_active_status(project)
-        except Exception:
-            pass
-
         return jsonify({
             'success': True,
             'status': 'success',
@@ -966,9 +900,9 @@ def api_create_quotation_from_bom(diagram_id):
             'quotation_id': quotation.id,
             'redirect_url': f'/quotation/{quotation.id}'
         })
-
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
-        db.session.rollback()
         logger.error(f"从 BOM 创建报价单失败: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
