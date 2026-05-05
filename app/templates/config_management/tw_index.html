@@ -240,6 +240,22 @@
                                                         </span>
                                                     </p>
                                                 </div>
+                                                {# 跨系统协作标记 #}
+                                                <div x-show="userData.cross_team_visible || userData.is_mirror">
+                                                    <label class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ _('跨系统协作') }}</label>
+                                                    <p class="mt-1">
+                                                        <span x-show="userData.cross_team_visible && !userData.is_mirror"
+                                                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                                                              style="background:#FFF8F0; color:#D97757; border:1px solid #D97757;">
+                                                            🌏 <span x-text="userData.cross_team_label || '{{ _("海外支持") }}'"></span>
+                                                        </span>
+                                                        <span x-show="userData.is_mirror"
+                                                              class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                                                              style="background:#E5EDFA; color:#1E4FAA; border:1px solid #4D82E0;">
+                                                            🔗 <span x-text="'来自 ' + (userData.source_system || '').toUpperCase() + ' 镜像'"></span>
+                                                        </span>
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
