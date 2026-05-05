@@ -229,8 +229,19 @@ def update_user(user_id):
     settlement_currency = data.get('settlement_currency')
     managed_department_ids = data.get('managed_department_ids')
     # 跨系统镜像 (Federation Lite) - 仅 admin 可改, 镜像用户行不允许改
+    # 解析当前操作者: session current_user 优先, 否则从 JWT 取
     from flask_login import current_user as _cu
-    can_cross = (getattr(_cu, 'role', None) == 'admin') and not bool(getattr(user, 'is_mirror', False))
+    _operator = _cu if (_cu and getattr(_cu, 'is_authenticated', False)) else None
+    if not _operator:
+        try:
+            from flask_jwt_extended import get_jwt_identity
+            uid = get_jwt_identity()
+            if uid:
+                _operator = User.query.get(uid)
+        except Exception:
+            pass
+    can_cross = bool(_operator and getattr(_operator, 'role', None) == 'admin'
+                     and not bool(getattr(user, 'is_mirror', False)))
     cross_team_visible = data.get('cross_team_visible') if can_cross else None
     cross_team_label = data.get('cross_team_label') if can_cross else None
 
