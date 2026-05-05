@@ -4,13 +4,16 @@ Internal API Blueprint — MCP Server 专用内部接口
 数据访问: 以指定用户身份通过 get_viewable_data 过滤
 """
 
+import hashlib
 import hmac
 import os
 import logging
+import time
 from functools import wraps
 from datetime import datetime, date
+from urllib.parse import quote, unquote
 
-from flask import Blueprint, request, jsonify, g, current_app
+from flask import Blueprint, request, jsonify, g, current_app, send_file
 from app import db
 from app.models.user import User
 from app.utils.access_control import get_viewable_data
@@ -2339,6 +2342,64 @@ def render_quotation_excel():
         return jsonify(result), 400
 
     return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# GET /internal/api/exports/<file_id>?sig=&exp=&name=
+# 免登录下载已生成的报价 Excel — HMAC 签名 + 30min 过期校验。
+# 给 export_quotation_to_excel 工具返回的 short-lived URL 用，
+# 让 Cowork sandbox 可直接 curl 下载，无需 PMA 浏览器 session。
+# 路径在 /internal/api/ 白名单内（before_request），但本端点不要 @internal_auth_required —
+# 故意不验 X-Internal-Token，仅靠 query 里的 sig + exp 鉴权。
+# ---------------------------------------------------------------------------
+
+EXPORT_TTL_SECONDS = 30 * 60  # 30 分钟
+
+
+def sign_export_url(file_id: str, exp_ts: int) -> str:
+    """对 file_id + 过期时间戳 做 HMAC-SHA256 签名，返前 16 hex 字符。"""
+    secret = (current_app.config.get('SECRET_KEY') or '').encode()
+    if not secret:
+        raise RuntimeError('SECRET_KEY not configured')
+    msg = f'{file_id}.{exp_ts}'.encode()
+    return hmac.new(secret, msg, hashlib.sha256).hexdigest()[:16]
+
+
+@internal_api_bp.route('/exports/<file_id>', methods=['GET'])
+def download_export(file_id):
+    """免登录下载报价 Excel。仅认 ?sig= 和 ?exp= 鉴权，避免点链接弹登录。"""
+    # path traversal 防御：只允许扁平 .xlsx 文件名
+    if '/' in file_id or '\\' in file_id or '..' in file_id or not file_id.endswith('.xlsx'):
+        return jsonify({'error': 'invalid file_id'}), 400
+
+    sig = request.args.get('sig', '')
+    exp_raw = request.args.get('exp', '0')
+    try:
+        exp_ts = int(exp_raw)
+    except ValueError:
+        return jsonify({'error': 'bad exp'}), 400
+    if exp_ts < int(time.time()):
+        return jsonify({'error': 'link expired'}), 410
+
+    try:
+        expected = sign_export_url(file_id, exp_ts)
+    except RuntimeError as e:
+        return jsonify({'error': str(e)}), 500
+    if not hmac.compare_digest(sig, expected):
+        return jsonify({'error': 'bad signature'}), 403
+
+    from app.services.cli_agent.tools.export_quotation_to_excel import _STORAGE_DIR
+    path = os.path.join(_STORAGE_DIR, file_id)
+    if not os.path.exists(path):
+        return jsonify({'error': 'file not found or already cleaned up'}), 404
+
+    download_name = unquote(request.args.get('name', file_id))
+    return send_file(
+        path,
+        as_attachment=True,
+        download_name=download_name,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
 
 
 # ---------------------------------------------------------------------------

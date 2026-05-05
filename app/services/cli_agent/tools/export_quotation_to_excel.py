@@ -786,21 +786,34 @@ class ExportQuotationToExcelTool(BaseTool):
             f'（{db_type}, {len(xlsx_bytes)/1024:.1f}KB）'
         )
 
-        # 返回 base64 内容（让 MCP server 透传给 Claude 桌面写到本地目录）
-        # PMA Web /cli 终端会忽略 content_base64,继续走 download_url
-        import base64 as _b64
+        # 生成 short-lived signed URL（30min 免登录）
+        # 老 base64 走 MCP tool_result 在 Cowork 里 71KB 文本经常被模型放弃直接处理 →
+        # fallback 到 openpyxl 生成的山寨版无 logo Excel。改 URL 后模型只让
+        # cowork sandbox curl 拉到 working folder，UI 自动渲染卡片，PMA 模板保留。
+        from urllib.parse import quote as _quote
+        from flask import request as _request
+        from app.routes.internal_api import sign_export_url, EXPORT_TTL_SECONDS
+
+        exp_ts = int(datetime.now().timestamp()) + EXPORT_TTL_SECONDS
+        sig = sign_export_url(filename, exp_ts)
+        host_url = _request.host_url.rstrip('/') if _request else ''
+        download_url = (
+            f'{host_url}/internal/api/exports/{filename}'
+            f'?sig={sig}&exp={exp_ts}&name={_quote(filename)}'
+        )
+
         return {
             'success': True,
             'filename': filename,
             'mode': 'bom_draft',
             'region': db_type,
             'size_bytes': len(xlsx_bytes),
-            'content_base64': _b64.b64encode(xlsx_bytes).decode('ascii'),
-            'download_url': f'/cli/api/exports/{filename}',
+            'download_url': download_url,
+            'expires_at': exp_ts,
             'note': (
-                '方案草稿 Excel 已生成（未写入 PMA）。'
-                '使用方:Claude 桌面端拿 content_base64 解码写到本地文件;'
-                'PMA /cli 终端用 download_url 浏览器下载。'
+                '方案草稿 Excel 已生成（未写入 PMA）。下载链接 30 分钟有效，免登录。'
+                'Claude 应在 cowork sandbox 用 curl 拉到当前 working folder，'
+                'Cowork UI 会自动渲染成 Excel 卡片。'
             ),
         }
 
