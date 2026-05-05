@@ -354,12 +354,12 @@ def cross_sync_display_order():
 
 # ═══ 用户镜像（Federation Lite Phase 1）═══════════════════════════════════
 # CN admin 把用户标为「海外支持」→ 后端调本族 SG NAS 的下面 3 个端点：
-#   POST /cross-sync/mirror_user      创建/更新镜像用户
-#   POST /cross-sync/sync_password    密码同步
-#   POST /cross-sync/disable_mirror   取消镜像 (设 is_active=false, 历史保留)
+#   POST /cross-sync/mirror-user      创建/更新镜像用户
+#   POST /cross-sync/sync-password    密码同步
+#   POST /cross-sync/disable-mirror   取消镜像 (设 is_active=false, 历史保留)
 
 
-@api_v1_bp.route('/cross-sync/mirror_user', methods=['POST'])
+@api_v1_bp.route('/cross-sync/mirror-user', methods=['POST'])
 @require_api_key_or_jwt
 def cross_sync_mirror_user():
     """接收对等系统推送的用户镜像
@@ -389,16 +389,18 @@ def cross_sync_mirror_user():
     is_new = False
     if not user:
         # 检查 username/email 在本地是否已存在（伪镜像 / 同名冲突）
-        existing = User.query.filter(
-            (User.username == data['username']) |
-            (User.email == data.get('email'))
-        ).first()
+        # email 为 None 时不能参与 OR (会匹配到所有 NULL email 行误判)
+        from sqlalchemy import or_
+        clauses = [User.username == data['username']]
+        if data.get('email'):
+            clauses.append(User.email == data['email'])
+        existing = User.query.filter(or_(*clauses)).first()
         if existing:
             return jsonify({
                 'success': False,
                 'code': 'CONFLICT',
                 'message': f'本地已存在 username={existing.username} / email={existing.email}, '
-                           f'需先用 /cross-sync/promote_to_mirror 把伪镜像转换',
+                           f'需先用 /cross-sync/promote-to-mirror 把伪镜像转换',
                 'existing_id': existing.id,
             }), 409
         user = User()
@@ -406,6 +408,7 @@ def cross_sync_mirror_user():
         user.source_system = src_sys
         user.source_user_id = src_id
         user._is_active = bool(data.get('is_active', True))
+        user.is_profile_complete = True   # mirror 用户跳过本地 onboarding 流程
         is_new = True
         db.session.add(user)
 
@@ -433,7 +436,7 @@ def cross_sync_mirror_user():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@api_v1_bp.route('/cross-sync/sync_password', methods=['POST'])
+@api_v1_bp.route('/cross-sync/sync-password', methods=['POST'])
 @require_api_key_or_jwt
 def cross_sync_sync_password():
     """对等系统推送密码变更"""
@@ -461,7 +464,7 @@ def cross_sync_sync_password():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@api_v1_bp.route('/cross-sync/disable_mirror', methods=['POST'])
+@api_v1_bp.route('/cross-sync/disable-mirror', methods=['POST'])
 @require_api_key_or_jwt
 def cross_sync_disable_mirror():
     """对等系统通知取消镜像 (用户 is_active=false, 不删除以保留历史)"""
@@ -488,7 +491,7 @@ def cross_sync_disable_mirror():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@api_v1_bp.route('/cross-sync/promote_to_mirror', methods=['POST'])
+@api_v1_bp.route('/cross-sync/promote-to-mirror', methods=['POST'])
 @require_api_key_or_jwt
 def cross_sync_promote_to_mirror():
     """把已有的本地"伪镜像"账号转为正式 mirror。

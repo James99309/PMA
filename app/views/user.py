@@ -968,7 +968,13 @@ def edit_user(user_id):
                             # 对端已有同名/同邮箱账号 → 转 promote_to_mirror
                             existing_id = info.get('existing_id')
                             if existing_id:
-                                ctm.push_promote(user, existing_id)
+                                pok, pinfo = ctm.push_promote(user, existing_id)
+                                if not pok:
+                                    current_app.logger.warning(
+                                        f'[cross-team] push_promote failed (existing#{existing_id}): {pinfo}')
+                            else:
+                                current_app.logger.warning(
+                                    f'[cross-team] CONFLICT 无 existing_id, 无法 promote: {info}')
                         elif not ok:
                             current_app.logger.warning(f'[cross-team] push_mirror failed: {info}')
                     elif old_cross_visible and not new_cross:
@@ -976,15 +982,8 @@ def edit_user(user_id):
                         ctm.push_disable(user)
                     elif new_cross:
                         # 仍 visible：推送最新 (real_name/email/label/active)，幂等 upsert
+                        # mirror_user 已带 is_active 和 password_hash，无需再单独 push_password
                         ctm.push_mirror(user)
-                        if pw_changed:
-                            ctm.push_password(user)
-                    elif pw_changed and old_cross_visible:
-                        # cross_visible 关闭但密码变了，无需 push
-                        pass
-                    if old_cross_visible and old_is_active and not is_active:
-                        # active 转 false 但仍 visible：通知对端 disable
-                        ctm.push_disable(user)
                     db.session.commit()  # 持久化 mirrored_at
                 except Exception as ce:
                     current_app.logger.exception(f'[cross-team] mirror sync failed: {ce}')

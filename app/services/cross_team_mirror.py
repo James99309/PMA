@@ -3,12 +3,12 @@
 跨系统用户镜像 outbound 客户端
 
 CN admin 在用户管理里勾「海外支持」 → 调本模块 → HTTP 推送到 SG NAS 的
-/cross-sync/mirror_user 端点（同代码库不同部署）。
+/cross-sync/mirror-user 端点（同代码库不同部署）。
 
 环境变量:
-  CROSS_TEAM_PEER_URL   对端 NAS 基础 URL, 如 'https://pma-sg.jamesgpone.win'
-  CROSS_TEAM_API_KEY    与对端共享的 X-API-Key (要和对端配一致)
-  CROSS_TEAM_LOCAL_ID   本系统标识 'sp8d' / 'ovs'
+  CROSS_TEAM_PEER_URL    对端 NAS 基础 URL, 如 'https://pma-sg.jamesgpone.win'
+  CROSS_SYSTEM_API_KEY   与对端共享的 X-API-Key (复用 cross_sync 同款 env, 不另起)
+  CROSS_TEAM_LOCAL_ID    本系统标识 'sp8d' / 'ovs'
 
 如果未配置 → 函数静默返回 (本地修改成功，仅不推送)，便于 dev/单系统部署。
 """
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def _peer():
     """取对端配置: (base_url, api_key, local_system_id)"""
     base = os.environ.get('CROSS_TEAM_PEER_URL', '').rstrip('/')
-    key = os.environ.get('CROSS_TEAM_API_KEY', '')
+    key = os.environ.get('CROSS_SYSTEM_API_KEY', '')
     local = os.environ.get('CROSS_TEAM_LOCAL_ID', '')
     if not (base and key and local):
         return None, None, None
@@ -69,7 +69,7 @@ def push_mirror(user) -> tuple[bool, dict]:
         'is_active': bool(user._is_active),
         'cross_team_label': user.cross_team_label,
     }
-    ok, data = _post('/api/v1/cross-sync/mirror_user', payload)
+    ok, data = _post('/api/v1/cross-sync/mirror-user', payload)
     if ok:
         try:
             user.mirrored_at = time.time()
@@ -90,7 +90,7 @@ def push_password(user) -> tuple[bool, dict]:
         'source_user_id': user.id,
         'password_hash': user.password_hash,
     }
-    ok, data = _post('/api/v1/cross-sync/sync_password', payload)
+    ok, data = _post('/api/v1/cross-sync/sync-password', payload)
     if not ok:
         logger.warning(f'push_password failed user#{user.id}: {data}')
     return ok, data
@@ -105,7 +105,7 @@ def push_disable(user) -> tuple[bool, dict]:
         'source_system': local_id,
         'source_user_id': user.id,
     }
-    ok, data = _post('/api/v1/cross-sync/disable_mirror', payload)
+    ok, data = _post('/api/v1/cross-sync/disable-mirror', payload)
     if not ok:
         logger.warning(f'push_disable failed user#{user.id}: {data}')
     return ok, data
@@ -126,7 +126,7 @@ def push_promote(user, conflicting_local_id: int) -> tuple[bool, dict]:
         'password_hash': user.password_hash,
         'cross_team_label': user.cross_team_label,
     }
-    ok, data = _post('/api/v1/cross-sync/promote_to_mirror', payload)
+    ok, data = _post('/api/v1/cross-sync/promote-to-mirror', payload)
     if ok:
         try:
             user.mirrored_at = time.time()
