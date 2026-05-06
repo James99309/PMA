@@ -96,8 +96,10 @@ function openAi() {
 }
 
 function openConversation(c) {
-  // 跨区项 → 先切区再跳转（switchRegion 同步, axios baseURL 立即生效）
+  // 跨区项 → 先记当前区，切区，进入聊天后由聊天页负责返回时切回来
+  let fromRegion = null
   if (c._isPeer && c._regionId) {
+    fromRegion = auth.regionId   // 进入前的本区, 返回时要切回
     if (!auth.switchRegion(c._regionId)) {
       alert(`无法切换到${REGIONS[c._regionId]?.label || c._regionId}区域`)
       return
@@ -110,14 +112,17 @@ function openConversation(c) {
   }
   // 项目群 → GroupChatView
   if (c.kind === 'group') {
-    router.push({ path: `/messages/group/${c.id}`, query: { name: c.name } })
+    router.push({
+      path: `/messages/group/${c.id}`,
+      query: { name: c.name, ...(fromRegion ? { fromRegion } : {}) },
+    })
     return
   }
   // 私聊 → DmChatView，把对方部门一起带过去
   if (c.kind === 'dm') {
     router.push({
       path: `/messages/dm/${c.id}`,
-      query: { name: c.name, role: c.peerDept || '' },
+      query: { name: c.name, role: c.peerDept || '', ...(fromRegion ? { fromRegion } : {}) },
     })
   }
 }
