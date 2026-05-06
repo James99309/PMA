@@ -403,12 +403,20 @@ function appendBackendMessage(m) {
     displayText = payload.text || ''
     attachment = { type: m.message_type, url: m.file_url || '', meta: payload }
   }
+  // 翻译: 后端按 viewer language_preference 已附带 translation 字段
+  // 显示译文为主, 原文作为下方小字 (text_refs 已抽取过 displayText, 也支持)
+  let originalText = ''
+  if (m.translation && displayText && m.translation !== displayText) {
+    originalText = displayText
+    displayText = m.translation
+  }
 
   const newMsg = {
     id,
     kind: isMine ? 'me' : 'them',
     time: formatChatTime(m.created_at),
     text: displayText,
+    original: originalText,
     refs: attachedRefs || undefined,
     attachment,
     _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
@@ -621,6 +629,11 @@ onUnmounted(() => {
                 <MessageText v-if="m.text" :text="m.text" />
                 <MessageRefs v-if="m.refs?.length" :refs="m.refs" :class="m.text ? 'mt-2' : ''" />
               </div>
+              <!-- 原文(只在被翻译时显示) -->
+              <div v-if="m.original" class="text-[11px] italic mt-1 max-w-[300px] break-words"
+                style="color: var(--color-ink-3); line-height: 1.35;">
+                <span style="opacity: 0.7;">原文：</span>{{ m.original }}
+              </div>
               <!-- 附件（image / file / voice / location）-->
               <div v-if="m.attachment"
                 :class="m.text ? 'mt-1.5' : ''"
@@ -656,6 +669,11 @@ onUnmounted(() => {
             @touchcancel="lp.onTouchCancel">
             <MessageText v-if="m.text" :text="m.text" inverted />
             <MessageRefs v-if="m.refs?.length" :refs="m.refs" :class="m.text ? 'mt-2' : ''" />
+          </div>
+          <!-- 原文(只在被翻译时显示) -->
+          <div v-if="m.original" class="text-[11px] italic mt-1 max-w-[300px] break-words text-right"
+            style="color: var(--color-ink-3); line-height: 1.35;">
+            <span style="opacity: 0.7;">原文：</span>{{ m.original }}
           </div>
           <!-- 附件（image / file / voice / location）-->
           <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''"

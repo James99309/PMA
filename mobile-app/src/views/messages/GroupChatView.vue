@@ -359,6 +359,12 @@ function appendBackendMessage(m) {
     displayText = payload.text || ''
     attachment = { type: m.message_type, url: m.file_url || '', meta: payload }
   }
+  // 翻译: 后端按 viewer language_preference 已附带 translation
+  let originalText = ''
+  if (m.translation && displayText && m.translation !== displayText) {
+    originalText = displayText
+    displayText = m.translation
+  }
 
   // 自己发的附件消息：靠 file_url 精准替换本地乐观气泡
   if (isMine && isAttachment && m.file_url) {
@@ -398,6 +404,7 @@ function appendBackendMessage(m) {
     initial: isAi ? 'P' : ((m.sender_name || '?')[0]),
     time: formatChatTime(m.created_at),
     text: displayText,
+    original: originalText,
     refs: attachedRefs || undefined,
     attachment,
     _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
@@ -567,6 +574,10 @@ onUnmounted(() => {
               <MessageText v-if="m.text" :text="m.text" inverted />
               <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
             </div>
+            <div v-if="m.original" class="text-[11px] italic mt-1 max-w-[300px] break-words text-right"
+              style="color: var(--color-ink-3); line-height: 1.35;">
+              <span style="opacity: 0.7;">原文：</span>{{ m.original }}
+            </div>
             <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''"
               @touchstart="lp.onTouchStart($event, m)"
               @touchmove="lp.onTouchMove"
@@ -613,6 +624,10 @@ onUnmounted(() => {
                 <span v-else-if="typeof m.mention === 'string' && m.mention !== '@我'" class="font-semibold" style="color: #2F66D6;">{{ m.mention }}&nbsp;</span>
                 <MessageText v-if="m.text" :text="m.text" />
                 <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
+              </div>
+              <div v-if="m.original" class="text-[11px] italic mt-1 max-w-[300px] break-words"
+                style="color: var(--color-ink-3); line-height: 1.35;">
+                <span style="opacity: 0.7;">原文：</span>{{ m.original }}
               </div>
               <div v-if="m.attachment"
                 :class="m.text ? 'mt-1.5' : ''"
