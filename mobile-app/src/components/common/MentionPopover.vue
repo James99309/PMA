@@ -83,14 +83,13 @@ async function fetchIfNeeded() {
   loading.value = true
   try {
     if (t === '@') {
-      // 始终把当前会话/项目 scope 传给后端，避免全局 @；前端总是附带源助手作为 AI 选项
       const scope = {
         conversationId: props.convId || undefined,
         projectId: props.projectId || undefined,
       }
       const r = await searchUsers(q, scope)
       let list = r.data?.success ? normalizeUsers(r.data.data || []) : []
-      // 在群聊 / 项目讨论里，AI（源助手）总是可被 @
+      // 在群聊 / 项目讨论：AI（源助手）总是可被 @
       if (props.convId || props.projectId) {
         const ql = (q || '').toLowerCase()
         if (!ql || '源助手'.includes(ql) || 'ai'.includes(ql)) {

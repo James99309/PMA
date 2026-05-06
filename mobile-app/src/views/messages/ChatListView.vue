@@ -1,19 +1,23 @@
 <script setup>
-// 会话列表 —— 严格对齐 ai-chat.jsx ConvListWithAI (line 461-532)
-// 接真后端 /api/v1/mobile/chat/conversations
+// 会话列表 —— 统一融合本区 + 对区 (Federation Lite)
+// 本区调 client.getConversations()，对区用 peer token 直接打对端 baseURL
+// 点击 peer 项 → 自动 switchRegion 后跳转
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import PixelP from '@/components/common/PixelP.vue'
-import { getConversations, createConversation, searchUsers, searchProjects } from '@/api/chat'
+import { getConversations, getConversationsForRegion, createConversation, searchUsers, searchProjects } from '@/api/chat'
+import { REGIONS } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import { formatChatTime } from '@/utils/chatTime'
 
 const router = useRouter()
+const auth = useAuthStore()
 const showPicker = ref(false)
 const loading = ref(true)
 const allConversations = ref([])
 
 // 把后端 conversation 映射为 UI 行
-function mapConv(c) {
+function mapConv(c, regionId = null) {
   // 后端 type: 'private' / 'group' / 'ai'
   let kind = c.type === 'private' ? 'dm' : c.type === 'ai' ? 'ai' : 'group'
   const name = c.display_name || c.name || c.topic || '未命名'
@@ -36,6 +40,10 @@ function mapConv(c) {
     pinned: false,
     ai: c.type !== 'ai' && c.has_ai,
     draft: c.has_draft,
+    // 跨区元信息
+    _regionId: regionId,                       // 'cn' / 'sg' / null（本区不标）
+    _isPeer: !!regionId && regionId !== auth.regionId,
+    _updatedAt: c.updated_at || c.last_message?.created_at || '',
   }
 }
 
@@ -49,12 +57,23 @@ const aiPreview = computed(() => aiConv.value
 async function load() {
   loading.value = true
   try {
-    const res = await getConversations()
-    if (res.data?.success) {
-      allConversations.value = (res.data.data || []).map(mapConv)
-    } else {
-      allConversations.value = []
-    }
+    const myRegion = auth.regionId
+    const peerRegion = myRegion === 'cn' ? 'sg' : 'cn'
+    const hasPeer = !!auth.tokens[peerRegion]
+    // 并行拉本区 + 对区（对区无 token 时 helper 自动返回空）
+    const [localRes, peerRes] = await Promise.all([
+      getConversations(),
+      hasPeer ? getConversationsForRegion(peerRegion) : Promise.resolve({ data: { success: false, data: [] } }),
+    ])
+    const localList = (localRes.data?.success ? localRes.data.data : []) || []
+    const peerList  = (peerRes.data?.success  ? peerRes.data.data  : []) || []
+    const merged = [
+      ...localList.map(c => mapConv(c, myRegion)),
+      ...peerList.map(c => mapConv(c, peerRegion)),
+    ]
+    // 按 updated_at 倒序混排（peer 的对话和本区对话穿插显示）
+    merged.sort((a, b) => (b._updatedAt || '').localeCompare(a._updatedAt || ''))
+    allConversations.value = merged
   } catch (e) {
     console.error('load conversations failed', e)
     allConversations.value = []
@@ -77,6 +96,13 @@ function openAi() {
 }
 
 function openConversation(c) {
+  // 跨区项 → 先切区再跳转（switchRegion 同步, axios baseURL 立即生效）
+  if (c._isPeer && c._regionId) {
+    if (!auth.switchRegion(c._regionId)) {
+      alert(`无法切换到${REGIONS[c._regionId]?.label || c._regionId}区域`)
+      return
+    }
+  }
   // 公司广播 → 公告列表
   if (c.kind === 'broadcast') {
     router.push('/messages/broadcast')
@@ -267,6 +293,11 @@ function closePicker() {
                 <span v-if="c.pinned" style="color: var(--color-accent);">★</span>{{ c.name }}
                 <span v-if="c.ai" class="text-[9px] font-bold px-1.5 py-px rounded"
                   style="color: #2F66D6; background: #E5EEFB;">AI</span>
+                <!-- 跨区角标 (本区不标，仅 peer 项显示) -->
+                <span v-if="c._isPeer && c._regionId" class="text-[9px] font-semibold px-1.5 py-px rounded inline-flex items-center gap-0.5"
+                  :style="{ color: '#2F66D6', background: '#E5EEFB' }">
+                  🌏 {{ REGIONS[c._regionId]?.label || c._regionId }}
+                </span>
               </div>
               <span class="text-[11px]" style="color: var(--color-ink-3);">{{ c.time }}</span>
             </div>

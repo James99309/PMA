@@ -1,9 +1,38 @@
 // 移动端聊天 API client
 // 后端：/api/v1/mobile/chat/* （详见 app/api/v1/mobile_chat.py）
-import client from './client'
+import axios from 'axios'
+import client, { REGIONS } from './client'
 
 // 会话
 export const getConversations    = () => client.get('/mobile/chat/conversations')
+
+// ─── 跨区域：用 peer 区的 token + baseURL 直接访问对端 NAS ─────────
+// 用于"统一会话列表"：同时拉本区 + 对区 conversations / unread-count
+export function getConversationsForRegion(regionId) {
+  const region = REGIONS[regionId]
+  const token = localStorage.getItem(`access_token_${regionId}`)
+  if (!region || !token) return Promise.resolve({ data: { success: false, data: [] } })
+  return axios.get(`${region.baseUrl}/api/v1/mobile/chat/conversations`, {
+    headers: { Authorization: `Bearer ${token}` },
+    timeout: 10000,
+  }).catch(e => {
+    console.warn(`[cross-region] getConversations(${regionId}) failed`, e?.message)
+    return { data: { success: false, data: [] } }
+  })
+}
+
+export function getUnreadCountForRegion(regionId) {
+  const region = REGIONS[regionId]
+  const token = localStorage.getItem(`access_token_${regionId}`)
+  if (!region || !token) return Promise.resolve({ data: { success: false, data: { total_unread: 0 } } })
+  return axios.get(`${region.baseUrl}/api/v1/mobile/chat/unread-count`, {
+    headers: { Authorization: `Bearer ${token}` },
+    timeout: 6000,
+  }).catch(e => {
+    console.warn(`[cross-region] getUnreadCount(${regionId}) failed`, e?.message)
+    return { data: { success: false, data: { total_unread: 0 } } }
+  })
+}
 export const getConversation     = id => client.get(`/mobile/chat/conversations/${id}`)
 export const createConversation  = data => client.post('/mobile/chat/conversations', data)
 export const deleteConversation  = id => client.delete(`/mobile/chat/conversations/${id}`)
