@@ -82,14 +82,18 @@ function pushUser(text) {
   const hh = String(now.getHours()).padStart(2, '0')
   const mm = String(now.getMinutes()).padStart(2, '0')
   const isAtAi = text.includes('@AI') || text.includes('@源助手')
+  const cleanedText = text.replace(/^@(AI|源助手)\s*/, '')
   chatStore.appendToGroup(groupId, {
     kind: 'me',
     from: '我',
     initial: '我',
     time: `${hh}:${mm}`,
-    text: text.replace(/^@(AI|源助手)\s*/, ''),
+    text: cleanedText,
     mention: isAtAi ? '@源助手' : null,
     refs: mention.pendingRefs.value.length ? [...mention.pendingRefs.value] : undefined,
+    _local: true,
+    _content: cleanedText,
+    _created_at_ms: Date.now(),
   })
   mention.clearRefs()
   return isAtAi
@@ -376,6 +380,27 @@ function appendBackendMessage(m) {
         time: formatChatTime(m.created_at),
         text: displayText, attachment,
         _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+      })
+      return false
+    }
+  }
+  // 自己发的文本消息: 用原文+时间窗匹配本地乐观气泡, 找到就替换不重复显示
+  if (isMine && !isAttachment && !isStageAdv) {
+    const list = chatStore.getGroup(groupId, [])
+    const matchText = originalText || displayText
+    const newMs = m.created_at ? new Date(m.created_at).getTime() : Date.now()
+    let local = list.find(x => x._local && x._content === matchText &&
+      Math.abs((x._created_at_ms || 0) - newMs) < 30000)
+    // 兜底: 时间戳漂移时仅原文匹配
+    if (!local) local = list.find(x => x._local && x._content === matchText)
+    if (local) {
+      Object.assign(local, {
+        id, _local: false,
+        time: formatChatTime(m.created_at),
+        text: displayText,
+        original: originalText || undefined,
+        refs: attachedRefs || undefined,
+        _created_at_ms: newMs,
       })
       return false
     }

@@ -431,11 +431,18 @@ function appendBackendMessage(m) {
       localIdx = messages.value.findIndex(x => x._local && x._serverFileUrl === m.file_url)
     }
     if (localIdx < 0) {
-      // 文本消息：用 _content + 30s 时间窗
+      // 文本消息匹配: dedup 时用"原文"比较 (本地 _content 总是用户输入的原文,
+      // 服务器消息若被翻译则 displayText=译文, 此时 originalText=原文)
+      const matchText = originalText || displayText
+      // 优先 30s 时间窗 + 原文匹配; 失败时仅原文匹配兜底
+      // (兜底防御后端时间戳漂移, 如时区错位)
       localIdx = messages.value.findIndex(x =>
-        x._local && x._content === displayText &&
+        x._local && x._content === matchText &&
         Math.abs((x._created_at_ms || 0) - newMsg._created_at_ms) < 30000
       )
+      if (localIdx < 0) {
+        localIdx = messages.value.findIndex(x => x._local && x._content === matchText)
+      }
     }
     if (localIdx >= 0) {
       messages.value[localIdx] = newMsg

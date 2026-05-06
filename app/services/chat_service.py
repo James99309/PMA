@@ -81,11 +81,17 @@ def _sync_project_share(conv, user_id, action):
 
 
 def _utc_iso(dt):
-    """把 naive / aware datetime 统一序列化为带 Z 的 UTC ISO 字符串，让前端 Date 正确解析时区。"""
+    """ISO 序列化, 给前端 Date() 正确解析。
+
+    naive datetime: 视作本地时间, 不加 Z (PG `timestamp without time zone` 在
+                    UTC+8 区会把 SQLAlchemy 写入的 aware UTC 转成本地存,
+                    读回是 naive 本地; 加 Z 会让前端再偏移一个时区导致显示错乱)
+    aware datetime: 标准 UTC ISO + Z
+    """
     if dt is None:
         return None
     if dt.tzinfo is None:
-        return dt.isoformat() + 'Z'
+        return dt.isoformat()
     return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 

@@ -13,6 +13,21 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, Foreign
 from app import db
 
 
+def _iso(dt):
+    """ISO 序列化, 给前端 Date() 正确解析。
+
+    naive datetime: 视作本地时间, 不加 Z (PG `timestamp without time zone` 在
+                    UTC+8 区会把 SQLAlchemy 写入的 aware UTC 转成本地存,
+                    读回是 naive 本地; 加 Z 会让前端再偏移一个时区导致显示错乱)
+    aware datetime: 标准 UTC ISO + Z
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.isoformat()
+    return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
 class ChatConversation(db.Model):
     """对话/群组模型"""
     __tablename__ = 'chat_conversations'
@@ -49,8 +64,8 @@ class ChatConversation(db.Model):
             'topic': self.topic,
             'created_by': self.created_by,
             'creator_name': self.creator.real_name or self.creator.username if self.creator else None,
-            'created_at': (self.created_at.isoformat() + 'Z') if self.created_at else None,
-            'updated_at': (self.updated_at.isoformat() + 'Z') if self.updated_at else None,
+            'created_at': _iso(self.created_at),
+            'updated_at': _iso(self.updated_at),
         }
 
         # 计算未读消息数
@@ -136,7 +151,7 @@ class ChatConversation(db.Model):
                 'id': last_message.id,
                 'content': lm_content,
                 'sender_id': last_message.sender_id,
-                'created_at': (last_message.created_at.isoformat() + 'Z') if last_message.created_at else None,
+                'created_at': _iso(last_message.created_at),
             }
 
         # 参与者列表
@@ -223,7 +238,7 @@ class ChatMessage(db.Model):
             'is_ai_response': self.is_ai_response,
             'ai_model': self.ai_model,
             'reply_to_id': self.reply_to_id,
-            'created_at': (self.created_at.isoformat() + 'Z') if self.created_at else None,
+            'created_at': _iso(self.created_at),
             'is_deleted': self.is_deleted,
         }
 
