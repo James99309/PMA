@@ -61,9 +61,22 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     /**
      * 智能并行登录: 同时尝试 CN + SG
+     *
+     * 安全要点: 登录前必须清掉两区所有残留 token —— 否则同一台设备前次登录的
+     * 用户残留 token 会被新用户继承, 导致"Patrick 登录后能切到 liuwei"的串号 bug
      */
     async login(username, password) {
       const ids = ['cn', 'sg']
+      // 清前次会话残留 (本地 + reactive state)
+      ids.forEach(id => {
+        localStorage.removeItem(`access_token_${id}`)
+        localStorage.removeItem(`user_${id}`)
+        this.tokens[id] = null
+        this.users[id] = null
+      })
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('user')
+
       const results = await Promise.allSettled(
         ids.map(id => loginToRegion(id, username, password))
       )
@@ -101,11 +114,14 @@ export const useAuthStore = defineStore('auth', {
 
     async logout() {
       try { await apiLogout() } catch {}
-      const region = this.regionId
-      this.tokens[region] = null
-      this.users[region] = null
-      localStorage.removeItem(`access_token_${region}`)
-      localStorage.removeItem(`user_${region}`)
+      // 安全: 退出时必须清两区全部 token —— 防止下个用户继承上个用户的另一区会话
+      const ids = ['cn', 'sg']
+      ids.forEach(id => {
+        this.tokens[id] = null
+        this.users[id] = null
+        localStorage.removeItem(`access_token_${id}`)
+        localStorage.removeItem(`user_${id}`)
+      })
       localStorage.removeItem('access_token')
       localStorage.removeItem('user')
     },
