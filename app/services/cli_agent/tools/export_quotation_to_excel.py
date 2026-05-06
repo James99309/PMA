@@ -790,15 +790,20 @@ class ExportQuotationToExcelTool(BaseTool):
         # 老 base64 走 MCP tool_result 在 Cowork 里 71KB 文本经常被模型放弃直接处理 →
         # fallback 到 openpyxl 生成的山寨版无 logo Excel。改 URL 后模型只让
         # cowork sandbox curl 拉到 working folder，UI 自动渲染卡片，PMA 模板保留。
+        # PUBLIC_BASE_URL 必须用公网可达的 host(供 Cowork sandbox VM curl)，
+        # 否则 fallback 到 request.host_url（仅 Tailscale 内网调用方能下载）。
         from urllib.parse import quote as _quote
         from flask import request as _request
         from app.routes.internal_api import sign_export_url, EXPORT_TTL_SECONDS
 
         exp_ts = int(datetime.now().timestamp()) + EXPORT_TTL_SECONDS
         sig = sign_export_url(filename, exp_ts)
-        host_url = _request.host_url.rstrip('/') if _request else ''
+        public_base = (
+            os.environ.get('PUBLIC_BASE_URL', '').rstrip('/')
+            or (_request.host_url.rstrip('/') if _request else '')
+        )
         download_url = (
-            f'{host_url}/internal/api/exports/{filename}'
+            f'{public_base}/internal/api/exports/{filename}'
             f'?sig={sig}&exp={exp_ts}&name={_quote(filename)}'
         )
 
