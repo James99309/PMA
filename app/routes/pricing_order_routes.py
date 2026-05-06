@@ -265,11 +265,13 @@ def edit_pricing_order(order_id):
         # 获取客户数据（分销商和经销商）- 应用数据所有权过滤
         from app.utils.access_control import get_viewable_data
         
-        # 获取用户有权限查看的经销商类型公司（分销商下拉框也显示经销商类型的公司）
+        # 获取用户有权限查看的经销商类型公司
         dealers = get_viewable_data(Company, current_user, [Company.company_type.in_(['经销商', 'dealer'])]).all()
-        
-        # 分销商下拉框显示的也是经销商类型的公司（因为系统中没有单独的分销商类型）
-        distributors = dealers
+
+        # 分销商下拉框：dealer + distributor 两种类型都可作为分销商（历史数据中两类都被选过）
+        distributors = get_viewable_data(Company, current_user, [
+            Company.company_type.in_(['经销商', 'dealer', '分销商', 'distributor'])
+        ]).all()
 
         # 获取当前审批步骤信息（V2统一审批系统）
         current_approval_step = None
@@ -350,7 +352,9 @@ def excel_edit_pricing_order(order_id):
 
         from app.utils.access_control import get_viewable_data
         dealers = get_viewable_data(Company, current_user, [Company.company_type.in_(['经销商', 'dealer'])]).all()
-        distributors = dealers
+        distributors = get_viewable_data(Company, current_user, [
+            Company.company_type.in_(['经销商', 'dealer', '分销商', 'distributor'])
+        ]).all()
 
         from app.services.discount_permission_service import DiscountPermissionService
         discount_limits = DiscountPermissionService.get_user_discount_limits(current_user)
