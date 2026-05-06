@@ -68,6 +68,8 @@ def push_mirror(user) -> tuple[bool, dict]:
         'password_hash': user.password_hash,
         'is_active': bool(user._is_active),
         'cross_team_label': user.cross_team_label,
+        # 同步语言偏好, 让对端聊天翻译能正确按用户母语显示
+        'language_preference': user.language_preference,
     }
     ok, data = _post('/api/v1/cross-sync/mirror-user', payload)
     if ok:
@@ -148,6 +150,7 @@ def push_promote(user, conflicting_local_id: int) -> tuple[bool, dict]:
         'email': user.email,
         'password_hash': user.password_hash,
         'cross_team_label': user.cross_team_label,
+        'language_preference': user.language_preference,
     }
     ok, data = _post('/api/v1/cross-sync/promote-to-mirror', payload)
     if ok:

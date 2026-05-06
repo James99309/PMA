@@ -421,6 +421,9 @@ def cross_sync_mirror_user():
     user.mirrored_at = time.time()
     if 'is_active' in data:
         user._is_active = bool(data['is_active'])
+    # 同步语言偏好 (聊天翻译用), 留空时不动以保留对端 admin 自定义
+    if data.get('language_preference'):
+        user.language_preference = data['language_preference']
 
     try:
         db.session.commit()
@@ -529,6 +532,8 @@ def cross_sync_promote_to_mirror():
     user.cross_team_label = data.get('cross_team_label')
     if data.get('real_name'):
         user.real_name = data['real_name']
+    if data.get('language_preference'):
+        user.language_preference = data['language_preference']
     user.mirrored_at = time.time()
     try:
         db.session.commit()
