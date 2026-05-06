@@ -132,15 +132,31 @@ function adjustDraft(tag) {
 // route.params.id：纯数字 → 真后端 conversation id；非数字 → 仅 mock
 const convId = /^\d+$/.test(String(route.params.id)) ? Number(route.params.id) : null
 
-// 拦截中文 IME 候选确认时的 Enter（e.isComposing / keyCode 229 都是 IME 状态）
+// IME 状态显式跟踪 (iOS Chinese 键盘 e.isComposing / 229 不可靠)
+// compositionend 后保留 100ms 缓冲, 避免候选确认 + keyup.enter 同帧双发
+const _isComposing = ref(false)
+let _composEndTimer = null
+function onCompStart() {
+  _isComposing.value = true
+  if (_composEndTimer) { clearTimeout(_composEndTimer); _composEndTimer = null }
+}
+function onCompEnd() {
+  _composEndTimer = setTimeout(() => { _isComposing.value = false }, 100)
+}
 function onEnterKey(e) {
-  if (e?.isComposing || e?.keyCode === 229) return
+  if (_isComposing.value || e?.isComposing || e?.keyCode === 229) return
   send()
 }
 
+// 节流: 800ms 内重复触发的 send 直接吞掉 (iOS IME 双发兜底)
+let _lastSendAt = 0
+
 async function send() {
+  const _ts = Date.now()
+  if (_ts - _lastSendAt < 800) return
   const t = inputText.value.trim()
   if (!t || sending.value) return
+  _lastSendAt = _ts
   sending.value = true
   const now = new Date()
   const hh = String(now.getHours()).padStart(2, '0')
@@ -765,6 +781,8 @@ onUnmounted(() => {
           <input ref="inputRef" v-model="inputText" type="text"
             :placeholder="`给${peer.name}回复…`"
             @input="handleInput"
+            @compositionstart="onCompStart"
+            @compositionend="onCompEnd"
             @keyup.enter="onEnterKey"
             @focus="onComposerFocus"
             @blur="onComposerBlur"

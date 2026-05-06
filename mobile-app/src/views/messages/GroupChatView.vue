@@ -110,15 +110,30 @@ function replaceAi(id, body) {
   chatStore.replaceMessage(groupId, id, { thinking: false, body })
 }
 
-// 拦截中文 IME 候选确认时的 Enter
+// IME 状态显式跟踪 (iOS Chinese 键盘 e.isComposing / 229 不可靠)
+const _isComposing = ref(false)
+let _composEndTimer = null
+function onCompStart() {
+  _isComposing.value = true
+  if (_composEndTimer) { clearTimeout(_composEndTimer); _composEndTimer = null }
+}
+function onCompEnd() {
+  _composEndTimer = setTimeout(() => { _isComposing.value = false }, 100)
+}
 function onEnterKey(e) {
-  if (e?.isComposing || e?.keyCode === 229) return
+  if (_isComposing.value || e?.isComposing || e?.keyCode === 229) return
   send()
 }
 
+// 节流: 800ms 内重复触发的 send 直接吞掉 (iOS IME 双发兜底)
+let _lastSendAt = 0
+
 async function send() {
+  const now = Date.now()
+  if (now - _lastSendAt < 800) return
   const t = inputText.value.trim()
   if (!t || sending.value) return
+  _lastSendAt = now
   sending.value = true
   // 抓快照（pushUser 会 clearRefs，要先存）
   const refsSnapshot = mention.pendingRefs.value.length
@@ -728,6 +743,8 @@ onUnmounted(() => {
           <input ref="inputRef" v-model="inputText" type="text"
             placeholder="说点什么… 输入 @ 通知"
             @input="handleInput"
+            @compositionstart="onCompStart"
+            @compositionend="onCompEnd"
             @keyup.enter="onEnterKey"
             @focus="onComposerFocus"
             @blur="onComposerBlur"
