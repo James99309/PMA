@@ -5,6 +5,9 @@ import { ref, nextTick, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PixelP from '@/components/common/PixelP.vue'
 import { streamAi, getMessages, markAsRead } from '@/api/chat'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbStyle } = useKeyboardOffset()
 
 const route = useRoute()
 const router = useRouter()
@@ -197,7 +200,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full" style="background: var(--color-bg);">
+  <div class="flex flex-col h-full" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
 
     <!-- Nav -->
     <div class="flex items-center gap-2.5 px-4 py-2 shrink-0"
