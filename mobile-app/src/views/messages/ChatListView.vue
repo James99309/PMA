@@ -66,7 +66,9 @@ async function load() {
       hasPeer ? getConversationsForRegion(peerRegion) : Promise.resolve({ data: { success: false, data: [] } }),
     ])
     const localList = (localRes.data?.success ? localRes.data.data : []) || []
-    const peerList  = (peerRes.data?.success  ? peerRes.data.data  : []) || []
+    const peerListRaw = (peerRes.data?.success  ? peerRes.data.data  : []) || []
+    // 对区只显示有未读的对话, 已读的不掺到本区列表里干扰; 用户主动切区可见全部
+    const peerList = peerListRaw.filter(c => (c.unread_count || 0) > 0)
     const merged = [
       ...localList.map(c => mapConv(c, myRegion)),
       ...peerList.map(c => mapConv(c, peerRegion)),

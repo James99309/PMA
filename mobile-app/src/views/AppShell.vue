@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import { getUnreadCount, getUnreadCountForRegion } from '@/api/chat'
 import { useAuthStore } from '@/stores/auth'
@@ -32,6 +32,9 @@ onMounted(() => {
   unreadTimer = setInterval(refreshUnread, 30000)
 })
 onUnmounted(() => { if (unreadTimer) clearInterval(unreadTimer) })
+
+// 路由切换时立即刷新未读 (用户从聊天详情返回 tab badge 立刻更新, 不用等 30s)
+watch(() => route.path, () => { refreshUnread() })
 
 const tabs = [
   {

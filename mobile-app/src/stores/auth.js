@@ -99,8 +99,13 @@ export const useAuthStore = defineStore('auth', {
       if (!ok.length) {
         throw lastErr || new Error('登录失败')
       }
+      // 默认进入用户的"主区"(非 mirror 那一区, 即 user.is_mirror=false 的区)
+      // liuwei 在 CN 是本地用户, 在 SG 是镜像 → 默认进 CN
+      // 主区不存在(双 mirror 或 API 没返回 is_mirror)时, 退回 remembered → cn → 任一
       const remembered = localStorage.getItem('region')
+      const homeRegion = ok.find(x => x.user && x.user.is_mirror === false)
       const winner =
+        homeRegion ||
         ok.find(x => x.id === remembered) ||
         ok.find(x => x.id === 'cn') ||
         ok[0]
