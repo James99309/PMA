@@ -20,6 +20,19 @@ const showNoteBox = ref(false)
 
 // 新增联系人 sheet（对标 customer-screens.jsx AddContactSheet）
 const showContactSheet = ref(false)
+const showAddContactChooser = ref(false)   // + 添加 → 选 "拍名片" / "手动" 的 sheet
+function pickScanContact() {
+  showAddContactChooser.value = false
+  // 带 attachTo 给扫描页, 让其跳过新建客户, 直接给该客户加联系人
+  router.push({
+    path: '/customers/scan',
+    query: { attachTo: company.value.id, attachToName: company.value.company_name },
+  })
+}
+function pickManualContact() {
+  showAddContactChooser.value = false
+  showContactSheet.value = true
+}
 const newContact = ref({ name: '', position: '', phone: '', email: '', is_primary: false })
 const addingContact = ref(false)
 
@@ -234,14 +247,15 @@ onMounted(load)
       <!-- ─── 联系人 ───────────────────────────────────── -->
       <Section title="联系人">
         <template #action>
-          <button @click="showContactSheet = true"
+          <button @click="showAddContactChooser = true"
             class="text-[12px] font-medium active:opacity-60"
             style="color: var(--color-accent);">+ 添加</button>
         </template>
         <div v-if="company.contacts?.length" class="rounded-2xl overflow-hidden"
           style="background: var(--color-card); border: 1px solid var(--color-divider);">
           <div v-for="(p, i) in company.contacts" :key="p.id"
-            class="p-3.5 flex items-center gap-3.5"
+            @click="router.push(`/customers/${company.id}/contacts/${p.id}`)"
+            class="p-3.5 flex items-center gap-3.5 active:bg-gray-50 cursor-pointer"
             :style="i < company.contacts.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
             <Avatar :text="p.name" :size="40" :primary="p.is_primary" />
             <div class="flex-1 min-w-0">
@@ -259,7 +273,7 @@ onMounted(load)
                 {{ [p.position, p.department].filter(Boolean).join(' · ') || '—' }}
               </div>
             </div>
-            <button v-if="p.phone" @click="callPhone(p.phone)"
+            <button v-if="p.phone" @click.stop="callPhone(p.phone)"
               class="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70"
               style="background: transparent; border: 1px solid var(--color-divider);">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -307,6 +321,72 @@ onMounted(load)
 
     <!-- ─── 跟进输入弹层（公用组件，与 ProjectDetailView 共用） ────── -->
     <NoteSheet v-model="showNoteBox" :submit="submitNote" />
+
+    <!-- + 添加联系人: 拍名片 vs 手动 选择 sheet -->
+    <Transition name="sheet">
+      <div v-if="showAddContactChooser" class="absolute inset-0 z-40">
+        <div class="absolute inset-0" style="background: rgba(0,0,0,0.4);"
+          @click="showAddContactChooser = false" />
+        <div class="absolute left-0 right-0 bottom-0 pb-7 pt-2.5"
+          style="background: var(--color-bg); border-top-left-radius: 18px; border-top-right-radius: 18px;">
+          <div class="mx-auto" style="width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.10); margin-bottom: 14px;"></div>
+          <div class="px-6 pb-2 flex items-center justify-between">
+            <div class="font-serif" style="font-size: 20px; line-height: 1.25; color: var(--color-ink);">
+              新增联系人
+            </div>
+            <span style="font-size: 12px; color: var(--color-ink-3);">
+              当前客户: {{ company.company_name }}
+            </span>
+          </div>
+          <!-- 主推: 拍名片 (橘色渐变) -->
+          <button @click="pickScanContact"
+            class="block w-full mx-4 mt-3 mb-2 rounded-2xl px-4 py-4 text-left active:opacity-80 relative overflow-hidden"
+            style="width: calc(100% - 32px); background: linear-gradient(135deg, var(--color-accent) 0%, #C5613F 100%); color: #fff;">
+            <div class="flex items-center gap-3.5">
+              <div class="shrink-0 inline-flex items-center justify-center"
+                style="width: 50px; height: 50px; border-radius: 14px; background: rgba(255,255,255,0.18);">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                  <rect x="3" y="6" width="18" height="13" rx="2" stroke-linejoin="round" />
+                  <circle cx="12" cy="12.5" r="3.5" />
+                  <path d="M9 6V5a1 1 0 011-1h4a1 1 0 011 1v1" stroke-linecap="round" />
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div style="font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                  ✦ 拍名片自动录入
+                </div>
+                <div style="font-size: 12px; opacity: 0.85; margin-top: 4px; line-height: 1.5;">
+                  姓名 · 职位 · 电话 · 邮箱 · 自动归到当前客户
+                </div>
+              </div>
+            </div>
+          </button>
+          <!-- 手动 -->
+          <button @click="pickManualContact"
+            class="block w-full mx-4 mb-2 rounded-2xl px-4 py-3.5 text-left active:opacity-80"
+            style="width: calc(100% - 32px); background: var(--color-card); border: 1px solid var(--color-divider);">
+            <div class="flex items-center gap-3">
+              <div class="shrink-0 inline-flex items-center justify-center"
+                style="width: 36px; height: 36px; border-radius: 10px; background: var(--color-bg); color: var(--color-ink-2);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M12 5v14M5 12h14" stroke-linecap="round" />
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div style="font-size: 14.5px; font-weight: 500; color: var(--color-ink);">手动填写</div>
+                <div style="font-size: 11.5px; margin-top: 2px; color: var(--color-ink-3);">表单填字段</div>
+              </div>
+              <span style="font-size: 18px; color: var(--color-ink-3);">›</span>
+            </div>
+          </button>
+          <button @click="showAddContactChooser = false"
+            class="block w-full mx-4 mt-2 py-3 rounded-xl text-[14px] active:opacity-70"
+            style="width: calc(100% - 32px); background: transparent; border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
+            取消
+          </button>
+        </div>
+      </div>
+    </Transition>
 
     <!-- ─── 新增联系人 sheet（对标 AddContactSheet） ───── -->
     <Transition name="sheet">

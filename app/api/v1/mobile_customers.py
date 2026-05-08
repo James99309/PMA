@@ -832,3 +832,26 @@ def mobile_contact_merge_from_card(contact_id):
         db.session.rollback()
         logger.error(f'merge contact from card error: {e}')
         return api_response(success=False, code=500, message='合并失败')
+
+
+# ─── 单个联系人详情 ─────────────────────────────────────────────
+@api_v1_bp.route('/mobile/contacts/<int:contact_id>', methods=['GET'])
+@jwt_required()
+def mobile_contact_detail(contact_id):
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    contact = Contact.query.get(contact_id)
+    if not contact:
+        return api_response(success=False, code=404, message='联系人不存在')
+
+    company = Company.query.get(contact.company_id)
+    if not company or company.is_deleted or not can_view_company(user, company):
+        return api_response(success=False, code=403, message='无权访问')
+
+    data = _contact_dict(contact)
+    data['company_name'] = company.company_name
+    data['notes'] = contact.notes
+    return api_response(success=True, data=data)

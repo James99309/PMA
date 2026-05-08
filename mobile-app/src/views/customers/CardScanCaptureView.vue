@@ -2,13 +2,14 @@
 // 名片扫描 · 优先 VisionKit (iOS) 自动边缘检测 + 透视校正,
 // 老 build / web 没插件 → fallback 到 @capacitor/camera + 4 角手动裁剪
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ImageCrop4Corners from '@/components/common/ImageCrop4Corners.vue'
 import { useCardScanStore } from '@/stores/cardScan'
 import { scanBusinessCard } from '@/api/customers'
 import { Capacitor } from '@capacitor/core'
 import { DocumentScanner } from '@/plugins/documentScanner'
 
+const route = useRoute()
 const router = useRouter()
 const scanStore = useCardScanStore()
 
@@ -178,6 +179,10 @@ function onCropCancel() {
 
 onMounted(async () => {
   scanStore.clear()
+  // 客户详情页过来扫名片时, attachTo 标记目标客户 ID
+  if (route.query.attachTo) {
+    scanStore.setAttachTo(Number(route.query.attachTo), route.query.attachToName || '')
+  }
   // 优先 VisionKit; 不可用则回退手动相机
   const usedVisionKit = await tryVisionKit()
   if (!usedVisionKit) await startManualCamera()

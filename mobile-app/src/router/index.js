@@ -33,6 +33,8 @@ const routes = [
         meta: { hideTabBar: true } },
       { path: 'customers/:id', component: () => import('@/views/customers/CustomerDetailView.vue') },
       { path: 'customers/:id/edit', component: () => import('@/views/customers/CustomerEditView.vue') },
+      { path: 'customers/:cid/contacts/:contactId', component: () => import('@/views/customers/ContactDetailView.vue'),
+        meta: { hideTabBar: true } },
       { path: 'quotations/:id', component: () => import('@/views/quotations/QuotationDetailView.vue') },
       { path: 'profile', component: () => import('@/views/profile/ProfileView.vue') },
     ],

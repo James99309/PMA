@@ -8,6 +8,8 @@ export const useCardScanStore = defineStore('cardScan', {
     fields: {},        // OCR 字段 {name, company, position, phone, email, department, address}
     ocrJson: '',       // 原始 JSON 字符串 (供备审计)
     confidence: {},    // 各字段置信度 {name: 0.95, ...}
+    attachToCompanyId: null,    // 若有, 跳过新建客户, 直接给该客户加联系人
+    attachToCompanyName: '',
   }),
   actions: {
     setOcr({ cropDataUrl, fileUrl, fields, ocrJson }) {
@@ -17,12 +19,18 @@ export const useCardScanStore = defineStore('cardScan', {
       this.ocrJson = ocrJson || ''
       this.confidence = (fields && fields.confidence) || {}
     },
+    setAttachTo(companyId, companyName) {
+      this.attachToCompanyId = companyId || null
+      this.attachToCompanyName = companyName || ''
+    },
     clear() {
       this.cropDataUrl = ''
       this.fileUrl = ''
       this.fields = {}
       this.ocrJson = ''
       this.confidence = {}
+      this.attachToCompanyId = null
+      this.attachToCompanyName = ''
     },
   },
 })
