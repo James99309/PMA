@@ -35,3 +35,17 @@ export const updateCustomer = (id, data) =>
 
 export const archiveCustomer = id =>
   client.delete(`/mobile/customers/${id}`)
+
+// 名片扫描: multipart 上传裁剪后的图, 后端返回 OCR JSON + NAS file_url
+export function scanBusinessCard(blob, filename = 'business_card.jpg') {
+  const fd = new FormData()
+  fd.append('file', blob, filename)
+  return client.post('/mobile/customers/scan-business-card', fd, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 30000,
+  })
+}
+
+// 联系人重复检测 (phone / email 精确匹配)
+export const checkContactDuplicate = (phone, email) =>
+  client.post('/mobile/contacts/check-duplicate', { phone, email })

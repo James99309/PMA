@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getCustomer, addCustomerNote, addContact } from '@/api/customers'
+import client      from '@/api/client'
 import NavBar      from '@/components/common/NavBar.vue'
 import Section     from '@/components/common/Section.vue'
 import StageDot    from '@/components/common/StageDot.vue'
@@ -64,6 +65,20 @@ async function submitContact() {
 }
 
 function callPhone(phone) { if (phone) window.open(`tel:${phone}`) }
+
+// 名片图全屏查看 — 后端 /mobile/chat/file 要 ?token= 鉴权
+const viewingCardUrl = ref('')
+const viewingCardFullUrl = computed(() => {
+  const u = viewingCardUrl.value
+  if (!u) return ''
+  if (/^https?:\/\//.test(u)) return u
+  const baseHost = (client.defaults.baseURL || '').replace(/\/api\/v1\/?$/, '')
+  const token = localStorage.getItem('access_token') || ''
+  const sep = u.includes('?') ? '&' : '?'
+  return `${baseHost}${u}${sep}token=${encodeURIComponent(token)}`
+})
+function viewCardImage(url) { viewingCardUrl.value = url }
+function closeCardImage() { viewingCardUrl.value = '' }
 function newProject() {
   router.push({ path: '/projects/new', query: { company_id: route.params.id } })
 }
@@ -230,7 +245,16 @@ onMounted(load)
             :style="i < company.contacts.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
             <Avatar :text="p.name" :size="40" :primary="p.is_primary" />
             <div class="flex-1 min-w-0">
-              <div class="text-[15px] font-semibold truncate">{{ p.name }}</div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-[15px] font-semibold truncate">{{ p.name }}</span>
+                <!-- 名片 chip: 这条联系人是名片扫描录入的 -->
+                <button v-if="p.business_card_image_url"
+                  @click.stop="viewCardImage(p.business_card_image_url)"
+                  class="text-[9px] font-bold px-1.5 py-px rounded inline-flex items-center gap-0.5 active:opacity-70"
+                  style="color: var(--color-accent); background: var(--color-accent-soft);">
+                  📇 名片
+                </button>
+              </div>
               <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
                 {{ [p.position, p.department].filter(Boolean).join(' · ') || '—' }}
               </div>
@@ -360,5 +384,24 @@ onMounted(load)
       </div>
     </Transition>
 
+    <!-- 名片图全屏 lightbox -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="viewingCardUrl" class="fixed inset-0 z-50 flex items-center justify-center"
+          style="background: rgba(0,0,0,0.92);" @click="closeCardImage">
+          <button class="absolute top-3 right-3 w-10 h-10 rounded-full inline-flex items-center justify-center"
+            style="background: rgba(255,255,255,0.15); color: #fff; font-size: 22px; font-weight: 200;"
+            @click.stop="closeCardImage">×</button>
+          <img :src="viewingCardFullUrl" class="block"
+            style="max-width: 95vw; max-height: 80vh; object-fit: contain;" />
+        </div>
+      </Transition>
+    </Teleport>
+
   </div>
 </template>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>

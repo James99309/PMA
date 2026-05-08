@@ -93,6 +93,7 @@ def _contact_dict(ct):
         'department': ct.department,
         'is_primary': ct.is_primary,
         'company_id': ct.company_id,
+        'business_card_image_url': ct.business_card_image_url,
     }
 
 
@@ -356,6 +357,9 @@ def mobile_customer_add_contact(company_id):
             department=data.get('department', '').strip() or None,
             company_id=company_id,
             owner_id=user_id,
+            # 名片扫描留底 (可选, 普通新建联系人时不传)
+            business_card_image_url=data.get('business_card_image_url') or None,
+            ocr_json_data=data.get('ocr_json_data') or None,
         )
         db.session.add(contact)
         db.session.commit()
@@ -665,3 +669,118 @@ def mobile_customer_archive(company_id):
         db.session.rollback()
         logger.error(f"mobile archive customer error: {e}")
         return api_response(success=False, code=500, message='归档失败')
+
+
+# ─── 拍名片自动录入: 上传图 + Claude vision OCR ─────────────────
+@api_v1_bp.route('/mobile/customers/scan-business-card', methods=['POST'])
+@jwt_required()
+def mobile_scan_business_card():
+    """multipart 上传裁剪后的名片图 → 存 NAS + 调 Claude vision OCR
+    返回 { file_url, fields: {name, company, ...}, ocr_json: 原始字符串 }
+    """
+    import json as _json
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    f = request.files.get('file')
+    if not f:
+        return api_response(success=False, code=400, message='未提供图片')
+
+    # 读字节 (供 OCR 用) + 复用 chat 的存储管道存到 NAS
+    blob = f.read()
+    try:
+        f.stream.seek(0)
+    except Exception:
+        pass
+    if not blob:
+        return api_response(success=False, code=400, message='图片为空')
+
+    # 1) 存到 NAS 的 chat 桶 (复用现有 attachment 通道)
+    file_url = None
+    try:
+        from app.utils.smart_storage_manager import get_smart_storage
+        from urllib.parse import quote
+        storage = get_smart_storage()
+        result = storage.upload_file(
+            object_id=user_id,
+            file=f.stream,
+            filename=f.filename or 'business_card.jpg',
+            file_type='image',
+            bucket_type='chat',
+            business_type='business_card',
+        )
+        if result and result.get('url'):
+            nas_path = result.get('nas_path') or result.get('storage_path') or ''
+            rel_path = nas_path.split('/', 1)[1] if '/' in nas_path else nas_path
+            file_url = f'/api/v1/mobile/chat/file?path={quote(rel_path)}'
+    except Exception as e:
+        logger.warning(f'business card upload to NAS failed: {e}')
+        # 即使存失败也继续 OCR (用户可决定是否保存)
+
+    # 2) Claude vision OCR
+    from app.services.business_card_ocr import extract_card
+    ocr_result = extract_card(blob)
+    if not ocr_result.get('success'):
+        return api_response(success=False, code=500,
+                            message=ocr_result.get('message', '识别失败'),
+                            data={'file_url': file_url})
+
+    fields = ocr_result['data']
+    ocr_json_str = _json.dumps(fields, ensure_ascii=False)
+
+    return api_response(success=True, data={
+        'file_url': file_url,
+        'fields': fields,
+        'ocr_json': ocr_json_str,
+    })
+
+
+# ─── 联系人重复检测: 按 phone/email 精确命中 ────────────────────
+@api_v1_bp.route('/mobile/contacts/check-duplicate', methods=['POST'])
+@jwt_required()
+def mobile_contact_check_duplicate():
+    """检查 phone / email 是否已存在于其他联系人
+    返回 { duplicates: [{contact_id, name, phone, email, company_id, company_name}, ...] }
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    data = request.get_json() or {}
+    phone = (data.get('phone') or '').strip()
+    email = (data.get('email') or '').strip().lower()
+    if not phone and not email:
+        return api_response(success=True, data={'duplicates': []})
+
+    q = Contact.query
+    from sqlalchemy import or_, func
+    clauses = []
+    if phone:
+        clauses.append(Contact.phone == phone)
+    if email:
+        clauses.append(func.lower(Contact.email) == email)
+    if not clauses:
+        return api_response(success=True, data={'duplicates': []})
+    matches = q.filter(or_(*clauses)).limit(10).all()
+
+    # 仅返回当前用户能看到的客户名下的联系人 (权限过滤)
+    out = []
+    for c in matches:
+        company = Company.query.get(c.company_id)
+        if not company or company.is_deleted:
+            continue
+        if not can_view_company(user, company):
+            continue
+        out.append({
+            'contact_id': c.id,
+            'name': c.name,
+            'phone': c.phone,
+            'email': c.email,
+            'company_id': c.company_id,
+            'company_name': company.company_name,
+        })
+
+    return api_response(success=True, data={'duplicates': out})

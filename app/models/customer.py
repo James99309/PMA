@@ -118,6 +118,10 @@ class Contact(db.Model):
     owner_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     owner = db.relationship('User', backref=db.backref('contacts', lazy='dynamic'))
 
+    # 名片扫描留底 (拍照创建联系人时记录原始裁剪图 + Claude OCR JSON)
+    business_card_image_url = db.Column(db.String(500))  # NAS 上裁剪后名片图 URL
+    ocr_json_data = db.Column(db.Text)                    # Claude vision 返回的原始 JSON, 备审计
+
     def set_as_primary(self):
         """将当前联系人设置为主要联系人，同时取消同一企业其他联系人的主要联系人状态"""
         # 先将同一企业的所有联系人设置为非主要联系人

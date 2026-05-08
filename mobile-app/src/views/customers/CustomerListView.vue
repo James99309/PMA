@@ -12,6 +12,7 @@ const loading = ref(false)
 const search = ref('')
 const page = ref(1)
 const showFilter = ref(false)
+const showAddSheet = ref(false)   // + 按钮弹出的"扫名片 / 手动新建"sheet
 const searchFocused = ref(false)
 const showSortMenu = ref(false)
 const sortMenuTop = ref(0)
@@ -229,7 +230,7 @@ onMounted(() => {
           <h1 class="font-serif m-0 mt-1"
             style="font-size: 32px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">客户</h1>
         </div>
-        <button @click="router.push('/customers/new')"
+        <button @click="showAddSheet = true"
           class="w-9 h-9 rounded-full inline-flex items-center justify-center"
           style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300;">+</button>
       </div>
@@ -433,6 +434,79 @@ onMounted(() => {
         </div>
       </div>
     </Teleport>
+
+    <!-- + 按钮: 新增客户方式选择 -->
+    <Teleport to="body">
+      <Transition name="add-sheet">
+        <div v-if="showAddSheet" class="fixed inset-0 z-50">
+          <div class="absolute inset-0" style="background: rgba(0,0,0,0.4);"
+            @click="showAddSheet = false" />
+          <div class="absolute left-0 right-0 bottom-0 pb-7 pt-2.5"
+            style="background: var(--color-bg); border-top-left-radius: 18px; border-top-right-radius: 18px;">
+            <div class="mx-auto" style="width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.10); margin-bottom: 14px;"></div>
+            <div class="px-6 pb-1">
+              <div class="font-serif" style="font-size: 20px; line-height: 1.25; color: var(--color-ink); letter-spacing: -0.3px;">
+                添加客户
+              </div>
+              <div class="mt-1.5 mb-4" style="font-size: 13px; color: var(--color-ink-3); line-height: 1.55;">
+                选一种方式开始
+              </div>
+            </div>
+            <!-- 扫名片 (主推, 高亮) -->
+            <button @click="showAddSheet = false; router.push('/customers/scan')"
+              class="block w-full mx-4 mb-2.5 rounded-2xl px-4 py-3.5 text-left active:opacity-80"
+              style="width: calc(100% - 32px); background: linear-gradient(135deg, rgba(217,119,87,0.08), rgba(251,176,64,0.06)); border: 1.5px solid rgba(217,119,87,0.4);">
+              <div class="flex items-center gap-3">
+                <div class="shrink-0 inline-flex items-center justify-center"
+                  style="width: 40px; height: 40px; border-radius: 12px; background: var(--color-accent); color: #fff;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <rect x="3" y="6" width="18" height="13" rx="2" stroke-linejoin="round" />
+                    <circle cx="12" cy="12.5" r="3.5" />
+                    <path d="M9 6V5a1 1 0 011-1h4a1 1 0 011 1v1" stroke-linecap="round" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-serif" style="font-size: 16px; font-weight: 600; color: var(--color-ink);">扫名片自动录入</span>
+                    <span class="text-[9px] font-bold px-1.5 py-px rounded"
+                      style="color: #fff; background: var(--color-accent); letter-spacing: 0.3px;">AI</span>
+                  </div>
+                  <div class="text-[12px] mt-1" style="color: var(--color-ink-3); line-height: 1.5;">
+                    拍照 → AI 提取字段 → 核对保存
+                  </div>
+                </div>
+                <span style="font-size: 18px; color: var(--color-ink-3);">›</span>
+              </div>
+            </button>
+            <!-- 手动新建 -->
+            <button @click="showAddSheet = false; router.push('/customers/new')"
+              class="block w-full mx-4 mb-3 rounded-2xl px-4 py-3.5 text-left active:opacity-80"
+              style="width: calc(100% - 32px); background: var(--color-card); border: 1px solid var(--color-divider);">
+              <div class="flex items-center gap-3">
+                <div class="shrink-0 inline-flex items-center justify-center"
+                  style="width: 40px; height: 40px; border-radius: 12px; background: var(--color-bg); color: var(--color-ink-2);">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M12 5v14M5 12h14" stroke-linecap="round" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="font-serif" style="font-size: 16px; font-weight: 500; color: var(--color-ink);">手动新建客户</div>
+                  <div class="text-[12px] mt-1" style="color: var(--color-ink-3);">
+                    填表创建公司, 之后再加联系人
+                  </div>
+                </div>
+                <span style="font-size: 18px; color: var(--color-ink-3);">›</span>
+              </div>
+            </button>
+            <button @click="showAddSheet = false"
+              class="block w-full mx-4 mt-2 py-3 rounded-xl text-[14px] active:opacity-70"
+              style="width: calc(100% - 32px); background: transparent; border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
+              取消
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -446,4 +520,7 @@ onMounted(() => {
 .search-drop-leave-to { max-height: 0; opacity: 0; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.add-sheet-enter-active, .add-sheet-leave-active { transition: opacity .18s ease, transform .22s ease; }
+.add-sheet-enter-from, .add-sheet-leave-to { opacity: 0; }
+.add-sheet-enter-from > div:last-child, .add-sheet-leave-to > div:last-child { transform: translateY(20px); }
 </style>
