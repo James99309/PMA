@@ -37,8 +37,10 @@ public class DocumentScannerPlugin: CAPPlugin, VNDocumentCameraViewControllerDel
 
     public func documentCameraViewController(_ controller: VNDocumentCameraViewController,
                                              didFinishWith scan: VNDocumentCameraScan) {
-        let quality = (savedCall?.getDouble("quality") ?? 0.88)
-        let maxLong = (savedCall?.getInt("maxLong") ?? 1600)
+        // 默认提高 quality + 取消长边缩放, 名片小字识别需要原图清晰度;
+        // JS 端可显式覆盖 quality / maxLong 参数
+        let quality = (savedCall?.getDouble("quality") ?? 0.95)
+        let maxLong = (savedCall?.getInt("maxLong") ?? 2400)
 
         var pages: [[String: String]] = []
         for i in 0..<scan.pageCount {

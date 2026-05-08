@@ -12,12 +12,17 @@ import { DocumentScanner } from '@/plugins/documentScanner'
 const router = useRouter()
 const scanStore = useCardScanStore()
 
-// 状态: capture (调相机/扫描) | crop (兜底手动裁剪) | processing (上传+OCR)
+// 状态: capture (调相机/扫描) | preview (拍完预览, 让用户决定用这张还是重拍)
+//       | crop (兜底手动裁剪) | processing (上传+OCR)
 const step = ref('capture')
 const photoUrl = ref('')      // fallback 路径: 拍到的原图 blob URL
 const photoBlob = ref(null)
 const cameraInputEl = ref(null)
 const error = ref('')
+
+// preview 步用: VisionKit 裁好的高清 dataUrl + 对应 blob (用于上传)
+const previewDataUrl = ref('')
+const previewBlob = ref(null)
 
 // 把 dataUrl ('data:image/jpeg;base64,...') 转 Blob, 用于 multipart 上传
 function dataUrlToBlob(dataUrl) {
@@ -29,19 +34,30 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([buf], { type: mime })
 }
 
+// 调试: VisionKit 不工作时把原因暴露到 UI, 用户可截图反馈
+const visionKitDebug = ref('')
+
 async function tryVisionKit() {
-  if (!Capacitor.isNativePlatform?.()) return false
+  if (!Capacitor.isNativePlatform?.()) {
+    visionKitDebug.value = 'web 环境无 VisionKit'
+    return false
+  }
   try {
     const r = await DocumentScanner.isAvailable()
-    if (!r?.available) return false
-    const scan = await DocumentScanner.scan({ quality: 0.88, maxLong: 1600 })
+    if (!r?.available) {
+      visionKitDebug.value = `VisionKit 不可用 (返回 ${JSON.stringify(r)})`
+      return false
+    }
+    const scan = await DocumentScanner.scan({ quality: 0.95, maxLong: 2400 })
     const page = scan?.pages?.[0]
     if (!page?.dataUrl) {
       error.value = '未识别到名片'
       return true   // 已"占用"流程, 不再 fallback
     }
-    // VisionKit 已经裁剪 + 透视校正 → 直接进 OCR
-    await uploadAndOCR(dataUrlToBlob(page.dataUrl), page.dataUrl)
+    // VisionKit 已经裁剪 + 透视校正 → 进预览页, 让用户决定 OCR 还是重拍
+    previewDataUrl.value = page.dataUrl
+    previewBlob.value = dataUrlToBlob(page.dataUrl)
+    step.value = 'preview'
     return true
   } catch (e) {
     const msg = e?.message || String(e || '')
@@ -50,8 +66,11 @@ async function tryVisionKit() {
       router.back()
       return true
     }
-    if (msg.includes('not supported')) return false  // fallback
-    // 其他错误 → 也 fallback 试旧流程
+    visionKitDebug.value = `VisionKit error: ${msg.slice(0, 120)}`
+    if (msg.includes('not supported') || msg.includes('not implemented')
+        || msg.includes('UNIMPLEMENTED')) {
+      return false   // fallback to manual
+    }
     console.warn('VisionKit scan failed, falling back:', msg)
     return false
   }
@@ -96,13 +115,31 @@ function onWebPhoto(e) {
   e.target.value = ''
 }
 
-// 4 角裁剪完毕 → 上传+OCR
+// 4 角裁剪完毕 → 进预览页 (跟 VisionKit 路径一致)
 async function onCropped({ blob, dataUrl }) {
   if (!blob) {
     error.value = '裁剪失败'
     return
   }
-  await uploadAndOCR(blob, dataUrl)
+  previewDataUrl.value = dataUrl
+  previewBlob.value = blob
+  step.value = 'preview'
+}
+
+// 预览页: 用这张 → 进 OCR
+async function confirmPreview() {
+  if (!previewBlob.value || !previewDataUrl.value) return
+  await uploadAndOCR(previewBlob.value, previewDataUrl.value)
+}
+
+// 预览页: 重新拍 → 回到 capture 步, 重新调 VisionKit / 相机
+async function retakePreview() {
+  previewBlob.value = null
+  previewDataUrl.value = ''
+  step.value = 'capture'
+  // 优先 VisionKit, fallback 手动相机
+  const used = await tryVisionKit()
+  if (!used) await startManualCamera()
 }
 
 async function uploadAndOCR(blob, dataUrl) {
@@ -170,6 +207,44 @@ onBeforeUnmount(() => {
     <!-- step: crop (fallback 手动裁剪) -->
     <ImageCrop4Corners v-else-if="step === 'crop' && photoUrl"
       :src="photoUrl" @crop="onCropped" @cancel="onCropCancel" />
+
+    <!-- step: preview (拍好后让用户确认 / 重拍, 之后才进 OCR) -->
+    <div v-else-if="step === 'preview' && previewDataUrl" class="flex flex-col h-full">
+      <div class="flex items-center justify-between px-4 py-3 shrink-0"
+        style="background: rgba(0,0,0,0.85);">
+        <button @click="router.back()" class="text-white text-[14px] active:opacity-70">取消</button>
+        <span class="text-white text-[14px] opacity-80">看清楚名片再识别</span>
+        <span class="w-12"></span>
+      </div>
+      <div class="flex-1 flex items-center justify-center overflow-auto" style="background: #111;">
+        <img :src="previewDataUrl" class="block"
+          style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+      </div>
+      <div class="px-4 pt-3 shrink-0"
+        style="background: rgba(0,0,0,0.85); padding-bottom: calc(env(safe-area-inset-bottom) + 16px);">
+        <p class="text-center mb-3" style="font-size: 12px; color: rgba(255,255,255,0.65);">
+          字够清晰吗? 模糊就重拍, 否则识别准确率会下降
+        </p>
+        <div class="flex gap-3">
+          <button @click="retakePreview"
+            class="flex-1 py-3.5 rounded-xl text-[15px] font-medium active:opacity-70"
+            style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25);">
+            重新拍
+          </button>
+          <button @click="confirmPreview"
+            class="rounded-xl text-[15px] font-semibold active:opacity-70"
+            style="flex: 1.6; padding: 14px 0; background: var(--color-accent); color: #fff;">
+            用这张 · AI 识别
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 调试条: VisionKit 不工作时显示原因, 帮助诊断 (临时) -->
+    <div v-if="visionKitDebug" class="absolute left-2 right-2 px-3 py-1.5 rounded text-[11px]"
+      style="bottom: env(safe-area-inset-bottom); background: rgba(255,180,0,0.9); color: #000; max-width: 100%;">
+      🛠 {{ visionKitDebug }}
+    </div>
 
     <!-- step: processing (上传 + Claude OCR) -->
     <div v-else-if="step === 'processing'"
