@@ -49,7 +49,8 @@ async function tryVisionKit() {
       visionKitDebug.value = `VisionKit 不可用 (返回 ${JSON.stringify(r)})`
       return false
     }
-    const scan = await DocumentScanner.scan({ quality: 0.95, maxLong: 2400 })
+    // 不传 quality/maxLong, 用插件默认 (0.98 + 不缩放), 名片小字需要原图清晰度
+    const scan = await DocumentScanner.scan({})
     const page = scan?.pages?.[0]
     if (!page?.dataUrl) {
       error.value = '未识别到名片'
@@ -203,6 +204,10 @@ onBeforeUnmount(() => {
     <!-- step: capture (扫描或相机调用中) -->
     <div v-if="step === 'capture'" class="flex-1 flex flex-col items-center justify-center text-white px-6 text-center">
       <div class="text-[14px] opacity-80">正在打开相机…</div>
+      <p class="mt-4 text-[12px] opacity-60" style="line-height: 1.55;">
+        💡 把名片放在桌面平整位置, 设备保持稳定 1-2 秒等聚焦,<br>
+        系统会自动捕捉, 也可以手动按白色快门
+      </p>
       <div v-if="error" class="mt-4 text-[13px]" style="color: #FF6B6B;">{{ error }}</div>
       <button v-if="error" @click="router.back()"
         class="mt-6 px-5 py-2 rounded-full text-[13px]"
