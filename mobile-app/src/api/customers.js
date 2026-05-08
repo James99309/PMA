@@ -49,3 +49,7 @@ export function scanBusinessCard(blob, filename = 'business_card.jpg') {
 // 联系人重复检测 (phone / email 精确匹配)
 export const checkContactDuplicate = (phone, email) =>
   client.post('/mobile/contacts/check-duplicate', { phone, email })
+
+// 合并扫描结果到现有联系人 (空字段才填, 名片图覆盖)
+export const mergeContactFromCard = (contactId, data) =>
+  client.post(`/mobile/contacts/${contactId}/merge-from-card`, data)

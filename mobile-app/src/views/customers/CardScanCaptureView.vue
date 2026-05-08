@@ -1,23 +1,63 @@
 <script setup>
-// 名片扫描 · 拍照 → 4 角裁剪 → 上传 + Claude vision OCR → 跳转核对页
-// 状态机: capture (调相机) → crop (4 角拖拽) → processing (上传+OCR) → 跳转
+// 名片扫描 · 优先 VisionKit (iOS) 自动边缘检测 + 透视校正,
+// 老 build / web 没插件 → fallback 到 @capacitor/camera + 4 角手动裁剪
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import ImageCrop4Corners from '@/components/common/ImageCrop4Corners.vue'
 import { useCardScanStore } from '@/stores/cardScan'
 import { scanBusinessCard } from '@/api/customers'
 import { Capacitor } from '@capacitor/core'
+import { DocumentScanner } from '@/plugins/documentScanner'
 
 const router = useRouter()
 const scanStore = useCardScanStore()
 
-const step = ref('capture')          // 'capture' | 'crop' | 'processing'
-const photoUrl = ref('')             // blob/data URL of original photo
+// 状态: capture (调相机/扫描) | crop (兜底手动裁剪) | processing (上传+OCR)
+const step = ref('capture')
+const photoUrl = ref('')      // fallback 路径: 拍到的原图 blob URL
 const photoBlob = ref(null)
 const cameraInputEl = ref(null)
 const error = ref('')
 
-async function startCamera() {
+// 把 dataUrl ('data:image/jpeg;base64,...') 转 Blob, 用于 multipart 上传
+function dataUrlToBlob(dataUrl) {
+  const [meta, b64] = dataUrl.split(',')
+  const mime = (meta.match(/data:([^;]+)/) || [, 'image/jpeg'])[1]
+  const bin = atob(b64)
+  const buf = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i)
+  return new Blob([buf], { type: mime })
+}
+
+async function tryVisionKit() {
+  if (!Capacitor.isNativePlatform?.()) return false
+  try {
+    const r = await DocumentScanner.isAvailable()
+    if (!r?.available) return false
+    const scan = await DocumentScanner.scan({ quality: 0.88, maxLong: 1600 })
+    const page = scan?.pages?.[0]
+    if (!page?.dataUrl) {
+      error.value = '未识别到名片'
+      return true   // 已"占用"流程, 不再 fallback
+    }
+    // VisionKit 已经裁剪 + 透视校正 → 直接进 OCR
+    await uploadAndOCR(dataUrlToBlob(page.dataUrl), page.dataUrl)
+    return true
+  } catch (e) {
+    const msg = e?.message || String(e || '')
+    if (msg.includes('cancelled')) {
+      // 用户取消 → 退出
+      router.back()
+      return true
+    }
+    if (msg.includes('not supported')) return false  // fallback
+    // 其他错误 → 也 fallback 试旧流程
+    console.warn('VisionKit scan failed, falling back:', msg)
+    return false
+  }
+}
+
+async function startManualCamera() {
   error.value = ''
   if (Capacitor.isNativePlatform?.()) {
     try {
@@ -37,14 +77,12 @@ async function startCamera() {
     } catch (e) {
       const msg = e?.message || String(e || '')
       if (msg.includes('cancelled') || msg.includes('canceled') || msg.includes('User cancelled')) {
-        // 用户取消 → 返回上一页
         router.back()
         return
       }
       error.value = `相机调用失败: ${msg.slice(0, 80)}`
     }
   } else {
-    // Web 端 fallback: HTML <input capture>
     cameraInputEl.value?.click()
   }
 }
@@ -58,11 +96,16 @@ function onWebPhoto(e) {
   e.target.value = ''
 }
 
+// 4 角裁剪完毕 → 上传+OCR
 async function onCropped({ blob, dataUrl }) {
   if (!blob) {
     error.value = '裁剪失败'
     return
   }
+  await uploadAndOCR(blob, dataUrl)
+}
+
+async function uploadAndOCR(blob, dataUrl) {
   step.value = 'processing'
   scanStore.cropDataUrl = dataUrl
   try {
@@ -87,20 +130,22 @@ async function onCropped({ blob, dataUrl }) {
 }
 
 function onCropCancel() {
-  // 重新拍
   if (photoUrl.value && photoUrl.value.startsWith('blob:')) {
     URL.revokeObjectURL(photoUrl.value)
   }
   photoUrl.value = ''
   photoBlob.value = null
   step.value = 'capture'
-  startCamera()
+  startManualCamera()
 }
 
-onMounted(() => {
+onMounted(async () => {
   scanStore.clear()
-  startCamera()
+  // 优先 VisionKit; 不可用则回退手动相机
+  const usedVisionKit = await tryVisionKit()
+  if (!usedVisionKit) await startManualCamera()
 })
+
 onBeforeUnmount(() => {
   if (photoUrl.value && photoUrl.value.startsWith('blob:')) {
     URL.revokeObjectURL(photoUrl.value)
@@ -110,11 +155,10 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex flex-col h-full" style="background: #000;">
-    <!-- Web fallback input (隐藏) -->
     <input ref="cameraInputEl" type="file" accept="image/*" capture="environment"
       @change="onWebPhoto" style="display: none;" />
 
-    <!-- step: capture (调相机中) -->
+    <!-- step: capture (扫描或相机调用中) -->
     <div v-if="step === 'capture'" class="flex-1 flex flex-col items-center justify-center text-white px-6 text-center">
       <div class="text-[14px] opacity-80">正在打开相机…</div>
       <div v-if="error" class="mt-4 text-[13px]" style="color: #FF6B6B;">{{ error }}</div>
@@ -123,13 +167,11 @@ onBeforeUnmount(() => {
         style="background: rgba(255,255,255,0.15); color: #fff;">返回</button>
     </div>
 
-    <!-- step: crop (4 角裁剪) -->
+    <!-- step: crop (fallback 手动裁剪) -->
     <ImageCrop4Corners v-else-if="step === 'crop' && photoUrl"
-      :src="photoUrl"
-      @crop="onCropped"
-      @cancel="onCropCancel" />
+      :src="photoUrl" @crop="onCropped" @cancel="onCropCancel" />
 
-    <!-- step: processing (上传+OCR) -->
+    <!-- step: processing (上传 + Claude OCR) -->
     <div v-else-if="step === 'processing'"
       class="flex-1 flex flex-col items-center justify-center text-white px-6 text-center">
       <div class="inline-block animate-spin"

@@ -784,3 +784,51 @@ def mobile_contact_check_duplicate():
         })
 
     return api_response(success=True, data={'duplicates': out})
+
+
+# ─── 合并扫描结果到现有联系人 (空值才填, 总是更新名片图) ────────
+@api_v1_bp.route('/mobile/contacts/<int:contact_id>/merge-from-card', methods=['POST'])
+@jwt_required()
+def mobile_contact_merge_from_card(contact_id):
+    """把刚扫描到的字段合并进已有联系人。
+    策略: 空字段才填, 不覆盖已有非空; business_card_image_url 和
+    ocr_json_data 总是用最新的覆盖 (审计/留底)。
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    contact = Contact.query.get(contact_id)
+    if not contact:
+        return api_response(success=False, code=404, message='联系人不存在')
+
+    company = Company.query.get(contact.company_id)
+    if not company or company.is_deleted or not can_view_company(user, company):
+        return api_response(success=False, code=403, message='无权操作此联系人')
+
+    data = request.get_json() or {}
+
+    def _fill_if_empty(field, val):
+        v = (val or '').strip() if isinstance(val, str) else val
+        if v and not ((getattr(contact, field) or '').strip() if isinstance(getattr(contact, field), str) else getattr(contact, field)):
+            setattr(contact, field, v)
+
+    try:
+        _fill_if_empty('position',   data.get('position'))
+        _fill_if_empty('department', data.get('department'))
+        _fill_if_empty('phone',      data.get('phone'))
+        _fill_if_empty('email',      data.get('email'))
+        # 名片图 + OCR JSON 总是覆盖 (留最新一份)
+        if data.get('business_card_image_url'):
+            contact.business_card_image_url = data['business_card_image_url']
+        if data.get('ocr_json_data'):
+            contact.ocr_json_data = data['ocr_json_data']
+        db.session.commit()
+        return api_response(success=True, message='已合并到该联系人',
+                            data={'contact': _contact_dict(contact),
+                                  'company_id': contact.company_id})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'merge contact from card error: {e}')
+        return api_response(success=False, code=500, message='合并失败')

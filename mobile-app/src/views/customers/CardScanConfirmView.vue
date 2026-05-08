@@ -3,7 +3,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCardScanStore } from '@/stores/cardScan'
-import { createCustomer, addContact, checkContactDuplicate } from '@/api/customers'
+import { createCustomer, addContact, checkContactDuplicate, mergeContactFromCard } from '@/api/customers'
 
 const router = useRouter()
 const scanStore = useCardScanStore()
@@ -80,6 +80,34 @@ async function tryStartSave() {
     }
   }
   await doSave()
+}
+
+async function doMerge(d) {
+  if (saving.value) return
+  saving.value = true
+  error.value = ''
+  showDupDialog.value = false
+  try {
+    const res = await mergeContactFromCard(d.contact_id, {
+      position:   form.value.position   || undefined,
+      department: form.value.department || undefined,
+      phone:      form.value.phone      || undefined,
+      email:      form.value.email      || undefined,
+      business_card_image_url: scanStore.fileUrl || undefined,
+      ocr_json_data: scanStore.ocrJson || undefined,
+    })
+    const rd = res.data
+    if (!rd?.success) {
+      error.value = rd?.message || '合并失败'
+      saving.value = false
+      return
+    }
+    scanStore.clear()
+    router.replace(`/customers/${d.company_id}`)
+  } catch (e) {
+    error.value = `合并失败: ${e?.message || e}`
+    saving.value = false
+  }
 }
 
 async function doSave() {
@@ -258,26 +286,36 @@ function onCancel() {
                 找到 {{ duplicates.length }} 条电话/邮箱命中, 仍要新建吗?
               </p>
             </div>
-            <div class="mt-3 space-y-2 max-h-[180px] overflow-y-auto">
+            <div class="mt-3 space-y-2 max-h-[220px] overflow-y-auto">
               <div v-for="d in duplicates" :key="d.contact_id"
-                class="rounded-xl px-3 py-2 text-[12.5px]"
+                class="rounded-xl px-3 py-2.5 flex items-center gap-2"
                 style="background: var(--color-bg); border: 1px solid var(--color-divider);">
-                <div class="font-medium" style="color: var(--color-ink);">{{ d.name }}</div>
-                <div class="mt-0.5" style="color: var(--color-ink-3);">
-                  {{ d.company_name }}<span v-if="d.phone"> · {{ d.phone }}</span>
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-[12.5px]" style="color: var(--color-ink);">{{ d.name }}</div>
+                  <div class="mt-0.5 text-[11.5px] truncate" style="color: var(--color-ink-3);">
+                    {{ d.company_name }}<span v-if="d.phone"> · {{ d.phone }}</span>
+                  </div>
                 </div>
+                <button @click="doMerge(d)" :disabled="saving"
+                  class="shrink-0 px-3 py-1.5 rounded-full text-[11.5px] font-semibold active:opacity-70 disabled:opacity-40"
+                  style="background: var(--color-accent); color: #fff;">
+                  合并 →
+                </button>
               </div>
             </div>
-            <div class="flex gap-2 mt-4">
-              <button @click="showDupDialog = false"
-                class="flex-1 py-3 rounded-xl text-[14px]"
+            <p class="mt-2 px-1 text-[11px]" style="color: var(--color-ink-3); line-height: 1.5;">
+              合并: 把这次扫到的字段补进已有联系人 (不覆盖非空), 并更新名片图。
+            </p>
+            <div class="flex gap-2 mt-3">
+              <button @click="showDupDialog = false" :disabled="saving"
+                class="flex-1 py-3 rounded-xl text-[14px] disabled:opacity-40"
                 style="border: 1px solid var(--color-divider); color: var(--color-ink-2);">
                 返回核对
               </button>
-              <button @click="doSave"
-                class="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white"
-                style="background: var(--color-accent);">
-                仍然新建
+              <button @click="doSave" :disabled="saving"
+                class="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white disabled:opacity-40"
+                style="background: var(--color-ink);">
+                新建独立
               </button>
             </div>
           </div>
