@@ -349,11 +349,13 @@ function appendBackendMessage(m) {
     attachment = { type: m.message_type, url: m.file_url || '', meta: payload }
   }
   // 翻译: 后端按 viewer language_preference 已附带 translation
+  // 译文为主, 原文同气泡内弱化双语小字 (BiMsg)
   let originalText = ''
   if (m.translation && displayText && m.translation !== displayText) {
     originalText = displayText
     displayText = m.translation
   }
+  const originalLang = m.source_language || ''
 
   // 自己发的附件消息：靠 file_url 精准替换本地乐观气泡
   if (isMine && isAttachment && m.file_url) {
@@ -415,6 +417,7 @@ function appendBackendMessage(m) {
     time: formatChatTime(m.created_at),
     text: displayText,
     original: originalText,
+    originalLang,
     refs: attachedRefs || undefined,
     attachment,
     _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
@@ -583,10 +586,14 @@ onUnmounted(() => {
               <span v-if="m.mention" class="font-semibold" style="color: #5FA5FF;">{{ m.mention }}&nbsp;</span>
               <MessageText v-if="m.text" :text="m.text" inverted />
               <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
-            </div>
-            <div v-if="m.original" class="text-[11px] italic mt-1 max-w-[300px] break-words text-right"
-              style="color: var(--color-ink-3); line-height: 1.35;">
-              <span style="opacity: 0.7;">原文：</span>{{ m.original }}
+              <!-- 双语气泡 BiMsg (黑底): 译文 + 原文同气泡内 -->
+              <template v-if="m.original">
+                <div style="height: 1px; background: rgba(255,255,255,0.18); margin: 8px 0 6px;"></div>
+                <div :style="{
+                  fontSize: '12.5px', lineHeight: 1.45, color: 'rgba(255,255,255,0.62)',
+                  fontStyle: m.originalLang === 'en' ? 'italic' : 'normal',
+                }">{{ m.original }}</div>
+              </template>
             </div>
             <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''"
               @touchstart="lp.onTouchStart($event, m)"
@@ -634,10 +641,14 @@ onUnmounted(() => {
                 <span v-else-if="typeof m.mention === 'string' && m.mention !== '@我'" class="font-semibold" style="color: #2F66D6;">{{ m.mention }}&nbsp;</span>
                 <MessageText v-if="m.text" :text="m.text" />
                 <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
-              </div>
-              <div v-if="m.original" class="text-[11px] italic mt-1 max-w-[300px] break-words"
-                style="color: var(--color-ink-3); line-height: 1.35;">
-                <span style="opacity: 0.7;">原文：</span>{{ m.original }}
+                <!-- 双语气泡 BiMsg: 译文 + 原文同气泡内 -->
+                <template v-if="m.original">
+                  <div style="height: 1px; background: var(--color-divider); margin: 8px 0 6px;"></div>
+                  <div :style="{
+                    fontSize: '12.5px', lineHeight: 1.45, color: 'var(--color-ink-3)',
+                    fontStyle: m.originalLang === 'en' ? 'italic' : 'normal',
+                  }">{{ m.original }}</div>
+                </template>
               </div>
               <div v-if="m.attachment"
                 :class="m.text ? 'mt-1.5' : ''"

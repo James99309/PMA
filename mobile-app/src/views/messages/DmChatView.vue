@@ -387,12 +387,13 @@ function appendBackendMessage(m) {
     attachment = { type: m.message_type, url: m.file_url || '', meta: payload }
   }
   // 翻译: 后端按 viewer language_preference 已附带 translation 字段
-  // 显示译文为主, 原文作为下方小字 (text_refs 已抽取过 displayText, 也支持)
+  // 译文为主, 原文作为同气泡内弱化双语小字 (设计稿: BiMsg 气泡)
   let originalText = ''
   if (m.translation && displayText && m.translation !== displayText) {
     originalText = displayText
     displayText = m.translation
   }
+  const originalLang = m.source_language || ''
 
   const newMsg = {
     id,
@@ -400,6 +401,7 @@ function appendBackendMessage(m) {
     time: formatChatTime(m.created_at),
     text: displayText,
     original: originalText,
+    originalLang,
     refs: attachedRefs || undefined,
     attachment,
     _created_at_ms: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
@@ -618,11 +620,14 @@ onUnmounted(() => {
                 @touchcancel="lp.onTouchCancel">
                 <MessageText v-if="m.text" :text="m.text" />
                 <MessageRefs v-if="m.refs?.length" :refs="m.refs" :class="m.text ? 'mt-2' : ''" />
-              </div>
-              <!-- 原文(只在被翻译时显示) -->
-              <div v-if="m.original" class="text-[11px] italic mt-1 max-w-[300px] break-words"
-                style="color: var(--color-ink-3); line-height: 1.35;">
-                <span style="opacity: 0.7;">原文：</span>{{ m.original }}
+                <!-- 双语气泡 BiMsg: 译文上方 + 原文同气泡下方弱化, 中间细分隔线 -->
+                <template v-if="m.original">
+                  <div style="height: 1px; background: var(--color-divider); margin: 8px 0 6px;"></div>
+                  <div :style="{
+                    fontSize: '12.5px', lineHeight: 1.45, color: 'var(--color-ink-3)',
+                    fontStyle: m.originalLang === 'en' ? 'italic' : 'normal',
+                  }">{{ m.original }}</div>
+                </template>
               </div>
               <!-- 附件（image / file / voice / location）-->
               <div v-if="m.attachment"
@@ -659,11 +664,14 @@ onUnmounted(() => {
             @touchcancel="lp.onTouchCancel">
             <MessageText v-if="m.text" :text="m.text" inverted />
             <MessageRefs v-if="m.refs?.length" :refs="m.refs" :class="m.text ? 'mt-2' : ''" />
-          </div>
-          <!-- 原文(只在被翻译时显示) -->
-          <div v-if="m.original" class="text-[11px] italic mt-1 max-w-[300px] break-words text-right"
-            style="color: var(--color-ink-3); line-height: 1.35;">
-            <span style="opacity: 0.7;">原文：</span>{{ m.original }}
+            <!-- 双语气泡 BiMsg (黑底): 译文 + 原文同气泡内, 弱化白 -->
+            <template v-if="m.original">
+              <div style="height: 1px; background: rgba(255,255,255,0.18); margin: 8px 0 6px;"></div>
+              <div :style="{
+                fontSize: '12.5px', lineHeight: 1.45, color: 'rgba(255,255,255,0.62)',
+                fontStyle: m.originalLang === 'en' ? 'italic' : 'normal',
+              }">{{ m.original }}</div>
+            </template>
           </div>
           <!-- 附件（image / file / voice / location）-->
           <div v-if="m.attachment" class="relative" :class="m.text ? 'mt-1.5' : ''"
