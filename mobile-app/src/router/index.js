@@ -31,6 +31,8 @@ const routes = [
         meta: { hideTabBar: true } },
       { path: 'customers/scan/confirm', component: () => import('@/views/customers/CardScanConfirmView.vue'),
         meta: { hideTabBar: true } },
+      { path: 'customers/scan/success', component: () => import('@/views/customers/CardScanSuccessView.vue'),
+        meta: { hideTabBar: true } },
       { path: 'customers/:id', component: () => import('@/views/customers/CustomerDetailView.vue') },
       { path: 'customers/:id/edit', component: () => import('@/views/customers/CustomerEditView.vue') },
       { path: 'customers/:cid/contacts/:contactId', component: () => import('@/views/customers/ContactDetailView.vue'),

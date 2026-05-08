@@ -10,6 +10,10 @@ export const useCardScanStore = defineStore('cardScan', {
     confidence: {},    // 各字段置信度 {name: 0.95, ...}
     attachToCompanyId: null,    // 若有, 跳过新建客户, 直接给该客户加联系人
     attachToCompanyName: '',
+    // 保存成功后展示给 SuccessView 用的数据 (保留到用户离开 success 页)
+    // { contactId, contactName, position, phone, email, companyId, companyName,
+    //   fileUrl, fieldCount, mergeMode: 'merge'|'new'|'attach' }
+    saveResult: null,
   }),
   actions: {
     setOcr({ cropDataUrl, fileUrl, fields, ocrJson }) {
@@ -23,6 +27,9 @@ export const useCardScanStore = defineStore('cardScan', {
       this.attachToCompanyId = companyId || null
       this.attachToCompanyName = companyName || ''
     },
+    setSaveResult(data) { this.saveResult = data || null },
+    clearSaveResult() { this.saveResult = null },
+    // 完整重置 — 跳出整个名片扫描流程时调用
     clear() {
       this.cropDataUrl = ''
       this.fileUrl = ''
@@ -31,6 +38,17 @@ export const useCardScanStore = defineStore('cardScan', {
       this.confidence = {}
       this.attachToCompanyId = null
       this.attachToCompanyName = ''
+      this.saveResult = null
+    },
+    // 继续拍下一张 — 保留 attachTo (如果有), 清掉本次结果
+    resetForNextScan() {
+      this.cropDataUrl = ''
+      this.fileUrl = ''
+      this.fields = {}
+      this.ocrJson = ''
+      this.confidence = {}
+      this.saveResult = null
+      // attachToCompanyId / attachToCompanyName 保留, 让连拍继续挂同一客户
     },
   },
 })

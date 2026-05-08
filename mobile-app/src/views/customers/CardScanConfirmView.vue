@@ -121,8 +121,10 @@ async function mergeToExistingCompany(c) {
   saving.value = true
   error.value = ''
   showCompanyDupDialog.value = false
+  const companyId = c.id || c.company_id
+  const companyName = c.name || c.company_name || form.value.company
   try {
-    const res = await addContact(c.id || c.company_id, {
+    const res = await addContact(companyId, {
       name: form.value.name.trim(),
       position: form.value.position || undefined,
       department: form.value.department || undefined,
@@ -137,8 +139,19 @@ async function mergeToExistingCompany(c) {
       saving.value = false
       return
     }
-    scanStore.clear()
-    router.replace(`/customers/${c.id || c.company_id}`)
+    scanStore.setSaveResult({
+      contactId: td.data?.id,
+      contactName: form.value.name.trim(),
+      position: form.value.position,
+      phone: form.value.phone,
+      email: form.value.email,
+      companyId,
+      companyName,
+      fileUrl: scanStore.fileUrl,
+      fieldCount: countFilledFields(),
+      mergeMode: 'merge',
+    })
+    router.replace('/customers/scan/success')
   } catch (e) {
     error.value = `保存失败: ${e?.message || e}`
     saving.value = false
@@ -165,8 +178,20 @@ async function doMerge(d) {
       saving.value = false
       return
     }
-    scanStore.clear()
-    router.replace(`/customers/${d.company_id}`)
+    // 进成功页, 显示"合并到已有联系人"
+    scanStore.setSaveResult({
+      contactId: rd.data?.contact?.id || d.contact_id,
+      contactName: rd.data?.contact?.name || d.name,
+      position: form.value.position || rd.data?.contact?.position || '',
+      phone: form.value.phone || rd.data?.contact?.phone || '',
+      email: form.value.email || rd.data?.contact?.email || '',
+      companyId: d.company_id,
+      companyName: d.company_name || form.value.company,
+      fileUrl: scanStore.fileUrl,
+      fieldCount: countFilledFields(),
+      mergeMode: 'merge',
+    })
+    router.replace('/customers/scan/success')
   } catch (e) {
     error.value = `合并失败: ${e?.message || e}`
     saving.value = false
@@ -178,9 +203,12 @@ async function doSave() {
   error.value = ''
   showDupDialog.value = false
   showCompanyDupDialog.value = false
+  // 用于成功页判断 "新建" vs "加到现有客户"
+  const wasAttach = isAttachMode.value
   try {
     // attachTo 模式: 直接给指定客户加联系人, 不新建客户
     let companyId = scanStore.attachToCompanyId
+    let companyName = scanStore.attachToCompanyName || form.value.company
     if (!companyId) {
       // 1) 创建客户
       const cRes = await createCustomer({
@@ -194,6 +222,7 @@ async function doSave() {
         return
       }
       companyId = cd.data.id
+      companyName = form.value.company.trim()
     }
     // 2) 创建联系人 (带名片图 URL + OCR JSON)
     const contRes = await addContact(companyId, {
@@ -211,13 +240,32 @@ async function doSave() {
       saving.value = false
       return
     }
-    // 成功 → 清存储, 跳客户详情
-    scanStore.clear()
-    router.replace(`/customers/${companyId}`)
+    scanStore.setSaveResult({
+      contactId: td.data?.id,
+      contactName: form.value.name.trim(),
+      position: form.value.position,
+      phone: form.value.phone,
+      email: form.value.email,
+      companyId,
+      companyName,
+      fileUrl: scanStore.fileUrl,
+      fieldCount: countFilledFields(),
+      mergeMode: wasAttach ? 'attach' : 'new',
+    })
+    router.replace('/customers/scan/success')
   } catch (e) {
     error.value = `保存失败: ${e?.message || e}`
     saving.value = false
   }
+}
+
+// 统计填了几个字段 (供成功页副标"N 个字段已保存")
+function countFilledFields() {
+  let n = 0
+  for (const k of ['name','company','position','department','phone','email','address']) {
+    if ((form.value[k] || '').trim()) n++
+  }
+  return n
 }
 
 function onCancel() {
