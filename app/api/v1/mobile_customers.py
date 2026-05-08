@@ -516,7 +516,9 @@ def mobile_address_detail():
 @api_v1_bp.route('/mobile/check-name/customer', methods=['POST'])
 @jwt_required()
 def mobile_check_customer_name():
-    """客户名称实时查重"""
+    """客户名称实时查重 — 名片扫描公司级 dup UI 用. 返回 score 及富预览
+    字段: value_wan / open_count / contact_count, 用于设计稿中预览卡。
+    """
     import difflib
     data = request.get_json() or {}
     name = (data.get('name') or '').strip()
@@ -528,20 +530,42 @@ def mobile_check_customer_name():
             Company.is_deleted == False
         ).with_entities(Company.id, Company.company_name).all()
 
-        similar = []
+        candidates = []
         for c in companies:
             cn = c.company_name or ''
             if not cn:
                 continue
             ratio = difflib.SequenceMatcher(None, name, cn).ratio()
             if ratio >= 0.6 or name in cn or cn in name:
-                similar.append({
-                    'id': c.id,
-                    'name': cn,
-                    'score': round(ratio * 100),
-                })
-        similar.sort(key=lambda x: x['score'], reverse=True)
-        return api_response(success=True, data={'similar': similar[:5]})
+                candidates.append((c.id, cn, ratio))
+        candidates.sort(key=lambda x: x[2], reverse=True)
+        candidates = candidates[:5]
+
+        # 给前 5 个 match 带上统计 (累计金额/进行中/联系人数), 单独查询
+        similar = []
+        for cid, cn, ratio in candidates:
+            # 项目统计 (跟 mobile_customer_detail 同口径)
+            projs = (db.session.query(Project)
+                     .join(ProjectCustomerAssociation,
+                           ProjectCustomerAssociation.project_id == Project.id)
+                     .filter(ProjectCustomerAssociation.company_id == cid)
+                     .filter(Project.is_deleted == False)
+                     .all())
+            open_count = sum(1 for p in projs
+                             if p.current_stage not in ('signed', 'lost', 'paused'))
+            value_raw = sum((p.quotation_customer or 0) for p in projs
+                            if p.current_stage not in ('lost', 'paused'))
+            value_wan = round(value_raw / 10000, 2)
+            contact_count = Contact.query.filter_by(company_id=cid).count()
+            similar.append({
+                'id': cid,
+                'name': cn,
+                'score': round(ratio * 100),
+                'value_wan': value_wan,
+                'open_count': open_count,
+                'contact_count': contact_count,
+            })
+        return api_response(success=True, data={'similar': similar})
     except Exception as e:
         logger.error(f"mobile check customer name error: {e}")
         return api_response(success=False, code=500, message=str(e))
@@ -777,10 +801,13 @@ def mobile_contact_check_duplicate():
         out.append({
             'contact_id': c.id,
             'name': c.name,
+            'position': c.position,
+            'department': c.department,
             'phone': c.phone,
             'email': c.email,
             'company_id': c.company_id,
             'company_name': company.company_name,
+            'has_business_card': bool(c.business_card_image_url),
         })
 
     return api_response(success=True, data={'duplicates': out})

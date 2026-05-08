@@ -28,10 +28,14 @@ const error = ref('')
 // 重复检测: 联系人级 (phone/email)
 const showDupDialog = ref(false)
 const duplicates = ref([])
+const dupChoice = ref('merge')         // 'merge' (合并到选中的) | 'new' (仍然新建)
+const dupSelectedIdx = ref(0)          // 选中第几条 candidate (默认推荐 0)
 
 // 重复检测: 公司级 (公司名 fuzzy 命中) — attachTo 模式下不需要
 const showCompanyDupDialog = ref(false)
 const companyDuplicates = ref([])
+const companyDupChoice = ref('merge')
+const companyDupSelectedIdx = ref(0)
 
 // attachTo 模式: 直接挂联系人到指定客户, 不新建公司
 const isAttachMode = computed(() => !!scanStore.attachToCompanyId)
@@ -88,6 +92,8 @@ async function tryStartSave() {
       const dups = res.data?.data?.duplicates || []
       if (dups.length) {
         duplicates.value = dups
+        dupSelectedIdx.value = 0
+        dupChoice.value = 'merge'
         showDupDialog.value = true
         return
       }
@@ -105,6 +111,8 @@ async function tryStartSave() {
       const strong = similar.filter(x => (x.score || 0) >= 70)
       if (strong.length) {
         companyDuplicates.value = strong.slice(0, 5)
+        companyDupSelectedIdx.value = 0
+        companyDupChoice.value = 'merge'
         showCompanyDupDialog.value = true
         return
       }
@@ -113,6 +121,24 @@ async function tryStartSave() {
     }
   }
   await doSave()
+}
+
+// dup sheet 确认按钮: 根据 radio 选择执行合并 or 新建
+function confirmDupSheet() {
+  if (dupChoice.value === 'merge') {
+    const d = duplicates.value[dupSelectedIdx.value]
+    if (d) doMerge(d)
+  } else {
+    doSave()
+  }
+}
+function confirmCompanyDupSheet() {
+  if (companyDupChoice.value === 'merge') {
+    const c = companyDuplicates.value[companyDupSelectedIdx.value]
+    if (c) mergeToExistingCompany(c)
+  } else {
+    doSave()
+  }
 }
 
 // 公司级合并: 用户选了某个已有客户 → 直接 addContact 到那个公司
@@ -404,72 +430,18 @@ function onCancel() {
       <p v-if="error" class="text-[12px] text-center" style="color: #C44;">{{ error }}</p>
     </div>
 
-    <!-- 重复检测 dialog -->
+    <!-- 联系人级重复 sheet (设计稿 ScanDuplicate 风格) -->
     <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showDupDialog" class="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div class="absolute inset-0" style="background: rgba(0,0,0,0.4);"
-            @click="showDupDialog = false" />
-          <div class="relative bg-white rounded-2xl px-5 py-5 w-full"
-            style="max-width: 360px;">
-            <div class="text-center">
-              <div class="text-[32px] mb-1">⚠️</div>
-              <p class="font-serif text-[17px] font-semibold mb-1" style="color: var(--color-ink);">
-                可能已有该联系人
-              </p>
-              <p class="text-[12.5px] leading-relaxed" style="color: var(--color-ink-3);">
-                找到 {{ duplicates.length }} 条电话/邮箱命中, 仍要新建吗?
-              </p>
-            </div>
-            <div class="mt-3 space-y-2 max-h-[220px] overflow-y-auto">
-              <div v-for="d in duplicates" :key="d.contact_id"
-                class="rounded-xl px-3 py-2.5 flex items-center gap-2"
-                style="background: var(--color-bg); border: 1px solid var(--color-divider);">
-                <div class="flex-1 min-w-0">
-                  <div class="font-medium text-[12.5px]" style="color: var(--color-ink);">{{ d.name }}</div>
-                  <div class="mt-0.5 text-[11.5px] truncate" style="color: var(--color-ink-3);">
-                    {{ d.company_name }}<span v-if="d.phone"> · {{ d.phone }}</span>
-                  </div>
-                </div>
-                <button @click="doMerge(d)" :disabled="saving"
-                  class="shrink-0 px-3 py-1.5 rounded-full text-[11.5px] font-semibold active:opacity-70 disabled:opacity-40"
-                  style="background: var(--color-accent); color: #fff;">
-                  合并 →
-                </button>
-              </div>
-            </div>
-            <p class="mt-2 px-1 text-[11px]" style="color: var(--color-ink-3); line-height: 1.5;">
-              合并: 把这次扫到的字段补进已有联系人 (不覆盖非空), 并更新名片图。
-            </p>
-            <div class="flex gap-2 mt-3">
-              <button @click="showDupDialog = false" :disabled="saving"
-                class="flex-1 py-3 rounded-xl text-[14px] disabled:opacity-40"
-                style="border: 1px solid var(--color-divider); color: var(--color-ink-2);">
-                返回核对
-              </button>
-              <button @click="doSave" :disabled="saving"
-                class="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white disabled:opacity-40"
-                style="background: var(--color-ink);">
-                新建独立
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- 公司级重复 dialog: 公司名命中已有客户 → 推荐合并到那个客户 -->
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="showCompanyDupDialog" class="fixed inset-0 z-50 flex items-end justify-center">
+      <Transition name="dup-sheet">
+        <div v-if="showDupDialog" class="fixed inset-0 z-50 flex items-end justify-center">
           <div class="absolute inset-0" style="background: rgba(20,20,20,0.42);"
-            @click="showCompanyDupDialog = false" />
-          <div class="relative w-full pb-7"
-            style="background: var(--color-card); border-top-left-radius: 20px; border-top-right-radius: 20px; max-width: 100%;">
-            <div class="mx-auto" style="width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.10); margin: 10px auto 4px;"></div>
+            @click="showDupDialog = false" />
+          <div class="relative w-full"
+            style="background: var(--color-card); border-top-left-radius: 20px; border-top-right-radius: 20px; max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="mx-auto shrink-0" style="width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.10); margin: 10px auto 4px;"></div>
 
-            <!-- 标题 -->
-            <div class="px-5 pt-3 pb-1 flex items-center gap-2.5">
+            <!-- 标题 (⚠️ 黄三角 + 文字) -->
+            <div class="px-5 pt-3 pb-1 flex items-center gap-2.5 shrink-0">
               <div class="shrink-0 inline-flex items-center justify-center"
                 style="width: 36px; height: 36px; border-radius: 10px; background: #FBF1DF; border: 1px solid #F6E4BE;">
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -478,60 +450,242 @@ function onCancel() {
                 </svg>
               </div>
               <div class="flex-1 min-w-0">
-                <div class="font-serif" style="font-size: 18px; color: var(--color-ink);">检测到重复客户</div>
+                <div class="font-serif" style="font-size: 18px; color: var(--color-ink);">检测到重复</div>
                 <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
-                  「{{ form.company }}」可能已存在
+                  「{{ duplicates[0]?.name || form.name }}」联系人已存在
                 </div>
               </div>
             </div>
 
-            <!-- 推荐: 合并到现有客户列表 -->
-            <div class="px-4 pt-3 pb-1 max-h-[320px] overflow-y-auto">
-              <div v-for="(c, i) in companyDuplicates" :key="c.id || c.company_id || i"
-                @click="mergeToExistingCompany(c)"
-                class="rounded-xl px-3 py-3 mb-2 active:opacity-80 cursor-pointer"
+            <!-- 候选 list — 第一个推荐, 都是 radio 风格 -->
+            <div class="flex-1 overflow-y-auto px-4 pt-2">
+              <!-- 合并选项 -->
+              <div v-for="(d, i) in duplicates" :key="d.contact_id"
+                @click="dupChoice = 'merge'; dupSelectedIdx = i"
+                class="rounded-xl mb-2 active:opacity-80 cursor-pointer"
                 :style="{
-                  background: i === 0 ? 'rgba(217,119,87,0.08)' : 'var(--color-card)',
-                  border: i === 0 ? '1.5px solid var(--color-accent)' : '1px solid var(--color-divider)',
+                  background: dupChoice === 'merge' && dupSelectedIdx === i ? 'rgba(217,119,87,0.06)' : 'var(--color-card)',
+                  border: dupChoice === 'merge' && dupSelectedIdx === i ? '1.5px solid var(--color-accent)' : '1px solid var(--color-divider)',
+                  padding: '14px',
+                }">
+                <div class="flex items-center gap-2.5">
+                  <!-- radio circle -->
+                  <div class="shrink-0 inline-flex items-center justify-center"
+                    :style="{
+                      width: '22px', height: '22px', borderRadius: '11px',
+                      background: dupChoice === 'merge' && dupSelectedIdx === i ? 'var(--color-accent)' : 'transparent',
+                      border: dupChoice === 'merge' && dupSelectedIdx === i ? 'none' : '1.5px solid var(--color-ink-3)',
+                    }">
+                    <svg v-if="dupChoice === 'merge' && dupSelectedIdx === i" width="10" height="10" viewBox="0 0 10 10">
+                      <path d="M1 5l3 3 5-6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-baseline gap-1">
+                      <span style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">合并到已有联系人</span>
+                      <span v-if="i === 0" style="font-size: 10.5px; color: var(--color-accent); margin-left: 4px;">· 推荐</span>
+                    </div>
+                    <div style="font-size: 12px; color: var(--color-ink-3); margin-top: 2px;">
+                      把这次扫到的字段补进已有联系人, 并更新名片图
+                    </div>
+                  </div>
+                </div>
+                <!-- 联系人预览卡 -->
+                <div class="mt-3 px-3 py-2.5 rounded-lg"
+                  style="background: #fff; border: 1px solid var(--color-divider);">
+                  <div class="flex items-center gap-2.5">
+                    <div class="rounded-full inline-flex items-center justify-center font-serif shrink-0"
+                      style="width: 32px; height: 32px; background: var(--color-accent); color: #fff; font-size: 14px;">
+                      {{ d.name?.[0] || '?' }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-baseline gap-1.5">
+                        <span style="font-size: 13.5px; font-weight: 500; color: var(--color-ink);">{{ d.name }}</span>
+                        <span v-if="d.has_business_card" style="font-size: 9px; font-weight: 600; padding: 1px 4px; border-radius: 3px; background: var(--color-accent-soft); color: var(--color-accent);">名片</span>
+                      </div>
+                      <div style="font-size: 11.5px; color: var(--color-ink-3); margin-top: 1px;" class="truncate">
+                        {{ [d.position, d.company_name].filter(Boolean).join(' · ') }}
+                      </div>
+                      <div v-if="d.phone || d.email" style="font-size: 11px; color: var(--color-ink-3); margin-top: 2px;" class="tabular truncate">
+                        {{ [d.phone, d.email].filter(Boolean).join(' · ') }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 仍然新建独立联系人 -->
+              <div @click="dupChoice = 'new'"
+                class="rounded-xl mb-2 active:opacity-80 cursor-pointer flex items-center gap-2.5"
+                :style="{
+                  border: dupChoice === 'new' ? '1.5px solid var(--color-accent)' : '1px solid var(--color-divider)',
+                  background: dupChoice === 'new' ? 'rgba(217,119,87,0.06)' : 'var(--color-card)',
+                  padding: '14px',
+                }">
+                <div class="shrink-0 inline-flex items-center justify-center"
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '11px',
+                    background: dupChoice === 'new' ? 'var(--color-accent)' : 'transparent',
+                    border: dupChoice === 'new' ? 'none' : '1.5px solid var(--color-ink-3)',
+                  }">
+                  <svg v-if="dupChoice === 'new'" width="10" height="10" viewBox="0 0 10 10">
+                    <path d="M1 5l3 3 5-6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div style="font-size: 14px; font-weight: 500; color: var(--color-ink);">仍然新建独立联系人</div>
+                  <div style="font-size: 11.5px; color: var(--color-ink-3); margin-top: 2px;">
+                    当作不同人处理 · 不合并到任何已有联系人
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 底部确认/取消 -->
+            <div class="flex gap-2 px-4 pt-3 shrink-0"
+              style="border-top: 1px solid var(--color-divider); padding-bottom: calc(env(safe-area-inset-bottom) + 14px);">
+              <button @click="showDupDialog = false" :disabled="saving"
+                class="flex-1 py-3.5 rounded-xl active:opacity-70 disabled:opacity-40"
+                style="border: 1px solid var(--color-divider-strong); background: #fff; color: var(--color-ink); font-size: 14.5px; font-weight: 500;">
+                取消
+              </button>
+              <button @click="confirmDupSheet" :disabled="saving"
+                class="rounded-xl text-white font-semibold active:opacity-70 disabled:opacity-40"
+                style="flex: 1.6; padding: 14px 0; background: var(--color-accent); font-size: 14.5px;">
+                {{ saving ? '处理中…' : '确定' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- 公司级重复 sheet (设计稿 ScanDuplicate, 公司维度) -->
+    <Teleport to="body">
+      <Transition name="dup-sheet">
+        <div v-if="showCompanyDupDialog" class="fixed inset-0 z-50 flex items-end justify-center">
+          <div class="absolute inset-0" style="background: rgba(20,20,20,0.42);"
+            @click="showCompanyDupDialog = false" />
+          <div class="relative w-full"
+            style="background: var(--color-card); border-top-left-radius: 20px; border-top-right-radius: 20px; max-height: 85vh; display: flex; flex-direction: column;">
+            <div class="mx-auto shrink-0" style="width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.10); margin: 10px auto 4px;"></div>
+
+            <div class="px-5 pt-3 pb-1 flex items-center gap-2.5 shrink-0">
+              <div class="shrink-0 inline-flex items-center justify-center"
+                style="width: 36px; height: 36px; border-radius: 10px; background: #FBF1DF; border: 1px solid #F6E4BE;">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  <path d="M9 1.5L17 15.5H1L9 1.5z" stroke="#B8762A" stroke-width="1.4" stroke-linejoin="round" />
+                  <path d="M9 7v4M9 13v0.5" stroke="#B8762A" stroke-width="1.6" stroke-linecap="round" />
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="font-serif" style="font-size: 18px; color: var(--color-ink);">检测到重复</div>
+                <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
+                  「{{ form.company }}」客户已存在
+                </div>
+              </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-4 pt-2">
+              <!-- 合并选项 (含富预览卡: 累计金额/进行中/联系人数) -->
+              <div v-for="(c, i) in companyDuplicates" :key="c.id || c.company_id || i"
+                @click="companyDupChoice = 'merge'; companyDupSelectedIdx = i"
+                class="rounded-xl mb-2 active:opacity-80 cursor-pointer"
+                :style="{
+                  background: companyDupChoice === 'merge' && companyDupSelectedIdx === i ? 'rgba(217,119,87,0.06)' : 'var(--color-card)',
+                  border: companyDupChoice === 'merge' && companyDupSelectedIdx === i ? '1.5px solid var(--color-accent)' : '1px solid var(--color-divider)',
+                  padding: '14px',
                 }">
                 <div class="flex items-center gap-2.5">
                   <div class="shrink-0 inline-flex items-center justify-center"
                     :style="{
                       width: '22px', height: '22px', borderRadius: '11px',
-                      background: i === 0 ? 'var(--color-accent)' : 'transparent',
-                      border: i === 0 ? 'none' : '1.5px solid var(--color-ink-3)',
-                      color: '#fff',
+                      background: companyDupChoice === 'merge' && companyDupSelectedIdx === i ? 'var(--color-accent)' : 'transparent',
+                      border: companyDupChoice === 'merge' && companyDupSelectedIdx === i ? 'none' : '1.5px solid var(--color-ink-3)',
                     }">
-                    <svg v-if="i === 0" width="10" height="10" viewBox="0 0 10 10">
+                    <svg v-if="companyDupChoice === 'merge' && companyDupSelectedIdx === i" width="10" height="10" viewBox="0 0 10 10">
                       <path d="M1 5l3 3 5-6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
                     </svg>
                   </div>
                   <div class="flex-1 min-w-0">
-                    <div class="flex items-baseline gap-1.5">
-                      <span class="font-serif text-[15px] font-medium truncate" style="color: var(--color-ink);">{{ c.company_name || c.name }}</span>
-                      <span v-if="i === 0" class="text-[10px] font-bold" style="color: var(--color-accent);">· 推荐</span>
+                    <div class="flex items-baseline gap-1">
+                      <span style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">合并到现有客户</span>
+                      <span v-if="i === 0" style="font-size: 10.5px; color: var(--color-accent); margin-left: 4px;">· 推荐</span>
                     </div>
-                    <div class="text-[11.5px] mt-1" style="color: var(--color-ink-3);">
-                      合并: {{ form.name }} 加入这家客户的联系人
+                    <div style="font-size: 12px; color: var(--color-ink-3); margin-top: 2px;">
+                      {{ form.name }} 将作为新联系人加入「{{ c.name }}」
                     </div>
                   </div>
-                  <span style="font-size: 16px; color: var(--color-ink-3);">›</span>
+                </div>
+                <!-- 客户预览卡 (富信息) -->
+                <div class="mt-3 px-3 py-2.5 rounded-lg"
+                  style="background: #fff; border: 1px solid var(--color-divider);">
+                  <div class="flex items-center justify-between mb-1.5">
+                    <span class="font-serif truncate" style="font-size: 14.5px; color: var(--color-ink);">{{ c.name }}</span>
+                  </div>
+                  <div class="tabular flex items-center gap-3.5"
+                    style="font-size: 11.5px; color: var(--color-ink-3);">
+                    <span>累计 <b style="color: var(--color-ink); font-weight: 600;">{{ c.value_wan ?? 0 }}</b> 万</span>
+                    <span>{{ c.open_count ?? 0 }} 进行中</span>
+                    <span>{{ c.contact_count ?? 0 }} 联系人</span>
+                  </div>
+                  <div class="mt-2 pt-2"
+                    style="border-top: 1px dashed var(--color-divider);">
+                    <div style="font-size: 10.5px; color: var(--color-accent); font-weight: 600; letter-spacing: 0.4px; margin-bottom: 4px;">
+                      新增 · 第 {{ (c.contact_count ?? 0) + 1 }} 位联系人
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <div class="rounded-full inline-flex items-center justify-center font-serif shrink-0"
+                        style="width: 26px; height: 26px; background: var(--color-accent); color: #fff; font-size: 13px;">
+                        {{ form.name?.[0] || '?' }}
+                      </div>
+                      <span style="font-size: 12.5px; color: var(--color-ink);">
+                        {{ form.name }}
+                        <span v-if="form.position" style="color: var(--color-ink-3);">· {{ form.position }}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 仍然新建客户 radio -->
+              <div @click="companyDupChoice = 'new'"
+                class="rounded-xl mb-2 active:opacity-80 cursor-pointer flex items-center gap-2.5"
+                :style="{
+                  border: companyDupChoice === 'new' ? '1.5px solid var(--color-accent)' : '1px solid var(--color-divider)',
+                  background: companyDupChoice === 'new' ? 'rgba(217,119,87,0.06)' : 'var(--color-card)',
+                  padding: '14px',
+                }">
+                <div class="shrink-0 inline-flex items-center justify-center"
+                  :style="{
+                    width: '22px', height: '22px', borderRadius: '11px',
+                    background: companyDupChoice === 'new' ? 'var(--color-accent)' : 'transparent',
+                    border: companyDupChoice === 'new' ? 'none' : '1.5px solid var(--color-ink-3)',
+                  }">
+                  <svg v-if="companyDupChoice === 'new'" width="10" height="10" viewBox="0 0 10 10">
+                    <path d="M1 5l3 3 5-6" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div style="font-size: 14px; font-weight: 500; color: var(--color-ink);">仍然新建客户</div>
+                  <div style="font-size: 11.5px; color: var(--color-ink-3); margin-top: 2px;">
+                    当作不同分公司处理
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- 仍然新建 -->
-            <div class="px-4 pt-2 pb-3"
-              style="border-top: 1px solid var(--color-divider);">
-              <button @click="doSave" :disabled="saving"
-                class="w-full py-3 rounded-xl active:opacity-70 disabled:opacity-40"
-                style="background: var(--color-card); border: 1px solid var(--color-divider-strong); font-size: 14px; color: var(--color-ink-2);">
-                仍然新建独立客户
-              </button>
+            <div class="flex gap-2 px-4 pt-3 shrink-0"
+              style="border-top: 1px solid var(--color-divider); padding-bottom: calc(env(safe-area-inset-bottom) + 14px);">
               <button @click="showCompanyDupDialog = false" :disabled="saving"
-                class="w-full mt-2 py-2 text-[13px] active:opacity-70 disabled:opacity-40"
-                style="color: var(--color-ink-3);">
-                返回核对
+                class="flex-1 py-3.5 rounded-xl active:opacity-70 disabled:opacity-40"
+                style="border: 1px solid var(--color-divider-strong); background: #fff; color: var(--color-ink); font-size: 14.5px; font-weight: 500;">
+                取消
+              </button>
+              <button @click="confirmCompanyDupSheet" :disabled="saving"
+                class="rounded-xl text-white font-semibold active:opacity-70 disabled:opacity-40"
+                style="flex: 1.6; padding: 14px 0; background: var(--color-accent); font-size: 14.5px;">
+                {{ saving ? '处理中…' : '确定' }}
               </button>
             </div>
           </div>
@@ -544,4 +698,7 @@ function onCancel() {
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity .2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+.dup-sheet-enter-active, .dup-sheet-leave-active { transition: opacity .18s ease, transform .22s ease; }
+.dup-sheet-enter-from, .dup-sheet-leave-to { opacity: 0; }
+.dup-sheet-enter-from > div:last-child, .dup-sheet-leave-to > div:last-child { transform: translateY(20px); }
 </style>
