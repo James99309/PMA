@@ -30,14 +30,17 @@ const cardImageFullUrl = computed(() => {
   return `${baseHost}${u}${sep}token=${encodeURIComponent(token)}`
 })
 
-// 副标文字: 跟客户的关系
-const subtitle = computed(() => {
+// 副标文字: 跟客户的关系 (公司名加粗)
+const subtitleVerb = computed(() => {
   const x = r.value
   if (!x) return ''
-  if (x.mergeMode === 'merge')  return `${x.contactName} 已合并到 ${x.companyName}`
-  if (x.mergeMode === 'attach') return `${x.contactName} 已加到 ${x.companyName}`
-  return `${x.contactName} 已加入新客户 ${x.companyName}`
+  if (x.mergeMode === 'merge')  return '已合并到'
+  if (x.mergeMode === 'attach') return '已加到'
+  return '已加入新客户'
 })
+
+// 低置信度字段数 (置信度 <0.9, 由 ConfirmView countLowConfidence 计算后传入)
+const lowConfidenceCount = computed(() => r.value?.lowConfidenceCount || 0)
 
 const dateStr = computed(() => {
   const d = new Date()
@@ -71,10 +74,11 @@ function continueScan() {
   }
 }
 function gotoDetail() {
+  // 设计稿: 右 CTA 文案 "去客户详情 ›", 跳客户详情而非联系人详情
   const x = r.value
   if (!x) { router.replace('/customers'); return }
   scanStore.clear()
-  router.replace(`/customers/${x.companyId}/contacts/${x.contactId}`)
+  router.replace(`/customers/${x.companyId}`)
 }
 function close() {
   scanStore.clear()
@@ -83,128 +87,130 @@ function close() {
 </script>
 
 <template>
-  <div v-if="r" class="flex flex-col h-full" style="background: var(--color-bg);">
-    <!-- 顶部 X 关闭 -->
-    <div class="flex items-center justify-end px-4 py-3 shrink-0">
-      <button @click="close" class="w-9 h-9 rounded-full inline-flex items-center justify-center active:opacity-70"
-        style="font-size: 20px; color: var(--color-ink-3); background: var(--color-card); border: 1px solid var(--color-divider);">
-        ×
-      </button>
+  <div v-if="r" class="flex flex-col h-full" style="background: var(--color-bg); position: relative; overflow: hidden;">
+    <!-- 顶部 NavBar (左空 / 中空 / 右 X) -->
+    <div class="flex items-center justify-between px-5 py-2.5 shrink-0">
+      <span class="w-6"></span>
+      <span class="font-serif text-[16px] font-medium"></span>
+      <button @click="close" class="active:opacity-60 px-2"
+        style="font-size: 22px; color: var(--color-ink); font-weight: 200;">×</button>
     </div>
 
-    <div class="flex-1 overflow-y-auto px-4 pb-32">
-      <!-- 大对勾 + 标题 -->
-      <div class="flex flex-col items-center mt-4 mb-6">
-        <div class="w-20 h-20 rounded-full inline-flex items-center justify-center"
-          style="background: var(--color-accent);">
+    <div class="flex-1 overflow-y-auto pb-32">
+      <!-- 大对勾 + 标题 + 副标 (设计稿: 76px + box-shadow) -->
+      <div class="flex flex-col items-center px-6"
+        style="padding-top: 20px; padding-bottom: 16px;">
+        <div class="inline-flex items-center justify-center"
+          style="width: 76px; height: 76px; border-radius: 38px; background: var(--color-accent);
+                 box-shadow: 0 14px 32px rgba(217,119,87,0.20);">
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-            <path d="M9 18l6 6 12-14" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M9 18l6 6 12-14" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </div>
-        <h2 class="font-serif mt-4" style="font-size: 22px; color: var(--color-ink); letter-spacing: -0.3px;">已添加联系人</h2>
-        <p class="text-[13px] mt-1.5 text-center px-4" style="color: var(--color-ink-2); line-height: 1.5;">
-          {{ subtitle }}
-        </p>
-        <p class="text-[12px] mt-1" style="color: var(--color-ink-3);">
-          {{ r.fieldCount || 0 }} 个字段已保存
-        </p>
+        <div class="font-serif" style="font-size: 24px; margin-top: 18px; color: var(--color-ink); letter-spacing: -0.3px;">
+          已添加联系人
+        </div>
+        <div class="text-center" style="font-size: 13px; color: var(--color-ink-3); margin-top: 4px; line-height: 1.6;">
+          {{ r.contactName }} {{ subtitleVerb }} <b style="color: var(--color-ink);">{{ r.companyName }}</b><br>
+          <span style="color: var(--color-ink-4, #A8A29B);">
+            {{ r.fieldCount || 0 }} 个字段已保存<template v-if="lowConfidenceCount > 0"> · {{ lowConfidenceCount }} 个待你后续核对</template>
+          </span>
+        </div>
       </div>
 
-      <!-- 联系人卡 -->
-      <div class="bg-white rounded-2xl px-4 py-4 mb-3"
-        style="border: 1px solid var(--color-divider);">
-        <div class="flex items-center gap-3">
-          <div class="w-12 h-12 rounded-full inline-flex items-center justify-center font-serif font-semibold text-[20px] shrink-0"
-            style="background: var(--color-accent-soft); color: var(--color-accent);">
+      <!-- 联系人卡 (含名片图 chip + 3 快捷动作, 全在一张卡里) -->
+      <div class="bg-white overflow-hidden"
+        style="margin: 24px 16px 16px; border-radius: 14px; border: 1px solid var(--color-divider);">
+        <!-- 联系人 row -->
+        <div class="flex items-center gap-3"
+          style="padding: 16px 18px; border-bottom: 1px solid var(--color-divider);">
+          <div class="rounded-full inline-flex items-center justify-center font-serif shrink-0"
+            style="width: 44px; height: 44px; background: var(--color-accent); color: #fff; font-size: 18px;">
             {{ r.contactName?.[0] || '?' }}
           </div>
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-1.5">
-              <span class="font-serif text-[16px] font-medium" style="color: var(--color-ink);">{{ r.contactName }}</span>
-              <span class="text-[10px] font-bold px-1.5 py-px rounded"
-                style="color: #2F7A4F; background: #E9F1EB;">新</span>
-            </div>
-            <p class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
+            <div style="font-size: 15.5px; font-weight: 600; color: var(--color-ink);">{{ r.contactName }}</div>
+            <div style="font-size: 12px; color: var(--color-ink-3); margin-top: 2px;">
               {{ r.position ? r.position + ' · ' : '' }}{{ r.companyName }}
-            </p>
+            </div>
           </div>
+          <span style="font-size: 11px; padding: 3px 7px; border-radius: 4px; background: #E9F1EB; color: #2F7A4F; font-weight: 600;">新</span>
         </div>
 
-        <!-- 名片原图 chip -->
-        <div v-if="r.fileUrl"
-          @click="showCard = true"
-          class="mt-3 flex items-center gap-3 px-3 py-2.5 rounded-xl active:opacity-80 cursor-pointer"
-          style="background: var(--color-bg); border: 1px solid var(--color-divider);">
-          <img :src="cardImageFullUrl" class="w-12 h-9 object-cover rounded shrink-0"
-            style="background: #fff;" />
+        <!-- 名片原图 chip row -->
+        <div v-if="r.fileUrl" @click="showCard = true"
+          class="flex items-center gap-3 active:opacity-80 cursor-pointer"
+          style="padding: 12px 18px; border-bottom: 1px solid var(--color-divider);">
+          <img :src="cardImageFullUrl" class="object-cover shrink-0"
+            style="width: 56px; height: 36px; border-radius: 5px; border: 1px solid var(--color-divider); background: #fff;" />
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-1.5">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-                style="color: var(--color-ink-2);">
-                <rect x="3" y="6" width="18" height="13" rx="2" stroke-linejoin="round" />
-                <circle cx="12" cy="12.5" r="3.5" />
+            <div class="flex items-center gap-1.5" style="font-size: 12.5px; color: var(--color-ink-2);">
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <rect x="1" y="3" width="10" height="7" rx="1" stroke="currentColor" stroke-width="1.1" />
+                <path d="M4 3l1-1h2l1 1" stroke="currentColor" stroke-width="1.1" fill="none" />
+                <circle cx="6" cy="6.5" r="1.6" stroke="currentColor" stroke-width="1.1" />
               </svg>
-              <span class="text-[13px] font-medium" style="color: var(--color-ink);">名片原图</span>
+              名片原图
             </div>
-            <div class="text-[11px] mt-0.5" style="color: var(--color-ink-3);">
+            <div style="font-size: 11px; color: var(--color-ink-3); margin-top: 2px; font-variant-numeric: tabular-nums;">
               {{ dateStr }} · 1 张
             </div>
           </div>
           <span style="font-size: 12px; color: var(--color-accent); font-weight: 500;">查看 ›</span>
         </div>
-      </div>
 
-      <!-- 3 快捷动作 -->
-      <div class="bg-white rounded-2xl overflow-hidden mb-3"
-        style="border: 1px solid var(--color-divider);">
+        <!-- 3 快捷动作 row (设计稿: 12px 0 padding, right border 分隔, icon 16px) -->
         <div class="flex">
           <button @click="sendEmail" :disabled="!r.email"
-            class="flex-1 py-4 flex flex-col items-center gap-1.5 active:bg-gray-50 disabled:opacity-40">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-              style="color: var(--color-accent);">
-              <rect x="2" y="5" width="20" height="14" rx="2" stroke-linejoin="round" />
-              <path d="M2 7l10 7 10-7" stroke-linejoin="round" />
+            class="flex-1 flex flex-col items-center gap-1 active:bg-gray-50 disabled:opacity-40"
+            style="padding: 12px 0; border-right: 1px solid var(--color-divider);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1.5" y="3.5" width="13" height="9" rx="1" stroke="var(--color-ink-2)" stroke-width="1.3" />
+              <path d="M2 4l6 4 6-4" stroke="var(--color-ink-2)" stroke-width="1.3" stroke-linejoin="round" fill="none" />
             </svg>
-            <span class="text-[12px]" style="color: var(--color-ink-2);">发邮件</span>
+            <span style="font-size: 12px; color: var(--color-ink-2);">发邮件</span>
           </button>
-          <div style="width: 1px; background: var(--color-divider);"></div>
           <button @click="callPhone" :disabled="!r.phone"
-            class="flex-1 py-4 flex flex-col items-center gap-1.5 active:bg-gray-50 disabled:opacity-40">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-              style="color: var(--color-accent);">
-              <path d="M5 4l3 4-2 2a8 8 0 005 5l2-2 4 3-2 2c-1 1-2.5 1-4 0-3.5-2-6.5-5-8.5-8.5-1-1.5-1-3 0-4l3-1.5z"
-                stroke-linejoin="round" />
+            class="flex-1 flex flex-col items-center gap-1 active:bg-gray-50 disabled:opacity-40"
+            style="padding: 12px 0; border-right: 1px solid var(--color-divider);">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M3 4a1 1 0 011-1h2l1 3-1.5 1a8 8 0 004 4l1-1.5 3 1v2a1 1 0 01-1 1A10 10 0 013 4z"
+                stroke="var(--color-ink-2)" stroke-width="1.3" stroke-linejoin="round" fill="none" />
             </svg>
-            <span class="text-[12px]" style="color: var(--color-ink-2);">拨电话</span>
+            <span style="font-size: 12px; color: var(--color-ink-2);">拨电话</span>
           </button>
-          <div style="width: 1px; background: var(--color-divider);"></div>
           <button @click="gotoProjects"
-            class="flex-1 py-4 flex flex-col items-center gap-1.5 active:bg-gray-50">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-              style="color: var(--color-accent);">
-              <path d="M3 5a2 2 0 012-2h4l2 2h6a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V5z" stroke-linejoin="round" />
+            class="flex-1 flex flex-col items-center gap-1 active:bg-gray-50"
+            style="padding: 12px 0;">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M2 4h12v8H2zM2 4l6 4 6-4" stroke="var(--color-ink-2)" stroke-width="1.3" stroke-linejoin="round" fill="none" />
             </svg>
-            <span class="text-[12px]" style="color: var(--color-ink-2);">加入项目</span>
+            <span style="font-size: 12px; color: var(--color-ink-2);">加入项目</span>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- 底部双 CTA -->
-    <div class="px-4 pt-3 shrink-0"
-      style="background: var(--color-card); border-top: 1px solid var(--color-divider); padding-bottom: calc(env(safe-area-inset-bottom) + 14px);">
-      <div class="flex gap-2.5">
-        <button @click="continueScan"
-          class="flex-1 py-3.5 rounded-xl active:opacity-70"
-          style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); font-size: 14.5px; color: var(--color-ink-2); font-weight: 500;">
-          📷 继续拍下一张
-        </button>
-        <button @click="gotoDetail"
-          class="rounded-xl text-white font-semibold active:opacity-70"
-          style="flex: 1.2; padding: 14px 0; background: var(--color-ink); font-size: 14.5px;">
-          去详情页 ›
-        </button>
-      </div>
+    <!-- 底部双 CTA (设计稿: 50px 高, 14px 圆角) -->
+    <div class="absolute left-0 right-0 bottom-0 flex"
+      style="padding: 16px 16px 28px; background: var(--color-bg); border-top: 1px solid var(--color-divider); gap: 10px;
+             padding-bottom: calc(env(safe-area-inset-bottom) + 16px);">
+      <button @click="continueScan"
+        class="flex-1 inline-flex items-center justify-center gap-1.5 active:opacity-70"
+        style="height: 50px; border-radius: 14px; background: #fff; border: 1px solid var(--color-divider-strong);
+               color: var(--color-ink); font-size: 15px; font-weight: 600;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <rect x="3" y="6" width="18" height="13" rx="2" stroke-linejoin="round" />
+          <circle cx="12" cy="12.5" r="3.5" />
+          <path d="M9 6V5a1 1 0 011-1h4a1 1 0 011 1v1" stroke-linecap="round" />
+        </svg>
+        继续拍下一张
+      </button>
+      <button @click="gotoDetail"
+        class="flex-1 active:opacity-70"
+        style="height: 50px; border-radius: 14px; background: var(--color-ink); color: #fff; font-size: 15px; font-weight: 600;">
+        去客户详情 ›
+      </button>
     </div>
 
     <!-- 名片全屏 lightbox -->

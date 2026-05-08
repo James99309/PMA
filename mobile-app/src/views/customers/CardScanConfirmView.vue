@@ -149,6 +149,7 @@ async function mergeToExistingCompany(c) {
       companyName,
       fileUrl: scanStore.fileUrl,
       fieldCount: countFilledFields(),
+      lowConfidenceCount: countLowConfidence(),
       mergeMode: 'merge',
     })
     router.replace('/customers/scan/success')
@@ -189,6 +190,7 @@ async function doMerge(d) {
       companyName: d.company_name || form.value.company,
       fileUrl: scanStore.fileUrl,
       fieldCount: countFilledFields(),
+      lowConfidenceCount: countLowConfidence(),
       mergeMode: 'merge',
     })
     router.replace('/customers/scan/success')
@@ -250,6 +252,7 @@ async function doSave() {
       companyName,
       fileUrl: scanStore.fileUrl,
       fieldCount: countFilledFields(),
+      lowConfidenceCount: countLowConfidence(),
       mergeMode: wasAttach ? 'attach' : 'new',
     })
     router.replace('/customers/scan/success')
@@ -264,6 +267,15 @@ function countFilledFields() {
   let n = 0
   for (const k of ['name','company','position','department','phone','email','address']) {
     if ((form.value[k] || '').trim()) n++
+  }
+  return n
+}
+// 低置信度字段数 (供副标"M 个待你后续核对")
+function countLowConfidence() {
+  let n = 0
+  for (const k of ['name','company','position','department','phone','email','address']) {
+    const c = confidence.value[k]
+    if ((form.value[k] || '').trim() && c != null && c < 0.9) n++
   }
   return n
 }
