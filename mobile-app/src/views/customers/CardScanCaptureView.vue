@@ -184,9 +184,10 @@ onMounted(async () => {
   if (route.query.attachTo) {
     scanStore.setAttachTo(Number(route.query.attachTo), route.query.attachToName || '')
   }
-  // 优先 VisionKit; 不可用则回退手动相机
-  const usedVisionKit = await tryVisionKit()
-  if (!usedVisionKit) await startManualCamera()
+  // 默认走 iOS 标准相机 (聚焦更好, 用户自主按快门, 没有 ✓ 确认环节);
+  // 拍完进 4 角裁剪 → 预览 → AI. VisionKit 路径保留 tryVisionKit() 函数
+  // 留作后续可选, 但不再默认调用.
+  await startManualCamera()
 })
 
 onBeforeUnmount(() => {
@@ -201,12 +202,12 @@ onBeforeUnmount(() => {
     <input ref="cameraInputEl" type="file" accept="image/*" capture="environment"
       @change="onWebPhoto" style="display: none;" />
 
-    <!-- step: capture (扫描或相机调用中) -->
+    <!-- step: capture (相机调用中) -->
     <div v-if="step === 'capture'" class="flex-1 flex flex-col items-center justify-center text-white px-6 text-center">
       <div class="text-[14px] opacity-80">正在打开相机…</div>
       <p class="mt-4 text-[12px] opacity-60" style="line-height: 1.55;">
-        💡 把名片放在桌面平整位置, 设备保持稳定 1-2 秒等聚焦,<br>
-        系统会自动捕捉, 也可以手动按白色快门
+        💡 名片放平整位置, 点击屏幕对焦,<br>
+        清晰后按快门键, 之后再调整裁剪边角
       </p>
       <div v-if="error" class="mt-4 text-[13px]" style="color: #FF6B6B;">{{ error }}</div>
       <button v-if="error" @click="router.back()"
