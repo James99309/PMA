@@ -18,7 +18,8 @@ const currentRegion = computed(() => REGIONS[auth.regionId] || REGIONS.cn)
 
 function backToHome() {
   if (auth.switchRegion(auth.homeRegionId)) {
-    router.go(0)  // reload 让所有 view 重新加载本区数据
+    // Capacitor WebView 下 router.go(0) 是 no-op, 必须 location.reload 真刷新
+    window.location.reload()
   }
 }
 

@@ -78,9 +78,10 @@ async function load() {
 }
 
 // 点琥珀卡 → 切到对区, 重载让 ChatListView 重新挂载并加载对区列表
+// Capacitor WebView 下 router.go(0) 是 no-op, 用 location.reload 真刷新
 function gotoPeerRegion() {
   if (auth.switchRegion(peerRegionId.value)) {
-    router.go(0)
+    window.location.reload()
   }
 }
 

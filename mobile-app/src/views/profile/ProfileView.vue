@@ -59,7 +59,8 @@ async function confirmSwitch() {
   await new Promise(r => setTimeout(r, 100))  // 给 sheet 关闭动画一点时间
   if (auth.switchRegion(targetRegion.value.id)) {
     await new Promise(r => setTimeout(r, 350))  // toast 显示窗口
-    router.go(0)
+    // Capacitor WebView 下 router.go(0) 是 no-op, 必须用 location.reload 真刷新
+    window.location.reload()
   } else {
     switching.value = false
     switchError.value = `${targetRegion.value.label}系统未授权该账号`
