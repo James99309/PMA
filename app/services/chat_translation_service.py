@@ -22,10 +22,19 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = anthropic.Anthropic(
-            api_key=os.environ.get('ANTHROPIC_API_KEY'),
-            base_url=os.environ.get('ANTHROPIC_BASE_URL'),
-        )
+        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        base_url = os.environ.get('ANTHROPIC_BASE_URL')
+        kwargs = {'api_key': api_key}
+        if base_url:
+            kwargs['base_url'] = base_url
+        # Mac mini oat_proxy 走 Anthropic OAT, 要 Bearer + oauth-beta 头
+        # (与 cli_agent llm_client.py 保持一致)
+        if os.environ.get('ANTHROPIC_USE_BEARER', '').lower() in ('1', 'true', 'yes'):
+            kwargs['default_headers'] = {
+                'Authorization': f'Bearer {api_key}',
+                'anthropic-beta': 'oauth-2025-04-20',
+            }
+        _client = anthropic.Anthropic(**kwargs)
     return _client
 
 

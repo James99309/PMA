@@ -13,25 +13,56 @@ const bundleId = ref('builtin')
 const bundleVer = ref('-')
 const bundleStatus = ref('')
 
-// 区域切换 (Federation Lite) — 双 token 已在登录时自动并行获取, 切换零密码
+// 区域信息 (Federation Lite)
+const homeRegion = computed(() => REGIONS[auth.homeRegionId] || REGIONS.cn)
 const otherRegion = computed(() => {
   const otherId = auth.regionId === 'cn' ? 'sg' : 'cn'
   return REGIONS[otherId]
 })
-const showSwitchConfirm = ref(false)
+const currentRegion = computed(() => REGIONS[auth.regionId] || REGIONS.cn)
+const regions = computed(() => {
+  // 数据区域两行: home 在前, peer 在后
+  const home = REGIONS[auth.homeRegionId] || REGIONS.cn
+  const otherId = auth.homeRegionId === 'cn' ? 'sg' : 'cn'
+  return [home, REGIONS[otherId]]
+})
+
+// 切换 sheet 状态
+const showSwitchSheet = ref(false)
+const targetRegion = ref(null)
+const switching = ref(false)
 const switchError = ref('')
 
-function openSwitchConfirm() {
+function tapRegionRow(r) {
+  // 当前在用的区域: 没动作
+  if (r.id === auth.regionId) return
+  // 没有对区 token (单区用户): 不应进 sheet (UI 已经隐藏)
+  if (!auth.tokens[r.id]) {
+    switchError.value = `${r.label}系统未授权该账号，请联系 admin 设为「海外支持」`
+    return
+  }
   switchError.value = ''
-  showSwitchConfirm.value = true
+  targetRegion.value = r
+  showSwitchSheet.value = true
 }
 
-function confirmSwitch() {
-  if (auth.switchRegion(otherRegion.value.id)) {
-    showSwitchConfirm.value = false
-    router.go(0)   // reload to apply new token everywhere
+function cancelSwitch() {
+  showSwitchSheet.value = false
+  targetRegion.value = null
+}
+
+async function confirmSwitch() {
+  if (!targetRegion.value || switching.value) return
+  switching.value = true
+  // 简短动画: 先关 sheet, 显示 toast 450ms, 再 reload
+  showSwitchSheet.value = false
+  await new Promise(r => setTimeout(r, 100))  // 给 sheet 关闭动画一点时间
+  if (auth.switchRegion(targetRegion.value.id)) {
+    await new Promise(r => setTimeout(r, 350))  // toast 显示窗口
+    router.go(0)
   } else {
-    switchError.value = `${otherRegion.value.label}系统未授权该账号，请联系 admin 设为「海外支持」`
+    switching.value = false
+    switchError.value = `${targetRegion.value.label}系统未授权该账号`
   }
 }
 
@@ -46,18 +77,13 @@ async function checkUpdate() {
     const latest = await CapacitorUpdater.getLatest()
     if (latest?.version && latest.version !== bundleVer.value) {
       bundleStatus.value = `发现新版 ${latest.version}，下载中…`
-      const dl = await CapacitorUpdater.download({
-        url: latest.url,
-        version: latest.version,
-      })
+      const dl = await CapacitorUpdater.download({ url: latest.url, version: latest.version })
       bundleStatus.value = `下载完成，重启 App 生效`
       await CapacitorUpdater.set({ id: dl.id })
     } else {
       bundleStatus.value = '已是最新版本'
     }
   } catch (e) {
-    // Capgo 在"无新版本"时也会抛 no_new_version_available 等错误码
-    // 这些都视为"已是最新"，只对真实错误（网络/签名等）保留报错
     const msg = e?.message || String(e || '')
     const benign = ['no_new_version_available', 'no_channel', 'already_set']
     if (benign.some(k => msg.includes(k))) {
@@ -74,147 +100,245 @@ onMounted(async () => {
     bundleId.value = info?.bundle?.id || 'builtin'
     bundleVer.value = info?.bundle?.version || 'builtin'
   } catch {
-    // Web/dev 环境调用会失败，忽略
+    // Web/dev 环境忽略
   }
 })
+
+// Eyebrow 文案: away 时双语提示
+const eyebrow = computed(() => auth.isAway ? `MY ACCOUNT · ${auth.regionId.toUpperCase()}` : '账户设置')
+const title = computed(() => auth.isAway ? '我的 · Profile' : '我的')
 </script>
 
 <template>
   <div class="flex flex-col h-full bg-[#F7F5F2]">
-    <div class="bg-[#F7F5F2] px-5 pt-5 pb-4">
-      <p class="text-[14px] text-[#9CA3AF] mb-1">账户设置</p>
-      <h1 class="font-serif text-[60px] font-bold leading-none text-[#1A1A1A]">我的</h1>
+    <!-- PageHead -->
+    <div class="bg-[#F7F5F2] px-5 pt-4 pb-3">
+      <p class="text-[11px] font-semibold uppercase tracking-wider"
+        style="color: var(--color-ink-3); letter-spacing: 1.2px;">{{ eyebrow }}</p>
+      <h1 class="font-serif font-medium leading-none mt-1"
+        style="font-size: 32px; letter-spacing: -0.4px; color: var(--color-ink);">{{ title }}</h1>
     </div>
-    <div class="h-px bg-[#E8E4E0]" />
 
-    <div class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-      <!-- User card -->
-      <div class="bg-white rounded-2xl px-4 py-4 flex items-center gap-3">
-        <div class="w-12 h-12 rounded-full bg-[#F4E4D8] flex items-center justify-center text-[#D97757] font-semibold text-lg shrink-0">
+    <div class="flex-1 overflow-y-auto px-4 pb-6 space-y-3">
+      <!-- 头像卡 -->
+      <div class="bg-white rounded-2xl px-4 py-3.5 flex items-center gap-3.5"
+        style="border: 1px solid var(--color-divider);">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center font-serif font-semibold text-[20px] shrink-0"
+          style="background: var(--color-accent-soft); color: var(--color-accent);">
           {{ auth.user?.real_name?.[0] || auth.user?.username?.[0] || '?' }}
         </div>
-        <div>
-          <p class="font-medium text-[#1A1A1A]">{{ auth.user?.real_name || auth.user?.username }}</p>
-          <p class="text-sm text-[#7A7570] mt-0.5">{{ auth.user?.email || '' }}</p>
+        <div class="flex-1 min-w-0">
+          <p class="font-serif text-[17px] leading-tight" style="color: var(--color-ink); letter-spacing: -0.2px;">
+            {{ auth.user?.real_name || auth.user?.username }}
+          </p>
+          <p class="text-[12px] mt-0.5 truncate" style="color: var(--color-ink-3);">
+            {{ auth.user?.email || auth.user?.username || '' }}{{ auth.isAway ? ' · 跨域账户' : '' }}
+          </p>
         </div>
       </div>
 
-      <!-- 工作入口 (审批等高频功能从 TabBar 移到这里) -->
-      <div class="bg-white rounded-2xl overflow-hidden">
-        <button @click="router.push('/approval')"
-          class="w-full flex items-center gap-3 px-4 py-4 active:bg-gray-50 text-left">
-          <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-            style="background: var(--color-accent-soft); color: var(--color-accent);">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+      <!-- 数据区域 (仅多区账户) -->
+      <template v-if="auth.hasOtherRegionToken">
+        <div class="px-2 pt-3 pb-1">
+          <div class="text-[11px] font-semibold uppercase"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">
+            数据区域{{ auth.isAway ? ' · DATA REGION' : '' }}
           </div>
-          <span class="text-[#1A1A1A] font-medium flex-1">审批中心</span>
-          <svg width="7" height="11" viewBox="0 0 7 11">
-            <path d="M1 1l4 4.5L1 10" stroke="#7A7570" stroke-width="1.4" fill="none" stroke-linecap="round" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- 区域切换 (Federation Lite) — 左右分段控件, 当前橙色, 点对方切换 -->
-      <div v-if="auth.hasOtherRegionToken"
-        class="bg-white rounded-2xl overflow-hidden">
-        <div class="px-4 pt-3 pb-2">
-          <div class="text-[11px] font-semibold uppercase mb-2"
-            style="color: var(--color-ink-3); letter-spacing: 1px;">区域</div>
-          <div class="flex gap-2">
-            <button v-for="r in [auth.region, otherRegion]" :key="r.id"
-              @click="r.id === auth.regionId ? null : openSwitchConfirm()"
-              :disabled="r.id === auth.regionId"
-              class="flex-1 py-3 rounded-xl flex flex-col items-center gap-0.5 transition-all"
+        </div>
+        <div class="bg-white rounded-2xl overflow-hidden"
+          style="border: 1px solid var(--color-divider);">
+          <div v-for="(r, i) in regions" :key="r.id"
+            @click="tapRegionRow(r)"
+            class="px-3.5 py-3.5 flex items-center gap-3 active:bg-gray-50"
+            :style="{
+              borderBottom: i < regions.length - 1 ? '1px solid var(--color-divider)' : 'none',
+              cursor: r.id === auth.regionId ? 'default' : 'pointer',
+            }">
+            <!-- 国旗块 -->
+            <div class="shrink-0 inline-flex items-center justify-center"
               :style="{
-                background: r.id === auth.regionId ? 'var(--color-accent)' : 'var(--color-bg)',
-                color: r.id === auth.regionId ? '#fff' : 'var(--color-ink-2)',
-                border: r.id === auth.regionId ? 'none' : '1px solid var(--color-divider-strong)',
-                cursor: r.id === auth.regionId ? 'default' : 'pointer',
+                width: '36px', height: '36px', borderRadius: '10px',
+                fontSize: '18px',
+                background: r.id === auth.regionId
+                  ? (auth.isAway ? '#FBF1DF' : 'var(--color-ink)')
+                  : 'var(--color-bg)',
+                border: r.id === auth.regionId ? 'none' : '1px solid var(--color-divider)',
               }">
-              <span class="text-[22px] leading-none">{{ r.flag }}</span>
-              <span class="text-[13px] font-semibold mt-0.5">{{ r.label }}</span>
-              <span class="text-[10px] mt-0.5"
-                :style="{ opacity: r.id === auth.regionId ? 0.85 : 0.6 }">
-                {{ r.id === auth.regionId ? '当前' : '点击切换' }}
-              </span>
-            </button>
+              {{ r.flag }}
+            </div>
+            <!-- 名称 + 描述 -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline gap-2">
+                <span class="font-semibold" style="font-size: 14.5px; color: var(--color-ink);">{{ r.label }}</span>
+                <span class="font-mono uppercase tracking-wider" style="font-size: 10px; color: var(--color-ink-3);">{{ r.id }}</span>
+              </div>
+              <div class="mt-0.5" style="font-size: 12px; color: var(--color-ink-3);">
+                {{ r.id === 'cn' ? '深圳 · GMT+8' : 'Singapore · GMT+8' }}
+              </div>
+            </div>
+            <!-- 状态 chip / hint -->
+            <span v-if="r.id === auth.regionId && r.id === auth.homeRegionId"
+              class="font-semibold"
+              style="font-size: 10.5px; padding: 3px 8px; border-radius: 999px; background: var(--color-ink); color: #fff; letter-spacing: 0.2px;">
+              当前 · 本位
+            </span>
+            <span v-else-if="r.id === auth.regionId && r.id !== auth.homeRegionId"
+              class="font-semibold"
+              style="font-size: 10.5px; padding: 3px 8px; border-radius: 999px; background: #FBF1DF; color: #B8762A; letter-spacing: 0.2px;">
+              当前
+            </span>
+            <span v-else-if="r.id === auth.homeRegionId"
+              style="font-size: 11.5px; color: var(--color-ink-3);">
+              本位 · 可切回 ›
+            </span>
+            <span v-else style="font-size: 11.5px; color: var(--color-ink-3);">
+              可访问 ›
+            </span>
           </div>
         </div>
-      </div>
-      <!-- 单边账号 fallback -->
-      <div v-else class="bg-white rounded-2xl overflow-hidden">
-        <div class="px-4 py-3 flex items-center justify-between">
-          <span class="text-[13px]" style="color: var(--color-ink-2);">当前区域</span>
-          <span class="text-[13px] font-medium" style="color: var(--color-ink);">
-            {{ auth.region.flag }} {{ auth.region.label }}
-          </span>
+        <p class="px-2 pt-1.5" style="font-size: 11.5px; color: var(--color-ink-3); line-height: 1.55;">
+          切到他库时，顶部会出现提示条直到切回。
+        </p>
+      </template>
+
+      <!-- 工作入口 -->
+      <div class="pt-2">
+        <div class="px-2 pb-1">
+          <div class="text-[11px] font-semibold uppercase"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">工作</div>
+        </div>
+        <div class="bg-white rounded-2xl overflow-hidden"
+          style="border: 1px solid var(--color-divider);">
+          <button @click="router.push('/approval')"
+            class="w-full flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 text-left">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+              style="background: var(--color-accent-soft); color: var(--color-accent);">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <span class="flex-1" style="font-size: 14px; color: var(--color-ink); font-weight: 500;">审批中心</span>
+            <svg width="7" height="11" viewBox="0 0 7 11">
+              <path d="M1 1l4 4.5L1 10" stroke="#A8A29B" stroke-width="1.4" fill="none" stroke-linecap="round" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <!-- 版本 / OTA 状态 -->
-      <div class="bg-white rounded-2xl overflow-hidden">
-        <div class="px-4 py-3 flex items-center justify-between"
-          style="border-bottom: 1px solid var(--color-divider);">
-          <span class="text-[13px]" style="color: var(--color-ink-2);">App 版本</span>
-          <span class="text-[12px] tabular" style="color: var(--color-ink-3);">{{ bundleVer }}</span>
+      <!-- 设置 -->
+      <div class="pt-2">
+        <div class="px-2 pb-1">
+          <div class="text-[11px] font-semibold uppercase"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">
+            设置{{ auth.isAway ? ' · SETTINGS' : '' }}
+          </div>
         </div>
-        <button @click="checkUpdate"
-          class="w-full px-4 py-3 flex items-center justify-between active:bg-gray-50 text-left">
-          <span class="text-[13px]" style="color: var(--color-accent); font-weight: 500;">检查更新</span>
-          <span class="text-[11px]" style="color: var(--color-ink-3);">{{ bundleStatus }}</span>
-        </button>
+        <div class="bg-white rounded-2xl overflow-hidden"
+          style="border: 1px solid var(--color-divider);">
+          <div class="px-4 py-3 flex items-center justify-between"
+            style="border-bottom: 1px solid var(--color-divider);">
+            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">通知</span>
+            <span class="inline-block relative"
+              style="width: 38px; height: 22px; border-radius: 11px; background: var(--color-ink); opacity: 0.85;">
+              <span class="absolute" style="top: 2px; left: 18px; width: 18px; height: 18px; border-radius: 9px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></span>
+            </span>
+          </div>
+          <div class="px-4 py-3 flex items-center justify-between"
+            style="border-bottom: 1px solid var(--color-divider);">
+            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">语言</span>
+            <span class="inline-flex items-center gap-1" style="font-size: 13px; color: var(--color-ink-3);">
+              {{ auth.isAway ? 'English' : '简体中文' }}
+              <span style="font-size: 16px; color: #A8A29B; font-weight: 200;">›</span>
+            </span>
+          </div>
+          <div class="px-4 py-3 flex items-center justify-between">
+            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">App 版本</span>
+            <span class="tabular" style="font-size: 12px; color: var(--color-ink-3);">{{ bundleVer }}</span>
+          </div>
+          <button @click="checkUpdate"
+            class="w-full px-4 py-3 flex items-center justify-between active:bg-gray-50 text-left"
+            style="border-top: 1px solid var(--color-divider);">
+            <span style="font-size: 13px; color: var(--color-accent); font-weight: 500;">检查更新</span>
+            <span style="font-size: 11px; color: var(--color-ink-3);">{{ bundleStatus }}</span>
+          </button>
+        </div>
       </div>
 
       <!-- 退出 -->
-      <div class="bg-white rounded-2xl overflow-hidden">
-        <button
-          @click="handleLogout"
-          class="w-full flex items-center gap-3 px-4 py-4 active:bg-gray-50 text-left"
-        >
-          <div class="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center shrink-0">
-            <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-          </div>
-          <span class="text-[#EF4444] font-medium">退出登录</span>
+      <div class="pt-4 pb-8">
+        <button @click="handleLogout"
+          class="w-full py-3.5 rounded-2xl active:opacity-80"
+          style="background: white; border: 1px solid var(--color-divider-strong); font-size: 14.5px; color: var(--color-ink-2); font-weight: 500;">
+          退出登录
         </button>
       </div>
     </div>
 
-    <!-- 切换区域: 确认对话框 (无密码) -->
+    <!-- 切换确认 sheet -->
     <Teleport to="body">
       <Transition name="sheet">
-        <div v-if="showSwitchConfirm" class="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div class="absolute inset-0 bg-black/40" @click="showSwitchConfirm = false" />
-          <div class="relative bg-white rounded-2xl px-6 py-6 w-full"
-            style="max-width: 340px;">
-            <div class="text-center">
-              <div class="text-[40px] mb-2">{{ otherRegion.flag }}</div>
-              <p class="font-serif text-[18px] font-semibold mb-1" style="color: var(--color-ink);">
-                切换到 {{ otherRegion.label }} 区域
-              </p>
-              <p class="text-[13px] leading-relaxed" style="color: var(--color-ink-3);">
-                之后看到的客户、项目、报价等数据都来自<br>
-                <b style="color: var(--color-ink);">{{ otherRegion.label }} 系统</b>
-              </p>
+        <div v-if="showSwitchSheet" class="fixed inset-0 z-50">
+          <div class="absolute inset-0" style="background: rgba(0,0,0,0.32);"
+            @click="cancelSwitch" />
+          <div class="absolute left-0 right-0 bottom-0 pb-7 pt-2.5"
+            style="background: var(--color-bg); border-top-left-radius: 18px; border-top-right-radius: 18px;">
+            <div class="mx-auto" style="width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.10); margin-bottom: 14px;"></div>
+            <div class="px-6 pb-2">
+              <div class="font-serif" style="font-size: 22px; line-height: 1.25; color: var(--color-ink); letter-spacing: -0.3px;">
+                切换到 {{ targetRegion?.flag }} {{ targetRegion?.label }}库?
+              </div>
+              <div class="mt-2.5" style="font-size: 13.5px; color: var(--color-ink-3); line-height: 1.55;">
+                你将看到{{ targetRegion?.label }}库的项目、客户和消息。{{ currentRegion.label }}库的数据不会受影响,你可以随时切回。
+              </div>
             </div>
-            <p v-if="switchError" class="text-[12px] mt-3 text-center" style="color: #C44;">
+            <!-- 概览对比卡 -->
+            <div class="mx-4 mt-4 mb-1 p-3.5"
+              style="background: white; border-radius: 14px; border: 1px solid var(--color-divider);">
+              <div class="flex items-center gap-2.5">
+                <div class="flex-1" style="opacity: 0.55;">
+                  <div style="font-size: 11px; color: var(--color-ink-3); margin-bottom: 4px;">当前</div>
+                  <div style="font-size: 14.5px; font-weight: 600; color: var(--color-ink-2);">
+                    {{ currentRegion.flag }} {{ currentRegion.label }}
+                  </div>
+                </div>
+                <span style="font-size: 18px; color: #A8A29B; font-weight: 200;">→</span>
+                <div class="flex-1">
+                  <div style="font-size: 11px; color: #B8762A; margin-bottom: 4px; font-weight: 600;">切换到</div>
+                  <div style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">
+                    {{ targetRegion?.flag }} {{ targetRegion?.label }}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p v-if="switchError" class="px-4 mt-2 text-center" style="font-size: 12px; color: #C44;">
               {{ switchError }}
             </p>
-            <div class="flex gap-2 mt-5">
-              <button @click="showSwitchConfirm = false"
-                class="flex-1 py-3 rounded-xl text-[14px]"
-                style="border: 1px solid var(--color-divider); color: var(--color-ink-2);">
+            <div class="px-4 pt-4.5 flex gap-2.5" style="padding-top: 18px;">
+              <button @click="cancelSwitch"
+                class="flex-1 py-3.5 rounded-xl"
+                style="background: transparent; border: 1px solid var(--color-divider-strong); font-size: 15px; color: var(--color-ink-2); font-weight: 500;">
                 取消
               </button>
               <button @click="confirmSwitch"
-                class="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white"
-                style="background: var(--color-accent);">
-                确定切换
+                class="rounded-xl text-white font-semibold"
+                style="flex: 2; padding: 14px 0; background: var(--color-ink); border: none; font-size: 15px;">
+                切到 {{ targetRegion?.label }}库
               </button>
             </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- 切换中 toast -->
+    <Teleport to="body">
+      <Transition name="toast">
+        <div v-if="switching" class="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+          <div class="inline-flex items-center gap-2.5 px-5 py-3.5 rounded-xl"
+            style="background: rgba(26,26,26,0.92); backdrop-filter: blur(8px); color: #fff; font-size: 13.5px; font-weight: 500; box-shadow: 0 18px 48px rgba(0,0,0,0.22);">
+            <span class="inline-block animate-spin"
+              style="width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 7px;"></span>
+            正在切换到 {{ targetRegion?.label }}库…
           </div>
         </div>
       </Transition>
@@ -223,6 +347,9 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.sheet-enter-active, .sheet-leave-active { transition: opacity .2s ease; }
-.sheet-enter-from, .sheet-leave-to       { opacity: 0; }
+.sheet-enter-active, .sheet-leave-active { transition: opacity .18s ease, transform .22s ease; }
+.sheet-enter-from, .sheet-leave-to { opacity: 0; }
+.sheet-enter-from > div:last-child, .sheet-leave-to > div:last-child { transform: translateY(20px); }
+.toast-enter-active, .toast-leave-active { transition: opacity .15s ease; }
+.toast-enter-from, .toast-leave-to { opacity: 0; }
 </style>

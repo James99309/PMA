@@ -1,11 +1,11 @@
 <script setup>
-// 会话列表 —— 统一融合本区 + 对区 (Federation Lite)
-// 本区调 client.getConversations()，对区用 peer token 直接打对端 baseURL
-// 点击 peer 项 → 自动 switchRegion 后跳转
+// 会话列表 — 严格本区 (Federation Lite v2 简化方案)
+// 不再合并对区会话; 对区有未读时, 顶部琥珀卡提示, 点卡片切到对区即可
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import PixelP from '@/components/common/PixelP.vue'
-import { getConversations, getConversationsForRegion, createConversation, searchUsers, searchProjects } from '@/api/chat'
+import CrossRegionMsgCard from '@/components/common/CrossRegionMsgCard.vue'
+import { getConversations, getUnreadCountForRegion, createConversation, searchUsers, searchProjects } from '@/api/chat'
 import { REGIONS } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { formatChatTime } from '@/utils/chatTime'
@@ -16,12 +16,18 @@ const showPicker = ref(false)
 const loading = ref(true)
 const allConversations = ref([])
 
+// 对区未读数 (用于顶部琥珀卡)
+const peerUnread = ref(0)
+const peerRegionId = computed(() => auth.regionId === 'cn' ? 'sg' : 'cn')
+const peerRegion = computed(() => REGIONS[peerRegionId.value])
+const showPeerCard = computed(() => !!auth.tokens[peerRegionId.value] && peerUnread.value > 0)
+
 // 把后端 conversation 映射为 UI 行
-function mapConv(c, regionId = null) {
+function mapConv(c) {
   // 后端 type: 'private' / 'group' / 'ai'
   let kind = c.type === 'private' ? 'dm' : c.type === 'ai' ? 'ai' : 'group'
   const name = c.display_name || c.name || c.topic || '未命名'
-  // DM 场景：取对方 participant 的 department 作为副标
+  // DM 场景: 取对方 participant 的 department 作为副标
   let peerDept = ''
   if (kind === 'dm' && Array.isArray(c.participants)) {
     const other = c.participants.find(p => p.user_name === name) || c.participants.find(p => p.user_id !== c.current_user_id)
@@ -40,10 +46,6 @@ function mapConv(c, regionId = null) {
     pinned: false,
     ai: c.type !== 'ai' && c.has_ai,
     draft: c.has_draft,
-    // 跨区元信息
-    _regionId: regionId,                       // 'cn' / 'sg' / null（本区不标）
-    _isPeer: !!regionId && regionId !== auth.regionId,
-    _updatedAt: c.updated_at || c.last_message?.created_at || '',
   }
 }
 
@@ -57,30 +59,28 @@ const aiPreview = computed(() => aiConv.value
 async function load() {
   loading.value = true
   try {
-    const myRegion = auth.regionId
-    const peerRegion = myRegion === 'cn' ? 'sg' : 'cn'
-    const hasPeer = !!auth.tokens[peerRegion]
-    // 并行拉本区 + 对区（对区无 token 时 helper 自动返回空）
-    const [localRes, peerRes] = await Promise.all([
+    const hasPeer = !!auth.tokens[peerRegionId.value]
+    // 并行: 本区会话 + 对区未读总数 (只用于决定琥珀卡)
+    const [localRes, peerUnreadRes] = await Promise.all([
       getConversations(),
-      hasPeer ? getConversationsForRegion(peerRegion) : Promise.resolve({ data: { success: false, data: [] } }),
+      hasPeer ? getUnreadCountForRegion(peerRegionId.value) : Promise.resolve({ data: { data: { total_unread: 0 } } }),
     ])
     const localList = (localRes.data?.success ? localRes.data.data : []) || []
-    const peerListRaw = (peerRes.data?.success  ? peerRes.data.data  : []) || []
-    // 对区只显示有未读的对话, 已读的不掺到本区列表里干扰; 用户主动切区可见全部
-    const peerList = peerListRaw.filter(c => (c.unread_count || 0) > 0)
-    const merged = [
-      ...localList.map(c => mapConv(c, myRegion)),
-      ...peerList.map(c => mapConv(c, peerRegion)),
-    ]
-    // 按 updated_at 倒序混排（peer 的对话和本区对话穿插显示）
-    merged.sort((a, b) => (b._updatedAt || '').localeCompare(a._updatedAt || ''))
-    allConversations.value = merged
+    allConversations.value = localList.map(mapConv)
+    peerUnread.value = peerUnreadRes.data?.data?.total_unread || 0
   } catch (e) {
     console.error('load conversations failed', e)
     allConversations.value = []
+    peerUnread.value = 0
   } finally {
     loading.value = false
+  }
+}
+
+// 点琥珀卡 → 切到对区, 重载让 ChatListView 重新挂载并加载对区列表
+function gotoPeerRegion() {
+  if (auth.switchRegion(peerRegionId.value)) {
+    router.go(0)
   }
 }
 
@@ -98,15 +98,6 @@ function openAi() {
 }
 
 function openConversation(c) {
-  // 跨区项 → 先记当前区，切区，进入聊天后由聊天页负责返回时切回来
-  let fromRegion = null
-  if (c._isPeer && c._regionId) {
-    fromRegion = auth.regionId   // 进入前的本区, 返回时要切回
-    if (!auth.switchRegion(c._regionId)) {
-      alert(`无法切换到${REGIONS[c._regionId]?.label || c._regionId}区域`)
-      return
-    }
-  }
   // 公司广播 → 公告列表
   if (c.kind === 'broadcast') {
     router.push('/messages/broadcast')
@@ -114,17 +105,14 @@ function openConversation(c) {
   }
   // 项目群 → GroupChatView
   if (c.kind === 'group') {
-    router.push({
-      path: `/messages/group/${c.id}`,
-      query: { name: c.name, ...(fromRegion ? { fromRegion } : {}) },
-    })
+    router.push({ path: `/messages/group/${c.id}`, query: { name: c.name } })
     return
   }
   // 私聊 → DmChatView，把对方部门一起带过去
   if (c.kind === 'dm') {
     router.push({
       path: `/messages/dm/${c.id}`,
-      query: { name: c.name, role: c.peerDept || '', ...(fromRegion ? { fromRegion } : {}) },
+      query: { name: c.name, role: c.peerDept || '' },
     })
   }
 }
@@ -257,6 +245,13 @@ function closePicker() {
     </div>
 
     <div v-else class="flex-1 overflow-y-auto pb-4">
+      <!-- 跨区域提示卡: 对区有未读时显示, 点击切到对区 -->
+      <CrossRegionMsgCard v-if="showPeerCard"
+        :region-flag="peerRegion.flag"
+        :region-label="peerRegion.label"
+        :unread-count="peerUnread"
+        @goto="gotoPeerRegion" />
+
       <!-- AI 助手置顶卡 (设计 line 474-492) -->
       <div class="px-4 pt-2 pb-1">
         <button @click="openAi"
@@ -300,11 +295,6 @@ function closePicker() {
                 <span v-if="c.pinned" style="color: var(--color-accent);">★</span>{{ c.name }}
                 <span v-if="c.ai" class="text-[9px] font-bold px-1.5 py-px rounded"
                   style="color: #2F66D6; background: #E5EEFB;">AI</span>
-                <!-- 跨区角标 (本区不标，仅 peer 项显示) -->
-                <span v-if="c._isPeer && c._regionId" class="text-[9px] font-semibold px-1.5 py-px rounded inline-flex items-center gap-0.5"
-                  :style="{ color: '#2F66D6', background: '#E5EEFB' }">
-                  🌏 {{ REGIONS[c._regionId]?.label || c._regionId }}
-                </span>
               </div>
               <span class="text-[11px]" style="color: var(--color-ink-3);">{{ c.time }}</span>
             </div>

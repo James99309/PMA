@@ -56,6 +56,23 @@ export const useAuthStore = defineStore('auth', {
       const other = s.regionId === 'cn' ? 'sg' : 'cn'
       return !!s.tokens[other]
     },
+    // 本位区: 用户是 native (is_mirror=false) 那一区; 没找到则退回当前区
+    homeRegionId: s => {
+      for (const id of ['cn', 'sg']) {
+        if (s.users[id] && s.users[id].is_mirror === false) return id
+      }
+      return s.regionId
+    },
+    // 是否切到非本位的对区
+    isAway: s => {
+      const home = (() => {
+        for (const id of ['cn', 'sg']) {
+          if (s.users[id] && s.users[id].is_mirror === false) return id
+        }
+        return s.regionId
+      })()
+      return home !== s.regionId
+    },
   },
 
   actions: {

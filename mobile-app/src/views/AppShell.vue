@@ -1,30 +1,36 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import { RouterView, useRoute } from 'vue-router'
-import { getUnreadCount, getUnreadCountForRegion } from '@/api/chat'
+import { RouterView, useRoute, useRouter } from 'vue-router'
+import { getUnreadCount } from '@/api/chat'
 import { useAuthStore } from '@/stores/auth'
+import { REGIONS } from '@/api/client'
+import CrossRegionBar from '@/components/common/CrossRegionBar.vue'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 // 进入聊天详情、设置、广播等沉浸页时隐藏 tab bar（避免和聊天 composer 冲突）
 const hideTabBar = computed(() => route.meta?.hideTabBar === true)
 
-// 未读消息数 —— 30s 轮询，本区 + 对区合并
+// away 时全局顶部琥珀条; 登录页等不显示
+const showCrossBar = computed(() => auth.isAway && route.path !== '/login')
+const currentRegion = computed(() => REGIONS[auth.regionId] || REGIONS.cn)
+
+function backToHome() {
+  if (auth.switchRegion(auth.homeRegionId)) {
+    router.go(0)  // reload 让所有 view 重新加载本区数据
+  }
+}
+
+// 未读消息数 —— 30s 轮询, 只数本区 (peer 走琥珀卡, 不再 sum)
 const unreadTotal = ref(0)
 let unreadTimer = null
 async function refreshUnread() {
   try {
-    const peerRegion = auth.regionId === 'cn' ? 'sg' : 'cn'
-    const hasPeer = !!auth.tokens[peerRegion]
-    const [localR, peerR] = await Promise.all([
-      getUnreadCount(),
-      hasPeer ? getUnreadCountForRegion(peerRegion) : Promise.resolve({ data: { data: { total_unread: 0 } } }),
-    ])
-    const localN = localR.data?.data?.total_unread || 0
-    const peerN  = peerR.data?.data?.total_unread  || 0
-    unreadTotal.value = localN + peerN
+    const r = await getUnreadCount()
+    unreadTotal.value = r.data?.data?.total_unread || 0
   } catch {
-    // 静默失败，不打扰
+    // 静默失败
   }
 }
 onMounted(() => {
@@ -68,6 +74,12 @@ const tabs = [
   <div class="flex flex-col h-full bg-[#F7F5F2]">
     <!-- 顶部安全区域（刘海/灵动岛）-->
     <div style="height: env(safe-area-inset-top); background:#F7F5F2;" />
+
+    <!-- 全局跨区域提示条: 用户切到非本位区时常驻 -->
+    <CrossRegionBar v-if="showCrossBar"
+      :region-flag="currentRegion.flag"
+      :region-label="currentRegion.label"
+      @back="backToHome" />
 
     <!-- 主内容区 -->
     <div class="flex-1 overflow-hidden">

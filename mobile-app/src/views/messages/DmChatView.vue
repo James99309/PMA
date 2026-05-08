@@ -1,8 +1,7 @@
 <script setup>
 // 私聊 + AI 草稿区 —— 严格对齐 ai-chat.jsx DMAIDraft (line 383-459)
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { useRoute, useRouter } from 'vue-router'
 import PixelP from '@/components/common/PixelP.vue'
 import MentionPopover from '@/components/common/MentionPopover.vue'
 import MessageText from '@/components/common/MessageText.vue'
@@ -25,22 +24,6 @@ import { formatChatTime } from '@/utils/chatTime'
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuthStore()
-
-// 跨区入口标记: 进入时记下来源区，离开时切回去（让 liuwei 看完 SG 的 Patrick
-// 后回到 CN，避免停留在 SG）
-const fromRegion = route.query.fromRegion || null
-function returnToOriginRegion() {
-  if (fromRegion && fromRegion !== auth.regionId && auth.tokens[fromRegion]) {
-    auth.switchRegion(fromRegion)
-  }
-}
-function goBack() {
-  returnToOriginRegion()
-  router.back()
-}
-// 系统手势返回 / 其他离开方式兜底
-onBeforeRouteLeave(() => { returnToOriginRegion() })
 
 const inputRef = ref(null)
 const mention = useMention(inputRef)
@@ -555,7 +538,7 @@ onUnmounted(() => {
     <!-- Nav -->
     <div class="flex items-center gap-2.5 px-4 py-2 shrink-0"
       style="background: var(--color-card); border-bottom: 1px solid var(--color-divider);">
-      <button @click="goBack" class="active:opacity-60 px-1">
+      <button @click="router.back()" class="active:opacity-60 px-1">
         <svg width="9" height="14" viewBox="0 0 9 14">
           <path d="M7 1L1 7l6 6" fill="none" stroke="var(--color-ink-2)" stroke-width="1.6"
             stroke-linecap="round" stroke-linejoin="round" />
