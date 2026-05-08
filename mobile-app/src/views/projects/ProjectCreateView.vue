@@ -4,6 +4,9 @@ import { useRouter } from 'vue-router'
 import { Geolocation } from '@capacitor/geolocation'
 import { checkProjectName, createProject } from '@/api/projects'
 import { reverseGeocode, searchAddress, getAddressDetail } from '@/api/customers'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbStyle } = useKeyboardOffset()
 
 const router = useRouter()
 
@@ -241,7 +244,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="na-root">
+  <div class="na-root" :style="kbStyle">
 
     <!-- Nav bar -->
     <div class="na-nav">

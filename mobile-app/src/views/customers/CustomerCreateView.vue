@@ -3,8 +3,10 @@ import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Geolocation } from '@capacitor/geolocation'
 import { checkCustomerName, reverseGeocode, searchAddress, getAddressDetail, createCustomer } from '@/api/customers'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
 const router = useRouter()
+const { kbStyle } = useKeyboardOffset()
 
 const form = ref({
   name: '',
@@ -210,7 +212,7 @@ async function submit() {
 </script>
 
 <template>
-  <div class="na-root">
+  <div class="na-root" :style="kbStyle">
 
     <!-- Nav bar -->
     <div class="na-nav">

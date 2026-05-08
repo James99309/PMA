@@ -8,6 +8,9 @@ import { useRoute, useRouter } from 'vue-router'
 import client from '@/api/client'
 import NavBar from '@/components/common/NavBar.vue'
 import { getContact, updateContact, deleteContact } from '@/api/customers'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbStyle } = useKeyboardOffset()
 
 const route = useRoute()
 const router = useRouter()
@@ -134,7 +137,7 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full" style="background: var(--color-bg);">
+  <div class="flex flex-col h-full" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
     <!-- 顶部 NavBar: 编辑模式时右侧改"保存", 默认 "..." 菜单 -->
     <NavBar :title="contact?.name || '联系人'" @back="editMode ? cancelEdit() : onBack()" @more="onMore">
       <template v-if="editMode" #left>

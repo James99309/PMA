@@ -7,6 +7,9 @@ import { useRoute, useRouter } from 'vue-router'
 import NavBar from '@/components/common/NavBar.vue'
 import Section from '@/components/common/Section.vue'
 import ProjectRefCard from '@/components/common/refs/ProjectRefCard.vue'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbStyle } = useKeyboardOffset()
 import {
   getConversation, addParticipants, removeParticipant,
   deleteConversation, searchUsers,
@@ -201,7 +204,7 @@ async function leaveGroup() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full overflow-y-auto" style="background: var(--color-bg);">
+  <div class="flex flex-col h-full overflow-y-auto" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
 
     <NavBar back-label="返回" title="聊天设置" @back="router.back()" />
 

@@ -4,6 +4,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCardScanStore } from '@/stores/cardScan'
 import { createCustomer, addContact, checkContactDuplicate, mergeContactFromCard, checkCustomerName } from '@/api/customers'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbStyle } = useKeyboardOffset()
 
 const router = useRouter()
 const scanStore = useCardScanStore()
@@ -219,7 +222,7 @@ function onCancel() {
 </script>
 
 <template>
-  <div class="flex flex-col h-full" style="background: var(--color-bg);">
+  <div class="flex flex-col h-full" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
     <!-- Nav -->
     <div class="flex items-center justify-between px-4 py-3 shrink-0"
       style="background: var(--color-card); border-bottom: 1px solid var(--color-divider);">
