@@ -53,3 +53,8 @@ export const checkContactDuplicate = (phone, email) =>
 // 合并扫描结果到现有联系人 (空字段才填, 名片图覆盖)
 export const mergeContactFromCard = (contactId, data) =>
   client.post(`/mobile/contacts/${contactId}/merge-from-card`, data)
+
+// 联系人 CRUD
+export const getContact = id => client.get(`/mobile/contacts/${id}`)
+export const updateContact = (id, data) => client.put(`/mobile/contacts/${id}`, data)
+export const deleteContact = id => client.delete(`/mobile/contacts/${id}`)

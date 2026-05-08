@@ -855,3 +855,62 @@ def mobile_contact_detail(contact_id):
     data['company_name'] = company.company_name
     data['notes'] = contact.notes
     return api_response(success=True, data=data)
+
+
+# ─── 编辑联系人 ─────────────────────────────────────────────────
+@api_v1_bp.route('/mobile/contacts/<int:contact_id>', methods=['PUT'])
+@jwt_required()
+def mobile_contact_update(contact_id):
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    contact = Contact.query.get(contact_id)
+    if not contact:
+        return api_response(success=False, code=404, message='联系人不存在')
+    company = Company.query.get(contact.company_id)
+    if not company or company.is_deleted or not can_view_company(user, company):
+        return api_response(success=False, code=403, message='无权修改')
+
+    data = request.get_json(silent=True) or {}
+    allowed = ['name', 'position', 'department', 'phone', 'email', 'notes']
+    try:
+        for k in allowed:
+            if k in data:
+                v = (data[k] or '').strip() if isinstance(data[k], str) else data[k]
+                setattr(contact, k, v or None)
+        # name 必填
+        if not (contact.name or '').strip():
+            return api_response(success=False, code=400, message='姓名不能为空')
+        db.session.commit()
+        return api_response(success=True, message='已保存', data=_contact_dict(contact))
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'mobile contact update error: {e}')
+        return api_response(success=False, code=500, message='保存失败')
+
+
+# ─── 删除联系人 ─────────────────────────────────────────────────
+@api_v1_bp.route('/mobile/contacts/<int:contact_id>', methods=['DELETE'])
+@jwt_required()
+def mobile_contact_delete(contact_id):
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    contact = Contact.query.get(contact_id)
+    if not contact:
+        return api_response(success=False, code=404, message='联系人不存在')
+    company = Company.query.get(contact.company_id)
+    if not company or company.is_deleted or not can_view_company(user, company):
+        return api_response(success=False, code=403, message='无权删除')
+
+    try:
+        cid = contact.company_id
+        db.session.delete(contact)
+        db.session.commit()
+        return api_response(success=True, message='已删除', data={'company_id': cid})
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f'mobile contact delete error: {e}')
+        return api_response(success=False, code=500, message='删除失败')

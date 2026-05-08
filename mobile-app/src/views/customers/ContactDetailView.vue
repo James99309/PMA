@@ -1,10 +1,13 @@
 <script setup>
 // 联系人详情页 — /customers/:cid/contacts/:contactId
-// 基础信息 + 名片图 (带 ?token= 鉴权) + 拨打/邮件快捷键
+// 顶部 NavBar: 返回 + ... 菜单 (编辑 / 删除)
+// 下面: 头像卡 + 联系方式 + 备注 + 名片原图
+// 编辑模式: 字段变成可编辑 input + 顶部右侧"保存"
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import client from '@/api/client'
 import NavBar from '@/components/common/NavBar.vue'
+import { getContact, updateContact, deleteContact } from '@/api/customers'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,11 +16,20 @@ const contact = ref(null)
 const loading = ref(true)
 const error = ref('')
 
+// 编辑状态
+const editMode = ref(false)
+const editForm = ref({})
+const saving = ref(false)
+
+// 操作菜单
+const showActions = ref(false)
+const showDeleteConfirm = ref(false)
+const deleting = ref(false)
+
 async function load() {
   loading.value = true
   try {
-    const id = route.params.contactId
-    const res = await client.get(`/mobile/contacts/${id}`)
+    const res = await getContact(route.params.contactId)
     if (res.data?.success) {
       contact.value = res.data.data
     } else {
@@ -32,7 +44,7 @@ async function load() {
 
 onMounted(load)
 
-// 名片图 URL 注入 ?token= (跟客户详情同款)
+// 名片图 URL 注入 ?token= 鉴权
 const cardImageFullUrl = computed(() => {
   const u = contact.value?.business_card_image_url
   if (!u) return ''
@@ -46,28 +58,103 @@ const cardImageFullUrl = computed(() => {
 const showCard = ref(false)
 function callPhone() { if (contact.value?.phone) window.open(`tel:${contact.value.phone}`) }
 function sendEmail() { if (contact.value?.email) window.open(`mailto:${contact.value.email}`) }
-function backToCustomer() {
-  const cid = route.params.cid
-  if (cid) router.replace(`/customers/${cid}`)
-  else router.back()
+
+// NavBar 事件
+function onBack() { router.back() }
+function onMore() { showActions.value = true }
+
+// 编辑
+function startEdit() {
+  showActions.value = false
+  editForm.value = {
+    name: contact.value.name || '',
+    position: contact.value.position || '',
+    department: contact.value.department || '',
+    phone: contact.value.phone || '',
+    email: contact.value.email || '',
+    notes: contact.value.notes || '',
+  }
+  editMode.value = true
+}
+
+function cancelEdit() {
+  editMode.value = false
+  editForm.value = {}
+}
+
+async function saveEdit() {
+  if (!editForm.value.name?.trim()) {
+    error.value = '姓名不能为空'
+    return
+  }
+  saving.value = true
+  error.value = ''
+  try {
+    const res = await updateContact(route.params.contactId, editForm.value)
+    if (res.data?.success) {
+      // 更新本地视图字段, 退出编辑模式
+      const d = res.data.data
+      contact.value = { ...contact.value, ...d }
+      editMode.value = false
+    } else {
+      error.value = res.data?.message || '保存失败'
+    }
+  } catch (e) {
+    error.value = e?.message || '保存失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+// 删除
+function askDelete() {
+  showActions.value = false
+  showDeleteConfirm.value = true
+}
+
+async function confirmDelete() {
+  if (deleting.value) return
+  deleting.value = true
+  try {
+    const res = await deleteContact(route.params.contactId)
+    if (res.data?.success) {
+      const cid = res.data.data?.company_id || route.params.cid
+      router.replace(`/customers/${cid}`)
+    } else {
+      error.value = res.data?.message || '删除失败'
+      deleting.value = false
+      showDeleteConfirm.value = false
+    }
+  } catch (e) {
+    error.value = e?.message || '删除失败'
+    deleting.value = false
+    showDeleteConfirm.value = false
+  }
 }
 </script>
 
 <template>
   <div class="flex flex-col h-full" style="background: var(--color-bg);">
-    <NavBar :title="contact?.name || '联系人'" :show-back="true" />
+    <!-- 顶部 NavBar: 编辑模式时右侧改"保存", 默认 "..." 菜单 -->
+    <NavBar :title="contact?.name || '联系人'" @back="editMode ? cancelEdit() : onBack()" @more="onMore">
+      <template v-if="editMode" #left>
+        <span style="color: var(--color-ink-2); font-size: 15px;">取消</span>
+      </template>
+      <template v-if="editMode" #right>
+        <button @click.stop="saveEdit" :disabled="saving"
+          class="text-[15px] font-semibold active:opacity-70 disabled:opacity-40"
+          style="color: var(--color-accent);">
+          {{ saving ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </NavBar>
 
     <div v-if="loading" class="flex-1 flex items-center justify-center">
       <div class="w-6 h-6 border-2 rounded-full animate-spin"
         style="border-color: var(--color-accent); border-top-color: transparent;" />
     </div>
-    <div v-else-if="error" class="flex-1 flex items-center justify-center px-6 text-center">
-      <div>
-        <p style="color: #C44; font-size: 13px;">{{ error }}</p>
-        <button @click="router.back()"
-          class="mt-4 px-5 py-2 rounded-full text-[13px]"
-          style="background: var(--color-card); border: 1px solid var(--color-divider);">返回</button>
-      </div>
+    <div v-else-if="error && !contact" class="flex-1 flex items-center justify-center px-6 text-center">
+      <p style="color: #C44; font-size: 13px;">{{ error }}</p>
     </div>
 
     <div v-else-if="contact" class="flex-1 overflow-y-auto px-4 py-4 space-y-3">
@@ -76,26 +163,41 @@ function backToCustomer() {
         style="border: 1px solid var(--color-divider);">
         <div class="w-14 h-14 rounded-full inline-flex items-center justify-center font-serif font-semibold text-[22px] shrink-0"
           style="background: var(--color-accent-soft); color: var(--color-accent);">
-          {{ contact.name?.[0] || '?' }}
+          {{ (editMode ? editForm.name : contact.name)?.[0] || '?' }}
         </div>
         <div class="flex-1 min-w-0">
-          <div class="flex items-baseline gap-1.5">
+          <div v-if="!editMode" class="flex items-baseline gap-1.5">
             <p class="font-serif text-[18px]" style="color: var(--color-ink); letter-spacing: -0.2px;">{{ contact.name }}</p>
             <span v-if="contact.is_primary" class="text-[10px] font-bold px-1.5 py-px rounded"
               style="background: var(--color-accent); color: #fff;">主要</span>
-            <span v-if="contact.business_card_image_url"
-              @click="showCard = true"
-              class="text-[10px] font-bold px-1.5 py-px rounded inline-flex items-center gap-0.5 active:opacity-70"
-              style="color: var(--color-accent); background: var(--color-accent-soft);">
-              📇 名片
-            </span>
           </div>
-          <p class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
+          <input v-else v-model="editForm.name" type="text"
+            class="font-serif text-[18px] w-full bg-transparent outline-none border-b"
+            style="color: var(--color-ink); border-color: var(--color-divider); padding: 2px 0;"
+            placeholder="姓名 *" />
+          <p v-if="!editMode" class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
             {{ [contact.position, contact.department].filter(Boolean).join(' · ') || '—' }}
           </p>
           <p class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
             {{ contact.company_name }}
           </p>
+        </div>
+      </div>
+
+      <!-- 编辑模式额外字段: 职位 / 部门 -->
+      <div v-if="editMode" class="bg-white rounded-2xl overflow-hidden"
+        style="border: 1px solid var(--color-divider);">
+        <div class="px-4 py-3" style="border-bottom: 1px solid var(--color-divider);">
+          <div class="text-[11px] font-semibold uppercase mb-1"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">职位</div>
+          <input v-model="editForm.position" type="text" placeholder="（可选）"
+            class="w-full text-[14px] outline-none bg-transparent" style="color: var(--color-ink);" />
+        </div>
+        <div class="px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase mb-1"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">部门</div>
+          <input v-model="editForm.department" type="text" placeholder="（可选）"
+            class="w-full text-[14px] outline-none bg-transparent" style="color: var(--color-ink);" />
         </div>
       </div>
 
@@ -106,8 +208,10 @@ function backToCustomer() {
           style="border-bottom: 1px solid var(--color-divider);">
           <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">联系方式</span>
         </div>
-        <button v-if="contact.phone" @click="callPhone"
-          class="w-full px-4 py-3.5 flex items-center gap-3 active:bg-gray-50 text-left"
+        <!-- 电话 -->
+        <div v-if="!editMode && contact.phone"
+          @click="callPhone"
+          class="px-4 py-3.5 flex items-center gap-3 active:bg-gray-50 cursor-pointer"
           style="border-bottom: 1px solid var(--color-divider);">
           <div class="w-8 h-8 rounded-full inline-flex items-center justify-center shrink-0"
             style="background: var(--color-accent-soft); color: var(--color-accent);">
@@ -121,10 +225,17 @@ function backToCustomer() {
             <div class="tabular text-[14px] font-medium" style="color: var(--color-ink);">{{ contact.phone }}</div>
           </div>
           <span style="font-size: 11px; color: var(--color-accent);">点击拨打</span>
-        </button>
-        <button v-if="contact.email" @click="sendEmail"
-          class="w-full px-4 py-3.5 flex items-center gap-3 active:bg-gray-50 text-left"
-          :style="contact.phone ? '' : ''">
+        </div>
+        <div v-if="editMode" class="px-4 py-3" style="border-bottom: 1px solid var(--color-divider);">
+          <div class="text-[11px] font-semibold uppercase mb-1"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">电话</div>
+          <input v-model="editForm.phone" type="tel" placeholder="（可选）"
+            class="w-full text-[14px] outline-none bg-transparent tabular" style="color: var(--color-ink);" />
+        </div>
+        <!-- 邮箱 -->
+        <div v-if="!editMode && contact.email"
+          @click="sendEmail"
+          class="px-4 py-3.5 flex items-center gap-3 active:bg-gray-50 cursor-pointer">
           <div class="w-8 h-8 rounded-full inline-flex items-center justify-center shrink-0"
             style="background: var(--color-accent-soft); color: var(--color-accent);">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -137,22 +248,36 @@ function backToCustomer() {
             <div class="text-[13px] font-medium truncate" style="color: var(--color-ink);">{{ contact.email }}</div>
           </div>
           <span style="font-size: 11px; color: var(--color-accent);">发邮件</span>
-        </button>
-        <div v-if="!contact.phone && !contact.email"
+        </div>
+        <div v-if="editMode" class="px-4 py-3">
+          <div class="text-[11px] font-semibold uppercase mb-1"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">邮箱</div>
+          <input v-model="editForm.email" type="email" placeholder="（可选）"
+            class="w-full text-[14px] outline-none bg-transparent tabular" style="color: var(--color-ink);" />
+        </div>
+        <div v-if="!editMode && !contact.phone && !contact.email"
           class="px-4 py-4 text-center text-[12px]" style="color: var(--color-ink-3);">
           无电话/邮箱
         </div>
       </div>
 
       <!-- 备注 -->
-      <div v-if="contact.notes" class="bg-white rounded-2xl px-4 py-3"
+      <div v-if="!editMode && contact.notes" class="bg-white rounded-2xl px-4 py-3"
         style="border: 1px solid var(--color-divider);">
         <div class="text-[11px] font-semibold uppercase mb-2"
           style="color: var(--color-ink-3); letter-spacing: 0.6px;">备注</div>
         <p class="text-[13px]" style="color: var(--color-ink-2); line-height: 1.55; white-space: pre-wrap;">{{ contact.notes }}</p>
       </div>
+      <div v-if="editMode" class="bg-white rounded-2xl px-4 py-3"
+        style="border: 1px solid var(--color-divider);">
+        <div class="text-[11px] font-semibold uppercase mb-1"
+          style="color: var(--color-ink-3); letter-spacing: 0.6px;">备注</div>
+        <textarea v-model="editForm.notes" placeholder="（可选）" rows="3"
+          class="w-full text-[14px] outline-none bg-transparent resize-none"
+          style="color: var(--color-ink); line-height: 1.5;"></textarea>
+      </div>
 
-      <!-- 名片缩略 (有就显示) -->
+      <!-- 名片原图 (有就显示, 编辑模式也显示但只读) -->
       <div v-if="contact.business_card_image_url" class="bg-white rounded-2xl overflow-hidden"
         style="border: 1px solid var(--color-divider);">
         <div class="px-4 py-2.5"
@@ -165,12 +290,7 @@ function backToCustomer() {
         </button>
       </div>
 
-      <!-- 返回客户 -->
-      <button @click="backToCustomer"
-        class="w-full py-3 rounded-2xl active:opacity-70"
-        style="background: white; border: 1px solid var(--color-divider-strong); font-size: 14px; color: var(--color-ink-2); font-weight: 500;">
-        返回客户「{{ contact.company_name }}」
-      </button>
+      <p v-if="error" class="text-[12px] text-center pt-2" style="color: #C44;">{{ error }}</p>
     </div>
 
     <!-- 名片全屏 lightbox -->
@@ -186,10 +306,85 @@ function backToCustomer() {
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 顶部 ... 弹出: 编辑 / 删除 -->
+    <Teleport to="body">
+      <Transition name="sheet">
+        <div v-if="showActions" class="fixed inset-0 z-50">
+          <div class="absolute inset-0" style="background: rgba(0,0,0,0.4);"
+            @click="showActions = false" />
+          <div class="absolute left-0 right-0 bottom-0 pb-7 pt-2.5"
+            style="background: var(--color-bg); border-top-left-radius: 18px; border-top-right-radius: 18px;">
+            <div class="mx-auto" style="width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.10); margin-bottom: 14px;"></div>
+            <button @click="startEdit"
+              class="w-full px-5 py-4 flex items-center gap-3 active:bg-gray-100 text-left"
+              style="border-top: 1px solid var(--color-divider);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                style="color: var(--color-accent);">
+                <path d="M12 20h9" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4L16.5 3.5z" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span style="font-size: 15px; color: var(--color-ink);">编辑联系人</span>
+            </button>
+            <button @click="askDelete"
+              class="w-full px-5 py-4 flex items-center gap-3 active:bg-gray-100 text-left"
+              style="border-top: 1px solid var(--color-divider);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                style="color: #DC3545;">
+                <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"
+                  stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span style="font-size: 15px; color: #DC3545;">删除联系人</span>
+            </button>
+            <button @click="showActions = false"
+              class="w-full px-5 py-3.5 mt-2 active:bg-gray-100"
+              style="background: var(--color-card); font-size: 15px; color: var(--color-ink-2); margin-top: 8px;">
+              取消
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- 删除确认 -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showDeleteConfirm" class="fixed inset-0 z-[60] flex items-center justify-center px-6">
+          <div class="absolute inset-0" style="background: rgba(0,0,0,0.4);"
+            @click="showDeleteConfirm = false" />
+          <div class="relative bg-white rounded-2xl px-6 py-5 w-full" style="max-width: 320px;">
+            <div class="text-center">
+              <div class="text-[36px] mb-1">⚠️</div>
+              <p class="font-serif text-[17px] font-semibold mb-1" style="color: var(--color-ink);">
+                删除「{{ contact?.name }}」?
+              </p>
+              <p class="text-[12.5px]" style="color: var(--color-ink-3); line-height: 1.55;">
+                操作不可撤销, 名片图也会一并删除
+              </p>
+            </div>
+            <div class="flex gap-2 mt-4">
+              <button @click="showDeleteConfirm = false" :disabled="deleting"
+                class="flex-1 py-3 rounded-xl text-[14px] disabled:opacity-40"
+                style="border: 1px solid var(--color-divider); color: var(--color-ink-2);">
+                取消
+              </button>
+              <button @click="confirmDelete" :disabled="deleting"
+                class="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white disabled:opacity-40"
+                style="background: #DC3545;">
+                {{ deleting ? '删除中…' : '确定删除' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity .18s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+.sheet-enter-active, .sheet-leave-active { transition: opacity .18s ease, transform .22s ease; }
+.sheet-enter-from, .sheet-leave-to { opacity: 0; }
+.sheet-enter-from > div:last-child, .sheet-leave-to > div:last-child { transform: translateY(20px); }
 </style>

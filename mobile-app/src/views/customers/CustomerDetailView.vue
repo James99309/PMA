@@ -264,9 +264,9 @@ onMounted(load)
                 <!-- 名片 chip: 这条联系人是名片扫描录入的 -->
                 <button v-if="p.business_card_image_url"
                   @click.stop="viewCardImage(p.business_card_image_url)"
-                  class="text-[9px] font-bold px-1.5 py-px rounded inline-flex items-center gap-0.5 active:opacity-70"
+                  class="text-[9px] font-bold px-1.5 py-px rounded active:opacity-70"
                   style="color: var(--color-accent); background: var(--color-accent-soft);">
-                  📇 名片
+                  名片
                 </button>
               </div>
               <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
