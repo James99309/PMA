@@ -1,0 +1,177 @@
+{#
+  ============================================================
+  通用「加入 Wiki 知识库」分类选择弹窗 (Tailwind / Alpine)
+  ============================================================
+
+  特性:
+    - 自动从 /api/wiki/topics 拉取已有分类，渲染为 chip
+    - 管理员（is_admin=True 时模板编译期已渲染 + 新建按钮 / 输入框）可输入新 topic
+    - 提交期间 loading 态，完成后自动关闭
+
+  使用:
+    {% from 'components/tw_wiki_topic_picker.html' import render_wiki_topic_picker_modal, render_wiki_topic_picker_script %}
+    {{ render_wiki_topic_picker_modal(allow_create=true) }}
+    {{ render_wiki_topic_picker_script() }}
+
+  调用:
+    PMAWikiTopicPicker.open({
+      filename: '示例.docx',
+      onConfirm: async (topic) => {
+        // 调用后端，throw 表示失败，否则成功后弹窗自动关闭
+        await fetch('/api/wiki/raw-files/from-file-ref', { ... });
+      },
+      // 可选：直接传分类列表跳过自动 fetch
+      topics: ['销售营销', '产品技术']
+    });
+  ============================================================
+#}
+
+{% macro render_wiki_topic_picker_modal(modal_id='pmaWikiTopicPicker', allow_create=true) %}
+<div id="{{ modal_id }}"
+     x-data="__pmaWikiTopicPickerData()"
+     x-init="window.PMAWikiTopicPicker = { open: (o) => openPicker(o), close: () => closePicker() }"
+     x-show="show" x-cloak
+     class="fixed inset-0 z-[200] flex items-center justify-center p-4"
+     @keydown.escape.window="show && closePicker()">
+
+    <div class="fixed inset-0 bg-black/40" @click="closePicker()"></div>
+
+    <div @click.stop class="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden" x-transition>
+        <div class="p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-violet-600 dark:text-violet-400">auto_stories</span>
+                </div>
+                <div class="min-w-0">
+                    <h3 class="font-semibold text-slate-900 dark:text-white">{{ _('加入 Wiki 知识库') }}</h3>
+                    <p class="text-xs text-slate-500 truncate" x-text="filename"></p>
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ _('Topic（分类目录）') }}</label>
+
+                <div class="flex flex-wrap gap-1.5 mb-2" x-show="topics.length > 0">
+                    <template x-for="t in topics" :key="t">
+                        <button type="button"
+                                @click="topic = t; customTopic = false"
+                                class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                                :class="topic === t && !customTopic
+                                    ? 'bg-violet-600 text-white shadow-sm'
+                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-violet-100 dark:hover:bg-violet-900/30'">
+                            <span x-text="t"></span>
+                        </button>
+                    </template>
+                    {% if allow_create %}
+                    <button type="button"
+                            @click="customTopic = true; topic = ''; $nextTick(() => $refs.newTopicInput && $refs.newTopicInput.focus())"
+                            class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all"
+                            :class="customTopic
+                                ? 'bg-violet-600 text-white shadow-sm'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:bg-violet-100 dark:hover:bg-violet-900/30'">
+                        + {{ _('新建') }}
+                    </button>
+                    {% endif %}
+                </div>
+
+                {% if allow_create %}
+                <input type="text" x-model="topic"
+                       x-ref="newTopicInput"
+                       x-show="topics.length === 0 || customTopic"
+                       @keydown.enter="confirm()"
+                       placeholder="{{ _('输入新 topic，如 product / competitor / guide ...') }}"
+                       class="w-full px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 border-0 text-sm focus:ring-2 focus:ring-violet-500/50 placeholder:text-slate-400">
+                {% endif %}
+
+                <p x-show="topics.length === 0 && !{{ 'true' if allow_create else 'false' }}"
+                   class="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                    {{ _('暂无可用分类，请联系管理员先在 Wiki 中创建分类。') }}
+                </p>
+                <p x-show="topics.length > 0 || {{ 'true' if allow_create else 'false' }}"
+                   class="text-[11px] text-slate-400 mt-1.5">{{ _('选择分类目录。同分类的文章会自动建立交叉引用。') }}</p>
+            </div>
+
+            <div class="flex gap-2">
+                <button @click="closePicker()" :disabled="submitting"
+                        class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors disabled:opacity-50">
+                    {{ _('取消') }}
+                </button>
+                <button @click="confirm()"
+                        :disabled="!topic || !topic.trim() || submitting"
+                        class="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                    <span x-show="submitting" class="material-symbols-outlined text-base animate-spin">progress_activity</span>
+                    <span x-text="submitting ? '{{ _('提交中...') }}' : '{{ _('添加并编译') }}'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{% macro render_wiki_topic_picker_script() %}
+<script>
+function __pmaWikiTopicPickerData() {
+    return {
+        show: false,
+        filename: '',
+        topics: [],
+        topic: '',
+        customTopic: false,
+        submitting: false,
+        _onConfirm: null,
+        _topicsLoaded: false,
+
+        async openPicker(opts) {
+            opts = opts || {};
+            this.filename = opts.filename || '';
+            this.topic = '';
+            this.customTopic = false;
+            this.submitting = false;
+            this._onConfirm = opts.onConfirm || null;
+            this.show = true;
+            document.body.style.overflow = 'hidden';
+
+            if (Array.isArray(opts.topics)) {
+                this.topics = opts.topics;
+                this._topicsLoaded = true;
+            } else {
+                this.topics = [];
+                try {
+                    const r = await fetch('/api/wiki/topics');
+                    const j = await r.json();
+                    if (j.success && Array.isArray(j.data)) this.topics = j.data;
+                } catch (e) {
+                    console.warn('Wiki topics 拉取失败:', e);
+                }
+                this._topicsLoaded = true;
+            }
+        },
+
+        closePicker() {
+            if (this.submitting) return;
+            this.show = false;
+            this._onConfirm = null;
+            document.body.style.overflow = '';
+        },
+
+        async confirm() {
+            const t = (this.topic || '').trim();
+            if (!t) return;
+            if (!this._onConfirm) { this.show = false; return; }
+            this.submitting = true;
+            try {
+                await this._onConfirm(t);
+                this.show = false;
+                document.body.style.overflow = '';
+            } catch (e) {
+                console.error('Wiki ingest failed:', e);
+                // 错误已由调用方 toast 显示，保持弹窗开启允许重试
+            } finally {
+                this.submitting = false;
+            }
+        },
+    };
+}
+</script>
+{% endmacro %}

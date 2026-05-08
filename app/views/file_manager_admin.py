@@ -9,7 +9,7 @@ from app.models import User
 from app.models.file_manager import UserFileRef
 from app.services.file_admin_service import (
     list_users_with_stats, list_user_files_flat,
-    set_admin_lock, transfer_file, ingest_to_wiki,
+    set_admin_lock, transfer_file,
 )
 
 logger = logging.getLogger(__name__)
@@ -89,21 +89,9 @@ def transfer(file_ref_id):
     return jsonify({'success': ok, 'message': msg}), (200 if ok else 400)
 
 
-@file_manager_admin_bp.route('/api/file-manager/admin/files/<int:file_ref_id>/wiki-ingest', methods=['POST'])
-@login_required
-def wiki_ingest(file_ref_id):
-    deny = _require_admin()
-    if deny:
-        return deny
-    data = request.get_json(silent=True) or {}
-    topic = (data.get('topic') or '').strip()
-    scope = (data.get('scope') or 'personal').strip()
-    if not topic:
-        return jsonify({'success': False, 'message': '缺少 topic'}), 400
-    ok, result = ingest_to_wiki(file_ref_id, topic=topic, scope=scope, by_user=current_user)
-    if ok:
-        return jsonify({'success': True, 'data': {'raw_id': result}})
-    return jsonify({'success': False, 'message': str(result)}), 400
+# 已移除：管理员侧 wiki-ingest 端点
+# 现在管理员前端直接调用个人侧 /api/wiki/raw-files/from-file-ref，
+# 复用其异步编译 + 通知流程（避免双份实现 + 同步状态 bug）
 
 
 @file_manager_admin_bp.route('/api/file-manager/admin/files/<int:file_ref_id>/download', methods=['GET'])
@@ -122,4 +110,44 @@ def download(file_ref_id):
     content = FileManagerService.read_file_content_auto_decompress(lib)
     if content is None:
         abort(500)
-    return send_file(BytesIO(content), download_name=lib.original_filename, as_attachment=True)
+    inline = request.args.get('inline') in ('1', 'true', 'yes')
+    return send_file(
+        BytesIO(content),
+        download_name=lib.original_filename,
+        as_attachment=not inline,
+        mimetype=lib.mime_type or 'application/octet-stream',
+    )
+
+
+@file_manager_admin_bp.route('/api/file-manager/admin/files/<int:file_ref_id>/preview-pdf', methods=['GET'])
+@login_required
+def preview_office_as_pdf(file_ref_id):
+    """管理员侧 Office 文档转 PDF。"""
+    deny = _require_admin()
+    if deny:
+        return deny
+    ref = UserFileRef.query.get(file_ref_id)
+    if not ref:
+        abort(404)
+    lib = ref.file_library
+    if not lib:
+        abort(404)
+
+    from app.services.file_manager_service import FileManagerService
+    from app.services.office_preview_service import (
+        is_office_file, get_or_convert_pdf, hash_content,
+    )
+
+    if not is_office_file(mime_type=lib.mime_type, filename=lib.original_filename):
+        return jsonify({'success': False, 'message': '该文件不是 Office 文档'}), 400
+
+    content = FileManagerService.read_file_content_auto_decompress(lib)
+    if content is None:
+        return jsonify({'success': False, 'message': '读取文件失败'}), 500
+
+    sha = lib.sha256_hash or hash_content(content)
+    ok, result = get_or_convert_pdf(content=content, sha256=sha, filename=lib.original_filename)
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 500
+
+    return send_file(result, mimetype='application/pdf', as_attachment=False)

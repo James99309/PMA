@@ -44,10 +44,6 @@ function fileManager() {
         restoreModal: { show: false, file: null, filename: '', targetUserId: '' },
         allUsers: [],
 
-        // 预览
-        previewModal: { show: false, file: null, type: 'other' },
-        spreadsheetHtml: '',
-
         // 解压动画
         decompressModal: { show: false, fileName: '' },
 
@@ -709,55 +705,28 @@ function fileManager() {
         },
 
         // ------------------------------------------------------------------
-        // 预览
+        // 预览（统一交给公共组件 PMAFilePreview）
         // ------------------------------------------------------------------
-        async previewFile(file) {
-            const mime = file.mime_type || '';
-            let type = 'other';
-            if (mime.startsWith('image/')) type = 'image';
-            else if (mime === 'application/pdf') type = 'pdf';
-            else if (mime.startsWith('video/')) type = 'video';
-            else if (mime.includes('sheet') || mime.includes('excel') || mime === 'text/csv') type = 'spreadsheet';
-
-            if (type === 'other') {
+        previewFile(file) {
+            if (!window.PMAFilePreview) {
                 this.downloadFile(file);
                 return;
             }
-
             const fileName = this._getFileName(file);
 
-            // 归档文件 + 电子表格：先显示解压动画，fetch 完成后关闭
-            if (file.is_archived && type === 'spreadsheet') {
-                this.decompressModal = { show: true, fileName };
-            }
-
-            this.spreadsheetHtml = '';
-            this.previewModal = { show: true, file, type };
-
-            // 归档的图片/PDF/视频：显示简短解压提示（浏览器 src 加载自动处理）
-            if (file.is_archived && type !== 'spreadsheet') {
+            // 归档文件读取走解压路径，提示一下
+            if (file.is_archived) {
                 this.decompressModal = { show: true, fileName };
                 setTimeout(() => { this.decompressModal.show = false; }, 1500);
             }
 
-            if (type === 'spreadsheet') {
-                await this.loadSpreadsheet(file);
-                this.decompressModal.show = false;
-            }
-        },
-
-        async loadSpreadsheet(file) {
-            try {
-                const resp = await fetch(this._getFileUrl(file, 'preview'));
-                if (!resp.ok) throw new Error('Failed to fetch');
-                const buf = await resp.arrayBuffer();
-                const wb = XLSX.read(buf, { type: 'array' });
-                const sheet = wb.Sheets[wb.SheetNames[0]];
-                this.spreadsheetHtml = XLSX.utils.sheet_to_html(sheet);
-            } catch (e) {
-                console.error('Spreadsheet preview error:', e);
-                this.spreadsheetHtml = '<p class="text-center text-slate-500 py-8">无法预览该文件</p>';
-            }
+            window.PMAFilePreview.open({
+                filename: fileName,
+                mime_type: file.mime_type,
+                preview_url:     this._getFileUrl(file, 'preview'),
+                download_url:    this._getFileUrl(file, 'download'),
+                pdf_preview_url: this._getFileUrl(file, 'preview-pdf'),
+            });
         },
 
         // ------------------------------------------------------------------

@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     postgresql-client \
     libreoffice-writer \
+    libreoffice-impress \
     libreoffice-common \
     fonts-liberation \
     && rm -rf /var/lib/apt/lists/*

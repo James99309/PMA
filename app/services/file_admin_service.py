@@ -92,13 +92,22 @@ def list_user_files_flat(user_id: int, *, include_deleted: bool = False,
         return []
 
     lib_ids = {t[1].id for t in triples}
-    wiki_lib_ids = set(
-        r[0] for r in db.session.query(KnowledgeRawFile.file_library_id)
-                                .filter(KnowledgeRawFile.file_library_id.in_(lib_ids)).all()
-    )
+    # 与个人侧 file_wiki_status 接口语义一致：
+    #   in_wiki=True 仅在编译完成 (ingest_status='ingested') 时为 true，
+    #   pending/processing 时显示为 "编译中"
+    wiki_status_by_lib: dict[int, str] = {}
+    raw_rows = (db.session.query(KnowledgeRawFile.file_library_id, KnowledgeRawFile.ingest_status)
+                          .filter(KnowledgeRawFile.file_library_id.in_(lib_ids))
+                          .all()) if lib_ids else []
+    for fl_id, status in raw_rows:
+        # 同一 file_library 可能有多条 raw_file，只要任一已 ingested 视为 in_wiki
+        prev = wiki_status_by_lib.get(fl_id)
+        if status == 'ingested' or prev != 'ingested':
+            wiki_status_by_lib[fl_id] = status
 
     rows = []
     for ref, lib, folder in triples:
+        wiki_status = wiki_status_by_lib.get(lib.id)
         rows.append({
             'file_ref_id': ref.id,
             'file_library_id': lib.id,
@@ -112,7 +121,8 @@ def list_user_files_flat(user_id: int, *, include_deleted: bool = False,
             'is_deleted': bool(ref.is_deleted),
             'is_admin_locked': bool(ref.is_admin_locked),
             'admin_locked_at': ref.admin_locked_at.isoformat() if ref.admin_locked_at else None,
-            'is_in_wiki': lib.id in wiki_lib_ids,
+            'is_in_wiki': wiki_status == 'ingested',
+            'wiki_status': wiki_status,  # None / pending / processing / ingested / failed
         })
     return rows
 
@@ -175,56 +185,6 @@ def transfer_file(file_ref_id: int, *, to_user_id: int, to_folder_id: int | None
     return True, '已转移'
 
 
-def ingest_to_wiki(file_ref_id: int, *, topic: str, scope: str, by_user) -> tuple[bool, object]:
-    """把 file_ref 对应的 file_library 文件登记为 wiki raw file（不立即编译）。
-    返回 (True, raw_id) 或 (False, error_msg)。
-    """
-    from app.services.file_manager_service import FileManagerService
-    from app.models.knowledge import KnowledgeRawFile
-    from app.services.wiki import storage as wiki_storage
-    from app.services.wiki.paths import get_wiki_root
-
-    ref = UserFileRef.query.get(file_ref_id)
-    if ref is None:
-        return False, '文件不存在'
-
-    lib = ref.file_library
-    if lib is None:
-        return False, '文件库记录缺失'
-
-    # 校验 topic
-    try:
-        wiki_storage.validate_topic(topic)
-    except wiki_storage.WikiPathError as e:
-        return False, str(e)
-
-    if scope not in ('personal', 'department', 'company', 'system'):
-        return False, '非法 scope'
-
-    # 读字节
-    content = FileManagerService.read_file_content_auto_decompress(lib)
-    if content is None:
-        return False, '无法读取文件内容'
-
-    # 落 raw 目录
-    safe_name = wiki_storage.dated_filename(lib.original_filename)
-    raw_path = wiki_storage.save_raw_file(topic, safe_name, content)
-
-    # 体量校验
-    abs_path = get_wiki_root() / raw_path
-    reason = wiki_storage.validate_raw_file_for_wiki(abs_path)
-    if reason:
-        try:
-            abs_path.unlink(missing_ok=True)
-        except Exception:
-            pass
-        return False, reason
-
-    raw = KnowledgeRawFile(
-        file_library_id=lib.id, topic=topic, raw_path=raw_path,
-        title=lib.original_filename, added_by=by_user.id,
-        scope=scope, owner_id=by_user.id,
-        owner_department=getattr(by_user, 'department', None),
-    )
-    db.session.add(raw); db.session.commit()
-    return True, raw.id
+# 已移除 ingest_to_wiki —— 管理员前端现在直接调用个人侧
+# /api/wiki/raw-files/from-file-ref，复用其异步编译 + 通知逻辑，
+# 避免双份实现造成的状态/编译触发不一致。

@@ -1,4 +1,6 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_file_preview_modal.html' import render_file_preview_modal, render_file_preview_script with context %}
+{% from 'components/tw_wiki_topic_picker.html' import render_wiki_topic_picker_modal, render_wiki_topic_picker_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -18,6 +20,7 @@
     </noscript>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script src="{{ url_for('static', filename='vendor/xlsx/xlsx.full.min.js') }}"></script>
     <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
     <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
     <script>
@@ -78,21 +81,26 @@
     <!-- 右侧：文件平铺 -->
     <main class="flex-1 flex flex-col overflow-hidden bg-white dark:bg-slate-900">
       <!-- 工具条 -->
-      <div class="flex items-center gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+      <div class="flex items-center gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
         <h1 class="text-base font-semibold text-slate-900 dark:text-white" x-text="selectedUserName || '{{ _('请选择用户') }}'"></h1>
         <span class="text-xs text-slate-500" x-text="selectedUserId ? '(' + files.length + ' 个文件)' : ''"></span>
-        <div class="ml-auto flex items-center gap-2">
-          <input x-model="fileSearch" @input.debounce.300ms="loadFiles()"
-                 type="text" placeholder="{{ _('搜索文件') }}"
-                 class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
-          <select x-model="fileType" @change="loadFiles()"
-                  class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
-            <option value="">{{ _('全部类型') }}</option>
-            <option value="pdf">PDF</option>
-            <option value="office">Office</option>
-            <option value="image">{{ _('图片') }}</option>
-            <option value="video">{{ _('视频') }}</option>
-          </select>
+        <input x-model="fileSearch" @input.debounce.300ms="loadFiles()"
+               type="text" placeholder="{{ _('搜索文件') }}"
+               class="ml-2 px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent text-slate-900 dark:text-white placeholder-slate-400 w-48">
+
+        <!-- 文件类型切换：4 个图标按钮 -->
+        <div class="flex items-center gap-1 ml-1">
+          <template x-for="t in fileTypeOptions" :key="t.value">
+            <button @click="toggleFileType(t.value)"
+                    :title="t.label"
+                    :class="fileType === t.value ? t.activeClass : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'"
+                    class="p-1.5 rounded transition-colors">
+              <span class="material-symbols-outlined text-base" x-text="t.icon"></span>
+            </button>
+          </template>
+        </div>
+
+        <div class="ml-auto">
           <select x-model="sort" @change="loadFiles()"
                   class="px-2 py-1 text-xs border border-slate-200 dark:border-slate-700 rounded bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
             <option value="recent">{{ _('最新') }}</option>
@@ -114,20 +122,29 @@
 
         <ul class="divide-y divide-slate-100 dark:divide-slate-800">
           <template x-for="f in files" :key="f.file_ref_id">
-            <li class="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 group">
+            <li class="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 group"
+                @contextmenu.prevent="openContextMenu($event, f)">
               <div class="flex items-start gap-3">
-                <span class="material-symbols-outlined text-2xl text-slate-400 dark:text-slate-500 mt-0.5" x-text="iconFor(f)"></span>
+                <span class="material-symbols-outlined text-2xl mt-0.5" :class="getFileIconClass(f)" x-text="getFileIcon(f)"></span>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="font-medium text-sm truncate text-slate-900 dark:text-white" x-text="f.original_filename"></span>
                     <span x-show="f.is_admin_locked"
-                          class="px-1.5 py-0.5 text-[10px] rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                      🔒 {{ _('已锁定') }}
+                          class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                          title="{{ _('已锁定') }}">
+                      <span class="material-symbols-outlined text-[10px] mr-0.5">lock</span>{{ _('锁定') }}
                     </span>
                     <span x-show="f.is_in_wiki"
-                          class="px-1.5 py-0.5 text-[10px] rounded bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
-                      📚 {{ _('已入知识库') }}
+                          class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400"
+                          title="{{ _('已在 Wiki 知识库') }}">Wiki</span>
+                    <span x-show="!f.is_in_wiki && (f.wiki_status === 'pending' || f.wiki_status === 'processing')"
+                          class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400"
+                          :title="'{{ _('Wiki 编译中') }}'">
+                      <span class="material-symbols-outlined text-[10px] mr-0.5 animate-spin">progress_activity</span>{{ _('编译中') }}
                     </span>
+                    <span x-show="!f.is_in_wiki && f.wiki_status === 'failed'"
+                          class="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400"
+                          :title="'{{ _('Wiki 编译失败') }}'">{{ _('失败') }}</span>
                   </div>
                   <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     <span class="material-symbols-outlined text-[12px] align-middle">folder</span>
@@ -138,32 +155,65 @@
                     <span x-text="formatDate(f.created_at)"></span>
                   </div>
                 </div>
-                <!-- 操作按钮：默认隐藏，hover 显示 -->
-                <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 flex-shrink-0">
-                  <button @click="downloadFile(f)" :title="'{{ _('下载') }}'"
-                          class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700">
-                    <span class="material-symbols-outlined text-sm text-slate-600 dark:text-slate-300">download</span>
-                  </button>
-                  <button @click="openWikiModal(f)" :title="'{{ _('转知识库') }}'"
-                          class="p-1.5 rounded hover:bg-violet-100 dark:hover:bg-violet-900/30">
-                    <span class="material-symbols-outlined text-sm text-violet-600 dark:text-violet-400">menu_book</span>
-                  </button>
-                  <button @click="openTransferModal(f)" :title="'{{ _('转移') }}'"
-                          class="p-1.5 rounded hover:bg-blue-100 dark:hover:bg-blue-900/30">
-                    <span class="material-symbols-outlined text-sm text-blue-600 dark:text-blue-400">forward</span>
-                  </button>
-                  <button @click="toggleLock(f)" :title="f.is_admin_locked ? '{{ _('取消锁定') }}' : '{{ _('锁定') }}'"
-                          class="p-1.5 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30">
-                    <span class="material-symbols-outlined text-sm" :class="f.is_admin_locked ? 'text-amber-600 dark:text-amber-400' : 'text-slate-600 dark:text-slate-300'"
-                          x-text="f.is_admin_locked ? 'lock_open' : 'lock'"></span>
-                  </button>
-                </div>
+                <!-- 操作按钮：单击 ... 弹出菜单 -->
+                <button @click.stop="openContextMenuFromButton($event, f)"
+                        :title="'{{ _('更多操作') }}'"
+                        class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 flex-shrink-0">
+                  <span class="material-symbols-outlined text-base text-slate-500 dark:text-slate-400">more_horiz</span>
+                </button>
               </div>
             </li>
           </template>
         </ul>
       </div>
     </main>
+
+    <!-- ============ 右键 / 更多操作 弹出菜单 ============ -->
+    <div x-show="contextMenu.show" x-transition x-cloak
+         @click.away="contextMenu.show = false"
+         :style="`position: fixed; left: ${contextMenu.x}px; top: ${contextMenu.y}px; z-index: 100;`"
+         class="bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 py-1 min-w-[180px]">
+      <template x-if="contextMenu.item">
+        <div>
+          <button @click="downloadFile(contextMenu.item); contextMenu.show = false"
+                  class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+            <span class="material-symbols-outlined text-base">download</span> {{ _('下载') }}
+          </button>
+          <button @click="previewFile(contextMenu.item); contextMenu.show = false"
+                  class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+            <span class="material-symbols-outlined text-base">visibility</span> {{ _('预览') }}
+          </button>
+          <hr class="my-1 border-slate-200 dark:border-slate-700">
+          <button @click="openTransferModal(contextMenu.item); contextMenu.show = false"
+                  class="flex items-center gap-2 w-full px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
+            <span class="material-symbols-outlined text-base">drive_file_move</span> {{ _('转移') }}
+          </button>
+          <button @click="toggleLock(contextMenu.item); contextMenu.show = false"
+                  class="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                  :class="contextMenu.item.is_admin_locked ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-300'">
+            <span class="material-symbols-outlined text-base" x-text="contextMenu.item.is_admin_locked ? 'lock_open' : 'lock'"></span>
+            <span x-text="contextMenu.item.is_admin_locked ? '{{ _('取消锁定') }}' : '{{ _('锁定') }}'"></span>
+          </button>
+          <hr class="my-1 border-slate-200 dark:border-slate-700">
+          <template x-if="!contextMenu.item.is_in_wiki && contextMenu.item.wiki_status !== 'pending' && contextMenu.item.wiki_status !== 'processing'">
+            <button @click="openWikiModal(contextMenu.item); contextMenu.show = false"
+                    class="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20">
+              <span class="material-symbols-outlined text-base">auto_stories</span> {{ _('加入 Wiki 知识库') }}
+            </button>
+          </template>
+          <template x-if="!contextMenu.item.is_in_wiki && (contextMenu.item.wiki_status === 'pending' || contextMenu.item.wiki_status === 'processing')">
+            <div class="flex items-center gap-2 px-3 py-2 text-sm text-amber-600 dark:text-amber-400">
+              <span class="material-symbols-outlined text-base animate-spin">progress_activity</span> {{ _('Wiki 编译中...') }}
+            </div>
+          </template>
+          <template x-if="contextMenu.item.is_in_wiki">
+            <div class="flex items-center gap-2 px-3 py-2 text-sm text-green-600 dark:text-green-400">
+              <span class="material-symbols-outlined text-base">check_circle</span> {{ _('已在 Wiki 知识库') }}
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
 
     <!-- 转移弹层 -->
     <div x-show="transferModal.open" x-cloak
@@ -186,30 +236,6 @@
       </div>
     </div>
 
-    <!-- 转知识库弹层 -->
-    <div x-show="wikiModal.open" x-cloak
-         class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" @click.self="wikiModal.open = false">
-      <div class="bg-white dark:bg-slate-800 rounded-lg p-6 w-96 max-w-full">
-        <h3 class="font-semibold mb-3">{{ _('转入 Wiki 知识库') }}</h3>
-        <p class="text-xs text-slate-500 mb-3" x-text="'文件: ' + (wikiModal.file?.original_filename || '')"></p>
-        <label class="block text-xs mb-1">{{ _('Topic（分类目录）') }}</label>
-        <input x-model="wikiModal.topic" type="text" placeholder="例如: product / sales / HR"
-               class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded mb-3 bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
-        <label class="block text-xs mb-1">{{ _('权限范围') }}</label>
-        <select x-model="wikiModal.scope"
-                class="w-full px-2 py-1.5 text-sm border border-slate-300 dark:border-slate-600 rounded mb-3 bg-transparent text-slate-900 dark:text-white placeholder-slate-400">
-          <option value="personal">{{ _('个人') }}</option>
-          <option value="department">{{ _('部门') }}</option>
-          <option value="company">{{ _('公司') }}</option>
-          <option value="system">{{ _('系统') }}</option>
-        </select>
-        <div class="flex justify-end gap-2">
-          <button @click="wikiModal.open = false" class="px-3 py-1.5 text-xs border rounded">{{ _('取消') }}</button>
-          <button @click="confirmWiki()" :disabled="!wikiModal.topic"
-                  class="px-3 py-1.5 text-xs bg-violet-600 text-white rounded disabled:opacity-50">{{ _('确认转入') }}</button>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script>
@@ -223,9 +249,53 @@
       fileType: '',
       sort: 'recent',
       transferModal: { open: false, file: null, targetUserId: '' },
-      wikiModal: { open: false, file: null, topic: '', scope: 'personal' },
+      contextMenu: { show: false, x: 0, y: 0, item: null },
+      fileTypeOptions: [
+        { value: 'pdf',    icon: 'picture_as_pdf', label: 'PDF',                  activeClass: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' },
+        { value: 'office', icon: 'description',    label: 'Office',               activeClass: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' },
+        { value: 'image',  icon: 'image',          label: '{{ _('图片') }}',     activeClass: 'bg-blue-100 text-blue-500 dark:bg-blue-900/30 dark:text-blue-400' },
+        { value: 'video',  icon: 'videocam',       label: '{{ _('视频') }}',     activeClass: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' },
+      ],
 
       async init() { await this.loadUsers(); },
+
+      toggleFileType(v) {
+        this.fileType = (this.fileType === v) ? '' : v;
+        this.loadFiles();
+      },
+
+      previewFile(f) {
+        if (!window.PMAFilePreview) {
+          window.open(`/api/file-manager/admin/files/${f.file_ref_id}/download?inline=1`, '_blank');
+          return;
+        }
+        window.PMAFilePreview.open({
+          filename:        f.original_filename,
+          mime_type:       f.mime_type,
+          preview_url:     `/api/file-manager/admin/files/${f.file_ref_id}/download?inline=1`,
+          download_url:    `/api/file-manager/admin/files/${f.file_ref_id}/download`,
+          pdf_preview_url: `/api/file-manager/admin/files/${f.file_ref_id}/preview-pdf`,
+        });
+      },
+
+      openContextMenu(ev, f) {
+        this.contextMenu = {
+          show: true,
+          x: Math.min(ev.clientX, window.innerWidth - 200),
+          y: Math.min(ev.clientY, window.innerHeight - 240),
+          item: f,
+        };
+      },
+
+      openContextMenuFromButton(ev, f) {
+        const rect = ev.currentTarget.getBoundingClientRect();
+        this.contextMenu = {
+          show: true,
+          x: Math.min(rect.right - 180, window.innerWidth - 200),
+          y: Math.min(rect.bottom + 4, window.innerHeight - 240),
+          item: f,
+        };
+      },
 
       async loadUsers() {
         const r = await fetch('/api/file-manager/admin/users');
@@ -261,14 +331,28 @@
         if (j.success) this.files = j.data;
       },
 
-      iconFor(f) {
-        const ext = (f.original_filename || '').split('.').pop().toLowerCase();
-        if (ext === 'pdf') return 'picture_as_pdf';
-        if (['doc','docx'].includes(ext)) return 'description';
-        if (['xls','xlsx'].includes(ext)) return 'table_chart';
-        if (['png','jpg','jpeg','gif','webp'].includes(ext)) return 'image';
-        if (['mp4','mov','avi'].includes(ext)) return 'movie';
+      // 与个人文件夹视图（file-manager.js）保持一致的图标 & 配色逻辑
+      getFileIcon(file) {
+        const mime = file.mime_type || '';
+        if (mime.startsWith('image/')) return 'image';
+        if (mime === 'application/pdf') return 'picture_as_pdf';
+        if (mime.startsWith('video/')) return 'videocam';
+        if (mime.includes('word') || mime.includes('document')) return 'description';
+        if (mime.includes('sheet') || mime.includes('excel') || mime === 'text/csv') return 'table_chart';
+        if (mime.includes('presentation') || mime.includes('powerpoint')) return 'slideshow';
+        if (mime.includes('zip') || mime.includes('rar') || mime.includes('7z')) return 'folder_zip';
         return 'insert_drive_file';
+      },
+
+      getFileIconClass(file) {
+        const mime = file.mime_type || '';
+        if (mime.startsWith('image/')) return 'text-blue-500';
+        if (mime === 'application/pdf') return 'text-red-500';
+        if (mime.startsWith('video/')) return 'text-purple-500';
+        if (mime.includes('word') || mime.includes('document')) return 'text-blue-600';
+        if (mime.includes('sheet') || mime.includes('excel') || mime === 'text/csv') return 'text-green-600';
+        if (mime.includes('presentation')) return 'text-orange-500';
+        return 'text-slate-400';
       },
 
       formatSize(b) {
@@ -318,28 +402,48 @@
       },
 
       openWikiModal(f) {
-        this.wikiModal = { open: true, file: f, topic: '', scope: 'personal' };
-      },
-
-      async confirmWiki() {
-        if (!this.wikiModal.topic) return;
-        const r = await fetch(`/api/file-manager/admin/files/${this.wikiModal.file.file_ref_id}/wiki-ingest`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topic: this.wikiModal.topic, scope: this.wikiModal.scope }),
+        if (!window.PMAWikiTopicPicker) {
+          alert('Wiki 组件未加载');
+          return;
+        }
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        window.PMAWikiTopicPicker.open({
+          filename: f.original_filename,
+          // 复用个人端点 —— 内部已含异步编译 + 完成通知，避免与个人侧逻辑分叉
+          onConfirm: async (topic) => {
+            const r = await fetch('/api/wiki/raw-files/from-file-ref', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+              body: JSON.stringify({
+                user_file_ref_id: f.file_ref_id,
+                topic,
+                title: f.original_filename,
+              }),
+            });
+            const j = await r.json();
+            if (!j.success) {
+              alert(j.message || '加入失败');
+              throw new Error(j.message || 'failed');
+            }
+            // 标记为编译中（pending），下次刷新列表时后端 wiki_status 字段会同步真实状态
+            f.wiki_status = 'pending';
+            // 不要立即设为 is_in_wiki=true：编译中不算"已在 Wiki"
+          },
         });
-        const j = await r.json();
-        if (j.success) {
-          this.wikiModal.open = false;
-          this.wikiModal.file.is_in_wiki = true;
-          alert('已加入知识库');
-        } else alert(j.message || '加入失败');
       },
     };
   }
   </script>
+
+  {# ============ 文件预览模态框（公共组件） ============ #}
+  {{ render_file_preview_modal() }}
+
+  {# ============ 加入 Wiki 弹窗（公共组件） ============ #}
+  {{ render_wiki_topic_picker_modal(allow_create=current_user.role == 'admin') }}
   {% endif %}
 {% endcall %}
 {{ render_tw_layout_script() }}
+{{ render_file_preview_script() }}
+{{ render_wiki_topic_picker_script() }}
 </body>
 </html>

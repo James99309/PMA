@@ -1,6 +1,7 @@
 {% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
 {% from 'components/tw_confirm_modal.html' import tw_confirm_modal, tw_confirm_modal_script with context %}
 {% from 'components/tw_share_to_chat_modal.html' import render_share_to_chat_modal, render_share_to_chat_script with context %}
+{% from 'components/tw_file_preview_modal.html' import render_file_preview_modal, render_file_preview_script with context %}
 <!DOCTYPE html>
 <html lang="{{ session.get('language', 'zh') }}">
 
@@ -837,62 +838,8 @@
             </div>
         </div>
 
-        {# ============ 文件预览模态框 ============ #}
-        <div x-show="previewModal.show" class="fixed inset-0 z-50 flex items-center justify-center" x-cloak>
-            <div class="fixed inset-0 bg-black/70" @click="previewModal.show = false; spreadsheetHtml = ''"></div>
-            <div class="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-[90vw] max-w-4xl max-h-[90vh] flex flex-col" x-transition>
-                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
-                    <h3 class="text-base font-medium text-slate-900 dark:text-white truncate" x-text="_getFileName(previewModal.file)"></h3>
-                    <div class="flex items-center gap-2">
-                        <a :href="previewModal.file ? _getFileUrl(previewModal.file, 'download') : '#'" download
-                           class="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">
-                            <span class="material-symbols-outlined text-base">download</span>
-                            {{ _('下载') }}
-                        </a>
-                        <button @click="previewModal.show = false; spreadsheetHtml = ''" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700">
-                            <span class="material-symbols-outlined">close</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="flex-1 overflow-auto p-4 flex items-center justify-center min-h-[300px]">
-                    {# 图片预览 #}
-                    <img x-show="previewModal.type === 'image' && previewModal.file"
-                         :src="previewModal.file ? _getFileUrl(previewModal.file, 'preview') : ''"
-                         class="max-w-full max-h-[70vh] object-contain rounded-lg">
-                    {# PDF预览 #}
-                    <iframe x-show="previewModal.type === 'pdf' && previewModal.file"
-                            :src="previewModal.file ? _getFileUrl(previewModal.file, 'preview') : ''"
-                            class="w-full h-[70vh] rounded-lg border-0"></iframe>
-                    {# 视频预览 #}
-                    <video x-show="previewModal.type === 'video' && previewModal.file"
-                           :src="previewModal.file ? _getFileUrl(previewModal.file, 'preview') : ''"
-                           controls class="max-w-full max-h-[70vh] rounded-lg">
-                    </video>
-                    {# 电子表格预览 #}
-                    <div x-show="previewModal.type === 'spreadsheet'" class="w-full h-[70vh] overflow-auto">
-                        <div x-show="!spreadsheetHtml" class="flex items-center justify-center h-full">
-                            <svg class="animate-spin h-5 w-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                            </svg>
-                            <span class="ml-2 text-sm text-slate-500">{{ _('加载中') }}...</span>
-                        </div>
-                        <div x-show="spreadsheetHtml" x-html="spreadsheetHtml"
-                             class="spreadsheet-preview"></div>
-                    </div>
-                    {# 其他类型 #}
-                    <div x-show="previewModal.type === 'other'" class="text-center text-slate-500">
-                        <span class="material-symbols-outlined text-5xl mb-3">description</span>
-                        <p class="text-sm">{{ _('该文件类型不支持预览') }}</p>
-                        <a :href="previewModal.file ? _getFileUrl(previewModal.file, 'download') : '#'" download
-                           class="inline-flex items-center gap-1 mt-3 px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90">
-                            <span class="material-symbols-outlined text-base">download</span>
-                            {{ _('下载文件') }}
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {# ============ 文件预览模态框（公共组件） ============ #}
+        {{ render_file_preview_modal() }}
 
         {# ============ 确认模态框（通用） ============ #}
         {{ tw_confirm_modal(
@@ -1304,6 +1251,7 @@
 {{ render_tw_layout_script() }}
 {{ tw_confirm_modal_script() }}
 {{ render_share_to_chat_script() }}
+{{ render_file_preview_script() }}
 <script src="{{ url_for('static', filename='js/file-manager.js') }}"></script>
 <script>
     // 传递初始文件夹ID和管理员标志

@@ -411,6 +411,38 @@ def preview_file(file_id):
     abort(404)
 
 
+@file_manager_bp.route('/api/files/<int:file_id>/preview-pdf', methods=['GET'])
+@login_required
+def preview_file_as_pdf(file_id):
+    """Office 文档（doc/docx/ppt/pptx）转 PDF 后返回。"""
+    from flask import send_file
+    from app.models.file_manager import UserFileRef
+    from app.services.office_preview_service import (
+        is_office_file, get_or_convert_pdf, hash_content,
+    )
+
+    ref = UserFileRef.query.filter_by(id=file_id, user_id=current_user.id).first()
+    if not ref:
+        abort(404)
+    lib = ref.file_library
+    if not lib:
+        abort(404)
+
+    if not is_office_file(mime_type=lib.mime_type, filename=lib.original_filename):
+        return jsonify({'success': False, 'message': '该文件不是 Office 文档'}), 400
+
+    content = _read_file_content(lib)
+    if not content:
+        return jsonify({'success': False, 'message': '读取文件失败'}), 500
+
+    sha = lib.sha256_hash or hash_content(content)
+    ok, result = get_or_convert_pdf(content=content, sha256=sha, filename=lib.original_filename)
+    if not ok:
+        return jsonify({'success': False, 'message': result}), 500
+
+    return send_file(result, mimetype='application/pdf', as_attachment=False)
+
+
 # ------------------------------------------------------------------
 # 管理员 — 归档管理
 # ------------------------------------------------------------------

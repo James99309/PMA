@@ -894,18 +894,22 @@ def _find_promotion_reviewer(to_scope: str, requester) -> int | None:
     """
     if to_scope == 'department' and requester.department:
         # 找本部门经理
+        # 注意：User.is_active 是 @property（admin 永远 True），
+        # 实际列名是 _is_active（见 app/models/user.py:36），SQL 必须用 _is_active
         manager = User.query.filter_by(
             department=requester.department,
             is_department_manager=True,
-            is_active=True,
-        ).filter(User.id != requester.id).first()
+        ).filter(
+            User._is_active == True,
+            User.id != requester.id,
+        ).first()
         if manager:
             return manager.id
 
     # company/system 或找不到部门经理 → 找 admin/ceo
     admin = User.query.filter(
         User.role.in_(['admin', 'ceo']),
-        User.is_active == True,
+        User._is_active == True,
         User.id != requester.id,
     ).first()
     if admin:

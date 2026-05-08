@@ -889,11 +889,12 @@ def list_users():
     user = g.current_user
     try:
         # 厂家管理员可看全部；其他人只看同公司
+        # 注意：User.is_active 是 @property，SQL 查询必须用实际列 User._is_active
         if user.is_vendor_user() and user.role == 'admin':
-            users = User.query.filter(User.is_active == True).order_by(User.real_name).all()
+            users = User.query.filter(User._is_active == True).order_by(User.real_name).all()
         else:
             users = User.query.filter(
-                User.is_active == True,
+                User._is_active == True,
                 User.company_name == user.company_name,
             ).order_by(User.real_name).all()
 
