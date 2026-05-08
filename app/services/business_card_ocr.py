@@ -39,7 +39,7 @@ def _get_client():
     return _client
 
 
-SYSTEM_PROMPT = """You are a business card OCR engine.
+_BASE_PROMPT = """You are a business card OCR engine.
 Extract fields from the given business card image and return ONLY a JSON object.
 Do NOT include explanation, markdown, or code fences. Output raw JSON only.
 
@@ -71,6 +71,39 @@ Rules:
   0.7-0.9 for slightly blurry/handwritten, <0.7 for guessed."""
 
 
+_LANG_RULE_ZH = """
+- BILINGUAL CARDS: If a field is printed in BOTH Chinese AND English on the card,
+  ALWAYS return the Chinese version as the primary value. Examples:
+    "業務副理 / Sales Deputy Manager"  → return "業務副理"
+    "採購部 / Purchasing Dept."         → return "採購部"
+- COMPANY NAME: If both a Chinese employer name (e.g. 駿通公司) and an English
+  brand name (e.g. MOTOROLA SOLUTIONS) appear, prefer the Chinese employer name.
+  The brand may be a partner/affiliation, not the actual employer.
+- If only English exists for a field (no Chinese version printed), use the English."""
+
+
+_LANG_RULE_EN = """
+- BILINGUAL CARDS: If a field is printed in BOTH Chinese AND English on the card,
+  ALWAYS return the English version as the primary value. Examples:
+    "業務副理 / Sales Deputy Manager"  → return "Sales Deputy Manager"
+    "採購部 / Purchasing Dept."         → return "Purchasing Dept."
+- If only Chinese exists for a field (no English version printed), use the Chinese."""
+
+
+def _build_prompt(prefer_lang: str) -> str:
+    rule = _LANG_RULE_EN if prefer_lang == 'en' else _LANG_RULE_ZH
+    return _BASE_PROMPT + rule
+
+
+def _detect_prefer_lang() -> str:
+    """按 PMA_DB_TYPE 决定双语名片优先返回中文还是英文。
+    sp8d (中国) → zh; ovs (新加坡) → en; 其他 fallback zh
+    跟 chat_service.get_messages 同款 db-type fallback 模式。
+    """
+    db_type = os.environ.get('PMA_DB_TYPE') or os.environ.get('SUPABASE_DB_TYPE', '')
+    return 'en' if db_type == 'ovs' else 'zh'
+
+
 def _detect_image_type(blob: bytes) -> str:
     """简单嗅探: jpg / png / webp"""
     if blob.startswith(b'\xff\xd8'):
@@ -99,12 +132,14 @@ def extract_card(image_blob: bytes) -> dict:
     media_type = _detect_image_type(image_blob)
     image_b64 = base64.standard_b64encode(image_blob).decode('ascii')
     model = os.environ.get('CARD_OCR_MODEL', 'claude-haiku-4-5-20251001')
+    prefer_lang = _detect_prefer_lang()
+    system_prompt = _build_prompt(prefer_lang)
 
     try:
         msg = _get_client().messages.create(
             model=model,
             max_tokens=1024,
-            system=SYSTEM_PROMPT,
+            system=system_prompt,
             messages=[{
                 'role': 'user',
                 'content': [
