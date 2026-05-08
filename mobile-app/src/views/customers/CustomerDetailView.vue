@@ -24,9 +24,10 @@ const showAddContactChooser = ref(false)   // + 添加 → 选 "拍名片" / "�
 function pickScanContact() {
   showAddContactChooser.value = false
   // 带 attachTo 给扫描页, 让其跳过新建客户, 直接给该客户加联系人
+  // 注: 后端 mobile_customer_detail 用 _company_summary 返回 'name' (不是 company_name)
   router.push({
     path: '/customers/scan',
-    query: { attachTo: company.value.id, attachToName: company.value.company_name },
+    query: { attachTo: company.value.id, attachToName: company.value.name || '' },
   })
 }
 function pickManualContact() {

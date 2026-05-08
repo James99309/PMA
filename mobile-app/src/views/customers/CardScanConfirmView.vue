@@ -68,7 +68,12 @@ function fieldWarn(key) {
   return c != null && c < 0.7
 }
 
-const canSave = computed(() => form.value.name.trim() && form.value.company.trim())
+const canSave = computed(() => {
+  if (!form.value.name.trim()) return false
+  // attachTo 模式: 公司用 scanStore.attachToCompanyId 决定, 不靠 form.company 判断
+  if (isAttachMode.value) return true
+  return !!form.value.company.trim()
+})
 
 async function tryStartSave() {
   error.value = ''
