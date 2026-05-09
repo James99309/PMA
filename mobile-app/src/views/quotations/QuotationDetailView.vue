@@ -8,11 +8,12 @@ const router = useRouter()
 const quotation = ref(null)
 const loading = ref(true)
 
-// 自定义 pinch-zoom (iOS WKWebView 改 viewport 不生效, 只能 JS 实现)
+// 自定义 pinch-zoom — 必须用 addEventListener + passive:false 才能 preventDefault
+// (Vue @touchstart 在某些 iOS WebView 是 passive 默认, preventDefault 静默失败)
 const wrapRef = ref(null)
 const iframeRef = ref(null)
 const scale = ref(1)
-const contentHeight = ref(800)  // iframe 内容真实高度, onLoad 时拿到
+const contentHeight = ref(800)
 let lastDistance = 0
 let lastScale = 1
 
@@ -22,7 +23,7 @@ function dist(touches) {
   return Math.sqrt(dx * dx + dy * dy)
 }
 
-function onTouchStart(e) {
+function _onTouchStart(e) {
   if (e.touches.length === 2) {
     lastDistance = dist(e.touches)
     lastScale = scale.value
@@ -30,7 +31,7 @@ function onTouchStart(e) {
   }
 }
 
-function onTouchMove(e) {
+function _onTouchMove(e) {
   if (e.touches.length === 2 && lastDistance > 0) {
     const d = dist(e.touches)
     const next = Math.max(0.5, Math.min(3, lastScale * (d / lastDistance)))
@@ -39,7 +40,7 @@ function onTouchMove(e) {
   }
 }
 
-function onTouchEnd(e) {
+function _onTouchEnd(e) {
   if (e.touches.length < 2) lastDistance = 0
 }
 
@@ -52,6 +53,24 @@ function onClick(e) {
     e.preventDefault()
   }
   lastTap = now
+}
+
+// 显式注册 passive:false 的 touch listeners
+function attachTouchHandlers() {
+  const el = wrapRef.value
+  if (!el) return
+  el.addEventListener('touchstart', _onTouchStart, { passive: false })
+  el.addEventListener('touchmove', _onTouchMove, { passive: false })
+  el.addEventListener('touchend', _onTouchEnd, { passive: true })
+  el.addEventListener('touchcancel', _onTouchEnd, { passive: true })
+}
+function detachTouchHandlers() {
+  const el = wrapRef.value
+  if (!el) return
+  el.removeEventListener('touchstart', _onTouchStart)
+  el.removeEventListener('touchmove', _onTouchMove)
+  el.removeEventListener('touchend', _onTouchEnd)
+  el.removeEventListener('touchcancel', _onTouchEnd)
 }
 
 // iframe 加载完后取真实内容高度, 让外层 sized wrapper 撑足
@@ -71,7 +90,11 @@ function onIframeLoad() {
   })
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  nextTick(attachTouchHandlers)
+})
+onBeforeUnmount(detachTouchHandlers)
 
 async function load() {
   try {
@@ -253,13 +276,11 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
     <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"/>
   </div>
 
-  <!-- 自定义 pinch-zoom: 外容器 overflow 滚动 + sized wrapper 撑出 scaled 区域 + iframe transform -->
+  <!-- 自定义 pinch-zoom: 外容器 overflow 滚动 + sized wrapper 撑出 scaled 区域 + iframe transform
+       touch handlers 在 onMounted 用 addEventListener+passive:false 绑定(Vue @touchstart 在
+       某些 iOS WebView 是 passive 默认, preventDefault 静默失败) -->
   <div v-else-if="quotation"
        ref="wrapRef"
-       @touchstart="onTouchStart"
-       @touchmove="onTouchMove"
-       @touchend.passive="onTouchEnd"
-       @touchcancel.passive="onTouchEnd"
        @click="onClick"
        :style="{
          position: 'fixed',
@@ -276,6 +297,9 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
       height: (contentHeight * scale) + 'px',
       position: 'relative',
     }">
+      <!-- pointer-events: none 让 touch 穿透到外层 wrapper(否则 iframe 自己捕获 touch
+           导致 pinch 手势无法被父级检测). 副作用: 不能选/复制 iframe 内容, 但报价单
+           是只读预览, 可接受. -->
       <iframe ref="iframeRef"
               :srcdoc="iframeHTML"
               scrolling="no"
@@ -288,6 +312,7 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
                 transform: `scale(${scale})`,
                 transformOrigin: '0 0',
                 transition: lastDistance === 0 ? 'transform 0.2s ease-out' : 'none',
+                pointerEvents: 'none',
               }" />
     </div>
   </div>
