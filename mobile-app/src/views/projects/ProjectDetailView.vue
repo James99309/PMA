@@ -389,8 +389,7 @@ async function confirmStageUpdate() {
 async function submitAuthRequest() {
   submittingAuth.value = true
   try {
-    const res = await client.post(`/mobile/projects/${route.params.id}/auth-request`, {})
-    alert(res.data.message || '审批已提交')
+    await client.post(`/mobile/projects/${route.params.id}/auth-request`, {})
     showAuthModal.value = false
     await load()
   } catch (e) {
