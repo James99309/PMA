@@ -242,6 +242,96 @@ def mobile_approval_action(instance_id):
         return api_response(success=False, code=500, message=f"操作失败: {str(e)[:80]}")
 
 
+@api_v1_bp.route('/mobile/approval/<int:instance_id>/edit-line/<int:line_id>', methods=['PATCH'])
+@jwt_required()
+def mobile_approval_edit_line(instance_id, line_id):
+    """审批人编辑报销明细字段(仅当前步骤 editable_fields 白名单内字段).
+
+    用例: 财务审核步骤配 editable_fields=['exchange_rate'], 审批人发现汇率
+    识别有误时不需要驳回, 直接在审批界面改完再点同意。
+
+    Body: {field_name: new_value, ...} 仅 editable_fields 内的字段会被处理。
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    inst = ApprovalInstance.query.get(instance_id)
+    if not inst or inst.status != ApprovalStatus.PENDING:
+        return api_response(success=False, code=404, message='审批实例不存在或已结束')
+    if inst.object_type != 'expense':
+        return api_response(success=False, code=400, message='仅报销审批支持明细编辑')
+
+    # 必须是当前审批人
+    from app.helpers.approval_helpers import get_step_actual_approver
+    step_info = inst.get_current_step_info()
+    if not step_info:
+        return api_response(success=False, code=400, message='审批步骤异常')
+    approver = get_step_actual_approver(step_info, inst)
+    if not approver or approver.id != user_id:
+        return api_response(success=False, code=403, message='您不是当前步骤审批人')
+
+    editable_fields = step_info.get('editable_fields') or []
+    if not editable_fields:
+        return api_response(success=False, code=400, message='当前步骤未配置可编辑字段')
+
+    from app.models.expense import Expense, ExpenseDetail
+    e = Expense.query.get(inst.object_id)
+    if not e:
+        return api_response(success=False, code=404, message='报销单不存在')
+    line = ExpenseDetail.query.filter_by(id=line_id, expense_id=e.id).first()
+    if not line:
+        return api_response(success=False, code=404, message='明细不存在')
+
+    data = request.get_json() or {}
+    # 仅处理 editable_fields 白名单内的字段
+    ALLOWED = {'exchange_rate', 'invoice_amount', 'current_amount', 'expense_category',
+               'expense_date', 'description', 'document_count', 'currency'}
+    changed = []
+    for k, v in data.items():
+        if k not in editable_fields or k not in ALLOWED:
+            continue  # 静默忽略未授权字段
+        try:
+            if k in ('exchange_rate', 'invoice_amount', 'current_amount'):
+                setattr(line, k, round(float(v), 4 if k == 'exchange_rate' else 2))
+            elif k == 'expense_date':
+                from app.api.v1.mobile_expense import _parse_date
+                line.expense_date = _parse_date(v) or line.expense_date
+            elif k == 'document_count':
+                line.document_count = int(v)
+            else:
+                setattr(line, k, str(v).strip() if v is not None else None)
+            changed.append(k)
+        except (ValueError, TypeError) as exc:
+            logger.warning(f'edit-line invalid value for {k}: {exc}')
+
+    if not changed:
+        return api_response(success=False, code=400, message='没有可保存的修改')
+
+    # 改了汇率/发票金额时, 重算 current_amount(若 current_amount 不在 editable_fields)
+    if ('exchange_rate' in changed or 'invoice_amount' in changed) and 'current_amount' not in changed:
+        line.current_amount = round((line.invoice_amount or 0) * (line.exchange_rate or 1), 2)
+    line.amount = line.current_amount  # 向后兼容字段
+
+    e.calculate_total_amount()
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.error(f'edit-line commit failed: {exc}')
+        return api_response(success=False, code=500, message='保存失败')
+
+    return api_response(success=True, data={
+        'line_id': line.id,
+        'changed_fields': changed,
+        'invoice_amount': float(line.invoice_amount or 0),
+        'current_amount': float(line.current_amount or 0),
+        'exchange_rate': float(line.exchange_rate or 1.0),
+        'expense_total': float(e.total_amount or 0),
+    })
+
+
 @api_v1_bp.route('/mobile/approval/history', methods=['GET'])
 @jwt_required()
 def mobile_approval_history():
@@ -634,14 +724,18 @@ def mobile_approval_detail(instance_id):
     elif inst.object_type == 'quotation':
         business_obj = _quotation_summary_for_approval(inst.object_id)
 
-    # 是否当前审批人?
+    # 是否当前审批人? + 当前步骤可编辑字段
     is_current = False
+    editable_fields = []
     try:
         from app.helpers.approval_helpers import get_step_actual_approver
         step_info = inst.get_current_step_info()
         if step_info:
             approver = get_step_actual_approver(step_info, inst)
             is_current = bool(approver and approver.id == user_id)
+            # 当前审批人才返回 editable_fields(避免非审批人意外用到)
+            if is_current:
+                editable_fields = step_info.get('editable_fields') or []
     except Exception:
         pass
 
@@ -667,6 +761,7 @@ def mobile_approval_detail(instance_id):
         'flow': _approval_flow_for_instance(inst, current_user_id=user_id),
         'business_obj': business_obj,
         'is_current_approver': is_current,
+        'editable_fields': editable_fields,  # 当前步骤可编辑字段(仅当前审批人有值)
         'delegated_to': delegated_to_dict,
     })
 

@@ -51,10 +51,34 @@
               <ExDefRow label="发生日期">{{ line.expense_date }}</ExDefRow>
               <ExDefRow label="费用描述">{{ line.description || '—' }}</ExDefRow>
               <ExDefRow label="发票金额">
-                {{ currencySymbol }}{{ formatAmount(line.invoice_amount) }}
+                <span v-if="editingField !== 'invoice_amount'">
+                  {{ currencySymbol }}{{ formatAmount(line.invoice_amount) }}
+                  <span v-if="isEditable('invoice_amount')" role="button" class="active:opacity-60"
+                    :style="{ marginLeft: '8px', fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }"
+                    @click="startEdit('invoice_amount', line.invoice_amount)">编辑</span>
+                </span>
+                <span v-else class="flex items-center" :style="{ gap: '6px' }">
+                  <input v-model="editingValue" type="number" inputmode="decimal" step="0.01"
+                    :style="{ fontSize: '13px', padding: '4px 8px', border: '1px solid var(--color-ex-divider)', borderRadius: '4px', width: '100px' }" />
+                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }" @click="commitEdit">{{ saving ? '...' : '保存' }}</span>
+                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)' }" @click="cancelEdit">取消</span>
+                </span>
               </ExDefRow>
               <ExDefRow label="币种">{{ currencyLabel }} ({{ line.currency }})</ExDefRow>
-              <ExDefRow label="汇率">{{ (line.exchange_rate || 1).toFixed(4) }}</ExDefRow>
+              <ExDefRow label="汇率">
+                <span v-if="editingField !== 'exchange_rate'">
+                  {{ (line.exchange_rate || 1).toFixed(4) }}
+                  <span v-if="isEditable('exchange_rate')" role="button" class="active:opacity-60"
+                    :style="{ marginLeft: '8px', fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }"
+                    @click="startEdit('exchange_rate', (line.exchange_rate || 1).toFixed(4))">编辑</span>
+                </span>
+                <span v-else class="flex items-center" :style="{ gap: '6px' }">
+                  <input v-model="editingValue" type="number" inputmode="decimal" step="0.0001"
+                    :style="{ fontSize: '13px', padding: '4px 8px', border: '1px solid var(--color-ex-divider)', borderRadius: '4px', width: '100px' }" />
+                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }" @click="commitEdit">{{ saving ? '...' : '保存' }}</span>
+                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)' }" @click="cancelEdit">取消</span>
+                </span>
+              </ExDefRow>
               <ExDefRow label="报销金额">
                 {{ baseSymbol }}{{ formatAmount(line.current_amount || line.invoice_amount) }}
               </ExDefRow>
@@ -150,8 +174,43 @@ const props = defineProps({
   modelValue: { type: Boolean, default: false },
   line: { type: Object, default: () => ({}) },
   baseCurrency: { type: String, default: 'CNY' },
+  // 当前可编辑字段(由审批步骤 editable_fields 决定); 包含哪个字段就显示 ✏ chip
+  editableFields: { type: Array, default: () => [] },
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'save-field'])
+
+// 内联编辑状态
+const editingField = ref(null)   // 'exchange_rate' | 'invoice_amount' | null
+const editingValue = ref('')
+const saving = ref(false)
+function isEditable(f) { return props.editableFields?.includes(f) }
+function startEdit(field, current) {
+  editingField.value = field
+  editingValue.value = String(current ?? '')
+}
+function cancelEdit() {
+  editingField.value = null
+  editingValue.value = ''
+}
+async function commitEdit() {
+  if (!editingField.value || saving.value) return
+  saving.value = true
+  try {
+    await new Promise((resolve, reject) =>
+      emit('save-field', {
+        field: editingField.value,
+        value: editingValue.value,
+        line: props.line,
+        done: (err) => err ? reject(err) : resolve(),
+      })
+    )
+    cancelEdit()
+  } catch (e) {
+    alert(e?.message || '保存失败')
+  } finally {
+    saving.value = false
+  }
+}
 
 const store = useExpenseStore()
 const viewerOpen = ref(false)

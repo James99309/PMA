@@ -237,11 +237,13 @@
         </div>
       </div>
 
-      <!-- 明细详情 sheet -->
+      <!-- 明细详情 sheet — 当前审批人在 editable_fields 内字段可内联编辑 -->
       <ExLineDetailSheet
         v-model="lineDetailOpen"
         :line="selectedLine"
-        :base-currency="detail.business_obj?.currency || 'CNY'" />
+        :base-currency="detail.business_obj?.currency || 'CNY'"
+        :editable-fields="editableLineFields"
+        @save-field="onSaveLineField" />
 
       <!-- 审批进度 -->
       <!-- 之前底部「审批进度」section 已迁到顶部 chip 点击弹 ExFlowSheet,
@@ -461,6 +463,42 @@ async function load() {
     if (r.data?.success) detail.value = r.data.data
   } finally {
     loading.value = false
+  }
+}
+
+// 当前审批人 + 报销审批 + step.editable_fields 决定明细可编辑字段
+const editableLineFields = computed(() => {
+  if (!detail.value?.is_current_approver) return []
+  if (detail.value?.object_type !== 'expense') return []
+  return detail.value?.editable_fields || []
+})
+
+// 内联编辑明细字段保存
+async function onSaveLineField({ field, value, line, done }) {
+  try {
+    const payload = {}
+    payload[field] = value
+    const r = await client.patch(
+      `/mobile/approval/${instanceId.value}/edit-line/${line.id}`,
+      payload
+    )
+    if (r.data?.success) {
+      // 同步更新本地 line + total
+      const d = r.data.data
+      Object.assign(line, {
+        invoice_amount: d.invoice_amount,
+        current_amount: d.current_amount,
+        exchange_rate: d.exchange_rate,
+      })
+      if (detail.value?.business_obj) {
+        detail.value.business_obj.total_amount = d.expense_total
+      }
+      done?.(null)
+    } else {
+      done?.(new Error(r.data?.message || '保存失败'))
+    }
+  } catch (e) {
+    done?.(new Error(e.response?.data?.message || e.message))
   }
 }
 
