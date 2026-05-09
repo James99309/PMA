@@ -396,7 +396,15 @@ async function submitAuthRequest() {
     showAuthModal.value = false
     await load()
   } catch (e) {
-    alert(e.response?.data?.message || '提交失败')
+    const msg = e.response?.data?.message || ''
+    // 已存在 instance(stale UI) — 静默关闭 + 刷新 + 顺势打开流程查看
+    if (msg.includes('已有进行中') || msg.includes('正在审批')) {
+      showAuthModal.value = false
+      await load()
+      loadAndShowFlow()
+    } else {
+      alert(msg || '提交失败')
+    }
   } finally {
     submittingAuth.value = false
   }
