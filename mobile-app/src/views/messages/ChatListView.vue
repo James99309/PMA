@@ -1,7 +1,7 @@
 <script setup>
 // 会话列表 — 严格本区 (Federation Lite v2 简化方案)
 // 不再合并对区会话; 对区有未读时, 顶部琥珀卡提示, 点卡片切到对区即可
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import PixelP from '@/components/common/PixelP.vue'
 import CrossRegionMsgCard from '@/components/common/CrossRegionMsgCard.vue'
@@ -100,23 +100,69 @@ function openAi() {
   router.push({ path: '/messages/ai', query: aiConv.value ? { id: aiConv.value.id } : {} })
 }
 
-// 联系人按 公司 → 部门 分组渲染
-const groupedUsers = computed(() => {
-  if (pickerStep.value !== 'dm') return []
-  const map = new Map()
-  for (const u of pickerResults.value) {
-    const company = u.company_name || ''
-    const dept = u.dept || ''
-    const key = `${company}|${dept}`
-    if (!map.has(key)) map.set(key, { company, dept, users: [] })
-    map.get(key).users.push(u)
-  }
-  // 按公司+部门字符序排
-  return [...map.values()].sort((a, b) =>
-    a.company.localeCompare(b.company, 'zh') ||
-    a.dept.localeCompare(b.dept, 'zh')
+// 本地过滤 — 替代后端搜索, 避免中文 IME debounce 竞态
+const filteredDmUsers = computed(() => {
+  const q = pickerSearch.value.trim().toLowerCase()
+  if (!q) return allDmUsers.value
+  return allDmUsers.value.filter(u =>
+    (u.name || '').toLowerCase().includes(q) ||
+    (u.username || '').toLowerCase().includes(q) ||
+    (u.dept || '').toLowerCase().includes(q) ||
+    (u.company_name || '').toLowerCase().includes(q)
   )
 })
+
+// 三级树: 公司 → 部门 → 人员; 自己公司排最前
+const dmTree = computed(() => {
+  if (pickerStep.value !== 'dm') return []
+  const me = auth.user
+  const myCompany = me?.company_name || ''
+  // company → { name, depts: { dept_name → users[] } }
+  const companies = new Map()
+  for (const u of filteredDmUsers.value) {
+    const c = u.company_name || '未分公司'
+    const d = u.dept || '未分部门'
+    if (!companies.has(c)) companies.set(c, { name: c, depts: new Map(), total: 0 })
+    const co = companies.get(c)
+    if (!co.depts.has(d)) co.depts.set(d, { name: d, users: [] })
+    co.depts.get(d).users.push(u)
+    co.total++
+  }
+  // 转 array + 排序: 自己公司排最前
+  return [...companies.values()]
+    .sort((a, b) => {
+      if (a.name === myCompany) return -1
+      if (b.name === myCompany) return 1
+      return a.name.localeCompare(b.name, 'zh')
+    })
+    .map(co => ({
+      name: co.name,
+      total: co.total,
+      depts: [...co.depts.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh')),
+    }))
+})
+
+// 搜索时自动展开所有命中的公司/部门, 让用户立即看到结果
+watch(pickerSearch, (q) => {
+  if (q && q.trim()) {
+    for (const co of dmTree.value) {
+      expandedCompanies.value.add(co.name)
+      for (const d of co.depts) {
+        expandedDepts.value.add(`${co.name}|${d.name}`)
+      }
+    }
+  }
+})
+
+function toggleCompany(name) {
+  if (expandedCompanies.value.has(name)) expandedCompanies.value.delete(name)
+  else expandedCompanies.value.add(name)
+}
+function toggleDept(companyName, deptName) {
+  const key = `${companyName}|${deptName}`
+  if (expandedDepts.value.has(key)) expandedDepts.value.delete(key)
+  else expandedDepts.value.add(key)
+}
 
 // 滑动列表时收起键盘, 避免被键盘遮挡
 function dismissKeyboard() {
@@ -160,9 +206,12 @@ function openConversation(c) {
 // 选择器步骤：'main'（三选一）/ 'dm'（选联系人）/ 'group'（选项目）
 const pickerStep = ref('main')
 const pickerSearch = ref('')
-const pickerResults = ref([])
+const pickerResults = ref([])         // group/project step 用 (后端搜)
+const allDmUsers = ref([])            // dm step 一次拉全员, 后续本地过滤
 const pickerSearching = ref(false)
 const pickerCreating = ref(false)
+const expandedCompanies = ref(new Set())  // 展开中的 company keys
+const expandedDepts = ref(new Set())      // 展开中的 'company|dept' keys
 
 function pickStart(kind) {
   if (kind === 'ai') {
@@ -170,11 +219,33 @@ function pickStart(kind) {
     openAi()
     return
   }
-  // 私聊或群：切到对应步骤，先拉一次默认列表（空 q）
   pickerStep.value = kind
   pickerSearch.value = ''
   pickerResults.value = []
-  doPickerSearch()
+  if (kind === 'dm') {
+    loadAllUsers()
+  } else {
+    doPickerSearch()
+  }
+}
+
+// 一次拉全员 (后端已过滤 is_active=True 且最多 500), 后续本地实时过滤
+// 避开了中文 IME composition 与 debounce 的竞态(原方案 2 字符以上不匹配)
+async function loadAllUsers() {
+  pickerSearching.value = true
+  try {
+    const r = await searchUsers('')
+    allDmUsers.value = r.data?.success ? (r.data.data || []) : []
+    // 默认展开当前用户的公司 + 部门
+    const me = auth.user
+    if (me?.company_name) expandedCompanies.value.add(me.company_name)
+    if (me?.company_name && me?.department) expandedDepts.value.add(`${me.company_name}|${me.department}`)
+  } catch (e) {
+    console.error('load users failed', e)
+    allDmUsers.value = []
+  } finally {
+    pickerSearching.value = false
+  }
 }
 
 let pickerSearchTimer = null
@@ -378,7 +449,7 @@ function closePicker() {
             <span class="w-[30px]" />
           </div>
 
-          <!-- ─── Step: dm 选联系人 (按公司→部门分组) ─── -->
+          <!-- ─── Step: dm 选联系人 (三级 公司 → 部门 → 人员) ─── -->
           <template v-if="pickerStep === 'dm'">
             <div class="px-5 mt-3">
               <div class="rounded-full h-10 flex items-center px-4 gap-2"
@@ -387,43 +458,68 @@ function closePicker() {
                   <circle cx="7" cy="7" r="5" stroke="var(--color-ink-3)" stroke-width="1.4"/>
                   <path d="M11 11l3 3" stroke="var(--color-ink-3)" stroke-width="1.4" stroke-linecap="round"/>
                 </svg>
-                <input v-model="pickerSearch" @input="doPickerSearch" type="search"
+                <input v-model="pickerSearch" type="search"
                   placeholder="搜索同事姓名、用户名、部门"
                   class="flex-1 bg-transparent outline-none text-[14px] font-serif"
                   style="color: var(--color-ink);" />
               </div>
             </div>
-            <!-- 滑动列表时收起键盘, 避免遮挡 -->
+            <!-- 列表 — 滑动收键盘, 避免遮挡 -->
             <div class="px-5 mt-3 flex-1 overflow-auto" @touchmove="dismissKeyboard">
-              <div v-if="pickerSearching && !pickerResults.length" class="text-center py-6 text-[13px]"
-                style="color: var(--color-ink-3);">搜索中…</div>
-              <div v-else-if="!pickerResults.length" class="text-center py-6 text-[13px]"
-                style="color: var(--color-ink-3);">{{ pickerSearch ? '无匹配联系人' : '加载中…' }}</div>
-              <template v-else>
-                <div v-for="(group, gi) in groupedUsers" :key="`${group.company}|${group.dept}`"
-                  :class="gi > 0 ? 'mt-3' : ''">
-                  <div class="text-[11px] font-semibold px-1 mb-1.5"
-                    style="color: var(--color-ink-3); letter-spacing: 0.5px;">
-                    {{ group.company || '未分公司' }}<span v-if="group.dept"> · {{ group.dept }}</span>
-                    <span class="ml-1.5" style="color: var(--color-ink-4); font-weight: 400;">{{ group.users.length }}</span>
-                  </div>
-                  <div class="rounded-2xl"
-                    style="background: var(--color-card); border: 1px solid var(--color-divider);">
-                    <button v-for="(u, i) in group.users" :key="u.id" @click="pickResult(u)"
-                      class="w-full px-4 py-3 flex items-center gap-3 active:bg-bg text-left"
-                      :style="i < group.users.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''"
-                      :disabled="pickerCreating">
-                      <div class="w-9 h-9 rounded-full inline-flex items-center justify-center font-serif text-[14px] font-semibold"
-                        style="background: var(--color-accent-soft); color: var(--color-accent);">{{ u.avatar || u.name?.[0] || '?' }}</div>
-                      <div class="flex-1 min-w-0">
-                        <div class="font-serif text-[15px] font-medium">{{ u.name }}</div>
-                        <div v-if="u.dept" class="text-[11px] mt-0.5" style="color: var(--color-ink-3);">{{ u.dept }}</div>
-                      </div>
-                      <span class="text-[18px]" style="color: var(--color-ink-3);">›</span>
-                    </button>
-                  </div>
-                </div>
-              </template>
+              <div v-if="pickerSearching" class="text-center py-6 text-[13px]"
+                style="color: var(--color-ink-3);">加载中…</div>
+              <div v-else-if="!dmTree.length" class="text-center py-6 text-[13px]"
+                style="color: var(--color-ink-3);">{{ pickerSearch ? '无匹配联系人' : '暂无同事' }}</div>
+              <div v-else class="rounded-2xl overflow-hidden"
+                style="background: var(--color-card); border: 1px solid var(--color-divider);">
+                <template v-for="(co, ci) in dmTree" :key="co.name">
+                  <!-- 公司行 (Level 1) -->
+                  <button @click="toggleCompany(co.name)"
+                    class="w-full px-4 py-3 flex items-center gap-2 active:bg-bg text-left"
+                    :style="(ci > 0 ? 'border-top: 1px solid var(--color-divider);' : '')">
+                    <span class="inline-block transition-transform" :style="{
+                      transform: expandedCompanies.has(co.name) ? 'rotate(90deg)' : 'rotate(0)',
+                      color: 'var(--color-ink-3)',
+                      fontSize: '12px',
+                      width: '12px',
+                    }">›</span>
+                    <span class="font-serif text-[14px] font-semibold flex-1"
+                      style="color: var(--color-ink);">{{ co.name }}</span>
+                    <span class="text-[11px]" style="color: var(--color-ink-3);">{{ co.total }}</span>
+                  </button>
+                  <!-- 部门行 + 人员 (Level 2 + 3, 仅公司展开时显示) -->
+                  <template v-if="expandedCompanies.has(co.name)">
+                    <template v-for="d in co.depts" :key="`${co.name}|${d.name}`">
+                      <button @click="toggleDept(co.name, d.name)"
+                        class="w-full px-4 py-2.5 flex items-center gap-2 active:bg-bg text-left"
+                        style="border-top: 1px solid var(--color-divider-soft); padding-left: 32px; background: var(--color-bg);">
+                        <span class="inline-block transition-transform" :style="{
+                          transform: expandedDepts.has(`${co.name}|${d.name}`) ? 'rotate(90deg)' : 'rotate(0)',
+                          color: 'var(--color-ink-3)',
+                          fontSize: '11px',
+                          width: '11px',
+                        }">›</span>
+                        <span class="text-[13px] flex-1" style="color: var(--color-ink-2);">{{ d.name }}</span>
+                        <span class="text-[10px]" style="color: var(--color-ink-3);">{{ d.users.length }}</span>
+                      </button>
+                      <!-- 人员行 (Level 3, 仅部门展开时显示) -->
+                      <template v-if="expandedDepts.has(`${co.name}|${d.name}`)">
+                        <button v-for="u in d.users" :key="u.id" @click="pickResult(u)"
+                          class="w-full px-4 py-3 flex items-center gap-3 active:bg-bg text-left"
+                          style="border-top: 1px solid var(--color-divider-soft); padding-left: 52px;"
+                          :disabled="pickerCreating">
+                          <div class="w-8 h-8 rounded-full inline-flex items-center justify-center font-serif text-[13px] font-semibold shrink-0"
+                            style="background: var(--color-accent-soft); color: var(--color-accent);">{{ u.avatar || u.name?.[0] || '?' }}</div>
+                          <div class="flex-1 min-w-0">
+                            <div class="font-serif text-[14px] font-medium">{{ u.name }}</div>
+                          </div>
+                          <span class="text-[16px]" style="color: var(--color-ink-3);">›</span>
+                        </button>
+                      </template>
+                    </template>
+                  </template>
+                </template>
+              </div>
             </div>
           </template>
 

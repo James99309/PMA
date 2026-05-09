@@ -453,6 +453,7 @@ def mobile_chat_users_search():
             data.append({
                 'id': u.id,
                 'name': name,
+                'username': u.username or '',
                 'avatar': name[0] if name else '?',
                 'dept': u.department or '',
                 'company_name': u.company_name or '',
