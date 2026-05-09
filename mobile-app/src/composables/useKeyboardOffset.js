@@ -55,23 +55,33 @@ export function useKeyboardOffset() {
   }
 
   // 点击非输入区域 → 隐藏键盘 (iOS 中文拼音键盘没有 Done 按钮, 只能这样退出)
-  // 行为: blur 当前 focused 的 input/textarea + 调 Capacitor Keyboard.hide()
+  //
+  // 关键: 不能在用户点击 button/link 等可交互元素时 dismiss, 否则:
+  //   1. touchstart 触发 blur + keyboard.hide()
+  //   2. keyboard 开始 250ms 动画下落
+  //   3. 容器 paddingBottom 从 kbHeight 过渡到 0, 按钮位置在动画中移动
+  //   4. click 事件落空 (按钮已不在原位置)
+  // 解决: 只在点击纯展示元素(div/span/text 内容)时才 dismiss; 点 button/a/input
+  //       等交互元素时由元素自身处理(button click 处理后, blur 自然由 focus 转移触发)
   function onTapOutside(e) {
     if (!kbOffset.value) return  // 键盘没开就什么都不做
     const t = e.target
-    const tag = (t?.tagName || '').toLowerCase()
+    if (!t) return
+    const tag = (t.tagName || '').toLowerCase()
     const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select'
-                       || t?.contentEditable === 'true'
-                       // 父链上找 contentEditable 容器(防点击富文本子节点)
-                       || (t?.closest && t.closest('[contenteditable="true"]'))
-    if (isEditable) return  // 点的就是输入区, 不处理
+                       || t.contentEditable === 'true'
+                       || (t.closest && t.closest('[contenteditable="true"]'))
+    if (isEditable) return
+    // 点的是 button/链接/可交互元素 → 让它自己处理(避免 dismiss 期间按钮位移导致 click 落空)
+    const isInteractive = tag === 'button' || tag === 'a'
+                          || (t.closest && t.closest('button, a, [role="button"]'))
+    if (isInteractive) return
     // 检查当前 focused 是否是输入元素
     const active = document.activeElement
     const activeTag = (active?.tagName || '').toLowerCase()
     if (activeTag !== 'input' && activeTag !== 'textarea'
         && active?.contentEditable !== 'true') return
     active.blur()
-    // 原生平台还得让 Capacitor 调 Keyboard.hide(), 否则键盘可能不会真的下去
     if (Capacitor.isNativePlatform?.()) {
       import('@capacitor/keyboard').then(({ Keyboard }) => {
         Keyboard.hide().catch(() => {})

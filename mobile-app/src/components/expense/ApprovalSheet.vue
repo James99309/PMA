@@ -124,10 +124,12 @@
             </div>
           </div>
 
-          <!-- CTA -->
+          <!-- CTA - 加 role="button" 让 useKeyboardOffset 识别为可交互元素,
+               不在 touchstart 时 dismiss 键盘(避免按钮位置在键盘下落动画中位移导致 click 落空) -->
           <div class="flex" :style="{ gap: '10px', marginTop: '18px' }">
             <div
               class="flex-1 flex items-center justify-center"
+              role="button"
               :style="{
                 height: '48px', borderRadius: '24px',
                 background: 'var(--color-ex-card)',
@@ -137,10 +139,9 @@
               }"
               @click="close"
             >取消</div>
-            <!-- 设计稿(L302-306): 确认按钮永远是 cfg.color 背景 + 白字, 无 disabled 视觉
-                 校验改为点击时 toast 提示, 不再 fade opacity (避免按钮看上去灰) -->
             <div
               class="flex items-center justify-center"
+              role="button"
               :style="{
                 flex: 2,
                 height: '48px',

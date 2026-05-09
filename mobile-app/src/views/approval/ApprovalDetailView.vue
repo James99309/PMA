@@ -414,18 +414,18 @@ async function onConfirmAction({ comment, targetUserId }) {
       resp = await approvalApi.doApprovalAction(instanceId.value, currentAction.value, comment)
     }
     sheetOpen.value = false
-    // 重新拉详情, 让 hero chip / 转交徽章 / 底部按钮可见性立即同步
-    await load()
-    // 触发列表刷新标志(列表页 onActivated 会重新拉)
+    // 标记列表需要刷新(列表页 onActivated/onMounted 会重新拉)
     sessionStorage.setItem('approval-list-needs-refresh', '1')
-    // 用 toast 提示成功后留在详情页, 不自动 back
-    // 用户看清 UI 状态变化(chip/徽章/按钮消失) 再自己点返回
+    // 顶部 toast 浮现操作结果
     const msg = resp?.data?.message || (
       currentAction.value === 'approve' ? '已同意' :
       currentAction.value === 'reject'  ? '已驳回' :
       currentAction.value === 'forward' ? '已转交' : '操作成功'
     )
     showToast(msg)
+    // 处理完后用户已无操作权(已驳回/已转交/已同意 → 当前步骤不再属于此用户)
+    // 800ms 后自动返回审批列表(让用户看到 toast)
+    setTimeout(() => router.back(), 800)
   } catch (e) {
     alert('操作失败: ' + (e.response?.data?.message || e.message))
   } finally {
