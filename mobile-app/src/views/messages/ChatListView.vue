@@ -162,13 +162,22 @@ const filteredDmUsers = computed(() => {
   )
 })
 
-// 三级树: 公司 → 部门 → 人员; 自己公司排最前
+// 是否在搜索状态(q 非空)
+const isSearching = computed(() => !!pickerSearch.value.trim())
+
+// 搜索状态: 直接平铺命中的人员, 不再分组(避免 IME 期间 watch + reactive Set
+// 触发渲染递归导致 iOS WebView 卡死)
+const flatSearchResults = computed(() =>
+  isSearching.value ? filteredDmUsers.value.slice(0, 50) : []
+)
+
+// 非搜索状态: 公司 → 部门 → 人员 三级树; 自己公司排最前
 const dmTree = computed(() => {
-  if (pickerStep.value !== 'dm') return []
+  if (pickerStep.value !== 'dm' || isSearching.value) return []
   const me = auth.user
   const myCompany = me?.company_name || ''
   const companies = new Map()
-  for (const u of filteredDmUsers.value) {
+  for (const u of allDmUsers.value) {
     const c = u.company_name || '未分公司'
     const d = u.dept || '未分部门'
     if (!companies.has(c)) companies.set(c, { name: c, depts: new Map(), total: 0 })
@@ -188,16 +197,6 @@ const dmTree = computed(() => {
       total: co.total,
       depts: [...co.depts.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh')),
     }))
-})
-
-// 搜索时自动展开所有命中的公司/部门, 让用户立即看到结果
-watch(pickerSearch, (q) => {
-  if (q && q.trim()) {
-    for (const co of dmTree.value) {
-      expandedCompanies.add(co.name)
-      for (const d of co.depts) expandedDepts.add(`${co.name}|${d.name}`)
-    }
-  }
 })
 
 function toggleCompany(name) {
@@ -489,12 +488,35 @@ watch(showPicker, (v, old) => {
                   style="color: var(--color-ink);" />
               </div>
             </div>
-            <!-- 列表 — 滑动收键盘, 避免遮挡 (panel 外层已 overflow-y-auto, 这里不需要再 overflow) -->
+            <!-- 列表 — 滑动收键盘, 避免遮挡 -->
             <div class="px-5 mt-3" @touchmove="dismissKeyboard">
               <div v-if="pickerSearching" class="text-center py-6 text-[13px]"
                 style="color: var(--color-ink-3);">加载中…</div>
+              <!-- 搜索态: 平铺命中结果 (避免树+reactive Set 在 IME 期间卡死) -->
+              <template v-else-if="isSearching">
+                <div v-if="!flatSearchResults.length" class="text-center py-6 text-[13px]"
+                  style="color: var(--color-ink-3);">无匹配联系人</div>
+                <div v-else class="rounded-2xl overflow-hidden"
+                  style="background: var(--color-card); border: 1px solid var(--color-divider);">
+                  <button v-for="(u, i) in flatSearchResults" :key="u.id" @click="pickResult(u)"
+                    class="w-full px-4 py-3 flex items-center gap-3 active:bg-bg text-left"
+                    :style="i < flatSearchResults.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''"
+                    :disabled="pickerCreating">
+                    <div class="w-9 h-9 rounded-full inline-flex items-center justify-center font-serif text-[14px] font-semibold shrink-0"
+                      style="background: var(--color-accent-soft); color: var(--color-accent);">{{ u.avatar || u.name?.[0] || '?' }}</div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-serif text-[15px] font-medium">{{ u.name }}</div>
+                      <div class="text-[11px] mt-0.5" style="color: var(--color-ink-3);">
+                        {{ [u.company_name, u.dept].filter(Boolean).join(' · ') || '—' }}
+                      </div>
+                    </div>
+                    <span class="text-[16px]" style="color: var(--color-ink-3);">›</span>
+                  </button>
+                </div>
+              </template>
+              <!-- 非搜索态: 树形分组 -->
               <div v-else-if="!dmTree.length" class="text-center py-6 text-[13px]"
-                style="color: var(--color-ink-3);">{{ pickerSearch ? '无匹配联系人' : '暂无同事' }}</div>
+                style="color: var(--color-ink-3);">暂无同事</div>
               <div v-else class="rounded-2xl overflow-hidden"
                 style="background: var(--color-card); border: 1px solid var(--color-divider);">
                 <template v-for="(co, ci) in dmTree" :key="co.name">
