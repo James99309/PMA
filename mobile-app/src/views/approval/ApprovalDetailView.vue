@@ -85,7 +85,10 @@
             :style="{ fontSize: '44px', color: 'var(--color-ink)' }">
             {{ amountStr }}
           </span>
-          <span v-if="detail.business_obj" class="text-[14px]" style="color: var(--color-ink-3);">
+          <span v-if="isProject" class="text-[14px]" style="color: var(--color-ink-3);">
+            万 · {{ detail.business_obj?.stage_label || '—' }}
+          </span>
+          <span v-else-if="detail.business_obj" class="text-[14px]" style="color: var(--color-ink-3);">
             {{ currencyLabel(detail.business_obj.currency) }} · {{ detail.business_obj.detail_count }} 项明细
           </span>
         </div>
@@ -133,12 +136,27 @@
         >✉</div>
       </div>
 
-      <!-- 详情 def list -->
+      <!-- 详情 def list — 报销 / 项目 字段不同 -->
       <ExSectionHeader v-if="detail.business_obj">详情</ExSectionHeader>
-      <div v-if="detail.business_obj" :style="{ background: 'var(--color-ex-card)' }">
+      <!-- 报销字段 -->
+      <div v-if="detail.business_obj && isExpense" :style="{ background: 'var(--color-ex-card)' }">
         <ExDefRow label="主题">{{ detail.business_obj.title }}</ExDefRow>
         <ExDefRow label="客户">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
         <ExDefRow label="项目">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
+        <ExDefRow label="说明" :last="true">{{ detail.business_obj.description || '—' }}</ExDefRow>
+      </div>
+      <!-- 项目字段 -->
+      <div v-else-if="detail.business_obj && isProject" :style="{ background: 'var(--color-ex-card)' }">
+        <ExDefRow label="项目名称">{{ detail.business_obj.project_name }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.project_code" label="项目编号">{{ detail.business_obj.project_code }}</ExDefRow>
+        <ExDefRow label="客户">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
+        <ExDefRow label="负责人">{{ detail.business_obj.owner_name || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.sales_manager_name" label="销售经理">{{ detail.business_obj.sales_manager_name }}</ExDefRow>
+        <ExDefRow label="行业">{{ detail.business_obj.industry || '—' }}</ExDefRow>
+        <ExDefRow label="所在地">{{ [detail.business_obj.region, detail.business_obj.city].filter(Boolean).join(' · ') || '—' }}</ExDefRow>
+        <ExDefRow label="当前阶段">{{ detail.business_obj.stage_label || detail.business_obj.current_stage || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.project_type" label="项目类型">{{ detail.business_obj.project_type }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.authorization_code" label="授权码">{{ detail.business_obj.authorization_code }}</ExDefRow>
         <ExDefRow label="说明" :last="true">{{ detail.business_obj.description || '—' }}</ExDefRow>
       </div>
 
@@ -355,9 +373,18 @@ const navSub = computed(() => detail.value?.submitter
 
 const currentStepName = computed(() => detail.value?.flow?.find(n => n.state === 'current')?.node || '')
 
+// 区分业务对象类型 — project 没有币种符号 + 用万元单位
+const isProject = computed(() => detail.value?.object_type === 'project')
+const isExpense = computed(() => detail.value?.object_type === 'expense')
+
 const amountStr = computed(() => {
   const b = detail.value?.business_obj
   if (!b) return '—'
+  if (isProject.value) {
+    // 项目: ¥X.XX (万)
+    const a = b.amount || b.total_amount || 0
+    return `¥ ${formatAmount(a)}`
+  }
   return `${currencySymbol(b.currency)} ${formatAmount(b.total_amount)}`
 })
 

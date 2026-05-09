@@ -71,7 +71,7 @@ def _instance_to_dict(inst):
 
 
 def _get_object_summary(object_type, object_id):
-    """业务对象汇总(报销专用,其它 type 暂返回 {})."""
+    """业务对象汇总 — 列表行展示用(轻量), 不带明细."""
     try:
         if object_type == 'expense':
             from app.models.expense import Expense
@@ -85,6 +85,26 @@ def _get_object_summary(object_type, object_id):
                 'detail_count': len(e.details),
                 'amount': float(e.total_amount or 0),
                 'currency': e.currency or 'CNY',
+            }
+        if object_type == 'project':
+            from app.models.project import Project
+            p = Project.query.get(object_id)
+            if not p:
+                return {}
+            owner = getattr(p, 'owner', None)
+            return {
+                'expense_number': None,  # 项目没有单号字段, 用 project_code 或 None
+                'project_code': getattr(p, 'project_code', '') or '',
+                'project_name': p.project_name,
+                'customer_name': p.customer.company_name if getattr(p, 'customer', None) else '',
+                'owner_name': (owner.real_name or owner.username) if owner else '',
+                'current_stage': p.current_stage,
+                'stage_label': getattr(p, 'stage_label', '') or '',
+                'project_type': getattr(p, 'project_type', '') or '',
+                'authorization_status': getattr(p, 'authorization_status', '') or '',
+                'amount': float(p.quotation_customer or 0) / 10000 if getattr(p, 'quotation_customer', None) else None,  # DB 存元, 显示万
+                'currency': getattr(p, 'currency', 'CNY') or 'CNY',
+                'detail_count': None,
             }
     except Exception:
         pass
@@ -160,11 +180,23 @@ def mobile_approval_action(instance_id):
         # 注意: web 端用的是 process_approval (返回 bool, 内部自己 commit)
         # P1 写错成 process_approval_action 导致一直走 except 返回"操作失败"
         from app.helpers.approval_helpers import process_approval
+
+        # 项目审批的分支决策步骤需要 project_type 路由审批人
+        kwargs = {'user_id': user_id}
+        if instance.object_type == 'project':
+            try:
+                from app.models.project import Project
+                p = Project.query.get(instance.object_id)
+                if p and getattr(p, 'project_type', None):
+                    kwargs['project_type'] = p.project_type
+            except Exception:
+                pass
+
         success = process_approval(
             instance_id,
             action,
             comment or ('同意' if action == 'approve' else '驳回'),
-            user_id=user_id,
+            **kwargs,
         )
         if success:
             return api_response(success=True, message="审批操作成功")
@@ -340,6 +372,48 @@ def _expense_summary_for_approval(expense_id):
         return None
 
 
+def _project_summary_for_approval(project_id):
+    """项目详情 — 给审批人看. 关键字段: 项目名/客户/阶段/金额/类型/授权码"""
+    try:
+        from app.models.project import Project
+        p = Project.query.get(project_id)
+        if not p:
+            return None
+        owner = getattr(p, 'owner', None)
+        sales_mgr = getattr(p, 'vendor_sales_manager', None)
+        return {
+            'id': p.id,
+            'object_kind': 'project',  # 让前端区分 expense/project
+            'project_code': getattr(p, 'project_code', '') or '',
+            'project_name': p.project_name,
+            'title': p.project_name,  # 兼容前端用 .title
+            'description': (getattr(p, 'description', '') or '')[:300],
+            'customer_name': p.customer.company_name if getattr(p, 'customer', None) else '',
+            'customer_id': getattr(p, 'customer_id', None),
+            'owner_name': (owner.real_name or owner.username) if owner else '',
+            'sales_manager_name': (sales_mgr.real_name or sales_mgr.username) if sales_mgr else '',
+            'industry': getattr(p, 'industry', '') or '',
+            'city': getattr(p, 'city', '') or '',
+            'region': getattr(p, 'region', '') or '',
+            'current_stage': p.current_stage,
+            'stage_label': getattr(p, 'stage_label', '') or '',
+            'project_type': getattr(p, 'project_type', '') or '',  # 关键: 用于 process_approval 分支决策
+            'authorization_status': getattr(p, 'authorization_status', '') or '',
+            'authorization_code': getattr(p, 'authorization_code', '') or '',
+            'amount': float(p.quotation_customer or 0) / 10000 if getattr(p, 'quotation_customer', None) else 0,
+            'currency': getattr(p, 'currency', 'CNY') or 'CNY',
+            'created_at': p.created_at.strftime('%Y-%m-%d') if getattr(p, 'created_at', None) else None,
+            'updated_at': p.updated_at.strftime('%Y-%m-%d %H:%M') if getattr(p, 'updated_at', None) else None,
+            # 项目无明细
+            'lines': [],
+            'detail_count': 0,
+            'total_amount': float(p.quotation_customer or 0) / 10000 if getattr(p, 'quotation_customer', None) else 0,
+        }
+    except Exception as e:
+        logger.warning(f'_project_summary_for_approval error: {e}')
+        return None
+
+
 @api_v1_bp.route('/mobile/approval/<int:instance_id>', methods=['GET'])
 @jwt_required()
 def mobile_approval_detail(instance_id):
@@ -363,10 +437,12 @@ def mobile_approval_detail(instance_id):
             'avatar_color': '#3A6FB7',
         }
 
-    # 业务对象 summary (目前只展开 expense, 其它 type 仅返回名称)
+    # 业务对象 summary
     business_obj = None
     if inst.object_type == 'expense':
         business_obj = _expense_summary_for_approval(inst.object_id)
+    elif inst.object_type == 'project':
+        business_obj = _project_summary_for_approval(inst.object_id)
 
     # 是否当前审批人?
     is_current = False
