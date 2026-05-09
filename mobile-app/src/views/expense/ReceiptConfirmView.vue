@@ -277,7 +277,8 @@ onMounted(async () => {
 
 async function loadExpenseCurrency() {
   try {
-    const d = await store.fetchDetail(expenseId.value, true)
+    // 只需要 currency 字段, 用 cache 即可; force=true 会跟保存后的 fetch 形成竞态
+    const d = await store.fetchDetail(expenseId.value, false)
     if (d?.currency) expenseCurrency.value = d.currency
   } catch {}
 }
@@ -416,6 +417,9 @@ function onNext() {
   if (isLast.value) {
     // 全部处理完 → 清队列回到 expense edit
     store.clearPendingReceipts()
+    // 清详情缓存, 让 ExpenseEditView mount 时拿到最新 lines
+    // (虽然 fetchDetail 已传 forceRefresh, 此处再保险一道防止竞态)
+    store.clearDetail(expenseId.value)
     router.replace(`/expense/${expenseId.value}/edit`)
   } else {
     router.replace(`/expense/${expenseId.value}/confirm?idx=${idx.value + 1}`)
