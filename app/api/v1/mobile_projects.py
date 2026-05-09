@@ -98,16 +98,27 @@ def _project_summary(p):
 
 def _project_detail(p, current_user_id=None):
     d = _project_summary(p)
+    # 通用审批引擎中是否有进行中实例(走模板9)
+    from app.helpers.approval_helpers import get_object_approval_instance
+    from app.models.approval import ApprovalStatus
+    inst = get_object_approval_instance('project', p.id)
+    has_pending_approval = bool(inst and inst.status == ApprovalStatus.PENDING)
+    is_approval_rejected = bool(inst and inst.status == ApprovalStatus.REJECTED and not p.authorization_code)
     d.update({
         # 阶段与活跃度
         'stage_description': p.stage_description,
         'activity_status': p.activity_status,
         'activity_label': _activity_label(p.activity_status),
-        # 授权信息（authorization_code 有值才是真正已获授权，status 在批准后会被清为 None）
+        # 通用审批引擎状态(优先于老的 authorization_status 字段使用)
+        'has_pending_approval': has_pending_approval,
+        'is_approval_rejected': is_approval_rejected,
+        # 授权信息（authorization_code 有值才是真正已获授权）
         'authorization_status': p.authorization_status,
         'authorization_status_label': (
             '已获授权' if p.authorization_code else
-            AUTH_STATUS_LABELS.get(p.authorization_status, '未申请')
+            ('审批中' if has_pending_approval else
+             ('已驳回' if is_approval_rejected else
+              AUTH_STATUS_LABELS.get(p.authorization_status, '未申请')))
         ),
         'authorization_code': p.authorization_code,
         # 项目基本信息

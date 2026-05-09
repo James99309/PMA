@@ -266,7 +266,10 @@ const canAdvanceStage = computed(() => {
 
 const showAuthButton = computed(() => {
   if (!project.value) return false
-  return !project.value.authorization_code && project.value.authorization_status !== 'pending'
+  if (project.value.authorization_code) return false
+  if (project.value.has_pending_approval) return false
+  if (project.value.authorization_status === 'pending') return false  // 兼容老数据
+  return true
 })
 
 // Next stage to advance to (from track if current is on track, else from full order)
@@ -456,34 +459,34 @@ onMounted(() => {
           </span>
           <span v-if="project.authorization_code" class="text-[11px]"
             style="color: var(--color-ink-3); letter-spacing: 0.5px;">· {{ project.authorization_code }}</span>
-          <!-- pending 时点击 → 弹流程 sheet (替代单独审批进度区块) -->
-          <span v-else-if="project.authorization_status === 'pending'"
+          <!-- 审批中（含老 authorization_status='pending' 兼容） → 点击弹流程 sheet -->
+          <span v-else-if="project.has_pending_approval || project.authorization_status === 'pending'"
             class="text-[11px] px-2 py-0.5 rounded-full font-medium active:opacity-60 inline-flex items-center"
             style="color: #B45309; background: #FEF3C7; gap: 3px;"
             @click="loadAndShowFlow">
-            授权申请中
+            审批中
             <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
               <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </span>
-          <span v-else-if="project.authorization_status === 'rejected'"
+          <span v-else-if="project.is_approval_rejected || project.authorization_status === 'rejected'"
             class="text-[11px] px-2 py-0.5 rounded-full font-medium active:opacity-60 inline-flex items-center"
             style="color: #DC2626; background: #FEE2E2; gap: 3px;"
             @click="loadAndShowFlow">
-            授权已拒绝
+            审批驳回
             <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
               <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </span>
-          <!-- 未授权状态：可申请人显示橙色按钮，无权人灰色提示 -->
+          <!-- 未提交状态：可申请人显示橙色按钮，无权人灰色提示 -->
           <button v-else-if="project.can_apply_auth"
             @click="showAuthModal = true" type="button"
             class="text-[11px] font-medium active:opacity-60"
             style="color: var(--color-accent); background: transparent; border: none; padding: 0;">
-            未授权 · 申请
+            提交审批
           </button>
           <span v-else class="text-[11px]"
-            style="color: var(--color-ink-3);">未授权</span>
+            style="color: var(--color-ink-3);">未提交</span>
         </div>
 
         <!-- 项目名 — 30px 衬线 weight 500 line-height 1.2 letter-spacing -0.3 -->
