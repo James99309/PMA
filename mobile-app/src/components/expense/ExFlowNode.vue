@@ -36,7 +36,7 @@
 
     <!-- 文本 -->
     <div class="flex-1" :style="{ paddingTop: '1px', paddingBottom: '6px' }">
-      <div class="flex justify-between items-baseline">
+      <div class="flex justify-between items-baseline" :style="{ gap: '8px' }">
         <div
           :style="{
             fontSize: '13px',
@@ -44,8 +44,16 @@
             color: isCurrent ? 'var(--color-ex-ink)' : 'var(--color-ex-ink2)',
           }"
         >{{ node.node }}</div>
+        <!-- 右端: 召回(创建人 + current) 优先, 否则时间戳 -->
+        <span
+          v-if="isCurrent && node.can_recall"
+          role="button"
+          class="active:opacity-60 flex-shrink-0"
+          :style="{ fontSize: '11px', color: 'var(--color-ex-warn)', fontWeight: 600 }"
+          @click.stop="$emit('recall')"
+        >召回</span>
         <div
-          v-if="node.at"
+          v-else-if="node.at"
           :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)' }"
         >{{ node.at }}</div>
       </div>
@@ -59,14 +67,6 @@
         >处理中</span>
         <span v-else-if="isDone">已通过</span>
         <span v-else>待处理</span>
-        <!-- 召回 — 与"处理中"同行同风格,只是文字 -->
-        <span
-          v-if="isCurrent && node.can_recall"
-          role="button"
-          class="active:opacity-60"
-          :style="{ color: 'var(--color-ex-warn)', fontWeight: 600, marginLeft: '6px' }"
-          @click.stop="$emit('recall')"
-        >· 召回</span>
       </div>
       <div
         v-if="node.remark"
