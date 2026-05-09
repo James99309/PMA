@@ -10,10 +10,12 @@ import client from '@/api/client'
 import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
 import { REGIONS } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 import { formatChatTime } from '@/utils/chatTime'
 
 const router = useRouter()
 const auth = useAuthStore()
+const { kbOffset } = useKeyboardOffset()
 const showPicker = ref(false)
 const loading = ref(true)
 const allConversations = ref([])
@@ -455,8 +457,14 @@ watch(showPicker, (v, old) => {
         <!-- 遮罩仅做暗化, 不绑 click 关闭 — 避免 IME/touchend 穿透意外关 sheet
              用户用顶部 "取消"/"返回" 按钮明确关闭 -->
         <div class="absolute inset-0 bg-black/40" />
-        <div class="absolute left-0 right-0 bottom-0 rounded-t-3xl pt-3 pb-8 max-h-[85vh] overflow-y-auto"
-          style="background: var(--color-bg);">
+        <!-- panel: bottom 跟随键盘抬升, max-h 减去键盘 + safe area, 避免被键盘挤压 -->
+        <div class="absolute left-0 right-0 rounded-t-3xl pt-3 pb-8 overflow-y-auto"
+          :style="{
+            background: 'var(--color-bg)',
+            bottom: kbOffset + 'px',
+            maxHeight: `calc(85vh - ${kbOffset}px)`,
+            transition: 'bottom 0.2s ease, max-height 0.2s ease',
+          }">
           <div class="mx-auto w-9 h-1 rounded-full mb-3" style="background: rgba(0,0,0,0.15);" />
 
           <div class="flex items-center justify-between px-5 mb-2">
