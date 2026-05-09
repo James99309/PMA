@@ -127,19 +127,44 @@
         />
       </div>
 
-      <!-- 明细缩略 -->
+      <!-- 明细 -->
       <ExSectionHeader>明细 · {{ detail.lines.length }} 项</ExSectionHeader>
       <div :style="{ background: 'var(--color-ex-card)' }">
         <div
           v-for="(d, i) in detail.lines"
           :key="d.id"
-          class="flex items-center justify-between"
+          class="flex items-center"
           :style="{
-            padding: '12px 20px',
+            padding: '12px 20px', gap: '12px',
             borderBottom: i < detail.lines.length - 1 ? '1px solid var(--color-ex-divider-soft)' : 'none',
           }"
         >
-          <div>
+          <!-- 实际发票缩略图 -->
+          <div
+            class="flex items-center justify-center flex-shrink-0 relative overflow-hidden"
+            :style="{
+              width: '40px', height: '40px', borderRadius: '4px',
+              background: 'var(--color-ex-divider-soft)',
+              color: 'var(--color-ex-ink4)', fontSize: '9px', fontWeight: 600,
+            }"
+          >
+            <img v-if="lineThumbUrl(d)"
+              :src="lineThumbUrl(d)"
+              class="w-full h-full" style="object-fit: cover;"
+              @error="$event.target.style.display='none'" />
+            <span v-else>发票</span>
+            <span v-if="(d.invoice_images?.length || 0) > 1"
+              :style="{
+                position: 'absolute', top: '-2px', right: '-2px',
+                minWidth: '14px', height: '14px',
+                borderRadius: '7px', padding: '0 3px',
+                background: 'var(--color-ex-ink)', color: '#fff',
+                fontSize: '8px', fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1.5px solid var(--color-ex-card)',
+              }">{{ d.invoice_images.length }}</span>
+          </div>
+          <div class="flex-1 min-w-0">
             <div :style="{ fontSize: '13px', fontWeight: 600 }">{{ d.expense_category_label }}</div>
             <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">
               {{ d.description || '—' }} · {{ d.expense_date }}
@@ -199,7 +224,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useExpenseStore } from '@/stores/expense'
-import { submitExpense, recallExpense, resubmitExpense } from '@/api/expense'
+import { submitExpense, recallExpense, resubmitExpense, lineThumbUrl } from '@/api/expense'
 import ExNav from '@/components/expense/ExNav.vue'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExDefRow from '@/components/expense/ExDefRow.vue'

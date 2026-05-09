@@ -144,13 +144,29 @@
           }"
         >
           <div
+            class="flex items-center justify-center flex-shrink-0 relative overflow-hidden"
             :style="{
-              width: '40px', height: '28px', borderRadius: '3px',
-              background: '#F5EFE3', flexShrink: 0,
-              fontSize: '4px', padding: '2px',
-              color: '#7B2F22', lineHeight: 1.4,
+              width: '40px', height: '40px', borderRadius: '4px',
+              background: 'var(--color-ex-divider-soft)',
+              color: 'var(--color-ex-ink4)', fontSize: '9px', fontWeight: 600,
             }"
-          >增值税<br>普通<br>发票</div>
+          >
+            <img v-if="lineThumbUrl(d)"
+              :src="lineThumbUrl(d)"
+              class="w-full h-full" style="object-fit: cover;"
+              @error="$event.target.style.display='none'" />
+            <span v-else>发票</span>
+            <span v-if="(d.invoice_images?.length || 0) > 1"
+              :style="{
+                position: 'absolute', top: '-2px', right: '-2px',
+                minWidth: '14px', height: '14px',
+                borderRadius: '7px', padding: '0 3px',
+                background: 'var(--color-ex-ink)', color: '#fff',
+                fontSize: '8px', fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1.5px solid var(--color-ex-card)',
+              }">{{ d.invoice_images.length }}</span>
+          </div>
           <div class="flex-1 min-w-0">
             <div :style="{ fontSize: '13px', fontWeight: 600 }">{{ d.category }}</div>
             <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">
@@ -288,6 +304,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import client from '@/api/client'
 import * as approvalApi from '@/api/approval'
+import { lineThumbUrl } from '@/api/expense'
 import ExNav from '@/components/expense/ExNav.vue'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExDefRow from '@/components/expense/ExDefRow.vue'

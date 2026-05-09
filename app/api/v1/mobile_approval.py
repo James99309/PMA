@@ -279,6 +279,7 @@ def _expense_summary_for_approval(expense_id):
                     'currency': d.currency,
                     'invoice_amount': d.invoice_amount,
                     'expense_date': d.expense_date.strftime('%Y-%m-%d') if d.expense_date else None,
+                    'invoice_images': d.invoice_images_list,
                 }
                 for d in e.details
             ],

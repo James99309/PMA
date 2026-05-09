@@ -1,6 +1,26 @@
 // 报销模块 API client — 对应后端 mobile_expense.py
 import client from './client'
 
+// 把后端返回的 invoice_image 相对 URL 转成可被 <img> 直接 src 的全 URL
+// (附 ?token=JWT 让 chat 文件端点直通鉴权; 同 MessageAttachment.fullUrl)
+let _baseHost = null
+function getBaseHost() {
+  if (_baseHost == null) _baseHost = (client.defaults.baseURL || '').replace(/\/api\/v1\/?$/, '')
+  return _baseHost
+}
+export function imageUrl(url) {
+  if (!url) return ''
+  if (/^https?:\/\//.test(url)) return url
+  const sep = url.includes('?') ? '&' : '?'
+  const token = localStorage.getItem('access_token') || ''
+  return `${getBaseHost()}${url}${sep}token=${encodeURIComponent(token)}`
+}
+
+// 取明细的第一张发票缩略图 URL (无图返回 '')
+export function lineThumbUrl(line) {
+  return imageUrl(line?.invoice_images?.[0]?.url)
+}
+
 export const listExpenses = (params = {}) => client.get('/mobile/expense', { params })
 export const getExpense = (id) => client.get(`/mobile/expense/${id}`)
 export const createExpense = (payload) => client.post('/mobile/expense', payload)

@@ -236,13 +236,32 @@
           @click="openLineForm(d)"
         >
           <div
-            class="flex items-center justify-center flex-shrink-0"
+            class="flex items-center justify-center flex-shrink-0 relative overflow-hidden"
             :style="{
               width: '44px', height: '44px', borderRadius: '6px',
               background: 'var(--color-ex-divider-soft)',
               color: 'var(--color-ex-ink3)', fontSize: '10px', fontWeight: 600,
             }"
-          >{{ d.invoice_images?.length ? `图${d.invoice_images.length}` : '发票' }}</div>
+          >
+            <!-- 实际发票缩略图; 加载失败 fallback 文字 -->
+            <img v-if="lineThumbUrl(d)"
+              :src="lineThumbUrl(d)"
+              class="w-full h-full"
+              style="object-fit: cover;"
+              @error="$event.target.style.display='none'" />
+            <span v-else>{{ d.invoice_images?.length ? `图${d.invoice_images.length}` : '发票' }}</span>
+            <!-- 多张发票数量角标 -->
+            <span v-if="(d.invoice_images?.length || 0) > 1"
+              :style="{
+                position: 'absolute', top: '-2px', right: '-2px',
+                minWidth: '16px', height: '16px',
+                borderRadius: '8px', padding: '0 4px',
+                background: 'var(--color-ex-ink)', color: '#fff',
+                fontSize: '9px', fontWeight: 700,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1.5px solid var(--color-ex-card)',
+              }">{{ d.invoice_images.length }}</span>
+          </div>
           <div class="flex-1 min-w-0">
             <div class="flex justify-between">
               <div :style="{ fontSize: '14px', fontWeight: 600, color: 'var(--color-ex-ink)' }">
@@ -346,6 +365,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import client from '@/api/client'
 import * as expApi from '@/api/expense'
+import { lineThumbUrl } from '@/api/expense'
 import { useExpenseStore } from '@/stores/expense'
 import { useAuthStore } from '@/stores/auth'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
