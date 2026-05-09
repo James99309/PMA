@@ -35,7 +35,8 @@
               :style="{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }">
               {{ emptyHint || '暂无审批流程' }}
             </div>
-            <ExFlowNode v-for="(n, i) in nodes" :key="i" :node="n" :last="i === nodes.length - 1" />
+            <ExFlowNode v-for="(n, i) in nodes" :key="i" :node="n" :last="i === nodes.length - 1"
+              @recall="$emit('recall')" />
           </div>
         </div>
       </div>
@@ -52,7 +53,7 @@ const props = defineProps({
   nodes: { type: Array, default: () => [] },
   emptyHint: { type: String, default: '' },
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'recall'])
 
 const currentStepName = computed(() => props.nodes?.find(n => n.state === 'current')?.node || '')
 

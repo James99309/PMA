@@ -5,7 +5,9 @@ import { getProject, addProjectNote } from '@/api/projects'
 import { searchUsers, createConversation } from '@/api/chat'
 import client from '@/api/client'
 import ExFlowSheet from '@/components/expense/ExFlowSheet.vue'
+import ExConfirmSheet from '@/components/expense/ExConfirmSheet.vue'
 import ProjectSubmitSheet from '@/components/project/ProjectSubmitSheet.vue'
+import { useApprovalRecall } from '@/composables/useApprovalRecall'
 import Avatar from '@/components/common/Avatar.vue'
 import MentionPopover from '@/components/common/MentionPopover.vue'
 import MessageText from '@/components/common/MessageText.vue'
@@ -184,6 +186,17 @@ async function loadAndShowFlow() {
   }
 }
 const submittingAuth = ref(false)
+
+// 召回 — 复用 composable
+const {
+  sheetOpen: recallSheetOpen,
+  submitting: recalling,
+  open: openRecall,
+  confirm: confirmRecall,
+} = useApprovalRecall({
+  request: () => client.post(`/mobile/projects/${route.params.id}/recall`),
+  onSuccess: load,
+})
 
 // 主流程进度条阶段 keys（横向 dots） —— 终止态 lost/paused 不在 track 上
 const STAGE_TRACK_KEYS = ['discover', 'embed', 'pre_tender', 'tendering', 'awarded', 'quoted', 'signed']
@@ -1013,7 +1026,20 @@ onMounted(() => {
     </Teleport>
 
     <!-- 审批流程 sheet (授权 chip 点击触发) -->
-    <ExFlowSheet v-model="flowSheetOpen" :nodes="flowNodes" :empty-hint="flowLoadError" />
+    <ExFlowSheet v-model="flowSheetOpen" :nodes="flowNodes" :empty-hint="flowLoadError"
+      @recall="flowSheetOpen = false; openRecall()" />
+
+    <!-- 召回确认 sheet -->
+    <ExConfirmSheet
+      v-model="recallSheetOpen"
+      eyebrow="召回"
+      title="确认召回此项目?"
+      :sub="project ? project.name : ''"
+      confirm-label="确认召回"
+      color="warn"
+      :submitting="recalling"
+      @confirm="confirmRecall"
+    />
   </div>
 </template>
 

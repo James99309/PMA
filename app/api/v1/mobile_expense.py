@@ -83,16 +83,19 @@ def _line_dict(d: ExpenseDetail) -> dict:
     }
 
 
-def _approval_flow_nodes(expense_id: int) -> list:
+def _approval_flow_nodes(expense_id: int, current_user_id=None) -> list:
     """构造 UI 期望的 flow node 数组(变长, 与模板一致)。
 
     Shape:
-        [{ node, user, state, at, remark? }, ...]
+        [{ node, user, state, at, remark?, can_recall? }, ...]
 
     state ∈ {'done', 'current', 'pending'}
+    current_user_id: 用于在 current 节点附 can_recall 标志(仅创建人/admin 可召回).
     """
     try:
-        from app.helpers.approval_helpers import get_object_approval_instance, get_step_actual_approver
+        from app.helpers.approval_helpers import (
+            get_object_approval_instance, get_step_actual_approver, can_recall_approval
+        )
         from app.models.approval import ApprovalRecord, ApprovalStatus
     except Exception:
         return []
@@ -104,6 +107,11 @@ def _approval_flow_nodes(expense_id: int) -> list:
     steps = inst.get_steps() or []
     if not steps:
         return []
+
+    can_recall = bool(
+        current_user_id
+        and can_recall_approval('expense', expense_id, current_user_id)
+    )
 
     records = ApprovalRecord.query.filter_by(instance_id=inst.id) \
         .order_by(ApprovalRecord.timestamp.asc() if hasattr(ApprovalRecord, 'timestamp') else ApprovalRecord.id.asc()) \
@@ -152,11 +160,13 @@ def _approval_flow_nodes(expense_id: int) -> list:
         }
         if record and getattr(record, 'comment', None):
             node['remark'] = record.comment
+        if state == 'current' and can_recall:
+            node['can_recall'] = True
         nodes.append(node)
     return nodes
 
 
-def _expense_detail_dict(e: Expense, with_flow: bool = True) -> dict:
+def _expense_detail_dict(e: Expense, with_flow: bool = True, current_user_id=None) -> dict:
     owner = e.owner
     attributed = e.attributed_to
     customer = e.customer
@@ -194,7 +204,7 @@ def _expense_detail_dict(e: Expense, with_flow: bool = True) -> dict:
         } if project else None,
         'approval_notes': e.approval_notes or '',
         'lines': [_line_dict(d) for d in e.details],
-        'flow': _approval_flow_nodes(e.id) if with_flow else None,
+        'flow': _approval_flow_nodes(e.id, current_user_id=current_user_id) if with_flow else None,
     }
 
 
@@ -289,7 +299,7 @@ def mobile_expense_detail(expense_id):
     if not e:
         return api_response(success=False, code=404, message='报销单不存在或无权限')
 
-    data = _expense_detail_dict(e, with_flow=True)
+    data = _expense_detail_dict(e, with_flow=True, current_user_id=user_id)
     # 控制信息: 提交/召回/重提按钮可见性
     try:
         from app.helpers.approval_helpers import can_recall_approval, can_resubmit_approval
@@ -350,7 +360,7 @@ def mobile_expense_create():
         logger.error(f'mobile expense create error: {exc}')
         return api_response(success=False, code=500, message='创建失败')
 
-    return api_response(success=True, data=_expense_detail_dict(e, with_flow=False))
+    return api_response(success=True, data=_expense_detail_dict(e, with_flow=False, current_user_id=user_id))
 
 
 # ─── 更新主表(草稿/驳回态) ──────────────────────────────────────────────
@@ -403,7 +413,7 @@ def mobile_expense_update(expense_id):
         logger.error(f'mobile expense update error: {exc}')
         return api_response(success=False, code=500, message='保存失败')
 
-    return api_response(success=True, data=_expense_detail_dict(e, with_flow=False))
+    return api_response(success=True, data=_expense_detail_dict(e, with_flow=False, current_user_id=user_id))
 
 
 # ─── 删除(草稿) ─────────────────────────────────────────────────────────
@@ -636,7 +646,7 @@ def mobile_expense_submit(expense_id):
         logger.error(f'mobile expense submit error: {exc}')
         return api_response(success=False, code=500, message='提交失败')
 
-    return api_response(success=True, data=_expense_detail_dict(e, with_flow=True))
+    return api_response(success=True, data=_expense_detail_dict(e, with_flow=True, current_user_id=user_id))
 
 
 @api_v1_bp.route('/mobile/expense/<int:expense_id>/recall', methods=['POST'])
@@ -667,7 +677,7 @@ def mobile_expense_recall(expense_id):
         logger.error(f'mobile expense recall error: {exc}')
         return api_response(success=False, code=500, message='召回失败')
 
-    return api_response(success=True, data=_expense_detail_dict(e, with_flow=True))
+    return api_response(success=True, data=_expense_detail_dict(e, with_flow=True, current_user_id=user_id))
 
 
 @api_v1_bp.route('/mobile/expense/<int:expense_id>/resubmit', methods=['POST'])
@@ -696,7 +706,7 @@ def mobile_expense_resubmit(expense_id):
         logger.error(f'mobile expense resubmit error: {exc}')
         return api_response(success=False, code=500, message='重提失败')
 
-    return api_response(success=True, data=_expense_detail_dict(e, with_flow=True))
+    return api_response(success=True, data=_expense_detail_dict(e, with_flow=True, current_user_id=user_id))
 
 
 # ─── 审批流单独取(避免每次详情都拉全量) ────────────────────────────────
@@ -720,7 +730,7 @@ def mobile_expense_flow(expense_id):
             return api_response(success=False, code=404, message='报销单不存在或无权限')
 
     return api_response(success=True, data={
-        'flow': _approval_flow_nodes(expense_id),
+        'flow': _approval_flow_nodes(expense_id, current_user_id=user_id),
     })
 
 

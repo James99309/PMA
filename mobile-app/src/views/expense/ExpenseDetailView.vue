@@ -37,7 +37,7 @@
       <div v-else style="width: 32px;" />
     </div>
 
-    <!-- ··· 菜单(审批中支持召回; 已驳回支持重提) -->
+    <!-- ··· 菜单(召回已迁至流程 sheet, 此菜单仅承载已驳回时的重提) -->
     <Teleport to="body">
       <div v-if="moreMenuOpen"
         class="fixed inset-0 z-50"
@@ -50,14 +50,6 @@
             paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
           }">
           <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '10px auto 6px' }" />
-          <div v-if="detail?.control?.can_recall"
-            class="text-[14px] text-center font-medium active:opacity-60"
-            :style="{
-              padding: '14px 20px', background: 'var(--color-ex-card)',
-              borderTop: '1px solid var(--color-ex-divider-soft)',
-              color: 'var(--color-ex-warn)',
-            }"
-            @click="moreMenuOpen = false; onRecall()">召回审批</div>
           <div v-if="detail?.control?.can_resubmit"
             class="text-[14px] text-center font-medium active:opacity-60"
             :style="{
@@ -217,7 +209,8 @@
     </div>
 
     <!-- 流程 sheet (顶部 chip 点击触发) -->
-    <ExFlowSheet v-model="flowSheetOpen" :nodes="detail?.flow || []" />
+    <ExFlowSheet v-model="flowSheetOpen" :nodes="detail?.flow || []"
+      @recall="flowSheetOpen = false; onRecall()" />
 
     <!-- 明细详情 sheet -->
     <ExLineDetailSheet
@@ -291,6 +284,7 @@ import ExFlowSheet from '@/components/expense/ExFlowSheet.vue'
 import ExLineDetailSheet from '@/components/expense/ExLineDetailSheet.vue'
 import ExSubmitSheet from '@/components/expense/ExSubmitSheet.vue'
 import ExConfirmSheet from '@/components/expense/ExConfirmSheet.vue'
+import { useApprovalRecall } from '@/composables/useApprovalRecall'
 
 const route = useRoute()
 const router = useRouter()
@@ -303,9 +297,8 @@ const hasFlow = computed(() => Boolean(detail.value?.flow?.length))
 const selectedLine = ref({})
 const moreMenuOpen = ref(false)
 
-const hasMoreActions = computed(() => Boolean(
-  detail.value?.control?.can_recall || detail.value?.control?.can_resubmit
-))
+// 召回已迁至流程 sheet 内, "..." 菜单仅承载重提
+const hasMoreActions = computed(() => Boolean(detail.value?.control?.can_resubmit))
 
 function openLineDetail(d) {
   selectedLine.value = d
@@ -370,28 +363,16 @@ async function onConfirmSubmit() {
   }
 }
 
-// 召回 sheet 状态
-const recallSheetOpen = ref(false)
-const recalling = ref(false)
-
-function onRecall() {
-  recallSheetOpen.value = true
-}
-
-async function onConfirmRecall() {
-  recalling.value = true
-  try {
-    const r = await recallExpense(id.value)
-    if (r.data?.success) {
-      recallSheetOpen.value = false
-      await store.fetchDetail(id.value, true)
-    }
-  } catch (e) {
-    alert('召回失败: ' + (e.response?.data?.message || e.message))
-  } finally {
-    recalling.value = false
-  }
-}
+// 召回 — 通过 composable 复用
+const {
+  sheetOpen: recallSheetOpen,
+  submitting: recalling,
+  open: onRecall,
+  confirm: onConfirmRecall,
+} = useApprovalRecall({
+  request: () => recallExpense(id.value),
+  onSuccess: () => store.fetchDetail(id.value, true),
+})
 
 onMounted(load)
 </script>

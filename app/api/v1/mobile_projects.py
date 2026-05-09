@@ -599,6 +599,40 @@ def mobile_project_auth_request(project_id):
         return api_response(success=False, code=500, message=f"提交失败: {e}")
 
 
+@api_v1_bp.route('/mobile/projects/<int:project_id>/recall', methods=['POST'])
+@jwt_required()
+def mobile_project_recall(project_id):
+    """召回项目审批 — 仿 web /project/api/approval/<id>/recall。"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+
+    project = Project.query.filter_by(id=project_id, is_deleted=False).first()
+    if not project:
+        return api_response(success=False, code=404, message="项目不存在")
+
+    from app.helpers.approval_helpers import (
+        get_object_approval_instance, can_recall_approval, recall_approval_process
+    )
+    inst = get_object_approval_instance('project', project_id)
+    if not inst:
+        return api_response(success=False, code=400, message="项目没有进行中的审批")
+
+    if not can_recall_approval('project', project_id, user_id):
+        return api_response(success=False, code=403, message="只有审批发起人或管理员可以召回")
+
+    try:
+        success, message = recall_approval_process('project', project_id, user_id)
+        if success:
+            return api_response(success=True, message=message or "召回成功")
+        return api_response(success=False, code=500, message=message or "召回失败")
+    except Exception as e:
+        db.session.rollback()
+        logger.exception(f"项目召回失败: {e}")
+        return api_response(success=False, code=500, message=f"召回失败: {e}")
+
+
 @api_v1_bp.route('/mobile/projects/<int:project_id>/notes', methods=['POST'])
 @jwt_required()
 def mobile_project_add_note(project_id):

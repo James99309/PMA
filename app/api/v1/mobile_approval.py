@@ -291,13 +291,19 @@ def mobile_approval_cc():
 
 # ─── 审批详情(审批人视角): 业务对象 + 申请人画像 + 流程 ──────────────────
 
-def _approval_flow_for_instance(inst):
-    """同 mobile_expense._approval_flow_nodes 但用 instance 作输入(避免循环 import)"""
+def _approval_flow_for_instance(inst, current_user_id=None):
+    """同 mobile_expense._approval_flow_nodes 但用 instance 作输入(避免循环 import)。
+    current_user_id: 用于在 current 节点附 can_recall 标志(仅创建人/admin 可召回)。
+    """
     try:
-        from app.helpers.approval_helpers import get_step_actual_approver
+        from app.helpers.approval_helpers import get_step_actual_approver, can_recall_approval
         from app.models.approval import ApprovalRecord, ApprovalStatus
     except Exception:
         return []
+    can_recall = bool(
+        current_user_id
+        and can_recall_approval(inst.object_type, inst.object_id, current_user_id)
+    )
 
     steps = inst.get_steps() or []
     if not steps:
@@ -340,6 +346,8 @@ def _approval_flow_for_instance(inst):
         }
         if record and getattr(record, 'comment', None):
             node['remark'] = record.comment
+        if state == 'current' and can_recall:
+            node['can_recall'] = True
         nodes.append(node)
     return nodes
 
@@ -604,7 +612,7 @@ def mobile_approval_detail(instance_id):
         'submitter': submitter_dict,
         'submitter_stats': _applicant_stats(inst.created_by),
         'created_at': inst.started_at.strftime('%Y-%m-%d %H:%M') if inst.started_at else None,
-        'flow': _approval_flow_for_instance(inst),
+        'flow': _approval_flow_for_instance(inst, current_user_id=user_id),
         'business_obj': business_obj,
         'is_current_approver': is_current,
         'delegated_to': delegated_to_dict,
@@ -633,7 +641,7 @@ def mobile_approval_flow_by_object():
         if not inst:
             return api_response(success=True, data={'flow': [], 'instance_id': None})
         return api_response(success=True, data={
-            'flow': _approval_flow_for_instance(inst),
+            'flow': _approval_flow_for_instance(inst, current_user_id=user_id),
             'instance_id': inst.id,
             'status': inst.status.value if hasattr(inst.status, 'value') else str(inst.status),
         })

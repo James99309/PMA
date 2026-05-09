@@ -44,8 +44,23 @@
             color: isCurrent ? 'var(--color-ex-ink)' : 'var(--color-ex-ink2)',
           }"
         >{{ node.node }}</div>
+        <!-- 召回按钮(仅当前节点 + 创建人) -->
         <div
-          v-if="node.at"
+          v-if="isCurrent && node.can_recall"
+          role="button"
+          :style="{
+            fontSize: '12px', fontWeight: 500,
+            color: 'var(--color-ex-warn)',
+            padding: '2px 8px',
+            border: '1px solid var(--color-ex-warn)',
+            borderRadius: '10px',
+            lineHeight: '16px',
+          }"
+          class="active:opacity-60"
+          @click.stop="$emit('recall')"
+        >召回</div>
+        <div
+          v-else-if="node.at"
           :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)' }"
         >{{ node.at }}</div>
       </div>
@@ -88,6 +103,8 @@ const props = defineProps({
   node: { type: Object, required: true },
   last: { type: Boolean, default: false },
 })
+
+defineEmits(['recall'])
 
 const isDone = computed(() => props.node.state === 'done')
 const isCurrent = computed(() => props.node.state === 'current')
