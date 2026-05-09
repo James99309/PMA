@@ -8,14 +8,15 @@ const router = useRouter()
 const quotation = ref(null)
 const loading = ref(true)
 
-// 自定义 pinch-zoom — 必须用 addEventListener + passive:false 才能 preventDefault
-// (Vue @touchstart 在某些 iOS WebView 是 passive 默认, preventDefault 静默失败)
+// 完全自定义手势 — touch-action: none + JS 接管 pan + pinch
+// (浏览器原生 pinch 受 user-scalable=no 阻止, 必须自己实现)
 const wrapRef = ref(null)
 const iframeRef = ref(null)
 const scale = ref(1)
 const contentHeight = ref(800)
 let lastDistance = 0
 let lastScale = 1
+let lastX = 0, lastY = 0
 
 function dist(touches) {
   const dx = touches[0].clientX - touches[1].clientX
@@ -24,7 +25,10 @@ function dist(touches) {
 }
 
 function _onTouchStart(e) {
-  if (e.touches.length === 2) {
+  if (e.touches.length === 1) {
+    lastX = e.touches[0].clientX
+    lastY = e.touches[0].clientY
+  } else if (e.touches.length === 2) {
     lastDistance = dist(e.touches)
     lastScale = scale.value
     e.preventDefault()
@@ -32,7 +36,20 @@ function _onTouchStart(e) {
 }
 
 function _onTouchMove(e) {
-  if (e.touches.length === 2 && lastDistance > 0) {
+  const el = wrapRef.value
+  if (!el) return
+  if (e.touches.length === 1) {
+    // 单指 pan — JS 控制 scrollLeft/Top
+    const t = e.touches[0]
+    const dx = t.clientX - lastX
+    const dy = t.clientY - lastY
+    el.scrollLeft -= dx
+    el.scrollTop  -= dy
+    lastX = t.clientX
+    lastY = t.clientY
+    e.preventDefault()
+  } else if (e.touches.length === 2 && lastDistance > 0) {
+    // 双指 pinch
     const d = dist(e.touches)
     const next = Math.max(0.5, Math.min(3, lastScale * (d / lastDistance)))
     scale.value = next
@@ -42,6 +59,11 @@ function _onTouchMove(e) {
 
 function _onTouchEnd(e) {
   if (e.touches.length < 2) lastDistance = 0
+  if (e.touches.length === 1) {
+    // 双指松一指 → 切到 pan, 重置 anchor
+    lastX = e.touches[0].clientX
+    lastY = e.touches[0].clientY
+  }
 }
 
 // 双击切换 1× / 2× (常见 doc preview 行为)
@@ -288,7 +310,7 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
          left: 0, right: 0, bottom: 0,
          overflow: 'auto',
          WebkitOverflowScrolling: 'touch',
-         touchAction: 'pan-x pan-y',
+         touchAction: 'none',
          background: '#cfd2d7',
        }">
     <!-- sized wrapper: 宽高 = 内容尺寸 × scale, 撑出 scrollable 区域 -->
