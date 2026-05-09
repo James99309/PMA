@@ -325,13 +325,37 @@ function backToPickerMain() {
 }
 
 function closePicker() {
+  console.warn('[diag] closePicker() called', new Error().stack)
+  diagMsg.value = `closePicker @ ${new Date().toLocaleTimeString()}`
   showPicker.value = false
   pickerStep.value = 'main'
 }
+
+// === 诊断: 监控 showPicker 何时被关 ===
+const diagMsg = ref('')
+watch(showPicker, (v, old) => {
+  if (old && !v) {
+    const stack = new Error().stack || ''
+    console.warn('[diag] showPicker → false', stack)
+    if (!diagMsg.value) {
+      diagMsg.value = `showPicker→false @ ${new Date().toLocaleTimeString()} step=${pickerStep.value}`
+    }
+    setTimeout(() => { diagMsg.value = '' }, 8000)
+  }
+})
 </script>
 
 <template>
   <div class="flex flex-col h-full" style="background: var(--color-bg);">
+
+    <!-- 诊断浮标 (sheet 关闭时显示) -->
+    <div v-if="diagMsg"
+      style="position: fixed; top: 60px; left: 12px; right: 12px; z-index: 9999;
+             background: #B5453A; color: #fff; padding: 10px 14px;
+             border-radius: 8px; font-size: 12px; font-family: monospace;
+             box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
+      DIAG: {{ diagMsg }}
+    </div>
 
     <!-- PageHead -->
     <div class="px-6 pt-3.5 pb-2 flex items-start justify-between shrink-0">
