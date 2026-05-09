@@ -5,5 +5,5 @@
 
 | ID | Time | T | Title | Read |
 |----|------|---|-------|------|
-| #8740 | 8:26 AM | 🔵 | Business Card OCR Service Architecture for Reuse | ~301 |
+| #8739 | 8:24 AM | 🔵 | Mobile App and API Infrastructure on feature/mobile-api Branch | ~630 |
 </claude-mem-context>

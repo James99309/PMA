@@ -177,4 +177,73 @@ def get_pagination_params():
     page = max(1, page)
     limit = max(1, min(100, limit))  # 限制最大查询数量为100
 
-    return page, limit 
+    return page, limit
+
+
+# ─── 图片上传 + OCR 通用 helper ───────────────────────────────────────
+# 名片 / 发票 等场景共用. 复用 NAS chat 桶 + 调指定 OCR 函数.
+
+def handle_image_ocr_upload(file_storage, owner_id, business_type, ocr_fn,
+                            default_filename='upload.jpg'):
+    """multipart 图片 → NAS 存档(chat 桶) + 调 OCR → 返回 {file_url, fields, ocr_json}.
+
+    Args:
+        file_storage: werkzeug FileStorage (request.files.get('file'))
+        owner_id: int, 上传用户 ID
+        business_type: str, NAS 存档分类标签 (e.g. 'business_card', 'expense_invoice')
+        ocr_fn: callable(blob: bytes) -> {'success': bool, 'data'?: dict, 'message'?: str}
+        default_filename: 上传文件名兜底
+
+    Returns:
+        (success: bool, payload: dict, code: int, message: str)
+        success=True  → payload={file_url, fields, ocr_json}
+        success=False → message + code 用于 api_response
+    """
+    import logging as _logging
+    import json as _json
+
+    logger = _logging.getLogger(__name__)
+
+    if not file_storage:
+        return False, {'file_url': None}, 400, '未提供图片'
+
+    blob = file_storage.read()
+    try:
+        file_storage.stream.seek(0)
+    except Exception:
+        pass
+    if not blob:
+        return False, {'file_url': None}, 400, '图片为空'
+
+    # 1) 存到 NAS 的 chat 桶 (复用现有 attachment 通道)
+    file_url = None
+    try:
+        from app.utils.smart_storage_manager import get_smart_storage
+        from urllib.parse import quote
+        storage = get_smart_storage()
+        result = storage.upload_file(
+            object_id=owner_id,
+            file=file_storage.stream,
+            filename=file_storage.filename or default_filename,
+            file_type='image',
+            bucket_type='chat',
+            business_type=business_type,
+        )
+        if result and result.get('url'):
+            nas_path = result.get('nas_path') or result.get('storage_path') or ''
+            rel_path = nas_path.split('/', 1)[1] if '/' in nas_path else nas_path
+            file_url = f'/api/v1/mobile/chat/file?path={quote(rel_path)}'
+    except Exception as e:
+        logger.warning(f'image upload to NAS failed ({business_type}): {e}')
+
+    # 2) 调 OCR
+    ocr_result = ocr_fn(blob)
+    if not ocr_result.get('success'):
+        return False, {'file_url': file_url}, 500, ocr_result.get('message', '识别失败')
+
+    fields = ocr_result['data']
+    return True, {
+        'file_url': file_url,
+        'fields': fields,
+        'ocr_json': _json.dumps(fields, ensure_ascii=False),
+    }, 200, '识别成功'

@@ -702,63 +702,21 @@ def mobile_scan_business_card():
     """multipart 上传裁剪后的名片图 → 存 NAS + 调 Claude vision OCR
     返回 { file_url, fields: {name, company, ...}, ocr_json: 原始字符串 }
     """
-    import json as _json
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     if not user:
         return api_response(success=False, code=401, message='用户不存在')
 
-    f = request.files.get('file')
-    if not f:
-        return api_response(success=False, code=400, message='未提供图片')
-
-    # 读字节 (供 OCR 用) + 复用 chat 的存储管道存到 NAS
-    blob = f.read()
-    try:
-        f.stream.seek(0)
-    except Exception:
-        pass
-    if not blob:
-        return api_response(success=False, code=400, message='图片为空')
-
-    # 1) 存到 NAS 的 chat 桶 (复用现有 attachment 通道)
-    file_url = None
-    try:
-        from app.utils.smart_storage_manager import get_smart_storage
-        from urllib.parse import quote
-        storage = get_smart_storage()
-        result = storage.upload_file(
-            object_id=user_id,
-            file=f.stream,
-            filename=f.filename or 'business_card.jpg',
-            file_type='image',
-            bucket_type='chat',
-            business_type='business_card',
-        )
-        if result and result.get('url'):
-            nas_path = result.get('nas_path') or result.get('storage_path') or ''
-            rel_path = nas_path.split('/', 1)[1] if '/' in nas_path else nas_path
-            file_url = f'/api/v1/mobile/chat/file?path={quote(rel_path)}'
-    except Exception as e:
-        logger.warning(f'business card upload to NAS failed: {e}')
-        # 即使存失败也继续 OCR (用户可决定是否保存)
-
-    # 2) Claude vision OCR
     from app.services.business_card_ocr import extract_card
-    ocr_result = extract_card(blob)
-    if not ocr_result.get('success'):
-        return api_response(success=False, code=500,
-                            message=ocr_result.get('message', '识别失败'),
-                            data={'file_url': file_url})
-
-    fields = ocr_result['data']
-    ocr_json_str = _json.dumps(fields, ensure_ascii=False)
-
-    return api_response(success=True, data={
-        'file_url': file_url,
-        'fields': fields,
-        'ocr_json': ocr_json_str,
-    })
+    from app.api.v1.utils import handle_image_ocr_upload
+    success, payload, code, message = handle_image_ocr_upload(
+        request.files.get('file'),
+        owner_id=user_id,
+        business_type='business_card',
+        ocr_fn=extract_card,
+        default_filename='business_card.jpg',
+    )
+    return api_response(success=success, code=code, message=message, data=payload)
 
 
 # ─── 联系人重复检测: 按 phone/email 精确命中 ────────────────────

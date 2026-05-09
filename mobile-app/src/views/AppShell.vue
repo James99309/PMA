@@ -57,6 +57,13 @@ const tabs = [
     iconDActive: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0',
   },
   {
+    path: '/expense',
+    label: '报销',
+    // 设计稿 expense tab 用 ¥ 字符 + serif 字体, 视觉上比线条 icon 更轻量
+    glyph: '¥',
+    serif: true,
+  },
+  {
     path: '/messages',
     label: '聊天',
     iconD: 'M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
@@ -102,7 +109,19 @@ const tabs = [
           :class="$route.path.startsWith(tab.path) ? 'text-[var(--color-accent)]' : 'text-[var(--color-ink-3)]'"
         >
           <div class="relative">
+            <!-- 报销 tab: ¥ 字符(serif) -->
+            <div
+              v-if="tab.glyph"
+              class="w-6 h-6 flex items-center justify-center"
+              :style="{
+                fontSize: '20px',
+                fontFamily: tab.serif ? 'var(--font-serif)' : 'inherit',
+                fontWeight: $route.path.startsWith(tab.path) ? 600 : 400,
+                lineHeight: 1,
+              }"
+            >{{ tab.glyph }}</div>
             <svg
+              v-else
               class="w-6 h-6"
               fill="none"
               stroke="currentColor"
