@@ -508,9 +508,9 @@ function openLineForm(line = null) {
 
 async function ensureExpenseExists() {
   if (editingId.value) return editingId.value
-  // 必须先创建草稿才能加明细
+  // 必须先创建草稿才能加明细 — title 真空就传空字符串(后端不再硬塞 fallback)
   const r = await expApi.createExpense({
-    title: form.value.title.trim() || '未命名报销',
+    title: form.value.title.trim(),
     description: form.value.description.trim(),
     currency: form.value.currency,
     customer_id: form.value.no_link ? null : form.value.customer_id,
@@ -518,9 +518,18 @@ async function ensureExpenseExists() {
   })
   if (r.data?.success) {
     editingId.value = r.data.data.id
+    triggerAutoTitle()  // fire-and-forget AI 生成标题
     return editingId.value
   }
   throw new Error(r.data?.message || '创建失败')
+}
+
+// 异步触发 AI 生成标题, 不阻塞用户操作
+function triggerAutoTitle() {
+  if (!editingId.value) return
+  if (form.value.title.trim()) return  // 用户已手填, 不覆盖
+  if (!form.value.description.trim()) return  // 没说明, AI 也无从生成
+  expApi.autoTitle(editingId.value).catch(() => {})  // 静默失败
 }
 
 async function onSaveLine(payload) {
@@ -572,6 +581,7 @@ async function saveDraft() {
         customer_id: form.value.no_link ? null : form.value.customer_id,
         project_id: form.value.no_link ? null : form.value.project_id,
       })
+      triggerAutoTitle()  // 描述更新可能影响标题, 重新触发 AI
     } else {
       await ensureExpenseExists()
     }

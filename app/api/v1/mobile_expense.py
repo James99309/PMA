@@ -333,13 +333,8 @@ def mobile_expense_create():
     data = request.get_json() or {}
     title = (data.get('title') or '').strip()
     description = (data.get('description') or '').strip()
-    # 主题为空时, 用 AI 根据说明生成 (说明也空就用兜底"未命名报销")
-    if not title:
-        if description:
-            from app.services.expense_title_generator import generate_title
-            title = generate_title(description, fallback='未命名报销')
-        else:
-            title = '未命名报销'
+    # 不再同步调 AI 生成 title — 改由前端 fire-and-forget 调 /auto-title 异步生成
+    # title 留空也允许; 列表/详情展示时前端用「未命名报销」占位
 
     e = Expense(
         title=title,
@@ -385,13 +380,7 @@ def mobile_expense_update(expense_id):
     for k in ('title', 'description'):
         if k in data:
             setattr(e, k, (data[k] or '').strip())
-    # 如果保存后 title 仍空, 用 AI 据说明重新生成
-    if not (e.title or '').strip():
-        if (e.description or '').strip():
-            from app.services.expense_title_generator import generate_title
-            e.title = generate_title(e.description, fallback='未命名报销')
-        else:
-            e.title = '未命名报销'
+    # 不再同步调 AI; 前端会在保存成功后异步调 /auto-title 生成
     if 'currency' in data and data['currency']:
         old_currency = e.currency
         e.currency = data['currency']
@@ -707,6 +696,52 @@ def mobile_expense_resubmit(expense_id):
         return api_response(success=False, code=500, message='重提失败')
 
     return api_response(success=True, data=_expense_detail_dict(e, with_flow=True, current_user_id=user_id))
+
+
+# ─── AI 异步生成标题 ─────────────────────────────────────────────────
+@api_v1_bp.route('/mobile/expense/<int:expense_id>/auto-title', methods=['POST'])
+@jwt_required()
+def mobile_expense_auto_title(expense_id):
+    """根据 description 用 AI 生成标题. 前端在保存草稿后 fire-and-forget 调用,
+    用户不需要等待 — 即使本接口返回慢, 也不会阻塞用户操作.
+    仅当 title 为空且 description 非空时才生成。"""
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    e = _load_visible_expense(expense_id, user)
+    if not e:
+        return api_response(success=False, code=404, message='报销单不存在')
+    if e.owner_id != user_id:
+        return api_response(success=False, code=403, message='只有创建人可以生成')
+    if e.status not in ('draft', 'rejected'):
+        return api_response(success=False, code=400, message='当前状态不可编辑')
+
+    if (e.title or '').strip():
+        return api_response(success=True, data={'title': e.title, 'changed': False})
+    if not (e.description or '').strip():
+        return api_response(success=True, data={'title': '', 'changed': False})
+
+    try:
+        from app.services.expense_title_generator import generate_title
+        new_title = generate_title(e.description, fallback='')
+    except Exception as exc:
+        logger.warning(f'auto-title generate failed: {exc}')
+        return api_response(success=False, code=500, message='AI 生成失败')
+
+    if not new_title:
+        return api_response(success=True, data={'title': '', 'changed': False})
+
+    e.title = new_title
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        logger.error(f'auto-title commit failed: {exc}')
+        return api_response(success=False, code=500, message='保存失败')
+
+    return api_response(success=True, data={'title': new_title, 'changed': True})
 
 
 # ─── 审批流单独取(避免每次详情都拉全量) ────────────────────────────────

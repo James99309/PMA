@@ -35,6 +35,7 @@ export const submitExpense = (id, templateId = null) =>
   client.post(`/mobile/expense/${id}/submit`, templateId ? { template_id: templateId } : {})
 export const recallExpense = (id, reason = '') => client.post(`/mobile/expense/${id}/recall`, { reason })
 export const resubmitExpense = (id) => client.post(`/mobile/expense/${id}/resubmit`)
+export const autoTitle = (id) => client.post(`/mobile/expense/${id}/auto-title`, {})
 
 export const getFlow = (id) => client.get(`/mobile/expense/${id}/flow`)
 

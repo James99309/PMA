@@ -118,7 +118,7 @@
             lineHeight: '1.2',
             letterSpacing: '-0.3px',
             color: 'var(--color-ink)',
-          }">{{ detail.title }}</h1>
+          }">{{ detail.title || '未命名报销' }}</h1>
 
         <!-- 副标题: 申请人 · 客户 · 项目 -->
         <div class="mt-3.5 text-[13px]" style="color: var(--color-ink-3);">

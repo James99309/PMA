@@ -306,7 +306,7 @@ onMounted(() => {
             <div class="flex items-baseline justify-between gap-3">
               <div class="font-serif flex-1 min-w-0 truncate"
                 style="font-size: 16px; font-weight: 500; color: var(--color-ink); line-height: 1.3;">
-                {{ it.title }}
+                {{ it.title || '未命名报销' }}
               </div>
               <div class="text-[15px] font-semibold tabular whitespace-nowrap"
                 style="color: var(--color-ink);">
