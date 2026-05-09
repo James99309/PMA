@@ -338,6 +338,8 @@
       :context-line="contextLine"
       :selected-user="selectedForwardUser"
       :submitting="submitting"
+      :object-type-label="objectKindLabel"
+      :object-kind="detail?.object_type || ''"
       @confirm="onConfirmAction"
       @pick-user="userPickerOpen = true"
     />
@@ -423,6 +425,17 @@ const navSub = computed(() => detail.value?.submitter
   : '')
 
 const currentStepName = computed(() => detail.value?.flow?.find(n => n.state === 'current')?.node || '')
+
+// 业务对象 sheet 标题用 - "项目"/"报销"/"批价单" 等
+const objectKindLabel = computed(() => {
+  const t = detail.value?.object_type
+  if (t === 'project') return '项目'
+  if (t === 'expense') return '报销'
+  if (t === 'pricing_order') return '批价单'
+  if (t === 'quotation') return '报价单'
+  if (t === 'purchase_order') return '采购单'
+  return detail.value?.object_type_label || '审批'
+})
 
 // 区分业务对象类型
 const isProject = computed(() => detail.value?.object_type === 'project')
