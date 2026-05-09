@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getQuotationDetail } from '@/api/projects'
 
@@ -117,7 +117,10 @@ function _onGestureEnd(e) {
 // 显式注册 passive:false 的 touch listeners
 function attachTouchHandlers() {
   const el = wrapRef.value
-  if (!el) return
+  if (!el) {
+    dbg.value.lastEvent = 'attach-FAIL-noEl'
+    return
+  }
   el.addEventListener('touchstart', _onTouchStart, { passive: false })
   el.addEventListener('touchmove', _onTouchMove, { passive: false })
   el.addEventListener('touchend', _onTouchEnd, { passive: true })
@@ -126,6 +129,7 @@ function attachTouchHandlers() {
   el.addEventListener('gesturestart', _onGestureStart, { passive: false })
   el.addEventListener('gesturechange', _onGestureChange, { passive: false })
   el.addEventListener('gestureend', _onGestureEnd, { passive: false })
+  dbg.value.lastEvent = 'attached'
 }
 function detachTouchHandlers() {
   const el = wrapRef.value
@@ -156,10 +160,16 @@ function onIframeLoad() {
   })
 }
 
-onMounted(() => {
-  load()
-  nextTick(attachTouchHandlers)
-})
+onMounted(load)
+
+// 关键: load() 是异步的, 必须等 quotation 数据到达 + DOM 渲染完成后再绑 touch handlers
+// (之前用 nextTick 在 load 还没 resolve 时跑, wrapRef 是 null, 静默 bail, handlers 永远没绑)
+watch(quotation, async (q) => {
+  if (!q) return
+  await nextTick()  // 等 v-else-if=quotation 渲染出 wrapRef
+  attachTouchHandlers()
+}, { immediate: false })
+
 onBeforeUnmount(detachTouchHandlers)
 
 async function load() {
