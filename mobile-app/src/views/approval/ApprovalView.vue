@@ -191,29 +191,37 @@ async function loadPending() {
   const r = await approvalApi.getPendingApprovals()
   const items = r.data?.data?.items || []
   pending.value = items.map(i => {
-    const isProject = i.object_type === 'project'
+    const t = i.object_type
+    const isProject = t === 'project'
+    const isPO      = t === 'pricing_order'
+    const isQuot    = t === 'quotation'
+    // 副信息按对象类型
+    let subtitle
+    if (isProject) {
+      subtitle = [i.customer_name, i.stage_label || i.current_stage].filter(Boolean).join(' · ')
+    } else if (isPO) {
+      subtitle = [i.project_name, i.customer_name, i.dealer_name].filter(Boolean).join(' · ')
+    } else if (isQuot) {
+      subtitle = [i.project_name, i.customer_name].filter(Boolean).join(' · ')
+    } else {
+      subtitle = [i.customer_name, i.project_name,
+                  i.detail_count ? `${i.detail_count} 项明细` : '']
+                .filter(Boolean).join(' · ')
+    }
     return {
       id: i.id,
       title: i.object_name,
       submitter_name: i.submitted_by_name,
-      // 副信息按对象类型: 报销=客户·项目·N项明细; 项目=客户·阶段·行业
-      subtitle: isProject
-        ? [i.customer_name, i.stage_label || i.current_stage]
-            .filter(Boolean).join(' · ') || (i.object_type_label || '')
-        : [i.customer_name, i.project_name,
-           i.detail_count ? `${i.detail_count} 项明细` : '']
-            .filter(Boolean).join(' · ') || (i.object_type_label || ''),
-      // 单号: 报销=BX...; 项目=project_code 或 object_name
+      subtitle: subtitle || (i.object_type_label || ''),
       expense_number: i.expense_number || (isProject ? (i.project_code || i.object_name) : i.object_name),
       amount: i.amount ?? null,
-      // 项目金额单位是万元(后端已 / 10000), 报销是货币原值
       currency_symbol: isProject ? '¥' : currencySymbolFor(i.currency || 'CNY'),
-      amount_suffix: isProject ? '万' : '',  // 项目后缀显示"万"
+      amount_suffix: isProject ? '万' : '',
       time: fmtTime(i.created_at),
-      tag: `待我审批${i.current_step_name ? ' · ' + i.current_step_name : ''}`,
+      tag: `${i.object_type_label || '待我审批'}${i.current_step_name ? ' · ' + i.current_step_name : ''}`,
       tag_color: TAG_PENDING.color,
       tag_bg: TAG_PENDING.bg,
-      object_type: i.object_type,
+      object_type: t,
     }
   })
 }

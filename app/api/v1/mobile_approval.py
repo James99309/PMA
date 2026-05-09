@@ -93,7 +93,7 @@ def _get_object_summary(object_type, object_id):
                 return {}
             owner = getattr(p, 'owner', None)
             return {
-                'expense_number': None,  # 项目没有单号字段, 用 project_code 或 None
+                'expense_number': None,
                 'project_code': getattr(p, 'project_code', '') or '',
                 'project_name': p.project_name,
                 'customer_name': p.customer.company_name if getattr(p, 'customer', None) else '',
@@ -102,8 +102,35 @@ def _get_object_summary(object_type, object_id):
                 'stage_label': getattr(p, 'stage_label', '') or '',
                 'project_type': getattr(p, 'project_type', '') or '',
                 'authorization_status': getattr(p, 'authorization_status', '') or '',
-                'amount': float(p.quotation_customer or 0) / 10000 if getattr(p, 'quotation_customer', None) else None,  # DB 存元, 显示万
+                'amount': float(p.quotation_customer or 0) / 10000 if getattr(p, 'quotation_customer', None) else None,
                 'currency': getattr(p, 'currency', 'CNY') or 'CNY',
+                'detail_count': None,
+            }
+        if object_type == 'pricing_order':
+            from app.models.pricing_order import PricingOrder
+            po = PricingOrder.query.get(object_id)
+            if not po:
+                return {}
+            return {
+                'expense_number': po.order_number,
+                'project_name': po.project.project_name if getattr(po, 'project', None) else '',
+                'customer_name': po.project.customer.company_name if (getattr(po, 'project', None) and getattr(po.project, 'customer', None)) else '',
+                'dealer_name': po.dealer.company_name if getattr(po, 'dealer', None) else '',
+                'amount': float(po.pricing_total_amount or 0),
+                'currency': getattr(po, 'currency', 'CNY') or 'CNY',
+                'detail_count': None,
+            }
+        if object_type == 'quotation':
+            from app.models.quotation import Quotation
+            q = Quotation.query.get(object_id)
+            if not q:
+                return {}
+            return {
+                'expense_number': q.quotation_number,
+                'project_name': q.project.project_name if getattr(q, 'project', None) else '',
+                'customer_name': q.customer.company_name if getattr(q, 'customer', None) else '',
+                'amount': float(q.amount or 0),
+                'currency': getattr(q, 'currency', 'CNY') or 'CNY',
                 'detail_count': None,
             }
     except Exception:
@@ -372,6 +399,79 @@ def _expense_summary_for_approval(expense_id):
         return None
 
 
+def _pricing_order_summary_for_approval(po_id):
+    """批价单详情 — 给审批人看. 关键: 项目/客户/经销商/批价金额/折扣率"""
+    try:
+        from app.models.pricing_order import PricingOrder
+        po = PricingOrder.query.get(po_id)
+        if not po:
+            return None
+        creator = getattr(po, 'creator', None)
+        return {
+            'id': po.id,
+            'object_kind': 'pricing_order',
+            'order_number': po.order_number,
+            'title': po.order_number,
+            'project_name': po.project.project_name if getattr(po, 'project', None) else '',
+            'project_id': getattr(po, 'project_id', None),
+            'customer_name': po.project.customer.company_name if (getattr(po, 'project', None) and getattr(po.project, 'customer', None)) else '',
+            'quotation_number': po.quotation.quotation_number if getattr(po, 'quotation', None) else '',
+            'dealer_name': po.dealer.company_name if getattr(po, 'dealer', None) else '',
+            'distributor_name': po.distributor.company_name if getattr(po, 'distributor', None) else '',
+            'is_direct_contract': bool(getattr(po, 'is_direct_contract', False)),
+            'is_factory_pickup': bool(getattr(po, 'is_factory_pickup', False)),
+            'approval_flow_type': getattr(po, 'approval_flow_type', '') or '',
+            'creator_name': (creator.real_name or creator.username) if creator else '',
+            'pricing_total_amount': float(po.pricing_total_amount or 0),
+            'pricing_total_discount_rate': float(po.pricing_total_discount_rate or 1),
+            'settlement_total_amount': float(po.settlement_total_amount or 0),
+            'settlement_total_discount_rate': float(po.settlement_total_discount_rate or 1),
+            'currency': getattr(po, 'currency', 'CNY') or 'CNY',
+            'notes': (getattr(po, 'notes', '') or '')[:300],
+            'created_at': po.created_at.strftime('%Y-%m-%d') if getattr(po, 'created_at', None) else None,
+            # 给前端用 .lines 守卫的统一字段
+            'lines': [],
+            'detail_count': len(po.pricing_details) if hasattr(po, 'pricing_details') else 0,
+            'total_amount': float(po.pricing_total_amount or 0),
+        }
+    except Exception as e:
+        logger.warning(f'_pricing_order_summary_for_approval error: {e}')
+        return None
+
+
+def _quotation_summary_for_approval(q_id):
+    """报价单详情 — 给审批人看. 关键: 项目/客户/金额/阶段/类型"""
+    try:
+        from app.models.quotation import Quotation
+        q = Quotation.query.get(q_id)
+        if not q:
+            return None
+        owner = getattr(q, 'owner', None)
+        return {
+            'id': q.id,
+            'object_kind': 'quotation',
+            'quotation_number': q.quotation_number,
+            'title': q.quotation_number,
+            'project_name': q.project.project_name if getattr(q, 'project', None) else '',
+            'customer_name': q.customer.company_name if getattr(q, 'customer', None) else '',
+            'contact_name': q.contact.name if getattr(q, 'contact', None) else '',
+            'owner_name': (owner.real_name or owner.username) if owner else '',
+            'project_stage': getattr(q, 'project_stage', '') or '',
+            'project_type': getattr(q, 'project_type', '') or '',
+            'amount': float(q.amount or 0),
+            'currency': getattr(q, 'currency', 'CNY') or 'CNY',
+            'implant_total_amount': float(q.implant_total_amount or 0),
+            'notes': (getattr(q, 'notes', '') or '')[:300],
+            'created_at': q.created_at.strftime('%Y-%m-%d') if getattr(q, 'created_at', None) else None,
+            'lines': [],
+            'detail_count': 0,
+            'total_amount': float(q.amount or 0),
+        }
+    except Exception as e:
+        logger.warning(f'_quotation_summary_for_approval error: {e}')
+        return None
+
+
 def _project_summary_for_approval(project_id):
     """项目详情 — 给审批人看. 关键字段: 项目名/客户/阶段/金额/类型/授权码"""
     try:
@@ -443,6 +543,10 @@ def mobile_approval_detail(instance_id):
         business_obj = _expense_summary_for_approval(inst.object_id)
     elif inst.object_type == 'project':
         business_obj = _project_summary_for_approval(inst.object_id)
+    elif inst.object_type == 'pricing_order':
+        business_obj = _pricing_order_summary_for_approval(inst.object_id)
+    elif inst.object_type == 'quotation':
+        business_obj = _quotation_summary_for_approval(inst.object_id)
 
     # 是否当前审批人?
     is_current = False

@@ -88,6 +88,12 @@
           <span v-if="isProject" class="text-[14px]" style="color: var(--color-ink-3);">
             万 · {{ detail.business_obj?.stage_label || '—' }}
           </span>
+          <span v-else-if="isPricingOrder" class="text-[14px]" style="color: var(--color-ink-3);">
+            {{ currencyLabel(detail.business_obj?.currency) }} · 折扣 {{ ((detail.business_obj?.pricing_total_discount_rate || 1) * 100).toFixed(1) }}%
+          </span>
+          <span v-else-if="isQuotation" class="text-[14px]" style="color: var(--color-ink-3);">
+            {{ currencyLabel(detail.business_obj?.currency) }} · {{ detail.business_obj?.project_stage || '—' }}
+          </span>
           <span v-else-if="detail.business_obj" class="text-[14px]" style="color: var(--color-ink-3);">
             {{ currencyLabel(detail.business_obj.currency) }} · {{ detail.business_obj.detail_count }} 项明细
           </span>
@@ -158,6 +164,46 @@
         <ExDefRow v-if="detail.business_obj.project_type" label="项目类型">{{ detail.business_obj.project_type }}</ExDefRow>
         <ExDefRow v-if="detail.business_obj.authorization_code" label="授权码">{{ detail.business_obj.authorization_code }}</ExDefRow>
         <ExDefRow label="说明" :last="true">{{ detail.business_obj.description || '—' }}</ExDefRow>
+      </div>
+      <!-- 批价单字段 -->
+      <div v-else-if="detail.business_obj && isPricingOrder" :style="{ background: 'var(--color-ex-card)' }">
+        <ExDefRow label="批价单号">{{ detail.business_obj.order_number }}</ExDefRow>
+        <ExDefRow label="项目">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
+        <ExDefRow label="客户">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.quotation_number" label="关联报价单">{{ detail.business_obj.quotation_number }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.dealer_name" label="经销商">{{ detail.business_obj.dealer_name }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.distributor_name" label="分销商">{{ detail.business_obj.distributor_name }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.is_direct_contract" label="厂商直签">是</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.is_factory_pickup" label="厂家提货">是</ExDefRow>
+        <ExDefRow label="批价金额">
+          {{ currencySymbol(detail.business_obj.currency) }}{{ formatAmount(detail.business_obj.pricing_total_amount) }}
+          <span v-if="detail.business_obj.pricing_total_discount_rate"
+            :style="{ color: 'var(--color-ex-ink3)', fontSize: '11px', marginLeft: '6px' }">
+            (折 {{ ((detail.business_obj.pricing_total_discount_rate || 1) * 100).toFixed(1) }}%)
+          </span>
+        </ExDefRow>
+        <ExDefRow v-if="detail.business_obj.settlement_total_amount" label="结算金额">
+          {{ currencySymbol(detail.business_obj.currency) }}{{ formatAmount(detail.business_obj.settlement_total_amount) }}
+        </ExDefRow>
+        <ExDefRow label="申请人">{{ detail.business_obj.creator_name || '—' }}</ExDefRow>
+        <ExDefRow label="备注" :last="true">{{ detail.business_obj.notes || '—' }}</ExDefRow>
+      </div>
+      <!-- 报价单字段 -->
+      <div v-else-if="detail.business_obj && isQuotation" :style="{ background: 'var(--color-ex-card)' }">
+        <ExDefRow label="报价单号">{{ detail.business_obj.quotation_number }}</ExDefRow>
+        <ExDefRow label="项目">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
+        <ExDefRow label="客户">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.contact_name" label="联系人">{{ detail.business_obj.contact_name }}</ExDefRow>
+        <ExDefRow label="负责人">{{ detail.business_obj.owner_name || '—' }}</ExDefRow>
+        <ExDefRow label="报价金额">
+          {{ currencySymbol(detail.business_obj.currency) }}{{ formatAmount(detail.business_obj.amount) }}
+        </ExDefRow>
+        <ExDefRow v-if="detail.business_obj.implant_total_amount" label="植入金额">
+          {{ currencySymbol(detail.business_obj.currency) }}{{ formatAmount(detail.business_obj.implant_total_amount) }}
+        </ExDefRow>
+        <ExDefRow v-if="detail.business_obj.project_stage" label="项目阶段">{{ detail.business_obj.project_stage }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.project_type" label="项目类型">{{ detail.business_obj.project_type }}</ExDefRow>
+        <ExDefRow label="备注" :last="true">{{ detail.business_obj.notes || '—' }}</ExDefRow>
       </div>
 
       <!-- 明细 list -->
@@ -373,17 +419,23 @@ const navSub = computed(() => detail.value?.submitter
 
 const currentStepName = computed(() => detail.value?.flow?.find(n => n.state === 'current')?.node || '')
 
-// 区分业务对象类型 — project 没有币种符号 + 用万元单位
+// 区分业务对象类型
 const isProject = computed(() => detail.value?.object_type === 'project')
 const isExpense = computed(() => detail.value?.object_type === 'expense')
+const isPricingOrder = computed(() => detail.value?.object_type === 'pricing_order')
+const isQuotation = computed(() => detail.value?.object_type === 'quotation')
 
 const amountStr = computed(() => {
   const b = detail.value?.business_obj
   if (!b) return '—'
   if (isProject.value) {
-    // 项目: ¥X.XX (万)
-    const a = b.amount || b.total_amount || 0
-    return `¥ ${formatAmount(a)}`
+    return `¥ ${formatAmount(b.amount || b.total_amount || 0)}`
+  }
+  if (isPricingOrder.value) {
+    return `${currencySymbol(b.currency)} ${formatAmount(b.pricing_total_amount || 0)}`
+  }
+  if (isQuotation.value) {
+    return `${currencySymbol(b.currency)} ${formatAmount(b.amount || 0)}`
   }
   return `${currencySymbol(b.currency)} ${formatAmount(b.total_amount)}`
 })
