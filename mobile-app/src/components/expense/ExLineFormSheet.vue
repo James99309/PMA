@@ -13,12 +13,11 @@
       >
         <div
           class="mt-auto flex flex-col"
-          :style="{
+          :style="[{
             background: 'var(--color-ex-bg)',
             borderRadius: '20px 20px 0 0',
             maxHeight: '90vh',
-            paddingBottom: 'env(safe-area-inset-bottom)',
-          }"
+          }, kbStyle]"
         >
           <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '10px auto 6px' }" />
           <div class="px-5 pt-2 pb-3 flex items-center justify-between shrink-0">
@@ -123,6 +122,9 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import ExRow from './ExRow.vue'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbStyle } = useKeyboardOffset()
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

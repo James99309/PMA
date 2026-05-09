@@ -18,13 +18,14 @@
       >
         <div
           class="absolute left-0 right-0 bottom-0"
-          :style="{
+          :style="[{
             background: 'var(--color-ex-bg)',
             borderRadius: '20px 20px 0 0',
             padding: '14px 20px 26px',
-            paddingBottom: 'calc(26px + env(safe-area-inset-bottom))',
+            paddingBottom: `calc(26px + env(safe-area-inset-bottom) + ${kbStyle.paddingBottom || '0px'})`,
             boxShadow: 'var(--shadow-ex-sheet)',
-          }"
+            transition: 'padding-bottom 0.25s cubic-bezier(.25,.46,.45,.94)',
+          }]"
         >
           <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '0 auto 14px' }" />
           <div
@@ -157,6 +158,9 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbStyle } = useKeyboardOffset()
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

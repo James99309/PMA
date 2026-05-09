@@ -9,7 +9,7 @@
 <template>
   <div
     class="relative h-full overflow-hidden"
-    :style="{ background: 'var(--color-ex-bg)', color: 'var(--color-ex-ink)', fontFamily: 'var(--font-sans)' }"
+    :style="[{ background: 'var(--color-ex-bg)', color: 'var(--color-ex-ink)', fontFamily: 'var(--font-sans)' }, kbStyle]"
   >
     <div class="status-pad" />
 
@@ -342,6 +342,9 @@ import client from '@/api/client'
 import * as expApi from '@/api/expense'
 import { useExpenseStore } from '@/stores/expense'
 import { useAuthStore } from '@/stores/auth'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbStyle } = useKeyboardOffset()
 import ExNav from '@/components/expense/ExNav.vue'
 import ExRow from '@/components/expense/ExRow.vue'
 import ExBottomBar from '@/components/expense/ExBottomBar.vue'

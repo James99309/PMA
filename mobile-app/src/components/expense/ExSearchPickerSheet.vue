@@ -13,13 +13,12 @@
       >
         <div
           class="mt-auto flex flex-col"
-          :style="{
+          :style="[{
             background: 'var(--color-ex-bg)',
             borderRadius: '20px 20px 0 0',
             maxHeight: '80vh',
             minHeight: '50vh',
-            paddingBottom: 'env(safe-area-inset-bottom)',
-          }"
+          }, kbStyle]"
         >
           <!-- drag indicator -->
           <div
@@ -94,6 +93,9 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { kbStyle } = useKeyboardOffset()
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
