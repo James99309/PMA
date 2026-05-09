@@ -1,7 +1,7 @@
 <script setup>
 // 会话列表 — 严格本区 (Federation Lite v2 简化方案)
 // 不再合并对区会话; 对区有未读时, 顶部琥珀卡提示, 点卡片切到对区即可
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import PixelP from '@/components/common/PixelP.vue'
 import CrossRegionMsgCard from '@/components/common/CrossRegionMsgCard.vue'
@@ -100,70 +100,6 @@ function openAi() {
   router.push({ path: '/messages/ai', query: aiConv.value ? { id: aiConv.value.id } : {} })
 }
 
-// 本地过滤 — 替代后端搜索, 避免中文 IME debounce 竞态
-const filteredDmUsers = computed(() => {
-  const q = pickerSearch.value.trim().toLowerCase()
-  if (!q) return allDmUsers.value
-  return allDmUsers.value.filter(u =>
-    (u.name || '').toLowerCase().includes(q) ||
-    (u.username || '').toLowerCase().includes(q) ||
-    (u.dept || '').toLowerCase().includes(q) ||
-    (u.company_name || '').toLowerCase().includes(q)
-  )
-})
-
-// 三级树: 公司 → 部门 → 人员; 自己公司排最前
-const dmTree = computed(() => {
-  if (pickerStep.value !== 'dm') return []
-  const me = auth.user
-  const myCompany = me?.company_name || ''
-  // company → { name, depts: { dept_name → users[] } }
-  const companies = new Map()
-  for (const u of filteredDmUsers.value) {
-    const c = u.company_name || '未分公司'
-    const d = u.dept || '未分部门'
-    if (!companies.has(c)) companies.set(c, { name: c, depts: new Map(), total: 0 })
-    const co = companies.get(c)
-    if (!co.depts.has(d)) co.depts.set(d, { name: d, users: [] })
-    co.depts.get(d).users.push(u)
-    co.total++
-  }
-  // 转 array + 排序: 自己公司排最前
-  return [...companies.values()]
-    .sort((a, b) => {
-      if (a.name === myCompany) return -1
-      if (b.name === myCompany) return 1
-      return a.name.localeCompare(b.name, 'zh')
-    })
-    .map(co => ({
-      name: co.name,
-      total: co.total,
-      depts: [...co.depts.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh')),
-    }))
-})
-
-// 搜索时自动展开所有命中的公司/部门, 让用户立即看到结果
-watch(pickerSearch, (q) => {
-  if (q && q.trim()) {
-    for (const co of dmTree.value) {
-      expandedCompanies.value.add(co.name)
-      for (const d of co.depts) {
-        expandedDepts.value.add(`${co.name}|${d.name}`)
-      }
-    }
-  }
-})
-
-function toggleCompany(name) {
-  if (expandedCompanies.value.has(name)) expandedCompanies.value.delete(name)
-  else expandedCompanies.value.add(name)
-}
-function toggleDept(companyName, deptName) {
-  const key = `${companyName}|${deptName}`
-  if (expandedDepts.value.has(key)) expandedDepts.value.delete(key)
-  else expandedDepts.value.add(key)
-}
-
 // 滑动列表时收起键盘, 避免被键盘遮挡
 function dismissKeyboard() {
   const el = document.activeElement
@@ -210,8 +146,69 @@ const pickerResults = ref([])         // group/project step 用 (后端搜)
 const allDmUsers = ref([])            // dm step 一次拉全员, 后续本地过滤
 const pickerSearching = ref(false)
 const pickerCreating = ref(false)
-const expandedCompanies = ref(new Set())  // 展开中的 company keys
-const expandedDepts = ref(new Set())      // 展开中的 'company|dept' keys
+// Vue 3 reactive 支持 Set 的 add/delete 触发更新; ref(new Set()) 不触发
+const expandedCompanies = reactive(new Set())
+const expandedDepts = reactive(new Set())
+
+// 本地过滤 — 替代后端搜索, 避免中文 IME debounce 竞态
+const filteredDmUsers = computed(() => {
+  const q = pickerSearch.value.trim().toLowerCase()
+  if (!q) return allDmUsers.value
+  return allDmUsers.value.filter(u =>
+    (u.name || '').toLowerCase().includes(q) ||
+    (u.username || '').toLowerCase().includes(q) ||
+    (u.dept || '').toLowerCase().includes(q) ||
+    (u.company_name || '').toLowerCase().includes(q)
+  )
+})
+
+// 三级树: 公司 → 部门 → 人员; 自己公司排最前
+const dmTree = computed(() => {
+  if (pickerStep.value !== 'dm') return []
+  const me = auth.user
+  const myCompany = me?.company_name || ''
+  const companies = new Map()
+  for (const u of filteredDmUsers.value) {
+    const c = u.company_name || '未分公司'
+    const d = u.dept || '未分部门'
+    if (!companies.has(c)) companies.set(c, { name: c, depts: new Map(), total: 0 })
+    const co = companies.get(c)
+    if (!co.depts.has(d)) co.depts.set(d, { name: d, users: [] })
+    co.depts.get(d).users.push(u)
+    co.total++
+  }
+  return [...companies.values()]
+    .sort((a, b) => {
+      if (a.name === myCompany) return -1
+      if (b.name === myCompany) return 1
+      return a.name.localeCompare(b.name, 'zh')
+    })
+    .map(co => ({
+      name: co.name,
+      total: co.total,
+      depts: [...co.depts.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh')),
+    }))
+})
+
+// 搜索时自动展开所有命中的公司/部门, 让用户立即看到结果
+watch(pickerSearch, (q) => {
+  if (q && q.trim()) {
+    for (const co of dmTree.value) {
+      expandedCompanies.add(co.name)
+      for (const d of co.depts) expandedDepts.add(`${co.name}|${d.name}`)
+    }
+  }
+})
+
+function toggleCompany(name) {
+  if (expandedCompanies.has(name)) expandedCompanies.delete(name)
+  else expandedCompanies.add(name)
+}
+function toggleDept(companyName, deptName) {
+  const key = `${companyName}|${deptName}`
+  if (expandedDepts.has(key)) expandedDepts.delete(key)
+  else expandedDepts.add(key)
+}
 
 function pickStart(kind) {
   if (kind === 'ai') {
@@ -238,8 +235,8 @@ async function loadAllUsers() {
     allDmUsers.value = r.data?.success ? (r.data.data || []) : []
     // 默认展开当前用户的公司 + 部门
     const me = auth.user
-    if (me?.company_name) expandedCompanies.value.add(me.company_name)
-    if (me?.company_name && me?.department) expandedDepts.value.add(`${me.company_name}|${me.department}`)
+    if (me?.company_name) expandedCompanies.add(me.company_name)
+    if (me?.company_name && me?.department) expandedDepts.add(`${me.company_name}|${me.department}`)
   } catch (e) {
     console.error('load users failed', e)
     allDmUsers.value = []
@@ -384,15 +381,12 @@ function closePicker() {
         </button>
       </div>
 
-      <!-- 普通会话 (左滑可"从列表移出"; 对方再发消息会自动重新出现) -->
+      <!-- 普通会话 -->
       <div class="mt-2" style="background: var(--color-card);">
-        <SwipeRowAction
-          v-for="(c, i) in conversations" :key="c.id"
-          :actions="[{ label: '移出', color: 'red', handler: () => onHideConversation(c) }]"
-        >
-        <button @click="openConversation(c)"
+        <button v-for="(c, i) in conversations" :key="c.id"
+          @click="openConversation(c)"
           class="w-full px-4 py-3.5 flex gap-3 active:bg-bg text-left"
-          :style="(i < conversations.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : '') + ' background: var(--color-card);'">
+          :style="i < conversations.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
           <!-- 头像（广播=方形 + ink；其他=圆形 + accent-soft）-->
           <div class="w-[42px] h-[42px] inline-flex items-center justify-center font-serif font-semibold shrink-0"
             :style="{
@@ -423,7 +417,6 @@ function closePicker() {
             </div>
           </div>
         </button>
-        </SwipeRowAction>
       </div>
     </div>
 
