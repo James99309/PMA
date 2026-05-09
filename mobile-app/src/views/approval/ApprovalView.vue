@@ -62,9 +62,53 @@
       >抄送给我</span>
     </div>
 
+    <!-- 筛选 + 排序 row -->
+    <div
+      class="absolute left-0 right-0 z-[3] flex items-center"
+      :style="{
+        top: '142px',
+        height: '40px',
+        padding: '0 20px',
+        background: 'var(--color-ex-bg)',
+        borderBottom: '1px solid var(--color-ex-divider-soft)',
+        gap: '6px',
+      }"
+    >
+      <!-- 业务类型 chips -->
+      <div class="flex flex-1 overflow-x-auto no-scrollbar" :style="{ gap: '6px' }">
+        <span
+          v-for="t in TYPE_OPTIONS" :key="t.value"
+          class="active:opacity-60 flex-shrink-0"
+          :style="{
+            fontSize: '12px',
+            fontWeight: typeFilter === t.value ? 600 : 400,
+            color: typeFilter === t.value ? 'var(--color-ex-ink)' : 'var(--color-ex-ink3)',
+            background: typeFilter === t.value ? 'var(--color-ex-divider)' : 'transparent',
+            padding: '4px 10px',
+            borderRadius: '12px',
+            whiteSpace: 'nowrap',
+            border: typeFilter === t.value ? 'none' : '1px solid var(--color-ex-divider)',
+          }"
+          @click="typeFilter = t.value"
+        >{{ t.label }}</span>
+      </div>
+      <!-- 排序 -->
+      <span
+        class="active:opacity-60 flex-shrink-0"
+        :style="{
+          fontSize: '12px',
+          color: 'var(--color-ex-ink2)',
+          padding: '4px 6px',
+        }"
+        @click="sortDir = sortDir === 'desc' ? 'asc' : 'desc'"
+      >
+        {{ sortDir === 'desc' ? '↓ 最新' : '↑ 最早' }}
+      </span>
+    </div>
+
     <div
       class="overflow-auto h-full no-scrollbar"
-      :style="{ paddingTop: '144px' }"
+      :style="{ paddingTop: '184px' }"
     >
       <div v-if="loading" :style="{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }">加载中...</div>
       <div v-else-if="visibleItems.length === 0" :style="{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }">
@@ -148,13 +192,34 @@ const history = ref([])
 const cc = ref([])
 const loading = ref(false)
 
+// 筛选 / 排序 (三段共用)
+const typeFilter = ref('all')   // all | expense | project | pricing_order | quotation
+const sortDir = ref('desc')     // desc=最新 | asc=最早
+const TYPE_OPTIONS = [
+  { value: 'all',           label: '全部' },
+  { value: 'expense',       label: '报销' },
+  { value: 'project',       label: '项目' },
+  { value: 'pricing_order', label: '批价' },
+  { value: 'quotation',     label: '报价' },
+]
+
 const pendingCount = computed(() => pending.value.length)
 const historyCount = computed(() => history.value.length)
 
 const visibleItems = computed(() => {
-  if (tab.value === 'pending') return pending.value
-  if (tab.value === 'history') return history.value
-  return cc.value
+  const src = tab.value === 'pending' ? pending.value
+            : tab.value === 'history' ? history.value
+            : cc.value
+  let arr = src
+  if (typeFilter.value !== 'all') {
+    arr = arr.filter(it => it.object_type === typeFilter.value)
+  }
+  // 按 created_at 排序; 缺失时间放最后
+  return [...arr].sort((a, b) => {
+    const ta = a.created_at ? new Date(a.created_at).getTime() : 0
+    const tb = b.created_at ? new Date(b.created_at).getTime() : 0
+    return sortDir.value === 'desc' ? tb - ta : ta - tb
+  })
 })
 
 function avatarColor(name) {
@@ -219,6 +284,7 @@ async function loadPending() {
       currency_symbol: isProject ? '¥' : currencySymbolFor(i.currency || 'CNY'),
       amount_suffix: isProject ? '万' : '',
       time: fmtTime(i.created_at),
+      created_at: i.created_at,           // 保留原始时间用于排序
       tag: `${i.object_type_label || '待我审批'}${i.current_step_name ? ' · ' + i.current_step_name : ''}`,
       tag_color: TAG_PENDING.color,
       tag_bg: TAG_PENDING.bg,
@@ -248,6 +314,8 @@ async function loadHistory() {
       amount: null,
       currency_symbol: '¥',
       time: fmtTime(i.created_at),
+      created_at: i.created_at,           // 保留原始时间用于排序
+      object_type: i.object_type,         // 用于业务类型筛选
       tag: tagMeta.tag,
       tag_color: tagMeta.color,
       tag_bg: tagMeta.bg,
