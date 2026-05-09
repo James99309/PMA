@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getQuotationDetail } from '@/api/projects'
 
@@ -8,28 +8,70 @@ const router = useRouter()
 const quotation = ref(null)
 const loading = ref(true)
 
-// 进此页时临时允许 pinch-zoom (app 全局 viewport user-scalable=no 防表单自动放大,
-// 但报价单需要双指缩放查看), 离开时恢复
-let _origViewport = null
-function setViewport(content) {
-  const meta = document.querySelector('meta[name=viewport]')
-  if (!meta) return
-  if (_origViewport === null) _origViewport = meta.getAttribute('content')
-  meta.setAttribute('content', content)
+// 自定义 pinch-zoom (iOS WKWebView 改 viewport 不生效, 只能 JS 实现)
+const wrapRef = ref(null)
+const iframeRef = ref(null)
+const scale = ref(1)
+const contentHeight = ref(800)  // iframe 内容真实高度, onLoad 时拿到
+let lastDistance = 0
+let lastScale = 1
+
+function dist(touches) {
+  const dx = touches[0].clientX - touches[1].clientX
+  const dy = touches[0].clientY - touches[1].clientY
+  return Math.sqrt(dx * dx + dy * dy)
 }
-function restoreViewport() {
-  const meta = document.querySelector('meta[name=viewport]')
-  if (meta && _origViewport !== null) {
-    meta.setAttribute('content', _origViewport)
-    _origViewport = null
+
+function onTouchStart(e) {
+  if (e.touches.length === 2) {
+    lastDistance = dist(e.touches)
+    lastScale = scale.value
+    e.preventDefault()
   }
 }
 
-onMounted(() => {
-  setViewport('width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=5, user-scalable=yes, viewport-fit=cover')
-  load()
-})
-onBeforeUnmount(restoreViewport)
+function onTouchMove(e) {
+  if (e.touches.length === 2 && lastDistance > 0) {
+    const d = dist(e.touches)
+    const next = Math.max(0.5, Math.min(3, lastScale * (d / lastDistance)))
+    scale.value = next
+    e.preventDefault()
+  }
+}
+
+function onTouchEnd(e) {
+  if (e.touches.length < 2) lastDistance = 0
+}
+
+// 双击切换 1× / 2× (常见 doc preview 行为)
+let lastTap = 0
+function onClick(e) {
+  const now = Date.now()
+  if (now - lastTap < 300) {
+    scale.value = scale.value > 1.2 ? 1 : 2
+    e.preventDefault()
+  }
+  lastTap = now
+}
+
+// iframe 加载完后取真实内容高度, 让外层 sized wrapper 撑足
+function onIframeLoad() {
+  nextTick(() => {
+    const iframe = iframeRef.value
+    if (!iframe) return
+    try {
+      // 等下一帧让 layout 完成
+      setTimeout(() => {
+        const h = iframe.contentDocument?.body?.scrollHeight
+              || iframe.contentDocument?.documentElement?.scrollHeight
+              || 800
+        if (h > 0) contentHeight.value = h
+      }, 100)
+    } catch {}
+  })
+}
+
+onMounted(load)
 
 async function load() {
   try {
@@ -211,16 +253,44 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
     <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"/>
   </div>
 
-  <!-- iframe 承载报价单，有独立 viewport width=1100，等比例缩放 -->
-  <iframe v-else-if="quotation"
-          :srcdoc="iframeHTML"
-          style="border:none; width:100%; display:block;"
-          :style="{
-            marginTop: 'calc(44px + env(safe-area-inset-top))',
-            height: 'calc(100vh - 44px - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 60px)'
-          }"
-          scrolling="yes"
-  />
+  <!-- 自定义 pinch-zoom: 外容器 overflow 滚动 + sized wrapper 撑出 scaled 区域 + iframe transform -->
+  <div v-else-if="quotation"
+       ref="wrapRef"
+       @touchstart="onTouchStart"
+       @touchmove="onTouchMove"
+       @touchend.passive="onTouchEnd"
+       @touchcancel.passive="onTouchEnd"
+       @click="onClick"
+       :style="{
+         position: 'fixed',
+         top: 'calc(44px + env(safe-area-inset-top))',
+         left: 0, right: 0, bottom: 0,
+         overflow: 'auto',
+         WebkitOverflowScrolling: 'touch',
+         touchAction: 'pan-x pan-y',
+         background: '#cfd2d7',
+       }">
+    <!-- sized wrapper: 宽高 = 内容尺寸 × scale, 撑出 scrollable 区域 -->
+    <div :style="{
+      width: (1100 * scale) + 'px',
+      height: (contentHeight * scale) + 'px',
+      position: 'relative',
+    }">
+      <iframe ref="iframeRef"
+              :srcdoc="iframeHTML"
+              scrolling="no"
+              @load="onIframeLoad"
+              :style="{
+                border: 'none',
+                display: 'block',
+                width: '1100px',
+                height: contentHeight + 'px',
+                transform: `scale(${scale})`,
+                transformOrigin: '0 0',
+                transition: lastDistance === 0 ? 'transform 0.2s ease-out' : 'none',
+              }" />
+    </div>
+  </div>
 
   <!-- 失败 -->
   <div v-else class="flex flex-col items-center justify-center text-gray-400 gap-2"
