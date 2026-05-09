@@ -45,7 +45,7 @@ def _instance_to_dict(inst):
         'object_name': _get_object_name(inst.object_type, inst.object_id),
         'current_step': inst.current_step,
         'submitted_by_name': submitter.real_name or submitter.username if submitter else '',
-        'created_at': inst.created_at.isoformat() if inst.created_at else None,
+        'created_at': inst.started_at.isoformat() if inst.started_at else None,
     }
 
 
@@ -334,7 +334,7 @@ def mobile_approval_detail(instance_id):
         'object_name': _get_object_name(inst.object_type, inst.object_id),
         'submitter': submitter_dict,
         'submitter_stats': _applicant_stats(inst.created_by),
-        'created_at': inst.created_at.strftime('%Y-%m-%d %H:%M') if inst.created_at else None,
+        'created_at': inst.started_at.strftime('%Y-%m-%d %H:%M') if inst.started_at else None,
         'flow': _approval_flow_for_instance(inst),
         'business_obj': business_obj,
         'is_current_approver': is_current,
