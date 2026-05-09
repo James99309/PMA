@@ -414,7 +414,7 @@ window.addEventListener('load', function() {
 });
 // 可选: 内容变化(图片 onload 等)时也重报
 new ResizeObserver(reportH).observe(document.documentElement);
-</script>
+<\/script>
 </body>
 </html>`
 })
