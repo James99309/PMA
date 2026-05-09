@@ -137,8 +137,8 @@
               }"
               @click="close"
             >取消</div>
-            <!-- 设计稿(L302-306): 确认按钮永远是 cfg.color 背景 + 白字
-                 不能改 disabled 时 bg, 只 fade opacity 表达不可点 -->
+            <!-- 设计稿(L302-306): 确认按钮永远是 cfg.color 背景 + 白字, 无 disabled 视觉
+                 校验改为点击时 toast 提示, 不再 fade opacity (避免按钮看上去灰) -->
             <div
               class="flex items-center justify-center"
               :style="{
@@ -149,10 +149,8 @@
                 color: '#fff',
                 fontSize: '14px',
                 fontWeight: 600,
-                opacity: canConfirm ? 1 : 0.4,
-                transition: 'opacity 0.15s',
               }"
-              @click="canConfirm && submit()"
+              @click="onClickConfirm"
             >{{ submitting ? '处理中...' : `确认${cfg.label}` }}</div>
           </div>
         </div>
@@ -206,6 +204,20 @@ function onPickUser() {
 
 function submit() {
   emit('confirm', { comment: comment.value, targetUserId: props.selectedUser?.id })
+}
+
+// 点击确认 — 校验失败用 alert 提示(替代之前 disabled 灰按钮的视觉)
+function onClickConfirm() {
+  if (props.submitting) return
+  if (props.action === 'reject' && comment.value.trim().length < 5) {
+    alert('请填写驳回原因(至少 5 个字)')
+    return
+  }
+  if (props.action === 'forward' && !props.selectedUser) {
+    alert('请选择转交目标')
+    return
+  }
+  submit()
 }
 
 function close() { emit('update:modelValue', false) }
