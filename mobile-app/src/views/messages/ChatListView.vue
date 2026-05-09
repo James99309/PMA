@@ -326,37 +326,14 @@ function backToPickerMain() {
 }
 
 function closePicker() {
-  console.warn('[diag] closePicker() called', new Error().stack)
-  diagMsg.value = `closePicker @ ${new Date().toLocaleTimeString()}`
   showPicker.value = false
   pickerStep.value = 'main'
 }
-
-// === 诊断: 监控 showPicker 何时被关 ===
-const diagMsg = ref('')
-watch(showPicker, (v, old) => {
-  if (old && !v) {
-    const stack = new Error().stack || ''
-    console.warn('[diag] showPicker → false', stack)
-    if (!diagMsg.value) {
-      diagMsg.value = `showPicker→false @ ${new Date().toLocaleTimeString()} step=${pickerStep.value}`
-    }
-    setTimeout(() => { diagMsg.value = '' }, 8000)
-  }
-})
 </script>
 
 <template>
   <div class="flex flex-col h-full" style="background: var(--color-bg);">
 
-    <!-- 诊断浮标 (sheet 关闭时显示) -->
-    <div v-if="diagMsg"
-      style="position: fixed; top: 60px; left: 12px; right: 12px; z-index: 9999;
-             background: #B5453A; color: #fff; padding: 10px 14px;
-             border-radius: 8px; font-size: 12px; font-family: monospace;
-             box-shadow: 0 4px 16px rgba(0,0,0,0.25);">
-      DIAG: {{ diagMsg }}
-    </div>
 
     <!-- PageHead -->
     <div class="px-6 pt-3.5 pb-2 flex items-start justify-between shrink-0">
@@ -454,11 +431,12 @@ watch(showPicker, (v, old) => {
     <!-- 发起聊天 sheet -->
     <Transition name="sheet">
       <div v-if="showPicker" class="absolute inset-0 z-40">
-        <!-- 遮罩仅做暗化, 不绑 click 关闭 — 避免 IME/touchend 穿透意外关 sheet
-             用户用顶部 "取消"/"返回" 按钮明确关闭 -->
-        <div class="absolute inset-0 bg-black/40" />
-        <!-- panel: bottom 跟随键盘抬升, max-h 减去键盘 + safe area, 避免被键盘挤压 -->
+        <!-- 遮罩点击关闭 sheet -->
+        <div class="absolute inset-0 bg-black/40" @click="closePicker" />
+        <!-- panel: bottom 跟随键盘抬升, max-h 减去键盘, 避免被键盘挤压
+             @click.stop 防止 panel 内点击冒泡到遮罩误触发 closePicker -->
         <div class="absolute left-0 right-0 rounded-t-3xl pt-3 pb-8 overflow-y-auto"
+          @click.stop
           :style="{
             background: 'var(--color-bg)',
             bottom: kbOffset + 'px',
