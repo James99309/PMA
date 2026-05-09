@@ -160,60 +160,27 @@ const selectedStage = ref(null)
 const showAllQuotations = ref(false)
 const showAuthModal = ref(false)
 
-// 审批流程 sheet (顶部 chip 点击展开)
-// 注意: PMA 项目'授权申请'只改 project.authorization_status='pending', 没创建
-// 通用 ApprovalInstance, 所以后端 helper 查不到流程. fallback: 从 project 字段
-// 构造虚拟节点 (申请人 已申请 + 上级 待审批)
+// 审批流程 sheet (顶部 chip 点击展开) — 走通用 ApprovalInstance
 const flowSheetOpen = ref(false)
 const flowNodes = ref([])
+const flowLoadError = ref('')
 async function loadAndShowFlow() {
   if (!project.value) return
   flowSheetOpen.value = true
+  flowLoadError.value = ''
+  flowNodes.value = []
   try {
     const r = await client.get('/mobile/approval/flow-by-object', {
       params: { object_type: 'project', object_id: project.value.id },
     })
     const flow = r.data?.data?.flow || []
-    if (flow.length > 0) {
-      flowNodes.value = flow
-    } else {
-      // fallback: 用 project 字段拼虚拟节点(项目授权流程不在通用 ApprovalInstance 表)
-      flowNodes.value = buildAuthFallbackFlow(project.value)
+    flowNodes.value = flow
+    if (flow.length === 0) {
+      flowLoadError.value = '未找到流程数据（此项目可能由旧入口创建）'
     }
   } catch (e) {
-    flowNodes.value = buildAuthFallbackFlow(project.value)
+    flowLoadError.value = '流程加载失败'
   }
-}
-
-function buildAuthFallbackFlow(p) {
-  if (!p) return []
-  const status = p.authorization_status
-  const owner = p.owner_name || '申请人'
-  const applyTime = p.report_time || p.created_at || ''
-  const applyAt = applyTime ? String(applyTime).slice(0, 16) : ''
-  if (status === 'pending') {
-    return [
-      { node: '提交授权申请', user: owner, state: 'done', at: applyAt },
-      { node: '上级审批', user: '上级', state: 'current', at: null,
-        remark: p.feedback ? p.feedback.replace(/^申请备注:\s*/, '') : null },
-    ]
-  }
-  if (status === 'rejected') {
-    return [
-      { node: '提交授权申请', user: owner, state: 'done', at: applyAt },
-      { node: '上级审批', user: '上级', state: 'rejected', at: applyAt,
-        remark: p.feedback || '已驳回' },
-    ]
-  }
-  if (p.authorization_code) {
-    return [
-      { node: '提交授权申请', user: owner, state: 'done', at: applyAt },
-      { node: '上级审批', user: '上级', state: 'done', at: applyAt, remark: '已通过' },
-      { node: '已授权', user: '系统', state: 'done', at: null,
-        remark: `授权码: ${p.authorization_code}` },
-    ]
-  }
-  return []
 }
 const authNote = ref('')
 const submittingAuth = ref(false)
@@ -1047,7 +1014,7 @@ onMounted(() => {
     </Teleport>
 
     <!-- 审批流程 sheet (授权 chip 点击触发) -->
-    <ExFlowSheet v-model="flowSheetOpen" :nodes="flowNodes" />
+    <ExFlowSheet v-model="flowSheetOpen" :nodes="flowNodes" :empty-hint="flowLoadError" />
   </div>
 </template>
 

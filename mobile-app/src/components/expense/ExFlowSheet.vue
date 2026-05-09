@@ -33,7 +33,7 @@
           <div class="overflow-auto" :style="{ background: 'var(--color-ex-card)', padding: '12px 20px 20px' }">
             <div v-if="!nodes || nodes.length === 0"
               :style="{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }">
-              暂无审批流程
+              {{ emptyHint || '暂无审批流程' }}
             </div>
             <ExFlowNode v-for="(n, i) in nodes" :key="i" :node="n" :last="i === nodes.length - 1" />
           </div>
@@ -50,6 +50,7 @@ import ExFlowNode from './ExFlowNode.vue'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   nodes: { type: Array, default: () => [] },
+  emptyHint: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue'])
 

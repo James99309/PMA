@@ -517,7 +517,7 @@ def mobile_project_update_stage(project_id):
 @api_v1_bp.route('/mobile/projects/<int:project_id>/auth-request', methods=['POST'])
 @jwt_required()
 def mobile_project_auth_request(project_id):
-    """提交授权编号申请"""
+    """提交项目审批 — 走通用流程引擎(模板9)，与 web 端「提交审批」按钮一致。"""
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
     if not user:
@@ -530,29 +530,62 @@ def mobile_project_auth_request(project_id):
     # 权限：项目负责人、厂商销售经理或管理员
     vendor_mgr_id = getattr(project, 'vendor_sales_manager_id', None)
     if user.role != 'admin' and user_id != project.owner_id and user_id != vendor_mgr_id:
-        return api_response(success=False, code=403, message="只有项目负责人或管理员可提交授权申请")
+        return api_response(success=False, code=403, message="只有项目负责人或管理员可提交审批")
 
     if project.authorization_code:
         return api_response(success=False, code=400, message="此项目已有授权编号，无需重复申请")
 
-    if project.authorization_status == 'pending':
-        return api_response(success=False, code=400, message="此项目已提交申请，正在审批中")
-
     if not project.project_type or not project.project_type.strip():
         return api_response(success=False, code=400, message="项目类型未填写，无法提交申请，请在桌面端完善后再试")
 
+    from app.helpers.approval_helpers import (
+        start_approval_process, get_available_templates, get_object_approval_instance
+    )
+    from app.models.approval import ApprovalStatus, ApprovalRecord
+
+    existing = get_object_approval_instance('project', project_id)
+    if existing and existing.status == ApprovalStatus.PENDING:
+        return api_response(success=False, code=400, message="此项目已有进行中的审批")
+
+    templates = get_available_templates('project')
+    if not templates:
+        return api_response(success=False, code=400, message="未找到可用的项目审批模板，请联系管理员")
+
     data = request.get_json() or {}
-    note = data.get('note', '').strip()
+    note = (data.get('note') or '').strip()
 
     try:
-        project.authorization_status = 'pending'
-        project.feedback = f"申请备注: {note}" if note else None
+        instance = start_approval_process(
+            object_type='project',
+            object_id=project_id,
+            template_id=templates[0].id,
+            user_id=user_id,
+            auto_commit=False,
+        )
+        if not instance:
+            db.session.rollback()
+            return api_response(success=False, code=500, message="启动审批流程失败")
+
+        # 备注挂到首条 submit 记录的 comment 字段（如已自动写入 record，更新它；否则补写）
+        if note:
+            submit_rec = ApprovalRecord.query.filter_by(
+                instance_id=instance.id, action='submit'
+            ).order_by(ApprovalRecord.created_at.desc()).first()
+            if submit_rec and not submit_rec.comment:
+                submit_rec.comment = note
+
+        # 与 web 端 start_project_approval 行为一致
+        project.status = 'pending'
         db.session.commit()
-        return api_response(success=True, message="授权申请已提交，等待审批")
+        return api_response(
+            success=True,
+            data={'instance_id': instance.id},
+            message="审批已提交"
+        )
     except Exception as e:
         db.session.rollback()
-        logger.error(f"mobile auth request error: {e}")
-        return api_response(success=False, code=500, message="提交失败，请重试")
+        logger.exception(f"mobile auth request error: {e}")
+        return api_response(success=False, code=500, message=f"提交失败: {e}")
 
 
 @api_v1_bp.route('/mobile/projects/<int:project_id>/notes', methods=['POST'])
