@@ -405,6 +405,47 @@ def mobile_approval_detail(instance_id):
     })
 
 
+@api_v1_bp.route('/mobile/approval/forward-targets', methods=['GET'])
+@jwt_required()
+def mobile_approval_forward_targets():
+    """转交目标用户搜索 — 任何登录用户都可调用 (不查 user.view 权限).
+
+    返回轻量字段(id/name/role/department), 限 30 条.
+    支持 ?q= 搜索 username/real_name.
+    """
+    user_id = int(get_jwt_identity())
+    me = User.query.get(user_id)
+    if not me:
+        return api_response(success=False, code=401, message='用户不存在')
+
+    q = (request.args.get('q') or '').strip()
+    query = User.query.filter(User.id != user_id)  # 不能转给自己
+    # 排除 inactive 用户
+    if hasattr(User, '_is_active'):
+        query = query.filter(User._is_active == True)
+    if q:
+        like = f'%{q}%'
+        query = query.filter(
+            (User.username.like(like)) |
+            (User.real_name.like(like))
+        )
+    users = query.limit(30).all()
+
+    return api_response(success=True, data={
+        'items': [
+            {
+                'id': u.id,
+                'name': u.real_name or u.username,
+                'username': u.username,
+                'department': getattr(u, 'department', '') or '',
+                'role': u.role or '',
+                'company_name': getattr(u, 'company_name', '') or '',
+            }
+            for u in users
+        ],
+    })
+
+
 @api_v1_bp.route('/mobile/approval/<int:instance_id>/forward', methods=['POST'])
 @jwt_required()
 def mobile_approval_forward(instance_id):

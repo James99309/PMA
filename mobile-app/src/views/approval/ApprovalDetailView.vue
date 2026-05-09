@@ -444,16 +444,17 @@ function showToast(text) {
 
 async function searchUsers(q) {
   try {
-    const r = await client.get('/users/search', { params: { q: q || '', per_page: 20 } }).catch(() =>
-      client.get('/users', { params: { search: q || '', per_page: 20 } }))
-    const items = r.data?.data?.items || r.data?.items || r.data?.users || r.data || []
+    // 用专用端点(任何 jwt 用户都可调, 不查 user.view 权限)
+    const r = await client.get('/mobile/approval/forward-targets', { params: { q: q || '' } })
+    const items = r.data?.data?.items || []
     return items.map(u => ({
       id: u.id,
-      label: u.real_name || u.username,
-      sub: u.department || u.role || '',
-      role_label: u.role_display || u.role || '',
+      label: u.name,
+      sub: [u.department, u.company_name].filter(Boolean).join(' · ') || u.role,
+      role_label: u.role || u.department,
     }))
-  } catch {
+  } catch (e) {
+    console.warn('searchUsers failed:', e)
     return []
   }
 }
