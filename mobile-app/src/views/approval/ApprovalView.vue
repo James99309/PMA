@@ -74,20 +74,16 @@
         gap: '6px',
       }"
     >
-      <!-- 业务类型 chips -->
-      <div class="flex flex-1 overflow-x-auto no-scrollbar" :style="{ gap: '6px' }">
+      <!-- 业务类型 — 纯文字 + 选中粗+ink, 同 ProjectListView sort tabs -->
+      <div class="flex flex-1 overflow-x-auto no-scrollbar" :style="{ gap: '16px' }">
         <span
           v-for="t in TYPE_OPTIONS" :key="t.value"
           class="active:opacity-60 flex-shrink-0"
           :style="{
-            fontSize: '12px',
+            fontSize: '13px',
             fontWeight: typeFilter === t.value ? 600 : 400,
             color: typeFilter === t.value ? 'var(--color-ex-ink)' : 'var(--color-ex-ink3)',
-            background: typeFilter === t.value ? 'var(--color-ex-divider)' : 'transparent',
-            padding: '4px 10px',
-            borderRadius: '12px',
             whiteSpace: 'nowrap',
-            border: typeFilter === t.value ? 'none' : '1px solid var(--color-ex-divider)',
           }"
           @click="typeFilter = t.value"
         >{{ t.label }}</span>
