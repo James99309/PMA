@@ -28,9 +28,10 @@
           }]"
         >
           <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '0 auto 14px' }" />
+          <!-- eyebrow: 设计稿是 label.toUpperCase()(中文 toUpperCase 还是中文); 不能直接显示英文 -->
           <div
             :style="{ fontSize: '11px', color: cfg.color, letterSpacing: '0.6px', fontWeight: 600 }"
-          >{{ cfg.upper }}</div>
+          >{{ cfg.label }}</div>
           <div
             :style="{ fontSize: '22px', fontWeight: 500, fontFamily: 'var(--font-serif)', marginTop: '4px' }"
           >{{ cfg.title }}</div>
@@ -177,9 +178,9 @@ watch(() => props.modelValue, (v) => { if (v) comment.value = '' })
 
 const cfg = computed(() => {
   const map = {
-    approve: { label: '同意', upper: 'APPROVE', title: '同意此报销', color: 'var(--color-ex-green)', placeholder: '可选 · 备注会显示在流程中' },
-    reject:  { label: '驳回', upper: 'REJECT',  title: '驳回此报销', color: 'var(--color-ex-red)',   placeholder: '必填 · 请说明驳回原因' },
-    forward: { label: '转交', upper: 'FORWARD', title: '转交其他人', color: 'var(--color-ex-blue)',  placeholder: '可选 · 转交说明' },
+    approve: { label: '同意', title: '同意此报销', color: 'var(--color-ex-green)', placeholder: '可选 · 备注会显示在流程中' },
+    reject:  { label: '驳回', title: '驳回此报销', color: 'var(--color-ex-red)',   placeholder: '必填 · 请说明驳回原因' },
+    forward: { label: '转交', title: '转交其他人', color: 'var(--color-ex-blue)',  placeholder: '可选 · 转交说明' },
   }
   return map[props.action] || map.approve
 })

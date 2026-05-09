@@ -179,7 +179,7 @@
               }">{{ d.invoice_images.length }}</span>
           </div>
           <div class="flex-1 min-w-0">
-            <div :style="{ fontSize: '13px', fontWeight: 600 }">{{ d.category }}</div>
+            <div :style="{ fontSize: '13px', fontWeight: 600 }">{{ d.category_label || d.category }}</div>
             <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">
               {{ d.description }} · {{ d.expense_date }}
             </div>

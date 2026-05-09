@@ -301,7 +301,8 @@ def _applicant_stats(submitter_id):
 
 def _expense_summary_for_approval(expense_id):
     try:
-        from app.models.expense import Expense
+        from app.models.expense import Expense, EXPENSE_CATEGORIES
+        category_label_map = dict(EXPENSE_CATEGORIES)  # {'meals': '餐费', ...}
         e = Expense.query.get(expense_id)
         if not e:
             return None
@@ -318,11 +319,18 @@ def _expense_summary_for_approval(expense_id):
             'lines': [
                 {
                     'id': d.id,
-                    'category': d.expense_category,
+                    'category': d.expense_category,  # enum key (meals/fuel/...)
+                    'category_label': category_label_map.get(d.expense_category, d.expense_category),  # 中文(餐费/油费/...)
+                    # 兼容: 跟 mobile_expense._line_dict 字段名对齐, 让 ApprovalDetail 可复用 ExLineDetailSheet
+                    'expense_category': d.expense_category,
+                    'expense_category_label': category_label_map.get(d.expense_category, d.expense_category),
+                    'expense_date': d.expense_date.strftime('%Y-%m-%d') if d.expense_date else None,
                     'description': d.description,
+                    'document_count': d.document_count or 1,
                     'currency': d.currency,
                     'invoice_amount': d.invoice_amount,
-                    'expense_date': d.expense_date.strftime('%Y-%m-%d') if d.expense_date else None,
+                    'current_amount': d.current_amount,
+                    'exchange_rate': d.exchange_rate,
                     'invoice_images': d.invoice_images_list,
                 }
                 for d in e.details
