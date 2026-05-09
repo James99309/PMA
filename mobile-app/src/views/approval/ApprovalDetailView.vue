@@ -151,17 +151,22 @@
         <ExDefRow label="项目">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
         <ExDefRow label="说明" :last="true">{{ detail.business_obj.description || '—' }}</ExDefRow>
       </div>
-      <!-- 项目字段 -->
+      <!-- 项目字段 (用 *_label 中文映射, 不显 enum key) -->
       <div v-else-if="detail.business_obj && isProject" :style="{ background: 'var(--color-ex-card)' }">
         <ExDefRow label="项目名称">{{ detail.business_obj.project_name }}</ExDefRow>
         <ExDefRow v-if="detail.business_obj.project_code" label="项目编号">{{ detail.business_obj.project_code }}</ExDefRow>
         <ExDefRow label="客户">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
         <ExDefRow label="负责人">{{ detail.business_obj.owner_name || '—' }}</ExDefRow>
         <ExDefRow v-if="detail.business_obj.sales_manager_name" label="销售经理">{{ detail.business_obj.sales_manager_name }}</ExDefRow>
-        <ExDefRow label="行业">{{ detail.business_obj.industry || '—' }}</ExDefRow>
+        <ExDefRow label="行业">{{ detail.business_obj.industry_label || detail.business_obj.industry || '—' }}</ExDefRow>
         <ExDefRow label="所在地">{{ [detail.business_obj.region, detail.business_obj.city].filter(Boolean).join(' · ') || '—' }}</ExDefRow>
         <ExDefRow label="当前阶段">{{ detail.business_obj.stage_label || detail.business_obj.current_stage || '—' }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.project_type" label="项目类型">{{ detail.business_obj.project_type }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.project_type_label || detail.business_obj.project_type" label="项目类型">
+          {{ detail.business_obj.project_type_label || detail.business_obj.project_type }}
+        </ExDefRow>
+        <ExDefRow v-if="detail.business_obj.authorization_status_label" label="授权状态">
+          {{ detail.business_obj.authorization_status_label }}
+        </ExDefRow>
         <ExDefRow v-if="detail.business_obj.authorization_code" label="授权码">{{ detail.business_obj.authorization_code }}</ExDefRow>
         <ExDefRow label="说明" :last="true">{{ detail.business_obj.description || '—' }}</ExDefRow>
       </div>

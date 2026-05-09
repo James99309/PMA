@@ -198,7 +198,8 @@ async function loadPending() {
     // 副信息按对象类型
     let subtitle
     if (isProject) {
-      subtitle = [i.customer_name, i.stage_label || i.current_stage].filter(Boolean).join(' · ')
+      // stage_label 后端已映射成中文(发现/植入/招标中等), 不再显示 enum key
+      subtitle = [i.customer_name, i.stage_label].filter(Boolean).join(' · ')
     } else if (isPO) {
       subtitle = [i.project_name, i.customer_name, i.dealer_name].filter(Boolean).join(' · ')
     } else if (isQuot) {

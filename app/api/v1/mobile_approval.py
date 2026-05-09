@@ -88,10 +88,13 @@ def _get_object_summary(object_type, object_id):
             }
         if object_type == 'project':
             from app.models.project import Project
+            from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS, PROJECT_TYPE_LABELS
             p = Project.query.get(object_id)
             if not p:
                 return {}
             owner = getattr(p, 'owner', None)
+            stage_zh = PROJECT_STAGE_LABELS.get(p.current_stage, {}).get('zh', p.current_stage)
+            type_zh = PROJECT_TYPE_LABELS.get(getattr(p, 'project_type', ''), {}).get('zh', getattr(p, 'project_type', '') or '')
             return {
                 'expense_number': None,
                 'project_code': getattr(p, 'project_code', '') or '',
@@ -99,8 +102,9 @@ def _get_object_summary(object_type, object_id):
                 'customer_name': p.customer.company_name if getattr(p, 'customer', None) else '',
                 'owner_name': (owner.real_name or owner.username) if owner else '',
                 'current_stage': p.current_stage,
-                'stage_label': getattr(p, 'stage_label', '') or '',
+                'stage_label': stage_zh,                       # 中文映射(发现/嵌入/招标中等)
                 'project_type': getattr(p, 'project_type', '') or '',
+                'project_type_label': type_zh,                 # 中文映射(销售重点/渠道跟进等)
                 'authorization_status': getattr(p, 'authorization_status', '') or '',
                 'amount': float(p.quotation_customer or 0) / 10000 if getattr(p, 'quotation_customer', None) else None,
                 'currency': getattr(p, 'currency', 'CNY') or 'CNY',
@@ -143,7 +147,7 @@ def _get_object_name(object_type, object_id):
         if object_type == 'project':
             from app.models.project import Project
             obj = Project.query.get(object_id)
-            return obj.name if obj else f'项目#{object_id}'
+            return obj.project_name if obj else f'项目#{object_id}'  # bug: 之前用 obj.name (Project 没这个属性) → 落到通用 fallback 'project#id'
         if object_type == 'quotation':
             from app.models.quotation import Quotation
             obj = Quotation.query.get(object_id)
@@ -152,6 +156,10 @@ def _get_object_name(object_type, object_id):
             from app.models.expense import Expense
             obj = Expense.query.get(object_id)
             return obj.title if obj else f'报销#{object_id}'
+        if object_type == 'pricing_order':
+            from app.models.pricing_order import PricingOrder
+            obj = PricingOrder.query.get(object_id)
+            return obj.order_number if obj else f'批价单#{object_id}'
     except Exception:
         pass
     return f'{object_type}#{object_id}'
@@ -472,39 +480,57 @@ def _quotation_summary_for_approval(q_id):
         return None
 
 
+_INDUSTRY_LABELS = {
+    'manufacturing': '制造业', 'healthcare': '医疗健康', 'finance': '金融',
+    'retail': '零售', 'logistics': '物流', 'energy': '能源',
+    'tech': '科技', 'education': '教育', 'government': '政府',
+    'real_estate': '房地产', 'tourism': '旅游', 'agriculture': '农业',
+    'other': '其他',
+}
+
+
 def _project_summary_for_approval(project_id):
     """项目详情 — 给审批人看. 关键字段: 项目名/客户/阶段/金额/类型/授权码"""
     try:
         from app.models.project import Project
+        from app.utils.dictionary_helpers import PROJECT_STAGE_LABELS, PROJECT_TYPE_LABELS, AUTHORIZATION_STATUS_LABELS
         p = Project.query.get(project_id)
         if not p:
             return None
         owner = getattr(p, 'owner', None)
         sales_mgr = getattr(p, 'vendor_sales_manager', None)
+        # 中文映射(避免显示 'discover'/'sales_focus' 这种 enum key)
+        stage_zh = PROJECT_STAGE_LABELS.get(p.current_stage, {}).get('zh', p.current_stage or '')
+        type_zh = PROJECT_TYPE_LABELS.get(getattr(p, 'project_type', ''), {}).get('zh', getattr(p, 'project_type', '') or '')
+        auth_zh = AUTHORIZATION_STATUS_LABELS.get(getattr(p, 'authorization_status', '') or '', {}).get('zh', getattr(p, 'authorization_status', '') or '')
+        industry_zh = _INDUSTRY_LABELS.get(getattr(p, 'industry', ''), getattr(p, 'industry', '') or '')
+
         return {
             'id': p.id,
-            'object_kind': 'project',  # 让前端区分 expense/project
+            'object_kind': 'project',
             'project_code': getattr(p, 'project_code', '') or '',
             'project_name': p.project_name,
-            'title': p.project_name,  # 兼容前端用 .title
+            'title': p.project_name,
             'description': (getattr(p, 'description', '') or '')[:300],
             'customer_name': p.customer.company_name if getattr(p, 'customer', None) else '',
             'customer_id': getattr(p, 'customer_id', None),
             'owner_name': (owner.real_name or owner.username) if owner else '',
             'sales_manager_name': (sales_mgr.real_name or sales_mgr.username) if sales_mgr else '',
             'industry': getattr(p, 'industry', '') or '',
+            'industry_label': industry_zh,
             'city': getattr(p, 'city', '') or '',
             'region': getattr(p, 'region', '') or '',
             'current_stage': p.current_stage,
-            'stage_label': getattr(p, 'stage_label', '') or '',
-            'project_type': getattr(p, 'project_type', '') or '',  # 关键: 用于 process_approval 分支决策
+            'stage_label': stage_zh,                       # 例: 'discover' → '发现'
+            'project_type': getattr(p, 'project_type', '') or '',  # 给后端 process_approval 用
+            'project_type_label': type_zh,                 # 例: 'sales_focus' → '销售重点'
             'authorization_status': getattr(p, 'authorization_status', '') or '',
+            'authorization_status_label': auth_zh,         # 例: 'pending' → '审批中'
             'authorization_code': getattr(p, 'authorization_code', '') or '',
             'amount': float(p.quotation_customer or 0) / 10000 if getattr(p, 'quotation_customer', None) else 0,
             'currency': getattr(p, 'currency', 'CNY') or 'CNY',
             'created_at': p.created_at.strftime('%Y-%m-%d') if getattr(p, 'created_at', None) else None,
             'updated_at': p.updated_at.strftime('%Y-%m-%d %H:%M') if getattr(p, 'updated_at', None) else None,
-            # 项目无明细
             'lines': [],
             'detail_count': 0,
             'total_amount': float(p.quotation_customer or 0) / 10000 if getattr(p, 'quotation_customer', None) else 0,
