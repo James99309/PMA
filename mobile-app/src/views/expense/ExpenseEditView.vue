@@ -384,10 +384,17 @@ const auth = useAuthStore()
 const editingId = ref(parseInt(route.params.id) || null)
 const isNew = computed(() => !editingId.value)
 
+// 默认货币: 用户结算货币 → 区域默认 (cn=CNY, sg=USD)
+const defaultCurrency = (() => {
+  const u = auth.user
+  if (u?.settlement_currency) return u.settlement_currency
+  return auth.regionId === 'sg' ? 'USD' : 'CNY'
+})()
+
 const form = ref({
   title: '',
   description: '',
-  currency: 'CNY',
+  currency: defaultCurrency,
   no_link: false,
   customer_id: null,
   customer_name: '',

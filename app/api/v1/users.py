@@ -516,7 +516,7 @@ def update_user_profile():
     real_name = data.get('real_name')
     email = data.get('email')
     phone = data.get('phone')
-    
+
     # 验证邮箱唯一性
     if email and email != user.email:
         if User.query.filter(User.id != current_user_id, User.email == email).first():
@@ -525,7 +525,7 @@ def update_user_profile():
                 code=400,
                 message="邮箱已被使用"
             )
-    
+
     # 更新字段
     if real_name:
         user.real_name = real_name
@@ -533,6 +533,10 @@ def update_user_profile():
         user.email = email
     if phone:
         user.phone = phone
+    # 结算货币 (允许 null/空字符串清空回归 region 默认)
+    if 'settlement_currency' in data:
+        sc = (data.get('settlement_currency') or '').strip()
+        user.settlement_currency = sc if sc else None
     
     try:
         db.session.commit()

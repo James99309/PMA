@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { CapacitorUpdater } from '@capgo/capacitor-updater'
 import { REGIONS } from '@/api/client'
 import { getPendingApprovals } from '@/api/approval'
+import client from '@/api/client'
 
 // 待审批数(显示在审批中心圆形图标里)
 const pendingCount = ref(0)
@@ -119,6 +120,45 @@ onMounted(async () => {
 // Eyebrow 文案: away 时双语提示
 const eyebrow = computed(() => auth.isAway ? `MY ACCOUNT · ${auth.regionId.toUpperCase()}` : '账户设置')
 const title = computed(() => auth.isAway ? '我的 · Profile' : '我的')
+
+// 结算货币 — 报销默认币种
+const CURRENCY_OPTIONS = [
+  { code: 'CNY', label: '人民币',     symbol: '¥' },
+  { code: 'USD', label: '美元',       symbol: '$' },
+  { code: 'HKD', label: '港币',       symbol: 'HK$' },
+  { code: 'TWD', label: '新台币',     symbol: 'NT$' },
+  { code: 'SGD', label: '新加坡元',   symbol: 'S$' },
+  { code: 'MYR', label: '马来西亚元', symbol: 'RM' },
+  { code: 'IDR', label: '印尼盾',     symbol: 'Rp' },
+  { code: 'THB', label: '泰铢',       symbol: '฿' },
+  { code: 'VND', label: '越南盾',     symbol: '₫' },
+]
+const currentCurrency = computed(() => {
+  const code = auth.user?.settlement_currency
+  if (!code) return auth.regionId === 'sg' ? '默认 · USD' : '默认 · CNY'
+  const opt = CURRENCY_OPTIONS.find(o => o.code === code)
+  return opt ? `${opt.symbol} ${opt.label}` : code
+})
+const showCurrencyPicker = ref(false)
+const updatingCurrency = ref(false)
+async function selectCurrency(code) {
+  if (updatingCurrency.value) return
+  updatingCurrency.value = true
+  try {
+    await client.put('/user/profile', { settlement_currency: code || '' })
+    // 更新 store + localStorage 缓存
+    if (auth.user) {
+      auth.user.settlement_currency = code || null
+      const key = `user_${auth.regionId}`
+      localStorage.setItem(key, JSON.stringify(auth.user))
+    }
+    showCurrencyPicker.value = false
+  } catch (e) {
+    alert(e.response?.data?.message || '保存失败')
+  } finally {
+    updatingCurrency.value = false
+  }
+}
 </script>
 
 <template>
@@ -270,6 +310,15 @@ const title = computed(() => auth.isAway ? '我的 · Profile' : '我的')
               <span style="font-size: 16px; color: #A8A29B; font-weight: 200;">›</span>
             </span>
           </div>
+          <button @click="showCurrencyPicker = true"
+            class="w-full px-4 py-3 flex items-center justify-between active:bg-gray-50 text-left"
+            style="border-bottom: 1px solid var(--color-divider);">
+            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">结算货币</span>
+            <span class="inline-flex items-center gap-1" style="font-size: 13px; color: var(--color-ink-3);">
+              {{ currentCurrency }}
+              <span style="font-size: 16px; color: #A8A29B; font-weight: 200;">›</span>
+            </span>
+          </button>
           <div class="px-4 py-3 flex items-center justify-between">
             <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">App 版本</span>
             <span class="tabular" style="font-size: 12px; color: var(--color-ink-3);">{{ bundleVer }}</span>
@@ -358,6 +407,57 @@ const title = computed(() => auth.isAway ? '我的 · Profile' : '我的')
             <span class="inline-block animate-spin"
               style="width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 7px;"></span>
             正在切换到 {{ targetRegion?.label }}库…
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- 结算货币 picker sheet -->
+    <Teleport to="body">
+      <Transition name="sheet">
+        <div v-if="showCurrencyPicker" class="fixed inset-0 z-50"
+          style="background: rgba(0,0,0,0.32);"
+          @click.self="showCurrencyPicker = false">
+          <div class="absolute left-0 right-0 bottom-0 bg-white"
+            :style="{
+              borderRadius: '20px 20px 0 0',
+              maxHeight: '80vh',
+              paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
+              display: 'flex', flexDirection: 'column',
+            }">
+            <div :style="{ width: '36px', height: '4px', background: 'var(--color-divider)', borderRadius: '2px', margin: '10px auto 8px' }"></div>
+            <div class="px-5 pb-3 flex items-center justify-between shrink-0">
+              <span class="font-serif" style="font-size: 16px; font-weight: 500;">选择结算货币</span>
+              <button @click="showCurrencyPicker = false" class="text-[13px]" style="color: var(--color-ink-3);">取消</button>
+            </div>
+            <div class="overflow-auto" style="border-top: 1px solid var(--color-divider);">
+              <button @click="selectCurrency('')"
+                class="w-full px-5 py-3.5 flex items-center justify-between active:bg-gray-50 text-left"
+                style="border-bottom: 1px solid var(--color-divider-soft);">
+                <div>
+                  <div style="font-size: 14px; color: var(--color-ink); font-weight: 500;">使用区域默认</div>
+                  <div style="font-size: 11.5px; color: var(--color-ink-3); margin-top: 2px;">
+                    {{ auth.regionId === 'sg' ? 'USD (新加坡区域默认)' : 'CNY (中国区域默认)' }}
+                  </div>
+                </div>
+                <span v-if="!auth.user?.settlement_currency"
+                  style="font-size: 13px; color: var(--color-accent); font-weight: 600;">✓</span>
+              </button>
+              <button v-for="opt in CURRENCY_OPTIONS" :key="opt.code"
+                @click="selectCurrency(opt.code)"
+                class="w-full px-5 py-3.5 flex items-center justify-between active:bg-gray-50 text-left"
+                style="border-bottom: 1px solid var(--color-divider-soft);">
+                <div class="flex items-center gap-3">
+                  <span class="font-serif" style="font-size: 18px; color: var(--color-ink); min-width: 36px;">{{ opt.symbol }}</span>
+                  <div>
+                    <div style="font-size: 14px; color: var(--color-ink); font-weight: 500;">{{ opt.label }}</div>
+                    <div class="font-mono" style="font-size: 11px; color: var(--color-ink-3); margin-top: 1px; letter-spacing: 0.4px;">{{ opt.code }}</div>
+                  </div>
+                </div>
+                <span v-if="auth.user?.settlement_currency === opt.code"
+                  style="font-size: 13px; color: var(--color-accent); font-weight: 600;">✓</span>
+              </button>
+            </div>
           </div>
         </div>
       </Transition>

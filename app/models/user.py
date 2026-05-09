@@ -149,6 +149,9 @@ class User(db.Model, UserMixin):
             'source_system': getattr(self, 'source_system', None),
             'source_user_id': getattr(self, 'source_user_id', None),
             'mirrored_at': getattr(self, 'mirrored_at', None),
+            # 个人偏好
+            'settlement_currency': self.settlement_currency,
+            'language_preference': self.language_preference,
         }
     
     def _load_permission_cache(self):

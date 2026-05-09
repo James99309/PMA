@@ -267,7 +267,7 @@ def mobile_expense_list():
             'month_total': float(month_total),
             'pending_count': pending_count,
             'total_count': total_count,
-            'currency': 'CNY',  # 汇总以申请人主货币展示;后续可按 user.preferred_currency 切
+            'currency': user.settlement_currency or 'CNY',  # 汇总按用户结算货币展示
         },
     })
 
@@ -336,10 +336,13 @@ def mobile_expense_create():
     # 不再同步调 AI 生成 title — 改由前端 fire-and-forget 调 /auto-title 异步生成
     # title 留空也允许; 列表/详情展示时前端用「未命名报销」占位
 
+    # 默认货币: 用户结算货币 → 系统 region 默认 (sp8d=CNY / ovs=USD)
+    from config import Config
+    default_currency = (user.settlement_currency or Config.DEFAULT_CURRENCY or 'CNY')
     e = Expense(
         title=title,
         description=description,
-        currency=data.get('currency') or 'CNY',
+        currency=data.get('currency') or default_currency,
         customer_id=data.get('customer_id'),
         contact_id=data.get('contact_id'),
         project_id=data.get('project_id'),
