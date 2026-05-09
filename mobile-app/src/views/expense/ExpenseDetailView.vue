@@ -30,9 +30,52 @@
         @click="$router.push(`/expense/${id}/edit`)"
         class="text-[15px] active:opacity-60 px-2"
         style="color: var(--color-ink-2);">编辑</button>
-      <button v-else class="text-[18px] font-bold active:opacity-60 px-2"
+      <button v-else-if="hasMoreActions"
+        @click="moreMenuOpen = true"
+        class="text-[18px] font-bold active:opacity-60 px-2"
         style="color: var(--color-ink);">···</button>
+      <div v-else style="width: 32px;" />
     </div>
+
+    <!-- ··· 菜单(审批中支持召回; 已驳回支持重提) -->
+    <Teleport to="body">
+      <div v-if="moreMenuOpen"
+        class="fixed inset-0 z-50"
+        style="background: rgba(0,0,0,0.32);"
+        @click.self="moreMenuOpen = false">
+        <div class="absolute left-0 right-0 bottom-0"
+          :style="{
+            background: 'var(--color-ex-bg)',
+            borderRadius: '20px 20px 0 0',
+            paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
+          }">
+          <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '10px auto 6px' }" />
+          <div v-if="detail?.control?.can_recall"
+            class="text-[14px] text-center font-medium active:opacity-60"
+            :style="{
+              padding: '14px 20px', background: 'var(--color-ex-card)',
+              borderTop: '1px solid var(--color-ex-divider-soft)',
+              color: 'var(--color-ex-warn)',
+            }"
+            @click="moreMenuOpen = false; onRecall()">召回审批</div>
+          <div v-if="detail?.control?.can_resubmit"
+            class="text-[14px] text-center font-medium active:opacity-60"
+            :style="{
+              padding: '14px 20px', background: 'var(--color-ex-card)',
+              borderTop: '1px solid var(--color-ex-divider-soft)',
+              color: 'var(--color-ex-ink)',
+            }"
+            @click="moreMenuOpen = false; onSubmit()">重新提交</div>
+          <div class="text-[14px] text-center active:opacity-60"
+            :style="{
+              padding: '14px 20px', background: 'var(--color-ex-card)',
+              borderTop: '1px solid var(--color-ex-divider-soft)',
+              color: 'var(--color-ex-ink2)',
+            }"
+            @click="moreMenuOpen = false">取消</div>
+        </div>
+      </div>
+    </Teleport>
 
     <div v-if="loading" class="flex justify-center items-center flex-1">
       <div class="w-6 h-6 border-2 border-[#D97757] border-t-transparent rounded-full animate-spin" />
@@ -41,7 +84,7 @@
     <div
       v-else-if="detail"
       class="flex-1 overflow-y-auto no-scrollbar"
-      :style="{ paddingBottom: detail.control?.can_submit || detail.control?.can_recall || detail.control?.can_resubmit ? '90px' : '24px' }"
+      :style="{ paddingBottom: detail.control?.can_submit ? '90px' : '24px' }"
     >
       <!-- Hero — 对齐 ProjectDetailView 标准: 30px serif 标题 + 44px serif tabular 金额 -->
       <div class="px-7 pt-5 pb-6">
@@ -110,24 +153,7 @@
         <ExDefRow label="说明" :last="true">{{ detail.description || '—' }}</ExDefRow>
       </div>
 
-      <!-- 审批流程 -->
-      <ExSectionHeader v-if="detail.flow && detail.flow.length">
-        审批流程
-        <span v-if="currentNodeName"> · 当前在「{{ currentNodeName }}」</span>
-      </ExSectionHeader>
-      <div
-        v-if="detail.flow && detail.flow.length"
-        :style="{ background: 'var(--color-ex-card)', padding: '8px 20px 8px' }"
-      >
-        <ExFlowNode
-          v-for="(n, i) in detail.flow"
-          :key="i"
-          :node="n"
-          :last="i === detail.flow.length - 1"
-        />
-      </div>
-
-      <!-- 明细 -->
+      <!-- 明细 (放在审批流程之上, 用户审单时先看花了什么再看流程) -->
       <ExSectionHeader>明细 · {{ detail.lines.length }} 项</ExSectionHeader>
       <div :style="{ background: 'var(--color-ex-card)' }">
         <div
@@ -177,6 +203,23 @@
           <div :style="{ fontSize: '14px', color: 'var(--color-ex-ink4)' }">›</div>
         </div>
       </div>
+
+      <!-- 审批流程 (移到明细之后) -->
+      <ExSectionHeader v-if="detail.flow && detail.flow.length">
+        审批流程
+        <span v-if="currentNodeName"> · 当前在「{{ currentNodeName }}」</span>
+      </ExSectionHeader>
+      <div
+        v-if="detail.flow && detail.flow.length"
+        :style="{ background: 'var(--color-ex-card)', padding: '8px 20px 8px' }"
+      >
+        <ExFlowNode
+          v-for="(n, i) in detail.flow"
+          :key="i"
+          :node="n"
+          :last="i === detail.flow.length - 1"
+        />
+      </div>
     </div>
 
     <!-- 明细详情 sheet -->
@@ -185,36 +228,20 @@
       :line="selectedLine"
       :base-currency="detail?.currency || 'CNY'" />
 
-    <!-- 底部操作栏(申请人视角: 提交/召回/重提) -->
+    <!-- 底部操作栏(仅草稿态显示提交; 召回/重提 已迁到 ··· 菜单) -->
     <div
-      v-if="detail && (detail.control?.can_submit || detail.control?.can_recall || detail.control?.can_resubmit)"
-      class="absolute bottom-0 left-0 right-0 flex"
+      v-if="detail?.control?.can_submit"
+      class="absolute bottom-0 left-0 right-0"
       :style="{
         padding: '12px 16px 28px',
         background: 'var(--color-ex-card)',
         borderTop: '1px solid var(--color-ex-divider)',
-        gap: '10px',
+        paddingBottom: 'calc(28px + env(safe-area-inset-bottom))',
       }"
     >
       <div
-        v-if="detail.control.can_recall"
-        class="flex-1 flex items-center justify-center"
-        :style="{
-          height: '46px',
-          borderRadius: '23px',
-          background: 'var(--color-ex-card)',
-          border: '1.5px solid var(--color-ex-divider)',
-          color: 'var(--color-ex-ink2)',
-          fontSize: '14px',
-          fontWeight: 600,
-        }"
-        @click="onRecall"
-      >召回</div>
-      <div
-        v-if="detail.control.can_submit || detail.control.can_resubmit"
         class="flex items-center justify-center"
         :style="{
-          flex: 2,
           height: '46px',
           borderRadius: '23px',
           background: 'var(--color-ex-ink)',
@@ -223,7 +250,7 @@
           fontWeight: 600,
         }"
         @click="onSubmit"
-      >{{ detail.control.can_resubmit ? '重新提交' : '提交审批' }}</div>
+      >提交审批</div>
     </div>
   </div>
 </template>
@@ -246,6 +273,11 @@ const id = computed(() => parseInt(route.params.id))
 const loading = ref(false)
 const lineDetailOpen = ref(false)
 const selectedLine = ref({})
+const moreMenuOpen = ref(false)
+
+const hasMoreActions = computed(() => Boolean(
+  detail.value?.control?.can_recall || detail.value?.control?.can_resubmit
+))
 
 function openLineDetail(d) {
   selectedLine.value = d
