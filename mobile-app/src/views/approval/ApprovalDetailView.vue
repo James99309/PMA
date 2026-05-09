@@ -3,64 +3,79 @@
   严格对齐 design_handoff/expense-approval.jsx::ApprovalDetail (L139-232)
 -->
 <template>
-  <div
-    class="relative h-full overflow-hidden"
-    :style="{ background: 'var(--color-ex-bg)', color: 'var(--color-ex-ink)', fontFamily: 'var(--font-sans)' }"
-  >
-    <div class="status-pad" />
-    <ExNav
-      :title="navTitle"
-      :sub="navSub"
-      @back="$router.back()"
-    >
-      <template #right>
-        <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="moreMenuOpen = true">···</div>
-      </template>
-    </ExNav>
+  <div class="flex flex-col h-full" style="background: #F7F5F2;">
 
-    <div
-      v-if="loading"
-      :style="{ paddingTop: '102px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }"
-    >
-      <div :style="{ padding: '40px 20px' }">加载中...</div>
+    <!-- Header — 项目同款 (返回 ‹ 审批 + ··· 菜单) -->
+    <div class="flex items-center justify-between px-5 py-2.5 shrink-0">
+      <button @click="$router.back()"
+        class="flex items-center gap-1 active:opacity-60 py-1 pr-2"
+        style="color: var(--color-ink-2);">
+        <svg width="9" height="14" viewBox="0 0 9 14">
+          <path d="M7 1L1 7l6 6" fill="none" stroke="currentColor"
+            stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="text-[15px]">审批</span>
+      </button>
+      <button @click="moreMenuOpen = true"
+        class="text-[18px] font-bold active:opacity-60 px-2"
+        style="color: var(--color-ink);">···</button>
+    </div>
+
+    <div v-if="loading" class="flex justify-center items-center flex-1">
+      <div class="w-6 h-6 border-2 border-[#D97757] border-t-transparent rounded-full animate-spin" />
     </div>
 
     <div
       v-else-if="detail"
-      class="overflow-auto h-full no-scrollbar"
-      :style="{ paddingTop: '102px', paddingBottom: detail.is_current_approver ? '92px' : '24px' }"
+      class="flex-1 overflow-y-auto no-scrollbar"
+      :style="{ paddingBottom: detail.is_current_approver ? '92px' : '24px' }"
     >
-      <!-- hero -->
-      <div :style="{ padding: '12px 20px 16px' }">
-        <div class="flex items-center" :style="{ gap: '8px', marginBottom: '6px' }">
-          <div
+      <!-- Hero — 项目同款: 30px 标题 + 44px serif tabular 金额 -->
+      <div class="px-7 pt-5 pb-6">
+        <!-- 状态 chip + 单号 -->
+        <div class="flex items-center gap-2 mb-3.5 flex-wrap">
+          <span
             v-if="currentStepName"
+            class="text-[12px] font-medium"
             :style="{
-              fontSize: '10px', fontWeight: 600,
               color: 'var(--color-ex-warn)',
               background: 'var(--color-ex-warn-soft)',
-              padding: '2px 7px', borderRadius: '4px',
+              padding: '2px 8px', borderRadius: '4px',
             }"
-          >等你审批 · {{ currentStepName }}</div>
-          <div
+          >等你审批 · {{ currentStepName }}</span>
+          <span
+            class="text-[11px]"
             :style="{
-              fontSize: '10px', color: 'var(--color-ex-ink4)',
-              letterSpacing: '0.6px',
+              color: 'var(--color-ink-3)', letterSpacing: '0.5px',
+              fontFamily: 'var(--font-mono)',
             }"
-          >{{ detail.business_obj?.expense_number || detail.object_name }}</div>
+          >· {{ detail.business_obj?.expense_number || detail.object_name }}</span>
         </div>
-        <div
+
+        <!-- 主题: 30px serif (项目同款) -->
+        <h1 class="font-serif m-0"
           :style="{
-            fontSize: '38px', fontWeight: 500, fontFamily: 'var(--font-serif)',
-            color: 'var(--color-ex-ink)', lineHeight: 1.05,
-          }"
-        >{{ amountStr }}</div>
-        <div :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)', marginTop: '4px' }">
-          {{ detail.business_obj
-            ? `${currencyLabel(detail.business_obj.currency)} · ${detail.business_obj.detail_count} 项明细`
-            : detail.object_type_label }}
-          <span v-if="waitingHint"> · {{ waitingHint }}</span>
+            fontSize: '30px', fontWeight: 500,
+            lineHeight: '1.2', letterSpacing: '-0.3px',
+            color: 'var(--color-ink)',
+          }">{{ detail.business_obj?.title || detail.object_name }}</h1>
+
+        <!-- Sub: 申请人提交时间 -->
+        <div v-if="detail.submitter" class="mt-3.5 text-[13px]" style="color: var(--color-ink-3);">
+          {{ detail.submitter.name }} 提交 · {{ (detail.created_at || '').slice(0, 10) }}
         </div>
+
+        <!-- 金额 44px serif tabular (项目同款) -->
+        <div class="mt-7 flex items-baseline gap-2">
+          <span class="font-serif font-medium tabular leading-none"
+            :style="{ fontSize: '44px', color: 'var(--color-ink)' }">
+            {{ amountStr }}
+          </span>
+          <span v-if="detail.business_obj" class="text-[14px]" style="color: var(--color-ink-3);">
+            {{ currencyLabel(detail.business_obj.currency) }} · {{ detail.business_obj.detail_count }} 项明细
+          </span>
+        </div>
+        <div v-if="waitingHint" class="text-[12px] mt-1.5" style="color: var(--color-ink-3);">{{ waitingHint }}</div>
       </div>
 
       <!-- 申请人卡 -->

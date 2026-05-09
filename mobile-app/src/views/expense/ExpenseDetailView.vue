@@ -13,86 +13,83 @@
   - SectionHeader: 明细 · N 项 → 紧凑明细行
 -->
 <template>
-  <div
-    class="relative h-full overflow-hidden"
-    :style="{ background: 'var(--color-ex-bg)', color: 'var(--color-ex-ink)', fontFamily: 'var(--font-sans)' }"
-  >
-    <div class="status-pad" />
+  <div class="flex flex-col h-full" style="background: #F7F5F2;">
 
-    <ExNav
-      :title="'报销单详情'"
-      :sub="navSub"
-      @back="$router.back()"
-    >
-      <template #right>
-        <div
-          v-if="detail?.control?.can_edit"
-          :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }"
-          @click="$router.push(`/expense/${id}/edit`)"
-        >编辑</div>
-        <div v-else :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }">···</div>
-      </template>
-    </ExNav>
+    <!-- Header — 对齐 ProjectDetailView 标准: 返回 ‹ 报销 + ··· -->
+    <div class="flex items-center justify-between px-5 py-2.5 shrink-0">
+      <button @click="$router.back()"
+        class="flex items-center gap-1 active:opacity-60 py-1 pr-2"
+        style="color: var(--color-ink-2);">
+        <svg width="9" height="14" viewBox="0 0 9 14">
+          <path d="M7 1L1 7l6 6" fill="none" stroke="currentColor"
+            stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="text-[15px]">报销</span>
+      </button>
+      <button v-if="detail?.control?.can_edit"
+        @click="$router.push(`/expense/${id}/edit`)"
+        class="text-[15px] active:opacity-60 px-2"
+        style="color: var(--color-ink-2);">编辑</button>
+      <button v-else class="text-[18px] font-bold active:opacity-60 px-2"
+        style="color: var(--color-ink);">···</button>
+    </div>
 
-    <div
-      v-if="loading"
-      class="overflow-auto h-full no-scrollbar"
-      :style="{ paddingTop: '102px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }"
-    >
-      <div :style="{ padding: '40px 20px' }">加载中...</div>
+    <div v-if="loading" class="flex justify-center items-center flex-1">
+      <div class="w-6 h-6 border-2 border-[#D97757] border-t-transparent rounded-full animate-spin" />
     </div>
 
     <div
       v-else-if="detail"
-      class="overflow-auto h-full no-scrollbar"
-      :style="{ paddingTop: '102px', paddingBottom: detail.control?.can_submit || detail.control?.can_recall || detail.control?.can_resubmit ? '90px' : '24px' }"
+      class="flex-1 overflow-y-auto no-scrollbar"
+      :style="{ paddingBottom: detail.control?.can_submit || detail.control?.can_recall || detail.control?.can_resubmit ? '90px' : '24px' }"
     >
-      <!-- hero -->
-      <div :style="{ padding: '12px 20px 18px' }">
-        <div class="flex items-center" :style="{ gap: '8px', marginBottom: '6px' }">
-          <div
+      <!-- Hero — 对齐 ProjectDetailView 标准: 30px serif 标题 + 44px serif tabular 金额 -->
+      <div class="px-7 pt-5 pb-6">
+        <!-- 状态 chip + 单号 -->
+        <div class="flex items-center gap-2 mb-3.5 flex-wrap">
+          <span
+            class="text-[12px] font-medium"
             :style="{
-              fontSize: '10px',
-              fontWeight: 600,
               color: detail.status_meta.color,
               background: detail.status_meta.bg,
-              padding: '2px 7px',
+              padding: '2px 8px',
               borderRadius: '4px',
             }"
-          >{{ detail.status_meta.label }}</div>
-          <div
+          >{{ detail.status_meta.label }}</span>
+          <span
+            class="text-[11px]"
             :style="{
-              fontSize: '10px',
-              color: 'var(--color-ex-ink4)',
-              letterSpacing: '0.6px',
+              color: 'var(--color-ink-3)',
+              letterSpacing: '0.5px',
               fontFamily: 'var(--font-mono)',
             }"
-          >{{ detail.expense_number }}</div>
+          >· {{ detail.expense_number }}</span>
         </div>
-        <div
+
+        <!-- 主题: 30px serif weight 500 (项目同款) -->
+        <h1 class="font-serif m-0"
           :style="{
-            fontSize: '22px',
+            fontSize: '30px',
             fontWeight: 500,
-            fontFamily: 'var(--font-serif)',
-            color: 'var(--color-ex-ink)',
-          }"
-        >{{ detail.title }}</div>
-        <div
-          v-if="detail.description"
-          :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)', marginTop: '4px' }"
-        >{{ detail.description }}</div>
-        <div
-          :style="{
-            fontSize: '38px',
-            fontWeight: 500,
-            fontFamily: 'var(--font-serif)',
-            color: 'var(--color-ex-ink)',
-            marginTop: '14px',
-            lineHeight: 1,
-          }"
-        >{{ currencySymbol(detail.currency) }} {{ formatAmount(detail.total_amount) }}</div>
-        <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginTop: '6px' }">
-          {{ currencyLabel(detail.currency) }} · 共 {{ detail.lines.length }} 项明细
+            lineHeight: '1.2',
+            letterSpacing: '-0.3px',
+            color: 'var(--color-ink)',
+          }">{{ detail.title }}</h1>
+
+        <!-- 副标题: 申请人 · 客户 · 项目 -->
+        <div class="mt-3.5 text-[13px]" style="color: var(--color-ink-3);">
+          {{ [detail.owner?.name, detail.customer?.name, detail.project?.name].filter(Boolean).join(' · ') || '—' }}
+        </div>
+
+        <!-- 金额: 44px serif tabular (项目同款) -->
+        <div class="mt-7 flex items-baseline gap-2">
+          <span class="font-serif font-medium tabular leading-none"
+            :style="{ fontSize: '44px', color: 'var(--color-ink)' }">
+            {{ currencySymbol(detail.currency) }}{{ formatAmount(detail.total_amount) }}
+          </span>
+          <span class="text-[14px]" style="color: var(--color-ink-3);">
+            {{ currencyLabel(detail.currency) }} · {{ detail.lines.length }} 项明细
+          </span>
         </div>
       </div>
 

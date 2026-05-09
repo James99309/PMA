@@ -7,25 +7,31 @@
   根据 lines.length 切换 sub-title 和明细区域(空态卡 / 列表态)
 -->
 <template>
-  <div
-    class="relative h-full overflow-hidden"
-    :style="[{ background: 'var(--color-ex-bg)', color: 'var(--color-ex-ink)', fontFamily: 'var(--font-sans)' }, kbStyle]"
-  >
-    <div class="status-pad" />
+  <div class="flex flex-col h-full" :style="[{ background: '#F7F5F2', color: 'var(--color-ink)', fontFamily: 'var(--font-sans)' }, kbStyle]">
 
-    <ExNav
-      title="新建报销单"
-      :sub="navSub"
-      @back="$router.back()"
-    >
-      <template #right>
-        <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="$router.back()">取消</div>
-      </template>
-    </ExNav>
+    <!-- 顶部安全区 -->
+    <div style="height: env(safe-area-inset-top); background: #F7F5F2;" />
+
+    <!-- Nav 表头 — 对齐 ProjectCreateView/CustomerCreateView 的 na-nav 标准 -->
+    <div class="flex items-center justify-between shrink-0" style="padding: 10px 20px 8px;">
+      <button @click="$router.back()"
+        class="active:opacity-60"
+        style="font-size: 15px; color: #3A3A3A; font-weight: 500; background: none; border: none; padding: 0;">
+        取消
+      </button>
+      <div class="text-center">
+        <div style="font-family: 'Noto Serif SC', Georgia, serif; font-size: 18px; font-weight: 500; color: #1A1A1A;">
+          {{ editingId ? '编辑报销单' : '新建报销单' }}
+        </div>
+        <div style="font-size: 11px; color: #7A7570; margin-top: 1px;">{{ navSub }}</div>
+      </div>
+      <!-- 右侧占位让标题居中(主操作在底部 ExBottomBar) -->
+      <div style="width: 32px;" />
+    </div>
 
     <div
-      class="overflow-auto h-full no-scrollbar"
-      :style="{ paddingTop: '102px', paddingBottom: '140px' }"
+      class="flex-1 overflow-y-auto no-scrollbar"
+      :style="{ paddingBottom: '110px' }"
     >
       <!-- 已有明细时:压缩头部到 context block -->
       <div v-if="hasLines" :style="{ padding: '14px 20px 4px' }">
