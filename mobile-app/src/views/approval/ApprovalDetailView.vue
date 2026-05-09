@@ -109,45 +109,11 @@
       </div>
 
       <!-- 申请人卡 -->
-      <div
+      <ApplicantCard
         v-if="detail.submitter"
-        class="flex items-center"
-        :style="{
-          margin: '0 20px 16px',
-          padding: '12px 14px',
-          background: 'var(--color-ex-card)',
-          borderRadius: '10px',
-          border: '1px solid var(--color-ex-divider)',
-          gap: '12px',
-        }"
-      >
-        <div
-          class="flex items-center justify-center flex-shrink-0"
-          :style="{
-            width: '38px', height: '38px', borderRadius: '19px',
-            background: detail.submitter.avatar_color || '#3A6FB7',
-            color: '#fff', fontSize: '14px', fontWeight: 600,
-          }"
-        >{{ detail.submitter.name.slice(0, 1) }}</div>
-        <div class="flex-1">
-          <div :style="{ fontSize: '13px', fontWeight: 600 }">
-            {{ detail.submitter.name }}
-            <span v-if="detail.submitter.department" :style="{ color: 'var(--color-ex-ink3)' }">· {{ detail.submitter.department }}</span>
-          </div>
-          <div
-            v-if="detail.submitter_stats"
-            :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginTop: '2px' }"
-          >本月已申报 {{ detail.submitter_stats.month_count }} 笔 · 平均 ¥{{ formatAmount(detail.submitter_stats.month_avg) }}</div>
-        </div>
-        <div
-          class="flex items-center justify-center"
-          :style="{
-            width: '28px', height: '28px', borderRadius: '14px',
-            background: 'var(--color-ex-divider-soft)',
-            fontSize: '12px', color: 'var(--color-ex-ink3)',
-          }"
-        >✉</div>
-      </div>
+        :submitter="detail.submitter"
+        :stats="detail.submitter_stats"
+      />
 
       <!-- 详情 def list — 报销 / 项目 字段不同 -->
       <ExSectionHeader v-if="detail.business_obj">详情</ExSectionHeader>
@@ -398,6 +364,7 @@ import ExFlowNode from '@/components/expense/ExFlowNode.vue'
 import ExFlowSheet from '@/components/expense/ExFlowSheet.vue'
 import ApprovalSheet from '@/components/expense/ApprovalSheet.vue'
 import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
+import ApplicantCard from '@/components/approval/ApplicantCard.vue'
 
 const route = useRoute()
 const router = useRouter()

@@ -352,24 +352,76 @@ def _approval_flow_for_instance(inst, current_user_id=None):
     return nodes
 
 
-def _applicant_stats(submitter_id):
-    """申请人画像: 本月已提交 N 笔 + 平均金额."""
-    if not submitter_id:
+def _applicant_stats(submitter_id, object_type):
+    """申请人画像: 本月业务量统计, 按 object_type 切换数据源.
+
+    返回 {'text': '本月报销 1 笔 · 平均 ¥837.06'} 或 None.
+    单位约定: expense 元 / project 万 / pricing_order/quotation 取自记录 currency.
+    """
+    if not submitter_id or not object_type:
         return None
     try:
         from datetime import date
         from sqlalchemy import func as sa_func
-        from app.models.expense import Expense
-        from app import db as _db
         month_start = date.today().replace(day=1)
-        q = Expense.query.filter(
-            Expense.is_deleted == False,
-            Expense.owner_id == submitter_id,
-            Expense.created_at >= month_start,
-        )
-        cnt = q.count()
-        avg = q.with_entities(sa_func.coalesce(sa_func.avg(Expense.total_amount), 0.0)).scalar() or 0.0
-        return {'month_count': cnt, 'month_avg': float(avg)}
+
+        if object_type == 'expense':
+            from app.models.expense import Expense
+            q = Expense.query.filter(
+                Expense.is_deleted == False,
+                Expense.owner_id == submitter_id,
+                Expense.created_at >= month_start,
+            )
+            cnt = q.count()
+            if cnt == 0:
+                return {'text': '本月还未提交报销'}
+            avg = q.with_entities(sa_func.coalesce(sa_func.avg(Expense.total_amount), 0.0)).scalar() or 0.0
+            return {'text': f'本月报销 {cnt} 笔 · 平均 ¥{float(avg):.2f}'}
+
+        if object_type == 'project':
+            from app.models.project import Project
+            q = Project.query.filter(
+                Project.is_deleted == False,
+                Project.owner_id == submitter_id,
+                Project.created_at >= month_start,
+            )
+            cnt = q.count()
+            if cnt == 0:
+                return {'text': '本月还未新建项目'}
+            total = q.with_entities(sa_func.coalesce(sa_func.sum(Project.amount), 0.0)).scalar() or 0.0
+            return {'text': f'本月新建 {cnt} 个项目 · 累计预计 ¥{float(total):,.0f} 万'}
+
+        if object_type == 'pricing_order':
+            try:
+                from app.models.pricing_order import PricingOrder
+                q = PricingOrder.query.filter(
+                    PricingOrder.is_deleted == False,
+                    PricingOrder.owner_id == submitter_id,
+                    PricingOrder.created_at >= month_start,
+                )
+                cnt = q.count()
+                if cnt == 0:
+                    return {'text': '本月还未提交批价'}
+                return {'text': f'本月批价 {cnt} 单'}
+            except Exception:
+                return None
+
+        if object_type == 'quotation':
+            try:
+                from app.models.quotation import Quotation
+                q = Quotation.query.filter(
+                    Quotation.is_deleted == False,
+                    Quotation.owner_id == submitter_id,
+                    Quotation.created_at >= month_start,
+                )
+                cnt = q.count()
+                if cnt == 0:
+                    return {'text': '本月还未提交报价'}
+                return {'text': f'本月报价 {cnt} 单'}
+            except Exception:
+                return None
+
+        return None
     except Exception:
         return None
 
@@ -610,8 +662,7 @@ def mobile_approval_detail(instance_id):
         'object_id': inst.object_id,
         'object_name': _get_object_name(inst.object_type, inst.object_id),
         'submitter': submitter_dict,
-        # 申请人画像目前只对报销有意义(本月报销笔数+均值), 其他业务暂不展示
-        'submitter_stats': _applicant_stats(inst.created_by) if inst.object_type == 'expense' else None,
+        'submitter_stats': _applicant_stats(inst.created_by, inst.object_type),
         'created_at': inst.started_at.strftime('%Y-%m-%d %H:%M') if inst.started_at else None,
         'flow': _approval_flow_for_instance(inst, current_user_id=user_id),
         'business_obj': business_obj,
