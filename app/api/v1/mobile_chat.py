@@ -445,7 +445,8 @@ def mobile_chat_users_search():
                 User.username.ilike(f'%{q}%'),
                 User.department.ilike(f'%{q}%'),
             ))
-        users = query.limit(20).all()
+        # 选择联系人 sheet 需要按公司+部门分组, 不限制 20 条; 已过滤 is_active=True
+        users = query.order_by(User.company_name, User.department, User.real_name).limit(500).all()
         data = []
         for u in users:
             name = u.real_name or u.username or ''
@@ -454,6 +455,7 @@ def mobile_chat_users_search():
                 'name': name,
                 'avatar': name[0] if name else '?',
                 'dept': u.department or '',
+                'company_name': u.company_name or '',
             })
         return jsonify({'success': True, 'data': data})
     except Exception as e:

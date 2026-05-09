@@ -100,6 +100,32 @@ function openAi() {
   router.push({ path: '/messages/ai', query: aiConv.value ? { id: aiConv.value.id } : {} })
 }
 
+// 联系人按 公司 → 部门 分组渲染
+const groupedUsers = computed(() => {
+  if (pickerStep.value !== 'dm') return []
+  const map = new Map()
+  for (const u of pickerResults.value) {
+    const company = u.company_name || ''
+    const dept = u.dept || ''
+    const key = `${company}|${dept}`
+    if (!map.has(key)) map.set(key, { company, dept, users: [] })
+    map.get(key).users.push(u)
+  }
+  // 按公司+部门字符序排
+  return [...map.values()].sort((a, b) =>
+    a.company.localeCompare(b.company, 'zh') ||
+    a.dept.localeCompare(b.dept, 'zh')
+  )
+})
+
+// 滑动列表时收起键盘, 避免被键盘遮挡
+function dismissKeyboard() {
+  const el = document.activeElement
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+    el.blur()
+  }
+}
+
 // 从列表移出 (仅自己列表隐藏 — 对方再发消息会自动 unhide 重新出现)
 async function onHideConversation(c) {
   try {
@@ -352,7 +378,7 @@ function closePicker() {
             <span class="w-[30px]" />
           </div>
 
-          <!-- ─── Step: dm 选联系人 ─── -->
+          <!-- ─── Step: dm 选联系人 (按公司→部门分组) ─── -->
           <template v-if="pickerStep === 'dm'">
             <div class="px-5 mt-3">
               <div class="rounded-full h-10 flex items-center px-4 gap-2"
@@ -367,26 +393,37 @@ function closePicker() {
                   style="color: var(--color-ink);" />
               </div>
             </div>
-            <div class="px-5 mt-3">
+            <!-- 滑动列表时收起键盘, 避免遮挡 -->
+            <div class="px-5 mt-3 flex-1 overflow-auto" @touchmove="dismissKeyboard">
               <div v-if="pickerSearching && !pickerResults.length" class="text-center py-6 text-[13px]"
                 style="color: var(--color-ink-3);">搜索中…</div>
               <div v-else-if="!pickerResults.length" class="text-center py-6 text-[13px]"
-                style="color: var(--color-ink-3);">{{ pickerSearch ? '无匹配联系人' : '输入关键词搜索' }}</div>
-              <div v-else class="rounded-2xl"
-                style="background: var(--color-card); border: 1px solid var(--color-divider);">
-                <button v-for="(u, i) in pickerResults" :key="u.id" @click="pickResult(u)"
-                  class="w-full px-4 py-3 flex items-center gap-3 active:bg-bg text-left"
-                  :style="i < pickerResults.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''"
-                  :disabled="pickerCreating">
-                  <div class="w-9 h-9 rounded-full inline-flex items-center justify-center font-serif text-[14px] font-semibold"
-                    style="background: var(--color-accent-soft); color: var(--color-accent);">{{ u.avatar || u.name?.[0] || '?' }}</div>
-                  <div class="flex-1 min-w-0">
-                    <div class="font-serif text-[15px] font-medium">{{ u.name }}</div>
-                    <div v-if="u.dept" class="text-[11px] mt-0.5" style="color: var(--color-ink-3);">{{ u.dept }}</div>
+                style="color: var(--color-ink-3);">{{ pickerSearch ? '无匹配联系人' : '加载中…' }}</div>
+              <template v-else>
+                <div v-for="(group, gi) in groupedUsers" :key="`${group.company}|${group.dept}`"
+                  :class="gi > 0 ? 'mt-3' : ''">
+                  <div class="text-[11px] font-semibold px-1 mb-1.5"
+                    style="color: var(--color-ink-3); letter-spacing: 0.5px;">
+                    {{ group.company || '未分公司' }}<span v-if="group.dept"> · {{ group.dept }}</span>
+                    <span class="ml-1.5" style="color: var(--color-ink-4); font-weight: 400;">{{ group.users.length }}</span>
                   </div>
-                  <span class="text-[18px]" style="color: var(--color-ink-3);">›</span>
-                </button>
-              </div>
+                  <div class="rounded-2xl"
+                    style="background: var(--color-card); border: 1px solid var(--color-divider);">
+                    <button v-for="(u, i) in group.users" :key="u.id" @click="pickResult(u)"
+                      class="w-full px-4 py-3 flex items-center gap-3 active:bg-bg text-left"
+                      :style="i < group.users.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''"
+                      :disabled="pickerCreating">
+                      <div class="w-9 h-9 rounded-full inline-flex items-center justify-center font-serif text-[14px] font-semibold"
+                        style="background: var(--color-accent-soft); color: var(--color-accent);">{{ u.avatar || u.name?.[0] || '?' }}</div>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-serif text-[15px] font-medium">{{ u.name }}</div>
+                        <div v-if="u.dept" class="text-[11px] mt-0.5" style="color: var(--color-ink-3);">{{ u.dept }}</div>
+                      </div>
+                      <span class="text-[18px]" style="color: var(--color-ink-3);">›</span>
+                    </button>
+                  </div>
+                </div>
+              </template>
             </div>
           </template>
 
