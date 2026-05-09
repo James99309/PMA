@@ -323,7 +323,8 @@ async function onSubmit() {
       ? await resubmitExpense(id.value)
       : await submitExpense(id.value)
     if (r.data?.success) {
-      store.detailCache[id.value] = r.data.data
+      // 重新拉详情(submit/recall/resubmit 端点不返回 control 块, 直接缓存替换会丢按钮可见性)
+      await store.fetchDetail(id.value, true)
     }
   } catch (e) {
     alert('提交失败: ' + (e.response?.data?.message || e.message))
@@ -335,7 +336,7 @@ async function onRecall() {
   try {
     const r = await recallExpense(id.value)
     if (r.data?.success) {
-      store.detailCache[id.value] = r.data.data
+      await store.fetchDetail(id.value, true)
     }
   } catch (e) {
     alert('召回失败: ' + (e.response?.data?.message || e.message))
