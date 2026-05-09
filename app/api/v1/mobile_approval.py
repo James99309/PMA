@@ -611,6 +611,37 @@ def mobile_approval_detail(instance_id):
     })
 
 
+@api_v1_bp.route('/mobile/approval/flow-by-object', methods=['GET'])
+@jwt_required()
+def mobile_approval_flow_by_object():
+    """通过 object_type + object_id 查当前活跃 ApprovalInstance 的流程节点.
+
+    用于业务详情页(项目/批价单/报价单等)顶部状态 chip 点击展开流程,
+    无需依赖 instance_id (业务页面不直接持有 instance).
+    """
+    user_id = int(get_jwt_identity())
+    user = User.query.get(user_id)
+    if not user:
+        return api_response(success=False, code=401, message='用户不存在')
+    object_type = (request.args.get('object_type') or '').strip()
+    object_id = request.args.get('object_id', type=int)
+    if not object_type or not object_id:
+        return api_response(success=False, code=400, message='object_type/object_id 必填')
+    try:
+        from app.helpers.approval_helpers import get_object_approval_instance
+        inst = get_object_approval_instance(object_type, object_id)
+        if not inst:
+            return api_response(success=True, data={'flow': [], 'instance_id': None})
+        return api_response(success=True, data={
+            'flow': _approval_flow_for_instance(inst),
+            'instance_id': inst.id,
+            'status': inst.status.value if hasattr(inst.status, 'value') else str(inst.status),
+        })
+    except Exception as e:
+        logger.warning(f'flow-by-object error: {e}')
+        return api_response(success=False, code=500, message='查询失败')
+
+
 @api_v1_bp.route('/mobile/approval/forward-targets', methods=['GET'])
 @jwt_required()
 def mobile_approval_forward_targets():

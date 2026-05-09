@@ -38,15 +38,22 @@
       <div class="px-7 pt-5 pb-6">
         <!-- 状态 chip + 单号 + 转交徽章 -->
         <div class="flex items-center gap-2 mb-3.5 flex-wrap">
+          <!-- 状态 chip 可点击 → 弹流程 sheet (替代之前底部一大块审批进度) -->
           <span
             v-if="currentStepName"
-            class="text-[12px] font-medium"
+            class="text-[12px] font-medium active:opacity-60 cursor-pointer inline-flex items-center"
             :style="{
               color: 'var(--color-ex-warn)',
               background: 'var(--color-ex-warn-soft)',
               padding: '2px 8px', borderRadius: '4px',
+              gap: '3px',
             }"
-          >等你审批 · {{ currentStepName }}</span>
+            @click="flowSheetOpen = true"
+          >等你审批 · {{ currentStepName }}
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
           <!-- 转交徽章: 当前步骤已被代理时显示 -->
           <span
             v-if="detail.delegated_to"
@@ -271,19 +278,12 @@
         :base-currency="detail.business_obj?.currency || 'CNY'" />
 
       <!-- 审批进度 -->
-      <ExSectionHeader v-if="detail.flow?.length">审批进度</ExSectionHeader>
-      <div
-        v-if="detail.flow?.length"
-        :style="{ background: 'var(--color-ex-card)', padding: '8px 20px' }"
-      >
-        <ExFlowNode
-          v-for="(n, i) in detail.flow"
-          :key="i"
-          :node="n"
-          :last="i === detail.flow.length - 1"
-        />
-      </div>
+      <!-- 之前底部「审批进度」section 已迁到顶部 chip 点击弹 ExFlowSheet,
+           节省屏幕空间 + 进度查看入口更显眼 -->
     </div>
+
+    <!-- 流程 sheet (顶部 chip 点击触发) -->
+    <ExFlowSheet v-model="flowSheetOpen" :nodes="detail?.flow || []" />
 
     <!-- 底部审批操作 -->
     <div
@@ -395,6 +395,7 @@ import ExNav from '@/components/expense/ExNav.vue'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExDefRow from '@/components/expense/ExDefRow.vue'
 import ExFlowNode from '@/components/expense/ExFlowNode.vue'
+import ExFlowSheet from '@/components/expense/ExFlowSheet.vue'
 import ApprovalSheet from '@/components/expense/ApprovalSheet.vue'
 import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
 
@@ -412,6 +413,7 @@ function openLineDetail(d) {
 }
 const loading = ref(false)
 const sheetOpen = ref(false)
+const flowSheetOpen = ref(false)
 const currentAction = ref('approve')
 const submitting = ref(false)
 const userPickerOpen = ref(false)

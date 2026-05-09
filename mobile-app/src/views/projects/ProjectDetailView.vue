@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { getProject, addProjectNote } from '@/api/projects'
 import { searchUsers, createConversation } from '@/api/chat'
 import client from '@/api/client'
+import ExFlowSheet from '@/components/expense/ExFlowSheet.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import MentionPopover from '@/components/common/MentionPopover.vue'
 import MessageText from '@/components/common/MessageText.vue'
@@ -158,6 +159,22 @@ const selectedStage = ref(null)
 
 const showAllQuotations = ref(false)
 const showAuthModal = ref(false)
+
+// 审批流程 sheet (顶部 chip 点击展开)
+const flowSheetOpen = ref(false)
+const flowNodes = ref([])
+async function loadAndShowFlow() {
+  if (!project.value) return
+  flowSheetOpen.value = true
+  try {
+    const r = await client.get('/mobile/approval/flow-by-object', {
+      params: { object_type: 'project', object_id: project.value.id },
+    })
+    flowNodes.value = r.data?.data?.flow || []
+  } catch (e) {
+    flowNodes.value = []
+  }
+}
 const authNote = ref('')
 const submittingAuth = ref(false)
 
@@ -434,12 +451,25 @@ onMounted(() => {
           </span>
           <span v-if="project.authorization_code" class="text-[11px]"
             style="color: var(--color-ink-3); letter-spacing: 0.5px;">· {{ project.authorization_code }}</span>
+          <!-- pending 时点击 → 弹流程 sheet (替代单独审批进度区块) -->
           <span v-else-if="project.authorization_status === 'pending'"
-            class="text-[11px] px-2 py-0.5 rounded-full font-medium"
-            style="color: #B45309; background: #FEF3C7;">授权申请中</span>
+            class="text-[11px] px-2 py-0.5 rounded-full font-medium active:opacity-60 inline-flex items-center"
+            style="color: #B45309; background: #FEF3C7; gap: 3px;"
+            @click="loadAndShowFlow">
+            授权申请中
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
           <span v-else-if="project.authorization_status === 'rejected'"
-            class="text-[11px] px-2 py-0.5 rounded-full font-medium"
-            style="color: #DC2626; background: #FEE2E2;">授权已拒绝</span>
+            class="text-[11px] px-2 py-0.5 rounded-full font-medium active:opacity-60 inline-flex items-center"
+            style="color: #DC2626; background: #FEE2E2; gap: 3px;"
+            @click="loadAndShowFlow">
+            授权已拒绝
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
           <!-- 未授权状态：可申请人显示橙色按钮，无权人灰色提示 -->
           <button v-else-if="project.can_apply_auth"
             @click="showAuthModal = true" type="button"
@@ -975,6 +1005,9 @@ onMounted(() => {
         </div>
       </Transition>
     </Teleport>
+
+    <!-- 审批流程 sheet (授权 chip 点击触发) -->
+    <ExFlowSheet v-model="flowSheetOpen" :nodes="flowNodes" />
   </div>
 </template>
 

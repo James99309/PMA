@@ -90,15 +90,24 @@
       <div class="px-7 pt-5 pb-6">
         <!-- 状态 chip + 单号 -->
         <div class="flex items-center gap-2 mb-3.5 flex-wrap">
+          <!-- 状态 chip 在审批中时可点开流程 sheet (审批中 / 已驳回 / 已通过 / 已支付都有流程) -->
           <span
-            class="text-[12px] font-medium"
+            class="text-[12px] font-medium inline-flex items-center"
+            :class="hasFlow ? 'active:opacity-60 cursor-pointer' : ''"
             :style="{
               color: detail.status_meta.color,
               background: detail.status_meta.bg,
               padding: '2px 8px',
               borderRadius: '4px',
+              gap: '3px',
             }"
-          >{{ detail.status_meta.label }}</span>
+            @click="hasFlow && (flowSheetOpen = true)"
+          >
+            {{ detail.status_meta.label }}<template v-if="hasFlow && currentNodeName"> · {{ currentNodeName }}</template>
+            <svg v-if="hasFlow" width="9" height="9" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
           <span
             class="text-[11px]"
             :style="{
@@ -204,23 +213,11 @@
         </div>
       </div>
 
-      <!-- 审批流程 (移到明细之后) -->
-      <ExSectionHeader v-if="detail.flow && detail.flow.length">
-        审批流程
-        <span v-if="currentNodeName"> · 当前在「{{ currentNodeName }}」</span>
-      </ExSectionHeader>
-      <div
-        v-if="detail.flow && detail.flow.length"
-        :style="{ background: 'var(--color-ex-card)', padding: '8px 20px 8px' }"
-      >
-        <ExFlowNode
-          v-for="(n, i) in detail.flow"
-          :key="i"
-          :node="n"
-          :last="i === detail.flow.length - 1"
-        />
-      </div>
+      <!-- 之前底部 '审批流程' section 已迁到顶部状态 chip 点击弹 ExFlowSheet, 节省屏幕 -->
     </div>
+
+    <!-- 流程 sheet (顶部 chip 点击触发) -->
+    <ExFlowSheet v-model="flowSheetOpen" :nodes="detail?.flow || []" />
 
     <!-- 明细详情 sheet -->
     <ExLineDetailSheet
@@ -290,6 +287,7 @@ import ExNav from '@/components/expense/ExNav.vue'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExDefRow from '@/components/expense/ExDefRow.vue'
 import ExFlowNode from '@/components/expense/ExFlowNode.vue'
+import ExFlowSheet from '@/components/expense/ExFlowSheet.vue'
 import ExLineDetailSheet from '@/components/expense/ExLineDetailSheet.vue'
 import ExSubmitSheet from '@/components/expense/ExSubmitSheet.vue'
 import ExConfirmSheet from '@/components/expense/ExConfirmSheet.vue'
@@ -300,6 +298,8 @@ const store = useExpenseStore()
 const id = computed(() => parseInt(route.params.id))
 const loading = ref(false)
 const lineDetailOpen = ref(false)
+const flowSheetOpen = ref(false)
+const hasFlow = computed(() => Boolean(detail.value?.flow?.length))
 const selectedLine = ref({})
 const moreMenuOpen = ref(false)
 
