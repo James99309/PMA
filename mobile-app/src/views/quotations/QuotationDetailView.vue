@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getQuotationDetail } from '@/api/projects'
 
@@ -8,7 +8,28 @@ const router = useRouter()
 const quotation = ref(null)
 const loading = ref(true)
 
-onMounted(load)
+// 进此页时临时允许 pinch-zoom (app 全局 viewport user-scalable=no 防表单自动放大,
+// 但报价单需要双指缩放查看), 离开时恢复
+let _origViewport = null
+function setViewport(content) {
+  const meta = document.querySelector('meta[name=viewport]')
+  if (!meta) return
+  if (_origViewport === null) _origViewport = meta.getAttribute('content')
+  meta.setAttribute('content', content)
+}
+function restoreViewport() {
+  const meta = document.querySelector('meta[name=viewport]')
+  if (meta && _origViewport !== null) {
+    meta.setAttribute('content', _origViewport)
+    _origViewport = null
+  }
+}
+
+onMounted(() => {
+  setViewport('width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=5, user-scalable=yes, viewport-fit=cover')
+  load()
+})
+onBeforeUnmount(restoreViewport)
 
 async function load() {
   try {
