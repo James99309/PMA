@@ -16,9 +16,13 @@
         </svg>
         <span class="text-[15px]">审批</span>
       </button>
-      <button @click="moreMenuOpen = true"
+      <!-- ··· 直接打开转交 sheet(设计稿没有中间菜单步骤);
+           非当前审批人不显示 -->
+      <button v-if="detail?.is_current_approver"
+        @click="openSheet('forward')"
         class="text-[18px] font-bold active:opacity-60 px-2"
         style="color: var(--color-ink);">···</button>
+      <div v-else style="width: 32px;" />
     </div>
 
     <div v-if="loading" class="flex justify-center items-center flex-1">
@@ -224,6 +228,7 @@
         gap: '10px',
       }"
     >
+      <!-- ↻ 设计稿是历史按钮(audit 入口); 暂复用为转交触发, 转交 sheet 在弹出 -->
       <div
         class="flex items-center justify-center"
         :style="{
@@ -231,7 +236,7 @@
           background: 'var(--color-ex-divider-soft)',
           fontSize: '18px', color: 'var(--color-ex-ink2)',
         }"
-        @click="moreMenuOpen = true"
+        @click="openSheet('forward')"
       >↻</div>
       <div
         class="flex-1 flex items-center justify-center"
@@ -256,44 +261,6 @@
         @click="openSheet('approve')"
       >同意</div>
     </div>
-
-    <!-- ··· 菜单(转交) -->
-    <Teleport to="body">
-      <div
-        v-if="moreMenuOpen"
-        class="fixed inset-0 z-50"
-        :style="{ background: 'rgba(0,0,0,0.32)' }"
-        @click.self="moreMenuOpen = false"
-      >
-        <div
-          class="absolute left-0 right-0 bottom-0"
-          :style="{
-            background: 'var(--color-ex-bg)',
-            borderRadius: '20px 20px 0 0',
-            paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
-          }"
-        >
-          <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '10px auto 6px' }" />
-          <div
-            v-if="detail?.is_current_approver"
-            :style="{
-              padding: '14px 20px', background: 'var(--color-ex-card)',
-              borderTop: '1px solid var(--color-ex-divider-soft)',
-              fontSize: '14px', color: 'var(--color-ex-blue)', fontWeight: 600, textAlign: 'center',
-            }"
-            @click="onForwardClick"
-          >转交其他人</div>
-          <div
-            :style="{
-              padding: '14px 20px', background: 'var(--color-ex-card)',
-              borderTop: '1px solid var(--color-ex-divider-soft)',
-              fontSize: '14px', color: 'var(--color-ex-ink2)', textAlign: 'center',
-            }"
-            @click="moreMenuOpen = false"
-          >取消</div>
-        </div>
-      </div>
-    </Teleport>
 
     <!-- 同意/驳回/转交 sheet -->
     <ApprovalSheet
@@ -375,7 +342,6 @@ function openLineDetail(d) {
 const loading = ref(false)
 const sheetOpen = ref(false)
 const currentAction = ref('approve')
-const moreMenuOpen = ref(false)
 const submitting = ref(false)
 const userPickerOpen = ref(false)
 const selectedForwardUser = ref(null)
@@ -436,12 +402,6 @@ function openSheet(action) {
   currentAction.value = action
   selectedForwardUser.value = null
   sheetOpen.value = true
-  moreMenuOpen.value = false
-}
-
-function onForwardClick() {
-  moreMenuOpen.value = false
-  openSheet('forward')
 }
 
 async function onConfirmAction({ comment, targetUserId }) {

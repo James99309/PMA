@@ -137,16 +137,20 @@
               }"
               @click="close"
             >取消</div>
+            <!-- 设计稿(L302-306): 确认按钮永远是 cfg.color 背景 + 白字
+                 不能改 disabled 时 bg, 只 fade opacity 表达不可点 -->
             <div
               class="flex items-center justify-center"
               :style="{
                 flex: 2,
                 height: '48px',
                 borderRadius: '24px',
-                background: canConfirm ? cfg.color : 'var(--color-ex-divider)',
-                color: canConfirm ? '#fff' : 'var(--color-ex-ink4)',
+                background: cfg.color,
+                color: '#fff',
                 fontSize: '14px',
                 fontWeight: 600,
+                opacity: canConfirm ? 1 : 0.4,
+                transition: 'opacity 0.15s',
               }"
               @click="canConfirm && submit()"
             >{{ submitting ? '处理中...' : `确认${cfg.label}` }}</div>
