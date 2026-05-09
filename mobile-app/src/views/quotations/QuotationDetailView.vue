@@ -77,7 +77,7 @@ function _onTouchMove(e) {
     dbg.value.tm2++
     dbg.value.lastEvent = 'tm2'
     const d = dist(e.touches)
-    const next = Math.max(0.5, Math.min(3, lastScale * (d / lastDistance)))
+    const next = Math.max(minFitScale.value, Math.min(3, lastScale * (d / lastDistance)))
     scale.value = next
     nextTick(() => {
       el.scrollLeft = pinchAnchorX * next - pinchAnchorClientX
@@ -138,7 +138,7 @@ function _onGestureChange(e) {
   dbg.value.gc++
   dbg.value.lastEvent = 'gc'
   dbg.value.lastEScale = (e.scale || 0).toFixed(3)
-  const next = Math.max(0.5, Math.min(3, gestureStartScale * e.scale))
+  const next = Math.max(minFitScale.value, Math.min(3, gestureStartScale * (e.scale || 1)))
   scale.value = next
   // 调整 scroll 让锚点 (pinchAnchorX, pinchAnchorY) 在新缩放下仍在原屏幕位置
   // 新 scrollLeft = 锚点新位置 - 锚点屏幕位置 = pinchAnchorX * next - pinchAnchorClientX
@@ -184,34 +184,62 @@ function detachTouchHandlers() {
   el.removeEventListener('gestureend', _onGestureEnd)
 }
 
-// iframe 加载完后取真实内容高度, 让外层 sized wrapper 撑足
+// iframe 加载完后, 优先靠 postMessage 收高度(跨源安全), 次选直接读 contentDocument
 function onIframeLoad() {
   nextTick(() => {
     const iframe = iframeRef.value
     if (!iframe) return
     try {
-      // 等下一帧让 layout 完成
       setTimeout(() => {
         const h = iframe.contentDocument?.body?.scrollHeight
               || iframe.contentDocument?.documentElement?.scrollHeight
-              || 800
+              || 0
         if (h > 0) contentHeight.value = h
       }, 100)
     } catch {}
   })
 }
 
-onMounted(load)
+// 监听 iframe 内 postMessage('pma-quotation-h')
+let _initialFitDone = false
+function onPostMessage(e) {
+  if (e?.data?.type === 'pma-quotation-h' && typeof e.data.height === 'number' && e.data.height > 100) {
+    contentHeight.value = e.data.height
+    // 第一次拿到真实高度, 自动设 scale=fit, 让用户一进来看到完整报价单
+    if (!_initialFitDone) {
+      _initialFitDone = true
+      nextTick(() => {
+        scale.value = minFitScale.value
+      })
+    }
+  }
+}
 
-// 关键: load() 是异步的, 必须等 quotation 数据到达 + DOM 渲染完成后再绑 touch handlers
-// (之前用 nextTick 在 load 还没 resolve 时跑, wrapRef 是 null, 静默 bail, handlers 永远没绑)
+// 自动适配最低缩放 — 让缩到最小时整个内容能塞进 viewport
+const minFitScale = computed(() => {
+  const el = wrapRef.value
+  if (!el || !contentHeight.value) return 0.2
+  const fitW = el.clientWidth / 1100
+  const fitH = el.clientHeight / contentHeight.value
+  // 用宽高比例的 min, 保证宽高都塞下; 0.95 留点边距; 不低于 0.15
+  return Math.max(0.15, Math.min(fitW, fitH) * 0.95)
+})
+
+onMounted(() => {
+  load()
+  window.addEventListener('message', onPostMessage)
+})
+
 watch(quotation, async (q) => {
   if (!q) return
-  await nextTick()  // 等 v-else-if=quotation 渲染出 wrapRef
+  await nextTick()
   attachTouchHandlers()
-}, { immediate: false })
+})
 
-onBeforeUnmount(detachTouchHandlers)
+onBeforeUnmount(() => {
+  detachTouchHandlers()
+  window.removeEventListener('message', onPostMessage)
+})
 
 async function load() {
   try {
@@ -368,6 +396,25 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
 </table>
 
 </div>
+<script>
+// iframe 内注入: 通过 postMessage 把真实高度发给父级
+// (跨源 srcdoc iframe, 父级直接读 contentDocument 可能失败, postMessage 永远可用)
+function reportH() {
+  try {
+    var h = document.body.scrollHeight || document.documentElement.scrollHeight || 0;
+    window.parent.postMessage({ type: 'pma-quotation-h', height: h }, '*');
+  } catch (e) {}
+}
+window.addEventListener('load', function() {
+  reportH();
+  // 图片可能晚加载; 多次重报
+  setTimeout(reportH, 200);
+  setTimeout(reportH, 800);
+  setTimeout(reportH, 2000);
+});
+// 可选: 内容变化(图片 onload 等)时也重报
+new ResizeObserver(reportH).observe(document.documentElement);
+</script>
 </body>
 </html>`
 })
@@ -441,16 +488,4 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
     <button @click="load" class="text-sm text-blue-500">重试</button>
   </div>
 
-  <!-- 调试 overlay (独立 v-if, 不参与 v-if/v-else-if 链) -->
-  <div v-if="quotation"
-    style="position: fixed; z-index: 100; right: 8px; padding: 6px 10px;
-           background: rgba(0,0,0,0.78); color: #0f0; font-size: 10px;
-           font-family: monospace; line-height: 1.5; border-radius: 6px;
-           pointer-events: none;"
-    :style="{ top: 'calc(env(safe-area-inset-top) + 50px)' }">
-    scale={{ scale.toFixed(2) }} last={{ dbg.lastEvent }}<br>
-    ts1={{ dbg.ts1 }} ts2={{ dbg.ts2 }}<br>
-    tm1={{ dbg.tm1 }} tm2={{ dbg.tm2 }}<br>
-    gs={{ dbg.gs }} gc={{ dbg.gc }} eScale={{ dbg.lastEScale }}
-  </div>
 </template>
