@@ -342,19 +342,6 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
     <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"/>
   </div>
 
-  <!-- 调试 overlay (临时, 显示触摸事件计数 + 当前 scale) -->
-  <div v-if="quotation"
-    style="position: fixed; z-index: 100; right: 8px; padding: 6px 10px;
-           background: rgba(0,0,0,0.78); color: #0f0; font-size: 10px;
-           font-family: monospace; line-height: 1.5; border-radius: 6px;
-           pointer-events: none;"
-    :style="{ top: 'calc(env(safe-area-inset-top) + 50px)' }">
-    scale={{ scale.toFixed(2) }} last={{ dbg.lastEvent }}<br>
-    ts1={{ dbg.ts1 }} ts2={{ dbg.ts2 }}<br>
-    tm1={{ dbg.tm1 }} tm2={{ dbg.tm2 }}<br>
-    gs={{ dbg.gs }} gc={{ dbg.gc }} eScale={{ dbg.lastEScale }}
-  </div>
-
   <!-- 自定义 pinch-zoom: 外容器 overflow 滚动 + sized wrapper 撑出 scaled 区域 + iframe transform
        touch handlers 在 onMounted 用 addEventListener+passive:false 绑定(Vue @touchstart 在
        某些 iOS WebView 是 passive 默认, preventDefault 静默失败) -->
@@ -401,5 +388,18 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
        :style="{ paddingTop: 'calc(44px + env(safe-area-inset-top))', height: '100vh' }">
     <span>加载失败</span>
     <button @click="load" class="text-sm text-blue-500">重试</button>
+  </div>
+
+  <!-- 调试 overlay (独立 v-if, 不参与 v-if/v-else-if 链) -->
+  <div v-if="quotation"
+    style="position: fixed; z-index: 100; right: 8px; padding: 6px 10px;
+           background: rgba(0,0,0,0.78); color: #0f0; font-size: 10px;
+           font-family: monospace; line-height: 1.5; border-radius: 6px;
+           pointer-events: none;"
+    :style="{ top: 'calc(env(safe-area-inset-top) + 50px)' }">
+    scale={{ scale.toFixed(2) }} last={{ dbg.lastEvent }}<br>
+    ts1={{ dbg.ts1 }} ts2={{ dbg.ts2 }}<br>
+    tm1={{ dbg.tm1 }} tm2={{ dbg.tm2 }}<br>
+    gs={{ dbg.gs }} gc={{ dbg.gc }} eScale={{ dbg.lastEScale }}
   </div>
 </template>
