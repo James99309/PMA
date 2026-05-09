@@ -213,16 +213,21 @@
         </div>
       </div>
 
-      <!-- 明细 · 列表态 -->
+      <!-- 明细 · 列表态 (左滑删除, 仅可编辑状态) -->
       <div v-else :style="{ background: 'var(--color-ex-card)' }">
-        <div
+        <SwipeRowAction
           v-for="(d, i) in lines"
           :key="d.id || i"
+          :disabled="status !== 'draft' && status !== 'rejected'"
+          :actions="[{ label: '删除', color: 'red', handler: () => d.id && onDeleteLine(d.id) }]"
+        >
+        <div
           class="flex"
           :style="{
             padding: '14px 20px',
             borderBottom: i < lines.length - 1 ? '1px solid var(--color-ex-divider-soft)' : 'none',
             gap: '12px',
+            background: 'var(--color-ex-card)',
           }"
           @click="openLineForm(d)"
         >
@@ -274,6 +279,7 @@
             </div>
           </div>
         </div>
+        </SwipeRowAction>
       </div>
 
       <!-- 续拍 / 添加 (有明细时显示) -->
@@ -369,6 +375,7 @@ import ExBottomBar from '@/components/expense/ExBottomBar.vue'
 import ExSearchPickerSheet from '@/components/expense/ExSearchPickerSheet.vue'
 import ExLineFormSheet from '@/components/expense/ExLineFormSheet.vue'
 import ExSubmitSheet from '@/components/expense/ExSubmitSheet.vue'
+import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
 
 const route = useRoute()
 const router = useRouter()

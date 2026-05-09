@@ -76,7 +76,7 @@
     <div
       v-else-if="detail"
       class="flex-1 overflow-y-auto no-scrollbar"
-      :style="{ paddingBottom: detail.control?.can_submit ? '90px' : '24px' }"
+      :style="{ paddingBottom: detail.control?.can_submit ? 'calc(120px + env(safe-area-inset-bottom))' : '24px' }"
     >
       <!-- Hero — 对齐 ProjectDetailView 标准: 30px serif 标题 + 44px serif tabular 金额 -->
       <div class="px-7 pt-5 pb-6">
