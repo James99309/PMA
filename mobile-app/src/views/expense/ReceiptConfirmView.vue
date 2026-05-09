@@ -11,7 +11,7 @@
 <template>
   <div class="flex flex-col h-full" style="background: #F7F5F2;">
 
-    <!-- Header — 项目同款 (返回 ‹ 核对 + 下一张 right) -->
+    <!-- Header — 返回 + 标题 + 上一张/下一张(纯导航,不影响保存状态) -->
     <div class="flex items-center justify-between px-5 py-2.5 shrink-0">
       <button @click="$router.back()"
         class="flex items-center gap-1 active:opacity-60 py-1 pr-2"
@@ -20,13 +20,21 @@
           <path d="M7 1L1 7l6 6" fill="none" stroke="currentColor"
             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        <span class="text-[15px]">核对发票 {{ idx + 1 }} / {{ total }}</span>
+        <span class="text-[15px]">
+          核对 {{ idx + 1 }}/{{ total }}<span v-if="processedCount > 0"
+            class="text-[11px]" style="color: var(--color-ink-3); margin-left: 4px;">· 已处理 {{ processedCount }}</span>
+        </span>
       </button>
-      <button v-if="idx < total - 1"
-        @click="onNext"
-        class="text-[14px] font-medium active:opacity-60 px-2"
-        style="color: var(--color-accent);">下一张 ›</button>
-      <div v-else style="width: 60px;" />
+      <div class="flex items-center" style="gap: 4px;">
+        <button v-if="idx > 0"
+          @click="navTo(idx - 1)"
+          class="text-[14px] font-medium active:opacity-60 px-2"
+          style="color: var(--color-accent);">‹ 上一张</button>
+        <button v-if="idx < total - 1"
+          @click="navTo(idx + 1)"
+          class="text-[14px] font-medium active:opacity-60 px-2"
+          style="color: var(--color-accent);">下一张 ›</button>
+      </div>
     </div>
 
     <!-- 主滚动区(整页可滚动, 包括缩略图和字段表单) -->
@@ -185,7 +193,7 @@
     </div>
 
     <ExBottomBar
-      :primary="isLast ? '保存全部' : '保存这张 · 下一张'"
+      :primary="isLastUnprocessed ? '保存全部' : '保存这张 · 下一张'"
       secondary="跳过"
       :disabled="saving"
       @primary="onSave"
@@ -246,8 +254,15 @@ const store = useExpenseStore()
 const expenseId = computed(() => parseInt(route.params.id))
 const idx = computed(() => parseInt(route.query.idx) || 0)
 const total = computed(() => store.pendingReceipts.length)
-const isLast = computed(() => idx.value === total.value - 1)
 const receipt = computed(() => store.pendingReceipts[idx.value])
+// 已处理数 = saved + skipped (用于显示 + 决定底部主按钮文案)
+const processedCount = computed(() =>
+  store.pendingReceipts.filter(r => r.saved || r.skipped).length
+)
+// 是否所有(其他)receipt 都已处理 — 此时按钮变"保存全部"
+const isLastUnprocessed = computed(() =>
+  store.pendingReceipts.filter((r, i) => i !== idx.value && !r.saved && !r.skipped).length === 0
+)
 
 const expenseCurrency = ref('CNY')
 const saving = ref(false)
@@ -379,7 +394,6 @@ async function onSave() {
   try {
     if (mergeMode.value === 'merge' && mergeable.value.length > 0) {
       // 合并模式: 累加金额到 mergeable[0] 对应的 detail
-      // 简化处理: 标记当前及之前同类的为"merge_into" idx, 跳到 merge view
       router.replace(`/expense/${expenseId.value}/merge?primary=${idx.value}`)
       return
     }
@@ -400,7 +414,7 @@ async function onSave() {
     }
     await expApi.addLine(expenseId.value, payload)
     store.updatePendingReceipt(idx.value, { saved: true })
-    onNext()
+    nextUnprocessed()  // 跳到下一张未处理的
   } catch (e) {
     alert('保存失败: ' + (e.response?.data?.message || e.message))
   } finally {
@@ -410,19 +424,30 @@ async function onSave() {
 
 function onSkip() {
   store.updatePendingReceipt(idx.value, { skipped: true })
-  onNext()
+  nextUnprocessed()
 }
 
-function onNext() {
-  if (isLast.value) {
-    // 全部处理完 → 清队列回到 expense edit
+// 纯导航 — 不动 saved/skipped 状态, 用户可来回浏览
+function navTo(targetIdx) {
+  if (targetIdx < 0 || targetIdx >= total.value) return
+  router.replace(`/expense/${expenseId.value}/confirm?idx=${targetIdx}`)
+}
+
+// 智能跳转 — 跳到下一张未处理的(saved=false 且 skipped=false)
+// 全部处理完则清队列 + 跳 edit
+function nextUnprocessed() {
+  const arr = store.pendingReceipts
+  // 优先找当前 idx 之后的未处理
+  let target = arr.findIndex((r, i) => i > idx.value && !r.saved && !r.skipped)
+  // 没找到 → 从头找(可能用户来回浏览跳过了某些)
+  if (target < 0) target = arr.findIndex(r => !r.saved && !r.skipped)
+  if (target >= 0) {
+    router.replace(`/expense/${expenseId.value}/confirm?idx=${target}`)
+  } else {
+    // 全部处理完
     store.clearPendingReceipts()
-    // 清详情缓存, 让 ExpenseEditView mount 时拿到最新 lines
-    // (虽然 fetchDetail 已传 forceRefresh, 此处再保险一道防止竞态)
     store.clearDetail(expenseId.value)
     router.replace(`/expense/${expenseId.value}/edit`)
-  } else {
-    router.replace(`/expense/${expenseId.value}/confirm?idx=${idx.value + 1}`)
   }
 }
 </script>
