@@ -10,7 +10,23 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useExpenseStore } from '@/stores/expense'
-import { listExpenses } from '@/api/expense'
+import { listExpenses, deleteExpense } from '@/api/expense'
+import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
+
+async function onDelete(it) {
+  if (it.status !== 'draft') {
+    alert('只有草稿状态的报销单可以删除')
+    return
+  }
+  if (!confirm(`确认删除「${it.title || '未命名报销'}」?`)) return
+  try {
+    await deleteExpense(it.id)
+    items.value = items.value.filter(x => x.id !== it.id)
+    total.value = Math.max(0, total.value - 1)
+  } catch (e) {
+    alert('删除失败: ' + (e.response?.data?.message || e.message))
+  }
+}
 
 const router = useRouter()
 const store = useExpenseStore()
@@ -273,37 +289,47 @@ onMounted(() => {
         style="color: var(--color-ink-3);">暂无报销单</div>
 
       <div v-else style="background: var(--color-card);">
-        <div v-for="(it, i) in items" :key="it.id"
-          @click="router.push(`/expense/${it.id}`)"
-          class="px-6 py-3.5 cursor-pointer flex flex-col gap-1.5"
-          :style="i < items.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
-          <!-- 标题 + 金额 -->
-          <div class="flex items-baseline justify-between gap-3">
-            <div class="font-serif flex-1 min-w-0 truncate"
-              style="font-size: 16px; font-weight: 500; color: var(--color-ink); line-height: 1.3;">
-              {{ it.title }}
+        <SwipeRowAction
+          v-for="(it, i) in items"
+          :key="it.id"
+          :disabled="it.status !== 'draft'"
+          :actions="[{ label: '删除', color: 'red', handler: () => onDelete(it) }]"
+        >
+          <div
+            @click="router.push(`/expense/${it.id}`)"
+            class="px-6 py-3.5 cursor-pointer flex flex-col gap-1.5"
+            :style="[
+              i < items.length - 1 ? { borderBottom: '1px solid var(--color-divider)' } : {},
+              { background: 'var(--color-card)' },
+            ]">
+            <!-- 标题 + 金额 -->
+            <div class="flex items-baseline justify-between gap-3">
+              <div class="font-serif flex-1 min-w-0 truncate"
+                style="font-size: 16px; font-weight: 500; color: var(--color-ink); line-height: 1.3;">
+                {{ it.title }}
+              </div>
+              <div class="text-[15px] font-semibold tabular whitespace-nowrap"
+                style="color: var(--color-ink);">
+                {{ currencySymbol(it.currency) }}{{ fmtAmount(it.amount) }}
+              </div>
             </div>
-            <div class="text-[15px] font-semibold tabular whitespace-nowrap"
-              style="color: var(--color-ink);">
-              {{ currencySymbol(it.currency) }}{{ fmtAmount(it.amount) }}
+            <!-- meta: 状态 + 单号·明细 + 当前节点 + 日期 -->
+            <div class="flex items-center gap-3 text-[12px]" style="color: var(--color-ink-3);">
+              <span class="inline-flex items-center gap-1.5 font-medium shrink-0"
+                :style="{ color: STATUS_COLOR[it.status] || 'var(--color-ink-3)' }">
+                <span class="w-[5px] h-[5px] rounded-[3px]"
+                  :style="{ background: STATUS_COLOR[it.status] || 'var(--color-ink-3)' }" />
+                {{ STATUS_LABEL[it.status] || it.status }}
+              </span>
+              <span class="truncate">
+                {{ it.expense_number }}
+                <template v-if="it.detail_count"> · {{ it.detail_count }} 项</template>
+                <template v-if="it.current_node"> · 当前 {{ it.current_node }}</template>
+              </span>
+              <span class="ml-auto tabular shrink-0">{{ formatDate(it.apply_at) }}</span>
             </div>
           </div>
-          <!-- meta: 状态 + 单号·明细 + 当前节点 + 日期 -->
-          <div class="flex items-center gap-3 text-[12px]" style="color: var(--color-ink-3);">
-            <span class="inline-flex items-center gap-1.5 font-medium shrink-0"
-              :style="{ color: STATUS_COLOR[it.status] || 'var(--color-ink-3)' }">
-              <span class="w-[5px] h-[5px] rounded-[3px]"
-                :style="{ background: STATUS_COLOR[it.status] || 'var(--color-ink-3)' }" />
-              {{ STATUS_LABEL[it.status] || it.status }}
-            </span>
-            <span class="truncate">
-              {{ it.expense_number }}
-              <template v-if="it.detail_count"> · {{ it.detail_count }} 项</template>
-              <template v-if="it.current_node"> · 当前 {{ it.current_node }}</template>
-            </span>
-            <span class="ml-auto tabular shrink-0">{{ formatDate(it.apply_at) }}</span>
-          </div>
-        </div>
+        </SwipeRowAction>
 
         <div v-if="items.length < total" class="py-5 text-center"
           style="border-top: 1px solid var(--color-divider);">
