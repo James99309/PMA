@@ -25,7 +25,7 @@
 
     <div
       class="overflow-auto h-full no-scrollbar"
-      :style="{ paddingTop: '102px', paddingBottom: '100px' }"
+      :style="{ paddingTop: '102px', paddingBottom: '140px' }"
     >
       <!-- 已有明细时:压缩头部到 context block -->
       <div v-if="hasLines" :style="{ padding: '14px 20px 4px' }">
@@ -432,21 +432,23 @@ const customerPickerOpen = ref(false)
 const projectPickerOpen = ref(false)
 
 async function searchCustomers(q) {
-  const r = await client.get('/mobile/customers', { params: { q: q || '', per_page: 20 } })
+  // mobile_customers 接受 search/q 兼容
+  const r = await client.get('/mobile/customers', { params: { q: q || '', search: q || '', per_page: 20 } })
   return (r.data?.data?.items || []).map(c => ({
     id: c.id,
     label: c.name || c.company_name,
-    sub: c.code || c.company_code || '',
+    sub: c.primary_contact_name ? `主联系人: ${c.primary_contact_name}` : (c.industry || ''),
     code: c.code || c.company_code || '',
   }))
 }
 
 async function searchProjects(q) {
+  // mobile_projects 字段名: name (不是 project_name), owner_name (不是 customer_name)
   const r = await client.get('/mobile/projects', { params: { search: q || '', per_page: 20 } })
   return (r.data?.data?.items || []).map(p => ({
     id: p.id,
-    label: p.project_name,
-    sub: p.customer_name || '',
+    label: p.name,
+    sub: [p.stage_label, p.owner_name, p.city].filter(Boolean).join(' · '),
   }))
 }
 
