@@ -37,10 +37,15 @@
       <div>
         <!-- 报销主题 -->
         <div :style="{ padding: '0 20px 16px' }">
-          <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">报销主题 *</div>
+          <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">
+            报销主题
+            <span :style="{ color: 'var(--color-ex-ink4)', fontWeight: 400, marginLeft: '4px' }">
+              留空时 AI 据说明自动生成
+            </span>
+          </div>
           <input
             v-model="form.title"
-            placeholder="例: 苏州客户拜访"
+            placeholder="例: 苏州客户拜访 (可留空 AI 生成)"
             :style="{
               fontSize: '22px',
               fontWeight: 500,
@@ -428,13 +433,13 @@ function formatAmount(n) {
 }
 
 // canPrimary: 有明细 → 主按钮是"提交"; 无明细 → 主按钮是"保存草稿"
+// 主题可空(后端会用 AI 据说明生成); 但提交审批前需要有说明 + 客户/项目
 const canPrimary = computed(() => {
-  if (!form.value.title.trim()) return false
   if (!form.value.no_link && (!form.value.customer_id || !form.value.project_id)) return false
   if (hasLines.value && !canSubmit.value) return false
   return true
 })
-const canSubmit = computed(() => hasLines.value && form.value.title.trim() && form.value.description.trim())
+const canSubmit = computed(() => hasLines.value && form.value.description.trim())
 
 // ── 加载已有报销单(编辑模式) ────────────────────
 async function loadExisting() {

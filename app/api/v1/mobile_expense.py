@@ -322,12 +322,18 @@ def mobile_expense_create():
 
     data = request.get_json() or {}
     title = (data.get('title') or '').strip()
+    description = (data.get('description') or '').strip()
+    # 主题为空时, 用 AI 根据说明生成 (说明也空就用兜底"未命名报销")
     if not title:
-        return api_response(success=False, code=400, message='报销主题不能为空')
+        if description:
+            from app.services.expense_title_generator import generate_title
+            title = generate_title(description, fallback='未命名报销')
+        else:
+            title = '未命名报销'
 
     e = Expense(
         title=title,
-        description=(data.get('description') or '').strip(),
+        description=description,
         currency=data.get('currency') or 'CNY',
         customer_id=data.get('customer_id'),
         contact_id=data.get('contact_id'),
@@ -369,6 +375,13 @@ def mobile_expense_update(expense_id):
     for k in ('title', 'description'):
         if k in data:
             setattr(e, k, (data[k] or '').strip())
+    # 如果保存后 title 仍空, 用 AI 据说明重新生成
+    if not (e.title or '').strip():
+        if (e.description or '').strip():
+            from app.services.expense_title_generator import generate_title
+            e.title = generate_title(e.description, fallback='未命名报销')
+        else:
+            e.title = '未命名报销'
     if 'currency' in data and data['currency']:
         old_currency = e.currency
         e.currency = data['currency']
