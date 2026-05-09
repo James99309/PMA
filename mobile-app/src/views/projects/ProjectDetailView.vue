@@ -5,6 +5,7 @@ import { getProject, addProjectNote } from '@/api/projects'
 import { searchUsers, createConversation } from '@/api/chat'
 import client from '@/api/client'
 import ExFlowSheet from '@/components/expense/ExFlowSheet.vue'
+import ProjectSubmitSheet from '@/components/project/ProjectSubmitSheet.vue'
 import Avatar from '@/components/common/Avatar.vue'
 import MentionPopover from '@/components/common/MentionPopover.vue'
 import MessageText from '@/components/common/MessageText.vue'
@@ -182,7 +183,6 @@ async function loadAndShowFlow() {
     flowLoadError.value = '流程加载失败'
   }
 }
-const authNote = ref('')
 const submittingAuth = ref(false)
 
 // 主流程进度条阶段 keys（横向 dots） —— 终止态 lost/paused 不在 track 上
@@ -389,10 +389,9 @@ async function confirmStageUpdate() {
 async function submitAuthRequest() {
   submittingAuth.value = true
   try {
-    const res = await client.post(`/mobile/projects/${route.params.id}/auth-request`, { note: authNote.value })
-    alert(res.data.message)
+    const res = await client.post(`/mobile/projects/${route.params.id}/auth-request`, {})
+    alert(res.data.message || '审批已提交')
     showAuthModal.value = false
-    authNote.value = ''
     await load()
   } catch (e) {
     alert(e.response?.data?.message || '提交失败')
@@ -912,28 +911,18 @@ onMounted(() => {
     <NoteSheet v-model="showNoteBox" :submit="submitNote" />
 
 
-    <!-- ── Auth request bottom sheet ── -->
-    <Teleport to="body">
-      <Transition name="sheet">
-        <div v-if="showAuthModal" class="fixed inset-0 z-50 flex flex-col justify-end">
-          <div class="absolute inset-0 bg-black/40" @click="showAuthModal = false" />
-          <div class="relative bg-[#F7F5F2] rounded-t-3xl pt-4 px-5"
-            :style="{ paddingBottom: 'calc(16px + env(safe-area-inset-bottom))' }">
-            <div class="w-10 h-1 bg-[#D0CBC4] rounded-full mx-auto mb-4" />
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="font-serif text-[17px] font-semibold text-[#1A1A1A]">提交授权申请</h3>
-              <button @click="showAuthModal = false" class="text-[#7A7570] text-sm active:opacity-60">取消</button>
-            </div>
-            <textarea v-model="authNote" rows="3" placeholder="申请备注（选填）..."
-              class="w-full bg-white border border-[#E8E4E0] rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#D97757] resize-none mb-3 text-[#1A1A1A] placeholder-[#9CA3AF]" />
-            <button @click="submitAuthRequest" :disabled="submittingAuth"
-              class="w-full bg-[#1A1A1A] text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50 active:bg-[#333]">
-              {{ submittingAuth ? '提交中…' : '确认提交授权申请' }}
-            </button>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- 项目提交审批确认 sheet -->
+    <ProjectSubmitSheet
+      v-model="showAuthModal"
+      :project-name="project ? project.name : ''"
+      :project-type="project ? project.project_type : ''"
+      :customer-name="project ? project.end_user : ''"
+      :owner-name="project ? project.owner_name : ''"
+      :amount="project && project.amount ? `¥${project.amount.toFixed(2)} 万` : ''"
+      :stage="project ? project.stage_label : ''"
+      :submitting="submittingAuth"
+      @confirm="submitAuthRequest"
+    />
 
     <!-- 创建讨论群 sheet（多选成员）-->
     <Teleport to="body">
