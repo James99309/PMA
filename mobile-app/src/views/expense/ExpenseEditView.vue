@@ -64,23 +64,17 @@
         <!-- 货币 + 状态 -->
         <div class="flex" :style="{ padding: '0 20px', gap: '16px', marginBottom: '18px' }">
           <div class="flex-1">
-            <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">货币类型 *</div>
-            <select
-              v-model="form.currency"
-              :style="{
+            <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">
+              报销币种<span :style="{ color: 'var(--color-ex-ink4)', marginLeft: '4px' }">· 按结算偏好</span>
+            </div>
+            <div :style="{
                 fontSize: '14px',
                 fontWeight: 500,
                 color: 'var(--color-ex-ink)',
-                background: 'transparent',
-                border: 'none',
-                width: '100%',
-                outline: 'none',
-              }"
-            >
-              <option v-for="c in currencies" :key="c.code" :value="c.code">
-                {{ c.label }} {{ c.symbol }} ({{ c.code }})
-              </option>
-            </select>
+                lineHeight: '24px',
+              }">
+              {{ currencyDisplayLabel }}
+            </div>
           </div>
           <div class="flex-1">
             <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">状态</div>
@@ -385,11 +379,17 @@ const editingId = ref(parseInt(route.params.id) || null)
 const isNew = computed(() => !editingId.value)
 
 // 默认货币: 用户结算货币 → 区域默认 (cn=CNY, sg=USD)
+// 创建后不允许切换 (按结算偏好), 只读展示
 const defaultCurrency = (() => {
   const u = auth.user
   if (u?.settlement_currency) return u.settlement_currency
   return auth.regionId === 'sg' ? 'USD' : 'CNY'
 })()
+const currencyDisplayLabel = computed(() => {
+  const c = currencies.value?.find(x => x.code === form.value.currency)
+  if (c) return `${c.label} ${c.symbol} (${c.code})`
+  return form.value.currency || '—'
+})
 
 const form = ref({
   title: '',

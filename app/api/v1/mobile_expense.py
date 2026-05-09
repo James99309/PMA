@@ -384,13 +384,7 @@ def mobile_expense_update(expense_id):
         if k in data:
             setattr(e, k, (data[k] or '').strip())
     # 不再同步调 AI; 前端会在保存成功后异步调 /auto-title 生成
-    if 'currency' in data and data['currency']:
-        old_currency = e.currency
-        e.currency = data['currency']
-        # 货币变了 → 重新计算每条明细的 current_amount
-        if old_currency != e.currency:
-            for d in e.details:
-                d._recalculate_current_amount()
+    # 报销币种创建后锁定(按用户 settlement_currency), 不允许切换 — 静默忽略 currency 字段
     for k in ('customer_id', 'contact_id', 'project_id'):
         if k in data:
             setattr(e, k, data[k] or None)
