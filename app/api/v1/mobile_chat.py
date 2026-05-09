@@ -297,6 +297,7 @@ def mobile_chat_remove_participant(conv_id, target_user_id):
 @api_v1_bp.route('/mobile/chat/conversations/<int:conv_id>', methods=['DELETE'])
 @jwt_required()
 def mobile_chat_delete(conv_id):
+    """从列表移出 — 仅自己列表隐藏 (微信式删除)"""
     user, user_id = _current_user()
     if not user:
         return api_response(success=False, code=401, message="用户不存在")
@@ -305,6 +306,36 @@ def mobile_chat_delete(conv_id):
         return jsonify(result), (200 if result.get('success') else 400)
     except Exception as e:
         logger.error(f"mobile chat delete error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
+
+
+@api_v1_bp.route('/mobile/chat/conversations/<int:conv_id>/dismiss', methods=['POST'])
+@jwt_required()
+def mobile_chat_dismiss(conv_id):
+    """解散群 — 仅创建人 + 非业务群"""
+    user, user_id = _current_user()
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+    try:
+        result = chat_service.dismiss_conversation(conv_id, user_id)
+        return jsonify(result), (200 if result.get('success') else 400)
+    except Exception as e:
+        logger.error(f"mobile chat dismiss error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=str(e))
+
+
+@api_v1_bp.route('/mobile/chat/conversations/<int:conv_id>/leave', methods=['POST'])
+@jwt_required()
+def mobile_chat_leave(conv_id):
+    """退出群聊 — 删自己的 ChatParticipant"""
+    user, user_id = _current_user()
+    if not user:
+        return api_response(success=False, code=401, message="用户不存在")
+    try:
+        result = chat_service.leave_conversation(conv_id, user_id)
+        return jsonify(result), (200 if result.get('success') else 400)
+    except Exception as e:
+        logger.error(f"mobile chat leave error: {e}", exc_info=True)
         return api_response(success=False, code=500, message=str(e))
 
 

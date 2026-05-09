@@ -177,6 +177,7 @@ class ChatParticipant(db.Model):
     role = Column(String(20), default='member')  # 'owner', 'member'
     joined_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     last_read_at = Column(DateTime, nullable=True)
+    is_hidden = Column(Boolean, default=False, nullable=False)  # 用户从列表移出 (微信式删除); 收消息时自动 unhide
 
     # 关系
     user = db.relationship('User', foreign_keys=[user_id], backref='chat_participations')

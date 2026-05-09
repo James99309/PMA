@@ -6,6 +6,8 @@ import { useRouter } from 'vue-router'
 import PixelP from '@/components/common/PixelP.vue'
 import CrossRegionMsgCard from '@/components/common/CrossRegionMsgCard.vue'
 import { getConversations, getUnreadCountForRegion, createConversation, searchUsers, searchProjects } from '@/api/chat'
+import client from '@/api/client'
+import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
 import { REGIONS } from '@/api/client'
 import { useAuthStore } from '@/stores/auth'
 import { formatChatTime } from '@/utils/chatTime'
@@ -96,6 +98,17 @@ onUnmounted(() => { if (pollTimer) clearInterval(pollTimer) })
 function openAi() {
   // 如果有现成 AI 会话则带 id 进入；否则进 AI 页时由后端自动建一个
   router.push({ path: '/messages/ai', query: aiConv.value ? { id: aiConv.value.id } : {} })
+}
+
+// 从列表移出 (仅自己列表隐藏 — 对方再发消息会自动 unhide 重新出现)
+async function onHideConversation(c) {
+  try {
+    await client.delete(`/mobile/chat/conversations/${c.id}`)
+    // 立即从本地列表移除, 体感顺滑
+    allConversations.value = allConversations.value.filter(x => x.id !== c.id)
+  } catch (e) {
+    alert(e.response?.data?.message || '移出失败')
+  }
 }
 
 function openConversation(c) {
@@ -274,12 +287,15 @@ function closePicker() {
         </button>
       </div>
 
-      <!-- 普通会话 -->
+      <!-- 普通会话 (左滑可"从列表移出"; 对方再发消息会自动重新出现) -->
       <div class="mt-2" style="background: var(--color-card);">
-        <button v-for="(c, i) in conversations" :key="c.id"
-          @click="openConversation(c)"
+        <SwipeRowAction
+          v-for="(c, i) in conversations" :key="c.id"
+          :actions="[{ label: '移出', color: 'red', handler: () => onHideConversation(c) }]"
+        >
+        <button @click="openConversation(c)"
           class="w-full px-4 py-3.5 flex gap-3 active:bg-bg text-left"
-          :style="i < conversations.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
+          :style="(i < conversations.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : '') + ' background: var(--color-card);'">
           <!-- 头像（广播=方形 + ink；其他=圆形 + accent-soft）-->
           <div class="w-[42px] h-[42px] inline-flex items-center justify-center font-serif font-semibold shrink-0"
             :style="{
@@ -310,6 +326,7 @@ function closePicker() {
             </div>
           </div>
         </button>
+        </SwipeRowAction>
       </div>
     </div>
 

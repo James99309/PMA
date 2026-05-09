@@ -173,13 +173,14 @@ def get_user_conversations(user_id, viewer_language=None):
         dict: {'success': True, 'data': [...]}
     """
     try:
-        # 查询用户参与的所有未删除对话
+        # 查询用户参与的所有未删除对话; 排除自己已"从列表移出"的
         participations = (
             ChatParticipant.query
             .join(ChatConversation, ChatParticipant.conversation_id == ChatConversation.id)
             .filter(
                 ChatParticipant.user_id == user_id,
-                ChatConversation.is_deleted == False
+                ChatConversation.is_deleted == False,
+                ChatParticipant.is_hidden == False,
             )
             .all()
         )
@@ -719,6 +720,12 @@ def send_message(conversation_id, sender_id, content, reply_to_id=None, refs=Non
 
         # 更新发送者的 last_read_at
         participant.last_read_at = datetime.now(timezone.utc)
+
+        # 自动 unhide 所有参与者(包括之前"从列表移出"的) — 让对话重新冒出来
+        # 这是微信式行为: 别人删了你, 你发消息, 对方列表又出现
+        ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, is_hidden=True
+        ).update({'is_hidden': False})
 
         db.session.commit()
 
@@ -1422,37 +1429,91 @@ def create_ai_conversation(user_id):
 
 def delete_conversation(conversation_id, user_id):
     """
-    软删除对话（对所有参与者不可见）。
+    "从列表移出"语义 — 仅当前用户的列表隐藏 (微信式删除)。
+    对方仍能看到; 对方再发消息时 is_hidden 会被自动 unhide 重新冒出来。
+    历史消息保留, 不破坏。
 
-    Args:
-        conversation_id: 对话 ID
-        user_id: 操作者用户 ID
-
-    Returns:
-        dict: {'success': True/False, 'message': ...}
+    要彻底删除整个对话(对所有参与者不可见)请用 dismiss_conversation (仅创建人 +
+    非业务群)。要离开群请用 leave_conversation (删自己 participant)。
     """
     try:
-        conv = ChatConversation.query.get(conversation_id)
-        if not conv:
-            return {'success': False, 'message': '对话不存在'}
-
-        # 验证操作者是参与者
         participant = ChatParticipant.query.filter_by(
             conversation_id=conversation_id, user_id=user_id
         ).first()
         if not participant:
             return {'success': False, 'message': '您不是该对话的参与者'}
 
-        conv.is_deleted = True
+        participant.is_hidden = True
         db.session.commit()
-
-        logger.info(f"对话 {conversation_id} 已被用户 {user_id} 删除")
-        return {'success': True, 'message': '对话已删除'}
+        logger.info(f"对话 {conversation_id} 已被用户 {user_id} 从列表移出")
+        return {'success': True, 'message': '已从列表移出'}
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f"删除对话失败: {e}", exc_info=True)
-        return {'success': False, 'message': f'删除对话失败: {str(e)}'}
+        logger.error(f"从列表移出对话失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'操作失败: {str(e)}'}
+
+
+def _is_business_conversation(conv):
+    """检查是否为绑定到业务对象(项目/客户/批价/报价/订单)的群聊。
+    业务群禁止解散, 只能退出/隐藏。"""
+    try:
+        meta = _load_meta(conv)
+        return any(meta.get(k) for k in ('project_id', 'customer_id', 'pricing_order_id', 'quotation_id', 'order_id'))
+    except Exception:
+        return False
+
+
+def dismiss_conversation(conversation_id, user_id):
+    """解散群聊 — 整个 conv.is_deleted=True, 所有参与者都看不到。
+    限制: 仅创建人, 仅非业务群; 私聊也允许(等价于双方互删)。"""
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv or conv.is_deleted:
+            return {'success': False, 'message': '对话不存在'}
+        if conv.created_by != user_id:
+            return {'success': False, 'message': '只有创建人可以解散'}
+        if _is_business_conversation(conv):
+            return {'success': False, 'message': '业务群(项目/客户/批价/报价/订单)不能解散, 只能退出'}
+
+        conv.is_deleted = True
+        db.session.commit()
+        logger.info(f"对话 {conversation_id} 已被创建人 {user_id} 解散")
+        return {'success': True, 'message': '已解散'}
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"解散对话失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'解散失败: {str(e)}'}
+
+
+def leave_conversation(conversation_id, user_id):
+    """退出群聊 — 删除自己的 ChatParticipant 记录。
+    群主不能退出(应该解散), 私聊不允许退出(应该用"从列表移出")."""
+    try:
+        conv = ChatConversation.query.get(conversation_id)
+        if not conv or conv.is_deleted:
+            return {'success': False, 'message': '对话不存在'}
+        if conv.type == 'private':
+            return {'success': False, 'message': '私聊不能退出, 请用"从列表移出"'}
+        if conv.created_by == user_id:
+            return {'success': False, 'message': '群主不能退出, 请先转让群主或解散群'}
+
+        participant = ChatParticipant.query.filter_by(
+            conversation_id=conversation_id, user_id=user_id
+        ).first()
+        if not participant:
+            return {'success': False, 'message': '您不在该群'}
+
+        db.session.delete(participant)
+        db.session.commit()
+        logger.info(f"用户 {user_id} 已退出群聊 {conversation_id}")
+        return {'success': True, 'message': '已退出群聊'}
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"退出群聊失败: {e}", exc_info=True)
+        return {'success': False, 'message': f'退出失败: {str(e)}'}
 
 
 # ---------------------------------------------------------------------------
