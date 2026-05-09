@@ -108,13 +108,15 @@
                 }"
               >{{ it.tag }}</div>
             </div>
+            <!-- 副信息: 申请人 · 客户 · 项目 · N 项明细 -->
             <div
               class="truncate"
               :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)', marginTop: '3px' }"
-            >{{ it.submitter_name || '—' }} · {{ it.subtitle || it.object_type_label }}</div>
+            >{{ [it.submitter_name, it.subtitle].filter(Boolean).join(' · ') || '—' }}</div>
             <div class="flex items-center justify-between" :style="{ marginTop: '6px' }">
-              <div :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)' }">
-                {{ it.object_name || it.id }} · {{ it.time }}
+              <!-- 单号 · 时间 (设计稿底部左) -->
+              <div :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)', fontFamily: 'var(--font-mono)' }">
+                {{ it.expense_number || it.id }} · {{ it.time }}
               </div>
               <div
                 v-if="it.amount !== null && it.amount !== undefined"
@@ -189,17 +191,26 @@ async function loadPending() {
   pending.value = items.map(i => ({
     id: i.id,
     title: i.object_name,
-    subtitle: i.current_step ? `当前步骤 ${i.current_step}` : '',
     submitter_name: i.submitted_by_name,
-    object_type_label: i.object_type_label,
-    object_name: i.object_name,
-    amount: i.total_amount ?? null,
-    currency_symbol: i.currency_symbol || '¥',
+    // 副信息: 客户 · 项目 · N 项明细 (设计稿要求)
+    subtitle: [i.customer_name, i.project_name,
+               i.detail_count ? `${i.detail_count} 项明细` : '']
+              .filter(Boolean).join(' · ') || (i.object_type_label || ''),
+    expense_number: i.expense_number || i.object_name,
+    amount: i.amount ?? null,
+    currency_symbol: currencySymbolFor(i.currency || 'CNY'),
     time: fmtTime(i.created_at),
-    tag: `待我审批${i.current_step ? ' · ' + i.current_step : ''}`,
+    // tag: 待我审批 · 当前步骤名 (不是数字)
+    tag: `待我审批${i.current_step_name ? ' · ' + i.current_step_name : ''}`,
     tag_color: TAG_PENDING.color,
     tag_bg: TAG_PENDING.bg,
+    object_type: i.object_type,
   }))
+}
+
+function currencySymbolFor(code) {
+  const m = { CNY: '¥', USD: '$', HKD: 'HK$', TWD: 'NT$', SGD: 'S$', MYR: 'RM', IDR: 'Rp', THB: '฿', VND: '₫' }
+  return m[code] || code
 }
 
 async function loadHistory() {
@@ -213,9 +224,8 @@ async function loadHistory() {
     return {
       id: i.id,
       title: i.object_name,
-      subtitle: i.comment || '',
-      object_type_label: i.object_type_label,
-      object_name: i.object_name,
+      subtitle: i.comment || i.object_type_label || '',
+      expense_number: i.object_name,
       amount: null,
       currency_symbol: '¥',
       time: fmtTime(i.created_at),

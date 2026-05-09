@@ -351,6 +351,7 @@
       :customer-name="form.customer_name"
       :project-name="form.project_name"
       :line-count="lines.length"
+      :next-approver="{ user: '上级', node: '上级审批' }"
       :submitting="submitting"
       @confirm="onConfirmSubmit"
     />

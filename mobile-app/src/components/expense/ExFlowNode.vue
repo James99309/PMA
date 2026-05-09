@@ -10,16 +10,17 @@
 <template>
   <div class="flex" :style="{ gap: '12px', paddingBottom: last ? '0' : '12px' }">
     <!-- 时间线 dot + line -->
-    <div class="flex flex-col items-center flex-shrink-0">
+    <!-- current 用多重 box-shadow 双圈(替代 border, 避免改变 box 大小) -->
+    <div class="flex flex-col items-center flex-shrink-0" :style="{ paddingTop: '6px' }">
       <div
         :style="{
           width: '14px',
           height: '14px',
           borderRadius: '7px',
           background: dotColor,
-          border: isCurrent ? '3px solid var(--color-ex-warn-soft)' : 'none',
-          boxShadow: isCurrent ? '0 0 0 2px var(--color-ex-warn)' : 'none',
-          marginTop: '4px',
+          boxShadow: isCurrent
+            ? '0 0 0 3px var(--color-ex-warn-soft), 0 0 0 5px var(--color-ex-warn)'
+            : 'none',
         }"
       />
       <div
@@ -28,7 +29,7 @@
         :style="{
           width: '1px',
           background: 'var(--color-ex-divider)',
-          marginTop: '2px',
+          marginTop: isCurrent ? '8px' : '4px',
         }"
       />
     </div>

@@ -4,6 +4,16 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { CapacitorUpdater } from '@capgo/capacitor-updater'
 import { REGIONS } from '@/api/client'
+import { getPendingApprovals } from '@/api/approval'
+
+// 待审批数(显示在审批中心圆形图标里)
+const pendingCount = ref(0)
+async function loadPendingCount() {
+  try {
+    const r = await getPendingApprovals()
+    pendingCount.value = r.data?.data?.total || 0
+  } catch {}
+}
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -96,6 +106,7 @@ async function checkUpdate() {
 }
 
 onMounted(async () => {
+  loadPendingCount()
   try {
     const info = await CapacitorUpdater.current()
     bundleId.value = info?.bundle?.id || 'builtin'
@@ -211,14 +222,21 @@ const title = computed(() => auth.isAway ? '我的 · Profile' : '我的')
         <div class="bg-white rounded-2xl overflow-hidden"
           style="border: 1px solid var(--color-divider);">
           <button @click="router.push('/approval')"
-            class="w-full flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 text-left">
-            <div class="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-              style="background: var(--color-accent-soft); color: var(--color-accent);">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            class="w-full flex items-center gap-3.5 px-4 py-4 active:bg-gray-50 text-left">
+            <!-- 44x44 圆形带待审批数字(对齐设计稿 expense-approval.jsx L36-37) -->
+            <div class="rounded-full flex items-center justify-center shrink-0"
+              style="
+                width: 44px; height: 44px;
+                background: var(--color-ex-warn-soft);
+                color: var(--color-ex-warn);
+                font-size: 18px; font-weight: 600;
+              ">{{ pendingCount }}</div>
+            <div class="flex-1">
+              <div style="font-size: 14px; color: var(--color-ink); font-weight: 600;">我审批的</div>
+              <div style="font-size: 11px; color: var(--color-ink-3); margin-top: 2px;">
+                {{ pendingCount > 0 ? `${pendingCount} 笔待你审批` : '暂无待审批' }}
+              </div>
             </div>
-            <span class="flex-1" style="font-size: 14px; color: var(--color-ink); font-weight: 500;">审批中心</span>
             <svg width="7" height="11" viewBox="0 0 7 11">
               <path d="M1 1l4 4.5L1 10" stroke="#A8A29B" stroke-width="1.4" fill="none" stroke-linecap="round" />
             </svg>

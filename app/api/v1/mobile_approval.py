@@ -37,6 +37,19 @@ def _get_pending_instances_for_user(user_id):
 
 def _instance_to_dict(inst):
     submitter = User.query.get(inst.created_by) if inst.created_by else None
+
+    # 当前步骤名称(不是数字, 给 UI 显示 chip 用)
+    current_step_name = ''
+    try:
+        step_info = inst.get_current_step_info()
+        if step_info:
+            current_step_name = step_info.get('step_name') or step_info.get('name') or ''
+    except Exception:
+        pass
+
+    # 业务对象关联信息(单号/客户/项目/明细数/金额) — 列表行展示用
+    biz = _get_object_summary(inst.object_type, inst.object_id)
+
     return {
         'id': inst.id,
         'object_type': inst.object_type,
@@ -44,9 +57,38 @@ def _instance_to_dict(inst):
         'object_id': inst.object_id,
         'object_name': _get_object_name(inst.object_type, inst.object_id),
         'current_step': inst.current_step,
+        'current_step_name': current_step_name,
         'submitted_by_name': submitter.real_name or submitter.username if submitter else '',
         'created_at': inst.started_at.isoformat() if inst.started_at else None,
+        # 业务字段(可空)
+        'expense_number': biz.get('expense_number'),
+        'customer_name': biz.get('customer_name'),
+        'project_name': biz.get('project_name'),
+        'detail_count': biz.get('detail_count'),
+        'amount': biz.get('amount'),
+        'currency': biz.get('currency'),
     }
+
+
+def _get_object_summary(object_type, object_id):
+    """业务对象汇总(报销专用,其它 type 暂返回 {})."""
+    try:
+        if object_type == 'expense':
+            from app.models.expense import Expense
+            e = Expense.query.get(object_id)
+            if not e:
+                return {}
+            return {
+                'expense_number': e.expense_number,
+                'customer_name': e.customer.company_name if e.customer else None,
+                'project_name': e.project.project_name if e.project else None,
+                'detail_count': len(e.details),
+                'amount': float(e.total_amount or 0),
+                'currency': e.currency or 'CNY',
+            }
+    except Exception:
+        pass
+    return {}
 
 
 def _get_object_name(object_type, object_id):
