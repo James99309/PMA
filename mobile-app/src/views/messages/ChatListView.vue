@@ -425,7 +425,8 @@ function closePicker() {
       <div v-if="showPicker" class="absolute inset-0 z-40">
         <div class="absolute inset-0 bg-black/40" @click="closePicker" />
         <div class="absolute left-0 right-0 bottom-0 rounded-t-3xl pt-3 pb-8 max-h-[85vh] overflow-y-auto"
-          style="background: var(--color-bg);">
+          style="background: var(--color-bg);"
+          @click.stop>
           <div class="mx-auto w-9 h-1 rounded-full mb-3" style="background: rgba(0,0,0,0.15);" />
 
           <div class="flex items-center justify-between px-5 mb-2">
@@ -457,8 +458,8 @@ function closePicker() {
                   style="color: var(--color-ink);" />
               </div>
             </div>
-            <!-- 列表 — 滑动收键盘, 避免遮挡 -->
-            <div class="px-5 mt-3 flex-1 overflow-auto" @touchmove="dismissKeyboard">
+            <!-- 列表 — 滑动收键盘, 避免遮挡 (panel 外层已 overflow-y-auto, 这里不需要再 overflow) -->
+            <div class="px-5 mt-3" @touchmove="dismissKeyboard">
               <div v-if="pickerSearching" class="text-center py-6 text-[13px]"
                 style="color: var(--color-ink-3);">加载中…</div>
               <div v-else-if="!dmTree.length" class="text-center py-6 text-[13px]"
