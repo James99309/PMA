@@ -136,12 +136,13 @@
         <div
           v-for="(d, i) in detail.business_obj.lines"
           :key="d.id"
-          class="flex items-center"
+          class="flex items-center active:opacity-60 cursor-pointer"
           :style="{
             padding: '12px 20px',
             borderBottom: i < detail.business_obj.lines.length - 1 ? '1px solid var(--color-ex-divider-soft)' : 'none',
             gap: '12px',
           }"
+          @click="openLineDetail(d)"
         >
           <div
             class="flex items-center justify-center flex-shrink-0 relative overflow-hidden"
@@ -176,8 +177,15 @@
           <div :style="{ fontSize: '14px', fontFamily: 'var(--font-serif)', fontWeight: 500 }">
             {{ currencySymbol(d.currency) }}{{ formatAmount(d.invoice_amount) }}
           </div>
+          <div :style="{ fontSize: '14px', color: 'var(--color-ex-ink4)' }">›</div>
         </div>
       </div>
+
+      <!-- 明细详情 sheet -->
+      <ExLineDetailSheet
+        v-model="lineDetailOpen"
+        :line="selectedLine"
+        :base-currency="detail.business_obj?.currency || 'CNY'" />
 
       <!-- 审批进度 -->
       <ExSectionHeader v-if="detail.flow?.length">审批进度</ExSectionHeader>
@@ -305,6 +313,7 @@ import { useRoute, useRouter } from 'vue-router'
 import client from '@/api/client'
 import * as approvalApi from '@/api/approval'
 import { lineThumbUrl } from '@/api/expense'
+import ExLineDetailSheet from '@/components/expense/ExLineDetailSheet.vue'
 import ExNav from '@/components/expense/ExNav.vue'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExDefRow from '@/components/expense/ExDefRow.vue'
@@ -317,6 +326,13 @@ const router = useRouter()
 const instanceId = computed(() => parseInt(route.params.instanceId))
 
 const detail = ref(null)
+const lineDetailOpen = ref(false)
+const selectedLine = ref({})
+
+function openLineDetail(d) {
+  selectedLine.value = d
+  lineDetailOpen.value = true
+}
 const loading = ref(false)
 const sheetOpen = ref(false)
 const currentAction = ref('approve')

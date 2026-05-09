@@ -133,11 +133,12 @@
         <div
           v-for="(d, i) in detail.lines"
           :key="d.id"
-          class="flex items-center"
+          class="flex items-center active:opacity-60 cursor-pointer"
           :style="{
             padding: '12px 20px', gap: '12px',
             borderBottom: i < detail.lines.length - 1 ? '1px solid var(--color-ex-divider-soft)' : 'none',
           }"
+          @click="openLineDetail(d)"
         >
           <!-- 实际发票缩略图 -->
           <div
@@ -173,9 +174,16 @@
           <div :style="{ fontSize: '14px', fontFamily: 'var(--font-serif)', fontWeight: 500 }">
             {{ currencySymbol(d.currency) }}{{ formatAmount(d.invoice_amount) }}
           </div>
+          <div :style="{ fontSize: '14px', color: 'var(--color-ex-ink4)' }">›</div>
         </div>
       </div>
     </div>
+
+    <!-- 明细详情 sheet -->
+    <ExLineDetailSheet
+      v-model="lineDetailOpen"
+      :line="selectedLine"
+      :base-currency="detail?.currency || 'CNY'" />
 
     <!-- 底部操作栏(申请人视角: 提交/召回/重提) -->
     <div
@@ -229,12 +237,20 @@ import ExNav from '@/components/expense/ExNav.vue'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExDefRow from '@/components/expense/ExDefRow.vue'
 import ExFlowNode from '@/components/expense/ExFlowNode.vue'
+import ExLineDetailSheet from '@/components/expense/ExLineDetailSheet.vue'
 
 const route = useRoute()
 const router = useRouter()
 const store = useExpenseStore()
 const id = computed(() => parseInt(route.params.id))
 const loading = ref(false)
+const lineDetailOpen = ref(false)
+const selectedLine = ref({})
+
+function openLineDetail(d) {
+  selectedLine.value = d
+  lineDetailOpen.value = true
+}
 
 const detail = computed(() => store.detailCache[id.value])
 
