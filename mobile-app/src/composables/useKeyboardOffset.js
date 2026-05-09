@@ -54,12 +54,40 @@ export function useKeyboardOffset() {
     }
   }
 
+  // 点击非输入区域 → 隐藏键盘 (iOS 中文拼音键盘没有 Done 按钮, 只能这样退出)
+  // 行为: blur 当前 focused 的 input/textarea + 调 Capacitor Keyboard.hide()
+  function onTapOutside(e) {
+    if (!kbOffset.value) return  // 键盘没开就什么都不做
+    const t = e.target
+    const tag = (t?.tagName || '').toLowerCase()
+    const isEditable = tag === 'input' || tag === 'textarea' || tag === 'select'
+                       || t?.contentEditable === 'true'
+                       // 父链上找 contentEditable 容器(防点击富文本子节点)
+                       || (t?.closest && t.closest('[contenteditable="true"]'))
+    if (isEditable) return  // 点的就是输入区, 不处理
+    // 检查当前 focused 是否是输入元素
+    const active = document.activeElement
+    const activeTag = (active?.tagName || '').toLowerCase()
+    if (activeTag !== 'input' && activeTag !== 'textarea'
+        && active?.contentEditable !== 'true') return
+    active.blur()
+    // 原生平台还得让 Capacitor 调 Keyboard.hide(), 否则键盘可能不会真的下去
+    if (Capacitor.isNativePlatform?.()) {
+      import('@capacitor/keyboard').then(({ Keyboard }) => {
+        Keyboard.hide().catch(() => {})
+      }).catch(() => {})
+    }
+  }
+
   onMounted(async () => {
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', recomputeFromVV)
       window.visualViewport.addEventListener('scroll', recomputeFromVV)
     }
     document.addEventListener('focusin', onFocusIn)
+    // 用 capture 阶段, 早于 v-on click, 确保不被 stopPropagation 吃掉
+    document.addEventListener('touchstart', onTapOutside, { capture: true, passive: true })
+    document.addEventListener('mousedown', onTapOutside, { capture: true, passive: true })
     if (Capacitor.isNativePlatform?.()) {
       try {
         const { Keyboard } = await import('@capacitor/keyboard')
@@ -79,6 +107,8 @@ export function useKeyboardOffset() {
       window.visualViewport.removeEventListener('scroll', recomputeFromVV)
     }
     document.removeEventListener('focusin', onFocusIn)
+    document.removeEventListener('touchstart', onTapOutside, { capture: true })
+    document.removeEventListener('mousedown', onTapOutside, { capture: true })
     kbShowHandle?.remove?.()
     kbHideHandle?.remove?.()
   })
