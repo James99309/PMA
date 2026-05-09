@@ -115,20 +115,22 @@ def mobile_approval_action(instance_id):
         return api_response(success=False, code=403, message="您不是此步骤的审批人")
 
     try:
-        from app.helpers.approval_helpers import process_approval_action
-        result = process_approval_action(
-            instance_id=instance_id,
-            approver_id=user_id,
-            action=action,
-            comment=comment or ('同意' if action == 'approve' else '驳回'),
+        # 注意: web 端用的是 process_approval (返回 bool, 内部自己 commit)
+        # P1 写错成 process_approval_action 导致一直走 except 返回"操作失败"
+        from app.helpers.approval_helpers import process_approval
+        success = process_approval(
+            instance_id,
+            action,
+            comment or ('同意' if action == 'approve' else '驳回'),
+            user_id=user_id,
         )
-        if result.get('success'):
+        if success:
             return api_response(success=True, message="审批操作成功")
-        return api_response(success=False, code=400, message=result.get('message', '操作失败'))
+        return api_response(success=False, code=400, message='操作失败')
     except Exception as e:
         db.session.rollback()
-        logger.error(f"mobile approval action error: {e}")
-        return api_response(success=False, code=500, message="操作失败，请重试")
+        logger.error(f"mobile approval action error: {e}", exc_info=True)
+        return api_response(success=False, code=500, message=f"操作失败: {str(e)[:80]}")
 
 
 @api_v1_bp.route('/mobile/approval/history', methods=['GET'])
@@ -327,6 +329,16 @@ def mobile_approval_detail(instance_id):
     except Exception:
         pass
 
+    # 转交信息: 当前步骤被代理时, 显示已转交给谁
+    delegated_to_dict = None
+    if getattr(inst, 'delegated_to_id', None):
+        d = User.query.get(inst.delegated_to_id)
+        if d:
+            delegated_to_dict = {
+                'id': d.id,
+                'name': d.real_name or d.username,
+            }
+
     return api_response(success=True, data={
         'id': inst.id,
         'object_type': inst.object_type,
@@ -339,15 +351,18 @@ def mobile_approval_detail(instance_id):
         'flow': _approval_flow_for_instance(inst),
         'business_obj': business_obj,
         'is_current_approver': is_current,
+        'delegated_to': delegated_to_dict,
     })
 
 
 @api_v1_bp.route('/mobile/approval/<int:instance_id>/forward', methods=['POST'])
 @jwt_required()
 def mobile_approval_forward(instance_id):
-    """转交给指定用户 — 当前实现: 仅记录 forward 意向到 ApprovalRecord(action='forward'),
-    不修改 instance 的实际审批人(避免影响主审批引擎). 真正的代理需要 schema 改造,
-    后续若需要可加 ApprovalInstance.delegated_to_id 字段.
+    """转交给指定用户 — 真转交实现:
+    1. 设置 instance.delegated_to_id = target_id (get_step_actual_approver 会优先返回)
+    2. 写一条 ApprovalRecord(action='forward') 留审计
+    3. target 用户的"待我审批"列表会出现这条; 原审批人列表自动消失
+    4. target 处理完(approve/reject) 后 process_approval 会清空 delegated_*  字段
     """
     user_id = int(get_jwt_identity())
     user = User.query.get(user_id)
@@ -359,8 +374,11 @@ def mobile_approval_forward(instance_id):
     comment = (data.get('comment') or '').strip()
     if not target_id:
         return api_response(success=False, code=400, message='请指定转交目标用户')
+    target_id = int(target_id)
+    if target_id == user_id:
+        return api_response(success=False, code=400, message='不能转交给自己')
 
-    target = User.query.get(int(target_id))
+    target = User.query.get(target_id)
     if not target:
         return api_response(success=False, code=404, message='目标用户不存在')
 
@@ -373,12 +391,20 @@ def mobile_approval_forward(instance_id):
     if not step_info:
         return api_response(success=False, code=400, message='审批步骤异常')
     actual = get_step_actual_approver(step_info, inst)
+    # 注意: 这里 get_step_actual_approver 已 honor delegated_to_id,
+    # 所以重复转交 (B → C 后 C 再 → D) 时, 当前 actual 是 C, 校验 user_id == C
     if not actual or actual.id != user_id:
         return api_response(success=False, code=403, message='您不是当前审批人')
 
     try:
+        from datetime import datetime
         from app.models.approval import ApprovalRecord
         target_name = target.real_name or target.username
+        # 设置代理字段(关键 — 之前只写 record 不改这, 所以是假转交)
+        inst.delegated_to_id = target_id
+        inst.delegated_at = datetime.now()
+        inst.delegated_by_id = user_id
+        # 写审计 record
         rec = ApprovalRecord(
             instance_id=instance_id,
             step_id=step_info.get('step_id') if isinstance(step_info, dict) else None,
@@ -390,7 +416,7 @@ def mobile_approval_forward(instance_id):
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        logger.error(f'mobile approval forward error: {e}')
-        return api_response(success=False, code=500, message='转交失败')
+        logger.error(f'mobile approval forward error: {e}', exc_info=True)
+        return api_response(success=False, code=500, message=f'转交失败: {str(e)[:80]}')
 
-    return api_response(success=True, message='已记录转交意向, 已通知目标审批人')
+    return api_response(success=True, message=f'已转交给 {target.real_name or target.username}')

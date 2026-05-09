@@ -32,7 +32,7 @@
     >
       <!-- Hero — 项目同款: 30px 标题 + 44px serif tabular 金额 -->
       <div class="px-7 pt-5 pb-6">
-        <!-- 状态 chip + 单号 -->
+        <!-- 状态 chip + 单号 + 转交徽章 -->
         <div class="flex items-center gap-2 mb-3.5 flex-wrap">
           <span
             v-if="currentStepName"
@@ -43,6 +43,16 @@
               padding: '2px 8px', borderRadius: '4px',
             }"
           >等你审批 · {{ currentStepName }}</span>
+          <!-- 转交徽章: 当前步骤已被代理时显示 -->
+          <span
+            v-if="detail.delegated_to"
+            class="text-[12px] font-medium"
+            :style="{
+              color: 'var(--color-ex-blue)',
+              background: 'var(--color-ex-blue-soft)',
+              padding: '2px 8px', borderRadius: '4px',
+            }"
+          >已转交给 {{ detail.delegated_to.name }}</span>
           <span
             class="text-[11px]"
             :style="{

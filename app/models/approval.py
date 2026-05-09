@@ -939,9 +939,19 @@ class ApprovalInstance(db.Model):
     template_snapshot = db.Column(db.JSON, comment="创建时的模板快照")
     template_version = db.Column(db.String(50), comment="模板版本号")
 
-    # 关联关系
+    # 转交字段(per-step 代理): 当前步骤被转交时, 由 delegated_to_id 用户代审
+    # 流程推进到下一步时清空(转交仅对当前步骤有效)
+    delegated_to_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                                nullable=True, comment="被转交目标审批人")
+    delegated_at = db.Column(db.DateTime, nullable=True, comment="转交时间")
+    delegated_by_id = db.Column(db.Integer, db.ForeignKey("users.id"),
+                                nullable=True, comment="发起转交的原审批人")
+
+    # 关联关系 — 必须显式 foreign_keys 因为 users.id 有 3 个 FK 列
     process = db.relationship("ApprovalProcessTemplate")
-    creator = db.relationship("User", backref="created_approvals")
+    creator = db.relationship("User", foreign_keys=[created_by], backref="created_approvals")
+    delegated_to = db.relationship("User", foreign_keys=[delegated_to_id])
+    delegated_by = db.relationship("User", foreign_keys=[delegated_by_id])
     records = db.relationship("ApprovalRecord", backref="instance", cascade="all, delete-orphan")
 
     def __repr__(self):

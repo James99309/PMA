@@ -458,17 +458,24 @@ def get_approver_by_type(approver_type, approver_user_id, context_user=None, pro
 
 def get_step_actual_approver(step, approval_instance):
     """获取审批步骤的实际审批人
-    
+
     根据步骤配置和审批实例上下文，动态确定实际的审批人。
-    
+
     Args:
         step: ApprovalStep对象或步骤字典（来自模板快照）
         approval_instance: ApprovalInstance对象
-        
+
     Returns:
         User对象或None
     """
     from app.models.user import User
+
+    # 转交检查: 当前实例当前步骤被代理时, 返回 delegated_to 用户(优先级最高)
+    # 注意: 流程推进到下一步时 process_approval 会清空这 3 个字段, 所以代理只对当前步骤生效
+    if approval_instance is not None and getattr(approval_instance, 'delegated_to_id', None):
+        delegated = User.query.get(approval_instance.delegated_to_id)
+        if delegated:
+            return delegated
     
     # 获取步骤信息
     if isinstance(step, dict):
@@ -4638,7 +4645,14 @@ def process_approval(instance_id, action, comment=None, user_id=None, project_ty
                     unlock_quotation(instance.object_id, user_id)
                 elif instance.object_type == 'expense':
                     unlock_expense(instance.object_id, user_id)
-    
+
+    # 步骤推进/拒绝/通过 — 转交失效, 清空代理字段
+    # 转交是 per-step 级别: 当前步骤处理完(approve/reject)后下一步骤须按原配置审批人
+    if hasattr(instance, 'delegated_to_id') and instance.delegated_to_id is not None:
+        instance.delegated_to_id = None
+        instance.delegated_at = None
+        instance.delegated_by_id = None
+
     db.session.commit()
     return True
 
