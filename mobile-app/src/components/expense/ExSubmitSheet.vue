@@ -111,10 +111,11 @@
             </div>
           </div>
 
-          <!-- 按钮组 -->
+          <!-- 按钮组 - role="button" 让 useKeyboardOffset 识别为可交互 -->
           <div class="flex" :style="{ gap: '10px', marginTop: '18px' }">
             <div
               class="flex-1 flex items-center justify-center"
+              role="button"
               :style="{
                 height: '48px',
                 borderRadius: '24px',
@@ -128,14 +129,16 @@
             >取消</div>
             <div
               class="flex items-center justify-center"
+              role="button"
               :style="{
                 flex: 2,
                 height: '48px',
                 borderRadius: '24px',
-                background: submitting ? 'var(--color-ex-divider)' : 'var(--color-ex-ink)',
-                color: submitting ? 'var(--color-ex-ink4)' : 'var(--color-ex-card)',
+                background: 'var(--color-ex-ink)',
+                color: '#fff',
                 fontSize: '14px',
                 fontWeight: 600,
+                opacity: submitting ? 0.7 : 1,
               }"
               @click="!submitting && $emit('confirm')"
             >{{ submitting ? '提交中...' : '确认提交' }}</div>

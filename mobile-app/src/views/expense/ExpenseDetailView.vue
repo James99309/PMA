@@ -228,6 +228,32 @@
       :line="selectedLine"
       :base-currency="detail?.currency || 'CNY'" />
 
+    <!-- 提交/重提确认 sheet (设计稿同款 ExSubmitSheet, 不再用 native confirm) -->
+    <ExSubmitSheet
+      v-if="detail"
+      v-model="submitSheetOpen"
+      :total-amount="detail.total_amount"
+      :currency-symbol="currencySymbol(detail.currency)"
+      :customer-name="detail.customer?.name || ''"
+      :project-name="detail.project?.name || ''"
+      :line-count="detail.lines?.length || 0"
+      :next-approver="{ user: '上级', node: '上级审批' }"
+      :submitting="submitting"
+      @confirm="onConfirmSubmit"
+    />
+
+    <!-- 召回确认 sheet -->
+    <ExConfirmSheet
+      v-model="recallSheetOpen"
+      eyebrow="召回"
+      title="确认召回此报销?"
+      :sub="detail ? `${detail.expense_number} · ${detail.title}` : ''"
+      confirm-label="确认召回"
+      color="warn"
+      :submitting="recalling"
+      @confirm="onConfirmRecall"
+    />
+
     <!-- 底部操作栏(仅草稿态显示提交; 召回/重提 已迁到 ··· 菜单) -->
     <div
       v-if="detail?.control?.can_submit"
@@ -265,6 +291,8 @@ import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExDefRow from '@/components/expense/ExDefRow.vue'
 import ExFlowNode from '@/components/expense/ExFlowNode.vue'
 import ExLineDetailSheet from '@/components/expense/ExLineDetailSheet.vue'
+import ExSubmitSheet from '@/components/expense/ExSubmitSheet.vue'
+import ExConfirmSheet from '@/components/expense/ExConfirmSheet.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -316,30 +344,52 @@ async function load() {
   }
 }
 
-async function onSubmit() {
-  if (!confirm(detail.value.control.can_resubmit ? '确认重新提交?' : '确认提交审批?')) return
+// 提交 sheet 状态(用 ExSubmitSheet 替代原生 confirm)
+const submitSheetOpen = ref(false)
+const submitting = ref(false)
+
+function onSubmit() {
+  // 打开 ExSubmitSheet, 用户在 sheet 里点"确认提交"才真正调 API
+  submitSheetOpen.value = true
+}
+
+async function onConfirmSubmit() {
+  submitting.value = true
   try {
     const r = detail.value.control.can_resubmit
       ? await resubmitExpense(id.value)
       : await submitExpense(id.value)
     if (r.data?.success) {
-      // 重新拉详情(submit/recall/resubmit 端点不返回 control 块, 直接缓存替换会丢按钮可见性)
+      submitSheetOpen.value = false
       await store.fetchDetail(id.value, true)
     }
   } catch (e) {
     alert('提交失败: ' + (e.response?.data?.message || e.message))
+  } finally {
+    submitting.value = false
   }
 }
 
-async function onRecall() {
-  if (!confirm('确认召回此报销单?')) return
+// 召回 sheet 状态
+const recallSheetOpen = ref(false)
+const recalling = ref(false)
+
+function onRecall() {
+  recallSheetOpen.value = true
+}
+
+async function onConfirmRecall() {
+  recalling.value = true
   try {
     const r = await recallExpense(id.value)
     if (r.data?.success) {
+      recallSheetOpen.value = false
       await store.fetchDetail(id.value, true)
     }
   } catch (e) {
     alert('召回失败: ' + (e.response?.data?.message || e.message))
+  } finally {
+    recalling.value = false
   }
 }
 
