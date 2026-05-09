@@ -381,12 +381,17 @@ function closePicker() {
         </button>
       </div>
 
-      <!-- 普通会话 -->
+      <!-- 普通会话 (左滑「移出」: 仅自己列表隐藏, 对方再发消息会自动重现) -->
       <div class="mt-2" style="background: var(--color-card);">
-        <button v-for="(c, i) in conversations" :key="c.id"
-          @click="openConversation(c)"
+        <SwipeRowAction
+          v-for="(c, i) in conversations" :key="c.id"
+          :actions="[{ label: '移出', color: 'red', handler: () => onHideConversation(c) }]">
+        <button @click="openConversation(c)"
           class="w-full px-4 py-3.5 flex gap-3 active:bg-bg text-left"
-          :style="i < conversations.length - 1 ? 'border-bottom: 1px solid var(--color-divider);' : ''">
+          :style="{
+            background: 'var(--color-card)',
+            borderBottom: i < conversations.length - 1 ? '1px solid var(--color-divider)' : 'none',
+          }">
           <!-- 头像（广播=方形 + ink；其他=圆形 + accent-soft）-->
           <div class="w-[42px] h-[42px] inline-flex items-center justify-center font-serif font-semibold shrink-0"
             :style="{
@@ -417,16 +422,18 @@ function closePicker() {
             </div>
           </div>
         </button>
+        </SwipeRowAction>
       </div>
     </div>
 
     <!-- 发起聊天 sheet -->
     <Transition name="sheet">
       <div v-if="showPicker" class="absolute inset-0 z-40">
-        <div class="absolute inset-0 bg-black/40" @click="closePicker" />
+        <!-- 遮罩仅做暗化, 不绑 click 关闭 — 避免 IME/touchend 穿透意外关 sheet
+             用户用顶部 "取消"/"返回" 按钮明确关闭 -->
+        <div class="absolute inset-0 bg-black/40" />
         <div class="absolute left-0 right-0 bottom-0 rounded-t-3xl pt-3 pb-8 max-h-[85vh] overflow-y-auto"
-          style="background: var(--color-bg);"
-          @click.stop>
+          style="background: var(--color-bg);">
           <div class="mx-auto w-9 h-1 rounded-full mb-3" style="background: rgba(0,0,0,0.15);" />
 
           <div class="flex items-center justify-between px-5 mb-2">
