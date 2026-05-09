@@ -9,7 +9,6 @@ const quotation = ref(null)
 const loading = ref(true)
 
 // 完全自定义手势 — touch-action: none + JS 接管 pan + pinch
-// (浏览器原生 pinch 受 user-scalable=no 阻止, 必须自己实现)
 const wrapRef = ref(null)
 const iframeRef = ref(null)
 const scale = ref(1)
@@ -17,6 +16,18 @@ const contentHeight = ref(800)
 let lastDistance = 0
 let lastScale = 1
 let lastX = 0, lastY = 0
+
+// 调试计数 — 显示在 overlay 上, 让用户直接看到哪些事件 fire
+const dbg = ref({
+  ts1: 0,  // 1 指 touchstart
+  ts2: 0,  // 2 指 touchstart
+  tm1: 0,  // 1 指 touchmove
+  tm2: 0,  // 2 指 touchmove
+  gs: 0,   // gesturestart
+  gc: 0,   // gesturechange
+  lastEvent: '-',
+  lastEScale: 0,
+})
 
 function dist(touches) {
   const dx = touches[0].clientX - touches[1].clientX
@@ -26,9 +37,13 @@ function dist(touches) {
 
 function _onTouchStart(e) {
   if (e.touches.length === 1) {
+    dbg.value.ts1++
+    dbg.value.lastEvent = 'ts1'
     lastX = e.touches[0].clientX
     lastY = e.touches[0].clientY
   } else if (e.touches.length === 2) {
+    dbg.value.ts2++
+    dbg.value.lastEvent = 'ts2'
     lastDistance = dist(e.touches)
     lastScale = scale.value
     e.preventDefault()
@@ -39,7 +54,7 @@ function _onTouchMove(e) {
   const el = wrapRef.value
   if (!el) return
   if (e.touches.length === 1) {
-    // 单指 pan — JS 控制 scrollLeft/Top
+    dbg.value.tm1++
     const t = e.touches[0]
     const dx = t.clientX - lastX
     const dy = t.clientY - lastY
@@ -49,7 +64,8 @@ function _onTouchMove(e) {
     lastY = t.clientY
     e.preventDefault()
   } else if (e.touches.length === 2 && lastDistance > 0) {
-    // 双指 pinch
+    dbg.value.tm2++
+    dbg.value.lastEvent = 'tm2'
     const d = dist(e.touches)
     const next = Math.max(0.5, Math.min(3, lastScale * (d / lastDistance)))
     scale.value = next
@@ -77,6 +93,27 @@ function onClick(e) {
   lastTap = now
 }
 
+// iOS 专属 gesture* 事件 — pinch 走这个最可靠
+// (user-scalable=no 时 touchstart 拿不到第二根手指, 但 gesturestart 仍 fire)
+let gestureStartScale = 1
+function _onGestureStart(e) {
+  dbg.value.gs++
+  dbg.value.lastEvent = 'gs'
+  gestureStartScale = scale.value
+  e.preventDefault()
+}
+function _onGestureChange(e) {
+  dbg.value.gc++
+  dbg.value.lastEvent = 'gc'
+  dbg.value.lastEScale = (e.scale || 0).toFixed(3)
+  const next = Math.max(0.5, Math.min(3, gestureStartScale * e.scale))
+  scale.value = next
+  e.preventDefault()
+}
+function _onGestureEnd(e) {
+  e.preventDefault()
+}
+
 // 显式注册 passive:false 的 touch listeners
 function attachTouchHandlers() {
   const el = wrapRef.value
@@ -85,6 +122,10 @@ function attachTouchHandlers() {
   el.addEventListener('touchmove', _onTouchMove, { passive: false })
   el.addEventListener('touchend', _onTouchEnd, { passive: true })
   el.addEventListener('touchcancel', _onTouchEnd, { passive: true })
+  // iOS pinch
+  el.addEventListener('gesturestart', _onGestureStart, { passive: false })
+  el.addEventListener('gesturechange', _onGestureChange, { passive: false })
+  el.addEventListener('gestureend', _onGestureEnd, { passive: false })
 }
 function detachTouchHandlers() {
   const el = wrapRef.value
@@ -93,6 +134,9 @@ function detachTouchHandlers() {
   el.removeEventListener('touchmove', _onTouchMove)
   el.removeEventListener('touchend', _onTouchEnd)
   el.removeEventListener('touchcancel', _onTouchEnd)
+  el.removeEventListener('gesturestart', _onGestureStart)
+  el.removeEventListener('gesturechange', _onGestureChange)
+  el.removeEventListener('gestureend', _onGestureEnd)
 }
 
 // iframe 加载完后取真实内容高度, 让外层 sized wrapper 撑足
@@ -296,6 +340,19 @@ ${q.notes ? `<tr><td class="nb"></td><td class="lbl" colspan="2" style="vertical
   <div v-if="loading" class="flex items-center justify-center"
        :style="{ paddingTop: 'calc(44px + env(safe-area-inset-top))', height: '100vh' }">
     <div class="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"/>
+  </div>
+
+  <!-- 调试 overlay (临时, 显示触摸事件计数 + 当前 scale) -->
+  <div v-if="quotation"
+    style="position: fixed; z-index: 100; right: 8px; padding: 6px 10px;
+           background: rgba(0,0,0,0.78); color: #0f0; font-size: 10px;
+           font-family: monospace; line-height: 1.5; border-radius: 6px;
+           pointer-events: none;"
+    :style="{ top: 'calc(env(safe-area-inset-top) + 50px)' }">
+    scale={{ scale.toFixed(2) }} last={{ dbg.lastEvent }}<br>
+    ts1={{ dbg.ts1 }} ts2={{ dbg.ts2 }}<br>
+    tm1={{ dbg.tm1 }} tm2={{ dbg.tm2 }}<br>
+    gs={{ dbg.gs }} gc={{ dbg.gc }} eScale={{ dbg.lastEScale }}
   </div>
 
   <!-- 自定义 pinch-zoom: 外容器 overflow 滚动 + sized wrapper 撑出 scaled 区域 + iframe transform
