@@ -36,6 +36,7 @@ function dist(touches) {
 }
 
 function _onTouchStart(e) {
+  const el = wrapRef.value
   if (e.touches.length === 1) {
     dbg.value.ts1++
     dbg.value.lastEvent = 'ts1'
@@ -46,6 +47,15 @@ function _onTouchStart(e) {
     dbg.value.lastEvent = 'ts2'
     lastDistance = dist(e.touches)
     lastScale = scale.value
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top
+      pinchAnchorClientX = cx
+      pinchAnchorClientY = cy
+      pinchAnchorX = (cx + el.scrollLeft) / lastScale
+      pinchAnchorY = (cy + el.scrollTop) / lastScale
+    }
     e.preventDefault()
   }
 }
@@ -69,6 +79,10 @@ function _onTouchMove(e) {
     const d = dist(e.touches)
     const next = Math.max(0.5, Math.min(3, lastScale * (d / lastDistance)))
     scale.value = next
+    nextTick(() => {
+      el.scrollLeft = pinchAnchorX * next - pinchAnchorClientX
+      el.scrollTop  = pinchAnchorY * next - pinchAnchorClientY
+    })
     e.preventDefault()
   }
 }
@@ -96,10 +110,28 @@ function onClick(e) {
 // iOS 专属 gesture* 事件 — pinch 走这个最可靠
 // (user-scalable=no 时 touchstart 拿不到第二根手指, 但 gesturestart 仍 fire)
 let gestureStartScale = 1
+// gesturestart 时锁定锚点(双指中心相对内容的位置), gesturechange 时维持锚点不变
+let pinchAnchorX = 0  // 锚点在内容坐标系中的位置(无缩放下)
+let pinchAnchorY = 0
+let pinchAnchorClientX = 0  // 锚点在屏幕(wrapRef)中的位置
+let pinchAnchorClientY = 0
+
 function _onGestureStart(e) {
   dbg.value.gs++
   dbg.value.lastEvent = 'gs'
   gestureStartScale = scale.value
+  // 计算两指中心相对内容的位置
+  const el = wrapRef.value
+  if (el) {
+    const rect = el.getBoundingClientRect()
+    const cx = (e.clientX || 0) - rect.left
+    const cy = (e.clientY || 0) - rect.top
+    pinchAnchorClientX = cx
+    pinchAnchorClientY = cy
+    // 锚点在 unscaled 内容坐标系: (屏幕位置 + 滚动距离) / 当前缩放
+    pinchAnchorX = (cx + el.scrollLeft) / gestureStartScale
+    pinchAnchorY = (cy + el.scrollTop) / gestureStartScale
+  }
   e.preventDefault()
 }
 function _onGestureChange(e) {
@@ -108,6 +140,15 @@ function _onGestureChange(e) {
   dbg.value.lastEScale = (e.scale || 0).toFixed(3)
   const next = Math.max(0.5, Math.min(3, gestureStartScale * e.scale))
   scale.value = next
+  // 调整 scroll 让锚点 (pinchAnchorX, pinchAnchorY) 在新缩放下仍在原屏幕位置
+  // 新 scrollLeft = 锚点新位置 - 锚点屏幕位置 = pinchAnchorX * next - pinchAnchorClientX
+  const el = wrapRef.value
+  if (el) {
+    nextTick(() => {
+      el.scrollLeft = pinchAnchorX * next - pinchAnchorClientX
+      el.scrollTop  = pinchAnchorY * next - pinchAnchorClientY
+    })
+  }
   e.preventDefault()
 }
 function _onGestureEnd(e) {
