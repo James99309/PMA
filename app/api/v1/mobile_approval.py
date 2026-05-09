@@ -36,7 +36,7 @@ def _get_pending_instances_for_user(user_id):
 
 
 def _instance_to_dict(inst):
-    submitter = User.query.get(inst.submitted_by) if inst.submitted_by else None
+    submitter = User.query.get(inst.created_by) if inst.created_by else None
     return {
         'id': inst.id,
         'object_type': inst.object_type,
@@ -300,7 +300,7 @@ def mobile_approval_detail(instance_id):
     if not inst:
         return api_response(success=False, code=404, message='审批实例不存在')
 
-    submitter = User.query.get(inst.submitted_by) if inst.submitted_by else None
+    submitter = User.query.get(inst.created_by) if inst.created_by else None
     submitter_dict = None
     if submitter:
         submitter_dict = {
@@ -333,7 +333,7 @@ def mobile_approval_detail(instance_id):
         'object_id': inst.object_id,
         'object_name': _get_object_name(inst.object_type, inst.object_id),
         'submitter': submitter_dict,
-        'submitter_stats': _applicant_stats(inst.submitted_by),
+        'submitter_stats': _applicant_stats(inst.created_by),
         'created_at': inst.created_at.strftime('%Y-%m-%d %H:%M') if inst.created_at else None,
         'flow': _approval_flow_for_instance(inst),
         'business_obj': business_obj,
