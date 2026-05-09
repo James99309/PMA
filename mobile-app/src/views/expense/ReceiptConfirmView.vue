@@ -9,39 +9,53 @@
   - 底部 ExBottomBar: 保存这张 · 下一张 / 跳过
 -->
 <template>
-  <div
-    class="relative h-full overflow-hidden"
-    :style="{ background: 'var(--color-ex-bg)', color: 'var(--color-ex-ink)', fontFamily: 'var(--font-sans)' }"
-  >
-    <div class="status-pad" />
-    <ExNav
-      :title="`核对发票 ${idx + 1} / ${total}`"
-      sub="检查字段后保存"
-      @back="$router.back()"
-    >
-      <template #right>
-        <div
-          v-if="idx < total - 1"
-          :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }"
-          @click="onNext"
-        >下一张 ›</div>
-      </template>
-    </ExNav>
+  <div class="flex flex-col h-full" style="background: #F7F5F2;">
 
-    <div
-      class="overflow-auto h-full no-scrollbar"
-      :style="{ paddingTop: '102px', paddingBottom: '100px' }"
-    >
-      <!-- 缩略 + 元信息 -->
+    <!-- Header — 项目同款 (返回 ‹ 核对 + 下一张 right) -->
+    <div class="flex items-center justify-between px-5 py-2.5 shrink-0">
+      <button @click="$router.back()"
+        class="flex items-center gap-1 active:opacity-60 py-1 pr-2"
+        style="color: var(--color-ink-2);">
+        <svg width="9" height="14" viewBox="0 0 9 14">
+          <path d="M7 1L1 7l6 6" fill="none" stroke="currentColor"
+            stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span class="text-[15px]">核对发票 {{ idx + 1 }} / {{ total }}</span>
+      </button>
+      <button v-if="idx < total - 1"
+        @click="onNext"
+        class="text-[14px] font-medium active:opacity-60 px-2"
+        style="color: var(--color-accent);">下一张 ›</button>
+      <div v-else style="width: 60px;" />
+    </div>
+
+    <!-- 主滚动区(整页可滚动, 包括缩略图和字段表单) -->
+    <div class="flex-1 overflow-y-auto no-scrollbar" style="padding-bottom: 100px;">
+      <!-- 缩略 + 元信息 (点击放大查看原图) -->
       <div class="flex items-start" :style="{ padding: '12px 20px 16px', gap: '12px' }">
         <div
+          @click="receipt?.dataUrl && (showFullImage = true)"
           :style="{
             width: '92px', height: '64px', borderRadius: '4px',
             backgroundImage: receipt?.dataUrl ? `url(${receipt.dataUrl})` : 'none',
             backgroundColor: '#F5EFE3', backgroundSize: 'cover', backgroundPosition: 'center',
             flexShrink: 0,
+            cursor: 'pointer',
+            position: 'relative',
           }"
-        />
+        >
+          <!-- 放大镜角标 -->
+          <div v-if="receipt?.dataUrl"
+            :style="{
+              position: 'absolute', bottom: '-4px', right: '-4px',
+              width: '20px', height: '20px', borderRadius: '10px',
+              background: 'var(--color-ink)', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '10px', fontWeight: 600,
+              boxShadow: '0 1px 4px rgba(0,0,0,.25)',
+            }"
+          >⤢</div>
+        </div>
         <div class="flex-1">
           <div :style="{ fontSize: '14px', fontWeight: 600, color: 'var(--color-ex-ink)' }">
             {{ docTypeLabel }}
@@ -63,6 +77,12 @@
             <span :style="{ fontSize: '11px', color: confidenceLabel.color }">
               {{ confidenceLabel.text }}
             </span>
+          </div>
+          <div v-if="receipt?.dataUrl"
+            class="text-[11px] mt-1.5 active:opacity-60"
+            style="color: var(--color-accent);"
+            @click="showFullImage = true">
+            点击放大查看 ›
           </div>
         </div>
       </div>
@@ -180,6 +200,32 @@
       :selected="form.expense_category"
       @pick="(v) => { form.expense_category = v; categoryPickerOpen = false }"
     />
+
+    <!-- 全屏图片预览 (核对原图清晰度) -->
+    <Teleport to="body">
+      <div v-if="showFullImage && receipt?.dataUrl"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+        style="background: rgba(0,0,0,0.92);"
+        @click="showFullImage = false">
+        <img :src="receipt.dataUrl"
+          class="block"
+          style="max-width: 100%; max-height: 100%; object-fit: contain;"
+          @click.stop />
+        <button @click="showFullImage = false"
+          class="absolute flex items-center justify-center rounded-full active:opacity-70"
+          style="
+            top: calc(env(safe-area-inset-top) + 12px);
+            right: 16px;
+            width: 36px; height: 36px;
+            background: rgba(255,255,255,0.16);
+            color: #fff; font-size: 18px;
+          ">×</button>
+        <div class="absolute text-white text-[12px] opacity-70"
+          style="bottom: calc(env(safe-area-inset-bottom) + 16px);">
+          点击空白区关闭
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -188,7 +234,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as expApi from '@/api/expense'
 import { useExpenseStore } from '@/stores/expense'
-import ExNav from '@/components/expense/ExNav.vue'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
 import ExFieldRow from '@/components/expense/ExFieldRow.vue'
 import ExBottomBar from '@/components/expense/ExBottomBar.vue'
@@ -208,6 +253,7 @@ const expenseCurrency = ref('CNY')
 const saving = ref(false)
 const mergeMode = ref('separate')
 const categoryPickerOpen = ref(false)
+const showFullImage = ref(false)
 
 const form = ref({
   seller: '',
