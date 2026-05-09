@@ -33,18 +33,8 @@
       class="flex-1 overflow-y-auto no-scrollbar"
       :style="{ paddingBottom: '110px' }"
     >
-      <!-- 已有明细时:压缩头部到 context block -->
-      <div v-if="hasLines" :style="{ padding: '14px 20px 4px' }">
-        <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', letterSpacing: '0.4px' }">
-          {{ form.title || '未命名' }}
-        </div>
-        <div :style="{ fontSize: '14px', color: 'var(--color-ex-ink2)', marginTop: '2px' }">
-          {{ contextLine }}
-        </div>
-      </div>
-
-      <!-- 主表区域 (无明细时大字标题, 有明细时折叠/可点回到主表编辑) -->
-      <template v-if="!hasLines">
+      <!-- 主表区域 — 始终显示, 让用户在有明细时也能改主题/客户/项目/说明 -->
+      <div>
         <!-- 报销主题 -->
         <div :style="{ padding: '0 20px 16px' }">
           <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">报销主题 *</div>
@@ -158,7 +148,9 @@
             <span :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)' }">系统默认</span>
           </template>
         </ExRow>
-      </template>
+      </div>
+
+      <!-- ─── 明细区域(以下与有无明细无关, 始终显示) ─── -->
 
       <!-- 明细 section header -->
       <div
@@ -404,9 +396,17 @@ const categories = computed(() => store.categories)
 const currencies = computed(() => store.currencies)
 
 const hasLines = computed(() => lines.value.length > 0)
-const navSub = computed(() => hasLines.value
-  ? `② 明细 · 已添加 ${lines.value.length} 项`
-  : '① 主表 · 单号系统自动生成')
+const navSub = computed(() => {
+  if (editingId.value) {
+    // 编辑模式: 显示单号 + 明细数
+    const num = store.detailCache[editingId.value]?.expense_number || ''
+    return `${num}${num ? ' · ' : ''}${lines.value.length} 项明细`
+  }
+  // 新建模式: 用 step 引导
+  return hasLines.value
+    ? `② 明细 · 已添加 ${lines.value.length} 项`
+    : '① 主表 · 单号系统自动生成'
+})
 const contextLine = computed(() => {
   const parts = []
   if (form.value.customer_name) parts.push(form.value.customer_name)
