@@ -610,7 +610,8 @@ def mobile_approval_detail(instance_id):
         'object_id': inst.object_id,
         'object_name': _get_object_name(inst.object_type, inst.object_id),
         'submitter': submitter_dict,
-        'submitter_stats': _applicant_stats(inst.created_by),
+        # 申请人画像目前只对报销有意义(本月报销笔数+均值), 其他业务暂不展示
+        'submitter_stats': _applicant_stats(inst.created_by) if inst.object_type == 'expense' else None,
         'created_at': inst.started_at.strftime('%Y-%m-%d %H:%M') if inst.started_at else None,
         'flow': _approval_flow_for_instance(inst, current_user_id=user_id),
         'business_obj': business_obj,
