@@ -314,8 +314,37 @@
       :search-fn="searchUsers"
       @pick="onPickForwardUser"
     />
+
+    <!-- 操作成功 toast -->
+    <Teleport to="body">
+      <transition name="ex-toast">
+        <div v-if="toastVisible"
+          class="fixed left-1/2 z-[60] flex items-center justify-center"
+          :style="{
+            top: 'calc(env(safe-area-inset-top) + 60px)',
+            transform: 'translateX(-50%)',
+            background: 'var(--color-ex-ink)',
+            color: '#fff',
+            padding: '10px 20px',
+            borderRadius: '20px',
+            fontSize: '13px',
+            fontWeight: 500,
+            boxShadow: '0 6px 16px rgba(0,0,0,0.18)',
+          }">
+          ✓ {{ toastText }}
+        </div>
+      </transition>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.ex-toast-enter-active, .ex-toast-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.ex-toast-enter-from, .ex-toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-10px);
+}
+</style>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
@@ -418,19 +447,39 @@ function onForwardClick() {
 async function onConfirmAction({ comment, targetUserId }) {
   submitting.value = true
   try {
+    let resp
     if (currentAction.value === 'forward') {
-      await approvalApi.forwardApproval(instanceId.value, targetUserId, comment)
+      resp = await approvalApi.forwardApproval(instanceId.value, targetUserId, comment)
     } else {
-      await approvalApi.doApprovalAction(instanceId.value, currentAction.value, comment)
+      resp = await approvalApi.doApprovalAction(instanceId.value, currentAction.value, comment)
     }
     sheetOpen.value = false
+    // 重新拉详情, 让 hero chip / 转交徽章 / 底部按钮可见性立即同步
     await load()
-    setTimeout(() => router.back(), 600)
+    // 触发列表刷新标志(列表页 onActivated 会重新拉)
+    sessionStorage.setItem('approval-list-needs-refresh', '1')
+    // 用 toast 提示成功后留在详情页, 不自动 back
+    // 用户看清 UI 状态变化(chip/徽章/按钮消失) 再自己点返回
+    const msg = resp?.data?.message || (
+      currentAction.value === 'approve' ? '已同意' :
+      currentAction.value === 'reject'  ? '已驳回' :
+      currentAction.value === 'forward' ? '已转交' : '操作成功'
+    )
+    showToast(msg)
   } catch (e) {
     alert('操作失败: ' + (e.response?.data?.message || e.message))
   } finally {
     submitting.value = false
   }
+}
+
+// 简易 toast (页面顶部短暂浮现)
+const toastText = ref('')
+const toastVisible = ref(false)
+function showToast(text) {
+  toastText.value = text
+  toastVisible.value = true
+  setTimeout(() => { toastVisible.value = false }, 2000)
 }
 
 async function searchUsers(q) {

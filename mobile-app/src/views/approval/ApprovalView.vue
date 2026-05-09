@@ -134,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import * as approvalApi from '@/api/approval'
 import ExNav from '@/components/expense/ExNav.vue'
@@ -254,12 +254,26 @@ async function load() {
 }
 
 watch(tab, load)
-onMounted(async () => {
+
+async function loadAll() {
   loading.value = true
   try {
     await Promise.all([loadPending(), loadHistory(), loadCc()])
   } finally {
     loading.value = false
+  }
+}
+
+// onMounted 每次进页面都触发(非 keep-alive), loadAll 已涵盖刷新需求
+onMounted(() => {
+  loadAll()
+  sessionStorage.removeItem('approval-list-needs-refresh')
+})
+// keep-alive 场景: 从详情返回时若有 flag 则重新拉
+onActivated(() => {
+  if (sessionStorage.getItem('approval-list-needs-refresh')) {
+    sessionStorage.removeItem('approval-list-needs-refresh')
+    loadAll()
   }
 })
 
