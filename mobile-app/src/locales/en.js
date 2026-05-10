@@ -723,6 +723,7 @@ export default {
     detCreateDiscussionFailed: 'Failed to create group',
     detCreateFailed: 'Create failed',
     expectedAmount: 'Expected Contract',
+    detExpectedContract: 'Expected contract',
     owner: 'Owner',
     customer: 'Customer',
     salesManager: 'Sales Manager',

@@ -739,6 +739,7 @@ export default {
     detCreateDiscussionFailed: '创建讨论群失败',
     detCreateFailed: '创建失败',
     expectedAmount: '预计签约金额',
+    detExpectedContract: '预计签约金额',
     owner: '负责人',
     customer: '客户',
     salesManager: '销售经理',

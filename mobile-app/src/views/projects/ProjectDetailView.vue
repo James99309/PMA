@@ -18,14 +18,20 @@ import StageAdvanceCard from '@/components/common/StageAdvanceCard.vue'
 import NoteSheet from '@/components/common/NoteSheet.vue'
 import { useChatStore } from '@/stores/chat'
 import { useDictionariesStore } from '@/stores/dictionaries'
+import { useAuthStore } from '@/stores/auth'
 import { useMention } from '@/composables/useMention'
 
 const chatStore = useChatStore()
 const dictStore = useDictionariesStore()
+const auth = useAuthStore()
 
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
+
+// 货币按数据区切: SP8D=¥...万 / OVS=$...K (与 i18n locale 无关)
+const amountSymbol = computed(() => auth.regionId === 'sg' ? '$' : '¥')
+const amountUnit = computed(() => auth.regionId === 'sg' ? 'K' : '万')
 const project = ref(null)
 const loading = ref(true)
 
@@ -527,13 +533,13 @@ onMounted(() => {
           {{ [project.owner_name, INDUSTRY_LABELS[project.industry] || project.industry, project.city].filter(Boolean).join(' · ') }}
         </div>
 
-        <!-- Amount — 44px 衬线 medium tabular + 14px ink-3 万 · 预计签约金额 -->
+        <!-- Amount — 货币按数据区切 ¥...万 / $...K -->
         <div class="mt-7 flex items-baseline gap-2">
           <span class="font-serif font-medium tabular leading-none"
             :style="{ fontSize: '44px', color: 'var(--color-ink)' }">
-            ¥{{ project.amount ? project.amount.toFixed(2) : '—' }}
+            {{ amountSymbol }}{{ project.amount ? project.amount.toFixed(2) : '—' }}
           </span>
-          <span class="text-[14px]" style="color: var(--color-ink-3);">{{ t('project.detUnitWanFull') }}</span>
+          <span class="text-[14px]" style="color: var(--color-ink-3);">{{ amountUnit }} · {{ t('project.detExpectedContract') }}</span>
         </div>
       </div>
 
@@ -571,18 +577,19 @@ onMounted(() => {
           style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('project.detStage') }}</div>
         <div class="flex items-center" style="gap: 4px;">
           <template v-for="(s, i) in STAGE_TRACK" :key="s.key">
-            <!-- dot + label column -->
-            <div class="flex flex-col items-center shrink-0" style="gap: 6px;">
+            <!-- dot + label column — 限宽避免英文 label 撑掉 connector -->
+            <div class="flex flex-col items-center" style="gap: 6px; min-width: 28px; max-width: 64px; flex: 0 0 auto;">
               <span
                 :style="dotStyle(trackStatus(s.key))" />
-              <span :style="labelStyle(trackStatus(s.key))">{{ s.label }}</span>
+              <span :style="[labelStyle(trackStatus(s.key)), { textAlign: 'center', lineHeight: 1.15, wordBreak: 'normal' }]">{{ s.label }}</span>
             </div>
-            <!-- connector line -->
+            <!-- connector line — 保底 6px 即便 label 把空间挤满也可见 -->
             <span v-if="i < STAGE_TRACK.length - 1"
               class="flex-1"
               :style="{
                 height: '1.5px',
                 marginBottom: '16px',
+                minWidth: '6px',
                 background: trackStatus(STAGE_TRACK[i + 1].key) !== 'future'
                   ? 'var(--color-ink)'
                   : 'var(--color-divider)',
@@ -943,7 +950,7 @@ onMounted(() => {
       :project-type="project ? project.project_type : ''"
       :customer-name="project ? project.end_user : ''"
       :owner-name="project ? project.owner_name : ''"
-      :amount="project && project.amount ? `¥${project.amount.toFixed(2)} 万` : ''"
+      :amount="project && project.amount ? `${amountSymbol}${project.amount.toFixed(2)} ${amountUnit}` : ''"
       :stage="project ? project.stage_label : ''"
       :submitting="submittingAuth"
       @confirm="submitAuthRequest"
