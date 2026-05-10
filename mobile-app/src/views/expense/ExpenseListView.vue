@@ -9,22 +9,25 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useExpenseStore } from '@/stores/expense'
 import { listExpenses, deleteExpense } from '@/api/expense'
 import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
 
+const { t } = useI18n()
+
 async function onDelete(it) {
   if (it.status !== 'draft') {
-    alert('只有草稿状态的报销单可以删除')
+    alert(t('expense.onlyDraftDeletable'))
     return
   }
-  if (!confirm(`确认删除「${it.title || '未命名报销'}」?`)) return
+  if (!confirm(t('expense.confirmDelete', { title: it.title || t('expense.untitled') }))) return
   try {
     await deleteExpense(it.id)
     items.value = items.value.filter(x => x.id !== it.id)
     total.value = Math.max(0, total.value - 1)
   } catch (e) {
-    alert('删除失败: ' + (e.response?.data?.message || e.message))
+    alert(t('expense.deleteFailed') + ': ' + (e.response?.data?.message || e.message))
   }
 }
 
@@ -57,26 +60,30 @@ const STATUS_COLOR = {
   awaiting_payment: '#C77B22',
   paid:     '#3A6FB7',  // blue
 }
-const STATUS_LABEL = {
-  draft: '草稿', pending: '审批中', approved: '已通过',
-  rejected: '已驳回', awaiting_payment: '待支付', paid: '已支付',
-}
+const STATUS_LABEL = computed(() => ({
+  draft: t('expense.statusOpt.draft'),
+  pending: t('expense.statusOpt.pending'),
+  approved: t('expense.statusOpt.approved'),
+  rejected: t('expense.statusOpt.rejected'),
+  awaiting_payment: t('expense.statusOpt.awaiting_payment'),
+  paid: t('expense.statusOpt.paid'),
+}))
 
 // Sort options
-const SORT_OPTIONS = [
-  { value: 'updated_at',    label: '最近活跃',     tab: 'recent' },
-  { value: 'created_at',    label: '创建时间',     tab: 'recent' },
-  { value: 'amount_desc',   label: '金额 高 → 低', tab: 'amount' },
-  { value: 'amount_asc',    label: '金额 低 → 高', tab: 'amount' },
-  { value: 'status',        label: '状态',         tab: 'status' },
-]
-const SORT_TABS = [
-  { tab: 'recent', label: '最近活跃' },
-  { tab: 'amount', label: '金额' },
-  { tab: 'status', label: '状态' },
-]
+const SORT_OPTIONS = computed(() => [
+  { value: 'updated_at',    label: t('expense.sortRecent'),     tab: 'recent' },
+  { value: 'created_at',    label: t('expense.sortCreated'),    tab: 'recent' },
+  { value: 'amount_desc',   label: t('expense.sortAmountDesc'), tab: 'amount' },
+  { value: 'amount_asc',    label: t('expense.sortAmountAsc'),  tab: 'amount' },
+  { value: 'status',        label: t('expense.sortStatus'),     tab: 'status' },
+])
+const SORT_TABS = computed(() => [
+  { tab: 'recent', label: t('expense.sortByRecent') },
+  { tab: 'amount', label: t('expense.sortByAmount') },
+  { tab: 'status', label: t('expense.sortByStatus') },
+])
 const activeSortTab = computed(() =>
-  SORT_OPTIONS.find(o => o.value === sortBy.value)?.tab || 'recent'
+  SORT_OPTIONS.value.find(o => o.value === sortBy.value)?.tab || 'recent'
 )
 function tabDisplayLabel(tab) {
   if (activeSortTab.value !== tab.tab) return tab.label
@@ -96,18 +103,18 @@ function selectSort(val) {
 }
 
 // Filter chips
-const STATUS_FILTER_OPTIONS = [
-  { value: '',         label: '全部' },
-  { value: 'draft',    label: '草稿' },
-  { value: 'pending',  label: '审批中' },
-  { value: 'approved', label: '已通过' },
-  { value: 'rejected', label: '已驳回' },
-  { value: 'paid',     label: '已支付' },
-]
+const STATUS_FILTER_OPTIONS = computed(() => [
+  { value: '',         label: t('expense.statusOpt.') },
+  { value: 'draft',    label: t('expense.statusOpt.draft') },
+  { value: 'pending',  label: t('expense.statusOpt.pending') },
+  { value: 'approved', label: t('expense.statusOpt.approved') },
+  { value: 'rejected', label: t('expense.statusOpt.rejected') },
+  { value: 'paid',     label: t('expense.statusOpt.paid') },
+])
 const activeFilterChips = computed(() => {
   const chips = []
   const f = filters.value
-  if (f.status) chips.push({ key: 'status', label: STATUS_LABEL[f.status] || f.status })
+  if (f.status) chips.push({ key: 'status', label: STATUS_LABEL.value[f.status] || f.status })
   return chips
 })
 const activeFilterCount = computed(() => activeFilterChips.value.length)
@@ -195,19 +202,19 @@ onMounted(() => {
           <div class="text-[11px] font-medium uppercase"
             style="color: var(--color-ink-3); letter-spacing: 1.2px;">{{ quarter }}</div>
           <h1 class="font-serif m-0 mt-1"
-            style="font-size: 32px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">报销</h1>
+            style="font-size: 32px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">{{ t('expense.title') }}</h1>
         </div>
         <button @click="router.push('/expense/new')"
           class="w-9 h-9 rounded-full inline-flex items-center justify-center"
           style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300;">+</button>
       </div>
       <div class="text-[12px] mt-1.5" style="color: var(--color-ink-3);">
-        共 {{ total }} 单
+        {{ t('expense.listTotal', { n: total }) }}
         <template v-if="summary.month_total">
-          · 本月 ¥{{ fmtAmount(summary.month_total) }}
+          · {{ t('expense.monthTotal', { amount: fmtAmount(summary.month_total) }) }}
         </template>
         <template v-if="summary.pending_count > 0">
-          · <span style="color: var(--color-ex-warn); font-weight: 600;">{{ summary.pending_count }}</span> 待审批
+          · <span style="color: var(--color-ex-warn); font-weight: 600;">{{ summary.pending_count }}</span> {{ t('expense.pendingCount', { n: '' }) }}
         </template>
       </div>
 
@@ -222,13 +229,13 @@ onMounted(() => {
             <circle cx="7" cy="7" r="5" :stroke="searchFocused ? 'var(--color-accent)' : 'var(--color-ink-3)'" stroke-width="1.4" />
             <path d="M11 11l3 3" :stroke="searchFocused ? 'var(--color-accent)' : 'var(--color-ink-3)'" stroke-width="1.4" stroke-linecap="round" />
           </svg>
-          <input v-model="search" type="search" placeholder="搜索报销主题"
+          <input v-model="search" type="search" :placeholder="t('expense.searchPh')"
             @focus="searchFocused = true" @blur="searchFocused = false"
             @keyup.enter="load(true)"
             class="flex-1 bg-transparent text-[14px] outline-none font-serif"
             style="color: var(--color-ink);" />
           <button v-if="search" @click="search = ''; load(true)"
-            class="text-[12px] font-medium" style="color: var(--color-accent);">取消</button>
+            class="text-[12px] font-medium" style="color: var(--color-accent);">{{ t('common.cancel') }}</button>
         </div>
         <button @click="showStatusFilter = true"
           class="w-[38px] h-[38px] rounded-full flex items-center justify-center relative"
@@ -249,7 +256,7 @@ onMounted(() => {
     <!-- FilterBanner -->
     <div v-if="activeFilterCount > 0" class="mx-6 mb-3 px-3 py-2.5 rounded-xl flex items-center gap-2"
       style="background: var(--color-accent-bg);">
-      <span class="text-[12px] font-serif italic" style="color: var(--color-ink-2);">已按</span>
+      <span class="text-[12px] font-serif italic" style="color: var(--color-ink-2);">{{ t('project.filteredBy') }}</span>
       <div class="flex flex-wrap gap-1.5 flex-1">
         <button v-for="chip in activeFilterChips" :key="chip.key" @click="removeChip(chip)"
           class="inline-flex items-center gap-1 px-2.5 py-[3px] rounded-full text-[12px] font-medium text-white active:opacity-70"
@@ -261,7 +268,7 @@ onMounted(() => {
         </button>
       </div>
       <button @click="clearAllFilters" class="text-[12px] font-semibold active:opacity-60"
-        style="color: var(--color-accent);">清除</button>
+        style="color: var(--color-accent);">{{ t('project.clearFilter') }}</button>
     </div>
 
     <!-- SortRow -->
@@ -274,7 +281,7 @@ onMounted(() => {
         }">
         {{ tabDisplayLabel(tab) }}
       </button>
-      <span class="ml-auto text-[12px]" style="color: var(--color-ink-3);">{{ total }} 条</span>
+      <span class="ml-auto text-[12px]" style="color: var(--color-ink-3);">{{ total }} {{ t('expense.items') }}</span>
     </div>
 
     <!-- 列表 -->
@@ -286,14 +293,14 @@ onMounted(() => {
 
       <div v-else-if="items.length === 0"
         class="flex flex-col items-center justify-center h-40 text-[13px]"
-        style="color: var(--color-ink-3);">暂无报销单</div>
+        style="color: var(--color-ink-3);">{{ t('expense.listEmpty') }}</div>
 
       <div v-else style="background: var(--color-card);">
         <SwipeRowAction
           v-for="(it, i) in items"
           :key="it.id"
           :disabled="it.status !== 'draft'"
-          :actions="[{ label: '删除', color: 'red', handler: () => onDelete(it) }]"
+          :actions="[{ label: t('common.delete'), color: 'red', handler: () => onDelete(it) }]"
         >
           <div
             @click="router.push(`/expense/${it.id}`)"
@@ -306,7 +313,7 @@ onMounted(() => {
             <div class="flex items-baseline justify-between gap-3">
               <div class="font-serif flex-1 min-w-0 truncate"
                 style="font-size: 16px; font-weight: 500; color: var(--color-ink); line-height: 1.3;">
-                {{ it.title || '未命名报销' }}
+                {{ it.title || t('expense.untitled') }}
               </div>
               <div class="text-[15px] font-semibold tabular whitespace-nowrap"
                 style="color: var(--color-ink);">
@@ -323,8 +330,8 @@ onMounted(() => {
               </span>
               <span class="truncate">
                 {{ it.expense_number }}
-                <template v-if="it.detail_count"> · {{ it.detail_count }} 项</template>
-                <template v-if="it.current_node"> · 当前 {{ it.current_node }}</template>
+                <template v-if="it.detail_count"> · {{ t('expense.detailCount', { n: it.detail_count }) }}</template>
+                <template v-if="it.current_node"> · {{ t('expense.currentAt', { name: it.current_node }) }}</template>
               </span>
               <span class="ml-auto tabular shrink-0">{{ formatDate(it.apply_at) }}</span>
             </div>
@@ -336,7 +343,7 @@ onMounted(() => {
           <button @click="loadMore" :disabled="loading"
             class="text-[13px] font-medium disabled:opacity-40"
             style="color: var(--color-accent);">
-            {{ loading ? '加载中…' : '加载更多' }}
+            {{ loading ? t('common.loading') : t('project.loadMore') }}
           </button>
         </div>
       </div>
@@ -351,9 +358,9 @@ onMounted(() => {
           style="background: var(--color-bg); padding-bottom: env(safe-area-inset-bottom);">
           <div style="width: 36px; height: 4px; background: var(--color-divider); border-radius: 2px; margin: 10px auto 6px;" />
           <div class="px-5 pt-2 pb-3 flex items-center justify-between shrink-0">
-            <div class="text-[15px] font-semibold">按状态筛选</div>
+            <div class="text-[15px] font-semibold">{{ t('expense.filterByStatus') }}</div>
             <div class="text-[13px] active:opacity-60" style="color: var(--color-ink-3);"
-              @click="showStatusFilter = false">取消</div>
+              @click="showStatusFilter = false">{{ t('common.cancel') }}</div>
           </div>
           <div>
             <div v-for="opt in STATUS_FILTER_OPTIONS" :key="opt.value"

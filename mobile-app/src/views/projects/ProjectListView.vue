@@ -1,8 +1,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getProjects } from '@/api/projects'
 import FilterSheet from '@/components/FilterSheet.vue'
+
+const { t } = useI18n()
 
 const router = useRouter()
 const projects = ref([])
@@ -35,66 +38,65 @@ const STAGE_COLOR = {
   paused:     '#C2BBB3',
 }
 
-const STAGE_LABEL_MAP = {
-  '':          '全部',
-  discover:    '发现',
-  embed:       '嵌入',
-  pre_tender:  '预招标',
-  tendering:   '招标中',
-  awarded:     '授权',
-  quoted:      '已报价',
-  signed:      '签约',
-  lost:        '丢单',
-  paused:      '暂停',
-}
+// 字典 label 改 computed, 跟随 i18n locale 切换
+const STAGE_LABEL_MAP = computed(() => ({
+  '': t('project.stageOpt.'),
+  discover: t('project.stageOpt.discover'),
+  embed: t('project.stageOpt.embed'),
+  pre_tender: t('project.stageOpt.pre_tender'),
+  tendering: t('project.stageOpt.tendering'),
+  awarded: t('project.stageOpt.awarded'),
+  quoted: t('project.stageOpt.quoted'),
+  signed: t('project.stageOpt.signed'),
+  lost: t('project.stageOpt.lost'),
+  paused: t('project.stageOpt.paused'),
+}))
 
-const INDUSTRY_LABEL_MAP = {
-  manufacturing:      '制造',
-  datacenter:         '数据',
-  chemical:           '化工',
-  energy:             '能源',
-  transportation:     '交通',
-  tunnel_underground: '隧道',
-  real_estate:        '地产',
-  hospitality:        '酒店',
-  government:         '政府',
-  education:          '教育',
-  healthcare:         '医疗',
-  technology:         '科技',
-  semiconductor:      '半导体',
-  shipbuilding:       '造船',
-  finance:            '金融',
-  other:              '其他',
-}
+const INDUSTRY_LABEL_MAP = computed(() => ({
+  manufacturing: t('project.industry.manufacturing'),
+  datacenter: t('project.industry.datacenter'),
+  chemical: t('project.industry.chemical'),
+  energy: t('project.industry.energy'),
+  transportation: t('project.industry.transportation'),
+  tunnel_underground: t('project.industry.tunnel_underground'),
+  real_estate: t('project.industry.real_estate'),
+  hospitality: t('project.industry.hospitality'),
+  government: t('project.industry.government'),
+  education: t('project.industry.education'),
+  healthcare: t('project.industry.healthcare'),
+  technology: t('project.industry.technology'),
+  semiconductor: t('project.industry.semiconductor'),
+  shipbuilding: t('project.industry.shipbuilding'),
+  finance: t('project.industry.finance'),
+  other: t('project.industry.other'),
+}))
 
-const ACTIVITY_LABEL_MAP = {
-  highly_active: '高度活跃',
-  active:        '活跃',
-  normal:        '正常',
-  to_follow:     '待跟进',
-  dormant:       '休眠',
-  churned:       '流失',
-  frozen:        '已冻结',
-}
+const ACTIVITY_LABEL_MAP = computed(() => ({
+  highly_active: t('project.activityOpt.highly_active'),
+  active: t('project.activityOpt.active'),
+  normal: t('project.activityOpt.normal'),
+  to_follow: t('project.activityOpt.to_follow'),
+  dormant: t('project.activityOpt.dormant'),
+  churned: t('project.activityOpt.churned'),
+  frozen: t('project.activityOpt.frozen'),
+}))
 
-// Sort options (shown in dropdown)
-const SORT_OPTIONS = [
-  { value: 'amount_desc', label: '金额 高 → 低', tab: 'amount' },
-  { value: 'amount_asc',  label: '金额 低 → 高', tab: 'amount' },
-  { value: 'updated_at',  label: '最近活跃',     tab: 'recent' },
-  { value: 'created_at',  label: '创建时间',     tab: 'recent' },
-  { value: 'stage',       label: '阶段进度',     tab: 'stage'  },
-]
+const SORT_OPTIONS = computed(() => [
+  { value: 'amount_desc', label: t('project.sortAmountDesc'), tab: 'amount' },
+  { value: 'amount_asc',  label: t('project.sortAmountAsc'),  tab: 'amount' },
+  { value: 'updated_at',  label: t('project.sortRecent'),     tab: 'recent' },
+  { value: 'created_at',  label: t('project.sortCreated'),    tab: 'recent' },
+  { value: 'stage',       label: t('project.sortStage'),      tab: 'stage'  },
+])
 
-// Three tab labels mapping to sort groups
-const SORT_TABS = [
-  { tab: 'recent', label: '最近活跃' },
-  { tab: 'amount', label: '金额' },
-  { tab: 'stage',  label: '阶段' },
-]
+const SORT_TABS = computed(() => [
+  { tab: 'recent', label: t('project.sortByRecent') },
+  { tab: 'amount', label: t('project.sortByAmount') },
+  { tab: 'stage',  label: t('project.sortByStage') },
+])
 
 const activeSortTab = computed(() =>
-  SORT_OPTIONS.find(o => o.value === sortBy.value)?.tab || 'recent'
+  SORT_OPTIONS.value.find(o => o.value === sortBy.value)?.tab || 'recent'
 )
 
 function tabDisplayLabel(tab) {
@@ -121,20 +123,20 @@ function selectSort(val) {
 const activeFilterChips = computed(() => {
   const chips = []
   const f = filters.value
-  if (f.stage)      chips.push({ key: 'stage',      label: STAGE_LABEL_MAP[f.stage] || f.stage })
-  if (f.activity)   chips.push({ key: 'activity',   label: ACTIVITY_LABEL_MAP[f.activity] || f.activity })
+  if (f.stage)      chips.push({ key: 'stage',      label: STAGE_LABEL_MAP.value[f.stage] || f.stage })
+  if (f.activity)   chips.push({ key: 'activity',   label: ACTIVITY_LABEL_MAP.value[f.activity] || f.activity })
   if (f.amount_min != null || f.amount_max != null) {
     const mn = f.amount_min || 0
     const mx = f.amount_max
-    if (mx != null) chips.push({ key: 'amount', label: `¥${mn}-${mx}万` })
-    else chips.push({ key: 'amount', label: `≥¥${mn}万` })
+    if (mx != null) chips.push({ key: 'amount', label: t('project.amountRange', { min: mn, max: mx }) })
+    else chips.push({ key: 'amount', label: t('project.amountMin', { min: mn }) })
   }
   if (f.owner_names?.length) chips.push({
     key: 'owner_names',
-    label: f.owner_names.length === 1 ? f.owner_names[0] : `负责人 ${f.owner_names.length}`,
+    label: f.owner_names.length === 1 ? f.owner_names[0] : t('project.ownerN', { n: f.owner_names.length }),
   })
   if (f.region)     chips.push({ key: 'region',     label: f.region })
-  if (f.industry)   chips.push({ key: 'industry',   label: INDUSTRY_LABEL_MAP[f.industry] || f.industry })
+  if (f.industry)   chips.push({ key: 'industry',   label: INDUSTRY_LABEL_MAP.value[f.industry] || f.industry })
   return chips
 })
 
@@ -176,7 +178,7 @@ function formatDate(iso) {
 
 function formatAmount(amount) {
   if (!amount) return '—'
-  return `¥${amount.toFixed(2)}万`
+  return t('project.amountWan', { amount: amount.toFixed(2) })
 }
 
 function ownerCity(p) {
@@ -235,14 +237,14 @@ onMounted(() => load(true))
           <div class="text-[11px] font-medium uppercase"
             style="color: var(--color-ink-3); letter-spacing: 1.2px;">{{ quarter }}</div>
           <h1 class="font-serif m-0 mt-1"
-            style="font-size: 32px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">项目</h1>
+            style="font-size: 32px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">{{ t('project.title') }}</h1>
         </div>
         <button @click="router.push('/projects/new')"
           class="w-9 h-9 rounded-full inline-flex items-center justify-center"
           style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300;">+</button>
       </div>
       <div class="text-[12px] mt-1.5" style="color: var(--color-ink-3);">
-        共 {{ total }} 项<template v-if="totalAmount"> · 总额 ¥{{ totalAmount.toFixed(2) }}万</template>
+        {{ t('project.listTotal', { n: total }) }}<template v-if="totalAmount"> · {{ t('project.listTotalAmount', { amount: totalAmount.toFixed(2) }) }}</template>
       </div>
 
       <!-- 搜索 + 筛选 行 -->
@@ -256,13 +258,13 @@ onMounted(() => load(true))
             <circle cx="7" cy="7" r="5" :stroke="searchFocused ? 'var(--color-accent)' : 'var(--color-ink-3)'" stroke-width="1.4" />
             <path d="M11 11l3 3" :stroke="searchFocused ? 'var(--color-accent)' : 'var(--color-ink-3)'" stroke-width="1.4" stroke-linecap="round" />
           </svg>
-          <input v-model="search" type="search" placeholder="搜索项目、客户、负责人"
+          <input v-model="search" type="search" :placeholder="t('project.searchPh')"
             @focus="searchFocused = true" @blur="searchFocused = false"
             @keyup.enter="load(true)"
             class="flex-1 bg-transparent text-[14px] outline-none font-serif"
             style="color: var(--color-ink);" />
           <button v-if="search" @click="search = ''; load(true)"
-            class="text-[12px] font-medium" style="color: var(--color-accent);">取消</button>
+            class="text-[12px] font-medium" style="color: var(--color-accent);">{{ t('common.cancel') }}</button>
         </div>
         <button @click="showFilter = true"
           class="w-[38px] h-[38px] rounded-full flex items-center justify-center relative"
@@ -283,7 +285,7 @@ onMounted(() => load(true))
     <!-- FilterBanner 已激活筛选条 — 对齐 unified-lists FilterBanner -->
     <div v-if="activeFilterCount > 0" class="mx-6 mb-3 px-3 py-2.5 rounded-xl flex items-center gap-2"
       style="background: var(--color-accent-bg);">
-      <span class="text-[12px] font-serif italic" style="color: var(--color-ink-2);">已按</span>
+      <span class="text-[12px] font-serif italic" style="color: var(--color-ink-2);">{{ t('project.filteredBy') }}</span>
       <div class="flex flex-wrap gap-1.5 flex-1">
         <button v-for="chip in activeFilterChips" :key="chip.key" @click="removeChip(chip)"
           class="inline-flex items-center gap-1 px-2.5 py-[3px] rounded-full text-[12px] font-medium text-white active:opacity-70"
@@ -295,7 +297,7 @@ onMounted(() => load(true))
         </button>
       </div>
       <button @click="clearAllFilters" class="text-[12px] font-semibold active:opacity-60"
-        style="color: var(--color-accent);">清除</button>
+        style="color: var(--color-accent);">{{ t('project.clearFilter') }}</button>
     </div>
 
     <!-- SortRow — 对齐 unified-lists.SortRow -->
@@ -308,7 +310,7 @@ onMounted(() => load(true))
         }">
         {{ tabDisplayLabel(tab) }}
       </button>
-      <span class="ml-auto text-[12px]" style="color: var(--color-ink-3);">{{ total }} 条</span>
+      <span class="ml-auto text-[12px]" style="color: var(--color-ink-3);">{{ total }} {{ t('project.items') }}</span>
     </div>
 
     <!-- 列表 -->
@@ -320,7 +322,7 @@ onMounted(() => load(true))
 
       <div v-else-if="projects.length === 0"
         class="flex flex-col items-center justify-center h-40 text-[13px]"
-        style="color: var(--color-ink-3);">暂无项目</div>
+        style="color: var(--color-ink-3);">{{ t('project.listEmpty') }}</div>
 
       <div v-else style="background: var(--color-card);">
         <!-- ProjectRow — 对齐 unified-lists.ProjectRow -->
@@ -336,7 +338,7 @@ onMounted(() => load(true))
             </div>
             <div class="text-[15px] font-semibold tabular whitespace-nowrap">
               <template v-if="p.amount">
-                ¥{{ p.amount.toFixed(2) }}<span class="text-[10px] ml-0.5" style="color: var(--color-ink-3);">万</span>
+                {{ t('project.amountWan', { amount: p.amount.toFixed(2) }) }}
               </template>
               <span v-else class="text-[13px]" style="color: var(--color-ink-3);">—</span>
             </div>
@@ -359,7 +361,7 @@ onMounted(() => load(true))
           <button @click="loadMore" :disabled="loading"
             class="text-[13px] font-medium disabled:opacity-40"
             style="color: var(--color-accent);">
-            {{ loading ? '加载中…' : '加载更多' }}
+            {{ loading ? t('common.loading') : t('project.loadMore') }}
           </button>
         </div>
       </div>
