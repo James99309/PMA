@@ -364,9 +364,9 @@ onMounted(() => {
             <!-- 状态 + 地区 + 进行中 + lastTouch -->
             <div class="flex items-center gap-3 text-[12px] mt-1" style="color: var(--color-ink-3);">
               <span v-if="c.status" class="inline-flex items-center gap-1.5 font-medium shrink-0"
-                :style="{ color: ACTIVE_STATUSES.value.has(c.status) ? 'var(--color-green)' : 'var(--color-ink-3)' }">
+                :style="{ color: ACTIVE_STATUSES.has(c.status) ? 'var(--color-green)' : 'var(--color-ink-3)' }">
                 <span class="w-[5px] h-[5px] rounded-[3px]"
-                  :style="{ background: ACTIVE_STATUSES.value.has(c.status) ? 'var(--color-green)' : 'var(--color-ink-4)' }" />
+                  :style="{ background: ACTIVE_STATUSES.has(c.status) ? 'var(--color-green)' : 'var(--color-ink-4)' }" />
                 {{ c.status }}
               </span>
               <span class="truncate">
