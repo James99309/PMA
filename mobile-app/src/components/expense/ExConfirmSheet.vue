@@ -24,14 +24,14 @@
         >
           <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '0 auto 14px' }" />
           <div :style="{ fontSize: '11px', color: cfgColor, letterSpacing: '0.6px', fontWeight: 600 }">
-            {{ eyebrow }}
+            {{ eyebrowText }}
           </div>
           <div
             :style="{
               fontSize: '22px', fontWeight: 500, fontFamily: 'var(--font-serif)',
               color: 'var(--color-ex-ink)', marginTop: '4px',
             }"
-          >{{ title }}</div>
+          >{{ titleText }}</div>
           <div
             v-if="sub"
             :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)', marginTop: '4px' }"
@@ -50,7 +50,7 @@
                 fontSize: '14px', fontWeight: 600,
               }"
               @click="close"
-            >取消</div>
+            >{{ t('common.cancel') }}</div>
             <div
               class="flex items-center justify-center"
               role="button"
@@ -64,7 +64,7 @@
                 fontWeight: 600,
               }"
               @click="onConfirm"
-            >{{ submitting ? '处理中...' : confirmLabel }}</div>
+            >{{ submitting ? t('ex.processing') : confirmLabelText }}</div>
           </div>
         </div>
       </div>
@@ -74,16 +74,21 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
-  eyebrow:    { type: String, default: '操作' },
-  title:      { type: String, default: '确认?' },
+  eyebrow:    { type: String, default: '' },
+  title:      { type: String, default: '' },
   sub:        { type: String, default: '' },
-  confirmLabel: { type: String, default: '确认' },
-  color:      { type: String, default: 'ink' },  // ink / red / warn / blue / green
+  confirmLabel: { type: String, default: '' },
+  color:      { type: String, default: 'ink' },
   submitting: { type: Boolean, default: false },
 })
+const eyebrowText      = computed(() => props.eyebrow      || t('ex.confirmDefault'))
+const titleText        = computed(() => props.title        || t('ex.confirmTitle'))
+const confirmLabelText = computed(() => props.confirmLabel || t('common.confirm'))
 const emit = defineEmits(['update:modelValue', 'confirm'])
 
 const cfgColor = computed(() => {

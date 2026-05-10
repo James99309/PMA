@@ -51,7 +51,7 @@
           class="active:opacity-60 flex-shrink-0"
           :style="{ fontSize: '11px', color: 'var(--color-ex-warn)', fontWeight: 600 }"
           @click.stop="$emit('recall')"
-        >召回</span>
+        >{{ t('ex.recall') }}</span>
         <div
           v-else-if="node.at"
           :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)' }"
@@ -64,9 +64,9 @@
         <span
           v-if="isCurrent"
           :style="{ color: 'var(--color-ex-warn)', fontWeight: 600 }"
-        >处理中</span>
-        <span v-else-if="isDone">已通过</span>
-        <span v-else>待处理</span>
+        >{{ t('ex.flowProcessing') }}</span>
+        <span v-else-if="isDone">{{ t('ex.flowDone') }}</span>
+        <span v-else>{{ t('ex.flowWaiting') }}</span>
       </div>
       <div
         v-if="node.remark"
@@ -83,6 +83,8 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 
 const props = defineProps({
   /**

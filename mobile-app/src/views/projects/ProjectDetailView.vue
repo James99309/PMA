@@ -220,10 +220,10 @@ const STAGE_META = {
 const stageDictList = computed(() => dictStore.list('project_stage'))
 const stageLabelMap = computed(() => dictStore.labelMap('project_stage'))
 
-// 拼出 STAGES_ALL：字典 label + 前端 desc/pct
+// 拼出 STAGES_ALL：字典 displayLabel(按 locale 切 zh/en) + 前端 desc/pct
 const STAGES_ALL = computed(() => stageDictList.value.map(d => ({
   key: d.key,
-  label: d.label,
+  label: d.displayLabel || d.label,
   desc: STAGE_META[d.key]?.desc || '',
   pct:  STAGE_META[d.key]?.pct ?? 0,
 })))

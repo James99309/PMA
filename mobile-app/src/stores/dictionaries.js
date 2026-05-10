@@ -1,5 +1,14 @@
 import { defineStore } from 'pinia'
 import { fetchDictionary } from '@/api/dictionaries'
+import i18n from '@/locales'
+
+// 当前 locale → 决定取 label (zh) / label_en (en)
+// fallback: 没 label_en 时退回 label, 避免英文界面显示空
+function _displayOf(it) {
+  if (!it) return ''
+  const locale = i18n?.global?.locale?.value || 'zh'
+  return locale === 'en' ? (it.label_en || it.label) : (it.label || it.label_en || '')
+}
 
 // 字典 Pinia store —— 进程内缓存（避免重复 fetch）
 //
@@ -20,16 +29,21 @@ export const useDictionariesStore = defineStore('dictionaries', {
   }),
 
   getters: {
-    list: (state) => (type) => state.cache[type] || [],
+    // list 返回的每项加 displayLabel (按当前 locale)
+    list: (state) => (type) => {
+      const arr = state.cache[type] || []
+      return arr.map(it => ({ ...it, displayLabel: _displayOf(it) }))
+    },
+    // labelMap 返回 key → 当前 locale 对应文案 (替代之前只返回 zh label)
     labelMap: (state) => (type) => {
       const m = {}
-      for (const it of (state.cache[type] || [])) m[it.key] = it.label
+      for (const it of (state.cache[type] || [])) m[it.key] = _displayOf(it)
       return m
     },
     label: (state) => (type, key) => {
       const list = state.cache[type] || []
       const it = list.find(x => x.key === key)
-      return it ? it.label : (key || '')
+      return it ? _displayOf(it) : (key || '')
     },
   },
 

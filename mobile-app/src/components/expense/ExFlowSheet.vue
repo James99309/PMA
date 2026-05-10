@@ -21,19 +21,19 @@
           <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '10px auto 6px' }" />
           <div class="px-5 pt-2 pb-3 flex items-center justify-between shrink-0">
             <div :style="{ fontSize: '15px', fontWeight: 600, color: 'var(--color-ex-ink)' }">
-              审批流程
+              {{ t('ex.flowTitle') }}
               <span v-if="currentStepName"
                 :style="{ fontSize: '11px', color: 'var(--color-ex-warn)', fontWeight: 500, marginLeft: '6px' }">
-                · 当前在「{{ currentStepName }}」
+                · {{ t('ex.flowCurrentAt', { name: currentStepName }) }}
               </span>
             </div>
-            <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="close">关闭</div>
+            <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="close">{{ t('common.close') }}</div>
           </div>
 
           <div class="overflow-auto" :style="{ background: 'var(--color-ex-card)', padding: '12px 20px 20px' }">
             <div v-if="!nodes || nodes.length === 0"
               :style="{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }">
-              {{ emptyHint || '暂无审批流程' }}
+              {{ emptyHint || t('ex.flowEmpty') }}
             </div>
             <ExFlowNode v-for="(n, i) in nodes" :key="i" :node="n" :last="i === nodes.length - 1"
               @recall="$emit('recall')" />
@@ -46,7 +46,10 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ExFlowNode from './ExFlowNode.vue'
+
+const { t } = useI18n()
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

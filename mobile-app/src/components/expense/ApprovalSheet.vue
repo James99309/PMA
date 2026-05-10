@@ -48,7 +48,7 @@
               border: '1px solid var(--color-ex-divider)',
             }"
           >
-            <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '6px' }">转交给</div>
+            <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '6px' }">{{ t('ex.forwardTo') }}</div>
             <div v-if="selectedUser" class="flex items-center" :style="{ gap: '10px' }">
               <div
                 class="flex items-center justify-center"
@@ -68,7 +68,7 @@
               <div
                 :style="{ fontSize: '12px', color: 'var(--color-ex-accent)', fontWeight: 600 }"
                 @click="onPickUser"
-              >更换</div>
+              >{{ t('ex.change') }}</div>
             </div>
             <div
               v-else
@@ -79,7 +79,7 @@
                 color: 'var(--color-ex-ink3)', fontSize: '13px',
               }"
               @click="onPickUser"
-            >选择转交目标</div>
+            >{{ t('ex.selectForwardTarget') }}</div>
           </div>
 
           <!-- 备注框 -->
@@ -91,7 +91,7 @@
             }"
           >
             <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '6px' }">
-              备注
+              {{ t('ex.note') }}
               <span v-if="action === 'reject'" :style="{ color: 'var(--color-ex-red)' }">*</span>
             </div>
             <textarea
@@ -138,7 +138,7 @@
                 fontSize: '14px', fontWeight: 600,
               }"
               @click="close"
-            >取消</div>
+            >{{ t('common.cancel') }}</div>
             <div
               class="flex items-center justify-center"
               role="button"
@@ -152,7 +152,7 @@
                 fontWeight: 600,
               }"
               @click="onClickConfirm"
-            >{{ submitting ? '处理中...' : `确认${cfg.label}` }}</div>
+            >{{ submitting ? t('ex.processing') : t('ex.confirmAction', { action: cfg.label }) }}</div>
           </div>
         </div>
       </div>
@@ -162,7 +162,10 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
+
+const { t, tm } = useI18n()
 
 const { kbStyle } = useKeyboardOffset()
 
@@ -184,29 +187,22 @@ const comment = ref('')
 watch(() => props.modelValue, (v) => { if (v) comment.value = '' })
 
 const cfg = computed(() => {
-  // 标题跟着业务对象走 — 项目审批显示"同意此项目", 不再硬写"同意此报销"
-  const obj = props.objectTypeLabel || '审批'
-  const isProject = props.objectKind === 'project'
+  const obj = props.objectTypeLabel || t('ex.defaultObj')
   const isExpense = props.objectKind === 'expense' || (!props.objectKind && obj.includes('报销'))
-  // 驳回 placeholder 区分: 项目/报价/批价 不必"重新提交清晰版本"那种发票场景
-  const rejectPh = isExpense
-    ? '必填 · 请说明驳回原因(如发票不清晰)'
-    : `必填 · 请说明驳回原因`
+  const rejectPh = isExpense ? t('ex.placeholderRejectExpense') : t('ex.placeholderReject')
   const map = {
-    approve: { label: '同意', title: `同意此${obj}`, color: 'var(--color-ex-green)', placeholder: '可选 · 备注会显示在流程中' },
-    reject:  { label: '驳回', title: `驳回此${obj}`, color: 'var(--color-ex-red)',   placeholder: rejectPh },
-    forward: { label: '转交', title: '转交其他人',     color: 'var(--color-ex-blue)',  placeholder: '可选 · 转交说明' },
+    approve: { label: t('ex.actionApprove'), title: t('ex.titleApprove', { obj }), color: 'var(--color-ex-green)', placeholder: t('ex.placeholderApprove') },
+    reject:  { label: t('ex.actionReject'),  title: t('ex.titleReject',  { obj }), color: 'var(--color-ex-red)',   placeholder: rejectPh },
+    forward: { label: t('ex.actionForward'), title: t('ex.titleForward'),          color: 'var(--color-ex-blue)',  placeholder: t('ex.placeholderForward') },
   }
   return map[props.action] || map.approve
 })
 
-// 同意快捷标签按对象类型变化(报销=票据/金额合规, 项目=资料完整/客户已确认, 等)
 const approveChips = computed(() => {
-  if (props.objectKind === 'project') return ['资料完整', '客户已确认', '符合公司战略']
-  if (props.objectKind === 'pricing_order') return ['折扣合理', '已核对客户', '符合定价规则']
-  if (props.objectKind === 'quotation') return ['配置正确', '价格合理', '已与客户对齐']
-  // 报销 / 默认
-  return ['票据已核对', '金额合规', '已确认归属']
+  if (props.objectKind === 'project')       return tm('ex.chipProject')
+  if (props.objectKind === 'pricing_order') return tm('ex.chipPricing')
+  if (props.objectKind === 'quotation')     return tm('ex.chipQuotation')
+  return tm('ex.chipExpense')
 })
 
 const canConfirm = computed(() => {
