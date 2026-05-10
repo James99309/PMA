@@ -498,8 +498,20 @@ function onPlusPointerDown(e) {
       </div>
     </div>
 
-    <!-- 发起聊天 sheet — 临时改 fixed + 去 Transition + 高 z 调试 -->
+    <!-- DIAG: 极简 picker — 测试是否是内容渲染抛错导致整页崩 -->
     <Teleport to="body">
+      <div v-if="showPicker"
+        @click="showPicker = false"
+        style="position: fixed; inset: 0; z-index: 9999;
+               background: rgba(255, 255, 0, 0.85);
+               display: flex; align-items: center; justify-content: center;
+               font-size: 24px; color: black; font-weight: bold;">
+        MINIMAL PICKER (tap anywhere to close)
+      </div>
+    </Teleport>
+
+    <!-- 原 picker 暂时禁用 -->
+    <Teleport to="body" v-if="false">
       <div v-if="showPicker"
         style="position: fixed; inset: 0; z-index: 9999;
                border: 6px solid lime; outline: 6px solid magenta;
