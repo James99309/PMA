@@ -446,8 +446,11 @@ function openPicker() {
           @click.stop>
           <div style="margin: 0 auto 12px; width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.15);"></div>
 
-          <div style="padding: 12px 24px; font-size: 18px; font-weight: 600;">B1: header only</div>
-          <div style="padding: 0 24px 12px; font-size: 13px; color: #777;">如果看到这行 → header 部分 OK</div>
+          <div style="padding: 12px 24px; font-size: 18px; font-weight: 600;">B2: text + t() calls</div>
+          <div style="padding: 0 24px 12px; font-size: 13px; color: #777;">{{ t('chat.mainQ') }}</div>
+          <div style="padding: 0 24px 12px; font-size: 13px; color: #777;">{{ t('chat.mainSub') }}</div>
+          <div style="padding: 0 24px 12px; font-size: 13px; color: #777;">{{ t('chat.aiTagline') }}</div>
+          <div style="padding: 0 24px 12px; font-size: 13px; color: #777;">{{ t('chat.atAiTip') }}</div>
           <!-- DIAG: B2 — 原 picker 内容暂时禁用 -->
           <template v-if="false">
           <div class="mx-auto w-9 h-1 rounded-full mb-3" style="background: rgba(0,0,0,0.15);" />
