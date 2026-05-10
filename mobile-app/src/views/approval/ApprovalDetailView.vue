@@ -14,7 +14,7 @@
           <path d="M7 1L1 7l6 6" fill="none" stroke="currentColor"
             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        <span class="text-[15px]">审批</span>
+        <span class="text-[15px]">{{ t('approval.backApproval') }}</span>
       </button>
       <!-- ··· 直接打开转交 sheet(设计稿没有中间菜单步骤);
            非当前审批人不显示 -->
@@ -49,7 +49,7 @@
               gap: '3px',
             }"
             @click="flowSheetOpen = true"
-          >等你审批 · {{ currentStepName }}
+          >{{ t('approval.detYouToApprove', { step: currentStepName }) }}
             <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
               <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
@@ -63,7 +63,7 @@
               background: 'var(--color-ex-blue-soft)',
               padding: '2px 8px', borderRadius: '4px',
             }"
-          >已转交给 {{ detail.delegated_to.name }}</span>
+          >{{ t('approval.detDelegatedTo', { name: detail.delegated_to.name }) }}</span>
           <span
             class="text-[11px]"
             :style="{
@@ -83,7 +83,7 @@
 
         <!-- Sub: 申请人提交时间 -->
         <div v-if="detail.submitter" class="mt-3.5 text-[13px]" style="color: var(--color-ink-3);">
-          {{ detail.submitter.name }} 提交 · {{ (detail.created_at || '').slice(0, 10) }}
+          {{ t('approval.detSubmitterAt', { name: detail.submitter.name, date: (detail.created_at || '').slice(0, 10) }) }}
         </div>
 
         <!-- 金额 44px serif tabular (项目同款) -->
@@ -93,7 +93,7 @@
             {{ amountStr }}
           </span>
           <span v-if="isProject" class="text-[14px]" style="color: var(--color-ink-3);">
-            万 · {{ detail.business_obj?.stage_label || '—' }}
+            {{ t('approval.suffixWan') }} · {{ detail.business_obj?.stage_label || '—' }}
           </span>
           <span v-else-if="isPricingOrder" class="text-[14px]" style="color: var(--color-ink-3);">
             {{ currencyLabel(detail.business_obj?.currency) }} · 折扣 {{ ((detail.business_obj?.pricing_total_discount_rate || 1) * 100).toFixed(1) }}%
@@ -102,7 +102,7 @@
             {{ currencyLabel(detail.business_obj?.currency) }} · {{ detail.business_obj?.project_stage || '—' }}
           </span>
           <span v-else-if="detail.business_obj" class="text-[14px]" style="color: var(--color-ink-3);">
-            {{ currencyLabel(detail.business_obj.currency) }} · {{ detail.business_obj.detail_count }} 项明细
+            {{ currencyLabel(detail.business_obj.currency) }} · {{ t('approval.detailCountSuffix', { n: detail.business_obj.detail_count }) }}
           </span>
         </div>
         <div v-if="waitingHint" class="text-[12px] mt-1.5" style="color: var(--color-ink-3);">{{ waitingHint }}</div>
@@ -116,77 +116,77 @@
       />
 
       <!-- 详情 def list — 报销 / 项目 字段不同 -->
-      <ExSectionHeader v-if="detail.business_obj">详情</ExSectionHeader>
+      <ExSectionHeader v-if="detail.business_obj">{{ t('approval.detSection') }}</ExSectionHeader>
       <!-- 报销字段 -->
       <div v-if="detail.business_obj && isExpense" :style="{ background: 'var(--color-ex-card)' }">
-        <ExDefRow label="主题">{{ detail.business_obj.title }}</ExDefRow>
-        <ExDefRow label="客户">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
-        <ExDefRow label="项目">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
-        <ExDefRow label="说明" :last="true">{{ detail.business_obj.description || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fSubject')">{{ detail.business_obj.title }}</ExDefRow>
+        <ExDefRow :label="t('approval.fCustomer')">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fProject')">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fDescription')" :last="true">{{ detail.business_obj.description || '—' }}</ExDefRow>
       </div>
-      <!-- 项目字段 (用 *_label 中文映射, 不显 enum key) -->
+      <!-- 项目字段 -->
       <div v-else-if="detail.business_obj && isProject" :style="{ background: 'var(--color-ex-card)' }">
-        <ExDefRow label="项目名称">{{ detail.business_obj.project_name }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.project_code" label="项目编号">{{ detail.business_obj.project_code }}</ExDefRow>
-        <ExDefRow label="客户">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
-        <ExDefRow label="负责人">{{ detail.business_obj.owner_name || '—' }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.sales_manager_name" label="销售经理">{{ detail.business_obj.sales_manager_name }}</ExDefRow>
-        <ExDefRow label="行业">{{ detail.business_obj.industry_label || detail.business_obj.industry || '—' }}</ExDefRow>
-        <ExDefRow label="所在地">{{ [detail.business_obj.region, detail.business_obj.city].filter(Boolean).join(' · ') || '—' }}</ExDefRow>
-        <ExDefRow label="当前阶段">{{ detail.business_obj.stage_label || detail.business_obj.current_stage || '—' }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.project_type_label || detail.business_obj.project_type" label="项目类型">
+        <ExDefRow :label="t('approval.fProjectName')">{{ detail.business_obj.project_name }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.project_code" :label="t('approval.fProjectCode')">{{ detail.business_obj.project_code }}</ExDefRow>
+        <ExDefRow :label="t('approval.fCustomer')">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fOwner')">{{ detail.business_obj.owner_name || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.sales_manager_name" :label="t('approval.fSalesManager')">{{ detail.business_obj.sales_manager_name }}</ExDefRow>
+        <ExDefRow :label="t('approval.fIndustry')">{{ detail.business_obj.industry_label || detail.business_obj.industry || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fLocation')">{{ [detail.business_obj.region, detail.business_obj.city].filter(Boolean).join(' · ') || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fCurrentStage')">{{ detail.business_obj.stage_label || detail.business_obj.current_stage || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.project_type_label || detail.business_obj.project_type" :label="t('approval.fProjectType')">
           {{ detail.business_obj.project_type_label || detail.business_obj.project_type }}
         </ExDefRow>
-        <ExDefRow v-if="detail.business_obj.authorization_status_label" label="授权状态">
+        <ExDefRow v-if="detail.business_obj.authorization_status_label" :label="t('approval.fAuthStatus')">
           {{ detail.business_obj.authorization_status_label }}
         </ExDefRow>
-        <ExDefRow v-if="detail.business_obj.authorization_code" label="授权码">{{ detail.business_obj.authorization_code }}</ExDefRow>
-        <ExDefRow label="说明" :last="true">{{ detail.business_obj.description || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.authorization_code" :label="t('approval.fAuthCode')">{{ detail.business_obj.authorization_code }}</ExDefRow>
+        <ExDefRow :label="t('approval.fDescription')" :last="true">{{ detail.business_obj.description || '—' }}</ExDefRow>
       </div>
       <!-- 批价单字段 -->
       <div v-else-if="detail.business_obj && isPricingOrder" :style="{ background: 'var(--color-ex-card)' }">
-        <ExDefRow label="批价单号">{{ detail.business_obj.order_number }}</ExDefRow>
-        <ExDefRow label="项目">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
-        <ExDefRow label="客户">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.quotation_number" label="关联报价单">{{ detail.business_obj.quotation_number }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.dealer_name" label="经销商">{{ detail.business_obj.dealer_name }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.distributor_name" label="分销商">{{ detail.business_obj.distributor_name }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.is_direct_contract" label="厂商直签">是</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.is_factory_pickup" label="厂家提货">是</ExDefRow>
-        <ExDefRow label="批价金额">
+        <ExDefRow :label="t('approval.fOrderNumber')">{{ detail.business_obj.order_number }}</ExDefRow>
+        <ExDefRow :label="t('approval.fProject')">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fCustomer')">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.quotation_number" :label="t('approval.fLinkedQuotation')">{{ detail.business_obj.quotation_number }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.dealer_name" :label="t('approval.fDealer')">{{ detail.business_obj.dealer_name }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.distributor_name" :label="t('approval.fDistributor')">{{ detail.business_obj.distributor_name }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.is_direct_contract" :label="t('approval.fDirectContract')">{{ t('approval.yes') }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.is_factory_pickup" :label="t('approval.fFactoryPickup')">{{ t('approval.yes') }}</ExDefRow>
+        <ExDefRow :label="t('approval.fPricingAmount')">
           {{ currencySymbol(detail.business_obj.currency) }}{{ formatAmount(detail.business_obj.pricing_total_amount) }}
           <span v-if="detail.business_obj.pricing_total_discount_rate"
             :style="{ color: 'var(--color-ex-ink3)', fontSize: '11px', marginLeft: '6px' }">
-            (折 {{ ((detail.business_obj.pricing_total_discount_rate || 1) * 100).toFixed(1) }}%)
+            {{ t('approval.discountTip', { pct: ((detail.business_obj.pricing_total_discount_rate || 1) * 100).toFixed(1) }) }}
           </span>
         </ExDefRow>
-        <ExDefRow v-if="detail.business_obj.settlement_total_amount" label="结算金额">
+        <ExDefRow v-if="detail.business_obj.settlement_total_amount" :label="t('approval.fSettlementAmount')">
           {{ currencySymbol(detail.business_obj.currency) }}{{ formatAmount(detail.business_obj.settlement_total_amount) }}
         </ExDefRow>
-        <ExDefRow label="申请人">{{ detail.business_obj.creator_name || '—' }}</ExDefRow>
-        <ExDefRow label="备注" :last="true">{{ detail.business_obj.notes || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fApplicant')">{{ detail.business_obj.creator_name || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fNotes')" :last="true">{{ detail.business_obj.notes || '—' }}</ExDefRow>
       </div>
       <!-- 报价单字段 -->
       <div v-else-if="detail.business_obj && isQuotation" :style="{ background: 'var(--color-ex-card)' }">
-        <ExDefRow label="报价单号">{{ detail.business_obj.quotation_number }}</ExDefRow>
-        <ExDefRow label="项目">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
-        <ExDefRow label="客户">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.contact_name" label="联系人">{{ detail.business_obj.contact_name }}</ExDefRow>
-        <ExDefRow label="负责人">{{ detail.business_obj.owner_name || '—' }}</ExDefRow>
-        <ExDefRow label="报价金额">
+        <ExDefRow :label="t('approval.fQuotationNumber')">{{ detail.business_obj.quotation_number }}</ExDefRow>
+        <ExDefRow :label="t('approval.fProject')">{{ detail.business_obj.project_name || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fCustomer')">{{ detail.business_obj.customer_name || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.contact_name" :label="t('approval.fContact')">{{ detail.business_obj.contact_name }}</ExDefRow>
+        <ExDefRow :label="t('approval.fOwner')">{{ detail.business_obj.owner_name || '—' }}</ExDefRow>
+        <ExDefRow :label="t('approval.fQuoteAmount')">
           {{ currencySymbol(detail.business_obj.currency) }}{{ formatAmount(detail.business_obj.amount) }}
         </ExDefRow>
-        <ExDefRow v-if="detail.business_obj.implant_total_amount" label="植入金额">
+        <ExDefRow v-if="detail.business_obj.implant_total_amount" :label="t('approval.fImplantAmount')">
           {{ currencySymbol(detail.business_obj.currency) }}{{ formatAmount(detail.business_obj.implant_total_amount) }}
         </ExDefRow>
-        <ExDefRow v-if="detail.business_obj.project_stage" label="项目阶段">{{ detail.business_obj.project_stage }}</ExDefRow>
-        <ExDefRow v-if="detail.business_obj.project_type" label="项目类型">{{ detail.business_obj.project_type }}</ExDefRow>
-        <ExDefRow label="备注" :last="true">{{ detail.business_obj.notes || '—' }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.project_stage" :label="t('approval.fProjectStage')">{{ detail.business_obj.project_stage }}</ExDefRow>
+        <ExDefRow v-if="detail.business_obj.project_type" :label="t('approval.fProjectType')">{{ detail.business_obj.project_type }}</ExDefRow>
+        <ExDefRow :label="t('approval.fNotes')" :last="true">{{ detail.business_obj.notes || '—' }}</ExDefRow>
       </div>
 
       <!-- 明细 list -->
       <ExSectionHeader v-if="detail.business_obj?.lines?.length">
-        明细 · {{ detail.business_obj.lines.length }} 项
+        {{ t('approval.detLines', { n: detail.business_obj.lines.length }) }}
       </ExSectionHeader>
       <div v-if="detail.business_obj?.lines?.length" :style="{ background: 'var(--color-ex-card)' }">
         <div
@@ -212,7 +212,7 @@
               :src="lineThumbUrl(d)"
               class="w-full h-full" style="object-fit: cover;"
               @error="$event.target.style.display='none'" />
-            <span v-else>发票</span>
+            <span v-else>{{ t('approval.detInvoice') }}</span>
             <span v-if="(d.invoice_images?.length || 0) > 1"
               :style="{
                 position: 'absolute', top: '-2px', right: '-2px',
@@ -285,7 +285,7 @@
           fontSize: '14px', fontWeight: 600,
         }"
         @click="openSheet('reject')"
-      >驳回</div>
+      >{{ t('approval.rejectBtn') }}</div>
       <div
         class="flex items-center justify-center"
         :style="{
@@ -296,7 +296,7 @@
           fontSize: '14px', fontWeight: 600,
         }"
         @click="openSheet('approve')"
-      >同意</div>
+      >{{ t('approval.approveBtn') }}</div>
     </div>
 
     <!-- 同意/驳回/转交 sheet -->
@@ -315,8 +315,8 @@
     <!-- 转交目标 user picker -->
     <ExSearchPickerSheet
       v-model="userPickerOpen"
-      title="选择转交目标"
-      placeholder="搜索用户"
+      :title="t('approval.selectForwardTarget')"
+      :placeholder="t('approval.searchUser')"
       :search-fn="searchUsers"
       @pick="onPickForwardUser"
     />
@@ -355,7 +355,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import client from '@/api/client'
+
+const { t } = useI18n()
 import * as approvalApi from '@/api/approval'
 import { lineThumbUrl } from '@/api/expense'
 import ExLineDetailSheet from '@/components/expense/ExLineDetailSheet.vue'
@@ -389,23 +392,23 @@ const userPickerOpen = ref(false)
 const selectedForwardUser = ref(null)
 
 const navTitle = computed(() => detail.value
-  ? `审批 · ${detail.value.business_obj?.title || detail.value.object_name}`
-  : '审批详情')
+  ? t('approval.detTitleWith', { name: detail.value.business_obj?.title || detail.value.object_name })
+  : t('approval.detTitle'))
 const navSub = computed(() => detail.value?.submitter
-  ? `${detail.value.submitter.name} 提交 · ${(detail.value.created_at || '').slice(0, 10)}`
+  ? t('approval.detSubmitterAt', { name: detail.value.submitter.name, date: (detail.value.created_at || '').slice(0, 10) })
   : '')
 
 const currentStepName = computed(() => detail.value?.flow?.find(n => n.state === 'current')?.node || '')
 
-// 业务对象 sheet 标题用 - "项目"/"报销"/"批价单" 等
+// 业务对象 sheet 标题
 const objectKindLabel = computed(() => {
-  const t = detail.value?.object_type
-  if (t === 'project') return '项目'
-  if (t === 'expense') return '报销'
-  if (t === 'pricing_order') return '批价单'
-  if (t === 'quotation') return '报价单'
-  if (t === 'purchase_order') return '采购单'
-  return detail.value?.object_type_label || '审批'
+  const ot = detail.value?.object_type
+  if (ot === 'project') return t('approval.objProject')
+  if (ot === 'expense') return t('approval.objExpense')
+  if (ot === 'pricing_order') return t('approval.objPricing')
+  if (ot === 'quotation') return t('approval.objQuotation')
+  if (ot === 'purchase_order') return t('approval.objPurchase')
+  return detail.value?.object_type_label || t('approval.objApproval')
 })
 
 // 区分业务对象类型
@@ -434,10 +437,10 @@ const waitingHint = computed(() => {
   const submitted = new Date(detail.value.created_at)
   const ms = Date.now() - submitted.getTime()
   const hours = Math.floor(ms / 3600000)
-  if (hours < 1) return '刚刚提交'
-  if (hours < 24) return `已等待 ${hours} 小时`
+  if (hours < 1) return t('approval.waitJustNow')
+  if (hours < 24) return t('approval.waitHours', { n: hours })
   const days = Math.floor(hours / 24)
-  return `已等待 ${days} 天`
+  return t('approval.waitDays', { n: days })
 })
 
 const contextLine = computed(() => detail.value
@@ -495,7 +498,7 @@ async function onSaveLineField({ field, value, line, done }) {
       }
       done?.(null)
     } else {
-      done?.(new Error(r.data?.message || '保存失败'))
+      done?.(new Error(r.data?.message || t('approval.saveFailed')))
     }
   } catch (e) {
     done?.(new Error(e.response?.data?.message || e.message))
@@ -522,16 +525,16 @@ async function onConfirmAction({ comment, targetUserId }) {
     sessionStorage.setItem('approval-list-needs-refresh', '1')
     // 顶部 toast 浮现操作结果
     const msg = resp?.data?.message || (
-      currentAction.value === 'approve' ? '已同意' :
-      currentAction.value === 'reject'  ? '已驳回' :
-      currentAction.value === 'forward' ? '已转交' : '操作成功'
+      currentAction.value === 'approve' ? t('approval.actionApproved') :
+      currentAction.value === 'reject'  ? t('approval.actionRejected') :
+      currentAction.value === 'forward' ? t('approval.actionForwarded') : t('approval.actionDone')
     )
     showToast(msg)
     // 处理完后用户已无操作权(已驳回/已转交/已同意 → 当前步骤不再属于此用户)
     // 800ms 后自动返回审批列表(让用户看到 toast)
     setTimeout(() => router.back(), 800)
   } catch (e) {
-    alert('操作失败: ' + (e.response?.data?.message || e.message))
+    alert(t('approval.actionFailed') + ': ' + (e.response?.data?.message || e.message))
   } finally {
     submitting.value = false
   }
