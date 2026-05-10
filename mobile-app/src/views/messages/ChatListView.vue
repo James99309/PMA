@@ -335,10 +335,59 @@ function closePicker() {
 function openPicker() {
   showPicker.value = true
 }
+
+// ─── DIAG: + 按钮触摸/点击诊断（临时） ─────────────────────────
+const dbg = ref({ click: 0, touchStart: 0, touchEnd: 0, pointerDown: 0, openCalls: 0, lastEvt: '', lastTarget: '', topAtPoint: '' })
+function _evtTag(e) {
+  const t = e.target
+  if (!t) return ''
+  return `${t.tagName}.${(t.className || '').toString().slice(0, 30)}`
+}
+function _topAt(x, y) {
+  const el = document.elementFromPoint(x, y)
+  if (!el) return '(none)'
+  return `${el.tagName}.${(el.className || '').toString().slice(0, 40)}`
+}
+function onPlusClick(e) {
+  dbg.value.click++
+  dbg.value.lastEvt = 'click'
+  dbg.value.lastTarget = _evtTag(e)
+  dbg.value.openCalls++
+  showPicker.value = true
+}
+function onPlusTouchStart(e) {
+  dbg.value.touchStart++
+  dbg.value.lastEvt = 'touchstart'
+  dbg.value.lastTarget = _evtTag(e)
+  const t = e.touches?.[0]
+  if (t) dbg.value.topAtPoint = _topAt(t.clientX, t.clientY)
+}
+function onPlusTouchEnd(e) {
+  dbg.value.touchEnd++
+  dbg.value.lastEvt = 'touchend'
+  dbg.value.lastTarget = _evtTag(e)
+}
+function onPlusPointerDown(e) {
+  dbg.value.pointerDown++
+  dbg.value.lastEvt = 'pointerdown'
+  dbg.value.lastTarget = _evtTag(e)
+}
 </script>
 
 <template>
   <div class="flex flex-col h-full" style="background: var(--color-bg);">
+
+    <!-- DIAG 浮标（临时）— 排查 + 按钮无响应 -->
+    <div
+      style="position: fixed; top: 60px; left: 8px; right: 8px; z-index: 9999;
+             background: rgba(0,0,0,0.85); color: #0F0; font-size: 10px;
+             font-family: ui-monospace, monospace; padding: 6px 8px;
+             border-radius: 6px; line-height: 1.45; pointer-events: none;">
+      <div>click={{ dbg.click }} touchStart={{ dbg.touchStart }} touchEnd={{ dbg.touchEnd }} pointerDown={{ dbg.pointerDown }}</div>
+      <div>openCalls={{ dbg.openCalls }} showPicker={{ showPicker }} lastEvt={{ dbg.lastEvt }}</div>
+      <div style="color: #FFC;">target={{ dbg.lastTarget }}</div>
+      <div style="color: #FFC;">topAtPoint={{ dbg.topAtPoint }}</div>
+    </div>
 
 
     <!-- PageHead -->
@@ -349,9 +398,14 @@ function openPicker() {
         <h1 class="font-serif m-0 mt-1"
           style="font-size: 30px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">{{ t('chat.title') }}</h1>
       </div>
-      <button @click="openPicker" type="button"
+      <button
+        @click="onPlusClick"
+        @touchstart="onPlusTouchStart"
+        @touchend="onPlusTouchEnd"
+        @pointerdown="onPlusPointerDown"
+        type="button"
         class="w-9 h-9 rounded-full inline-flex items-center justify-center"
-        style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300; touch-action: manipulation;">+</button>
+        style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300;">+</button>
     </div>
 
     <!-- 加载中 -->
