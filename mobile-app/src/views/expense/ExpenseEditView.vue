@@ -17,11 +17,11 @@
       <button @click="$router.back()"
         class="active:opacity-60"
         style="font-size: 15px; color: #3A3A3A; font-weight: 500; background: none; border: none; padding: 0;">
-        取消
+        {{ t('common.cancel') }}
       </button>
       <div class="text-center">
         <div style="font-family: 'Noto Serif SC', Georgia, serif; font-size: 18px; font-weight: 500; color: #1A1A1A;">
-          {{ editingId ? '编辑报销单' : '新建报销单' }}
+          {{ editingId ? t('expense.editTitle') : t('expense.newTitle') }}
         </div>
         <div style="font-size: 11px; color: #7A7570; margin-top: 1px;">{{ navSub }}</div>
       </div>
@@ -38,14 +38,14 @@
         <!-- 报销主题 -->
         <div :style="{ padding: '0 20px 16px' }">
           <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">
-            报销主题
+            {{ t('expense.fSubject') }}
             <span :style="{ color: 'var(--color-ex-ink4)', fontWeight: 400, marginLeft: '4px' }">
-              留空时 AI 据说明自动生成
+              {{ t('expense.fSubjectAi') }}
             </span>
           </div>
           <input
             v-model="form.title"
-            placeholder="例: 苏州客户拜访 (可留空 AI 生成)"
+            :placeholder="t('expense.fSubjectPh')"
             :style="{
               fontSize: '22px',
               fontWeight: 500,
@@ -65,7 +65,7 @@
         <div class="flex" :style="{ padding: '0 20px', gap: '16px', marginBottom: '18px' }">
           <div class="flex-1">
             <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">
-              报销币种<span :style="{ color: 'var(--color-ex-ink4)', marginLeft: '4px' }">· 按结算偏好</span>
+              {{ t('expense.settlementCurrency') }}<span :style="{ color: 'var(--color-ex-ink4)', marginLeft: '4px' }">· {{ t('expense.bySettlementPref') }}</span>
             </div>
             <div :style="{
                 fontSize: '14px',
@@ -77,7 +77,7 @@
             </div>
           </div>
           <div class="flex-1">
-            <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">状态</div>
+            <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginBottom: '4px' }">{{ t('expense.fStatus') }}</div>
             <div
               :style="{
                 fontSize: '12px',
@@ -110,41 +110,41 @@
               fontSize: '12px',
             }"
           >{{ form.no_link ? '✓' : '' }}</div>
-          <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink2)' }">不关联客户/项目模式</div>
+          <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink2)' }">{{ t('expense.fNoLink') }}</div>
         </div>
         <div
           :style="{ padding: '0 20px 8px', fontSize: '11px', color: 'var(--color-ex-ink4)', marginLeft: '28px' }"
-        >{{ form.no_link ? '已开启 · 此报销单不归属任何客户或项目' : '默认关闭 · 必须关联客户和项目' }}</div>
+        >{{ form.no_link ? t('expense.fNoLinkOn') : t('expense.fNoLinkOff') }}</div>
 
         <!-- 关联客户 / 项目 (no_link=false 时) -->
         <template v-if="!form.no_link">
           <ExRow
-            label="关联客户 *"
-            :value="form.customer_name || '请选择'"
-            :sub="form.customer_code ? `客户编号 ${form.customer_code}` : ''"
+            :label="t('expense.fLinkCustomer')"
+            :value="form.customer_name || t('expense.fPleaseSelect')"
+            :sub="form.customer_code ? t('expense.fCustomerCode', { code: form.customer_code }) : ''"
             @click="customerPickerOpen = true"
           />
           <ExRow
-            label="关联项目 *"
-            :value="form.project_name || '请选择'"
+            :label="t('expense.fLinkProject')"
+            :value="form.project_name || t('expense.fPleaseSelect')"
             @click="projectPickerOpen = true"
           />
         </template>
 
         <!-- 报销说明 -->
-        <ExRow label="报销说明 *" :multi="true">
+        <ExRow :label="t('expense.fDescription')" :multi="true">
           <textarea
             v-model="form.description"
             rows="3"
-            placeholder="请说明此次报销背景、必要性"
+            :placeholder="t('expense.fDescriptionPh')"
             :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%', resize: 'none', outline: 'none', lineHeight: 1.55 }"
           />
         </ExRow>
 
         <!-- 申请人 -->
-        <ExRow label="申请人" :value="ownerName">
+        <ExRow :label="t('expense.fApplicant')" :value="ownerName">
           <template #right>
-            <span :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)' }">系统默认</span>
+            <span :style="{ fontSize: '10px', color: 'var(--color-ex-ink4)' }">{{ t('expense.fSystemDefault') }}</span>
           </template>
         </ExRow>
       </div>
@@ -164,9 +164,9 @@
             letterSpacing: '0.6px',
             textTransform: 'uppercase',
           }"
-        >报销明细</div>
+        >{{ t('expense.detailsHeader') }}</div>
         <div :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)' }">
-          共 {{ lines.length }} 项 ·
+          {{ t('expense.itemsN', { n: lines.length }) }} ·
           <span
             :style="{ fontSize: '14px', fontWeight: 600, fontFamily: 'var(--font-serif)', color: 'var(--color-ex-ink)' }"
           >{{ currencySymbolFor(form.currency) }}{{ formatAmount(totalAmount) }}</span>
@@ -185,7 +185,7 @@
         }"
       >
         <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)', textAlign: 'center', marginBottom: '14px' }">
-          还没有任何明细 · 拍发票自动识别 或 手动添加
+          {{ t('expense.emptyHint') }}
         </div>
         <div class="flex" :style="{ gap: '10px' }">
           <div
@@ -197,7 +197,7 @@
             }"
             @click="onCapture"
           >
-            <span :style="{ fontSize: '14px' }">◉</span> 拍发票
+            <span :style="{ fontSize: '14px' }">◉</span> {{ t('expense.captureReceipt') }}
           </div>
           <div
             class="flex-1 flex items-center justify-center"
@@ -209,7 +209,7 @@
               fontSize: '13px', fontWeight: 600,
             }"
             @click="openLineForm()"
-          >+ 手动添加</div>
+          >{{ t('expense.addManual') }}</div>
         </div>
       </div>
 
@@ -219,7 +219,7 @@
           v-for="(d, i) in lines"
           :key="d.id || i"
           :disabled="status !== 'draft' && status !== 'rejected'"
-          :actions="[{ label: '删除', color: 'red', handler: () => d.id && onDeleteLine(d.id) }]"
+          :actions="[{ label: t('expense.deleteAction'), color: 'red', handler: () => d.id && onDeleteLine(d.id) }]"
         >
         <div
           class="flex"
@@ -245,7 +245,7 @@
               class="w-full h-full"
               style="object-fit: cover;"
               @error="$event.target.style.display='none'" />
-            <span v-else>{{ d.invoice_images?.length ? `图${d.invoice_images.length}` : '发票' }}</span>
+            <span v-else>{{ d.invoice_images?.length ? t('expense.imgCount', { n: d.invoice_images.length }) : t('expense.invoiceLabel') }}</span>
             <!-- 多张发票数量角标 -->
             <span v-if="(d.invoice_images?.length || 0) > 1"
               :style="{
@@ -273,9 +273,9 @@
             <div class="flex" :style="{ fontSize: '11px', color: 'var(--color-ex-ink4)', marginTop: '4px', gap: '8px' }">
               <span>{{ d.expense_date }}</span>
               <span>·</span>
-              <span>{{ d.document_count }} 张</span>
+              <span>{{ t('expense.docCountN', { n: d.document_count }) }}</span>
               <span>·</span>
-              <span>汇率 {{ (d.exchange_rate || 1).toFixed(4) }}</span>
+              <span>{{ t('expense.rateAt', { r: (d.exchange_rate || 1).toFixed(4) }) }}</span>
             </div>
           </div>
         </div>
@@ -293,7 +293,7 @@
             gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--color-ex-ink)',
           }"
           @click="onCapture"
-        ><span>◉</span> 继续拍</div>
+        ><span>◉</span> {{ t('expense.continueShoot') }}</div>
         <div
           class="flex-1 flex items-center justify-center"
           :style="{
@@ -303,14 +303,14 @@
             fontSize: '13px', color: 'var(--color-ex-ink2)',
           }"
           @click="openLineForm()"
-        >+ 手动添加</div>
+        >{{ t('expense.addManual') }}</div>
       </div>
     </div>
 
     <!-- 底部 CTA -->
     <ExBottomBar
-      :primary="hasLines ? '提交审批' : '保存草稿'"
-      :secondary="hasLines ? '保存草稿' : '提交审批'"
+      :primary="hasLines ? t('expense.submit') : t('expense.save')"
+      :secondary="hasLines ? t('expense.save') : t('expense.submit')"
       :disabled="!canPrimary"
       @primary="onPrimary"
       @secondary="onSecondary"
@@ -319,15 +319,15 @@
     <!-- 客户/项目 picker -->
     <ExSearchPickerSheet
       v-model="customerPickerOpen"
-      title="选择客户"
-      placeholder="搜索客户名称"
+      :title="t('expense.pickCustomer')"
+      :placeholder="t('expense.pickCustomerPh')"
       :search-fn="searchCustomers"
       @pick="onPickCustomer"
     />
     <ExSearchPickerSheet
       v-model="projectPickerOpen"
-      title="选择项目"
-      placeholder="搜索项目名称"
+      :title="t('expense.pickProject')"
+      :placeholder="t('expense.pickProjectPh')"
       :search-fn="searchProjects"
       @pick="onPickProject"
     />
@@ -351,7 +351,7 @@
       :customer-name="form.customer_name"
       :project-name="form.project_name"
       :line-count="lines.length"
-      :next-approver="{ user: '上级', node: '上级审批' }"
+      :next-approver="{ user: t('expense.nextApprover'), node: t('expense.nextApproverNode') }"
       :submitting="submitting"
       @confirm="onConfirmSubmit"
     />
@@ -361,6 +361,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import client from '@/api/client'
 import * as expApi from '@/api/expense'
 import { lineThumbUrl } from '@/api/expense'
@@ -379,6 +380,7 @@ import SwipeRowAction from '@/components/common/SwipeRowAction.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const store = useExpenseStore()
 const auth = useAuthStore()
 
@@ -420,22 +422,22 @@ const navSub = computed(() => {
   if (editingId.value) {
     // 编辑模式: 显示单号 + 明细数
     const num = store.detailCache[editingId.value]?.expense_number || ''
-    return `${num}${num ? ' · ' : ''}${lines.value.length} 项明细`
+    return `${num}${num ? ' · ' : ''}${t('expense.formLines', { n: lines.value.length })}`
   }
   // 新建模式: 用 step 引导
   return hasLines.value
-    ? `② 明细 · 已添加 ${lines.value.length} 项`
-    : '① 主表 · 单号系统自动生成'
+    ? t('expense.subTitleStep2', { n: lines.value.length })
+    : t('expense.subTitleStep1')
 })
 const contextLine = computed(() => {
   const parts = []
   if (form.value.customer_name) parts.push(form.value.customer_name)
   if (form.value.project_name) parts.push(form.value.project_name)
-  return parts.join(' · ') || '未关联客户'
+  return parts.join(' · ') || t('expense.noLinkedCustomer')
 })
 const statusLabel = computed(() => {
   const m = store.statuses.find(s => s.key === status.value)
-  return m?.label || '草稿'
+  return m?.label || t('expense.defaultStatusDraft')
 })
 const ownerName = computed(() => auth.user?.real_name || auth.user?.username || '—')
 const totalAmount = computed(() =>
@@ -486,7 +488,7 @@ async function searchCustomers(q) {
   return (r.data?.data?.items || []).map(c => ({
     id: c.id,
     label: c.name || c.company_name,
-    sub: c.primary_contact_name ? `主联系人: ${c.primary_contact_name}` : (c.industry || ''),
+    sub: c.primary_contact_name ? `${t('expense.mainContactPrefix')}: ${c.primary_contact_name}` : (c.industry || ''),
     code: c.code || c.company_code || '',
   }))
 }
@@ -535,7 +537,7 @@ async function ensureExpenseExists() {
     triggerAutoTitle()  // fire-and-forget AI 生成标题
     return editingId.value
   }
-  throw new Error(r.data?.message || '创建失败')
+  throw new Error(r.data?.message || t('expense.createFail'))
 }
 
 // 异步触发 AI 生成标题, 不阻塞用户操作
@@ -560,7 +562,7 @@ async function onSaveLine(payload) {
       if (r.data?.success) lines.value.push(r.data.data)
     }
   } catch (e) {
-    alert('保存明细失败: ' + (e.response?.data?.message || e.message))
+    alert(t('expense.saveLineFail') + ': ' + (e.response?.data?.message || e.message))
   }
 }
 
@@ -570,7 +572,7 @@ async function onDeleteLine(lineId) {
     await expApi.deleteLine(editingId.value, lineId)
     lines.value = lines.value.filter(l => l.id !== lineId)
   } catch (e) {
-    alert('删除失败: ' + (e.response?.data?.message || e.message))
+    alert(t('expense.deleteFailed') + ': ' + (e.response?.data?.message || e.message))
   }
 }
 
@@ -601,7 +603,7 @@ async function saveDraft() {
     }
     return true
   } catch (e) {
-    alert('保存失败: ' + (e.response?.data?.message || e.message))
+    alert(t('expense.saveFail') + ': ' + (e.response?.data?.message || e.message))
     return false
   }
 }
@@ -623,7 +625,7 @@ async function onSecondary() {
     if (await saveDraft()) router.back()
   } else {
     // 无明细 不能提交
-    alert('请至少添加 1 条明细后再提交')
+    alert(t('expense.atLeastOneLine'))
   }
 }
 
@@ -637,10 +639,10 @@ async function onConfirmSubmit() {
       submitSheetOpen.value = false
       router.replace(`/expense/${editingId.value}`)
     } else {
-      alert(r.data?.message || '提交失败')
+      alert(r.data?.message || t('expense.submitFail'))
     }
   } catch (e) {
-    alert('提交失败: ' + (e.response?.data?.message || e.message))
+    alert(t('expense.submitFail') + ': ' + (e.response?.data?.message || e.message))
   } finally {
     submitting.value = false
   }
