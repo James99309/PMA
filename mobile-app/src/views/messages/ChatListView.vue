@@ -500,9 +500,10 @@ function onPlusPointerDown(e) {
 
     <!-- 发起聊天 sheet -->
     <Transition name="sheet">
-      <div v-if="showPicker" class="absolute inset-0 z-40">
+      <div v-if="showPicker" class="absolute inset-0 z-40"
+        style="border: 4px solid lime; outline: 4px solid magenta;">
         <!-- 遮罩点击关闭 sheet -->
-        <div class="absolute inset-0 bg-black/40" @click="closePicker" />
+        <div class="absolute inset-0 bg-black/40" @click="closePicker" style="border: 4px dashed yellow;" />
         <!-- panel: bottom 跟随键盘抬升, max-h 减去键盘, 避免被键盘挤压
              @click.stop 防止 panel 内点击冒泡到遮罩误触发 closePicker -->
         <div class="absolute left-0 right-0 rounded-t-3xl pt-3 pb-8 overflow-y-auto"
