@@ -2,8 +2,10 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDictionariesStore } from '@/stores/dictionaries'
+import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
+const auth = useAuthStore()
 
 const props = defineProps({
   modelValue:   { type: Boolean, default: false },
@@ -21,7 +23,7 @@ const dictStore = useDictionariesStore()
 onMounted(() => { dictStore.ensure('project_stage') })
 const STAGE_OPTIONS = computed(() => [
   { value: '', label: t('common.all') },
-  ...dictStore.list('project_stage').map(d => ({ value: d.key, label: d.label })),
+  ...dictStore.list('project_stage').map(d => ({ value: d.key, label: d.displayLabel || d.label })),
 ])
 
 // ─── 客户专属维度 —— 状态对齐 activity_tracker.ACTIVITY_STATUS
@@ -40,10 +42,20 @@ const OPEN_COUNT_OPTIONS = computed(() =>
   OPEN_COUNT_KEYS.map(o => ({ ...o, label: t(`customer.openBucket.${o.value}`) }))
 )
 
-const REGION_OPTIONS = [
-  { value: '上海' }, { value: '南京' }, { value: '广州' }, { value: '深圳' },
-  { value: '杭州' }, { value: '成都' }, { value: '北京' }, { value: '苏州' },
-]
+// 地区选项按当前数据区切换 (CN/SG); 区内城市按 region 字段后端原值匹配
+const REGION_OPTIONS_BY_REGION = {
+  cn: [
+    { value: '上海' }, { value: '南京' }, { value: '广州' }, { value: '深圳' },
+    { value: '杭州' }, { value: '成都' }, { value: '北京' }, { value: '苏州' },
+  ],
+  sg: [
+    { value: 'Singapore' }, { value: 'Johor' }, { value: 'Kuala Lumpur' },
+    { value: 'Penang' }, { value: 'Selangor' }, { value: 'Malacca' },
+  ],
+}
+const REGION_OPTIONS = computed(() =>
+  REGION_OPTIONS_BY_REGION[auth.regionId] || REGION_OPTIONS_BY_REGION.cn
+)
 
 const VALUE_MAX = 800  // 客户累计价值上限（万元）
 

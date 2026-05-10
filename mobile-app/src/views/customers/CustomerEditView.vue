@@ -63,11 +63,11 @@ const STATUS_OPTIONS = [
   { value: '流失',     label: '流失' },
 ]
 const SOURCE_OPTIONS = computed(() =>
-  dictStore.list('report_source').map(d => ({ value: d.label, label: d.label }))
-  // source 后端存中文，所以 value 也用 label
+  dictStore.list('report_source').map(d => ({ value: d.label, label: d.displayLabel || d.label }))
+  // source 后端存中文，所以 value 仍用原始 label, 显示用 displayLabel
 )
 const COMPANY_TYPE_OPTIONS = computed(() =>
-  dictStore.list('company_type').map(d => ({ value: d.key, label: d.label }))
+  dictStore.list('company_type').map(d => ({ value: d.key, label: d.displayLabel || d.label }))
 )
 
 // 显示用 label

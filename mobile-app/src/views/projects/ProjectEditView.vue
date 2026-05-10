@@ -51,7 +51,7 @@ const PRODUCT_SITUATION_OPTIONS = computed(() =>
   PRODUCT_SITUATION_KEYS.map(k => ({ value: k, label: t(`project.productSituation.${k}`) }))
 )
 const PROJECT_TYPE_OPTIONS = computed(() =>
-  dictStore.list('project_type').map(d => ({ value: d.key, label: d.label }))
+  dictStore.list('project_type').map(d => ({ value: d.key, label: d.displayLabel || d.label }))
 )
 
 // 厂商销售
