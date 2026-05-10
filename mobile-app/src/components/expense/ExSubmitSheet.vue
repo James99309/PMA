@@ -43,7 +43,7 @@
             }"
           />
           <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', letterSpacing: '0.6px' }">
-            提交审批
+            {{ t('expense.submitEyebrow') }}
           </div>
           <div
             :style="{
@@ -53,7 +53,7 @@
               color: 'var(--color-ex-ink)',
               marginTop: '4px',
             }"
-          >确认提交?</div>
+          >{{ t('expense.submitConfirmTitle') }}</div>
 
           <!-- 信息卡 -->
           <div
@@ -66,7 +66,7 @@
             }"
           >
             <div class="flex items-baseline justify-between">
-              <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }">报销总金额</div>
+              <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }">{{ t('expense.submitTotalLabel') }}</div>
               <div
                 :style="{
                   fontSize: '20px',
@@ -78,16 +78,16 @@
             <div :style="{ height: '1px', background: 'var(--color-ex-divider-soft)', margin: '10px 0' }" />
             <div :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)', lineHeight: 1.7 }">
               <div class="flex justify-between">
-                <span>关联客户</span>
+                <span>{{ t('expense.submitDefCustomer') }}</span>
                 <span :style="{ color: 'var(--color-ex-ink2)' }">{{ customerName || '—' }}</span>
               </div>
               <div class="flex justify-between">
-                <span>关联项目</span>
+                <span>{{ t('expense.submitDefProject') }}</span>
                 <span :style="{ color: 'var(--color-ex-ink2)' }">{{ projectName || '—' }}</span>
               </div>
               <div class="flex justify-between">
-                <span>明细数</span>
-                <span :style="{ color: 'var(--color-ex-ink2)' }">{{ lineCount }} 项</span>
+                <span>{{ t('expense.submitDefLines') }}</span>
+                <span :style="{ color: 'var(--color-ex-ink2)' }">{{ t('expense.submitDefLinesN', { n: lineCount }) }}</span>
               </div>
             </div>
           </div>
@@ -103,11 +103,11 @@
             }"
           >
             <div :style="{ fontSize: '11px', color: 'var(--color-ex-warn)', fontWeight: 600, marginBottom: '2px' }">
-              下一节点
+              {{ t('expense.submitNextNode') }}
             </div>
             <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink2)' }">
               <span :style="{ fontWeight: 600 }">{{ nextApprover.user }}</span>
-              · {{ nextApprover.node }} · 通常 1 个工作日内
+              · {{ nextApprover.node }} {{ t('expense.submitNextNodeLine') }}
             </div>
           </div>
 
@@ -126,7 +126,7 @@
                 fontWeight: 600,
               }"
               @click="close"
-            >取消</div>
+            >{{ t('expense.cancelBtn') }}</div>
             <div
               class="flex items-center justify-center"
               role="button"
@@ -141,7 +141,7 @@
                 opacity: submitting ? 0.7 : 1,
               }"
               @click="!submitting && $emit('confirm')"
-            >{{ submitting ? '提交中...' : '确认提交' }}</div>
+            >{{ submitting ? t('expense.submittingDots') : t('expense.submitConfirmBtn') }}</div>
           </div>
         </div>
       </div>
@@ -150,6 +150,9 @@
 </template>
 
 <script setup>
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
+
 defineProps({
   modelValue: { type: Boolean, default: false },
   totalAmount: { type: Number, default: 0 },

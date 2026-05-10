@@ -5,7 +5,10 @@
 //   - 附近地点列表（reverse geocode 当前位置 + 半径搜索）
 //   - 选中后「发送」带 name + address，而非裸坐标
 import { ref, watch, computed, nextTick, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Geolocation } from '@capacitor/geolocation'
+
+const { t } = useI18n()
 import { Browser } from '@capacitor/browser'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -53,7 +56,7 @@ async function reverseGeocode(la, lo) {
     if (!r.ok) return null
     const j = await r.json()
     return {
-      name: j.name || j.display_name?.split(',')[0]?.trim() || '当前位置',
+      name: j.name || j.display_name?.split(',')[0]?.trim() || t('location.nameHere'),
       address: j.display_name || '',
     }
   } catch { return null }
@@ -105,7 +108,7 @@ watch(() => props.modelValue, async v => {
     lat.value = props.lat; lon.value = props.lon
     baseLat.value = props.lat; baseLon.value = props.lon
     places.value = [{
-      name: props.name || '位置',
+      name: props.name || t('location.nameDefault'),
       address: props.address || '',
       lat: props.lat, lon: props.lon, distance: 0,
     }]
@@ -125,13 +128,13 @@ async function locate() {
     // 反向地理编码当前位置
     const cur = await reverseGeocode(la, lo)
     places.value = [{
-      name: cur?.name || '当前位置',
+      name: cur?.name || t('location.nameHere'),
       address: cur?.address || '',
       lat: la, lon: lo, distance: 0,
     }]
     selectedIdx.value = 0
   } catch (e) {
-    error.value = e?.message || '定位失败'
+    error.value = e?.message || t('location.locFail')
   } finally {
     loading.value = false
   }
@@ -224,7 +227,7 @@ async function onSend() {
     })
     emit('update:modelValue', false)
   } catch (e) {
-    alert('发送失败：' + (e?.message || e))
+    alert(t('location.sendFail') + (e?.message || e))
   } finally {
     sending.value = false
   }
@@ -255,20 +258,20 @@ function recenterToBase() {
           <!-- 顶部 nav: 取消 / 共享位置 / 发送 -->
           <div class="px-5 pb-3 flex items-center justify-between shrink-0">
             <button @click="close" class="text-[14px] active:opacity-60"
-              style="color: var(--color-ink-3);">取消</button>
+              style="color: var(--color-ink-3);">{{ t('location.cancel') }}</button>
             <div class="text-center">
               <p class="font-serif text-[16px] font-semibold" style="color: var(--color-ink);">
-                {{ mode === 'share' ? '共享位置' : '位置详情' }}
+                {{ mode === 'share' ? t('location.share') : t('location.detail') }}
               </p>
               <p v-if="mode === 'share'" class="text-[11px]" style="color: var(--color-ink-3);">
-                选择一个地点
+                {{ t('location.pickOne') }}
               </p>
             </div>
             <button v-if="mode === 'share'"
               @click="onSend" :disabled="sending || lat == null"
               class="text-[14px] font-semibold active:opacity-60 disabled:opacity-40"
               style="color: var(--color-accent);">
-              {{ sending ? '发送中…' : '发送' }}
+              {{ sending ? t('location.sending') : t('location.send') }}
             </button>
             <span v-else style="width: 40px;"></span>
           </div>
@@ -282,7 +285,7 @@ function recenterToBase() {
                 <path d="M16 16l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
               </svg>
               <input v-model="search" type="search"
-                placeholder="搜索地点 · 学校 / 商场 / 地址"
+                :placeholder="t('location.searchPh')"
                 class="flex-1 bg-transparent outline-none text-[14px]"
                 style="color: var(--color-ink);" />
               <span v-if="searching" class="w-3 h-3 border-2 rounded-full animate-spin"
@@ -302,12 +305,12 @@ function recenterToBase() {
               isolation: 'isolate',
             }">
             <div v-if="loading" class="absolute inset-0 flex items-center justify-center text-[13px]"
-              style="color: var(--color-ink-3); z-index: 10;">定位中…</div>
+              style="color: var(--color-ink-3); z-index: 10;">{{ t('location.locating') }}</div>
             <div v-else-if="error" class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center"
               style="z-index: 10;">
               <span class="text-[13px]" style="color: #C44;">{{ error }}</span>
               <button @click="locate" class="text-[12px] underline"
-                style="color: var(--color-accent);">重试</button>
+                style="color: var(--color-accent);">{{ t('location.retry') }}</button>
             </div>
             <div ref="mapEl" class="w-full h-full" />
             <button v-if="lat && !loading && !error && mode === 'share'"
@@ -330,7 +333,7 @@ function recenterToBase() {
                 color: 'var(--color-ink-2)',
                 border: '1px solid var(--color-divider)',
               }">
-              {{ isChina ? '高德' : 'OSM' }}
+              {{ isChina ? t('location.mapAmap') : t('location.mapOsm') }}
             </span>
           </div>
 
@@ -338,11 +341,11 @@ function recenterToBase() {
           <div class="flex-1 overflow-y-auto" style="-webkit-overflow-scrolling: touch;">
             <div class="px-5 py-2 text-[11px] font-semibold uppercase"
               style="color: var(--color-ink-3); letter-spacing: 1px;">
-              {{ search ? '搜索结果' : '附近地点' }}
+              {{ search ? t('location.searchResults') : t('location.nearby') }}
             </div>
             <div v-if="!places.length" class="px-5 py-6 text-center text-[12px]"
               style="color: var(--color-ink-3);">
-              {{ searching ? '搜索中…' : (loading ? '' : '无') }}
+              {{ searching ? t('location.searching') : (loading ? '' : t('location.none')) }}
             </div>
             <button v-for="(p, i) in places" :key="i"
               @click="selectPlace(i)"
@@ -363,7 +366,7 @@ function recenterToBase() {
               </span>
               <div class="flex-1 min-w-0">
                 <div class="text-[14px] font-medium" style="color: var(--color-ink);">
-                  {{ p.name || '未命名' }}
+                  {{ p.name || t('location.nameUntitled') }}
                 </div>
                 <div v-if="p.address" class="text-[11px] mt-0.5 truncate" style="color: var(--color-ink-3);">
                   {{ p.address }}
@@ -371,7 +374,7 @@ function recenterToBase() {
               </div>
               <span class="text-[11px] tabular shrink-0 mt-0.5"
                 :style="{ color: i === selectedIdx ? 'var(--color-accent)' : 'var(--color-ink-3)', fontWeight: i === selectedIdx ? 600 : 400 }">
-                {{ i === 0 && !search ? '当前位置 · ' + fmtDist(p.distance) : fmtDist(p.distance) }}
+                {{ i === 0 && !search ? t('location.hereDot') + fmtDist(p.distance) : fmtDist(p.distance) }}
               </span>
             </button>
           </div>

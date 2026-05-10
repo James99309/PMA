@@ -2,7 +2,11 @@
 // @/#/$ 3 维提及选择器
 // 接真后端搜索：@用户（按 conv/project scope 限制）/ #项目 / $客户
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { searchUsers, searchProjects, searchCompanies } from '@/api/chat'
+
+// alias to tt — local `t` is used for prop-type letter inside fetchIfNeeded
+const { t: tt } = useI18n()
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -21,13 +25,13 @@ const apiResults = ref({ '@': [], '#': [], '$': [] })
 const loading = ref(false)
 const lastFetchKey = ref('')
 
-const TYPE_META = {
-  '@': { label: '提及成员' },
-  '#': { label: '引用项目' },
-  '$': { label: '引用客户' },
-}
+const TYPE_META = computed(() => ({
+  '@': { label: tt('chat.mentionMember') },
+  '#': { label: tt('chat.mentionProject') },
+  '$': { label: tt('chat.mentionCustomer') },
+}))
 
-const meta = computed(() => TYPE_META[props.type] || TYPE_META['@'])
+const meta = computed(() => TYPE_META.value[props.type] || TYPE_META.value['@'])
 
 // 把后端返回标准化为 { id, name, ... } 形式（render 里要 name 字段）
 function normalizeUsers(rows) {
@@ -59,9 +63,9 @@ function normalizeCompanies(rows) {
 }
 
 // AI-only 模式（私聊场景）：@ 只显示源助手，不调用 /users/search
-const AI_ONLY_USERS = [
-  { id: 'ai', name: '源助手', role: 'AI 助手 · BETA', initial: 'P', isAi: true },
-]
+const AI_ONLY_USERS = computed(() => [
+  { id: 'ai', name: tt('chat.aiAssistant'), role: tt('chat.mentionAiRole'), initial: 'P', isAi: true },
+])
 
 // 真后端搜索（防抖式：每个 type+query 只发一次）
 async function fetchIfNeeded() {
@@ -75,8 +79,8 @@ async function fetchIfNeeded() {
   if (t === '@' && props.aiOnly) {
     const ql = (q || '').toLowerCase()
     apiResults.value['@'] = ql
-      ? AI_ONLY_USERS.filter(u => u.name.toLowerCase().includes(ql))
-      : AI_ONLY_USERS
+      ? AI_ONLY_USERS.value.filter(u => u.name.toLowerCase().includes(ql))
+      : AI_ONLY_USERS.value
     return
   }
 
@@ -92,8 +96,9 @@ async function fetchIfNeeded() {
       // 在群聊 / 项目讨论：AI（源助手）总是可被 @
       if (props.convId || props.projectId) {
         const ql = (q || '').toLowerCase()
-        if (!ql || '源助手'.includes(ql) || 'ai'.includes(ql)) {
-          list = [{ id: 'ai', name: '源助手', role: 'AI 助手 · BETA', initial: 'P', isAi: true }, ...list]
+        const aiName = tt('chat.aiAssistant')
+        if (!ql || aiName.toLowerCase().includes(ql) || 'ai'.includes(ql)) {
+          list = [{ id: 'ai', name: aiName, role: tt('chat.mentionAiRole'), initial: 'P', isAi: true }, ...list]
         }
       }
       apiResults.value['@'] = list
@@ -138,7 +143,7 @@ function switchTo(t) {
       <div class="px-3.5 pt-2.5 pb-1.5 flex items-center justify-between">
         <div class="text-[11px] font-semibold uppercase"
           style="color: var(--color-ink-3); letter-spacing: 1px;">{{ meta.label }}</div>
-        <div class="text-[11px]" style="color: var(--color-ink-3);">{{ filtered.length }} 项</div>
+        <div class="text-[11px]" style="color: var(--color-ink-3);">{{ tt('chat.mentionItemsN', { n: filtered.length }) }}</div>
       </div>
 
       <!-- 列表 -->
@@ -146,7 +151,7 @@ function switchTo(t) {
         style="border-top: 1px solid var(--color-divider);">
 
         <div v-if="!filtered.length" class="px-4 py-6 text-center text-[12px]"
-          style="color: var(--color-ink-3);">无匹配结果</div>
+          style="color: var(--color-ink-3);">{{ tt('chat.mentionNoMatch') }}</div>
 
         <!-- 成员 -->
         <template v-if="type === '@'">
@@ -177,7 +182,7 @@ function switchTo(t) {
               <div class="font-serif truncate" style="font-size: 14px; font-weight: 500;">{{ p.name }}</div>
               <div class="text-[11px] mt-0.5" style="color: var(--color-ink-3);">
                 <span style="color: var(--color-accent); font-weight: 600;">● {{ p.stage }}</span>
-                · <span class="tabular" style="color: var(--color-ink); font-weight: 600;">¥{{ p.amount }}万</span>
+                · <span class="tabular" style="color: var(--color-ink); font-weight: 600;">{{ tt('project.amountWan', { amount: p.amount }) }}</span>
               </div>
             </div>
           </button>
@@ -194,7 +199,7 @@ function switchTo(t) {
             <div class="flex-1 min-w-0">
               <div class="font-serif truncate" style="font-size: 14px; font-weight: 500;">{{ c.name }}</div>
               <div class="text-[11px] mt-0.5" style="color: var(--color-ink-3);">
-                {{ c.tier }} 类 · <span class="tabular" style="color: var(--color-ink); font-weight: 600;">¥{{ c.value }}万</span>
+                {{ c.tier }}{{ tt('chat.mentionTierSuffix') }} · <span class="tabular" style="color: var(--color-ink); font-weight: 600;">{{ tt('project.amountWan', { amount: c.value }) }}</span>
               </div>
             </div>
           </button>
@@ -205,14 +210,14 @@ function switchTo(t) {
       <!-- 底部切换条 -->
       <div class="px-3.5 py-2 flex items-center gap-3"
         style="border-top: 1px solid var(--color-divider); background: var(--color-bg);">
-        <span class="text-[11px] font-semibold" style="color: var(--color-ink-3);">切换：</span>
-        <button v-for="t in ['@','#','$']" :key="t"
-          @click="switchTo(t)"
+        <span class="text-[11px] font-semibold" style="color: var(--color-ink-3);">{{ tt('chat.mentionSwitch') }}</span>
+        <button v-for="sym in ['@','#','$']" :key="sym"
+          @click="switchTo(sym)"
           class="text-[11px] font-semibold active:opacity-70"
-          :style="type === t
+          :style="type === sym
             ? { color: 'var(--color-accent)' }
             : { color: 'var(--color-ink-3)', fontWeight: 400 }">
-          {{ t }} {{ TYPE_META[t]?.label?.replace(/^(提及|引用)/, '') || '' }}
+          {{ sym }} {{ TYPE_META[sym]?.label?.replace(/^(提及|引用|Mention |Reference )/, '') || '' }}
         </button>
       </div>
     </div>

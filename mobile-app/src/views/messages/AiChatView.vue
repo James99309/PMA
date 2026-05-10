@@ -1,8 +1,9 @@
 <script setup>
 // AI 一对一对话 —— 严格对齐 ai-chat.jsx AIOneOnOne (line 148-223)
 // 真接 SSE：POST /api/v1/mobile/chat/ai/stream
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PixelP from '@/components/common/PixelP.vue'
 import { streamAi, getMessages, markAsRead } from '@/api/chat'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
@@ -11,6 +12,7 @@ const { kbStyle } = useKeyboardOffset()
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 // 现有 AI 会话 id（从 ChatListView 跳过来时带 query.id；否则首次发消息时由后端创建）
 const conversationId = ref(route.query.id ? Number(route.query.id) : null)
@@ -30,7 +32,11 @@ const inputText = ref('')
 const sending = ref(false)
 const scrollEl = ref(null)
 
-const QUICK_CMDS = ['/起草回复', '/分析赢率', '/总结群消息', '/查合同', '/找联系人']
+const QUICK_CMDS = computed(() => [
+  t('chat.aiSugDraft'), t('chat.aiSugWinrate'), t('chat.aiSugSummarize'),
+  t('chat.aiSugContract'), t('chat.aiSugContacts'),
+])
+// SUGGEST_TAGS_1 是 demo seed 提示, 暂保留中文(只在没有 backend mock 时显示)
 const SUGGEST_TAGS_1 = ['这个项目下一步该做什么？', '帮我起草约见短信', '其他客户对比一下']
 
 async function scrollToBottom() {
@@ -136,21 +142,21 @@ async function send(text) {
           }
           await scrollToBottom()
         } else if (ev.type === 'status') {
-          if (streamMsg) streamMsg.body = { type: 'status', text: ev.message || '思考中…' }
+          if (streamMsg) streamMsg.body = { type: 'status', text: ev.message || t('chat.aiThinking') }
         } else if (ev.type === 'done') {
           // 后端把 conversation_id 回传，存下来，后续消息复用同一个会话
           if (ev.conversation_id) conversationId.value = ev.conversation_id
           if (streamMsg) streamMsg.showActions = true
         } else if (ev.type === 'error') {
-          if (streamMsg) streamMsg.body = { type: 'error', text: ev.message || 'AI 服务异常' }
+          if (streamMsg) streamMsg.body = { type: 'error', text: ev.message || t('chat.aiServiceError') }
         } else if (ev.type === 'context_exhausted') {
-          if (streamMsg) streamMsg.body = { type: 'error', text: '对话上下文已满，请开启新对话' }
+          if (streamMsg) streamMsg.body = { type: 'error', text: t('chat.aiCtxFull') }
         }
       },
     })
   } catch (e) {
     console.error('AI stream failed', e)
-    if (streamMsg) streamMsg.body = { type: 'error', text: `连接失败：${e.message}` }
+    if (streamMsg) streamMsg.body = { type: 'error', text: `${t('chat.connectFail')}${e.message}` }
   } finally {
     sending.value = false
     await scrollToBottom()
@@ -214,11 +220,11 @@ onMounted(async () => {
       <PixelP :size="26" />
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-1.5">
-          <span class="font-serif" style="font-size: 15px; font-weight: 600;">源助手</span>
+          <span class="font-serif" style="font-size: 15px; font-weight: 600;">{{ t('chat.aiAssistant') }}</span>
           <span class="text-[9px] font-bold px-1.5 py-px rounded"
             style="color: #2F66D6; background: #E5EEFB;">BETA</span>
         </div>
-        <div class="text-[11px] mt-px" style="color: var(--color-green);">● 在线 · 已连接你的项目数据</div>
+        <div class="text-[11px] mt-px" style="color: var(--color-green);">{{ t('chat.aiOnline') }}</div>
       </div>
       <span class="text-[18px]" style="color: var(--color-ink-3);">···</span>
     </div>
@@ -241,7 +247,7 @@ onMounted(async () => {
           <PixelP :size="22" />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-1.5 mb-1">
-              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">源助手</span>
+              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">{{ t('chat.aiAssistant') }}</span>
               <span class="text-[10px]" style="color: var(--color-ink-3);">{{ m.time }}</span>
             </div>
             <!-- bubble container -->
@@ -256,7 +262,7 @@ onMounted(async () => {
                     class="w-1.5 h-1.5 rounded-full" style="background: #2F66D6;"
                     :style="{ animation: `aiDot 1.4s ${(i-1)*0.16}s infinite` }" />
                 </span>
-                <span class="text-[12px] italic" style="color: var(--color-ink-3);">正在分析你的项目数据…</span>
+                <span class="text-[12px] italic" style="color: var(--color-ink-3);">{{ t('chat.aiAnalyzingData') }}</span>
               </div>
 
               <!-- 真后端流式输出 -->
@@ -296,7 +302,7 @@ onMounted(async () => {
                     <div class="flex gap-2 mt-0.5 text-[11px]" style="color: var(--color-ink-3);">
                       <span style="color: var(--color-accent); font-weight: 600;">● {{ m.body.refCard.stage }}</span>
                       <span>·</span>
-                      <span class="tabular" style="color: var(--color-ink); font-weight: 600;">¥{{ m.body.refCard.amount }}万</span>
+                      <span class="tabular" style="color: var(--color-ink); font-weight: 600;">{{ t('project.amountWan', { amount: m.body.refCard.amount }) }}</span>
                     </div>
                   </div>
                   <span class="text-[14px]" style="color: var(--color-ink-3);">›</span>
@@ -313,7 +319,7 @@ onMounted(async () => {
                 </div>
                 <button @click="inputText = m.body.text"
                   class="mt-2 text-[12px] font-medium active:opacity-60"
-                  style="color: #2F66D6;">采用 · 填入输入框 →</button>
+                  style="color: #2F66D6;">{{ t('chat.aiAdoptDraft') }}</button>
               </template>
 
               <!-- 对比客户 -->
@@ -336,13 +342,13 @@ onMounted(async () => {
               <span class="inline-flex items-center gap-1 active:opacity-60">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path d="M3 6h6M6 3l3 3-3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-                </svg>重新生成
+                </svg>{{ t('chat.aiRegen') }}
               </span>
               <span class="inline-flex items-center gap-1 active:opacity-60">
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <rect x="2" y="2" width="6" height="8" rx="1" stroke="currentColor" stroke-width="1.2" />
                   <path d="M4 5h2M4 7h2" stroke="currentColor" stroke-width="1.2" />
-                </svg>复制
+                </svg>{{ t('chat.aiCopy') }}
               </span>
               <span>👍</span>
               <span>👎</span>
@@ -378,7 +384,7 @@ onMounted(async () => {
         <div class="flex-1 rounded-full px-3.5 py-2.5 flex items-center"
           style="background: var(--color-bg); border: 1.5px solid #2F66D6;">
           <input v-model="inputText" type="text"
-            placeholder="问问源助手…"
+            :placeholder="t('chat.aiAskPh')"
             @keyup.enter="send()"
             :disabled="sending"
             class="flex-1 bg-transparent outline-none font-serif text-[14px]"

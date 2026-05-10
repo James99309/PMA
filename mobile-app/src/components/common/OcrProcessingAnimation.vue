@@ -89,7 +89,7 @@
           fontSize: '13px',
           color: f.confident ? 'var(--color-ex-ink, #1A1A1A)' : 'var(--color-ex-warn, #C57211)',
           fontWeight: 500,
-        }">{{ f.val }}{{ !f.confident ? ' (置信度低)' : '' }}</span>
+        }">{{ f.val }}{{ !f.confident ? t('ocr.lowConfidence') : '' }}</span>
       </div>
     </div>
 
@@ -105,13 +105,16 @@
           background: 'var(--color-ex-card, #FFFFFF)',
           border: '1px solid var(--color-ex-divider-strong, #D0CBC4)',
           color: 'var(--color-ex-ink2, #4A4641)', fontSize: '13px',
-        }">{{ retryLabel }}</button>
+        }">{{ effectiveRetryLabel }}</button>
     </template>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps({
   cardCount:  { type: Number, default: 3 },
@@ -119,8 +122,9 @@ const props = defineProps({
   subtitle:   { type: String, default: '' },
   fields:     { type: Array,  default: () => [] },
   error:      { type: String, default: '' },
-  retryLabel: { type: String, default: '重拍' },
+  retryLabel: { type: String, default: '' },
 })
+const effectiveRetryLabel = computed(() => props.retryLabel || t('ocr.retry'))
 defineEmits(['retry'])
 
 // 字段揭示动画 - stagger 250ms

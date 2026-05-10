@@ -2,6 +2,7 @@
 // 严格对齐 splash-login.jsx Login 组件（line 188-314）
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import PixelP from '@/components/common/PixelP.vue'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
@@ -10,6 +11,7 @@ const { kbOffset } = useKeyboardOffset()
 
 const router = useRouter()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 const username = ref('')
 const password = ref('')
@@ -21,7 +23,7 @@ const pwdFocused = ref(false)
 
 async function handleLogin() {
   if (!username.value || !password.value) {
-    error.value = '请输入账号和密码'
+    error.value = t('auth.needAccountPwd')
     return
   }
   loading.value = true
@@ -32,13 +34,13 @@ async function handleLogin() {
     router.push('/')
   } catch (e) {
     if (e.code === 'ERR_NETWORK' || e.message === 'Network Error') {
-      error.value = `网络错误：无法连接服务器`
+      error.value = t('auth.netErr')
     } else if (e.code === 'ECONNABORTED') {
-      error.value = `超时：服务器无响应`
+      error.value = t('auth.timeoutErr')
     } else if (e.response?.status === 401) {
-      error.value = '账号或密码错误'
+      error.value = t('auth.badCred')
     } else {
-      error.value = e.response?.data?.message || `错误: ${e.message}`
+      error.value = e.response?.data?.message || `${t('auth.genericErrPrefix')}: ${e.message}`
     }
   } finally {
     loading.value = false
@@ -83,16 +85,16 @@ const SCATTER_GAP = 6
     <div class="login-hero">
       <PixelP :size="68" />
       <div class="login-title">PMA</div>
-      <div class="login-subtitle">项目管理 · 让每一单都被看见</div>
+      <div class="login-subtitle">{{ t('auth.subtitle') }}</div>
     </div>
 
     <!-- 表单 -->
     <div class="login-form">
-      <div class="form-section-label">登录</div>
+      <div class="form-section-label">{{ t('auth.sectionLogin') }}</div>
 
       <!-- 账号 -->
       <div class="form-group">
-        <label class="form-label">账号</label>
+        <label class="form-label">{{ t('auth.fAccount') }}</label>
         <div class="form-input" :class="{ focused: userFocused }">
           <svg class="form-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
             <circle cx="9" cy="6" r="3" :stroke="userFocused ? '#4D82E0' : '#7A7570'" stroke-width="1.4" />
@@ -100,7 +102,7 @@ const SCATTER_GAP = 6
               :stroke="userFocused ? '#4D82E0' : '#7A7570'" stroke-width="1.4" stroke-linecap="round" />
           </svg>
           <input v-model="username" type="text" autocomplete="username"
-            placeholder="账号"
+            :placeholder="t('auth.fAccountPh')"
             @focus="userFocused = true" @blur="userFocused = false"
             @keyup.enter="handleLogin"
             class="form-input-text" />
@@ -110,8 +112,8 @@ const SCATTER_GAP = 6
       <!-- 密码 -->
       <div class="form-group">
         <div class="form-label-row">
-          <label class="form-label">密码</label>
-          <span class="form-forgot">忘记?</span>
+          <label class="form-label">{{ t('auth.fPassword') }}</label>
+          <span class="form-forgot">{{ t('auth.forgot') }}</span>
         </div>
         <div class="form-input" :class="{ focused: pwdFocused }">
           <svg class="form-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -121,7 +123,7 @@ const SCATTER_GAP = 6
               :stroke="pwdFocused ? '#4D82E0' : '#7A7570'" stroke-width="1.4" />
           </svg>
           <input v-model="password" type="password" autocomplete="current-password"
-            placeholder="请输入密码"
+            :placeholder="t('auth.fPasswordPh')"
             @focus="pwdFocused = true" @blur="pwdFocused = false"
             @keyup.enter="handleLogin"
             class="form-input-text" />
@@ -133,16 +135,16 @@ const SCATTER_GAP = 6
 
       <!-- 登录按钮 -->
       <button @click="handleLogin" :disabled="loading" class="login-button">
-        {{ loading ? '登录中…' : '登录' }}
+        {{ loading ? t('auth.loggingIn') : t('auth.login') }}
         <span class="login-button-dot" />
       </button>
     </div>
 
     <!-- 公司归属：用真 logo 图 (设计包 assets/evertac-logo.png) -->
     <div class="login-attribution">
-      <div class="attr-label">由</div>
-      <img src="/images/evertac-logo.png" alt="Evertac 和源通信" class="attr-logo" />
-      <div class="attr-italic">和源通信 · 产品出品 · v1.0</div>
+      <div class="attr-label">{{ t('auth.attrBy') }}</div>
+      <img src="/images/evertac-logo.png" :alt="t('auth.attrAlt')" class="attr-logo" />
+      <div class="attr-italic">{{ t('auth.attrFooter') }}</div>
     </div>
   </div>
 </template>

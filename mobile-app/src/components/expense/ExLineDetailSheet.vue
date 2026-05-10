@@ -22,8 +22,8 @@
 
           <!-- 标题栏 -->
           <div class="px-5 pt-2 pb-3 flex items-center justify-between shrink-0">
-            <div :style="{ fontSize: '15px', fontWeight: 600 }">明细详情</div>
-            <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="close">关闭</div>
+            <div :style="{ fontSize: '15px', fontWeight: 600 }">{{ t('expense.lineSheetTitle') }}</div>
+            <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="close">{{ t('expense.lineSheetClose') }}</div>
           </div>
 
           <!-- 内容滚动 -->
@@ -40,54 +40,54 @@
               }">{{ currencySymbol }} {{ formatAmount(line.invoice_amount) }}</div>
               <div :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)', marginTop: '6px' }">
                 {{ line.expense_date }}
-                <template v-if="(line.document_count || 0) > 1"> · {{ line.document_count }} 张发票合并</template>
+                <template v-if="(line.document_count || 0) > 1">{{ t('expense.lineSheetMergedSuffix', { n: line.document_count }) }}</template>
               </div>
             </div>
 
             <!-- 字段表 -->
-            <ExSectionHeader>字段</ExSectionHeader>
+            <ExSectionHeader>{{ t('expense.lineSecFields') }}</ExSectionHeader>
             <div :style="{ background: 'var(--color-ex-card)' }">
-              <ExDefRow label="报销科目">{{ categoryLabel }}</ExDefRow>
-              <ExDefRow label="发生日期">{{ line.expense_date }}</ExDefRow>
-              <ExDefRow label="费用描述">{{ line.description || '—' }}</ExDefRow>
-              <ExDefRow label="发票金额">
+              <ExDefRow :label="t('expense.lineFCategory')">{{ categoryLabel }}</ExDefRow>
+              <ExDefRow :label="t('expense.lineFDate')">{{ line.expense_date }}</ExDefRow>
+              <ExDefRow :label="t('expense.lineFDesc')">{{ line.description || '—' }}</ExDefRow>
+              <ExDefRow :label="t('expense.lineFInvoiceAmt')">
                 <span v-if="editingField !== 'invoice_amount'">
                   {{ currencySymbol }}{{ formatAmount(line.invoice_amount) }}
                   <span v-if="isEditable('invoice_amount')" role="button" class="active:opacity-60"
                     :style="{ marginLeft: '8px', fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }"
-                    @click="startEdit('invoice_amount', line.invoice_amount)">编辑</span>
+                    @click="startEdit('invoice_amount', line.invoice_amount)">{{ t('expense.lineEdit') }}</span>
                 </span>
                 <span v-else class="flex items-center" :style="{ gap: '6px' }">
                   <input v-model="editingValue" type="number" inputmode="decimal" step="0.01"
                     :style="{ fontSize: '13px', padding: '4px 8px', border: '1px solid var(--color-ex-divider)', borderRadius: '4px', width: '100px' }" />
-                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }" @click="commitEdit">{{ saving ? '...' : '保存' }}</span>
-                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)' }" @click="cancelEdit">取消</span>
+                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }" @click="commitEdit">{{ saving ? t('expense.lineSaving') : t('expense.lineSaveBtn') }}</span>
+                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)' }" @click="cancelEdit">{{ t('common.cancel') }}</span>
                 </span>
               </ExDefRow>
-              <ExDefRow label="币种">{{ currencyLabel }} ({{ line.currency }})</ExDefRow>
-              <ExDefRow label="汇率">
+              <ExDefRow :label="t('expense.lineFCurrency')">{{ currencyLabel }} ({{ line.currency }})</ExDefRow>
+              <ExDefRow :label="t('expense.lineFRate')">
                 <span v-if="editingField !== 'exchange_rate'">
                   {{ (line.exchange_rate || 1).toFixed(4) }}
                   <span v-if="isEditable('exchange_rate')" role="button" class="active:opacity-60"
                     :style="{ marginLeft: '8px', fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }"
-                    @click="startEdit('exchange_rate', (line.exchange_rate || 1).toFixed(4))">编辑</span>
+                    @click="startEdit('exchange_rate', (line.exchange_rate || 1).toFixed(4))">{{ t('expense.lineEdit') }}</span>
                 </span>
                 <span v-else class="flex items-center" :style="{ gap: '6px' }">
                   <input v-model="editingValue" type="number" inputmode="decimal" step="0.0001"
                     :style="{ fontSize: '13px', padding: '4px 8px', border: '1px solid var(--color-ex-divider)', borderRadius: '4px', width: '100px' }" />
-                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }" @click="commitEdit">{{ saving ? '...' : '保存' }}</span>
-                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)' }" @click="cancelEdit">取消</span>
+                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-warn)', fontWeight: 600 }" @click="commitEdit">{{ saving ? t('expense.lineSaving') : t('expense.lineSaveBtn') }}</span>
+                  <span role="button" class="active:opacity-60" :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)' }" @click="cancelEdit">{{ t('common.cancel') }}</span>
                 </span>
               </ExDefRow>
-              <ExDefRow label="报销金额">
+              <ExDefRow :label="t('expense.lineFAmount')">
                 {{ baseSymbol }}{{ formatAmount(line.current_amount || line.invoice_amount) }}
               </ExDefRow>
-              <ExDefRow label="单据数" :last="!photos.length">{{ line.document_count || 1 }}</ExDefRow>
+              <ExDefRow :label="t('expense.lineFDocCount')" :last="!photos.length">{{ line.document_count || 1 }}</ExDefRow>
             </div>
 
             <!-- 发票照片网格 -->
             <ExSectionHeader v-if="photos.length">
-              发票照片 · {{ photos.length }} 张
+              {{ t('expense.linePhotosHeader', { n: photos.length }) }}
             </ExSectionHeader>
             <div v-if="photos.length"
               class="grid"
@@ -119,7 +119,7 @@
               fontSize: '12px',
               color: 'var(--color-ex-ink4)',
             }">
-              这条明细没有发票照片
+              {{ t('expense.lineNoPhotos') }}
             </div>
           </div>
         </div>
@@ -154,7 +154,7 @@
         <button @click="viewerIdx = (viewerIdx - 1 + photos.length) % photos.length"
           class="flex items-center justify-center rounded-full active:opacity-70"
           style="width: 44px; height: 44px; background: rgba(255,255,255,0.16); color: #fff; font-size: 20px;">‹</button>
-        <span class="text-white text-[12px] opacity-60">点空白处关闭</span>
+        <span class="text-white text-[12px] opacity-60">{{ t('expense.lineTapBlankClose') }}</span>
         <button @click="viewerIdx = (viewerIdx + 1) % photos.length"
           class="flex items-center justify-center rounded-full active:opacity-70"
           style="width: 44px; height: 44px; background: rgba(255,255,255,0.16); color: #fff; font-size: 20px;">›</button>
@@ -165,7 +165,10 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useExpenseStore } from '@/stores/expense'
+
+const { t } = useI18n()
 import { imageUrl } from '@/api/expense'
 import ExSectionHeader from './ExSectionHeader.vue'
 import ExDefRow from './ExDefRow.vue'
@@ -206,7 +209,7 @@ async function commitEdit() {
     )
     cancelEdit()
   } catch (e) {
-    alert(e?.message || '保存失败')
+    alert(e?.message || t('expense.lineSaveFail'))
   } finally {
     saving.value = false
   }

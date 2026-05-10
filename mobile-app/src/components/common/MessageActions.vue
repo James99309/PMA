@@ -2,7 +2,10 @@
 // 消息长按 action sheet（复制 / 转发 / 撤回） + 转发 sheet
 // 父组件传入 message（null 关闭），通过 events 收回结果
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { recallMessage, forwardMessage, getConversations, searchUsers } from '@/api/chat'
+
+const { t } = useI18n()
 
 const props = defineProps({
   message: { type: Object, default: null },
@@ -102,7 +105,7 @@ const fwdCount = computed(() => fwdSelected.value.size + fwdUserSelected.value.l
 async function confirmForward() {
   if (!fwdCount.value || fwdSubmitting.value) return
   if (!realMsgId.value) {
-    alert('该消息无法转发（仅本地）')
+    alert(t('chat.msgFwdLocalOnly'))
     return
   }
   fwdSubmitting.value = true
@@ -117,10 +120,10 @@ async function confirmForward() {
       emit('forwarded')
       emit('close')
     } else {
-      alert(r.data?.message || '转发失败')
+      alert(r.data?.message || t('chat.msgFwdFail'))
     }
   } catch (e) {
-    alert(`转发失败：${e.message || e}`)
+    alert(`${t('chat.msgFwdFail')}: ${e.message || e}`)
   } finally {
     fwdSubmitting.value = false
   }
@@ -128,17 +131,17 @@ async function confirmForward() {
 
 async function doRecall() {
   if (!canRecall.value) return
-  if (!confirm('撤回这条消息？')) return
+  if (!confirm(t('chat.msgRecallConfirm'))) return
   try {
     const r = await recallMessage(realMsgId.value)
     if (r.data?.success) {
       emit('recalled', { id: props.message.id, realId: realMsgId.value })
       emit('close')
     } else {
-      alert(r.data?.message || '撤回失败')
+      alert(r.data?.message || t('chat.msgRecallFail'))
     }
   } catch (e) {
-    alert(`撤回失败：${e.message || e}`)
+    alert(`${t('chat.msgRecallFail')}: ${e.message || e}`)
   }
 }
 
@@ -193,18 +196,18 @@ function close() { emit('close') }
             style="background: var(--color-card);">
             <button @click="doCopy"
               class="w-full px-4 py-4 text-[15px] active:bg-bg"
-              style="border-bottom: 1px solid var(--color-divider);">复制</button>
+              style="border-bottom: 1px solid var(--color-divider);">{{ t('chat.msgCopy') }}</button>
             <button @click="openForward"
               class="w-full px-4 py-4 text-[15px] active:bg-bg"
-              :style="canRecall ? 'border-bottom: 1px solid var(--color-divider);' : ''">转发</button>
+              :style="canRecall ? 'border-bottom: 1px solid var(--color-divider);' : ''">{{ t('chat.msgFwd') }}</button>
             <button v-if="canRecall" @click="doRecall"
               class="w-full px-4 py-4 text-[15px] active:bg-bg"
-              style="color: #A04848;">撤回</button>
+              style="color: #A04848;">{{ t('chat.msgRecall') }}</button>
           </div>
           <div class="mx-3 mt-2 rounded-2xl"
             style="background: var(--color-card);">
             <button @click="close"
-              class="w-full px-4 py-4 text-[15px] font-semibold active:bg-bg">取消</button>
+              class="w-full px-4 py-4 text-[15px] font-semibold active:bg-bg">{{ t('common.cancel') }}</button>
           </div>
         </div>
       </div>
@@ -219,13 +222,13 @@ function close() { emit('close') }
           style="background: var(--color-bg); max-height: 88vh; min-height: 60vh;">
           <div class="px-5 pt-4 pb-2 flex items-center justify-between shrink-0">
             <button @click="close" class="text-[13px]"
-              style="color: var(--color-ink-3);">取消</button>
-            <span class="font-serif" style="font-size: 16px; font-weight: 500;">转发消息</span>
+              style="color: var(--color-ink-3);">{{ t('common.cancel') }}</button>
+            <span class="font-serif" style="font-size: 16px; font-weight: 500;">{{ t('chat.fwdSheetTitle') }}</span>
             <button @click="confirmForward"
               :disabled="!fwdCount || fwdSubmitting"
               class="text-[13px] font-medium disabled:opacity-40"
               style="color: var(--color-accent);">
-              {{ fwdSubmitting ? '发送中…' : `转发${fwdCount ? `(${fwdCount})` : ''}` }}
+              {{ fwdSubmitting ? t('chat.fwdSubmitting') : `${t('chat.fwdBtn')}${fwdCount ? `(${fwdCount})` : ''}` }}
             </button>
           </div>
 
@@ -241,7 +244,7 @@ function close() { emit('close') }
 
           <div class="px-5 pb-2 shrink-0">
             <input v-model="fwdUserSearch" @input="onUserSearchInput"
-              type="text" placeholder="搜索用户（创建新私聊转发）"
+              type="text" :placeholder="t('chat.fwdSearchPh')"
               class="w-full px-4 py-2.5 rounded-xl text-[14px]"
               style="background: var(--color-card); border: 1px solid var(--color-divider); outline: none;" />
           </div>
@@ -253,7 +256,7 @@ function close() { emit('close') }
             </div>
             <div v-else-if="fwdUserResults.length" class="px-3 pb-2">
               <div class="text-[11px] font-semibold uppercase px-3 py-1.5"
-                style="color: var(--color-ink-3); letter-spacing: 1px;">搜索结果</div>
+                style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('chat.fwdResultsHeader') }}</div>
               <button v-for="u in fwdUserResults" :key="u.id"
                 @click="pickUser(u)"
                 class="w-full flex items-center gap-3 px-3 py-2.5 active:bg-bg text-left rounded-xl">
@@ -268,22 +271,22 @@ function close() { emit('close') }
 
             <div class="px-3 pb-2">
               <div class="text-[11px] font-semibold uppercase px-3 py-1.5"
-                style="color: var(--color-ink-3); letter-spacing: 1px;">最近会话</div>
+                style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('chat.fwdRecentHeader') }}</div>
               <div v-if="fwdConvsLoading" class="py-6 text-center">
                 <div class="inline-block w-5 h-5 border-2 rounded-full animate-spin"
                   style="border-color: var(--color-accent); border-top-color: transparent;" />
               </div>
               <div v-else-if="!fwdConvs.length" class="py-6 text-center text-[13px]"
-                style="color: var(--color-ink-3);">暂无可转发的会话</div>
+                style="color: var(--color-ink-3);">{{ t('chat.fwdEmpty') }}</div>
               <button v-else v-for="c in fwdConvs" :key="c.id"
                 @click="toggleConv(c)"
                 class="w-full flex items-center gap-3 px-3 py-2.5 active:bg-bg text-left rounded-xl">
                 <div class="w-9 h-9 rounded-2xl inline-flex items-center justify-center font-serif text-[14px] font-semibold shrink-0"
-                  style="background: var(--color-accent-soft); color: var(--color-accent);">{{ (c.name || '群')[0] }}</div>
+                  style="background: var(--color-accent-soft); color: var(--color-accent);">{{ (c.name || t('chat.fallbackGroup'))[0] }}</div>
                 <div class="flex-1 min-w-0">
-                  <div class="font-serif truncate" style="font-size: 14px; font-weight: 500;">{{ c.name || '群聊' }}</div>
+                  <div class="font-serif truncate" style="font-size: 14px; font-weight: 500;">{{ c.name || t('chat.groupDefault') }}</div>
                   <div class="text-[11px]" style="color: var(--color-ink-3);">
-                    {{ c.type === 'private' ? '私聊' : c.type === 'group' ? '群聊' : c.type }}
+                    {{ c.type === 'private' ? t('chat.fwdConvPrivate') : c.type === 'group' ? t('chat.fwdConvGroup') : c.type }}
                   </div>
                 </div>
                 <div class="w-5 h-5 rounded inline-flex items-center justify-center text-[11px] text-white"
@@ -298,8 +301,8 @@ function close() { emit('close') }
 
             <div class="px-5 pb-6">
               <div class="text-[11px] font-semibold uppercase mb-1.5"
-                style="color: var(--color-ink-3); letter-spacing: 1px;">附言（可选）</div>
-              <textarea v-model="fwdNote" rows="2" placeholder="添加附言…"
+                style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('chat.fwdNoteHeader') }}</div>
+              <textarea v-model="fwdNote" rows="2" :placeholder="t('chat.fwdNotePh')"
                 class="w-full px-3 py-2 rounded-xl text-[13px]"
                 style="background: var(--color-card); border: 1px solid var(--color-divider); outline: none; resize: none;" />
             </div>
