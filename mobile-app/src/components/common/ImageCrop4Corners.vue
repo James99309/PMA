@@ -10,6 +10,9 @@
 //   3. 用户拖 handle → 更新 4 个像素坐标 (基于原始图坐标系)
 //   4. 完成时: canvas perspective transform, 把四边形 → 矩形输出
 import { ref, computed, onMounted, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps({
   src: { type: String, required: true },
@@ -208,10 +211,10 @@ async function doCrop() {
     <!-- 顶部 nav -->
     <div class="flex items-center justify-between px-4 py-3 shrink-0"
       style="background: rgba(0,0,0,0.85);">
-      <button @click="$emit('cancel')" class="text-white text-[15px] active:opacity-70">取消</button>
-      <span class="text-white text-[14px] opacity-75">拖动 4 角对齐名片</span>
+      <button @click="$emit('cancel')" class="text-white text-[15px] active:opacity-70">{{ t('scan.cancel') }}</button>
+      <span class="text-white text-[14px] opacity-75">{{ t('scan.cropTip') }}</span>
       <button @click="doCrop" class="text-white text-[15px] font-semibold active:opacity-70"
-        style="color: #FBB040;">完成</button>
+        style="color: #FBB040;">{{ t('scan.cropDone') }}</button>
     </div>
 
     <!-- 图片 + 拖拽层 -->
@@ -249,7 +252,7 @@ async function doCrop() {
     <!-- 底部提示 -->
     <div class="px-5 py-3 shrink-0 text-center"
       style="background: rgba(0,0,0,0.85); color: rgba(255,255,255,0.75); font-size: 12px;">
-      把 4 个圆点拖到名片的四个角, 然后点完成
+      {{ t('scan.cropHint') }}
     </div>
   </div>
 </template>

@@ -2,7 +2,10 @@
 // 名片识别核对页 — 显示 OCR 字段, 用户编辑确认 → 重复检测 → 创建客户+联系人
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useCardScanStore } from '@/stores/cardScan'
+
+const { t } = useI18n()
 import { createCustomer, addContact, checkContactDuplicate, mergeContactFromCard, checkCustomerName } from '@/api/customers'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
@@ -82,7 +85,7 @@ const canSave = computed(() => {
 async function tryStartSave() {
   error.value = ''
   if (!canSave.value) {
-    error.value = '姓名和公司名为必填'
+    error.value = t('cardScan.nameCompanyRequired')
     return
   }
   // 联系人级重复检测 (phone/email 命中) — attachTo 模式也查, 让用户避免重复
@@ -161,7 +164,7 @@ async function mergeToExistingCompany(c) {
     })
     const td = res.data
     if (!td?.success) {
-      error.value = td?.message || '保存失败'
+      error.value = td?.message || t('cardScan.saveFail')
       saving.value = false
       return
     }
@@ -180,7 +183,7 @@ async function mergeToExistingCompany(c) {
     })
     router.replace('/customers/scan/success')
   } catch (e) {
-    error.value = `保存失败: ${e?.message || e}`
+    error.value = t('cardScan.saveFailFmt', { err: e?.message || e })
     saving.value = false
   }
 }
@@ -201,7 +204,7 @@ async function doMerge(d) {
     })
     const rd = res.data
     if (!rd?.success) {
-      error.value = rd?.message || '合并失败'
+      error.value = rd?.message || t('cardScan.mergeFail')
       saving.value = false
       return
     }
@@ -221,7 +224,7 @@ async function doMerge(d) {
     })
     router.replace('/customers/scan/success')
   } catch (e) {
-    error.value = `合并失败: ${e?.message || e}`
+    error.value = t('cardScan.mergeFailFmt', { err: e?.message || e })
     saving.value = false
   }
 }
@@ -245,7 +248,7 @@ async function doSave() {
       })
       const cd = cRes.data
       if (!cd?.success || !cd?.data?.id) {
-        error.value = cd?.message || '客户创建失败'
+        error.value = cd?.message || t('cardScan.customerCreateFail')
         saving.value = false
         return
       }
@@ -264,7 +267,7 @@ async function doSave() {
     })
     const td = contRes.data
     if (!td?.success) {
-      error.value = td?.message || '联系人保存失败'
+      error.value = td?.message || t('cardScan.contactSaveFail')
       saving.value = false
       return
     }
@@ -283,7 +286,7 @@ async function doSave() {
     })
     router.replace('/customers/scan/success')
   } catch (e) {
-    error.value = `保存失败: ${e?.message || e}`
+    error.value = t('cardScan.saveFailFmt', { err: e?.message || e })
     saving.value = false
   }
 }
@@ -317,12 +320,12 @@ function onCancel() {
     <!-- Nav -->
     <div class="flex items-center justify-between px-4 py-3 shrink-0"
       style="background: var(--color-card); border-bottom: 1px solid var(--color-divider);">
-      <button @click="onCancel" class="text-[14px] active:opacity-70" style="color: var(--color-ink-2);">取消</button>
-      <span class="font-serif text-[16px] font-medium">核对名片信息</span>
+      <button @click="onCancel" class="text-[14px] active:opacity-70" style="color: var(--color-ink-2);">{{ t('cardScan.cancel') }}</button>
+      <span class="font-serif text-[16px] font-medium">{{ t('cardScan.confirmTitle') }}</span>
       <button @click="tryStartSave" :disabled="!canSave || saving"
         class="text-[14px] font-semibold active:opacity-70 disabled:opacity-40"
         style="color: var(--color-accent);">
-        {{ saving ? '保存中…' : '保存' }}
+        {{ saving ? t('cardScan.saving') : t('cardScan.save') }}
       </button>
     </div>
 
@@ -332,7 +335,7 @@ function onCancel() {
         style="border: 1px solid var(--color-divider);">
         <img :src="scanStore.cropDataUrl" class="w-full block" style="max-height: 200px; object-fit: contain; background: #000;" />
         <div class="px-3 py-2 text-[11px]" style="background: var(--color-card); color: var(--color-ink-3);">
-          AI 已识别 · 黄色字段建议核对
+          {{ t('cardScan.aiHint') }}
         </div>
       </div>
 
@@ -340,10 +343,10 @@ function onCancel() {
       <div class="bg-white rounded-2xl px-4 py-3"
         :style="{ border: '1px solid', ...fieldStyle('name') }">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">姓名 *</span>
-          <span v-if="fieldWarn('name')" class="text-[10px]" style="color: #C77B22;">⚠ 请检查</span>
+          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('cardScan.nameRequired') }}</span>
+          <span v-if="fieldWarn('name')" class="text-[10px]" style="color: #C77B22;">{{ t('cardScan.fieldWarn') }}</span>
         </div>
-        <input v-model="form.name" type="text" placeholder="联系人姓名"
+        <input v-model="form.name" type="text" :placeholder="t('cardScan.namePh')"
           class="w-full text-[15px] outline-none bg-transparent"
           style="color: var(--color-ink);" />
       </div>
@@ -353,17 +356,17 @@ function onCancel() {
         :style="{ border: '1px solid', ...(isAttachMode ? { borderColor: 'var(--color-divider)' } : fieldStyle('company')) }">
         <div class="flex items-center justify-between mb-1">
           <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">
-            公司 *<span v-if="isAttachMode" class="ml-1.5 text-[9px] font-bold px-1.5 py-px rounded"
-              style="color: var(--color-accent); background: var(--color-accent-soft); letter-spacing: 0.3px;">已挂到当前客户</span>
+            {{ t('cardScan.company') }}<span v-if="isAttachMode" class="ml-1.5 text-[9px] font-bold px-1.5 py-px rounded"
+              style="color: var(--color-accent); background: var(--color-accent-soft); letter-spacing: 0.3px;">{{ t('cardScan.companyAttachedTag') }}</span>
           </span>
-          <span v-if="!isAttachMode && fieldWarn('company')" class="text-[10px]" style="color: #C77B22;">⚠ 请检查</span>
+          <span v-if="!isAttachMode && fieldWarn('company')" class="text-[10px]" style="color: #C77B22;">{{ t('cardScan.fieldWarn') }}</span>
         </div>
-        <input v-model="form.company" type="text" placeholder="公司名"
+        <input v-model="form.company" type="text" :placeholder="t('cardScan.companyPh')"
           :readonly="isAttachMode"
           class="w-full text-[15px] outline-none bg-transparent"
           :style="{ color: isAttachMode ? 'var(--color-ink-2)' : 'var(--color-ink)' }" />
         <p v-if="isAttachMode" class="text-[11px] mt-1" style="color: var(--color-ink-3);">
-          联系人会直接加到这个客户下, OCR 识到的"{{ scanStore.fields?.company }}"忽略
+          {{ t('cardScan.companyAttachedHint', { company: scanStore.fields?.company || '' }) }}
         </p>
       </div>
 
@@ -371,10 +374,10 @@ function onCancel() {
       <div class="bg-white rounded-2xl px-4 py-3"
         :style="{ border: '1px solid', ...fieldStyle('position') }">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">职位</span>
+          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('cardScan.position') }}</span>
           <span v-if="fieldWarn('position')" class="text-[10px]" style="color: #C77B22;">⚠</span>
         </div>
-        <input v-model="form.position" type="text" placeholder="（可选）"
+        <input v-model="form.position" type="text" :placeholder="t('cardScan.optional')"
           class="w-full text-[15px] outline-none bg-transparent"
           style="color: var(--color-ink);" />
       </div>
@@ -383,10 +386,10 @@ function onCancel() {
       <div class="bg-white rounded-2xl px-4 py-3"
         :style="{ border: '1px solid', ...fieldStyle('department') }">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">部门</span>
+          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('cardScan.department') }}</span>
           <span v-if="fieldWarn('department')" class="text-[10px]" style="color: #C77B22;">⚠</span>
         </div>
-        <input v-model="form.department" type="text" placeholder="（可选）"
+        <input v-model="form.department" type="text" :placeholder="t('cardScan.optional')"
           class="w-full text-[15px] outline-none bg-transparent"
           style="color: var(--color-ink);" />
       </div>
@@ -395,10 +398,10 @@ function onCancel() {
       <div class="bg-white rounded-2xl px-4 py-3"
         :style="{ border: '1px solid', ...fieldStyle('phone') }">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">电话</span>
-          <span v-if="fieldWarn('phone')" class="text-[10px]" style="color: #C77B22;">⚠ 请检查</span>
+          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('cardScan.phone') }}</span>
+          <span v-if="fieldWarn('phone')" class="text-[10px]" style="color: #C77B22;">{{ t('cardScan.fieldWarn') }}</span>
         </div>
-        <input v-model="form.phone" type="tel" placeholder="（可选）"
+        <input v-model="form.phone" type="tel" :placeholder="t('cardScan.optional')"
           class="w-full text-[15px] outline-none bg-transparent tabular"
           style="color: var(--color-ink);" />
       </div>
@@ -407,10 +410,10 @@ function onCancel() {
       <div class="bg-white rounded-2xl px-4 py-3"
         :style="{ border: '1px solid', ...fieldStyle('email') }">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">邮箱</span>
-          <span v-if="fieldWarn('email')" class="text-[10px]" style="color: #C77B22;">⚠ 请检查</span>
+          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('cardScan.email') }}</span>
+          <span v-if="fieldWarn('email')" class="text-[10px]" style="color: #C77B22;">{{ t('cardScan.fieldWarn') }}</span>
         </div>
-        <input v-model="form.email" type="email" placeholder="（可选）"
+        <input v-model="form.email" type="email" :placeholder="t('cardScan.optional')"
           class="w-full text-[15px] outline-none bg-transparent tabular"
           style="color: var(--color-ink);" />
       </div>
@@ -419,10 +422,10 @@ function onCancel() {
       <div class="bg-white rounded-2xl px-4 py-3"
         :style="{ border: '1px solid', ...fieldStyle('address') }">
         <div class="flex items-center justify-between mb-1">
-          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">公司地址</span>
+          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('cardScan.address') }}</span>
           <span v-if="fieldWarn('address')" class="text-[10px]" style="color: #C77B22;">⚠</span>
         </div>
-        <textarea v-model="form.address" placeholder="（可选）" rows="2"
+        <textarea v-model="form.address" :placeholder="t('cardScan.optional')" rows="2"
           class="w-full text-[14px] outline-none bg-transparent resize-none"
           style="color: var(--color-ink); line-height: 1.45;"></textarea>
       </div>
@@ -450,9 +453,9 @@ function onCancel() {
                 </svg>
               </div>
               <div class="flex-1 min-w-0">
-                <div class="font-serif" style="font-size: 18px; color: var(--color-ink);">检测到重复</div>
+                <div class="font-serif" style="font-size: 18px; color: var(--color-ink);">{{ t('cardScan.dupDetected') }}</div>
                 <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
-                  「{{ duplicates[0]?.name || form.name }}」联系人已存在
+                  {{ t('cardScan.dupExists', { name: duplicates[0]?.name || form.name }) }}
                 </div>
               </div>
             </div>
@@ -482,11 +485,11 @@ function onCancel() {
                   </div>
                   <div class="flex-1 min-w-0">
                     <div class="flex items-baseline gap-1">
-                      <span style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">合并到已有联系人</span>
-                      <span v-if="i === 0" style="font-size: 10.5px; color: var(--color-accent); margin-left: 4px;">· 推荐</span>
+                      <span style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">{{ t('cardScan.dupMergeOption') }}</span>
+                      <span v-if="i === 0" style="font-size: 10.5px; color: var(--color-accent); margin-left: 4px;">{{ t('cardScan.dupRecommended') }}</span>
                     </div>
                     <div style="font-size: 12px; color: var(--color-ink-3); margin-top: 2px;">
-                      把这次扫到的字段补进已有联系人, 并更新名片图
+                      {{ t('cardScan.dupMergeDesc') }}
                     </div>
                   </div>
                 </div>
@@ -501,7 +504,7 @@ function onCancel() {
                     <div class="flex-1 min-w-0">
                       <div class="flex items-baseline gap-1.5">
                         <span style="font-size: 13.5px; font-weight: 500; color: var(--color-ink);">{{ d.name }}</span>
-                        <span v-if="d.has_business_card" style="font-size: 9px; font-weight: 600; padding: 1px 4px; border-radius: 3px; background: var(--color-accent-soft); color: var(--color-accent);">名片</span>
+                        <span v-if="d.has_business_card" style="font-size: 9px; font-weight: 600; padding: 1px 4px; border-radius: 3px; background: var(--color-accent-soft); color: var(--color-accent);">{{ t('cardScan.dupCardChip') }}</span>
                       </div>
                       <div style="font-size: 11.5px; color: var(--color-ink-3); margin-top: 1px;" class="truncate">
                         {{ [d.position, d.company_name].filter(Boolean).join(' · ') }}
@@ -533,9 +536,9 @@ function onCancel() {
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div style="font-size: 14px; font-weight: 500; color: var(--color-ink);">仍然新建独立联系人</div>
+                  <div style="font-size: 14px; font-weight: 500; color: var(--color-ink);">{{ t('cardScan.dupNewOption') }}</div>
                   <div style="font-size: 11.5px; color: var(--color-ink-3); margin-top: 2px;">
-                    当作不同人处理 · 不合并到任何已有联系人
+                    {{ t('cardScan.dupNewDesc') }}
                   </div>
                 </div>
               </div>
@@ -547,12 +550,12 @@ function onCancel() {
               <button @click="showDupDialog = false" :disabled="saving"
                 class="flex-1 py-3.5 rounded-xl active:opacity-70 disabled:opacity-40"
                 style="border: 1px solid var(--color-divider-strong); background: #fff; color: var(--color-ink); font-size: 14.5px; font-weight: 500;">
-                取消
+                {{ t('cardScan.cancel') }}
               </button>
               <button @click="confirmDupSheet" :disabled="saving"
                 class="rounded-xl text-white font-semibold active:opacity-70 disabled:opacity-40"
                 style="flex: 1.6; padding: 14px 0; background: var(--color-accent); font-size: 14.5px;">
-                {{ saving ? '处理中…' : '确定' }}
+                {{ saving ? t('cardScan.processing') : t('cardScan.confirm') }}
               </button>
             </div>
           </div>
@@ -579,9 +582,9 @@ function onCancel() {
                 </svg>
               </div>
               <div class="flex-1 min-w-0">
-                <div class="font-serif" style="font-size: 18px; color: var(--color-ink);">检测到重复</div>
+                <div class="font-serif" style="font-size: 18px; color: var(--color-ink);">{{ t('cardScan.dupDetected') }}</div>
                 <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
-                  「{{ form.company }}」客户已存在
+                  {{ t('cardScan.dupCompanyExists', { name: form.company }) }}
                 </div>
               </div>
             </div>
@@ -609,11 +612,11 @@ function onCancel() {
                   </div>
                   <div class="flex-1 min-w-0">
                     <div class="flex items-baseline gap-1">
-                      <span style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">合并到现有客户</span>
-                      <span v-if="i === 0" style="font-size: 10.5px; color: var(--color-accent); margin-left: 4px;">· 推荐</span>
+                      <span style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">{{ t('cardScan.dupCompanyMergeOption2') }}</span>
+                      <span v-if="i === 0" style="font-size: 10.5px; color: var(--color-accent); margin-left: 4px;">{{ t('cardScan.dupRecommended') }}</span>
                     </div>
                     <div style="font-size: 12px; color: var(--color-ink-3); margin-top: 2px;">
-                      {{ form.name }} 将作为新联系人加入「{{ c.name }}」
+                      {{ t('cardScan.dupCompanyMergeDesc2', { contact: form.name, company: c.name }) }}
                     </div>
                   </div>
                 </div>
@@ -625,14 +628,14 @@ function onCancel() {
                   </div>
                   <div class="tabular flex items-center gap-3.5"
                     style="font-size: 11.5px; color: var(--color-ink-3);">
-                    <span>累计 <b style="color: var(--color-ink); font-weight: 600;">{{ c.value_wan ?? 0 }}</b> 万</span>
-                    <span>{{ c.open_count ?? 0 }} 进行中</span>
-                    <span>{{ c.contact_count ?? 0 }} 联系人</span>
+                    <span>{{ t('cardScan.customerCumulative', { amt: t('project.amountWan', { amount: c.value_wan ?? 0 }) }) }}</span>
+                    <span>{{ t('cardScan.inProgressN', { n: c.open_count ?? 0 }) }}</span>
+                    <span>{{ t('cardScan.contactsN', { n: c.contact_count ?? 0 }) }}</span>
                   </div>
                   <div class="mt-2 pt-2"
                     style="border-top: 1px dashed var(--color-divider);">
                     <div style="font-size: 10.5px; color: var(--color-accent); font-weight: 600; letter-spacing: 0.4px; margin-bottom: 4px;">
-                      新增 · 第 {{ (c.contact_count ?? 0) + 1 }} 位联系人
+                      {{ t('cardScan.dupCompanyAddedNth', { n: (c.contact_count ?? 0) + 1 }) }}
                     </div>
                     <div class="flex items-center gap-2">
                       <div class="rounded-full inline-flex items-center justify-center font-serif shrink-0"
@@ -667,9 +670,9 @@ function onCancel() {
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div style="font-size: 14px; font-weight: 500; color: var(--color-ink);">仍然新建客户</div>
+                  <div style="font-size: 14px; font-weight: 500; color: var(--color-ink);">{{ t('cardScan.dupNewCompanyOption') }}</div>
                   <div style="font-size: 11.5px; color: var(--color-ink-3); margin-top: 2px;">
-                    当作不同分公司处理
+                    {{ t('cardScan.dupNewCompanyDesc') }}
                   </div>
                 </div>
               </div>
@@ -680,12 +683,12 @@ function onCancel() {
               <button @click="showCompanyDupDialog = false" :disabled="saving"
                 class="flex-1 py-3.5 rounded-xl active:opacity-70 disabled:opacity-40"
                 style="border: 1px solid var(--color-divider-strong); background: #fff; color: var(--color-ink); font-size: 14.5px; font-weight: 500;">
-                取消
+                {{ t('cardScan.cancel') }}
               </button>
               <button @click="confirmCompanyDupSheet" :disabled="saving"
                 class="rounded-xl text-white font-semibold active:opacity-70 disabled:opacity-40"
                 style="flex: 1.6; padding: 14px 0; background: var(--color-accent); font-size: 14.5px;">
-                {{ saving ? '处理中…' : '确定' }}
+                {{ saving ? t('cardScan.processing') : t('cardScan.confirm') }}
               </button>
             </div>
           </div>

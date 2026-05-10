@@ -3,7 +3,10 @@
 // 显示: ✓ + 联系人卡 + 名片图 + 3 快捷动作 + 双 CTA (继续拍 / 去详情)
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import client from '@/api/client'
+
+const { t } = useI18n()
 import { useCardScanStore } from '@/stores/cardScan'
 
 const router = useRouter()
@@ -34,9 +37,9 @@ const cardImageFullUrl = computed(() => {
 const subtitleVerb = computed(() => {
   const x = r.value
   if (!x) return ''
-  if (x.mergeMode === 'merge')  return '已合并到'
-  if (x.mergeMode === 'attach') return '已加到'
-  return '已加入新客户'
+  if (x.mergeMode === 'merge')  return t('cardScan.successTitleMerge')
+  if (x.mergeMode === 'attach') return t('cardScan.successTitleAttach')
+  return t('cardScan.successTitleNew')
 })
 
 // 低置信度字段数 (置信度 <0.9, 由 ConfirmView countLowConfidence 计算后传入)
@@ -108,12 +111,12 @@ function close() {
           </svg>
         </div>
         <div class="font-serif" style="font-size: 24px; margin-top: 18px; color: var(--color-ink); letter-spacing: -0.3px;">
-          已添加联系人
+          {{ t('cardScan.successHeader') }}
         </div>
         <div class="text-center" style="font-size: 13px; color: var(--color-ink-3); margin-top: 4px; line-height: 1.6;">
           {{ r.contactName }} {{ subtitleVerb }} <b style="color: var(--color-ink);">{{ r.companyName }}</b><br>
           <span style="color: var(--color-ink-4, #A8A29B);">
-            {{ r.fieldCount || 0 }} 个字段已保存<template v-if="lowConfidenceCount > 0"> · {{ lowConfidenceCount }} 个待你后续核对</template>
+            {{ t('cardScan.successFieldsSaved', { n: r.fieldCount || 0 }) }}<template v-if="lowConfidenceCount > 0">{{ t('cardScan.successLowConfSuffix', { n: lowConfidenceCount }) }}</template>
           </span>
         </div>
       </div>
@@ -134,7 +137,7 @@ function close() {
               {{ r.position ? r.position + ' · ' : '' }}{{ r.companyName }}
             </div>
           </div>
-          <span style="font-size: 11px; padding: 3px 7px; border-radius: 4px; background: #E9F1EB; color: #2F7A4F; font-weight: 600;">新</span>
+          <span style="font-size: 11px; padding: 3px 7px; border-radius: 4px; background: #E9F1EB; color: #2F7A4F; font-weight: 600;">{{ t('cardScan.newBadge') }}</span>
         </div>
 
         <!-- 名片原图 chip row -->
@@ -150,13 +153,13 @@ function close() {
                 <path d="M4 3l1-1h2l1 1" stroke="currentColor" stroke-width="1.1" fill="none" />
                 <circle cx="6" cy="6.5" r="1.6" stroke="currentColor" stroke-width="1.1" />
               </svg>
-              名片原图
+              {{ t('cardScan.cardImgLabel') }}
             </div>
             <div style="font-size: 11px; color: var(--color-ink-3); margin-top: 2px; font-variant-numeric: tabular-nums;">
-              {{ dateStr }} · 1 张
+              {{ t('cardScan.cardImgMeta', { date: dateStr }) }}
             </div>
           </div>
-          <span style="font-size: 12px; color: var(--color-accent); font-weight: 500;">查看 ›</span>
+          <span style="font-size: 12px; color: var(--color-accent); font-weight: 500;">{{ t('cardScan.viewArrow') }}</span>
         </div>
 
         <!-- 3 快捷动作 row (设计稿: 12px 0 padding, right border 分隔, icon 16px) -->
@@ -168,7 +171,7 @@ function close() {
               <rect x="1.5" y="3.5" width="13" height="9" rx="1" stroke="var(--color-ink-2)" stroke-width="1.3" />
               <path d="M2 4l6 4 6-4" stroke="var(--color-ink-2)" stroke-width="1.3" stroke-linejoin="round" fill="none" />
             </svg>
-            <span style="font-size: 12px; color: var(--color-ink-2);">发邮件</span>
+            <span style="font-size: 12px; color: var(--color-ink-2);">{{ t('cardScan.actionEmail') }}</span>
           </button>
           <button @click="callPhone" :disabled="!r.phone"
             class="flex-1 flex flex-col items-center gap-1 active:bg-gray-50 disabled:opacity-40"
@@ -177,7 +180,7 @@ function close() {
               <path d="M3 4a1 1 0 011-1h2l1 3-1.5 1a8 8 0 004 4l1-1.5 3 1v2a1 1 0 01-1 1A10 10 0 013 4z"
                 stroke="var(--color-ink-2)" stroke-width="1.3" stroke-linejoin="round" fill="none" />
             </svg>
-            <span style="font-size: 12px; color: var(--color-ink-2);">拨电话</span>
+            <span style="font-size: 12px; color: var(--color-ink-2);">{{ t('cardScan.actionCall') }}</span>
           </button>
           <button @click="gotoProjects"
             class="flex-1 flex flex-col items-center gap-1 active:bg-gray-50"
@@ -185,7 +188,7 @@ function close() {
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M2 4h12v8H2zM2 4l6 4 6-4" stroke="var(--color-ink-2)" stroke-width="1.3" stroke-linejoin="round" fill="none" />
             </svg>
-            <span style="font-size: 12px; color: var(--color-ink-2);">加入项目</span>
+            <span style="font-size: 12px; color: var(--color-ink-2);">{{ t('cardScan.actionAddProject') }}</span>
           </button>
         </div>
       </div>
@@ -204,12 +207,12 @@ function close() {
           <circle cx="12" cy="12.5" r="3.5" />
           <path d="M9 6V5a1 1 0 011-1h4a1 1 0 011 1v1" stroke-linecap="round" />
         </svg>
-        继续拍下一张
+        {{ t('cardScan.successContinue') }}
       </button>
       <button @click="gotoDetail"
         class="flex-1 active:opacity-70"
         style="height: 50px; border-radius: 14px; background: var(--color-ink); color: #fff; font-size: 15px; font-weight: 600;">
-        去客户详情 ›
+        {{ t('cardScan.successGoCustomer') }}
       </button>
     </div>
 

@@ -17,19 +17,27 @@
 -->
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Capacitor } from '@capacitor/core'
 import { DocumentScanner } from '@/plugins/documentScanner'
 import ImageCrop4Corners from '@/components/common/ImageCrop4Corners.vue'
 
+const { t } = useI18n()
+
 const props = defineProps({
   allowMulti: { type: Boolean, default: false },
-  captureTip: { type: String, default: '把文档放在桌面平整位置, 设备保持稳定, 系统会自动捕捉' },
-  previewTip: { type: String, default: '字够清晰吗? 模糊就重拍' },
-  primaryLabel: { type: String, default: 'AI 识别' },
-  multiPrimaryFormat: { type: String, default: '用这张 · 共 {n} 张 · 开始识别' },
+  captureTip: { type: String, default: '' },
+  previewTip: { type: String, default: '' },
+  primaryLabel: { type: String, default: '' },
+  multiPrimaryFormat: { type: String, default: '' },
   // 是否在 mount 时立即触发 VisionKit / 相机(默认 true)
   autoStart: { type: Boolean, default: true },
 })
+
+const captureTipText = computed(() => props.captureTip || t('scan.captureTip'))
+const previewTipText = computed(() => props.previewTip || t('scan.previewTip'))
+const primaryLabelText = computed(() => props.primaryLabel || t('scan.primaryLabel'))
+const multiPrimaryFormatText = computed(() => props.multiPrimaryFormat || t('scan.multiPrimaryFormat'))
 
 const emit = defineEmits(['done', 'cancel'])
 
@@ -59,13 +67,13 @@ function dataUrlToBlob(dataUrl) {
 
 async function tryVisionKit() {
   if (!Capacitor.isNativePlatform?.()) {
-    visionKitDebug.value = 'web 环境无 VisionKit'
+    visionKitDebug.value = t('scan.visionKitWebEnv')
     return false
   }
   try {
     const r = await DocumentScanner.isAvailable()
     if (!r?.available) {
-      visionKitDebug.value = `VisionKit 不可用 (${JSON.stringify(r)})`
+      visionKitDebug.value = t('scan.visionKitUnavailable', { err: JSON.stringify(r) })
       return false
     }
     // 不限制页数 + 不压缩, 保留原图清晰度
@@ -126,7 +134,7 @@ async function startManualCamera() {
         finalizeOrCancel()
         return
       }
-      error.value = `相机调用失败: ${msg.slice(0, 80)}`
+      error.value = t('scan.cameraFail', { msg: msg.slice(0, 80) })
     }
   } else {
     cameraInputEl.value?.click()
@@ -144,7 +152,7 @@ function onWebPhoto(e) {
 
 async function onCropped({ blob, dataUrl }) {
   if (!blob) {
-    error.value = '裁剪失败'
+    error.value = t('scan.cropFail')
     return
   }
   previewDataUrl.value = dataUrl
@@ -205,10 +213,10 @@ function finalizeOrCancel() {
 }
 
 const finishLabel = computed(() => {
-  if (!props.allowMulti) return props.primaryLabel
+  if (!props.allowMulti) return primaryLabelText.value
   const total = accumulatedCount.value + 1  // +1 当前预览页
-  if (total <= 1) return props.primaryLabel
-  return props.multiPrimaryFormat.replace('{n}', total)
+  if (total <= 1) return primaryLabelText.value
+  return multiPrimaryFormatText.value.replace('{n}', total)
 })
 
 // 公开方法 — 父组件可以手动触发
@@ -241,15 +249,15 @@ onBeforeUnmount(() => {
     <!-- step: capture -->
     <div v-if="step === 'capture'"
       class="flex-1 flex flex-col items-center justify-center text-white px-6 text-center">
-      <div class="text-[14px] opacity-80">正在打开相机…</div>
-      <p class="mt-4 text-[12px] opacity-60" style="line-height: 1.55;">{{ captureTip }}</p>
+      <div class="text-[14px] opacity-80">{{ t('scan.openingCamera') }}</div>
+      <p class="mt-4 text-[12px] opacity-60" style="line-height: 1.55;">{{ captureTipText }}</p>
       <div v-if="accumulatedCount > 0" class="mt-3 text-[12px]" style="color: var(--color-accent);">
-        已拍 {{ accumulatedCount }} 张
+        {{ t('scan.shotsN', { n: accumulatedCount }) }}
       </div>
       <div v-if="error" class="mt-4 text-[13px]" style="color: #FF6B6B;">{{ error }}</div>
       <button v-if="error" @click="finalizeOrCancel"
         class="mt-6 px-5 py-2 rounded-full text-[13px]"
-        style="background: rgba(255,255,255,0.15); color: #fff;">返回</button>
+        style="background: rgba(255,255,255,0.15); color: #fff;">{{ t('scan.back') }}</button>
     </div>
 
     <!-- step: crop (fallback 手动 4 角) -->
@@ -261,12 +269,12 @@ onBeforeUnmount(() => {
       <div class="flex items-center justify-between px-4 py-3 shrink-0"
         style="background: rgba(0,0,0,0.85);">
         <button @click="finalizeOrCancel"
-          class="text-white text-[14px] active:opacity-70">取消</button>
-        <span class="text-white text-[14px] opacity-80">{{ previewTip }}</span>
+          class="text-white text-[14px] active:opacity-70">{{ t('scan.cancel') }}</button>
+        <span class="text-white text-[14px] opacity-80">{{ previewTipText }}</span>
         <span class="w-12 text-right">
           <span v-if="allowMulti && accumulatedCount > 0"
             class="text-[12px]" style="color: var(--color-accent);">
-            已 {{ accumulatedCount }}
+            {{ t('scan.accumulatedN', { n: accumulatedCount }) }}
           </span>
         </span>
       </div>
@@ -277,7 +285,7 @@ onBeforeUnmount(() => {
       <div class="px-4 pt-3 shrink-0"
         style="background: rgba(0,0,0,0.85); padding-bottom: calc(env(safe-area-inset-bottom) + 16px);">
         <p class="text-center mb-3" style="font-size: 12px; color: rgba(255,255,255,0.65);">
-          看清楚字段, 模糊就重拍, 否则识别准确率会下降
+          {{ t('scan.previewTipDetail') }}
         </p>
 
         <!-- 多张模式: 重拍 / 继续拍 / 完成 三按钮 -->
@@ -286,12 +294,12 @@ onBeforeUnmount(() => {
             <button @click="retakePreview"
               class="flex-1 py-3 rounded-xl text-[14px] font-medium active:opacity-70"
               style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25);">
-              重拍
+              {{ t('scan.retake') }}
             </button>
             <button @click="confirmAndContinue"
               class="flex-1 py-3 rounded-xl text-[14px] font-medium active:opacity-70"
               style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25);">
-              用这张 · 继续拍
+              {{ t('scan.useThisContinue') }}
             </button>
           </div>
           <button @click="confirmAndFinish"
@@ -306,12 +314,12 @@ onBeforeUnmount(() => {
           <button @click="retakePreview"
             class="flex-1 py-3.5 rounded-xl text-[15px] font-medium active:opacity-70"
             style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.25);">
-            重新拍
+            {{ t('scan.retakeAll') }}
           </button>
           <button @click="confirmAndFinish"
             class="rounded-xl text-[15px] font-semibold active:opacity-70"
             style="flex: 1.6; padding: 14px 0; background: var(--color-accent); color: #fff;">
-            用这张 · {{ primaryLabel }}
+            {{ t('scan.useThisLabel', { label: primaryLabelText }) }}
           </button>
         </div>
       </div>

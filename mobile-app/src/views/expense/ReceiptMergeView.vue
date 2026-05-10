@@ -13,8 +13,8 @@
   >
     <div class="status-pad" />
     <ExNav
-      title="合并明细"
-      :sub="`${included.length} 张${categoryLabel}发票合并为 1 行`"
+      :title="t('receiptScan.mergeTitle')"
+      :sub="t('receiptScan.mergeSubFmt', { n: included.length, label: categoryLabel })"
       @back="$router.back()"
     />
 
@@ -24,7 +24,7 @@
     >
       <!-- hero -->
       <div :style="{ padding: '14px 20px 6px' }">
-        <div :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)', marginBottom: '6px' }">合并科目</div>
+        <div :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)', marginBottom: '6px' }">{{ t('receiptScan.mergeCategory') }}</div>
         <div :style="{ fontSize: '22px', fontWeight: 500, fontFamily: 'var(--font-serif)' }">{{ categoryLabel }}</div>
         <div
           :style="{
@@ -33,12 +33,12 @@
           }"
         >{{ currencySymbol }} {{ formatAmount(totalAmount) }}</div>
         <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', marginTop: '6px' }">
-          {{ included.length }} 张发票合计
+          {{ t('receiptScan.mergeTotalN', { n: included.length }) }}
         </div>
       </div>
 
       <!-- 包含发票 -->
-      <ExSectionHeader>包含发票</ExSectionHeader>
+      <ExSectionHeader>{{ t('receiptScan.mergeIncluded') }}</ExSectionHeader>
       <div :style="{ background: 'var(--color-ex-card)' }">
         <div
           v-for="(r, i) in included"
@@ -59,7 +59,7 @@
             }"
           />
           <div class="flex-1 min-w-0">
-            <div :style="{ fontSize: '13px', fontWeight: 500 }">{{ r.fields?.seller || '未知商户' }}</div>
+            <div :style="{ fontSize: '13px', fontWeight: 500 }">{{ r.fields?.seller || t('receiptScan.mergeUnknownSeller') }}</div>
             <div
               :style="{
                 fontSize: '10px', color: 'var(--color-ex-ink4)',
@@ -78,23 +78,23 @@
       </div>
 
       <!-- 汇总字段 -->
-      <ExSectionHeader>明细字段(汇总)</ExSectionHeader>
-      <ExFieldRow label="报销科目 *" :value="categoryLabel" />
-      <ExFieldRow label="时间范围" :value="dateRange" />
-      <ExFieldRow label="费用描述" :value="form.description" />
+      <ExSectionHeader>{{ t('receiptScan.mergeFieldsAgg') }}</ExSectionHeader>
+      <ExFieldRow :label="t('receiptScan.fCategory')" :value="categoryLabel" />
+      <ExFieldRow :label="t('receiptScan.mergeTimeRange')" :value="dateRange" />
+      <ExFieldRow :label="t('receiptScan.fDesc')" :value="form.description" />
       <ExFieldRow
-        label="发票金额 *"
+        :label="t('receiptScan.mergeFAmount')"
         :value="`${currencySymbol} ${formatAmount(totalAmount)}`"
         :lock="true"
-        note="自动累加"
+        :note="t('receiptScan.mergeAutoSum')"
       />
-      <ExFieldRow label="币种" :value="`${currencyLabel} (${currency})`" />
-      <ExFieldRow label="单据数" :value="String(included.length)" />
+      <ExFieldRow :label="t('receiptScan.mergeFCurrency')" :value="`${currencyLabel} (${currency})`" />
+      <ExFieldRow :label="t('receiptScan.mergeFDocCount')" :value="String(included.length)" />
     </div>
 
     <ExBottomBar
-      primary="保存合并"
-      secondary="拆分独立"
+      :primary="t('receiptScan.mergeSave')"
+      :secondary="t('receiptScan.mergeSplit')"
       :disabled="saving"
       @primary="onSaveMerge"
       @secondary="onSplit"
@@ -105,6 +105,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import * as expApi from '@/api/expense'
 import { useExpenseStore } from '@/stores/expense'
 import ExNav from '@/components/expense/ExNav.vue'
@@ -114,6 +115,7 @@ import ExBottomBar from '@/components/expense/ExBottomBar.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const store = useExpenseStore()
 const expenseId = computed(() => parseInt(route.params.id))
 const primaryIdx = computed(() => parseInt(route.query.primary) || 0)
@@ -155,7 +157,7 @@ function formatAmount(n) {
 
 onMounted(async () => {
   await store.loadReference()
-  form.value.description = `${categoryLabel.value} · ${included.value.length} 次`
+  form.value.description = t('receiptScan.mergeDescFmt', { label: categoryLabel.value, n: included.value.length })
 })
 
 function onRemove(idx) {
@@ -164,7 +166,7 @@ function onRemove(idx) {
 
 async function onSaveMerge() {
   if (included.value.length === 0) {
-    alert('没有可合并的发票')
+    alert(t('receiptScan.mergeNoneToMerge'))
     return
   }
   saving.value = true
@@ -189,7 +191,7 @@ async function onSaveMerge() {
     // 跳到下一张未处理的
     nextUnprocessed()
   } catch (e) {
-    alert('保存失败: ' + (e.response?.data?.message || e.message))
+    alert(t('receiptScan.mergeSaveFailFmt', { err: e.response?.data?.message || e.message }))
   } finally {
     saving.value = false
   }

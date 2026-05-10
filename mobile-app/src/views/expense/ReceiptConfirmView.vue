@@ -21,19 +21,19 @@
             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
         <span class="text-[15px]">
-          核对 {{ idx + 1 }}/{{ total }}<span v-if="processedCount > 0"
-            class="text-[11px]" style="color: var(--color-ink-3); margin-left: 4px;">· 已处理 {{ processedCount }}</span>
+          {{ t('receiptScan.confirmTitleN', { idx: idx + 1, total }) }}<span v-if="processedCount > 0"
+            class="text-[11px]" style="color: var(--color-ink-3); margin-left: 4px;">{{ t('receiptScan.processedN', { n: processedCount }) }}</span>
         </span>
       </button>
       <div class="flex items-center" style="gap: 4px;">
         <button v-if="idx > 0"
           @click="navTo(idx - 1)"
           class="text-[14px] font-medium active:opacity-60 px-2"
-          style="color: var(--color-accent);">‹ 上一张</button>
+          style="color: var(--color-accent);">{{ t('receiptScan.prev') }}</button>
         <button v-if="idx < total - 1"
           @click="navTo(idx + 1)"
           class="text-[14px] font-medium active:opacity-60 px-2"
-          style="color: var(--color-accent);">下一张 ›</button>
+          style="color: var(--color-accent);">{{ t('receiptScan.next') }}</button>
       </div>
     </div>
 
@@ -90,64 +90,64 @@
             class="text-[11px] mt-1.5 active:opacity-60"
             style="color: var(--color-accent);"
             @click="showFullImage = true">
-            点击放大查看 ›
+            {{ t('receiptScan.tapToZoom') }}
           </div>
         </div>
       </div>
 
       <!-- 字段表单 -->
-      <ExSectionHeader>字段</ExSectionHeader>
+      <ExSectionHeader>{{ t('receiptScan.secFields') }}</ExSectionHeader>
       <ExFieldRow
-        label="报销科目 *"
+        :label="t('receiptScan.fCategory')"
         :value="categoryLabel(form.expense_category)"
         :warn="lowConfidence('category')"
-        :note="lowConfidence('category') ? `置信度 ${pct('category')}% · 请确认` : ''"
+        :note="lowConfidence('category') ? t('receiptScan.confidencePct', { pct: pct('category') }) : ''"
         @click="onPickCategory"
       />
       <ExFieldRow
-        label="发生日期 *"
+        :label="t('receiptScan.fDate')"
         :value="form.expense_date || '—'"
         :warn="lowConfidence('date')"
-        :note="lowConfidence('date') ? `置信度 ${pct('date')}% · 请确认` : ''"
+        :note="lowConfidence('date') ? t('receiptScan.confidencePct', { pct: pct('date') }) : ''"
       />
       <ExFieldRow
-        label="费用描述"
+        :label="t('receiptScan.fDesc')"
         :value="form.description || '—'"
         :warn="lowConfidence('description')"
       />
       <ExFieldRow
-        label="发票金额 *"
+        :label="t('receiptScan.fInvoiceAmt')"
         :value="`${currencySymbol(form.currency)} ${formatAmount(form.invoice_amount)}`"
         :warn="lowConfidence('invoice_amount')"
-        :note="lowConfidence('invoice_amount') ? '请核对金额' : ''"
+        :note="lowConfidence('invoice_amount') ? t('receiptScan.pleaseCheckAmount') : ''"
       />
       <ExFieldRow
-        label="币种"
+        :label="t('receiptScan.fCurrency')"
         :value="`${currencyLabel(form.currency)} (${form.currency})`"
       />
       <ExFieldRow
-        label="汇率"
+        :label="t('receiptScan.fRate')"
         :value="(form.exchange_rate || 1).toFixed(4)"
         :lock="true"
       />
       <ExFieldRow
-        label="报销金额"
+        :label="t('receiptScan.fAmount')"
         :value="`${currencySymbol(expenseCurrency)} ${formatAmount(currentAmount)}`"
         :lock="true"
-        note="自动计算 = 发票 × 汇率"
+        :note="t('receiptScan.autoCalc')"
       />
       <ExFieldRow
-        label="开票方"
+        :label="t('receiptScan.fSeller')"
         :value="form.seller || '—'"
         :warn="lowConfidence('seller')"
       />
       <ExFieldRow
-        label="税额"
+        :label="t('receiptScan.fTax')"
         :value="form.tax_amount ? `${currencySymbol(form.currency)} ${formatAmount(form.tax_amount)}` : '—'"
       />
 
       <!-- 合并模式 -->
-      <ExSectionHeader v-if="mergeable.length > 0">合并模式</ExSectionHeader>
+      <ExSectionHeader v-if="mergeable.length > 0">{{ t('receiptScan.secMerge') }}</ExSectionHeader>
       <div
         v-if="mergeable.length > 0"
         :style="{
@@ -168,8 +168,8 @@
             }"
             @click="mergeMode = 'separate'"
           >
-            <div :style="{ fontSize: '12px', fontWeight: 600 }">独立明细</div>
-            <div :style="{ fontSize: '10px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">每张一行</div>
+            <div :style="{ fontSize: '12px', fontWeight: 600 }">{{ t('receiptScan.mergeStandalone') }}</div>
+            <div :style="{ fontSize: '10px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">{{ t('receiptScan.mergeStandaloneDesc') }}</div>
           </div>
           <div
             class="flex-1"
@@ -182,10 +182,10 @@
             @click="mergeMode = 'merge'"
           >
             <div :style="{ fontSize: '12px', fontWeight: 600 }">
-              合并到现有 ({{ mergeable.length + 1 }} 张)
+              {{ t('receiptScan.mergeMergeN', { n: mergeable.length + 1 }) }}
             </div>
             <div :style="{ fontSize: '10px', color: 'var(--color-ex-ink3)', marginTop: '2px' }">
-              多张并 1 行 · 自动累加
+              {{ t('receiptScan.mergeMergeDesc') }}
             </div>
           </div>
         </div>
@@ -193,8 +193,8 @@
     </div>
 
     <ExBottomBar
-      :primary="isLastUnprocessed ? '保存全部' : '保存这张 · 下一张'"
-      secondary="跳过"
+      :primary="isLastUnprocessed ? t('receiptScan.saveAll') : t('receiptScan.saveOneNext')"
+      :secondary="t('receiptScan.skip')"
       :disabled="saving"
       @primary="onSave"
       @secondary="onSkip"
@@ -203,7 +203,7 @@
     <!-- 报销科目选择 -->
     <ExPickerSheet
       v-model="categoryPickerOpen"
-      title="选择报销科目"
+      :title="t('receiptScan.pickCategory')"
       :options="store.categories.map(c => ({ value: c.key, label: c.label }))"
       :selected="form.expense_category"
       @pick="(v) => { form.expense_category = v; categoryPickerOpen = false }"
@@ -230,7 +230,7 @@
           ">×</button>
         <div class="absolute text-white text-[12px] opacity-70"
           style="bottom: calc(env(safe-area-inset-bottom) + 16px);">
-          点击空白区关闭
+          {{ t('receiptScan.tapBlankClose') }}
         </div>
       </div>
     </Teleport>
@@ -240,6 +240,7 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import * as expApi from '@/api/expense'
 import { useExpenseStore } from '@/stores/expense'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
@@ -249,6 +250,7 @@ import ExPickerSheet from '@/components/expense/ExPickerSheet.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const store = useExpenseStore()
 
 const expenseId = computed(() => parseInt(route.params.id))
@@ -302,7 +304,7 @@ function loadFromReceipt() {
   const r = store.pendingReceipts[idx.value]
   if (!r) return
   if (r.status === 'failed') {
-    alert('这张发票识别失败: ' + (r.error || '未知错误') + ', 你可以手动填写或跳过')
+    alert(t('receiptScan.failParse', { msg: r.error || t('receiptScan.unknownErr') }))
   }
   const f = r.fields || {}
   form.value = {
@@ -313,7 +315,7 @@ function loadFromReceipt() {
     invoice_amount: Number(f.invoice_amount) || 0,
     tax_amount: f.tax_amount ? Number(f.tax_amount) : null,
     expense_category: f.category || 'other',
-    description: f.description || (f.seller ? `${f.seller}发票` : ''),
+    description: f.description || (f.seller ? t('receiptScan.sellerInvoiceFmt', { seller: f.seller }) : ''),
     exchange_rate: 1,
   }
   fetchRate()
@@ -360,16 +362,16 @@ function lowConfidence(key) {
 }
 
 const docTypeLabel = computed(() =>
-  form.value.invoice_no ? '增值税普通发票' : '收据 / 通用发票'
+  form.value.invoice_no ? t('receiptScan.invoiceVat') : t('receiptScan.invoiceReceipt')
 )
 
 const confidenceLabel = computed(() => {
   const conf = receipt.value?.confidence || {}
   const total = Object.keys(conf).length || 1
   const high = Object.values(conf).filter(v => v >= 0.85).length
-  if (high === total) return { color: 'var(--color-ex-green)', text: `${high}/${total} 字段高置信` }
-  if (high < total / 2) return { color: 'var(--color-ex-warn)', text: `仅 ${high}/${total} 字段高置信 · 请仔细核对` }
-  return { color: 'var(--color-ex-warn)', text: `${high}/${total} 字段高置信` }
+  if (high === total) return { color: 'var(--color-ex-green)', text: t('receiptScan.confidenceHigh', { high, total }) }
+  if (high < total / 2) return { color: 'var(--color-ex-warn)', text: t('receiptScan.confidenceHigh', { high, total }) }
+  return { color: 'var(--color-ex-warn)', text: t('receiptScan.confidenceHigh', { high, total }) }
 })
 
 function categoryLabel(key) { return store.categoryLabel(key) }
