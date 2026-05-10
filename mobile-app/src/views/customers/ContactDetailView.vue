@@ -5,12 +5,14 @@
 // 编辑模式: 字段变成可编辑 input + 顶部右侧"保存"
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import client from '@/api/client'
 import NavBar from '@/components/common/NavBar.vue'
 import { getContact, updateContact, deleteContact } from '@/api/customers'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
 const { kbStyle } = useKeyboardOffset()
+const { t } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -36,10 +38,10 @@ async function load() {
     if (res.data?.success) {
       contact.value = res.data.data
     } else {
-      error.value = res.data?.message || '加载失败'
+      error.value = res.data?.message || t('customer.loadFail')
     }
   } catch (e) {
-    error.value = e?.message || '网络错误'
+    error.value = e?.message || t('customer.netError')
   } finally {
     loading.value = false
   }
@@ -87,7 +89,7 @@ function cancelEdit() {
 
 async function saveEdit() {
   if (!editForm.value.name?.trim()) {
-    error.value = '姓名不能为空'
+    error.value = t('customer.nameRequired')
     return
   }
   saving.value = true
@@ -100,10 +102,10 @@ async function saveEdit() {
       contact.value = { ...contact.value, ...d }
       editMode.value = false
     } else {
-      error.value = res.data?.message || '保存失败'
+      error.value = res.data?.message || t('customer.saveFail')
     }
   } catch (e) {
-    error.value = e?.message || '保存失败'
+    error.value = e?.message || t('customer.saveFail')
   } finally {
     saving.value = false
   }
@@ -124,12 +126,12 @@ async function confirmDelete() {
       const cid = res.data.data?.company_id || route.params.cid
       router.replace(`/customers/${cid}`)
     } else {
-      error.value = res.data?.message || '删除失败'
+      error.value = res.data?.message || t('customer.deleteFail')
       deleting.value = false
       showDeleteConfirm.value = false
     }
   } catch (e) {
-    error.value = e?.message || '删除失败'
+    error.value = e?.message || t('customer.deleteFail')
     deleting.value = false
     showDeleteConfirm.value = false
   }
@@ -139,15 +141,15 @@ async function confirmDelete() {
 <template>
   <div class="flex flex-col h-full" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
     <!-- 顶部 NavBar: 编辑模式时右侧改"保存", 默认 "..." 菜单 -->
-    <NavBar :title="contact?.name || '联系人'" @back="editMode ? cancelEdit() : onBack()" @more="onMore">
+    <NavBar :title="contact?.name || t('customer.contactHeader')" @back="editMode ? cancelEdit() : onBack()" @more="onMore">
       <template v-if="editMode" #left>
-        <span style="color: var(--color-ink-2); font-size: 15px;">取消</span>
+        <span style="color: var(--color-ink-2); font-size: 15px;">{{ t('common.cancel') }}</span>
       </template>
       <template v-if="editMode" #right>
         <button @click.stop="saveEdit" :disabled="saving"
           class="text-[15px] font-semibold active:opacity-70 disabled:opacity-40"
           style="color: var(--color-accent);">
-          {{ saving ? '保存中…' : '保存' }}
+          {{ saving ? t('customer.saving') : t('customer.save') }}
         </button>
       </template>
     </NavBar>
@@ -172,12 +174,12 @@ async function confirmDelete() {
           <div v-if="!editMode" class="flex items-baseline gap-1.5">
             <p class="font-serif text-[18px]" style="color: var(--color-ink); letter-spacing: -0.2px;">{{ contact.name }}</p>
             <span v-if="contact.is_primary" class="text-[10px] font-bold px-1.5 py-px rounded"
-              style="background: var(--color-accent); color: #fff;">主要</span>
+              style="background: var(--color-accent); color: #fff;">{{ t('customer.primary') }}</span>
           </div>
           <input v-else v-model="editForm.name" type="text"
             class="font-serif text-[18px] w-full bg-transparent outline-none border-b"
             style="color: var(--color-ink); border-color: var(--color-divider); padding: 2px 0;"
-            placeholder="姓名 *" />
+            :placeholder="t('customer.fieldName')" />
           <p v-if="!editMode" class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">
             {{ [contact.position, contact.department].filter(Boolean).join(' · ') || '—' }}
           </p>
@@ -192,14 +194,14 @@ async function confirmDelete() {
         style="border: 1px solid var(--color-divider);">
         <div class="px-4 py-3" style="border-bottom: 1px solid var(--color-divider);">
           <div class="text-[11px] font-semibold uppercase mb-1"
-            style="color: var(--color-ink-3); letter-spacing: 0.6px;">职位</div>
-          <input v-model="editForm.position" type="text" placeholder="（可选）"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('customer.cPosition') }}</div>
+          <input v-model="editForm.position" type="text" :placeholder="t('customer.optional')"
             class="w-full text-[14px] outline-none bg-transparent" style="color: var(--color-ink);" />
         </div>
         <div class="px-4 py-3">
           <div class="text-[11px] font-semibold uppercase mb-1"
-            style="color: var(--color-ink-3); letter-spacing: 0.6px;">部门</div>
-          <input v-model="editForm.department" type="text" placeholder="（可选）"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('customer.cDepartment') }}</div>
+          <input v-model="editForm.department" type="text" :placeholder="t('customer.optional')"
             class="w-full text-[14px] outline-none bg-transparent" style="color: var(--color-ink);" />
         </div>
       </div>
@@ -209,7 +211,7 @@ async function confirmDelete() {
         style="border: 1px solid var(--color-divider);">
         <div class="px-4 py-2.5"
           style="border-bottom: 1px solid var(--color-divider);">
-          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">联系方式</span>
+          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('customer.contactWay') }}</span>
         </div>
         <!-- 电话 -->
         <div v-if="!editMode && contact.phone"
@@ -224,15 +226,15 @@ async function confirmDelete() {
             </svg>
           </div>
           <div class="flex-1 min-w-0">
-            <div class="text-[11px]" style="color: var(--color-ink-3);">电话</div>
+            <div class="text-[11px]" style="color: var(--color-ink-3);">{{ t('customer.cPhone') }}</div>
             <div class="tabular text-[14px] font-medium" style="color: var(--color-ink);">{{ contact.phone }}</div>
           </div>
-          <span style="font-size: 11px; color: var(--color-accent);">点击拨打</span>
+          <span style="font-size: 11px; color: var(--color-accent);">{{ t('customer.tapCall') }}</span>
         </div>
         <div v-if="editMode" class="px-4 py-3" style="border-bottom: 1px solid var(--color-divider);">
           <div class="text-[11px] font-semibold uppercase mb-1"
-            style="color: var(--color-ink-3); letter-spacing: 0.6px;">电话</div>
-          <input v-model="editForm.phone" type="tel" placeholder="（可选）"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('customer.cPhone') }}</div>
+          <input v-model="editForm.phone" type="tel" :placeholder="t('customer.optional')"
             class="w-full text-[14px] outline-none bg-transparent tabular" style="color: var(--color-ink);" />
         </div>
         <!-- 邮箱 -->
@@ -247,20 +249,20 @@ async function confirmDelete() {
             </svg>
           </div>
           <div class="flex-1 min-w-0">
-            <div class="text-[11px]" style="color: var(--color-ink-3);">邮箱</div>
+            <div class="text-[11px]" style="color: var(--color-ink-3);">{{ t('customer.cEmail') }}</div>
             <div class="text-[13px] font-medium truncate" style="color: var(--color-ink);">{{ contact.email }}</div>
           </div>
-          <span style="font-size: 11px; color: var(--color-accent);">发邮件</span>
+          <span style="font-size: 11px; color: var(--color-accent);">{{ t('customer.sendMail') }}</span>
         </div>
         <div v-if="editMode" class="px-4 py-3">
           <div class="text-[11px] font-semibold uppercase mb-1"
-            style="color: var(--color-ink-3); letter-spacing: 0.6px;">邮箱</div>
-          <input v-model="editForm.email" type="email" placeholder="（可选）"
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('customer.cEmail') }}</div>
+          <input v-model="editForm.email" type="email" :placeholder="t('customer.optional')"
             class="w-full text-[14px] outline-none bg-transparent tabular" style="color: var(--color-ink);" />
         </div>
         <div v-if="!editMode && !contact.phone && !contact.email"
           class="px-4 py-4 text-center text-[12px]" style="color: var(--color-ink-3);">
-          无电话/邮箱
+          {{ t('customer.noPhoneEmail') }}
         </div>
       </div>
 
@@ -268,14 +270,14 @@ async function confirmDelete() {
       <div v-if="!editMode && contact.notes" class="bg-white rounded-2xl px-4 py-3"
         style="border: 1px solid var(--color-divider);">
         <div class="text-[11px] font-semibold uppercase mb-2"
-          style="color: var(--color-ink-3); letter-spacing: 0.6px;">备注</div>
+          style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('customer.notes') }}</div>
         <p class="text-[13px]" style="color: var(--color-ink-2); line-height: 1.55; white-space: pre-wrap;">{{ contact.notes }}</p>
       </div>
       <div v-if="editMode" class="bg-white rounded-2xl px-4 py-3"
         style="border: 1px solid var(--color-divider);">
         <div class="text-[11px] font-semibold uppercase mb-1"
-          style="color: var(--color-ink-3); letter-spacing: 0.6px;">备注</div>
-        <textarea v-model="editForm.notes" placeholder="（可选）" rows="3"
+          style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('customer.notes') }}</div>
+        <textarea v-model="editForm.notes" :placeholder="t('customer.optional')" rows="3"
           class="w-full text-[14px] outline-none bg-transparent resize-none"
           style="color: var(--color-ink); line-height: 1.5;"></textarea>
       </div>
@@ -285,7 +287,7 @@ async function confirmDelete() {
         style="border: 1px solid var(--color-divider);">
         <div class="px-4 py-2.5"
           style="border-bottom: 1px solid var(--color-divider);">
-          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">名片原图</span>
+          <span class="text-[11px] font-semibold uppercase" style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('customer.cardImage') }}</span>
         </div>
         <button @click="showCard = true" class="block w-full active:opacity-80">
           <img :src="cardImageFullUrl" class="w-full block"
@@ -327,7 +329,7 @@ async function confirmDelete() {
                 <path d="M12 20h9" stroke-linecap="round" stroke-linejoin="round" />
                 <path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4L16.5 3.5z" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
-              <span style="font-size: 15px; color: var(--color-ink);">编辑联系人</span>
+              <span style="font-size: 15px; color: var(--color-ink);">{{ t('customer.editContact') }}</span>
             </button>
             <button @click="askDelete"
               class="w-full px-5 py-4 flex items-center gap-3 active:bg-gray-100 text-left"
@@ -337,12 +339,12 @@ async function confirmDelete() {
                 <path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"
                   stroke-linecap="round" stroke-linejoin="round" />
               </svg>
-              <span style="font-size: 15px; color: #DC3545;">删除联系人</span>
+              <span style="font-size: 15px; color: #DC3545;">{{ t('customer.deleteContact') }}</span>
             </button>
             <button @click="showActions = false"
               class="w-full px-5 py-3.5 mt-2 active:bg-gray-100"
               style="background: var(--color-card); font-size: 15px; color: var(--color-ink-2); margin-top: 8px;">
-              取消
+              {{ t('common.cancel') }}
             </button>
           </div>
         </div>
@@ -359,22 +361,22 @@ async function confirmDelete() {
             <div class="text-center">
               <div class="text-[36px] mb-1">⚠️</div>
               <p class="font-serif text-[17px] font-semibold mb-1" style="color: var(--color-ink);">
-                删除「{{ contact?.name }}」?
+                {{ t('customer.deleteTitle', { name: contact?.name }) }}
               </p>
               <p class="text-[12.5px]" style="color: var(--color-ink-3); line-height: 1.55;">
-                操作不可撤销, 名片图也会一并删除
+                {{ t('customer.deleteHint') }}
               </p>
             </div>
             <div class="flex gap-2 mt-4">
               <button @click="showDeleteConfirm = false" :disabled="deleting"
                 class="flex-1 py-3 rounded-xl text-[14px] disabled:opacity-40"
                 style="border: 1px solid var(--color-divider); color: var(--color-ink-2);">
-                取消
+                {{ t('common.cancel') }}
               </button>
               <button @click="confirmDelete" :disabled="deleting"
                 class="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white disabled:opacity-40"
                 style="background: #DC3545;">
-                {{ deleting ? '删除中…' : '确定删除' }}
+                {{ deleting ? t('customer.deleting') : t('customer.confirmDelete') }}
               </button>
             </div>
           </div>

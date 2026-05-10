@@ -1,7 +1,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getCustomers } from '@/api/customers'
+
+const { t } = useI18n()
 import FilterSheet from '@/components/FilterSheet.vue'
 import Highlight from '@/components/common/Highlight.vue'
 
@@ -23,51 +26,48 @@ const sortBy = ref('updated_at')
 const now = new Date()
 const quarter = `${now.getFullYear()} · Q${Math.ceil((now.getMonth() + 1) / 3)}`
 
-const TYPE_LABEL_MAP = {
-  user:        '用户',
-  designer:    '顾问',
-  contractor:  '总包',
-  integrator:  '集成',
-  dealer:      '经销',
-  distributor: '分销',
-  partner:     '伙伴',
-  supplier:    '供应商',
-  other:       '其他',
-}
+// 字典 label 改 computed (跟 i18n locale)
+const TYPE_LABEL_MAP = computed(() => ({
+  user: t('customer.role.user'), designer: t('customer.role.designer'),
+  contractor: t('customer.role.contractor'), integrator: t('customer.role.integrator'),
+  dealer: t('customer.role.dealer'), distributor: t('customer.role.distributor'),
+  partner: t('customer.role.partner'), supplier: t('customer.role.supplier'),
+  other: t('customer.role.other'),
+}))
 
-const INDUSTRY_LABEL_MAP = {
-  manufacturing:      '制造',
-  datacenter:         '数据',
-  chemical:           '化工',
-  energy:             '能源',
-  transportation:     '交通',
-  tunnel_underground: '隧道',
-  real_estate:        '地产',
-  hospitality:        '酒店',
-  government:         '政府',
-  education:          '教育',
-  healthcare:         '医疗',
-  technology:         '科技',
-  semiconductor:      '半导体',
-  shipbuilding:       '造船',
-  finance:            '金融',
-  other:              '其他',
-}
+const INDUSTRY_LABEL_MAP = computed(() => ({
+  manufacturing: t('project.industry.manufacturing'),
+  datacenter: t('project.industry.datacenter'),
+  chemical: t('project.industry.chemical'),
+  energy: t('project.industry.energy'),
+  transportation: t('project.industry.transportation'),
+  tunnel_underground: t('project.industry.tunnel_underground'),
+  real_estate: t('project.industry.real_estate'),
+  hospitality: t('project.industry.hospitality'),
+  government: t('project.industry.government'),
+  education: t('project.industry.education'),
+  healthcare: t('project.industry.healthcare'),
+  technology: t('project.industry.technology'),
+  semiconductor: t('project.industry.semiconductor'),
+  shipbuilding: t('project.industry.shipbuilding'),
+  finance: t('project.industry.finance'),
+  other: t('project.industry.other'),
+}))
 
-const SORT_OPTIONS = [
-  { value: 'updated_at', label: '最近活跃', tab: 'recent' },
-  { value: 'created_at', label: '创建时间', tab: 'recent' },
-  { value: 'name_asc',   label: '名称 A→Z', tab: 'name'   },
-  { value: 'name_desc',  label: '名称 Z→A', tab: 'name'   },
-]
+const SORT_OPTIONS = computed(() => [
+  { value: 'updated_at', label: t('customer.sortRecent'),  tab: 'recent' },
+  { value: 'created_at', label: t('customer.sortCreated'), tab: 'recent' },
+  { value: 'name_asc',   label: t('customer.sortNameAsc'),  tab: 'name'   },
+  { value: 'name_desc',  label: t('customer.sortNameDesc'), tab: 'name'   },
+])
 
-const SORT_TABS = [
-  { tab: 'recent', label: '最近活跃' },
-  { tab: 'name',   label: '名称' },
-]
+const SORT_TABS = computed(() => [
+  { tab: 'recent', label: t('customer.sortByRecent') },
+  { tab: 'name',   label: t('customer.sortByName') },
+])
 
 const activeSortTab = computed(() =>
-  SORT_OPTIONS.find(o => o.value === sortBy.value)?.tab || 'recent'
+  SORT_OPTIONS.value.find(o => o.value === sortBy.value)?.tab || 'recent'
 )
 
 function tabDisplayLabel(tab) {
@@ -90,11 +90,17 @@ function selectSort(val) {
   load(true)
 }
 
-// "活跃态" 状态集合 —— 显示绿点
-const ACTIVE_STATUSES = new Set(['高度活跃', '活跃', '正常'])
+// "活跃态" 状态集合 —— 显示绿点 (检查 zh + en 两套, status 由后端按 lang 返回)
+const ACTIVE_STATUSES = computed(() => new Set([
+  t('customer.activeFlag.highly_active'), t('customer.activeFlag.active'), t('customer.activeFlag.normal'),
+  // 兜底中文(老 cache 数据可能仍是中文)
+  '高度活跃', '活跃', '正常',
+]))
 
-// Active filter chips（5 维：status/value/open_bucket/region/industry，已去 tier）
-const OPEN_BUCKET_LABEL = { has: '有进行中', gte2: '≥ 2 个', gte5: '≥ 5 个', none: '无进行中' }
+const OPEN_BUCKET_LABEL = computed(() => ({
+  has: t('customer.openBucket.has'), gte2: t('customer.openBucket.gte2'),
+  gte5: t('customer.openBucket.gte5'), none: t('customer.openBucket.none'),
+}))
 
 const activeFilterChips = computed(() => {
   const chips = []
@@ -103,11 +109,11 @@ const activeFilterChips = computed(() => {
   if (f.value_min != null || f.value_max != null) {
     const mn = f.value_min || 0
     const mx = f.value_max
-    chips.push({ key: 'value', label: mx != null ? `¥${mn}-${mx}万` : `≥¥${mn}万` })
+    chips.push({ key: 'value', label: mx != null ? t('project.amountRange', { min: mn, max: mx }) : t('project.amountMin', { min: mn }) })
   }
-  if (f.open_bucket) chips.push({ key: 'open_bucket', label: OPEN_BUCKET_LABEL[f.open_bucket] || f.open_bucket })
+  if (f.open_bucket) chips.push({ key: 'open_bucket', label: OPEN_BUCKET_LABEL.value[f.open_bucket] || f.open_bucket })
   if (f.region)      chips.push({ key: 'region',      label: f.region })
-  if (f.industry)    chips.push({ key: 'industry',    label: INDUSTRY_LABEL_MAP[f.industry] || f.industry })
+  if (f.industry)    chips.push({ key: 'industry',    label: INDUSTRY_LABEL_MAP.value[f.industry] || f.industry })
   return chips
 })
 
@@ -228,13 +234,13 @@ onMounted(() => {
           <div class="text-[11px] font-medium uppercase"
             style="color: var(--color-ink-3); letter-spacing: 1.2px;">{{ quarter }}</div>
           <h1 class="font-serif m-0 mt-1"
-            style="font-size: 32px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">客户</h1>
+            style="font-size: 32px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">{{ t('customer.title') }}</h1>
         </div>
         <button @click="showAddSheet = true"
           class="w-9 h-9 rounded-full inline-flex items-center justify-center"
           style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300;">+</button>
       </div>
-      <div class="text-[12px] mt-1.5" style="color: var(--color-ink-3);">共 {{ total }} 家</div>
+      <div class="text-[12px] mt-1.5" style="color: var(--color-ink-3);">{{ t('customer.listTotal', { n: total }) }}</div>
 
       <!-- 搜索 + 筛选 行 -->
       <div class="flex gap-2 mt-3.5 mb-3">
@@ -247,13 +253,13 @@ onMounted(() => {
             <circle cx="7" cy="7" r="5" :stroke="searchFocused ? 'var(--color-accent)' : 'var(--color-ink-3)'" stroke-width="1.4" />
             <path d="M11 11l3 3" :stroke="searchFocused ? 'var(--color-accent)' : 'var(--color-ink-3)'" stroke-width="1.4" stroke-linecap="round" />
           </svg>
-          <input v-model="search" type="search" placeholder="搜索客户名称、联系人"
+          <input v-model="search" type="search" :placeholder="t('customer.searchPh')"
             @focus="searchFocused = true" @blur="searchFocused = false"
             @keyup.enter="submitSearch"
             class="flex-1 bg-transparent text-[14px] outline-none font-serif"
             style="color: var(--color-ink);" />
           <button v-if="search" @click="search = ''; load(true)"
-            class="text-[12px] font-medium" style="color: var(--color-accent);">取消</button>
+            class="text-[12px] font-medium" style="color: var(--color-accent);">{{ t('common.cancel') }}</button>
         </div>
         <button @click="showFilter = true"
           class="w-[38px] h-[38px] rounded-full flex items-center justify-center relative"
@@ -274,7 +280,7 @@ onMounted(() => {
     <!-- FilterBanner -->
     <div v-if="activeFilterCount > 0" class="mx-6 mb-3 px-3 py-2.5 rounded-xl flex items-center gap-2"
       style="background: var(--color-accent-bg);">
-      <span class="text-[12px] font-serif italic" style="color: var(--color-ink-2);">已按</span>
+      <span class="text-[12px] font-serif italic" style="color: var(--color-ink-2);">{{ t('project.filteredBy') }}</span>
       <div class="flex flex-wrap gap-1.5 flex-1">
         <button v-for="chip in activeFilterChips" :key="chip.key" @click="removeChip(chip)"
           class="inline-flex items-center gap-1 px-2.5 py-[3px] rounded-full text-[12px] font-medium text-white active:opacity-70"
@@ -286,14 +292,14 @@ onMounted(() => {
         </button>
       </div>
       <button @click="clearAllFilters" class="text-[12px] font-semibold active:opacity-60"
-        style="color: var(--color-accent);">清除</button>
+        style="color: var(--color-accent);">{{ t('project.clearFilter') }}</button>
     </div>
 
     <!-- SortRow / 搜索匹配数 二选一 -->
     <div v-if="search.trim()"
       class="px-6 pb-2 text-[11px] font-semibold uppercase shrink-0"
       style="color: var(--color-ink-3); letter-spacing: 1px;">
-      匹配 {{ total }} 个客户
+      {{ t('customer.matchN', { n: total }) }}
     </div>
     <div v-else ref="sortTabsEl" class="flex items-center gap-3.5 px-6 pb-2.5 shrink-0">
       <button v-for="tab in SORT_TABS" :key="tab.tab" @click="openSortMenu"
@@ -304,7 +310,7 @@ onMounted(() => {
         }">
         {{ tabDisplayLabel(tab) }}
       </button>
-      <span class="ml-auto text-[12px]" style="color: var(--color-ink-3);">{{ total }} 条</span>
+      <span class="ml-auto text-[12px]" style="color: var(--color-ink-3);">{{ total }} {{ t('customer.items') }}</span>
     </div>
 
     <!-- 列表 -->
@@ -316,7 +322,7 @@ onMounted(() => {
 
       <div v-else-if="customers.length === 0"
         class="flex flex-col items-center justify-center h-40 text-[13px]"
-        style="color: var(--color-ink-3);">暂无客户</div>
+        style="color: var(--color-ink-3);">{{ t('customer.listEmpty') }}</div>
 
       <div v-else style="background: var(--color-card);">
         <!-- CustomerRow — 严格对齐 unified-lists.CustomerRow -->
@@ -345,7 +351,7 @@ onMounted(() => {
               </div>
               <div class="text-[15px] font-semibold tabular whitespace-nowrap">
                 <template v-if="c.value > 0">
-                  ¥{{ c.value.toFixed(2) }}<span class="text-[10px] ml-0.5" style="color: var(--color-ink-3);">万</span>
+                  {{ t('project.amountWan', { amount: c.value.toFixed(2) }) }}
                 </template>
                 <span v-else class="text-[13px]" style="color: var(--color-ink-3);">—</span>
               </div>
@@ -358,13 +364,13 @@ onMounted(() => {
             <!-- 状态 + 地区 + 进行中 + lastTouch -->
             <div class="flex items-center gap-3 text-[12px] mt-1" style="color: var(--color-ink-3);">
               <span v-if="c.status" class="inline-flex items-center gap-1.5 font-medium shrink-0"
-                :style="{ color: ACTIVE_STATUSES.has(c.status) ? 'var(--color-green)' : 'var(--color-ink-3)' }">
+                :style="{ color: ACTIVE_STATUSES.value.has(c.status) ? 'var(--color-green)' : 'var(--color-ink-3)' }">
                 <span class="w-[5px] h-[5px] rounded-[3px]"
-                  :style="{ background: ACTIVE_STATUSES.has(c.status) ? 'var(--color-green)' : 'var(--color-ink-4)' }" />
+                  :style="{ background: ACTIVE_STATUSES.value.has(c.status) ? 'var(--color-green)' : 'var(--color-ink-4)' }" />
                 {{ c.status }}
               </span>
               <span class="truncate">
-                {{ [c.city || c.region, c.open_count != null ? `${c.open_count} 个进行中` : null].filter(Boolean).join(' · ') }}
+                {{ [c.city || c.region, c.open_count != null ? t('customer.openCount', { n: c.open_count }) : null].filter(Boolean).join(' · ') }}
               </span>
               <span class="ml-auto tabular shrink-0">{{ c.last_touch || formatDate(c.updated_at) }}</span>
             </div>
@@ -376,7 +382,7 @@ onMounted(() => {
           <button @click="loadMore" :disabled="loading"
             class="text-[13px] font-medium disabled:opacity-40"
             style="color: var(--color-accent);">
-            {{ loading ? '加载中…' : '加载更多' }}
+            {{ loading ? t('common.loading') : t('customer.loadMore') }}
           </button>
         </div>
       </div>
@@ -386,20 +392,20 @@ onMounted(() => {
         class="mt-5 px-6">
         <div class="flex items-center justify-between mb-2">
           <div class="text-[11px] font-semibold uppercase"
-            style="color: var(--color-ink-3); letter-spacing: 1px;">最近搜索</div>
+            style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('customer.recentSearch') }}</div>
           <button @click="clearRecent" class="text-[11px] active:opacity-60"
-            style="color: var(--color-accent);">清空</button>
+            style="color: var(--color-accent);">{{ t('customer.clearSearch') }}</button>
         </div>
         <div class="flex flex-wrap gap-2 pb-5">
-          <button v-for="(t, i) in recentSearches" :key="i"
-            @click="pickRecent(t)"
+          <button v-for="(term, i) in recentSearches" :key="i"
+            @click="pickRecent(term)"
             class="inline-flex items-center gap-1.5 px-3 py-[5px] rounded-full text-[12px]"
             style="background: var(--color-card); color: var(--color-ink-2); border: 1px solid var(--color-divider-strong);">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path d="M5 1.5v3l2 1" stroke="var(--color-ink-3)" stroke-width="1.2" stroke-linecap="round" />
               <circle cx="5" cy="5" r="3.5" stroke="var(--color-ink-3)" stroke-width="1.2" />
             </svg>
-            {{ t }}
+            {{ term }}
           </button>
         </div>
       </div>
@@ -446,10 +452,10 @@ onMounted(() => {
             <div class="mx-auto" style="width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.10); margin-bottom: 14px;"></div>
             <div class="px-6 pb-1">
               <div class="font-serif" style="font-size: 20px; line-height: 1.25; color: var(--color-ink); letter-spacing: -0.3px;">
-                添加客户
+                {{ t('customer.addCustomer') }}
               </div>
               <div class="mt-1.5 mb-4" style="font-size: 13px; color: var(--color-ink-3); line-height: 1.55;">
-                选一种方式开始
+                {{ t('customer.chooseMethod') }}
               </div>
             </div>
             <!-- 扫名片 (主推, 高亮) -->
@@ -467,12 +473,12 @@ onMounted(() => {
                 </div>
                 <div class="flex-1 min-w-0">
                   <div class="flex items-center gap-1.5">
-                    <span class="font-serif" style="font-size: 16px; font-weight: 600; color: var(--color-ink);">扫名片自动录入</span>
+                    <span class="font-serif" style="font-size: 16px; font-weight: 600; color: var(--color-ink);">{{ t('customer.scanCard') }}</span>
                     <span class="text-[9px] font-bold px-1.5 py-px rounded"
                       style="color: #fff; background: var(--color-accent); letter-spacing: 0.3px;">AI</span>
                   </div>
                   <div class="text-[12px] mt-1" style="color: var(--color-ink-3); line-height: 1.5;">
-                    拍照 → AI 提取字段 → 核对保存
+                    {{ t('customer.scanCardHint') }}
                   </div>
                 </div>
                 <span style="font-size: 18px; color: var(--color-ink-3);">›</span>
@@ -490,9 +496,9 @@ onMounted(() => {
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
-                  <div class="font-serif" style="font-size: 16px; font-weight: 500; color: var(--color-ink);">手动新建客户</div>
+                  <div class="font-serif" style="font-size: 16px; font-weight: 500; color: var(--color-ink);">{{ t('customer.manualCreate') }}</div>
                   <div class="text-[12px] mt-1" style="color: var(--color-ink-3);">
-                    填表创建公司, 之后再加联系人
+                    {{ t('customer.manualCreateHint') }}
                   </div>
                 </div>
                 <span style="font-size: 18px; color: var(--color-ink-3);">›</span>
@@ -501,7 +507,7 @@ onMounted(() => {
             <button @click="showAddSheet = false"
               class="block w-full mx-4 mt-2 py-3 rounded-xl text-[14px] active:opacity-70"
               style="width: calc(100% - 32px); background: transparent; border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
-              取消
+              {{ t('common.cancel') }}
             </button>
           </div>
         </div>
