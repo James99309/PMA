@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { getProject, addProjectNote } from '@/api/projects'
 import { searchUsers, createConversation } from '@/api/chat'
 import client from '@/api/client'
@@ -24,6 +25,7 @@ const dictStore = useDictionariesStore()
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const project = ref(null)
 const loading = ref(true)
 
@@ -115,7 +117,7 @@ async function confirmCreateGroup() {
         query: { name: project.value.name },
       })
     } else {
-      alert(data?.message || '创建讨论群失败')
+      alert(data?.message || t('project.detCreateDiscussionFailed'))
     }
   } catch (e) {
     console.error('create group failed', e)
@@ -396,7 +398,7 @@ async function confirmStageUpdate() {
     showStagePicker.value = false
     await load()
   } catch (e) {
-    alert(e.response?.data?.message || '更新失败')
+    alert(e.response?.data?.message || t('project.detUpdateFailed'))
   } finally {
     updatingStage.value = false
   }
@@ -416,7 +418,7 @@ async function submitAuthRequest() {
       await load()
       loadAndShowFlow()
     } else {
-      alert(msg || '提交失败')
+      alert(msg || t('project.detSubmitFailed'))
     }
   } finally {
     submittingAuth.value = false
@@ -454,7 +456,7 @@ onMounted(() => {
           <path d="M7 1L1 7l6 6" fill="none" stroke="currentColor"
             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        <span class="text-[15px]">项目</span>
+        <span class="text-[15px]">{{ t('common.backProjects') }}</span>
       </button>
       <button v-if="project?.can_edit"
         @click="router.push(`/projects/${project.id}/edit`)"
@@ -485,7 +487,7 @@ onMounted(() => {
             class="text-[11px] px-2 py-0.5 rounded-full font-medium active:opacity-60 inline-flex items-center"
             style="color: #B45309; background: #FEF3C7; gap: 3px;"
             @click="loadAndShowFlow">
-            审批中
+            {{ t('project.detSubmitted') }}
             <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
               <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
@@ -494,7 +496,7 @@ onMounted(() => {
             class="text-[11px] px-2 py-0.5 rounded-full font-medium active:opacity-60 inline-flex items-center"
             style="color: #DC2626; background: #FEE2E2; gap: 3px;"
             @click="loadAndShowFlow">
-            审批驳回
+            {{ t('project.detRejectedTag') }}
             <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
               <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
@@ -504,10 +506,10 @@ onMounted(() => {
             @click="showAuthModal = true" type="button"
             class="text-[11px] font-medium active:opacity-60"
             style="color: var(--color-accent); background: transparent; border: none; padding: 0;">
-            提交审批
+            {{ t('project.detSubmitBtn') }}
           </button>
           <span v-else class="text-[11px]"
-            style="color: var(--color-ink-3);">未提交</span>
+            style="color: var(--color-ink-3);">{{ t('project.detNotSubmitted') }}</span>
         </div>
 
         <!-- 项目名 — 30px 衬线 weight 500 line-height 1.2 letter-spacing -0.3 -->
@@ -531,7 +533,7 @@ onMounted(() => {
             :style="{ fontSize: '44px', color: 'var(--color-ink)' }">
             ¥{{ project.amount ? project.amount.toFixed(2) : '—' }}
           </span>
-          <span class="text-[14px]" style="color: var(--color-ink-3);">万 · 预计签约金额</span>
+          <span class="text-[14px]" style="color: var(--color-ink-3);">{{ t('project.detUnitWanFull') }}</span>
         </div>
       </div>
 
@@ -541,14 +543,14 @@ onMounted(() => {
         <div v-if="project.current_stage === 'signed'"
           class="flex-1 h-12 rounded-2xl text-[15px] flex items-center justify-center"
           style="background: var(--color-card); color: var(--color-ink-3); border: 1px solid var(--color-divider);">
-          已签约
+          {{ t('project.detSigned') }}
         </div>
         <button v-else type="button"
           @click="canAdvanceStage ? openStagePicker() : null"
           :disabled="!canAdvanceStage"
           class="flex-1 h-12 rounded-2xl text-white text-[15px] font-semibold active:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:opacity-50"
           style="background: var(--color-accent); border: none;">
-          推进到 {{ nextTrackStage?.label || '下一阶段' }} →
+          {{ t('project.detAdvanceTo', { stage: nextTrackStage?.label || t('project.detNextStage') }) }} →
         </button>
         <!-- 添加跟进快捷入口（与"跟进记录 +添加"等价） -->
         <button type="button" @click.stop="openNoteBox"
@@ -558,7 +560,7 @@ onMounted(() => {
             <path d="M9 2v14M2 9h14" stroke="var(--color-ink-2)"
               stroke-width="2" stroke-linecap="round" />
           </svg>
-          <span class="text-[12px] pointer-events-none" style="color: var(--color-ink-2);">跟进</span>
+          <span class="text-[12px] pointer-events-none" style="color: var(--color-ink-2);">{{ t('project.detFollow') }}</span>
         </button>
       </div>
 
@@ -566,7 +568,7 @@ onMounted(() => {
            (5 dots + 4 thin lines · 无白底卡片 · current 14×14 accent · past 8×8 ink solid · future 8×8 transparent + 1.5px ink-3 ring) -->
       <div class="px-7 pt-5 pb-2">
         <div class="text-[11px] font-semibold uppercase mb-3"
-          style="color: var(--color-ink-3); letter-spacing: 1px;">阶段</div>
+          style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('project.detStage') }}</div>
         <div class="flex items-center" style="gap: 4px;">
           <template v-for="(s, i) in STAGE_TRACK" :key="s.key">
             <!-- dot + label column -->
@@ -592,13 +594,13 @@ onMounted(() => {
       <!-- 详情 def-list — 90px 1fr grid 对齐 ADetail line 358-366 -->
       <div class="px-7 pt-5">
         <div class="text-[11px] font-semibold uppercase mb-3"
-          style="color: var(--color-ink-3); letter-spacing: 1px;">详情</div>
+          style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('project.detDetail') }}</div>
         <div class="grid text-[14px]"
           style="grid-template-columns: 90px 1fr; row-gap: 12px; column-gap: 16px;">
-          <span style="color: var(--color-ink-3);">负责人</span>
+          <span style="color: var(--color-ink-3);">{{ t('project.detOwner') }}</span>
           <span>{{ project.owner_name || '—' }}</span>
 
-          <span style="color: var(--color-ink-3);">活跃度</span>
+          <span style="color: var(--color-ink-3);">{{ t('project.detActivity') }}</span>
           <span class="inline-flex items-center gap-1.5"
             :style="{ color: ACTIVITY_COLORS[project.activity_status] || 'var(--color-ink)', fontWeight: 600 }">
             <span class="w-[5px] h-[5px] rounded-[3px]"
@@ -607,22 +609,22 @@ onMounted(() => {
           </span>
 
           <template v-if="project.city || project.address">
-            <span style="color: var(--color-ink-3);">地址</span>
+            <span style="color: var(--color-ink-3);">{{ t('project.detAddress') }}</span>
             <span>{{ [project.city, project.address].filter(Boolean).join(' ') }}</span>
           </template>
 
           <template v-if="project.delivery_forecast">
-            <span style="color: var(--color-ink-3);">预计交付</span>
+            <span style="color: var(--color-ink-3);">{{ t('project.detDelivery') }}</span>
             <span class="tabular">{{ formatDelivery(project.delivery_forecast) }}</span>
           </template>
 
           <template v-if="project.project_type">
-            <span style="color: var(--color-ink-3);">项目类型</span>
+            <span style="color: var(--color-ink-3);">{{ t('project.detType') }}</span>
             <span>{{ project.project_type_label || project.project_type }}</span>
           </template>
 
           <template v-if="project.end_user">
-            <span style="color: var(--color-ink-3);">最终用户</span>
+            <span style="color: var(--color-ink-3);">{{ t('project.detEndUser') }}</span>
             <span>{{ project.end_user }}</span>
           </template>
         </div>
@@ -631,7 +633,7 @@ onMounted(() => {
       <!-- 主要联系人 — 单卡（首联系人）对齐 ADetail line 369-393 -->
       <div v-if="project.contacts?.length" class="px-7 pt-5">
         <div class="text-[11px] font-semibold uppercase mb-3"
-          style="color: var(--color-ink-3); letter-spacing: 1px;">主要联系人</div>
+          style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('project.detPrimaryContact') }}</div>
         <div class="rounded-2xl p-4 flex items-center gap-3.5"
           style="background: var(--color-card); border: 1px solid var(--color-divider);">
           <Avatar :text="project.contacts[0].name" :size="40" />
@@ -655,7 +657,7 @@ onMounted(() => {
       <!-- 关联客户 -->
       <div v-if="project.customers?.length" class="px-7 pt-5">
         <div class="text-[11px] font-semibold uppercase mb-3"
-          style="color: var(--color-ink-3); letter-spacing: 1px;">关联客户</div>
+          style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('project.detLinkedCustomer') }}</div>
         <div class="rounded-2xl overflow-hidden"
           style="background: var(--color-card); border: 1px solid var(--color-divider);">
           <button v-for="(c, i) in project.customers" :key="c.id"
@@ -675,13 +677,13 @@ onMounted(() => {
         <div class="flex items-center justify-between mb-3">
           <div class="text-[11px] font-semibold uppercase"
             style="color: var(--color-ink-3); letter-spacing: 1px;">
-            报价单 <span v-if="project.quotation_count" style="opacity: 0.7;">· {{ project.quotation_count }}</span>
+            {{ t('project.detQuotation') }} <span v-if="project.quotation_count" style="opacity: 0.7;">· {{ project.quotation_count }}</span>
           </div>
           <button v-if="project.quotations?.length > 1"
             @click="showAllQuotations = !showAllQuotations"
             class="text-[12px] font-medium active:opacity-60"
             style="color: var(--color-accent);">
-            {{ showAllQuotations ? '收起' : '全部' }}
+            {{ showAllQuotations ? t('project.detCollapse') : t('project.detExpand') }}
           </button>
         </div>
         <div v-if="project.quotations?.length" class="rounded-2xl overflow-hidden"
@@ -696,26 +698,26 @@ onMounted(() => {
               <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">{{ q.created_at }}</div>
             </div>
             <div class="text-right shrink-0">
-              <div class="text-[14px] font-semibold tabular">{{ q.total }}<span class="text-[10px] ml-0.5" style="color: var(--color-ink-3);">万</span></div>
+              <div class="text-[14px] font-semibold tabular">{{ q.total }}<span class="text-[10px] ml-0.5" style="color: var(--color-ink-3);">{{ t('project.detUnitWan') }}</span></div>
               <div class="text-[11px] mt-0.5"
                 :style="{ color: q.status?.includes('approved') ? 'var(--color-green)' : q.status === 'pending' ? '#B45309' : 'var(--color-ink-3)' }">
-                {{ q.status?.includes('approved') ? '已审批' : q.status === 'pending' ? '审批中' : '草稿' }}
+                {{ q.status?.includes('approved') ? t('project.detQuotApproved') : q.status === 'pending' ? t('project.detQuotPending') : t('project.detQuotDraft') }}
               </div>
             </div>
           </div>
         </div>
-        <div v-else class="text-center text-[13px] py-3" style="color: var(--color-ink-3);">暂无报价单</div>
+        <div v-else class="text-center text-[13px] py-3" style="color: var(--color-ink-3);">{{ t('project.detNoQuotation') }}</div>
       </div>
 
       <!-- 项目讨论预览卡 —— 对齐 chat-bridge.jsx ProjectDetailWithChat (line 50-87) -->
       <div class="px-7 pt-5">
         <div class="flex items-center justify-between mb-3">
           <div class="text-[11px] font-semibold uppercase"
-            style="color: var(--color-ink-3); letter-spacing: 1px;">项目讨论</div>
+            style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('project.detDiscussion') }}</div>
           <button v-if="hasGroup"
             @click="router.push({ path: `/messages/group/${realConvId}`, query: { name: project.name } })"
             class="text-[12px] font-medium active:opacity-60"
-            style="color: var(--color-accent);">进入讨论 →</button>
+            style="color: var(--color-accent);">{{ t('project.detEnterDiscussion') }}</button>
         </div>
 
         <!-- 未建立讨论群：极简卡 + 创建入口 -->
@@ -724,12 +726,12 @@ onMounted(() => {
           <div class="w-10 h-10 rounded-2xl inline-flex items-center justify-center font-serif font-semibold text-[16px]"
             style="background: var(--color-accent-soft); color: var(--color-accent);">#</div>
           <div class="text-[13px] text-center" style="color: var(--color-ink-3);">
-            尚未建立讨论群<br />
-            <span class="text-[11px]">添加成员后即可创建并开始讨论</span>
+            {{ t('project.detNoDiscussion') }}<br />
+            <span class="text-[11px]">{{ t('project.detNoDiscussionHint') }}</span>
           </div>
           <button @click="openCreateGroup"
             class="mt-1 px-5 py-2 rounded-full text-[13px] font-medium text-white active:opacity-80"
-            style="background: var(--color-accent);">+ 创建讨论群</button>
+            style="background: var(--color-accent);">{{ t('project.detCreateDiscussion') }}</button>
         </div>
 
         <div v-else class="rounded-2xl relative"
