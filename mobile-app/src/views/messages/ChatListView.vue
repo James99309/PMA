@@ -435,22 +435,21 @@ function openPicker() {
       </div>
     </div>
 
-    <!-- 发起聊天 sheet — Teleport 到 body, 避开 ChatListView 父容器导致的渲染异常 -->
+    <!-- 发起聊天 sheet — Teleport 到 body -->
     <Teleport to="body">
       <div v-if="showPicker"
         style="position: fixed; inset: 0; z-index: 9999;">
         <!-- 遮罩点击关闭 sheet -->
         <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.4);" @click="closePicker" />
-        <!-- panel: bottom 跟随键盘抬升, max-h 减去键盘, 避免被键盘挤压
-             @click.stop 防止 panel 内点击冒泡到遮罩误触发 closePicker -->
-        <div class="absolute left-0 right-0 rounded-t-3xl pt-3 pb-8 overflow-y-auto"
-          @click.stop
-          :style="{
-            background: 'var(--color-bg)',
-            bottom: kbOffset + 'px',
-            maxHeight: `calc(85vh - ${kbOffset}px)`,
-            transition: 'bottom 0.2s ease, max-height 0.2s ease',
-          }">
+        <!-- DIAG B1: 加可见标识, 测哪段内容触发崩溃 -->
+        <div style="position: absolute; left: 0; right: 0; bottom: 0; max-height: 85vh; overflow-y: auto; background: var(--color-bg); border-top-left-radius: 18px; border-top-right-radius: 18px; padding: 12px 0 28px;"
+          @click.stop>
+          <div style="margin: 0 auto 12px; width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.15);"></div>
+
+          <div style="padding: 12px 24px; font-size: 18px; font-weight: 600;">B1: header only</div>
+          <div style="padding: 0 24px 12px; font-size: 13px; color: #777;">如果看到这行 → header 部分 OK</div>
+          <!-- DIAG: B2 — 原 picker 内容暂时禁用 -->
+          <template v-if="false">
           <div class="mx-auto w-9 h-1 rounded-full mb-3" style="background: rgba(0,0,0,0.15);" />
 
           <div class="flex items-center justify-between px-5 mb-2">
@@ -687,6 +686,7 @@ function openPicker() {
             {{ t('chat.atAiTip') }}
           </div>
           </template>
+          </template><!-- end v-if=false DIAG -->
         </div>
       </div>
     </Teleport>
