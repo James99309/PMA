@@ -7,6 +7,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import DocumentScanFlow from '@/components/common/DocumentScanFlow.vue'
+import OcrProcessingAnimation from '@/components/common/OcrProcessingAnimation.vue'
 import { useCardScanStore } from '@/stores/cardScan'
 import { scanBusinessCard } from '@/api/customers'
 
@@ -16,6 +17,15 @@ const scanStore = useCardScanStore()
 
 const processing = ref(false)
 const error = ref('')
+
+// 名片识别字段揭示动画 (与 OCR 实际返回字段对齐)
+const ocrFields = [
+  { label: '姓名',     val: '识别中...', confident: true },
+  { label: '公司',     val: '识别中...', confident: true },
+  { label: '职务',     val: '识别中...', confident: true },
+  { label: '电话',     val: '识别中...', confident: true },
+  { label: '邮箱',     val: '识别中...', confident: false },
+]
 
 onMounted(() => {
   scanStore.clear()
@@ -62,17 +72,16 @@ async function uploadAndOCR(blob, dataUrl) {
 
 <template>
   <div class="h-full">
-    <!-- OCR 进行中: 全屏 loading -->
-    <div v-if="processing" class="flex flex-col items-center justify-center h-full text-white px-6 text-center"
-      style="background: #000;">
-      <div class="inline-block animate-spin"
-        style="width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 18px;" />
-      <div class="mt-4 text-[14px]">AI 正在识别名片字段…</div>
-      <div class="mt-2 text-[12px] opacity-60">通常 2-5 秒</div>
-      <div v-if="error" class="mt-4 text-[13px]" style="color: #FF6B6B;">{{ error }}</div>
-      <button v-if="error" @click="processing = false; error = ''"
-        class="mt-6 px-5 py-2 rounded-full text-[13px]"
-        style="background: rgba(255,255,255,0.15); color: #fff;">重拍</button>
+    <!-- OCR 进行中: 复用通用 OCR 动画 (单卡 + 字段揭示, 替代黑屏 spinner) -->
+    <div v-if="processing" class="h-full" style="background: var(--color-ex-bg, #F7F5F2);">
+      <OcrProcessingAnimation
+        :card-count="1"
+        title="正在识别名片"
+        subtitle="通常 2-5 秒"
+        :fields="ocrFields"
+        :error="error"
+        @retry="processing = false; error = ''"
+      />
     </div>
 
     <!-- 扫描流(VisionKit / Camera fallback) -->
