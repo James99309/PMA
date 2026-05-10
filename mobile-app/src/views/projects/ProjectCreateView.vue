@@ -1,11 +1,13 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Geolocation } from '@capacitor/geolocation'
 import { checkProjectName, createProject } from '@/api/projects'
 import { reverseGeocode, searchAddress, getAddressDetail } from '@/api/customers'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
+const { t } = useI18n()
 const { kbStyle } = useKeyboardOffset()
 
 const router = useRouter()
@@ -42,48 +44,21 @@ let addressTimer = null
 
 const activeSheet = ref(null) // 'industry' | 'report_source' | 'project_type' | 'product_situation' | 'address'
 
-const INDUSTRIES = [
-  { value: 'manufacturing', label: '制造' },
-  { value: 'datacenter', label: '数据' },
-  { value: 'chemical', label: '化工' },
-  { value: 'energy', label: '能源' },
-  { value: 'transportation', label: '交通' },
-  { value: 'tunnel_underground', label: '隧道' },
-  { value: 'real_estate', label: '地产' },
-  { value: 'hospitality', label: '酒店' },
-  { value: 'government', label: '政府' },
-  { value: 'education', label: '教育' },
-  { value: 'healthcare', label: '医疗' },
-  { value: 'technology', label: '科技' },
-  { value: 'semiconductor', label: '半导体' },
-  { value: 'shipbuilding', label: '造船' },
-  { value: 'finance', label: '金融' },
-  { value: 'other', label: '其他' },
-]
+// 选项 keys, label 由 i18n 动态计算
+const INDUSTRY_KEYS = ['manufacturing','datacenter','chemical','energy','transportation','tunnel_underground','real_estate','hospitality','government','education','healthcare','technology','semiconductor','shipbuilding','finance','other']
+const REPORT_SOURCE_KEYS = ['channel','sales','marketing']
+const PROJECT_TYPE_KEYS = ['channel_follow','sales_focus','business_opportunity']
+const PRODUCT_SITUATION_KEYS = ['qualified','controlled','not_required','unqualified']
 
-const REPORT_SOURCES = [
-  { value: 'channel', label: '渠道' },
-  { value: 'sales', label: '销售' },
-  { value: 'marketing', label: '市场' },
-]
+const INDUSTRIES = computed(() => INDUSTRY_KEYS.map(k => ({ value: k, label: t(`project.industry.${k}`) })))
+const REPORT_SOURCES = computed(() => REPORT_SOURCE_KEYS.map(k => ({ value: k, label: t(`project.reportSource.${k}`) })))
+const PROJECT_TYPES = computed(() => PROJECT_TYPE_KEYS.map(k => ({ value: k, label: t(`project.typeOpt.${k}`) })))
+const PRODUCT_SITUATIONS = computed(() => PRODUCT_SITUATION_KEYS.map(k => ({ value: k, label: t(`project.brandOpt.${k}`) })))
 
-const PROJECT_TYPES = [
-  { value: 'channel_follow', label: '渠道' },
-  { value: 'sales_focus', label: '销售' },
-  { value: 'business_opportunity', label: '服务' },
-]
-
-const PRODUCT_SITUATIONS = [
-  { value: 'qualified', label: '入围' },
-  { value: 'controlled', label: '受控' },
-  { value: 'not_required', label: '无要求' },
-  { value: 'unqualified', label: '未入围' },
-]
-
-const industryLabel = computed(() => INDUSTRIES.find(o => o.value === form.value.industry)?.label || '')
-const reportSourceLabel = computed(() => REPORT_SOURCES.find(o => o.value === form.value.report_source)?.label || '')
-const projectTypeLabel = computed(() => PROJECT_TYPES.find(o => o.value === form.value.project_type)?.label || '')
-const productSituationLabel = computed(() => PRODUCT_SITUATIONS.find(o => o.value === form.value.product_situation)?.label || '')
+const industryLabel = computed(() => INDUSTRIES.value.find(o => o.value === form.value.industry)?.label || '')
+const reportSourceLabel = computed(() => REPORT_SOURCES.value.find(o => o.value === form.value.report_source)?.label || '')
+const projectTypeLabel = computed(() => PROJECT_TYPES.value.find(o => o.value === form.value.project_type)?.label || '')
+const productSituationLabel = computed(() => PRODUCT_SITUATIONS.value.find(o => o.value === form.value.product_situation)?.label || '')
 
 const validCount = computed(() => {
   let n = 0
@@ -205,16 +180,16 @@ async function getLocation() {
     addressSuggestions.value = []
     activeSheet.value = null
   } catch (e) {
-    alert('获取位置失败，请检查定位权限')
+    alert(t('project.locationFailed'))
   } finally {
     locating.value = false
   }
 }
 
 async function submit() {
-  if (!form.value.name.trim()) return alert('请填写项目名称')
-  if (!form.value.industry) return alert('请选择项目行业')
-  if (!form.value.description.trim()) return alert('请填写项目描述')
+  if (!form.value.name.trim()) return alert(t('project.alertNeedName'))
+  if (!form.value.industry) return alert(t('project.alertNeedIndustry'))
+  if (!form.value.description.trim()) return alert(t('project.alertNeedDesc'))
   submitting.value = true
   try {
     const res = await createProject({
@@ -236,7 +211,7 @@ async function submit() {
     if (id) router.replace(`/projects/${id}`)
     else router.back()
   } catch (e) {
-    alert(e.response?.data?.message || '创建失败')
+    alert(e.response?.data?.message || t('project.alertCreateFailed'))
   } finally {
     submitting.value = false
   }
@@ -248,14 +223,14 @@ async function submit() {
 
     <!-- Nav bar -->
     <div class="na-nav">
-      <button class="na-nav-cancel" @click="router.back()">取消</button>
+      <button class="na-nav-cancel" @click="router.back()">{{ t('common.cancel') }}</button>
       <div class="na-nav-title">
-        <div class="na-serif" style="font-size:18px; font-weight:500; color:#1A1A1A;">新建项目</div>
-        <div style="font-size:11px; color:#7A7570; margin-top:1px;">第 1 / 1 步</div>
+        <div class="na-serif" style="font-size:18px; font-weight:500; color:#1A1A1A;">{{ t('project.create') }}</div>
+        <div style="font-size:11px; color:#7A7570; margin-top:1px;">{{ t('project.stepOf', { cur: 1, total: 1 }) }}</div>
       </div>
       <button class="na-btn-create" @click="submit" :disabled="submitting"
         :style="{ opacity: validCount === totalCount ? 1 : 0.4 }">
-        {{ submitting ? '提交中…' : '创建' }}
+        {{ submitting ? t('project.creating') : t('project.createBtn') }}
       </button>
     </div>
 
@@ -264,24 +239,24 @@ async function submit() {
       <div class="na-progress-track">
         <div class="na-progress-fill" :style="{ width: (validCount / totalCount * 100) + '%' }" />
       </div>
-      <span class="na-progress-label">{{ validCount }} / {{ totalCount }} 必填</span>
+      <span class="na-progress-label">{{ t('project.requiredOf', { cur: validCount, total: totalCount }) }}</span>
     </div>
 
     <!-- Scrollable content -->
     <div class="na-scroll">
 
       <!-- 基本 -->
-      <div class="na-sec-header"><span class="na-sec-label">基本</span></div>
+      <div class="na-sec-header"><span class="na-sec-label">{{ t('project.sectionBasic') }}</span></div>
       <div class="na-bigfield">
-        <div class="na-field-label">项目名称<span class="na-required">*</span></div>
+        <div class="na-field-label">{{ t('project.fieldName') }}<span class="na-required">*</span></div>
         <input
           v-model="form.name"
           class="na-big-input"
           type="text"
-          placeholder="给这个项目起个名字…"
+          :placeholder="t('project.fieldNamePlaceholder')"
           autocomplete="off"
         />
-        <p v-if="checking" class="na-checking">查重中…</p>
+        <p v-if="checking" class="na-checking">{{ t('project.checkingDup') }}</p>
         <!-- Direction A dedup warning -->
         <div v-if="similar.length && !dupAcknowledged" class="na-dup-card">
           <div class="na-dup-header">
@@ -292,8 +267,8 @@ async function submit() {
               </svg>
             </span>
             <div>
-              <div class="na-dup-title na-serif">发现 {{ similar.length }} 个名称相似的项目</div>
-              <div class="na-dup-sub na-serif">报备前请确认是否重复</div>
+              <div class="na-dup-title na-serif">{{ t('project.similarFound', { n: similar.length }) }}</div>
+              <div class="na-dup-sub na-serif">{{ t('project.similarHint') }}</div>
             </div>
           </div>
           <div class="na-dup-list">
@@ -304,14 +279,14 @@ async function submit() {
               </div>
               <div class="na-dup-row-meta">
                 <span class="na-dup-badge" :class="s.score >= 80 ? 'na-dup-badge-high' : 'na-dup-badge-low'">
-                  {{ s.score >= 80 ? '高度相似' : '部分相似' }}
+                  {{ s.score >= 80 ? t('project.highSim') : t('project.lowSim') }}
                 </span>
               </div>
             </div>
           </div>
           <div class="na-dup-actions">
-            <button class="na-dup-btn-view" @click="selectedDup = similar[0]">查看已有项目</button>
-            <button class="na-dup-btn-create" @click="dupAcknowledged = true">仍要创建</button>
+            <button class="na-dup-btn-view" @click="selectedDup = similar[0]">{{ t('common.more') }}</button>
+            <button class="na-dup-btn-create" @click="dupAcknowledged = true">{{ t('project.createAnyway') }}</button>
           </div>
         </div>
       </div>
@@ -319,9 +294,9 @@ async function submit() {
       <!-- 地址 card (under 基本, no section header) -->
       <div class="na-card" style="margin-bottom: 4px;">
         <div class="na-row" @click="activeSheet = 'address'">
-          <span class="na-row-label">项目地址</span>
+          <span class="na-row-label">{{ t('project.fieldAddress') }}</span>
           <span class="na-row-val-wrap">
-            <span class="na-row-val na-row-val-address" :class="{ 'na-placeholder': !form.address }">{{ form.address || '搜索地址或选点' }}</span>
+            <span class="na-row-val na-row-val-address" :class="{ 'na-placeholder': !form.address }">{{ form.address || t('project.fieldAddressPlaceholder') }}</span>
             <span class="na-pin-circle">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                 <path d="M8 14s5-4.5 5-9a5 5 0 10-10 0c0 4.5 5 9 5 9z" stroke="#D97757" stroke-width="1.4"/>
@@ -333,33 +308,33 @@ async function submit() {
       </div>
 
       <!-- 分类 -->
-      <div class="na-sec-header"><span class="na-sec-label">分类</span></div>
+      <div class="na-sec-header"><span class="na-sec-label">{{ t('project.sectionCategory') }}</span></div>
       <div class="na-card">
         <div class="na-row na-row-border" @click="activeSheet = 'industry'">
-          <span class="na-row-label">项目行业<span class="na-required">*</span></span>
+          <span class="na-row-label">{{ t('project.fieldIndustry') }}<span class="na-required">*</span></span>
           <span class="na-row-val-wrap">
-            <span class="na-row-val" :class="{ 'na-placeholder': !form.industry }">{{ industryLabel || '请选择' }}</span>
+            <span class="na-row-val" :class="{ 'na-placeholder': !form.industry }">{{ industryLabel || t('project.pleaseSelect') }}</span>
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M2 2l4 4-4 4" stroke="#7A7570" stroke-width="1.4" stroke-linecap="round"/></svg>
           </span>
         </div>
         <div class="na-row na-row-border" @click="activeSheet = 'report_source'">
-          <span class="na-row-label">报备来源</span>
+          <span class="na-row-label">{{ t('project.fieldReportSource') }}</span>
           <span class="na-row-val-wrap">
-            <span class="na-row-val" :class="{ 'na-placeholder': !form.report_source }">{{ reportSourceLabel || '请选择' }}</span>
+            <span class="na-row-val" :class="{ 'na-placeholder': !form.report_source }">{{ reportSourceLabel || t('project.pleaseSelect') }}</span>
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M2 2l4 4-4 4" stroke="#7A7570" stroke-width="1.4" stroke-linecap="round"/></svg>
           </span>
         </div>
         <div class="na-row na-row-border" @click="activeSheet = 'project_type'">
-          <span class="na-row-label">项目类型</span>
+          <span class="na-row-label">{{ t('project.fieldType') }}</span>
           <span class="na-row-val-wrap">
-            <span class="na-row-val" :class="{ 'na-placeholder': !form.project_type }">{{ projectTypeLabel || '请选择' }}</span>
+            <span class="na-row-val" :class="{ 'na-placeholder': !form.project_type }">{{ projectTypeLabel || t('project.pleaseSelect') }}</span>
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M2 2l4 4-4 4" stroke="#7A7570" stroke-width="1.4" stroke-linecap="round"/></svg>
           </span>
         </div>
         <div class="na-row" @click="activeSheet = 'product_situation'">
-          <span class="na-row-label">品牌情况</span>
+          <span class="na-row-label">{{ t('project.fieldBrand') }}</span>
           <span class="na-row-val-wrap">
-            <span class="na-row-val" :class="{ 'na-placeholder': !form.product_situation }">{{ productSituationLabel || '请选择' }}</span>
+            <span class="na-row-val" :class="{ 'na-placeholder': !form.product_situation }">{{ productSituationLabel || t('project.pleaseSelect') }}</span>
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M2 2l4 4-4 4" stroke="#7A7570" stroke-width="1.4" stroke-linecap="round"/></svg>
           </span>
         </div>
@@ -367,25 +342,25 @@ async function submit() {
 
       <!-- 项目描述 -->
       <div class="na-sec-header">
-        <span class="na-sec-label">项目描述</span>
-        <span style="font-size:11px; color:#7A7570;">必填</span>
+        <span class="na-sec-label">{{ t('project.sectionDesc') }}</span>
+        <span style="font-size:11px; color:#7A7570;">{{ t('project.requiredMark') }}</span>
       </div>
       <div class="na-bigfield">
         <textarea
           v-model="form.description"
           class="na-notes-textarea"
-          placeholder="项目背景、客户痛点、初步方案…"
+          :placeholder="t('project.descPlaceholder')"
           rows="4"
         />
       </div>
 
       <!-- 时间 -->
-      <div class="na-sec-header"><span class="na-sec-label">时间</span></div>
+      <div class="na-sec-header"><span class="na-sec-label">{{ t('project.sectionTime') }}</span></div>
       <div class="na-card">
         <div class="na-row" style="position:relative;">
-          <span class="na-row-label">交付预测</span>
+          <span class="na-row-label">{{ t('project.fieldDelivery') }}</span>
           <span class="na-row-val-wrap">
-            <span class="na-row-val" :class="{ 'na-placeholder': !form.delivery_forecast }">{{ deliveryDisplay || '选择日期' }}</span>
+            <span class="na-row-val" :class="{ 'na-placeholder': !form.delivery_forecast }">{{ deliveryDisplay || t('project.pickDate') }}</span>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
               :style="{ opacity: form.delivery_forecast ? 1 : 0.4 }">
               <rect x="2" y="3" width="12" height="11" rx="2"
@@ -413,8 +388,8 @@ async function submit() {
       <div class="na-sheet">
         <div class="na-sheet-handle" />
         <div class="na-sheet-head">
-          <div class="na-sec-label" style="margin-bottom:4px;">选择</div>
-          <div class="na-serif" style="font-size:22px; font-weight:500;">项目行业</div>
+          <div class="na-sec-label" style="margin-bottom:4px;">{{ t('project.select') }}</div>
+          <div class="na-serif" style="font-size:22px; font-weight:500;">{{ t('project.fieldIndustry') }}</div>
         </div>
         <div class="na-chip-grid">
           <button v-for="o in INDUSTRIES" :key="o.value" class="na-chip"
@@ -430,8 +405,8 @@ async function submit() {
       <div class="na-sheet">
         <div class="na-sheet-handle" />
         <div class="na-sheet-head">
-          <div class="na-sec-label" style="margin-bottom:4px;">选择</div>
-          <div class="na-serif" style="font-size:22px; font-weight:500;">报备来源</div>
+          <div class="na-sec-label" style="margin-bottom:4px;">{{ t('project.select') }}</div>
+          <div class="na-serif" style="font-size:22px; font-weight:500;">{{ t('project.fieldReportSource') }}</div>
         </div>
         <div class="na-chip-grid">
           <button v-for="o in REPORT_SOURCES" :key="o.value" class="na-chip"
@@ -447,8 +422,8 @@ async function submit() {
       <div class="na-sheet">
         <div class="na-sheet-handle" />
         <div class="na-sheet-head">
-          <div class="na-sec-label" style="margin-bottom:4px;">选择</div>
-          <div class="na-serif" style="font-size:22px; font-weight:500;">项目类型</div>
+          <div class="na-sec-label" style="margin-bottom:4px;">{{ t('project.select') }}</div>
+          <div class="na-serif" style="font-size:22px; font-weight:500;">{{ t('project.fieldType') }}</div>
         </div>
         <div class="na-chip-grid">
           <button v-for="o in PROJECT_TYPES" :key="o.value" class="na-chip"
@@ -464,8 +439,8 @@ async function submit() {
       <div class="na-sheet">
         <div class="na-sheet-handle" />
         <div class="na-sheet-head">
-          <div class="na-sec-label" style="margin-bottom:4px;">选择</div>
-          <div class="na-serif" style="font-size:22px; font-weight:500;">品牌情况</div>
+          <div class="na-sec-label" style="margin-bottom:4px;">{{ t('project.select') }}</div>
+          <div class="na-serif" style="font-size:22px; font-weight:500;">{{ t('project.fieldBrand') }}</div>
         </div>
         <div class="na-chip-grid">
           <button v-for="o in PRODUCT_SITUATIONS" :key="o.value" class="na-chip"
@@ -481,8 +456,8 @@ async function submit() {
       <div class="na-sheet na-sheet-address">
         <div class="na-sheet-handle" />
         <div class="na-addr-header">
-          <button class="na-addr-cancel" @click="activeSheet = null">取消</button>
-          <div class="na-serif" style="font-size:18px; font-weight:500;">选择地址</div>
+          <button class="na-addr-cancel" @click="activeSheet = null">{{ t('common.cancel') }}</button>
+          <div class="na-serif" style="font-size:18px; font-weight:500;">{{ t('project.selectAddress') }}</div>
           <div style="width:40px;" />
         </div>
         <div class="na-addr-search-row">
@@ -495,7 +470,7 @@ async function submit() {
               v-model="addressQuery"
               class="na-addr-input"
               type="text"
-              placeholder="搜索地址…"
+              :placeholder="t('project.addressSearchPh')"
               autocomplete="off"
               @input="onAddressInput"
             />
@@ -524,7 +499,7 @@ async function submit() {
               <p v-if="form.region || form.city" class="na-addr-region">{{ [form.region, form.city].filter(Boolean).join(' · ') }}</p>
               <p class="na-addr-text">{{ form.address }}</p>
             </div>
-            <button class="na-addr-clear" @click="clearAddress">清除</button>
+            <button class="na-addr-clear" @click="clearAddress">{{ t('project.clear') }}</button>
           </div>
         </div>
       </div>
@@ -536,8 +511,8 @@ async function submit() {
       <div class="na-sheet na-sheet-dup">
         <div class="na-sheet-handle" />
         <div class="na-dup-detail-header">
-          <button class="na-addr-cancel" @click="selectedDup = null">返回表单</button>
-          <div class="na-serif" style="font-size:16px; font-weight:500;">已有项目</div>
+          <button class="na-addr-cancel" @click="selectedDup = null">{{ t('project.backToForm') }}</button>
+          <div class="na-serif" style="font-size:16px; font-weight:500;">{{ t('project.existingProject') }}</div>
           <div style="width:60px;" />
         </div>
         <div class="na-dup-detail-scroll">
@@ -549,14 +524,14 @@ async function submit() {
           <!-- Name comparison -->
           <div class="na-dup-compare-card">
             <div class="na-dup-compare-header">
-              <span class="na-sec-label">名称对比</span>
+              <span class="na-sec-label">{{ t('project.nameCompare') }}</span>
             </div>
             <div class="na-dup-compare-row na-dup-compare-row-border">
-              <span class="na-dup-compare-label">已有</span>
+              <span class="na-dup-compare-label">{{ t('project.existing') }}</span>
               <span class="na-serif na-dup-compare-val">{{ selectedDup.name }}</span>
             </div>
             <div class="na-dup-compare-row">
-              <span class="na-dup-compare-label na-dup-compare-label-accent">本次</span>
+              <span class="na-dup-compare-label na-dup-compare-label-accent">{{ t('project.thisOne') }}</span>
               <span class="na-serif na-dup-compare-val">{{ form.name }}</span>
               <span class="na-dup-badge na-dup-badge-sm" :class="selectedDup.score >= 80 ? 'na-dup-badge-high' : 'na-dup-badge-low'">
                 {{ selectedDup.score >= 80 ? '高度相似' : '部分相似' }}
@@ -566,9 +541,9 @@ async function submit() {
         </div>
         <!-- Footer -->
         <div class="na-dup-detail-footer">
-          <button class="na-dup-detail-back" @click="selectedDup = null">返回修改</button>
+          <button class="na-dup-detail-back" @click="selectedDup = null">{{ t('project.backToEdit') }}</button>
           <button class="na-dup-detail-go" @click="router.push(`/projects/${selectedDup.id}`)">
-            跳到这个项目
+            {{ t('project.jumpToProject') }}
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 6h6m-2-3l3 3-3 3" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
