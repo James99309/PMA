@@ -575,21 +575,23 @@ onMounted(() => {
       <div class="px-7 pt-5 pb-2">
         <div class="text-[11px] font-semibold uppercase mb-3"
           style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('project.detStage') }}</div>
-        <div class="flex items-center" style="gap: 4px;">
+        <!-- 横向可滚动: column 固定 64px, connector 固定 24px。
+             英文 label 比中文长得多 (Embedding vs 植入), 用滚动避免 connector 被挤成噪点。 -->
+        <div class="flex items-center overflow-x-auto no-scrollbar"
+          style="gap: 4px; -webkit-overflow-scrolling: touch;">
           <template v-for="(s, i) in STAGE_TRACK" :key="s.key">
-            <!-- dot + label column — 限宽避免英文 label 撑掉 connector -->
-            <div class="flex flex-col items-center" style="gap: 6px; min-width: 28px; max-width: 64px; flex: 0 0 auto;">
-              <span
-                :style="dotStyle(trackStatus(s.key))" />
-              <span :style="[labelStyle(trackStatus(s.key)), { textAlign: 'center', lineHeight: 1.15, wordBreak: 'normal' }]">{{ s.label }}</span>
+            <!-- dot + label column -->
+            <div class="flex flex-col items-center" style="gap: 6px; width: 64px; flex: 0 0 64px;">
+              <span :style="dotStyle(trackStatus(s.key))" />
+              <span :style="[labelStyle(trackStatus(s.key)), { textAlign: 'center', lineHeight: 1.15, wordBreak: 'keep-all', whiteSpace: 'nowrap' }]">{{ s.label }}</span>
             </div>
-            <!-- connector line — 保底 6px 即便 label 把空间挤满也可见 -->
+            <!-- connector line — 固定 24px, 视觉清晰 -->
             <span v-if="i < STAGE_TRACK.length - 1"
-              class="flex-1"
               :style="{
                 height: '1.5px',
+                width: '24px',
                 marginBottom: '16px',
-                minWidth: '6px',
+                flex: '0 0 24px',
                 background: trackStatus(STAGE_TRACK[i + 1].key) !== 'future'
                   ? 'var(--color-ink)'
                   : 'var(--color-divider)',
