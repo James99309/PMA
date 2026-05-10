@@ -21,12 +21,12 @@
         >
           <div :style="{ width: '36px', height: '4px', background: 'var(--color-ex-divider)', borderRadius: '2px', margin: '10px auto 6px' }" />
           <div class="px-5 pt-2 pb-3 flex items-center justify-between shrink-0">
-            <div :style="{ fontSize: '15px', fontWeight: 600 }">{{ form.id ? '编辑明细' : '添加明细' }}</div>
-            <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="close">取消</div>
+            <div :style="{ fontSize: '15px', fontWeight: 600 }">{{ form.id ? t('expense.lineFormEditTitle') : t('expense.lineFormNewTitle') }}</div>
+            <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink3)' }" @click="close">{{ t('expense.lineFormCancel') }}</div>
           </div>
 
           <div class="overflow-auto" :style="{ paddingBottom: '12px' }">
-            <ExRow label="报销科目 *">
+            <ExRow :label="t('expense.lineFormFCategory')">
               <select
                 v-model="form.expense_category"
                 :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
@@ -35,7 +35,7 @@
               </select>
             </ExRow>
 
-            <ExRow label="发生日期 *">
+            <ExRow :label="t('expense.lineFormFDate')">
               <input
                 v-model="form.expense_date"
                 type="date"
@@ -43,7 +43,7 @@
               />
             </ExRow>
 
-            <ExRow label="金额 *">
+            <ExRow :label="t('expense.lineFormFAmount')">
               <input
                 v-model.number="form.invoice_amount"
                 type="number"
@@ -53,7 +53,7 @@
               />
             </ExRow>
 
-            <ExRow label="币种 *">
+            <ExRow :label="t('expense.lineFormFCurrency')">
               <select
                 v-model="form.currency"
                 :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%' }"
@@ -64,16 +64,16 @@
               </select>
             </ExRow>
 
-            <ExRow label="描述" :multi="true">
+            <ExRow :label="t('expense.lineFormFDesc')" :multi="true">
               <textarea
                 v-model="form.description"
                 rows="2"
-                placeholder="例: 280公里加油 224 元"
+                :placeholder="t('expense.lineFormFDescPh')"
                 :style="{ background: 'transparent', border: 'none', fontSize: '14px', color: 'var(--color-ex-ink)', width: '100%', resize: 'none' }"
               />
             </ExRow>
 
-            <ExRow label="单据数">
+            <ExRow :label="t('expense.lineFormFDocCount')">
               <input
                 v-model.number="form.document_count"
                 type="number"
@@ -98,7 +98,7 @@
                 fontSize: '14px', fontWeight: 600,
               }"
               @click="$emit('delete', form.id); close()"
-            >删除</div>
+            >{{ t('expense.lineFormDelete') }}</div>
             <div
               class="flex items-center justify-center"
               :style="{
@@ -111,7 +111,7 @@
                 fontWeight: 600,
               }"
               @click="canSave && save()"
-            >保存</div>
+            >{{ t('expense.lineFormSave') }}</div>
           </div>
         </div>
       </div>
@@ -121,10 +121,12 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import ExRow from './ExRow.vue'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
 const { kbStyle } = useKeyboardOffset()
+const { t } = useI18n()
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },

@@ -2,6 +2,9 @@
 // 语音消息录制底部弹层 — Web MediaRecorder 实现
 // 简化交互：点击麦克风开始/停止录音；左滑取消、点发送上传
 import { ref, watch, onBeforeUnmount, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -36,7 +39,7 @@ async function start() {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true })
   } catch (e) {
-    alert('无法访问麦克风：' + (e?.message || e))
+    alert(t('voice.micFail') + (e?.message || e))
     return
   }
   chunks = []
@@ -91,7 +94,7 @@ async function onSend() {
     await props.send(blob.value, elapsed.value)
     emit('update:modelValue', false)
   } catch (e) {
-    alert('发送失败：' + (e?.message || e))
+    alert(t('voice.sendFail') + (e?.message || e))
   } finally {
     sending.value = false
   }
@@ -132,7 +135,7 @@ const bars = Array.from({ length: 38 }, (_, i) => {
               <span v-if="recording" class="w-[7px] h-[7px] rounded-full vr-pulse-dot" />
               <span v-else class="w-[7px] h-[7px] rounded-full"
                 style="background: var(--color-ink-4);" />
-              {{ recording ? '录音中' : (blob ? '已录制' : '准备录音') }}
+              {{ recording ? t('voice.statusRecording') : (blob ? t('voice.statusRecorded') : t('voice.statusReady')) }}
             </span>
             <span class="text-[14px] font-semibold tabular"
               style="color: var(--color-ink);">{{ display }}</span>
@@ -157,10 +160,10 @@ const bars = Array.from({ length: 38 }, (_, i) => {
           <div class="flex items-center justify-center gap-6 mt-5">
             <button v-if="blob" @click="reset"
               class="text-[13px] active:opacity-60"
-              style="color: var(--color-ink-3);">重录</button>
+              style="color: var(--color-ink-3);">{{ t('voice.rerecord') }}</button>
             <button v-else @click="close"
               class="text-[13px] active:opacity-60"
-              style="color: var(--color-ink-3);">取消</button>
+              style="color: var(--color-ink-3);">{{ t('voice.cancel') }}</button>
 
             <button @click="recording ? stop() : start()" type="button"
               class="w-[76px] h-[76px] rounded-full inline-flex items-center justify-center active:scale-95 transition-transform"
@@ -182,10 +185,10 @@ const bars = Array.from({ length: 38 }, (_, i) => {
             <button v-if="blob && !recording" @click="onSend" :disabled="sending"
               class="text-[13px] font-semibold active:opacity-60 disabled:opacity-50"
               style="color: var(--color-accent);">
-              {{ sending ? '发送中…' : '发送' }}
+              {{ sending ? t('voice.sending') : t('voice.send') }}
             </button>
             <span v-else class="text-[13px]" style="color: var(--color-ink-4);">
-              {{ recording ? '点击停止' : '点击开始' }}
+              {{ recording ? t('voice.tapStop') : t('voice.tapStart') }}
             </span>
           </div>
         </div>

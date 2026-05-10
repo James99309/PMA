@@ -2,7 +2,10 @@
 // 渲染聊天消息中的附件（image / file / voice / location）
 // 数据由 ChatMessage.message_type + file_url + content(JSON) 组合
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Browser } from '@capacitor/browser'
+
+const { t } = useI18n()
 import client from '@/api/client'
 import LocationMiniMap from './LocationMiniMap.vue'
 
@@ -105,7 +108,7 @@ function openMap() {
     <div class="min-w-0 flex-1">
       <div class="text-[13.5px] font-medium truncate"
         style="font-family: var(--font-serif);">
-        {{ meta.name || '附件' }}
+        {{ meta.name || t('chat.attachFileFallback') }}
       </div>
       <div class="text-[11px] mt-0.5"
         :style="{ color: inverted ? 'rgba(255,255,255,0.7)' : 'var(--color-ink-3)' }">
@@ -169,7 +172,7 @@ function openMap() {
       :lat="Number(meta.lat)" :lon="Number(meta.lon)" :width="252" :height="132" />
     <div class="px-3 pt-2.5 pb-3">
       <div class="text-[14px] font-semibold truncate" style="font-family: var(--font-serif);">
-        {{ meta.name || '位置' }}
+        {{ meta.name || t('chat.attachLocationFallback') }}
       </div>
       <div v-if="meta.address" class="text-[11.5px] mt-1 truncate"
         :style="{ color: inverted ? 'rgba(255,255,255,0.7)' : 'var(--color-ink-3)' }">

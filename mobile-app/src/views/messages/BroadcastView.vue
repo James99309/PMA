@@ -2,10 +2,12 @@
 // 公司广播详情 —— 设计稿无此屏，按 Plan A 风格新建
 // 顶部 Hero：广播频道名 + 订阅者数；下方按时间倒序的公告列表
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import NavBar from '@/components/common/NavBar.vue'
 import Section from '@/components/common/Section.vue'
 
 const router = useRouter()
+const { t } = useI18n()
 
 // Mock 公告列表（实际由后端 announcement 表提供）
 const announcements = [
@@ -36,20 +38,20 @@ const announcements = [
 <template>
   <div class="flex flex-col h-full overflow-y-auto" style="background: var(--color-bg);">
 
-    <NavBar back-label="消息" title="公司广播" @back="router.back()" />
+    <NavBar :back-label="t('broadcast.backLabel')" :title="t('broadcast.title')" @back="router.back()" />
 
     <!-- Hero：广播频道介绍 -->
     <div class="px-7 pt-5 pb-4 flex items-center gap-3">
       <div class="w-14 h-14 rounded-2xl inline-flex items-center justify-center text-white font-serif font-semibold"
-        style="background: var(--color-ink); font-size: 24px;">广</div>
+        style="background: var(--color-ink); font-size: 24px;">{{ t('broadcast.avatar') }}</div>
       <div class="flex-1 min-w-0">
-        <div class="font-serif" style="font-size: 18px; font-weight: 500; color: var(--color-ink);">公司广播</div>
-        <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">系统频道 · 全员订阅 · 仅管理员可发</div>
+        <div class="font-serif" style="font-size: 18px; font-weight: 500; color: var(--color-ink);">{{ t('broadcast.title') }}</div>
+        <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">{{ t('broadcast.subtitle') }}</div>
       </div>
     </div>
 
     <!-- 公告列表 -->
-    <Section title="最近公告">
+    <Section :title="t('broadcast.sectionRecent')">
       <div class="rounded-2xl"
         style="background: var(--color-card); border: 1px solid var(--color-divider);">
         <div v-for="(a, i) in announcements" :key="a.id"

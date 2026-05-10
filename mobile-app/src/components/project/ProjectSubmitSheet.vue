@@ -28,14 +28,14 @@
             borderRadius: '2px', margin: '0 auto 14px',
           }" />
           <div :style="{ fontSize: '11px', color: 'var(--color-ex-ink3)', letterSpacing: '0.6px' }">
-            提交审批
+            {{ t('project.submitEyebrow') }}
           </div>
           <div :style="{
             fontSize: '22px', fontWeight: 500,
             fontFamily: 'var(--font-serif)',
             color: 'var(--color-ex-ink)',
             marginTop: '4px',
-          }">确认提交?</div>
+          }">{{ t('project.submitConfirmTitle') }}</div>
 
           <!-- 项目信息卡 -->
           <div :style="{
@@ -57,19 +57,19 @@
 
             <div :style="{ fontSize: '12px', color: 'var(--color-ex-ink3)', lineHeight: 1.7 }">
               <div class="flex justify-between">
-                <span>关联客户</span>
+                <span>{{ t('project.submitFCustomer') }}</span>
                 <span :style="{ color: 'var(--color-ex-ink2)' }">{{ customerName || '—' }}</span>
               </div>
               <div class="flex justify-between">
-                <span>负责人</span>
+                <span>{{ t('project.submitFOwner') }}</span>
                 <span :style="{ color: 'var(--color-ex-ink2)' }">{{ ownerName || '—' }}</span>
               </div>
               <div v-if="amount" class="flex justify-between">
-                <span>预计签约金额</span>
+                <span>{{ t('project.submitFAmount') }}</span>
                 <span :style="{ color: 'var(--color-ex-ink2)' }">{{ amount }}</span>
               </div>
               <div v-if="stage" class="flex justify-between">
-                <span>当前阶段</span>
+                <span>{{ t('project.submitFStage') }}</span>
                 <span :style="{ color: 'var(--color-ex-ink2)' }">{{ stage }}</span>
               </div>
             </div>
@@ -82,10 +82,10 @@
             borderRadius: '8px',
           }">
             <div :style="{ fontSize: '11px', color: 'var(--color-ex-warn)', fontWeight: 600, marginBottom: '2px' }">
-              下一节点
+              {{ t('project.submitNextNode') }}
             </div>
             <div :style="{ fontSize: '13px', color: 'var(--color-ex-ink2)' }">
-              将按「{{ projectTypeLabel || '默认' }}」类型自动分配审批人
+              {{ t('project.submitNextNodeAuto', { type: projectTypeLabel || t('project.submitTypeDefault') }) }}
             </div>
           </div>
 
@@ -101,7 +101,7 @@
                 fontSize: '14px', fontWeight: 600,
               }"
               @click="close"
-            >取消</div>
+            >{{ t('project.submitCancel') }}</div>
             <div
               class="flex items-center justify-center"
               role="button"
@@ -112,7 +112,7 @@
                 opacity: submitting ? 0.7 : 1,
               }"
               @click="!submitting && $emit('confirm')"
-            >{{ submitting ? '提交中...' : '确认提交' }}</div>
+            >{{ submitting ? t('project.submitting') : t('project.submitConfirm') }}</div>
           </div>
         </div>
       </div>
@@ -122,12 +122,15 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
-const TYPE_LABEL = {
-  channel_follow:       '渠道',
-  sales_focus:          '销售',
-  business_opportunity: '服务',
-}
+const { t } = useI18n()
+
+const TYPE_LABEL = computed(() => ({
+  channel_follow:       t('project.typeChannel'),
+  sales_focus:          t('project.typeSales'),
+  business_opportunity: t('project.typeService'),
+}))
 const TYPE_COLOR = {
   channel_follow:       { bg: '#E8F1FF', fg: '#1E5DDB' },
   sales_focus:          { bg: '#FFF1E0', fg: '#C57211' },
@@ -146,7 +149,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue', 'confirm'])
 
-const projectTypeLabel = computed(() => TYPE_LABEL[props.projectType] || props.projectType || '')
+const projectTypeLabel = computed(() => TYPE_LABEL.value[props.projectType] || props.projectType || '')
 const typeBadgeStyle = computed(() => {
   const c = TYPE_COLOR[props.projectType] || { bg: 'var(--color-ex-divider)', fg: 'var(--color-ex-ink2)' }
   return {
