@@ -498,10 +498,12 @@ function onPlusPointerDown(e) {
       </div>
     </div>
 
-    <!-- 发起聊天 sheet -->
-    <Transition name="sheet">
-      <div v-if="showPicker" class="absolute inset-0 z-40"
-        style="border: 4px solid lime; outline: 4px solid magenta;">
+    <!-- 发起聊天 sheet — 临时改 fixed + 去 Transition + 高 z 调试 -->
+    <Teleport to="body">
+      <div v-if="showPicker"
+        style="position: fixed; inset: 0; z-index: 9999;
+               border: 6px solid lime; outline: 6px solid magenta;
+               background: rgba(255, 255, 0, 0.3);">
         <!-- 遮罩点击关闭 sheet -->
         <div class="absolute inset-0 bg-black/40" @click="closePicker" style="border: 4px dashed yellow;" />
         <!-- panel: bottom 跟随键盘抬升, max-h 减去键盘, 避免被键盘挤压
@@ -752,6 +754,6 @@ function onPlusPointerDown(e) {
           </template>
         </div>
       </div>
-    </Transition>
+    </Teleport>
   </div>
 </template>
