@@ -331,6 +331,10 @@ function closePicker() {
   showPicker.value = false
   pickerStep.value = 'main'
 }
+
+function openPicker() {
+  showPicker.value = true
+}
 </script>
 
 <template>
@@ -345,9 +349,9 @@ function closePicker() {
         <h1 class="font-serif m-0 mt-1"
           style="font-size: 30px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">{{ t('chat.title') }}</h1>
       </div>
-      <button @click="showPicker = true"
+      <button @click="openPicker" type="button"
         class="w-9 h-9 rounded-full inline-flex items-center justify-center"
-        style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300;">+</button>
+        style="background: var(--color-ink); color: #fff; font-size: 20px; font-weight: 300; touch-action: manipulation;">+</button>
     </div>
 
     <!-- 加载中 -->
