@@ -15,6 +15,39 @@ from app.api.v1 import api_v1_bp
 from app.api.v1.utils import api_response
 from app.models.user import User
 from app.models.expense import Expense, ExpenseDetail, EXPENSE_CATEGORIES, EXPENSE_STATUS
+from app.api.v1.utils import get_request_lang as _lang
+
+# 英文映射 (mobile 端国际化) — EXPENSE_CATEGORIES 是 [(key,zh)] 元组保持不变
+_EXPENSE_CATEGORY_EN = {
+    'entertainment':        'Entertainment',
+    'local_transport':      'Local Transport',
+    'travel_accommodation': 'Travel & Lodging',
+    'office_supplies':      'Office Supplies',
+    'communication':        'Communication',
+    'fuel':                 'Fuel',
+    'parking':              'Parking',
+    'meals':                'Meals',
+    'other':                'Other',
+}
+_EXPENSE_STATUS_EN = {
+    'draft':            'Draft',
+    'pending':          'Pending',
+    'approved':         'Approved',
+    'rejected':         'Rejected',
+    'recalled':         'Recalled',
+    'awaiting_payment': 'Awaiting Payment',
+    'paid':             'Paid',
+}
+
+def _category_label(key):
+    if _lang() == 'en':
+        return _EXPENSE_CATEGORY_EN.get(key, key or '')
+    return next((zh for k, zh in EXPENSE_CATEGORIES if k == key), key or '')
+
+def _status_label_i18n(key):
+    if _lang() == 'en':
+        return _EXPENSE_STATUS_EN.get(key, key or '')
+    return next((zh for k, zh in EXPENSE_STATUS if k == key), key or '')
 from app.utils.access_control import get_viewable_data
 import logging
 
@@ -24,17 +57,20 @@ logger = logging.getLogger(__name__)
 # ─── 序列化 helpers ─────────────────────────────────────────────────────
 
 _STATUS_META = {
-    'draft':              {'label': '草稿',   'color': '#7A7570', 'bg': '#EFEAE2'},
-    'pending':            {'label': '审批中', 'color': '#C77B22', 'bg': '#F9F1E6'},
-    'approved':           {'label': '已通过', 'color': '#2F7A4F', 'bg': '#E9F1EB'},
-    'rejected':           {'label': '已驳回', 'color': '#B5453A', 'bg': '#F4E4E1'},
-    'awaiting_payment':   {'label': '待支付', 'color': '#C77B22', 'bg': '#F9F1E6'},
-    'paid':               {'label': '已打款', 'color': '#3A6FB7', 'bg': '#E5EBF4'},
+    'draft':              {'zh': '草稿',   'en': 'Draft',            'color': '#7A7570', 'bg': '#EFEAE2'},
+    'pending':            {'zh': '审批中', 'en': 'Under approval',   'color': '#C77B22', 'bg': '#F9F1E6'},
+    'approved':           {'zh': '已通过', 'en': 'Approved',         'color': '#2F7A4F', 'bg': '#E9F1EB'},
+    'rejected':           {'zh': '已驳回', 'en': 'Rejected',         'color': '#B5453A', 'bg': '#F4E4E1'},
+    'awaiting_payment':   {'zh': '待支付', 'en': 'Awaiting Payment', 'color': '#C77B22', 'bg': '#F9F1E6'},
+    'paid':               {'zh': '已打款', 'en': 'Paid',             'color': '#3A6FB7', 'bg': '#E5EBF4'},
 }
 
 
 def _status_block(status: str) -> dict:
-    return _STATUS_META.get(status) or {'label': status, 'color': '#7A7570', 'bg': '#EFEAE2'}
+    meta = _STATUS_META.get(status)
+    if not meta:
+        return {'label': status, 'color': '#7A7570', 'bg': '#EFEAE2'}
+    return {'label': meta[_lang()], 'color': meta['color'], 'bg': meta['bg']}
 
 
 def _expense_summary(e: Expense) -> dict:
@@ -67,7 +103,7 @@ def _expense_summary(e: Expense) -> dict:
 
 
 def _line_dict(d: ExpenseDetail) -> dict:
-    cat_label = next((zh for k, zh in EXPENSE_CATEGORIES if k == d.expense_category), d.expense_category)
+    cat_label = _category_label(d.expense_category)
     return {
         'id': d.id,
         'expense_date': d.expense_date.strftime('%Y-%m-%d') if d.expense_date else None,
@@ -772,8 +808,8 @@ def mobile_expense_flow(expense_id):
 @jwt_required()
 def mobile_expense_categories():
     return api_response(success=True, data={
-        'categories': [{'key': k, 'label': zh} for k, zh in EXPENSE_CATEGORIES],
-        'statuses': [{'key': k, 'label': zh, **_status_block(k)} for k, zh in EXPENSE_STATUS],
+        'categories': [{'key': k, 'label': _category_label(k)} for k, _ in EXPENSE_CATEGORIES],
+        'statuses': [{'key': k, 'label': _status_label_i18n(k), **_status_block(k)} for k, _ in EXPENSE_STATUS],
     })
 
 

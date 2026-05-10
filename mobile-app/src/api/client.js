@@ -50,12 +50,15 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// 自动附加 JWT token（按当前区域读对应的 token）
+// 自动附加 JWT token（按当前区域读对应的 token）+ Accept-Language
 client.interceptors.request.use(config => {
   const region = localStorage.getItem('region') || 'cn'
   // 优先按区域分桶的 token，回退到旧的统一 access_token（向后兼容）
   const token = localStorage.getItem(`access_token_${region}`) || localStorage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  // i18n: 后端按此 header 返回业务标签的对应语言 (zh-CN / en)
+  const lang = localStorage.getItem('lang') || 'zh'
+  config.headers['Accept-Language'] = lang === 'en' ? 'en' : 'zh-CN'
   return config
 })
 

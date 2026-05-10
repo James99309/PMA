@@ -1,9 +1,12 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { CapacitorUpdater } from '@capgo/capacitor-updater'
 import { REGIONS } from '@/api/client'
+import client from '@/api/client'
+import { setLocale } from '@/locales'
 import { getPendingApprovals } from '@/api/approval'
 
 // 待审批数(显示在审批中心圆形图标里)
@@ -116,9 +119,33 @@ onMounted(async () => {
   }
 })
 
+const { t, locale } = useI18n()
 // Eyebrow 文案: away 时双语提示
-const eyebrow = computed(() => auth.isAway ? `MY ACCOUNT · ${auth.regionId.toUpperCase()}` : '账户设置')
-const title = computed(() => auth.isAway ? '我的 · Profile' : '我的')
+const eyebrow = computed(() => auth.isAway ? `${t('profile.eyebrowAway')} · ${auth.regionId.toUpperCase()}` : t('profile.eyebrow'))
+const title = computed(() => auth.isAway ? `${t('profile.title')} · Profile` : t('profile.title'))
+
+// 语言切换 — 同步到 i18n + localStorage + 后端 user.language_preference
+const showLangPicker = ref(false)
+const LANG_OPTIONS = [
+  { code: 'zh', label: '简体中文' },
+  { code: 'en', label: 'English' },
+]
+const currentLangLabel = computed(() =>
+  LANG_OPTIONS.find(o => o.code === locale.value)?.label || '简体中文'
+)
+async function selectLang(code) {
+  setLocale(code)              // 立即生效 + 本地缓存 + axios header 下次自动用新 lang
+  showLangPicker.value = false
+  // 同步到后端 user.language_preference (失败不阻塞 UI)
+  try {
+    await client.put('/user/profile', { language_preference: code })
+    if (auth.user) {
+      auth.user.language_preference = code
+      const key = `user_${auth.regionId}`
+      localStorage.setItem(key, JSON.stringify(auth.user))
+    }
+  } catch {}
+}
 
 // 结算货币 — 只读展示, 修改入口在 Web 端
 // 切换会影响报销/绩效/薪酬的统计口径, mobile 不开放避免来回切造成混乱
@@ -166,7 +193,7 @@ const currentCurrency = computed(() => {
         <div class="px-2 pt-3 pb-1">
           <div class="text-[11px] font-semibold uppercase"
             style="color: var(--color-ink-3); letter-spacing: 0.6px;">
-            数据区域{{ auth.isAway ? ' · DATA REGION' : '' }}
+            {{ t('profile.dataRegion') }}{{ auth.isAway ? ' · DATA REGION' : '' }}
           </div>
         </div>
         <div class="bg-white rounded-2xl overflow-hidden"
@@ -204,24 +231,24 @@ const currentCurrency = computed(() => {
             <span v-if="r.id === auth.regionId && r.id === auth.homeRegionId"
               class="font-semibold"
               style="font-size: 10.5px; padding: 3px 8px; border-radius: 999px; background: var(--color-ink); color: #fff; letter-spacing: 0.2px;">
-              当前 · 本位
+              {{ t('profile.currentHome') }}
             </span>
             <span v-else-if="r.id === auth.regionId && r.id !== auth.homeRegionId"
               class="font-semibold"
               style="font-size: 10.5px; padding: 3px 8px; border-radius: 999px; background: #FBF1DF; color: #B8762A; letter-spacing: 0.2px;">
-              当前
+              {{ t('profile.current') }}
             </span>
             <span v-else-if="r.id === auth.homeRegionId"
               style="font-size: 11.5px; color: var(--color-ink-3);">
-              本位 · 可切回 ›
+              {{ t('profile.canSwitchBack') }}
             </span>
             <span v-else style="font-size: 11.5px; color: var(--color-ink-3);">
-              可访问 ›
+              {{ t('profile.canAccess') }}
             </span>
           </div>
         </div>
         <p class="px-2 pt-1.5" style="font-size: 11.5px; color: var(--color-ink-3); line-height: 1.55;">
-          切到他库时，顶部会出现提示条直到切回。
+          {{ t('profile.switchHint') }}
         </p>
       </template>
 
@@ -229,7 +256,7 @@ const currentCurrency = computed(() => {
       <div class="pt-2">
         <div class="px-2 pb-1">
           <div class="text-[11px] font-semibold uppercase"
-            style="color: var(--color-ink-3); letter-spacing: 0.6px;">工作</div>
+            style="color: var(--color-ink-3); letter-spacing: 0.6px;">{{ t('profile.work') }}</div>
         </div>
         <div class="bg-white rounded-2xl overflow-hidden"
           style="border: 1px solid var(--color-divider);">
@@ -244,9 +271,9 @@ const currentCurrency = computed(() => {
                 font-size: 18px; font-weight: 600;
               ">{{ pendingCount }}</div>
             <div class="flex-1">
-              <div style="font-size: 14px; color: var(--color-ink); font-weight: 600;">我审批的</div>
+              <div style="font-size: 14px; color: var(--color-ink); font-weight: 600;">{{ t('profile.myApprovals') }}</div>
               <div style="font-size: 11px; color: var(--color-ink-3); margin-top: 2px;">
-                {{ pendingCount > 0 ? `${pendingCount} 笔待你审批` : '暂无待审批' }}
+                {{ pendingCount > 0 ? t('profile.pendingCount', { n: pendingCount }) : t('profile.noPending') }}
               </div>
             </div>
             <svg width="7" height="11" viewBox="0 0 7 11">
@@ -261,43 +288,44 @@ const currentCurrency = computed(() => {
         <div class="px-2 pb-1">
           <div class="text-[11px] font-semibold uppercase"
             style="color: var(--color-ink-3); letter-spacing: 0.6px;">
-            设置{{ auth.isAway ? ' · SETTINGS' : '' }}
+            {{ t('profile.settings') }}{{ auth.isAway ? ' · SETTINGS' : '' }}
           </div>
         </div>
         <div class="bg-white rounded-2xl overflow-hidden"
           style="border: 1px solid var(--color-divider);">
           <div class="px-4 py-3 flex items-center justify-between"
             style="border-bottom: 1px solid var(--color-divider);">
-            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">通知</span>
+            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">{{ t('profile.notification') }}</span>
             <span class="inline-block relative"
               style="width: 38px; height: 22px; border-radius: 11px; background: var(--color-ink); opacity: 0.85;">
               <span class="absolute" style="top: 2px; left: 18px; width: 18px; height: 18px; border-radius: 9px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></span>
             </span>
           </div>
-          <div class="px-4 py-3 flex items-center justify-between"
+          <button @click="showLangPicker = true"
+            class="w-full px-4 py-3 flex items-center justify-between active:bg-gray-50 text-left"
             style="border-bottom: 1px solid var(--color-divider);">
-            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">语言</span>
+            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">{{ t('profile.language') }}</span>
             <span class="inline-flex items-center gap-1" style="font-size: 13px; color: var(--color-ink-3);">
-              {{ auth.isAway ? 'English' : '简体中文' }}
+              {{ currentLangLabel }}
               <span style="font-size: 16px; color: #A8A29B; font-weight: 200;">›</span>
             </span>
-          </div>
+          </button>
           <div class="px-4 py-3 flex items-center justify-between"
             style="border-bottom: 1px solid var(--color-divider);">
             <div class="flex flex-col">
-              <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">结算货币</span>
-              <span style="font-size: 11px; color: var(--color-ink-3); margin-top: 2px;">影响报销/绩效/薪酬,请在 Web 端修改</span>
+              <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">{{ t('profile.settlementCurrency') }}</span>
+              <span style="font-size: 11px; color: var(--color-ink-3); margin-top: 2px;">{{ t('profile.settlementHint') }}</span>
             </div>
             <span style="font-size: 13px; color: var(--color-ink-3);">{{ currentCurrency }}</span>
           </div>
           <div class="px-4 py-3 flex items-center justify-between">
-            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">App 版本</span>
+            <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">{{ t('profile.appVersion') }}</span>
             <span class="tabular" style="font-size: 12px; color: var(--color-ink-3);">{{ bundleVer }}</span>
           </div>
           <button @click="checkUpdate"
             class="w-full px-4 py-3 flex items-center justify-between active:bg-gray-50 text-left"
             style="border-top: 1px solid var(--color-divider);">
-            <span style="font-size: 13px; color: var(--color-accent); font-weight: 500;">检查更新</span>
+            <span style="font-size: 13px; color: var(--color-accent); font-weight: 500;">{{ t('profile.checkUpdate') }}</span>
             <span style="font-size: 11px; color: var(--color-ink-3);">{{ bundleStatus }}</span>
           </button>
         </div>
@@ -308,7 +336,7 @@ const currentCurrency = computed(() => {
         <button @click="handleLogout"
           class="w-full py-3.5 rounded-2xl active:opacity-80"
           style="background: white; border: 1px solid var(--color-divider-strong); font-size: 14.5px; color: var(--color-ink-2); font-weight: 500;">
-          退出登录
+          {{ t('profile.logout') }}
         </button>
       </div>
     </div>
@@ -378,6 +406,37 @@ const currentCurrency = computed(() => {
             <span class="inline-block animate-spin"
               style="width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 7px;"></span>
             正在切换到 {{ targetRegion?.label }}库…
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- 语言切换 picker -->
+    <Teleport to="body">
+      <Transition name="sheet">
+        <div v-if="showLangPicker" class="fixed inset-0 z-50"
+          style="background: rgba(0,0,0,0.32);"
+          @click.self="showLangPicker = false">
+          <div class="absolute left-0 right-0 bottom-0 bg-white"
+            :style="{
+              borderRadius: '20px 20px 0 0',
+              paddingBottom: 'calc(20px + env(safe-area-inset-bottom))',
+            }">
+            <div :style="{ width: '36px', height: '4px', background: 'var(--color-divider)', borderRadius: '2px', margin: '10px auto 8px' }"></div>
+            <div class="px-5 pb-3 flex items-center justify-between">
+              <span class="font-serif" style="font-size: 16px; font-weight: 500;">{{ t('profile.language') }}</span>
+              <button @click="showLangPicker = false" class="text-[13px]" style="color: var(--color-ink-3);">{{ t('common.cancel') }}</button>
+            </div>
+            <div style="border-top: 1px solid var(--color-divider);">
+              <button v-for="opt in LANG_OPTIONS" :key="opt.code"
+                @click="selectLang(opt.code)"
+                class="w-full px-5 py-3.5 flex items-center justify-between active:bg-gray-50 text-left"
+                style="border-bottom: 1px solid var(--color-divider-soft);">
+                <span style="font-size: 14px; color: var(--color-ink); font-weight: 500;">{{ opt.label }}</span>
+                <span v-if="locale === opt.code"
+                  style="font-size: 13px; color: var(--color-accent); font-weight: 600;">✓</span>
+              </button>
+            </div>
           </div>
         </div>
       </Transition>

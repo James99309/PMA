@@ -163,6 +163,19 @@ def flexible_auth_with_permission(module, action):
     return decorator
 
 
+def get_request_lang():
+    """从请求 Accept-Language header 解析 mobile 端语言偏好.
+
+    mobile axios 拦截器在每个请求带 Accept-Language: zh-CN 或 en.
+    返回 'zh' 或 'en' (字典 helper 用此参数取对应语言 label)。
+    Fallback 到 'zh' (兼容老客户端不带 header 的情况)。
+    """
+    al = (request.headers.get('Accept-Language') or '').lower()
+    if al.startswith('en'):
+        return 'en'
+    return 'zh'
+
+
 def get_pagination_params():
     """
     获取分页参数

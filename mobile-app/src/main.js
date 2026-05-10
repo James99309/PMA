@@ -9,9 +9,10 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
+import i18n from './locales'
 import './style.css'
 
-createApp(App).use(createPinia()).use(router).mount('#app')
+createApp(App).use(createPinia()).use(router).use(i18n).mount('#app')
 
 // ─── Capgo OTA：通知 native 端 web 已准备好（释放冷启等待，autoUpdate 会自动检查新版本）
 import { CapacitorUpdater } from '@capgo/capacitor-updater'

@@ -43,36 +43,38 @@ def _mobile_project_query(user):
     )
 
 
+from app.api.v1.utils import get_request_lang as _lang  # noqa: E402
+
 def _stage_label(key):
-    """直接使用 PMA 字典，未知值原样返回"""
+    """直接使用 PMA 字典, 未知值原样返回; 按 Accept-Language 取 zh/en"""
     if not key:
         return ''
-    return PROJECT_STAGE_LABELS.get(key, {}).get('zh', key)
+    return PROJECT_STAGE_LABELS.get(key, {}).get(_lang(), key)
 
 def _activity_label(key):
     if not key:
         return ''
-    return ACTIVITY_STATUS_LABELS.get(key, {}).get('zh', key)
+    return ACTIVITY_STATUS_LABELS.get(key, {}).get(_lang(), key)
 
 def _project_type_label(key):
     if not key:
         return ''
-    return PROJECT_TYPE_LABELS.get(key, {}).get('zh', key)
+    return PROJECT_TYPE_LABELS.get(key, {}).get(_lang(), key)
 
 _PRODUCT_SITUATION_LABELS = {
-    'qualified':    '入围',
-    'controlled':   '受控',
-    'not_required': '无要求',
-    'unqualified':  '未入围',
+    'qualified':    {'zh': '入围',     'en': 'Qualified'},
+    'controlled':   {'zh': '受控',     'en': 'Controlled'},
+    'not_required': {'zh': '无要求',   'en': 'Not required'},
+    'unqualified':  {'zh': '未入围',   'en': 'Not qualified'},
 }
 def _product_situation_label(key):
-    return _PRODUCT_SITUATION_LABELS.get(key, key or '')
+    return _PRODUCT_SITUATION_LABELS.get(key, {}).get(_lang(), key or '')
 
 AUTH_STATUS_LABELS = {
-    None:       '未申请',
-    'pending':  '申请中',
-    'rejected': '已拒绝',
-    'approved': '已授权',
+    None:       {'zh': '未申请',  'en': 'Not requested'},
+    'pending':  {'zh': '申请中',  'en': 'Pending'},
+    'rejected': {'zh': '已拒绝',  'en': 'Rejected'},
+    'approved': {'zh': '已授权',  'en': 'Approved'},
 }
 
 # 保留供阶段选择器使用（标准可选阶段）
@@ -115,10 +117,10 @@ def _project_detail(p, current_user_id=None):
         # 授权信息（authorization_code 有值才是真正已获授权）
         'authorization_status': p.authorization_status,
         'authorization_status_label': (
-            '已获授权' if p.authorization_code else
-            ('审批中' if has_pending_approval else
-             ('已驳回' if is_approval_rejected else
-              AUTH_STATUS_LABELS.get(p.authorization_status, '未申请')))
+            ('已获授权' if _lang() == 'zh' else 'Authorized') if p.authorization_code else
+            (('审批中' if _lang() == 'zh' else 'Under approval') if has_pending_approval else
+             (('已驳回' if _lang() == 'zh' else 'Rejected') if is_approval_rejected else
+              AUTH_STATUS_LABELS.get(p.authorization_status, AUTH_STATUS_LABELS[None]).get(_lang(), '未申请')))
         ),
         'authorization_code': p.authorization_code,
         # 项目基本信息

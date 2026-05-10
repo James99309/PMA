@@ -1,6 +1,8 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import { getUnreadCount } from '@/api/chat'
 import { useAuthStore } from '@/stores/auth'
 import { REGIONS } from '@/api/client'
@@ -43,39 +45,39 @@ onUnmounted(() => { if (unreadTimer) clearInterval(unreadTimer) })
 // 路由切换时立即刷新未读 (用户从聊天详情返回 tab badge 立刻更新, 不用等 30s)
 watch(() => route.path, () => { refreshUnread() })
 
-const tabs = [
+// label 用 i18n key, 渲染时 $t 取
+const tabs = computed(() => [
   {
     path: '/projects',
-    label: '项目',
+    label: t('tab.projects'),
     iconD: 'M4 6h16M4 10h16M4 14h10',
     iconDActive: 'M3 5.5h18M3 5.5a.5.5 0 010-1h18a.5.5 0 010 1M3 10.5h18M3 14.5h12',
   },
   {
     path: '/customers',
-    label: '客户',
+    label: t('tab.customers'),
     iconD: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0',
     iconDActive: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0',
   },
   {
     path: '/expense',
-    label: '报销',
-    // 设计稿 expense tab 用 ¥ 字符 + serif 字体, 视觉上比线条 icon 更轻量
+    label: t('tab.expense'),
     glyph: '¥',
     serif: true,
   },
   {
     path: '/messages',
-    label: '聊天',
+    label: t('tab.chat'),
     iconD: 'M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
     iconDActive: 'M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
   },
   {
     path: '/profile',
-    label: '我的',
+    label: t('tab.me'),
     iconD: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
     iconDActive: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
   },
-]
+])
 </script>
 
 <template>

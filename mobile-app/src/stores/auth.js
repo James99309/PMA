@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { login as apiLogin, loginToRegion, logout as apiLogout } from '@/api/auth'
 import { REGIONS, getCurrentRegion, setCurrentRegion } from '@/api/client'
+import { setLocale } from '@/locales'
 
 // 多区域 token / user 存储 (Federation Lite)
 //   localStorage:
@@ -131,6 +132,9 @@ export const useAuthStore = defineStore('auth', {
       // 兼容旧 key
       localStorage.setItem('access_token', winner.token)
       localStorage.setItem('user', JSON.stringify(winner.user))
+      // i18n: 同步用户语言偏好 (user.language_preference 来自 User.to_dict)
+      const pref = winner.user?.language_preference
+      if (pref === 'zh' || pref === 'en') setLocale(pref)
       return { activeRegion: winner.id, available: ok.map(x => x.id) }
     },
 

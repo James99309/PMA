@@ -537,6 +537,11 @@ def update_user_profile():
     if 'settlement_currency' in data:
         sc = (data.get('settlement_currency') or '').strip()
         user.settlement_currency = sc if sc else None
+    # 语言偏好 (mobile/web 共用)
+    if 'language_preference' in data:
+        lp = (data.get('language_preference') or '').strip().lower()
+        if lp in ('zh', 'en'):
+            user.language_preference = lp
     
     try:
         db.session.commit()
