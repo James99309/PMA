@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useDictionariesStore } from '@/stores/dictionaries'
+
+const { t } = useI18n()
 
 const props = defineProps({
   modelValue:   { type: Boolean, default: false },
@@ -17,39 +20,25 @@ const AMOUNT_MAX = 300
 const dictStore = useDictionariesStore()
 onMounted(() => { dictStore.ensure('project_stage') })
 const STAGE_OPTIONS = computed(() => [
-  { value: '', label: '全部' },
+  { value: '', label: t('common.all') },
   ...dictStore.list('project_stage').map(d => ({ value: d.key, label: d.label })),
 ])
 
-const COMPANY_TYPE_OPTIONS = [
-  { value: '',            label: '全部' },
-  { value: 'user',        label: '用户' },
-  { value: 'designer',    label: '顾问' },
-  { value: 'contractor',  label: '总包' },
-  { value: 'integrator',  label: '集成' },
-  { value: 'dealer',      label: '经销' },
-  { value: 'distributor', label: '分销' },
-  { value: 'partner',     label: '伙伴' },
-  { value: 'supplier',    label: '供应商' },
-  { value: 'other',       label: '其他' },
-]
+// ─── 客户专属维度 —— 状态对齐 activity_tracker.ACTIVITY_STATUS
+const STATUS_KEYS = ['highly_active', 'active', 'normal', 'to_follow', 'dormant', 'churned']
+const STATUS_OPTIONS = computed(() =>
+  STATUS_KEYS.map(k => ({ value: k, label: t(`customer.activeFlag.${k}`) }))
+)
 
-// ─── 客户专属维度 —— tier 因后端无字段已删；状态对齐 activity_tracker.ACTIVITY_STATUS
-const STATUS_OPTIONS = [
-  { value: 'highly_active', label: '高度活跃' },
-  { value: 'active',        label: '活跃' },
-  { value: 'normal',        label: '正常' },
-  { value: 'to_follow',     label: '待跟进' },
-  { value: 'dormant',       label: '休眠' },
-  { value: 'churned',       label: '流失' },
+const OPEN_COUNT_KEYS = [
+  { value: 'has',  min: 1 },
+  { value: 'gte2', min: 2 },
+  { value: 'gte5', min: 5 },
+  { value: 'none', max: 0 },
 ]
-
-const OPEN_COUNT_OPTIONS = [
-  { value: 'has',     label: '有进行中', min: 1 },
-  { value: 'gte2',    label: '≥ 2 个',  min: 2 },
-  { value: 'gte5',    label: '≥ 5 个',  min: 5 },
-  { value: 'none',    label: '无',      max: 0 },
-]
+const OPEN_COUNT_OPTIONS = computed(() =>
+  OPEN_COUNT_KEYS.map(o => ({ ...o, label: t(`customer.openBucket.${o.value}`) }))
+)
 
 const REGION_OPTIONS = [
   { value: '上海' }, { value: '南京' }, { value: '广州' }, { value: '深圳' },
@@ -59,33 +48,22 @@ const REGION_OPTIONS = [
 const VALUE_MAX = 800  // 客户累计价值上限（万元）
 
 // 活跃度 6 级 —— 配色与 ProjectDetailView ACTIVITY_COLORS 完全一致
-const ACTIVITY_OPTIONS = [
-  { value: 'highly_active', label: '高度活跃', dot: '#166534' },
-  { value: 'active',        label: '活跃',     dot: '#1E40AF' },
-  { value: 'normal',        label: '正常',     dot: '#0369A1' },
-  { value: 'to_follow',     label: '待跟进',   dot: '#A16207' },
-  { value: 'dormant',       label: '休眠',     dot: '#C2410C' },
-  { value: 'churned',       label: '流失',     dot: '#4B5563' },
-]
+const ACTIVITY_DOTS = {
+  highly_active: '#166534', active: '#1E40AF', normal: '#0369A1',
+  to_follow: '#A16207', dormant: '#C2410C', churned: '#4B5563',
+}
+const ACTIVITY_OPTIONS = computed(() =>
+  STATUS_KEYS.map(k => ({ value: k, label: t(`customer.activeFlag.${k}`), dot: ACTIVITY_DOTS[k] }))
+)
 
-const INDUSTRY_OPTIONS = [
-  { value: 'manufacturing',      label: '制造' },
-  { value: 'datacenter',         label: '数据' },
-  { value: 'chemical',           label: '化工' },
-  { value: 'energy',             label: '能源' },
-  { value: 'transportation',     label: '交通' },
-  { value: 'tunnel_underground', label: '隧道' },
-  { value: 'real_estate',        label: '地产' },
-  { value: 'hospitality',        label: '酒店' },
-  { value: 'government',         label: '政府' },
-  { value: 'education',          label: '教育' },
-  { value: 'healthcare',         label: '医疗' },
-  { value: 'technology',         label: '科技' },
-  { value: 'semiconductor',      label: '半导体' },
-  { value: 'shipbuilding',       label: '造船' },
-  { value: 'finance',            label: '金融' },
-  { value: 'other',              label: '其他' },
+const INDUSTRY_KEYS = [
+  'manufacturing','datacenter','chemical','energy','transportation','tunnel_underground',
+  'real_estate','hospitality','government','education','healthcare','technology',
+  'semiconductor','shipbuilding','finance','other',
 ]
+const INDUSTRY_OPTIONS = computed(() =>
+  INDUSTRY_KEYS.map(k => ({ value: k, label: t(`project.industry.${k}`) }))
+)
 
 const AVATAR_COLORS = ['#D97757','#60A5FA','#4ADE80','#F59E0B','#A78BFA','#EC4899','#14B8A6','#F97316']
 function ownerColor(idx) { return AVATAR_COLORS[idx % AVATAR_COLORS.length] }
@@ -114,10 +92,10 @@ function onMaxChange(e) {
 const amountLabel = computed(() => {
   const mn = local.value.amount_min
   const mx = local.value.amount_max
-  if (mn === 0 && mx >= AMOUNT_MAX) return '不限'
-  if (mx >= AMOUNT_MAX) return `¥${mn}万以上`
-  if (mn === 0) return `≤¥${mx}万`
-  return `¥${mn}万~¥${mx}万`
+  if (mn === 0 && mx >= AMOUNT_MAX) return t('filter.rangeAny')
+  if (mx >= AMOUNT_MAX) return t('filter.amountAbove', { min: mn })
+  if (mn === 0) return t('filter.amountBelow', { max: mx })
+  return t('filter.amountBetween', { min: mn, max: mx })
 })
 
 // Local filter state — initialized immediately so first render has correct values
@@ -232,18 +210,18 @@ function close() { emit('update:modelValue', false) }
             <button @click="reset"
               class="text-[14px] font-medium active:opacity-60 text-left transition-colors"
               :class="pendingCount > 0 ? 'text-[#D97757]' : 'text-[#7A7570]'">
-              重置
+              {{ t('filter.reset') }}
             </button>
             <div class="text-center">
-              <p class="font-serif text-[18px] font-semibold text-[#1A1A1A] leading-tight">筛选</p>
+              <p class="font-serif text-[18px] font-semibold text-[#1A1A1A] leading-tight">{{ t('filter.title') }}</p>
               <p class="text-[11px] mt-0.5" :class="pendingCount > 0 ? 'text-[#7A7570]' : 'text-transparent'">
-                {{ pendingCount }} 个条件
+                {{ t('filter.conditionsN', { n: pendingCount }) }}
               </p>
             </div>
             <div class="flex justify-end">
               <button @click="apply"
                 class="bg-[#1A1A1A] text-white text-[13px] font-semibold px-4 py-1.5 rounded-full active:bg-[#333]">
-                完成
+                {{ t('filter.done') }}
               </button>
             </div>
           </div>
@@ -254,8 +232,8 @@ function close() { emit('update:modelValue', false) }
             <!-- ── PROJECT: 阶段 ── -->
             <div v-if="variant === 'project'">
               <div class="flex items-center justify-between mb-2.5">
-                <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">阶段</p>
-                <p class="text-[11px] text-[#7A7570]">{{ local.stage ? '选择 1 个' : '未选' }}</p>
+                <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">{{ t('filter.stage') }}</p>
+                <p class="text-[11px] text-[#7A7570]">{{ local.stage ? t('filter.selectOne') : t('filter.unselected') }}</p>
               </div>
               <div class="flex flex-wrap gap-2">
                 <button v-for="opt in STAGE_OPTIONS" :key="opt.value"
@@ -273,7 +251,7 @@ function close() { emit('update:modelValue', false) }
             <!-- 1. 状态 -->
             <div v-if="variant === 'customer'">
               <p class="text-[11px] font-semibold uppercase mb-2.5"
-                style="color: var(--color-ink-3); letter-spacing: 1px;">状态</p>
+                style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('filter.status') }}</p>
               <div class="flex flex-wrap gap-2">
                 <button v-for="opt in STATUS_OPTIONS" :key="opt.value"
                   @click="local.status = local.status === opt.value ? '' : opt.value"
@@ -289,11 +267,11 @@ function close() { emit('update:modelValue', false) }
             <!-- 3. 累计价值 双滑块 -->
             <div v-if="variant === 'customer'">
               <p class="text-[11px] font-semibold uppercase mb-2.5"
-                style="color: var(--color-ink-3); letter-spacing: 1px;">累计价值</p>
+                style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('filter.value') }}</p>
               <div class="flex justify-between text-[13px] tabular mb-2"
                 style="color: var(--color-ink-2);">
-                <span>¥ {{ local.value_min }} 万</span>
-                <span>¥ {{ local.value_max >= VALUE_MAX ? VALUE_MAX + '+' : local.value_max }} 万</span>
+                <span>{{ t('filter.valueWan', { n: local.value_min }) }}</span>
+                <span>{{ local.value_max >= VALUE_MAX ? t('filter.valueWanMax', { n: VALUE_MAX }) : t('filter.valueWan', { n: local.value_max }) }}</span>
               </div>
               <div class="range-slider-wrap">
                 <div class="range-track-bg" />
@@ -311,7 +289,7 @@ function close() { emit('update:modelValue', false) }
             <!-- 4. 进行中项目 -->
             <div v-if="variant === 'customer'">
               <p class="text-[11px] font-semibold uppercase mb-2.5"
-                style="color: var(--color-ink-3); letter-spacing: 1px;">进行中项目</p>
+                style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('filter.openProjects') }}</p>
               <div class="flex flex-wrap gap-2">
                 <button v-for="opt in OPEN_COUNT_OPTIONS" :key="opt.value"
                   @click="local.open_bucket = local.open_bucket === opt.value ? '' : opt.value"
@@ -327,7 +305,7 @@ function close() { emit('update:modelValue', false) }
             <!-- 5. 地区（chips 替代之前的 input）-->
             <div v-if="variant === 'customer'">
               <p class="text-[11px] font-semibold uppercase mb-2.5"
-                style="color: var(--color-ink-3); letter-spacing: 1px;">地区</p>
+                style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('filter.region') }}</p>
               <div class="flex flex-wrap gap-2">
                 <button v-for="opt in REGION_OPTIONS" :key="opt.value"
                   @click="local.region = local.region === opt.value ? '' : opt.value"
@@ -343,9 +321,9 @@ function close() { emit('update:modelValue', false) }
             <!-- ── 负责人 (project only) ── -->
             <div v-if="variant === 'project' && ownerOptions.length > 0">
               <div class="flex items-center justify-between mb-3">
-                <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">负责人</p>
+                <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">{{ t('filter.owner') }}</p>
                 <p class="text-[11px] text-[#7A7570]">
-                  {{ local.owner_names?.length ? `已选 ${local.owner_names.length}` : '多选·未选' }}
+                  {{ local.owner_names?.length ? t('filter.selectedN', { n: local.owner_names.length }) : t('filter.multiNone') }}
                 </p>
               </div>
               <div class="flex flex-wrap gap-4">
@@ -368,7 +346,7 @@ function close() { emit('update:modelValue', false) }
                   <div class="w-10 h-10 rounded-full bg-[#ECEAE7] flex items-center justify-center text-[12px] font-medium text-[#7A7570]">
                     +{{ ownerOptions.length - 7 }}
                   </div>
-                  <span class="text-[11px] text-[#7A7570]">更多</span>
+                  <span class="text-[11px] text-[#7A7570]">{{ t('filter.more') }}</span>
                 </button>
                 <button v-if="showAllOwners && ownerOptions.length > 7"
                   @click="showAllOwners = false" type="button"
@@ -376,7 +354,7 @@ function close() { emit('update:modelValue', false) }
                   <div class="w-10 h-10 rounded-full bg-[#ECEAE7] flex items-center justify-center text-[14px] font-medium text-[#7A7570]">
                     ‹
                   </div>
-                  <span class="text-[11px] text-[#7A7570]">收起</span>
+                  <span class="text-[11px] text-[#7A7570]">{{ t('filter.collapse') }}</span>
                 </button>
               </div>
             </div>
@@ -384,7 +362,7 @@ function close() { emit('update:modelValue', false) }
             <!-- ── PROJECT: 金额范围 ── -->
             <div v-if="variant === 'project'">
               <div class="flex items-center justify-between mb-3">
-                <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">金额范围</p>
+                <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">{{ t('filter.amount') }}</p>
                 <p class="text-[11px] text-[#7A7570]">{{ amountLabel }}</p>
               </div>
               <div class="flex items-end gap-0.5 h-12 mb-2 px-1">
@@ -405,15 +383,15 @@ function close() { emit('update:modelValue', false) }
                   class="range-input" :style="{ zIndex: maxRangeZ }" />
               </div>
               <div class="flex justify-between mt-2 px-1">
-                <span class="text-[11px] text-[#9CA3AF]">¥0</span>
-                <span class="text-[11px] text-[#9CA3AF]">¥100万</span>
-                <span class="text-[11px] text-[#9CA3AF]">¥300万+</span>
+                <span class="text-[11px] text-[#9CA3AF]">{{ t('filter.amount0') }}</span>
+                <span class="text-[11px] text-[#9CA3AF]">{{ t('filter.amount100') }}</span>
+                <span class="text-[11px] text-[#9CA3AF]">{{ t('filter.amount300plus') }}</span>
               </div>
             </div>
 
             <!-- ── PROJECT: 活跃度（6 级，3x2 网格）── -->
             <div v-if="variant === 'project'">
-              <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider mb-2.5">活跃度</p>
+              <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider mb-2.5">{{ t('filter.activity') }}</p>
               <div class="grid grid-cols-3 gap-2">
                 <button v-for="opt in ACTIVITY_OPTIONS" :key="opt.value"
                   @click="local.activity = local.activity === opt.value ? '' : opt.value"
@@ -431,8 +409,8 @@ function close() { emit('update:modelValue', false) }
             <!-- ── 地区 (project chip 选择器，与 customer 一致) ── -->
             <div v-if="variant === 'project'">
               <div class="flex items-center justify-between mb-2.5">
-                <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">地区</p>
-                <p class="text-[11px] text-[#7A7570]">{{ local.region || '未选' }}</p>
+                <p class="text-[11px] font-semibold text-[#7A7570] tracking-wider">{{ t('filter.region') }}</p>
+                <p class="text-[11px] text-[#7A7570]">{{ local.region || t('filter.unselected') }}</p>
               </div>
               <div class="flex flex-wrap gap-2">
                 <button v-for="opt in REGION_OPTIONS" :key="opt.value" type="button"
@@ -449,7 +427,7 @@ function close() { emit('update:modelValue', false) }
             <!-- 6. 行业（both — chips）-->
             <div class="pb-2">
               <p class="text-[11px] font-semibold uppercase mb-2.5"
-                style="color: var(--color-ink-3); letter-spacing: 1px;">行业</p>
+                style="color: var(--color-ink-3); letter-spacing: 1px;">{{ t('filter.industry') }}</p>
               <div class="flex flex-wrap gap-2">
                 <button v-for="opt in INDUSTRY_OPTIONS" :key="opt.value"
                   @click="local.industry = local.industry === opt.value ? '' : opt.value"

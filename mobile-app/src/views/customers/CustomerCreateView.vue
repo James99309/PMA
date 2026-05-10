@@ -1,12 +1,14 @@
 <script setup>
 import { ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { Geolocation } from '@capacitor/geolocation'
 import { checkCustomerName, reverseGeocode, searchAddress, getAddressDetail, createCustomer } from '@/api/customers'
 import { useKeyboardOffset } from '@/composables/useKeyboardOffset'
 
 const router = useRouter()
 const { kbStyle } = useKeyboardOffset()
+const { t } = useI18n()
 
 const form = ref({
   name: '',
@@ -37,39 +39,22 @@ let addressTimer = null
 
 const activeSheet = ref(null) // 'company_type' | 'industry' | 'address'
 
-const COMPANY_TYPES = [
-  { value: 'user', label: '用户' },
-  { value: 'designer', label: '顾问' },
-  { value: 'contractor', label: '总包' },
-  { value: 'integrator', label: '集成' },
-  { value: 'dealer', label: '经销' },
-  { value: 'distributor', label: '分销' },
-  { value: 'partner', label: '伙伴' },
-  { value: 'supplier', label: '供应商' },
-  { value: 'other', label: '其他' },
-]
+const COMPANY_TYPE_KEYS = ['user','designer','contractor','integrator','dealer','distributor','partner','supplier','other']
+const COMPANY_TYPES = computed(() =>
+  COMPANY_TYPE_KEYS.map(k => ({ value: k, label: t(`customer.role.${k}`) }))
+)
 
-const INDUSTRIES = [
-  { value: 'manufacturing', label: '制造' },
-  { value: 'datacenter', label: '数据' },
-  { value: 'chemical', label: '化工' },
-  { value: 'energy', label: '能源' },
-  { value: 'transportation', label: '交通' },
-  { value: 'tunnel_underground', label: '隧道' },
-  { value: 'real_estate', label: '地产' },
-  { value: 'hospitality', label: '酒店' },
-  { value: 'government', label: '政府' },
-  { value: 'education', label: '教育' },
-  { value: 'healthcare', label: '医疗' },
-  { value: 'technology', label: '科技' },
-  { value: 'semiconductor', label: '半导体' },
-  { value: 'shipbuilding', label: '造船' },
-  { value: 'finance', label: '金融' },
-  { value: 'other', label: '其他' },
+const INDUSTRY_KEYS = [
+  'manufacturing','datacenter','chemical','energy','transportation','tunnel_underground',
+  'real_estate','hospitality','government','education','healthcare','technology',
+  'semiconductor','shipbuilding','finance','other',
 ]
+const INDUSTRIES = computed(() =>
+  INDUSTRY_KEYS.map(k => ({ value: k, label: t(`project.industry.${k}`) }))
+)
 
-const companyTypeLabel = computed(() => COMPANY_TYPES.find(o => o.value === form.value.company_type)?.label || '')
-const industryLabel = computed(() => INDUSTRIES.find(o => o.value === form.value.industry)?.label || '')
+const companyTypeLabel = computed(() => COMPANY_TYPES.value.find(o => o.value === form.value.company_type)?.label || '')
+const industryLabel = computed(() => INDUSTRIES.value.find(o => o.value === form.value.industry)?.label || '')
 const validCount = computed(() => form.value.name.trim() ? 1 : 0)
 const totalCount = 1
 
@@ -178,14 +163,14 @@ async function getLocation() {
     addressSuggestions.value = []
     activeSheet.value = null
   } catch (e) {
-    alert('获取位置失败，请检查定位权限')
+    alert(t('customer.locFail'))
   } finally {
     locating.value = false
   }
 }
 
 async function submit() {
-  if (!form.value.name.trim()) return alert('请填写公司名称')
+  if (!form.value.name.trim()) return alert(t('customer.nameRequired'))
   submitting.value = true
   try {
     const res = await createCustomer({
@@ -204,7 +189,7 @@ async function submit() {
     if (id) router.replace(`/customers/${id}`)
     else router.back()
   } catch (e) {
-    alert(e.response?.data?.message || '创建失败')
+    alert(e.response?.data?.message || t('customer.createFailed'))
   } finally {
     submitting.value = false
   }
@@ -216,14 +201,14 @@ async function submit() {
 
     <!-- Nav bar -->
     <div class="na-nav">
-      <button class="na-nav-cancel" @click="router.back()">取消</button>
+      <button class="na-nav-cancel" @click="router.back()">{{ t('common.cancel') }}</button>
       <div class="na-nav-title">
-        <div class="na-serif" style="font-size:18px; font-weight:500; color:#1A1A1A;">新建客户</div>
-        <div style="font-size:11px; color:#7A7570; margin-top:1px;">第 1 / 1 步</div>
+        <div class="na-serif" style="font-size:18px; font-weight:500; color:#1A1A1A;">{{ t('customer.createTitle') }}</div>
+        <div style="font-size:11px; color:#7A7570; margin-top:1px;">{{ t('customer.stepHint', { cur: 1, total: 1 }) }}</div>
       </div>
       <button class="na-btn-create" @click="submit" :disabled="submitting"
         :style="{ opacity: validCount === totalCount ? 1 : 0.4 }">
-        {{ submitting ? '提交中…' : '创建' }}
+        {{ submitting ? t('customer.submitting') : t('customer.submit') }}
       </button>
     </div>
 
@@ -232,24 +217,24 @@ async function submit() {
       <div class="na-progress-track">
         <div class="na-progress-fill" :style="{ width: (validCount / totalCount * 100) + '%' }" />
       </div>
-      <span class="na-progress-label">{{ validCount }} / {{ totalCount }} 必填</span>
+      <span class="na-progress-label">{{ t('customer.requiredCount', { n: validCount, total: totalCount }) }}</span>
     </div>
 
     <!-- Scrollable content -->
     <div class="na-scroll">
 
       <!-- 基本 -->
-      <div class="na-sec-header"><span class="na-sec-label">基本</span></div>
+      <div class="na-sec-header"><span class="na-sec-label">{{ t('customer.secBasic') }}</span></div>
       <div class="na-bigfield">
-        <div class="na-field-label">公司名称<span class="na-required">*</span></div>
+        <div class="na-field-label">{{ t('customer.fCompanyName') }}<span class="na-required">*</span></div>
         <input
           v-model="form.name"
           class="na-big-input"
           type="text"
-          placeholder="给这家公司起个名字…"
+          :placeholder="t('customer.fCompanyNamePh')"
           autocomplete="off"
         />
-        <p v-if="checking" class="na-checking">查重中…</p>
+        <p v-if="checking" class="na-checking">{{ t('customer.fChecking') }}</p>
         <!-- Direction A dedup warning -->
         <div v-if="similar.length && !dupAcknowledged" class="na-dup-card">
           <div class="na-dup-header">
@@ -260,8 +245,8 @@ async function submit() {
               </svg>
             </span>
             <div>
-              <div class="na-dup-title na-serif">发现 {{ similar.length }} 个名称相似的客户</div>
-              <div class="na-dup-sub na-serif">报备前请确认是否重复</div>
+              <div class="na-dup-title na-serif">{{ t('customer.fDupHeader', { n: similar.length }) }}</div>
+              <div class="na-dup-sub na-serif">{{ t('customer.fDupSub') }}</div>
             </div>
           </div>
           <div class="na-dup-list">
@@ -271,44 +256,44 @@ async function submit() {
               </div>
               <div class="na-dup-row-meta">
                 <span class="na-dup-badge" :class="s.score >= 80 ? 'na-dup-badge-high' : 'na-dup-badge-low'">
-                  {{ s.score >= 80 ? '高度相似' : '部分相似' }}
+                  {{ s.score >= 80 ? t('customer.fHighSim') : t('customer.fPartialSim') }}
                 </span>
               </div>
             </div>
           </div>
           <div class="na-dup-actions">
-            <button class="na-dup-btn-view" @click="selectedDup = similar[0]">查看已有客户</button>
-            <button class="na-dup-btn-create" @click="dupAcknowledged = true">仍要创建</button>
+            <button class="na-dup-btn-view" @click="selectedDup = similar[0]">{{ t('customer.fDupViewBtn') }}</button>
+            <button class="na-dup-btn-create" @click="dupAcknowledged = true">{{ t('customer.fDupCreateBtn') }}</button>
           </div>
         </div>
       </div>
 
       <!-- 分类 -->
-      <div class="na-sec-header"><span class="na-sec-label">分类</span></div>
+      <div class="na-sec-header"><span class="na-sec-label">{{ t('customer.secCategory') }}</span></div>
       <div class="na-card">
         <div class="na-row na-row-border" @click="activeSheet = 'company_type'">
-          <span class="na-row-label">企业类型</span>
+          <span class="na-row-label">{{ t('customer.fCompanyType') }}</span>
           <span class="na-row-val-wrap">
-            <span class="na-row-val" :class="{ 'na-placeholder': !form.company_type }">{{ companyTypeLabel || '选择类型' }}</span>
+            <span class="na-row-val" :class="{ 'na-placeholder': !form.company_type }">{{ companyTypeLabel || t('customer.fSelectType') }}</span>
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M2 2l4 4-4 4" stroke="#7A7570" stroke-width="1.4" stroke-linecap="round"/></svg>
           </span>
         </div>
         <div class="na-row" @click="activeSheet = 'industry'">
-          <span class="na-row-label">行业</span>
+          <span class="na-row-label">{{ t('customer.fIndustry') }}</span>
           <span class="na-row-val-wrap">
-            <span class="na-row-val" :class="{ 'na-placeholder': !form.industry }">{{ industryLabel || '选择行业' }}</span>
+            <span class="na-row-val" :class="{ 'na-placeholder': !form.industry }">{{ industryLabel || t('customer.fSelectIndustry') }}</span>
             <svg width="8" height="12" viewBox="0 0 8 12" fill="none"><path d="M2 2l4 4-4 4" stroke="#7A7570" stroke-width="1.4" stroke-linecap="round"/></svg>
           </span>
         </div>
       </div>
 
       <!-- 地址 -->
-      <div class="na-sec-header"><span class="na-sec-label">地址</span></div>
+      <div class="na-sec-header"><span class="na-sec-label">{{ t('customer.secAddress') }}</span></div>
       <div class="na-card">
         <div class="na-row" @click="activeSheet = 'address'">
-          <span class="na-row-label">地址</span>
+          <span class="na-row-label">{{ t('customer.fAddrPickerLabel') }}</span>
           <span class="na-row-val-wrap">
-            <span class="na-row-val na-row-val-address" :class="{ 'na-placeholder': !form.address }">{{ form.address || '搜索或选点' }}</span>
+            <span class="na-row-val na-row-val-address" :class="{ 'na-placeholder': !form.address }">{{ form.address || t('customer.fSearchOrPick') }}</span>
             <span class="na-pin-circle">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                 <path d="M8 14s5-4.5 5-9a5 5 0 10-10 0c0 4.5 5 9 5 9z" stroke="#D97757" stroke-width="1.4"/>
@@ -321,14 +306,14 @@ async function submit() {
 
       <!-- 备注 -->
       <div class="na-sec-header">
-        <span class="na-sec-label">备注</span>
-        <span style="font-size:11px; color:#7A7570;">可选</span>
+        <span class="na-sec-label">{{ t('customer.secNotes') }}</span>
+        <span style="font-size:11px; color:#7A7570;">{{ t('customer.optional') }}</span>
       </div>
       <div class="na-bigfield">
         <textarea
           v-model="form.notes"
           class="na-notes-textarea"
-          placeholder="客户背景、关键人脉、合作历史…"
+          :placeholder="t('customer.fNotesPh')"
           rows="4"
         />
       </div>
@@ -336,7 +321,7 @@ async function submit() {
     </div><!-- /scroll -->
 
     <!-- Footer hint -->
-    <div class="na-footer-hint" aria-hidden="true">少即是多 — 先记下名字，细节随时补充</div>
+    <div class="na-footer-hint" aria-hidden="true">{{ t('customer.footerHint') }}</div>
 
     <!-- ── Sheet: 企业类型 ── -->
     <div v-if="activeSheet === 'company_type'" class="na-overlay">
@@ -344,8 +329,8 @@ async function submit() {
       <div class="na-sheet">
         <div class="na-sheet-handle" />
         <div class="na-sheet-head">
-          <div class="na-sec-label" style="margin-bottom:4px;">选择</div>
-          <div class="na-serif" style="font-size:22px; font-weight:500;">企业类型</div>
+          <div class="na-sec-label" style="margin-bottom:4px;">{{ t('customer.sheetSelect') }}</div>
+          <div class="na-serif" style="font-size:22px; font-weight:500;">{{ t('customer.fCompanyType') }}</div>
         </div>
         <div class="na-chip-grid">
           <button v-for="o in COMPANY_TYPES" :key="o.value" class="na-chip"
@@ -363,8 +348,8 @@ async function submit() {
       <div class="na-sheet">
         <div class="na-sheet-handle" />
         <div class="na-sheet-head">
-          <div class="na-sec-label" style="margin-bottom:4px;">选择</div>
-          <div class="na-serif" style="font-size:22px; font-weight:500;">所属行业</div>
+          <div class="na-sec-label" style="margin-bottom:4px;">{{ t('customer.sheetSelect') }}</div>
+          <div class="na-serif" style="font-size:22px; font-weight:500;">{{ t('customer.sheetSelectIndustry') }}</div>
         </div>
         <div class="na-chip-grid">
           <button v-for="o in INDUSTRIES" :key="o.value" class="na-chip"
@@ -382,8 +367,8 @@ async function submit() {
       <div class="na-sheet na-sheet-address">
         <div class="na-sheet-handle" />
         <div class="na-addr-header">
-          <button class="na-addr-cancel" @click="activeSheet = null">取消</button>
-          <div class="na-serif" style="font-size:18px; font-weight:500;">选择地址</div>
+          <button class="na-addr-cancel" @click="activeSheet = null">{{ t('common.cancel') }}</button>
+          <div class="na-serif" style="font-size:18px; font-weight:500;">{{ t('customer.sheetSelectAddress') }}</div>
           <div style="width:40px;" />
         </div>
         <div class="na-addr-search-row">
@@ -396,7 +381,7 @@ async function submit() {
               v-model="addressQuery"
               class="na-addr-input"
               type="text"
-              placeholder="搜索地址…"
+              :placeholder="t('customer.addrSearchPh')"
               autocomplete="off"
               @input="onAddressInput"
             />
@@ -425,7 +410,7 @@ async function submit() {
               <p v-if="form.region || form.city" class="na-addr-region">{{ [form.region, form.city].filter(Boolean).join(' · ') }}</p>
               <p class="na-addr-text">{{ form.address }}</p>
             </div>
-            <button class="na-addr-clear" @click="clearAddress">清除</button>
+            <button class="na-addr-clear" @click="clearAddress">{{ t('customer.addrClear') }}</button>
           </div>
         </div>
       </div>
@@ -437,8 +422,8 @@ async function submit() {
       <div class="na-sheet na-sheet-dup">
         <div class="na-sheet-handle" />
         <div class="na-dup-detail-header">
-          <button class="na-addr-cancel" @click="selectedDup = null">返回表单</button>
-          <div class="na-serif" style="font-size:16px; font-weight:500;">已有客户</div>
+          <button class="na-addr-cancel" @click="selectedDup = null">{{ t('customer.dupBackToForm') }}</button>
+          <div class="na-serif" style="font-size:16px; font-weight:500;">{{ t('customer.dupExisting') }}</div>
           <div style="width:60px;" />
         </div>
         <div class="na-dup-detail-scroll">
@@ -449,26 +434,26 @@ async function submit() {
           <!-- Name comparison card -->
           <div class="na-dup-compare-card">
             <div class="na-dup-compare-header">
-              <span class="na-sec-label">名称对比</span>
+              <span class="na-sec-label">{{ t('customer.dupNameCompare') }}</span>
             </div>
             <div class="na-dup-compare-row na-dup-compare-row-border">
-              <span class="na-dup-compare-label">已有</span>
+              <span class="na-dup-compare-label">{{ t('customer.dupExistingLabel') }}</span>
               <span class="na-serif na-dup-compare-val">{{ selectedDup.name }}</span>
             </div>
             <div class="na-dup-compare-row">
-              <span class="na-dup-compare-label na-dup-compare-label-accent">本次</span>
+              <span class="na-dup-compare-label na-dup-compare-label-accent">{{ t('customer.dupNewLabel') }}</span>
               <span class="na-serif na-dup-compare-val">{{ form.name }}</span>
               <span class="na-dup-badge na-dup-badge-sm" :class="selectedDup.score >= 80 ? 'na-dup-badge-high' : 'na-dup-badge-low'">
-                {{ selectedDup.score >= 80 ? '高度相似' : '部分相似' }}
+                {{ selectedDup.score >= 80 ? t('customer.fHighSim') : t('customer.fPartialSim') }}
               </span>
             </div>
           </div>
         </div>
         <!-- Footer buttons -->
         <div class="na-dup-detail-footer">
-          <button class="na-dup-detail-back" @click="selectedDup = null">返回修改</button>
+          <button class="na-dup-detail-back" @click="selectedDup = null">{{ t('customer.dupBackEdit') }}</button>
           <button class="na-dup-detail-go" @click="router.push(`/customers/${selectedDup.id}`)">
-            跳到这个客户
+            {{ t('customer.dupGoTo') }}
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 6h6m-2-3l3 3-3 3" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
