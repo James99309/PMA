@@ -13,8 +13,8 @@
   >
     <div class="status-pad" />
     <ExNav
-      title="我审批的"
-      :sub="`${pendingCount} 待审批 · ${historyCount} 已处理`"
+      :title="t('approval.title')"
+      :sub="t('approval.subSummary', { pending: pendingCount, processed: historyCount })"
       :back="false"
     />
 
@@ -39,7 +39,7 @@
         }"
         @click="tab = 'pending'"
       >
-        待我审批
+        {{ t('approval.pending') }}
         <span v-if="pendingCount > 0" :style="{ color: 'var(--color-ex-warn)', marginLeft: '2px' }">{{ pendingCount }}</span>
       </span>
       <span
@@ -50,7 +50,7 @@
           paddingBottom: '6px',
         }"
         @click="tab = 'history'"
-      >我已处理</span>
+      >{{ t('approval.history') }}</span>
       <span
         :style="{
           color: tab === 'cc' ? 'var(--color-ex-ink)' : 'var(--color-ex-ink3)',
@@ -59,7 +59,7 @@
           paddingBottom: '6px',
         }"
         @click="tab = 'cc'"
-      >抄送给我</span>
+      >{{ t('approval.cc') }}</span>
     </div>
 
     <!-- 筛选 + 排序 row -->
@@ -98,7 +98,7 @@
         }"
         @click="sortDir = sortDir === 'desc' ? 'asc' : 'desc'"
       >
-        {{ sortDir === 'desc' ? '↓ 最新' : '↑ 最早' }}
+        {{ sortDir === 'desc' ? t('approval.sortLatest') : t('approval.sortOldest') }}
       </span>
     </div>
 
@@ -106,9 +106,9 @@
       class="overflow-auto h-full no-scrollbar"
       :style="{ paddingTop: '184px' }"
     >
-      <div v-if="loading" :style="{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }">加载中...</div>
+      <div v-if="loading" :style="{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }">{{ t('common.loading') }}</div>
       <div v-else-if="visibleItems.length === 0" :style="{ padding: '40px 20px', textAlign: 'center', color: 'var(--color-ex-ink3)', fontSize: '13px' }">
-        {{ tab === 'pending' ? '没有待审批' : tab === 'history' ? '没有处理记录' : '没有抄送' }}
+        {{ tab === 'pending' ? t('approval.noPending') : tab === 'history' ? t('approval.noHistory') : t('approval.noCc') }}
       </div>
       <div v-else>
         <div
@@ -178,10 +178,12 @@
 <script setup>
 import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import * as approvalApi from '@/api/approval'
 import ExNav from '@/components/expense/ExNav.vue'
 
 const router = useRouter()
+const { t } = useI18n()
 const tab = ref('pending')
 const pending = ref([])
 const history = ref([])
@@ -191,13 +193,13 @@ const loading = ref(false)
 // 筛选 / 排序 (三段共用)
 const typeFilter = ref('all')   // all | expense | project | pricing_order | quotation
 const sortDir = ref('desc')     // desc=最新 | asc=最早
-const TYPE_OPTIONS = [
-  { value: 'all',           label: '全部' },
-  { value: 'expense',       label: '报销' },
-  { value: 'project',       label: '项目' },
-  { value: 'pricing_order', label: '批价' },
-  { value: 'quotation',     label: '报价' },
-]
+const TYPE_OPTIONS = computed(() => [
+  { value: 'all',           label: t('approval.typeAll') },
+  { value: 'expense',       label: t('approval.typeExpense') },
+  { value: 'project',       label: t('approval.typeProject') },
+  { value: 'pricing_order', label: t('approval.typePricing') },
+  { value: 'quotation',     label: t('approval.typeQuotation') },
+])
 
 const pendingCount = computed(() => pending.value.length)
 const historyCount = computed(() => history.value.length)
@@ -236,11 +238,11 @@ function fmtTime(iso) {
   const d = new Date(iso)
   const today = new Date()
   if (d.toDateString() === today.toDateString()) {
-    return `今天 ${d.toTimeString().slice(0, 5)}`
+    return t('approval.todayAt', { time: d.toTimeString().slice(0, 5) })
   }
   const yesterday = new Date(today.getTime() - 86400000)
-  if (d.toDateString() === yesterday.toDateString()) return '昨天'
-  return `${d.getMonth() + 1} 月 ${d.getDate()} 日`
+  if (d.toDateString() === yesterday.toDateString()) return t('common.yesterday')
+  return t('approval.monthDay', { m: d.getMonth() + 1, d: d.getDate() })
 }
 
 const TAG_PENDING = { color: 'var(--color-ex-warn)', bg: 'var(--color-ex-warn-soft)' }
@@ -267,7 +269,7 @@ async function loadPending() {
       subtitle = [i.project_name, i.customer_name].filter(Boolean).join(' · ')
     } else {
       subtitle = [i.customer_name, i.project_name,
-                  i.detail_count ? `${i.detail_count} 项明细` : '']
+                  i.detail_count ? t('approval.detailCountSuffix', { n: i.detail_count }) : '']
                 .filter(Boolean).join(' · ')
     }
     return {
@@ -278,10 +280,10 @@ async function loadPending() {
       expense_number: i.expense_number || (isProject ? (i.project_code || i.object_name) : i.object_name),
       amount: i.amount ?? null,
       currency_symbol: isProject ? '¥' : currencySymbolFor(i.currency || 'CNY'),
-      amount_suffix: isProject ? '万' : '',
+      amount_suffix: isProject ? t('approval.suffixWan') : '',
       time: fmtTime(i.created_at),
       created_at: i.created_at,           // 保留原始时间用于排序
-      tag: `${i.object_type_label || '待我审批'}${i.current_step_name ? ' · ' + i.current_step_name : ''}`,
+      tag: `${i.object_type_label || t('approval.pendingDefault')}${i.current_step_name ? ' · ' + i.current_step_name : ''}`,
       tag_color: TAG_PENDING.color,
       tag_bg: TAG_PENDING.bg,
       object_type: t,
@@ -298,10 +300,10 @@ async function loadHistory() {
   const r = await approvalApi.getApprovalHistory()
   const items = r.data?.data?.items || []
   history.value = items.map(i => {
-    const tagMeta = i.action === 'approve' ? { tag: '我已通过', ...TAG_APPROVE }
-      : i.action === 'reject' ? { tag: '我已驳回', ...TAG_REJECT }
-      : i.action === 'forward' ? { tag: '我已转交', ...TAG_FORWARD }
-      : { tag: i.action || '已处理', ...TAG_APPROVE }
+    const tagMeta = i.action === 'approve' ? { tag: t('approval.iApproved'), ...TAG_APPROVE }
+      : i.action === 'reject' ? { tag: t('approval.iRejected'), ...TAG_REJECT }
+      : i.action === 'forward' ? { tag: t('approval.iForwarded'), ...TAG_FORWARD }
+      : { tag: i.action || t('approval.history'), ...TAG_APPROVE }
     return {
       id: i.id,
       title: i.object_name,

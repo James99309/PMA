@@ -24,12 +24,12 @@
           <path d="M7 1L1 7l6 6" fill="none" stroke="currentColor"
             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
-        <span class="text-[15px]">报销</span>
+        <span class="text-[15px]">{{ t('expense.backExpense') }}</span>
       </button>
       <button v-if="detail?.control?.can_edit"
         @click="$router.push(`/expense/${id}/edit`)"
         class="text-[15px] active:opacity-60 px-2"
-        style="color: var(--color-ink-2);">编辑</button>
+        style="color: var(--color-ink-2);">{{ t('expense.edit') }}</button>
       <button v-else-if="hasMoreActions"
         @click="moreMenuOpen = true"
         class="text-[18px] font-bold active:opacity-60 px-2"
@@ -57,14 +57,14 @@
               borderTop: '1px solid var(--color-ex-divider-soft)',
               color: 'var(--color-ex-ink)',
             }"
-            @click="moreMenuOpen = false; onSubmit()">重新提交</div>
+            @click="moreMenuOpen = false; onSubmit()">{{ t('expense.resubmit') }}</div>
           <div class="text-[14px] text-center active:opacity-60"
             :style="{
               padding: '14px 20px', background: 'var(--color-ex-card)',
               borderTop: '1px solid var(--color-ex-divider-soft)',
               color: 'var(--color-ex-ink2)',
             }"
-            @click="moreMenuOpen = false">取消</div>
+            @click="moreMenuOpen = false">{{ t('common.cancel') }}</div>
         </div>
       </div>
     </Teleport>
@@ -118,7 +118,7 @@
             lineHeight: '1.2',
             letterSpacing: '-0.3px',
             color: 'var(--color-ink)',
-          }">{{ detail.title || '未命名报销' }}</h1>
+          }">{{ detail.title || t('expense.untitled') }}</h1>
 
         <!-- 副标题: 申请人 · 客户 · 项目 -->
         <div class="mt-3.5 text-[13px]" style="color: var(--color-ink-3);">
@@ -132,30 +132,30 @@
             {{ currencySymbol(detail.currency) }}{{ formatAmount(detail.total_amount) }}
           </span>
           <span class="text-[14px]" style="color: var(--color-ink-3);">
-            {{ currencyLabel(detail.currency) }} · {{ detail.lines.length }} 项明细
+            {{ currencyLabel(detail.currency) }} · {{ t('expense.detailCount', { n: detail.lines.length }) }}
           </span>
         </div>
       </div>
 
       <!-- 详情 def list -->
-      <ExSectionHeader>详情</ExSectionHeader>
+      <ExSectionHeader>{{ t('expense.detSectionDetail') }}</ExSectionHeader>
       <div :style="{ background: 'var(--color-ex-card)' }">
-        <ExDefRow label="申请人">
+        <ExDefRow :label="t('expense.detApplicant')">
           {{ detail.owner?.name || '—' }}
           <span v-if="detail.owner?.department" :style="{ color: 'var(--color-ex-ink3)' }">· {{ detail.owner.department }}</span>
         </ExDefRow>
-        <ExDefRow label="申请时间">{{ detail.created_at || '—' }}</ExDefRow>
-        <ExDefRow label="关联客户">
+        <ExDefRow :label="t('expense.detApplyTime')">{{ detail.created_at || '—' }}</ExDefRow>
+        <ExDefRow :label="t('expense.detLinkedCustomer')">
           {{ detail.customer?.name || '—' }}
           <span v-if="detail.customer?.code" :style="{ color: 'var(--color-ex-ink4)', fontSize: '11px' }">· {{ detail.customer.code }}</span>
         </ExDefRow>
-        <ExDefRow label="关联项目">{{ detail.project?.name || '—' }}</ExDefRow>
-        <ExDefRow label="费用归属">{{ detail.attributed_to?.name || '归属自己' }}</ExDefRow>
-        <ExDefRow label="说明" :last="true">{{ detail.description || '—' }}</ExDefRow>
+        <ExDefRow :label="t('expense.detLinkedProject')">{{ detail.project?.name || '—' }}</ExDefRow>
+        <ExDefRow :label="t('expense.detAttributedTo')">{{ detail.attributed_to?.name || t('expense.detAttrSelf') }}</ExDefRow>
+        <ExDefRow :label="t('expense.detDescription')" :last="true">{{ detail.description || '—' }}</ExDefRow>
       </div>
 
       <!-- 明细 (放在审批流程之上, 用户审单时先看花了什么再看流程) -->
-      <ExSectionHeader>明细 · {{ detail.lines.length }} 项</ExSectionHeader>
+      <ExSectionHeader>{{ t('expense.detLines', { n: detail.lines.length }) }}</ExSectionHeader>
       <div :style="{ background: 'var(--color-ex-card)' }">
         <div
           v-for="(d, i) in detail.lines"
@@ -180,7 +180,7 @@
               :src="lineThumbUrl(d)"
               class="w-full h-full" style="object-fit: cover;"
               @error="$event.target.style.display='none'" />
-            <span v-else>发票</span>
+            <span v-else>{{ t('expense.detInvoice') }}</span>
             <span v-if="(d.invoice_images?.length || 0) > 1"
               :style="{
                 position: 'absolute', top: '-2px', right: '-2px',
@@ -235,10 +235,10 @@
     <!-- 召回确认 sheet -->
     <ExConfirmSheet
       v-model="recallSheetOpen"
-      eyebrow="召回"
-      title="确认召回此报销?"
+      :eyebrow="t('expense.detRecallEyebrow')"
+      :title="t('expense.detRecallTitle')"
       :sub="detail ? `${detail.expense_number} · ${detail.title}` : ''"
-      confirm-label="确认召回"
+      :confirm-label="t('expense.detRecallLabel')"
       color="warn"
       :submitting="recalling"
       @confirm="onConfirmRecall"
@@ -266,7 +266,7 @@
           fontWeight: 600,
         }"
         @click="onSubmit"
-      >提交审批</div>
+      >{{ t('expense.submit') }}</div>
     </div>
   </div>
 </template>
@@ -274,7 +274,10 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useExpenseStore } from '@/stores/expense'
+
+const { t } = useI18n()
 import { submitExpense, recallExpense, resubmitExpense, lineThumbUrl } from '@/api/expense'
 import ExNav from '@/components/expense/ExNav.vue'
 import ExSectionHeader from '@/components/expense/ExSectionHeader.vue'
@@ -357,7 +360,7 @@ async function onConfirmSubmit() {
       await store.fetchDetail(id.value, true)
     }
   } catch (e) {
-    alert('提交失败: ' + (e.response?.data?.message || e.message))
+    alert(t('expense.detSubmitFailed') + ': ' + (e.response?.data?.message || e.message))
   } finally {
     submitting.value = false
   }
