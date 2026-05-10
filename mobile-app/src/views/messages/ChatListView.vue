@@ -389,6 +389,16 @@ function onPlusPointerDown(e) {
       <div style="color: #FFC;">topAtPoint={{ dbg.topAtPoint }}</div>
     </div>
 
+    <!-- DIAG: showPicker=true 时显示一个固定位红条, 绕开 Transition -->
+    <div v-if="showPicker"
+      style="position: fixed; top: 0; left: 0; right: 0; height: 80px;
+             background: red; color: #fff; z-index: 99999;
+             display: flex; align-items: center; justify-content: center;
+             font-size: 18px; font-weight: bold;">
+      RAW DIV: showPicker=true (tap to close)
+      <button @click="showPicker = false" style="margin-left: 12px; padding: 4px 12px; background: #fff; color: red; border-radius: 6px;">×</button>
+    </div>
+
 
     <!-- PageHead -->
     <div class="px-6 pt-3.5 pb-2 flex items-start justify-between shrink-0">
