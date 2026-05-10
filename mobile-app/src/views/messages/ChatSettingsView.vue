@@ -4,6 +4,7 @@
 // 支持：添加成员（用户搜索 sheet）、删除成员（owner）、退群（自己）
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import NavBar from '@/components/common/NavBar.vue'
 import Section from '@/components/common/Section.vue'
 import ProjectRefCard from '@/components/common/refs/ProjectRefCard.vue'
@@ -17,6 +18,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 const convId = computed(() => Number(route.params.id))
 const isNumericConv = computed(() => /^\d+$/.test(String(route.params.id)))
@@ -40,7 +42,7 @@ async function load() {
     // proj-* 等虚拟会话：没有后端数据，展示降级 UI
     detail.value = {
       id: route.params.id,
-      name: route.query.name || '群聊',
+      name: route.query.name || t('chat.groupDefault'),
       type: 'group',
       created_at: null,
       announcement: '',
@@ -57,18 +59,18 @@ async function load() {
     if (r.data?.success) {
       detail.value = r.data.data
     } else {
-      alert(r.data?.message || '加载会话详情失败')
+      alert(r.data?.message || t('chat.settingsLoadFail'))
       router.back()
     }
   } catch (e) {
     console.error('load conv detail failed', e)
-    alert(`加载失败：${e.message || e}`)
+    alert(`${t('chat.settingsLoadFailPrefix')}${e.message || e}`)
   } finally {
     loading.value = false
   }
 }
 
-const initial = computed(() => (detail.value?.name || '群')[0])
+const initial = computed(() => (detail.value?.name || t('chat.fallbackGroup'))[0])
 const memberCount = computed(() => detail.value?.participants?.length || 0)
 const formattedCreatedAt = computed(() => {
   if (!detail.value?.created_at) return ''
@@ -88,7 +90,7 @@ function viewLinkedProject() {
 // ─── 添加成员 ─────────────────────────────────────────────────
 function openAddSheet() {
   if (!isNumericConv.value) {
-    alert('该会话暂不支持添加成员')
+    alert(t('chat.addNotSupported'))
     return
   }
   showAddSheet.value = true
@@ -133,11 +135,11 @@ async function pickToAdd(u) {
       await load()
       closeAddSheet()
     } else {
-      alert(r.data?.message || '添加失败')
+      alert(r.data?.message || t('chat.addFailedShort'))
     }
   } catch (e) {
     console.error('add participant failed', e)
-    alert(`添加失败：${e.message || e}`)
+    alert(`${t('chat.addFailedShort')}: ${e.message || e}`)
   } finally {
     adding.value = false
   }
@@ -150,27 +152,27 @@ async function removeMember(member) {
     return leaveGroup()
   }
   if (!detail.value.is_owner) {
-    alert('只有群主可以移除其他成员')
+    alert(t('chat.removeMemberOnlyOwner'))
     return
   }
-  if (!confirm(`将「${member.name}」移出群聊？`)) return
+  if (!confirm(t('chat.removeMemberConfirm', { name: member.name }))) return
   try {
     const r = await removeParticipant(convId.value, member.user_id)
     if (r.data?.success) {
       await load()
     } else {
-      alert(r.data?.message || '移除失败')
+      alert(r.data?.message || t('chat.removeFail'))
     }
   } catch (e) {
     console.error('remove participant failed', e)
-    alert(`移除失败：${e.message || e}`)
+    alert(`${t('chat.removeFail')}: ${e.message || e}`)
   }
 }
 
 onMounted(load)
 
 async function leaveGroup() {
-  if (!confirm(`退出「${detail.value?.name}」群聊？`)) return
+  if (!confirm(t('chat.leaveConfirm', { name: detail.value?.name || '' }))) return
   if (!isNumericConv.value) {
     router.back()
     return
@@ -185,20 +187,20 @@ async function leaveGroup() {
         return
       }
       // 如果是最后一人，回退到删除会话
-      if (r.data?.message?.includes('至少需保留')) {
+      if (r.data?.message?.includes('至少需保留') || r.data?.message?.includes('at least')) {
         const dr = await deleteConversation(convId.value)
         if (dr.data?.success) {
           router.push('/messages')
           return
         }
-        alert(dr.data?.message || '退出失败')
+        alert(dr.data?.message || t('chat.leaveFail'))
         return
       }
-      alert(r.data?.message || '退出失败')
+      alert(r.data?.message || t('chat.leaveFail'))
     }
   } catch (e) {
     console.error('leave group failed', e)
-    alert(`退出失败：${e.message || e}`)
+    alert(`${t('chat.leaveFail')}: ${e.message || e}`)
   }
 }
 </script>
@@ -206,7 +208,7 @@ async function leaveGroup() {
 <template>
   <div class="flex flex-col h-full overflow-y-auto" :style="[{ background: 'var(--color-bg)' }, kbStyle]">
 
-    <NavBar back-label="返回" title="聊天设置" @back="router.back()" />
+    <NavBar :back-label="t('chat.settingsBack')" :title="t('chat.settingsTitle')" @back="router.back()" />
 
     <!-- 加载中 -->
     <div v-if="loading" class="flex justify-center items-center py-16">
@@ -223,15 +225,15 @@ async function leaveGroup() {
         </div>
         <div class="font-serif text-center"
           style="font-size: 19px; font-weight: 500; line-height: 1.3; color: var(--color-ink);">
-          {{ detail.name || '群聊' }}
+          {{ detail.name || t('chat.groupDefault') }}
         </div>
         <div class="text-[12px]" style="color: var(--color-ink-3);">
-          {{ memberCount }} 人<span v-if="formattedCreatedAt"> · 创建于 {{ formattedCreatedAt }}</span>
+          {{ t('chat.peopleCount', { n: memberCount }) }}<span v-if="formattedCreatedAt"> · {{ t('chat.createdAtSuffix', { at: formattedCreatedAt }) }}</span>
         </div>
       </div>
 
       <!-- 关联项目（仅项目群有） -->
-      <Section v-if="detail.linked_project" title="关联">
+      <Section v-if="detail.linked_project" :title="t('chat.sectionLink')">
         <ProjectRefCard
           :name="detail.linked_project.name"
           :stage="detail.linked_project.stage"
@@ -243,7 +245,7 @@ async function leaveGroup() {
       </Section>
 
       <!-- 公告（仅当存在时） -->
-      <Section v-if="detail.announcement" title="公告">
+      <Section v-if="detail.announcement" :title="t('chat.sectionAnnouncement')">
         <div class="rounded-2xl px-4 py-3.5 font-serif italic"
           style="background: var(--color-card); border: 1px solid var(--color-divider);
                  font-size: 14px; color: var(--color-ink-2); line-height: 1.55;">
@@ -252,16 +254,16 @@ async function leaveGroup() {
       </Section>
 
       <!-- 成员 -->
-      <Section :title="`成员 · ${memberCount}`">
+      <Section :title="t('chat.sectionMembers', { n: memberCount })">
         <template #action>
           <button @click="openAddSheet"
             class="text-[12px] font-medium active:opacity-60"
-            style="color: var(--color-accent);">+ 添加</button>
+            style="color: var(--color-accent);">{{ t('chat.addBadge') }}</button>
         </template>
         <div v-if="memberCount === 0"
           class="rounded-2xl px-4 py-6 text-center text-[12px]"
           style="background: var(--color-card); border: 1px solid var(--color-divider); color: var(--color-ink-3);">
-          暂无成员
+          {{ t('chat.membersEmpty') }}
         </div>
         <div v-else class="rounded-2xl"
           style="background: var(--color-card); border: 1px solid var(--color-divider);">
@@ -272,29 +274,29 @@ async function leaveGroup() {
               style="background: var(--color-accent-soft); color: var(--color-accent);">{{ m.avatar }}</div>
             <div class="flex-1 min-w-0">
               <div class="font-serif" style="font-size: 14px; font-weight: 500;">
-                {{ m.name }}<span v-if="m.is_self" class="ml-1 text-[11px]" style="color: var(--color-ink-3);">（我）</span>
+                {{ m.name }}<span v-if="m.is_self" class="ml-1 text-[11px]" style="color: var(--color-ink-3);">{{ t('chat.selfBadge') }}</span>
               </div>
               <div v-if="m.dept" class="text-[11px]" style="color: var(--color-ink-3);">{{ m.dept }}</div>
             </div>
             <span v-if="m.role === 'owner'" class="text-[10px] font-semibold px-1.5 py-px rounded"
-              style="background: var(--color-bg); color: var(--color-ink-3); letter-spacing: 0.4px;">群主</span>
+              style="background: var(--color-bg); color: var(--color-ink-3); letter-spacing: 0.4px;">{{ t('chat.ownerBadge') }}</span>
             <!-- 移除按钮：群主可移除非自己；自己不显示（自己用底部退群） -->
             <button v-if="detail.is_owner && !m.is_self"
               @click="removeMember(m)"
               class="ml-1 w-7 h-7 inline-flex items-center justify-center active:opacity-50"
               style="color: var(--color-ink-3); font-size: 16px;"
-              title="移除成员">×</button>
+              :title="t('chat.removeMember')">×</button>
           </div>
         </div>
       </Section>
 
       <!-- 选项 -->
-      <Section title="选项">
+      <Section :title="t('chat.sectionOptions')">
         <div class="rounded-2xl"
           style="background: var(--color-card); border: 1px solid var(--color-divider);">
           <div class="px-4 py-3.5 flex justify-between items-center text-[14px]"
             style="border-bottom: 1px solid var(--color-divider);">
-            <span style="color: var(--color-ink-2);">消息免打扰</span>
+            <span style="color: var(--color-ink-2);">{{ t('chat.optMute') }}</span>
             <button @click="muted = !muted"
               class="w-11 h-[26px] rounded-full relative transition-colors"
               :style="{ background: muted ? 'var(--color-accent)' : 'var(--color-divider)' }">
@@ -304,7 +306,7 @@ async function leaveGroup() {
             </button>
           </div>
           <div class="px-4 py-3.5 flex justify-between items-center text-[14px]">
-            <span style="color: var(--color-ink-2);">置顶聊天</span>
+            <span style="color: var(--color-ink-2);">{{ t('chat.optPin') }}</span>
             <button @click="pinned = !pinned"
               class="w-11 h-[26px] rounded-full relative transition-colors"
               :style="{ background: pinned ? 'var(--color-accent)' : 'var(--color-divider)' }">
@@ -321,7 +323,7 @@ async function leaveGroup() {
         <button @click="leaveGroup"
           class="w-full py-3.5 rounded-2xl text-[14px] font-medium active:opacity-70"
           style="background: var(--color-card); border: 1px solid var(--color-divider); color: #A04848;">
-          退出群聊
+          {{ t('chat.leaveBtn') }}
         </button>
       </div>
     </template>
@@ -335,13 +337,13 @@ async function leaveGroup() {
           <!-- header -->
           <div class="px-5 pt-4 pb-2 flex items-center justify-between shrink-0">
             <button @click="closeAddSheet" class="text-[13px]"
-              style="color: var(--color-ink-3);">取消</button>
-            <span class="font-serif" style="font-size: 16px; font-weight: 500;">添加成员</span>
+              style="color: var(--color-ink-3);">{{ t('common.cancel') }}</button>
+            <span class="font-serif" style="font-size: 16px; font-weight: 500;">{{ t('chat.addMembers') }}</span>
             <span class="w-8" />
           </div>
           <div class="px-5 pb-3 shrink-0">
             <input v-model="addSearch" @input="onAddSearchInput"
-              type="text" placeholder="搜索姓名 / 部门"
+              type="text" :placeholder="t('chat.addSearchPh')"
               class="w-full px-4 py-2.5 rounded-xl text-[14px]"
               style="background: var(--color-card); border: 1px solid var(--color-divider); outline: none;" />
           </div>
@@ -353,7 +355,7 @@ async function leaveGroup() {
             </div>
             <div v-else-if="!addResults.length" class="text-center py-8 text-[13px]"
               style="color: var(--color-ink-3);">
-              {{ addSearch ? '没有找到匹配的用户' : '暂无可添加的用户' }}
+              {{ addSearch ? t('chat.addNoMatch') : t('chat.addEmpty') }}
             </div>
             <button v-else v-for="u in addResults" :key="u.id"
               @click="pickToAdd(u)"
@@ -365,7 +367,7 @@ async function leaveGroup() {
                 <div class="font-serif truncate" style="font-size: 14px; font-weight: 500;">{{ u.name }}</div>
                 <div v-if="u.dept" class="text-[11px] truncate" style="color: var(--color-ink-3);">{{ u.dept }}</div>
               </div>
-              <span class="text-[12px] font-medium" style="color: var(--color-accent);">添加</span>
+              <span class="text-[12px] font-medium" style="color: var(--color-accent);">{{ t('chat.addBtn') }}</span>
             </button>
           </div>
         </div>
