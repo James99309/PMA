@@ -4,6 +4,7 @@
 // + 共享 chat store：与 ProjectDetailView 项目讨论卡同源
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PixelP from '@/components/common/PixelP.vue'
 import MentionPopover from '@/components/common/MentionPopover.vue'
 import MessageText from '@/components/common/MessageText.vue'
@@ -36,10 +37,11 @@ function handleMentionSelect(payload) {
 const route = useRoute()
 const router = useRouter()
 const chatStore = useChatStore()
+const { t: tt } = useI18n()
 
 // 群信息：从后端拉详情，proj-* 虚拟群退化为 query 字段
 const group = ref({
-  name: route.query.name || '群聊',
+  name: route.query.name || tt('chat.groupDefault'),
   members: '',
   stage: '',
 })
@@ -70,8 +72,8 @@ function pushUser(text) {
   const cleanedText = text.replace(/^@(AI|源助手)\s*/, '')
   chatStore.appendToGroup(groupId, {
     kind: 'me',
-    from: '我',
-    initial: '我',
+    from: tt('chat.iSelf'),
+    initial: tt('chat.iSelf'),
     time: `${hh}:${mm}`,
     text: cleanedText,
     mention: isAtAi ? '@源助手' : null,
@@ -164,15 +166,15 @@ async function send() {
             chatStore.replaceMessage(groupId, tid, { thinking: false, body: { type: 'stream', text: streamed } })
             await scrollToBottom()
           } else if (ev.type === 'status') {
-            chatStore.replaceMessage(groupId, tid, { thinking: false, body: { type: 'status', text: ev.message || '思考中…' } })
+            chatStore.replaceMessage(groupId, tid, { thinking: false, body: { type: 'status', text: ev.message || tt('chat.aiThinking') } })
           } else if (ev.type === 'error' || ev.type === 'context_exhausted') {
-            chatStore.replaceMessage(groupId, tid, { thinking: false, body: { type: 'error', text: ev.message || 'AI 服务异常' } })
+            chatStore.replaceMessage(groupId, tid, { thinking: false, body: { type: 'error', text: ev.message || tt('chat.aiServiceError') } })
           }
         },
       })
     } catch (e) {
       console.error('group AI stream failed', e)
-      chatStore.replaceMessage(groupId, tid, { thinking: false, body: { type: 'error', text: `连接失败：${e.message}` } })
+      chatStore.replaceMessage(groupId, tid, { thinking: false, body: { type: 'error', text: `${tt('chat.connectFail')}${e.message}` } })
     } finally {
       sending.value = false
       await scrollToBottom()
@@ -216,7 +218,7 @@ function insertOptimistic(file, kind, meta) {
   const localId = `local-up-${Date.now()}-${Math.random()}`
   const previewUrl = (kind === 'image') ? URL.createObjectURL(file) : ''
   chatStore.appendToGroup(groupId, {
-    id: localId, kind: 'me', from: '我', initial: '我',
+    id: localId, kind: 'me', from: tt('chat.iSelf'), initial: tt('chat.iSelf'),
     time: formatChatTime(new Date().toISOString()), text: '',
     attachment: {
       type: kind === 'voice' ? 'voice' : (kind === 'image' ? 'image' : 'file'),
@@ -236,7 +238,7 @@ async function processAndUpload(localId, file, kind, meta) {
   try {
     const r = await uploadChatFile(toUpload, kind, meta.name)
     const data = r.data?.data || r.data
-    if (!data?.file_url) throw new Error('上传失败')
+    if (!data?.file_url) throw new Error(tt('chat.uploadFail'))
     const list = chatStore.getGroup(groupId, [])
     const local = list.find(m => m.id === localId)
     if (local) {
@@ -251,8 +253,8 @@ async function processAndUpload(localId, file, kind, meta) {
   } catch (e) {
     const list = chatStore.getGroup(groupId, [])
     const local = list.find(m => m.id === localId)
-    if (local) local._error = e?.message || '上传失败'
-    alert('上传失败：' + (e?.message || e))
+    if (local) local._error = e?.message || tt('chat.uploadFail')
+    alert(tt('chat.uploadFailPrefix') + (e?.message || e))
   } finally {
     const list = chatStore.getGroup(groupId, [])
     const local = list.find(m => m.id === localId)
@@ -292,11 +294,11 @@ function onViewLocation({ lat, lon }) {
 }
 async function sendLocation(lat, lon, meta = {}) {
   const cid = _convId()
-  if (!cid) throw new Error('无效会话')
+  if (!cid) throw new Error(tt('chat.invalidConv'))
   const fullMeta = { lat, lon, name: meta.name || '', address: meta.address || '' }
   const localId = `local-loc-${Date.now()}`
   chatStore.appendToGroup(groupId, {
-    id: localId, kind: 'me', from: '我', initial: '我',
+    id: localId, kind: 'me', from: tt('chat.iSelf'), initial: tt('chat.iSelf'),
     time: formatChatTime(new Date().toISOString()), text: '',
     attachment: { type: 'location', url: '', meta: fullMeta },
     _local: true, _content: '', _created_at_ms: Date.now(),
@@ -412,7 +414,7 @@ function appendBackendMessage(m) {
   const kind = isSystem ? 'system' : isAi ? 'ai' : isMine ? 'me' : 'them'
   chatStore.appendToGroup(groupId, {
     id, kind,
-    from: isAi ? '源助手' : (m.sender_name || '?'),
+    from: isAi ? tt('chat.aiAssistant') : (m.sender_name || '?'),
     initial: isAi ? 'P' : ((m.sender_name || '?')[0]),
     time: formatChatTime(m.created_at),
     text: displayText,
@@ -488,7 +490,7 @@ async function loadGroupInfo() {
     const d = r.data.data
     group.value.name = d.name || group.value.name
     const cnt = (d.participants || []).length
-    group.value.members = cnt ? `${cnt} 人` : ''
+    group.value.members = cnt ? tt('chat.peopleCount', { n: cnt }) : ''
     group.value.stage = d.linked_project?.stage || ''
   } catch (e) {
     console.warn('load group info failed', e)
@@ -574,7 +576,7 @@ onUnmounted(() => {
         <!-- 我的消息（右对齐，ink 黑底）-->
         <div v-else-if="m.kind === 'me'" class="px-4 py-1.5 flex flex-col items-end">
           <div v-if="m.recalled" class="text-[12px] italic"
-            style="color: var(--color-ink-3);">你撤回了一条消息</div>
+            style="color: var(--color-ink-3);">{{ tt('chat.youRecalled') }}</div>
           <template v-else>
             <div class="text-white max-w-[300px]"
               style="background: var(--color-ink); border-radius: 18px 18px 4px 18px;
@@ -609,7 +611,7 @@ onUnmounted(() => {
                 style="background: rgba(0,0,0,0.45);">
                 <span class="text-white text-[11px] inline-flex items-center gap-1.5">
                   <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  上传中
+                  {{ tt('chat.uploading') }}
                 </span>
               </span>
             </div>
@@ -626,7 +628,7 @@ onUnmounted(() => {
               {{ m.from }} · {{ m.time }}
             </div>
             <div v-if="m.recalled" class="text-[12px] italic"
-              style="color: var(--color-ink-3);">{{ m.from }} 撤回了一条消息</div>
+              style="color: var(--color-ink-3);">{{ tt('chat.peerRecalled', { name: m.from }) }}</div>
             <template v-else>
               <div class="inline-block max-w-[300px]"
                 style="background: var(--color-card); border: 1px solid var(--color-divider);
@@ -636,9 +638,9 @@ onUnmounted(() => {
                 @touchmove="lp.onTouchMove"
                 @touchend="lp.onTouchEnd"
                 @touchcancel="lp.onTouchCancel">
-                <span v-if="m.mention === true || m.mention === '@我'" class="font-semibold"
-                  style="color: var(--color-accent);">@我&nbsp;</span>
-                <span v-else-if="typeof m.mention === 'string' && m.mention !== '@我'" class="font-semibold" style="color: #2F66D6;">{{ m.mention }}&nbsp;</span>
+                <span v-if="m.mention === true || m.mention === '@我' || m.mention === '@me'" class="font-semibold"
+                  style="color: var(--color-accent);">{{ tt('chat.atMe') }}&nbsp;</span>
+                <span v-else-if="typeof m.mention === 'string' && m.mention !== '@我' && m.mention !== '@me'" class="font-semibold" style="color: #2F66D6;">{{ m.mention }}&nbsp;</span>
                 <MessageText v-if="m.text" :text="m.text" />
                 <MessageRefs v-if="m.refs?.length" :refs="m.refs" class="mt-2" />
                 <!-- 双语气泡 BiMsg: 译文 + 原文同气泡内 -->
@@ -670,7 +672,7 @@ onUnmounted(() => {
           <PixelP :size="22" />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-1.5 mb-1">
-              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">源助手</span>
+              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">{{ tt('chat.aiAssistant') }}</span>
               <span class="text-[10px]" style="color: var(--color-ink-3);">{{ m.time }}</span>
             </div>
             <div class="font-serif"
@@ -684,7 +686,7 @@ onUnmounted(() => {
                     style="background: #2F66D6;"
                     :style="{ animation: `aiDot 1.4s ${(i-1)*0.16}s infinite` }" />
                 </span>
-                <span class="text-[12px] italic" style="color: var(--color-ink-3);">正在分析数据…</span>
+                <span class="text-[12px] italic" style="color: var(--color-ink-3);">{{ tt('chat.aiAnalyzing') }}</span>
               </div>
 
               <!-- 真后端 SSE 流式 -->
@@ -734,7 +736,7 @@ onUnmounted(() => {
 
 ⚠️ 标书 V2 截止 周五</div>
                 <button class="mt-2 text-[12px] font-medium active:opacity-60"
-                  style="color: #2F66D6;">📋 复制到剪贴板</button>
+                  style="color: #2F66D6;">{{ tt('chat.copyClipboard') }}</button>
               </template>
             </div>
           </div>
@@ -777,7 +779,7 @@ onUnmounted(() => {
             border: mention.popoverVisible.value ? '1.5px solid var(--color-accent)' : '1px solid var(--color-divider-strong)',
           }">
           <input ref="inputRef" v-model="inputText" type="text"
-            placeholder="说点什么… 输入 @ 通知"
+            :placeholder="tt('chat.groupComposerPh')"
             @input="handleInput"
             @compositionstart="onCompStart"
             @compositionend="onCompEnd"
@@ -814,16 +816,16 @@ onUnmounted(() => {
           style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
           <span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] text-white font-bold"
             style="background: var(--color-ink);">#</span>
-          项目
+          {{ tt('chat.refProject') }}
         </button>
         <button @mousedown.prevent @click="mention.openPicker('$')"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] active:opacity-70"
           style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
           <span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] text-white font-bold"
             style="background: var(--color-accent);">$</span>
-          客户
+          {{ tt('chat.refCustomer') }}
         </button>
-        <span class="ml-auto text-[10px]" style="color: var(--color-ink-4);">直接输入 @ 通知成员</span>
+        <span class="ml-auto text-[10px]" style="color: var(--color-ink-4);">{{ tt('chat.atTip') }}</span>
       </div>
     </div>
 

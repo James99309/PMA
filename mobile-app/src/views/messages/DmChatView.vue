@@ -2,6 +2,7 @@
 // 私聊 + AI 草稿区 —— 严格对齐 ai-chat.jsx DMAIDraft (line 383-459)
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PixelP from '@/components/common/PixelP.vue'
 import MentionPopover from '@/components/common/MentionPopover.vue'
 import MessageText from '@/components/common/MessageText.vue'
@@ -24,6 +25,7 @@ import { formatChatTime } from '@/utils/chatTime'
 
 const route = useRoute()
 const router = useRouter()
+const { t: tt } = useI18n()
 
 const inputRef = ref(null)
 const mention = useMention(inputRef)
@@ -36,7 +38,7 @@ function handleMentionSelect(payload) {
 
 // 联系人信息（从 query 串接，实际拉历史时由后端 participants 补全）
 const peer = ref({
-  name: route.query.name || '私聊',
+  name: route.query.name || tt('chat.dmDefault'),
   initial: (route.query.name || '?')[0],
   role: route.query.role || '',
   company: route.query.company || '',
@@ -187,16 +189,16 @@ async function send() {
             aiMsg.body = { type: 'stream', text: streamed }
             await scrollToBottom()
           } else if (ev.type === 'status') {
-            aiMsg.body = { type: 'status', text: ev.message || '思考中…' }
+            aiMsg.body = { type: 'status', text: ev.message || tt('chat.aiThinking') }
           } else if (ev.type === 'error' || ev.type === 'context_exhausted') {
-            aiMsg.body = { type: 'error', text: ev.message || 'AI 服务异常' }
+            aiMsg.body = { type: 'error', text: ev.message || tt('chat.aiServiceError') }
           }
         },
       })
     } catch (e) {
       console.error('dm AI stream failed', e)
       const aiMsg = messages.value.find(m => m.id === aiId)
-      if (aiMsg) aiMsg.body = { type: 'error', text: `连接失败：${e.message}` }
+      if (aiMsg) aiMsg.body = { type: 'error', text: `${tt('chat.connectFail')}${e.message}` }
     } finally {
       sending.value = false
       await scrollToBottom()
@@ -269,7 +271,7 @@ async function processAndUpload(localId, file, kind, meta) {
   try {
     const r = await uploadChatFile(toUpload, kind, meta.name)
     const data = r.data?.data || r.data
-    if (!data?.file_url) throw new Error('上传失败')
+    if (!data?.file_url) throw new Error(tt('chat.uploadFail'))
     const local = messages.value.find(m => m.id === localId)
     if (local) {
       local._uploading = false
@@ -282,8 +284,8 @@ async function processAndUpload(localId, file, kind, meta) {
     })
   } catch (e) {
     const local = messages.value.find(m => m.id === localId)
-    if (local) local._error = e?.message || '上传失败'
-    alert('上传失败：' + (e?.message || e))
+    if (local) local._error = e?.message || tt('chat.uploadFail')
+    alert(tt('chat.uploadFailPrefix') + (e?.message || e))
   } finally {
     const local = messages.value.find(m => m.id === localId)
     if (local?._previewUrl) {
@@ -325,7 +327,7 @@ function onViewLocation({ lat, lon }) {
   showLocationSheet.value = true
 }
 async function sendLocation(lat, lon, meta = {}) {
-  if (!convId) throw new Error('无效会话')
+  if (!convId) throw new Error(tt('chat.invalidConv'))
   const fullMeta = { lat, lon, name: meta.name || '', address: meta.address || '' }
   const localId = `local-loc-${Date.now()}`
   messages.value.push({
@@ -573,7 +575,7 @@ onUnmounted(() => {
           <PixelP :size="22" />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-1.5 mb-1">
-              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">源助手</span>
+              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">{{ tt('chat.aiAssistant') }}</span>
               <span class="text-[10px]" style="color: var(--color-ink-3);">{{ m.time }}</span>
             </div>
             <div class="font-serif"
@@ -607,7 +609,7 @@ onUnmounted(() => {
           <div class="flex-1 min-w-0">
             <div class="text-[11px] mb-1" style="color: var(--color-ink-3);">{{ m.time }}</div>
             <div v-if="m.recalled" class="text-[12px] italic"
-              style="color: var(--color-ink-3);">{{ peer.name }} 撤回了一条消息</div>
+              style="color: var(--color-ink-3);">{{ tt('chat.peerRecalled', { name: peer.name }) }}</div>
             <template v-else>
               <!-- 文本气泡（含可能的引用卡）-->
               <div v-if="m.text || m.refs?.length" class="inline-block max-w-[300px]"
@@ -652,7 +654,7 @@ onUnmounted(() => {
         <!-- 我的消息（右对齐 ink 黑底）-->
         <div v-else class="px-4 py-1.5 flex flex-col items-end">
           <div v-if="m.recalled" class="text-[12px] italic"
-            style="color: var(--color-ink-3);">你撤回了一条消息</div>
+            style="color: var(--color-ink-3);">{{ tt('chat.youRecalled') }}</div>
           <template v-else>
           <!-- 文本气泡（含可能的引用卡）-->
           <div v-if="m.text || m.refs?.length" class="text-white max-w-[300px]"
@@ -688,7 +690,7 @@ onUnmounted(() => {
               style="background: rgba(0,0,0,0.45);">
               <span class="text-white text-[11px] inline-flex items-center gap-1.5">
                 <span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                上传中
+                {{ tt('chat.uploading') }}
               </span>
             </span>
           </div>
@@ -709,14 +711,14 @@ onUnmounted(() => {
       <template v-if="showDraftSection">
         <div class="py-3 px-4 flex justify-center">
           <span class="text-[10px] font-semibold tracking-wide px-2.5 py-1 rounded-full"
-            style="color: #2F66D6; background: #E5EEFB;">✨ 仅你可见 · AI 草稿区</span>
+            style="color: #2F66D6; background: #E5EEFB;">{{ tt('chat.onlyYouSee') }}</span>
         </div>
 
         <div v-if="draft.visible" class="px-4 py-1.5 flex gap-2.5 items-start">
           <PixelP :size="22" />
           <div class="flex-1 min-w-0">
             <div class="flex items-baseline gap-1.5 mb-1">
-              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">源助手</span>
+              <span class="text-[12px] font-semibold" style="color: #1E4FAA;">{{ tt('chat.aiAssistant') }}</span>
               <span class="text-[10px]" style="color: var(--color-ink-3);">{{ draft.time }}</span>
             </div>
             <div class="font-serif"
@@ -740,10 +742,10 @@ onUnmounted(() => {
             <div class="flex gap-2 mt-2">
               <button @click="adoptDraft"
                 class="flex-1 py-2.5 rounded-xl text-white text-[13px] font-semibold active:opacity-80"
-                style="background: #2F66D6; border: none;">采用 · 填入输入框</button>
+                style="background: #2F66D6; border: none;">{{ tt('chat.adoptDraft') }}</button>
               <button @click="regenerateDraft"
                 class="px-3.5 py-2.5 rounded-xl text-[13px] active:opacity-70"
-                style="background: var(--color-card); color: var(--color-ink-2); border: 1px solid var(--color-divider-strong);">换一版</button>
+                style="background: var(--color-card); color: var(--color-ink-2); border: 1px solid var(--color-divider-strong);">{{ tt('chat.regenerateDraft') }}</button>
               <button @click="dismissDraft"
                 class="px-3.5 py-2.5 rounded-xl text-[13px] active:opacity-70"
                 style="background: var(--color-card); color: var(--color-ink-2); border: 1px solid var(--color-divider-strong);">×</button>
@@ -795,7 +797,7 @@ onUnmounted(() => {
             border: mention.popoverVisible.value ? '1.5px solid var(--color-accent)' : '1px solid var(--color-divider-strong)',
           }">
           <input ref="inputRef" v-model="inputText" type="text"
-            :placeholder="`给${peer.name}回复…`"
+            :placeholder="tt('chat.composerReplyTo', { name: peer.name })"
             @input="handleInput"
             @compositionstart="onCompStart"
             @compositionend="onCompEnd"
@@ -834,14 +836,14 @@ onUnmounted(() => {
           style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
           <span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] text-white font-bold"
             style="background: var(--color-ink);">#</span>
-          项目
+          {{ tt('chat.refProject') }}
         </button>
         <button @mousedown.prevent @click="mention.openPicker('$')"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] active:opacity-70"
           style="background: var(--color-bg); border: 1px solid var(--color-divider-strong); color: var(--color-ink-2);">
           <span class="inline-flex items-center justify-center w-4 h-4 rounded text-[10px] text-white font-bold"
             style="background: var(--color-accent);">$</span>
-          客户
+          {{ tt('chat.refCustomer') }}
         </button>
       </div>
     </div>

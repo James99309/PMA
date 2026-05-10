@@ -3,6 +3,7 @@
 // 不再合并对区会话; 对区有未读时, 顶部琥珀卡提示, 点卡片切到对区即可
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PixelP from '@/components/common/PixelP.vue'
 import CrossRegionMsgCard from '@/components/common/CrossRegionMsgCard.vue'
 import { getConversations, getUnreadCountForRegion, createConversation, searchUsers, searchProjects } from '@/api/chat'
@@ -15,6 +16,7 @@ import { formatChatTime } from '@/utils/chatTime'
 
 const router = useRouter()
 const auth = useAuthStore()
+const { t } = useI18n()
 const { kbOffset } = useKeyboardOffset()
 const showPicker = ref(false)
 const loading = ref(true)
@@ -30,7 +32,7 @@ const showPeerCard = computed(() => !!auth.tokens[peerRegionId.value] && peerUnr
 function mapConv(c) {
   // 后端 type: 'private' / 'group' / 'ai'
   let kind = c.type === 'private' ? 'dm' : c.type === 'ai' ? 'ai' : 'group'
-  const name = c.display_name || c.name || c.topic || '未命名'
+  const name = c.display_name || c.name || c.topic || t('chat.unnamed')
   // DM 场景: 取对方 participant 的 department 作为副标
   let peerDept = ''
   if (kind === 'dm' && Array.isArray(c.participants)) {
@@ -57,8 +59,8 @@ function mapConv(c) {
 const aiConv = computed(() => allConversations.value.find(c => c.kind === 'ai'))
 const conversations = computed(() => allConversations.value.filter(c => c.kind !== 'ai'))
 const aiPreview = computed(() => aiConv.value
-  ? { text: aiConv.value.last || '点开向源助手提问', time: aiConv.value.time }
-  : { text: '点开向源助手提问', time: '' })
+  ? { text: aiConv.value.last || t('chat.aiPreviewDefault'), time: aiConv.value.time }
+  : { text: t('chat.aiPreviewDefault'), time: '' })
 
 async function load() {
   loading.value = true
@@ -117,7 +119,7 @@ async function onHideConversation(c) {
     // 立即从本地列表移除, 体感顺滑
     allConversations.value = allConversations.value.filter(x => x.id !== c.id)
   } catch (e) {
-    alert(e.response?.data?.message || '移出失败')
+    alert(e.response?.data?.message || t('chat.hideFail'))
   }
 }
 
@@ -180,8 +182,8 @@ const dmTree = computed(() => {
   const myCompany = me?.company_name || ''
   const companies = new Map()
   for (const u of allDmUsers.value) {
-    const c = u.company_name || '未分公司'
-    const d = u.dept || '未分部门'
+    const c = u.company_name || t('chat.unspecifiedCompany')
+    const d = u.dept || t('chat.unspecifiedDept')
     if (!companies.has(c)) companies.set(c, { name: c, depts: new Map(), total: 0 })
     const co = companies.get(c)
     if (!co.depts.has(d)) co.depts.set(d, { name: d, users: [] })
@@ -286,7 +288,7 @@ async function pickResult(item) {
           query: { name: item.name, role: item.dept || '' },
         })
       } else {
-        alert(data?.message || '创建私聊失败')
+        alert(data?.message || t('chat.createDmFail'))
       }
     } else if (pickerStep.value === 'group') {
       // 创建项目群（type='group'，名字用项目名，仅创建人；后续可在群设置加成员）
@@ -308,12 +310,12 @@ async function pickResult(item) {
           query: { name: item.project_name },
         })
       } else {
-        alert(data?.message || '创建项目群失败')
+        alert(data?.message || t('chat.createGroupFail'))
       }
     }
   } catch (e) {
     console.error('create conversation failed', e)
-    alert(`创建失败：${e.message || e}`)
+    alert(`${t('chat.createFail')}${e.message || e}`)
   } finally {
     pickerCreating.value = false
   }
@@ -339,9 +341,9 @@ function closePicker() {
     <div class="px-6 pt-3.5 pb-2 flex items-start justify-between shrink-0">
       <div>
         <div class="text-[11px] font-medium uppercase"
-          style="color: var(--color-ink-3); letter-spacing: 1.2px;">消息</div>
+          style="color: var(--color-ink-3); letter-spacing: 1.2px;">{{ t('chat.eyebrow') }}</div>
         <h1 class="font-serif m-0 mt-1"
-          style="font-size: 30px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">聊天</h1>
+          style="font-size: 30px; font-weight: 500; letter-spacing: -0.4px; color: var(--color-ink);">{{ t('chat.title') }}</h1>
       </div>
       <button @click="showPicker = true"
         class="w-9 h-9 rounded-full inline-flex items-center justify-center"
@@ -370,9 +372,9 @@ function closePicker() {
           <PixelP :size="34" />
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-1.5">
-              <span class="font-serif" style="font-size: 15px; font-weight: 600; color: var(--color-ink);">源助手</span>
+              <span class="font-serif" style="font-size: 15px; font-weight: 600; color: var(--color-ink);">{{ t('chat.aiAssistant') }}</span>
               <span class="text-[9px] font-bold px-1.5 py-px rounded"
-                style="color: #2F66D6; background: #E5EEFB; letter-spacing: 0.5px;">BETA</span>
+                style="color: #2F66D6; background: #E5EEFB; letter-spacing: 0.5px;">{{ t('chat.aiBeta') }}</span>
               <span class="text-[11px] ml-auto" style="color: var(--color-ink-3);">{{ aiPreview.time }}</span>
             </div>
             <div class="text-[12px] mt-1 font-serif truncate"
@@ -387,7 +389,7 @@ function closePicker() {
       <div class="mt-2" style="background: var(--color-card);">
         <SwipeRowAction
           v-for="(c, i) in conversations" :key="c.id"
-          :actions="[{ label: '移出', color: 'red', handler: () => onHideConversation(c) }]">
+          :actions="[{ label: t('chat.hideFromList'), color: 'red', handler: () => onHideConversation(c) }]">
         <button @click="openConversation(c)"
           class="w-full px-4 py-3.5 flex gap-3 active:bg-bg text-left"
           :style="{
@@ -416,7 +418,7 @@ function closePicker() {
             <div class="flex items-baseline justify-between mt-0.5 gap-2">
               <span class="text-[12px] truncate flex-1"
                 style="color: var(--color-ink-3);">
-                <span v-if="c.draft" style="color: #2F66D6; font-weight: 600;">[AI 草稿] </span>{{ c.last }}
+                <span v-if="c.draft" style="color: #2F66D6; font-weight: 600;">{{ t('chat.aiDraftPrefix') }}</span>{{ c.last }}
               </span>
               <span v-if="c.unread > 0"
                 class="text-[10px] font-bold tabular px-2 py-0.5 rounded-full text-white shrink-0"
@@ -447,14 +449,14 @@ function closePicker() {
 
           <div class="flex items-center justify-between px-5 mb-2">
             <button v-if="pickerStep === 'main'" @click="closePicker" class="text-[15px]"
-              style="color: var(--color-accent);">取消</button>
+              style="color: var(--color-accent);">{{ t('common.cancel') }}</button>
             <button v-else @click="backToPickerMain" class="text-[15px] inline-flex items-center gap-1"
               style="color: var(--color-accent);">
               <svg width="9" height="14" viewBox="0 0 9 14"><path d="M7 1L1 7l6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              返回
+              {{ t('common.back') }}
             </button>
             <span class="font-serif text-[16px] font-medium">{{
-              pickerStep === 'dm' ? '选择联系人' : pickerStep === 'group' ? '选择项目' : '发起聊天'
+              pickerStep === 'dm' ? t('chat.selectContact') : pickerStep === 'group' ? t('chat.selectProject') : t('chat.startChat')
             }}</span>
             <span class="w-[30px]" />
           </div>
@@ -469,7 +471,7 @@ function closePicker() {
                   <path d="M11 11l3 3" stroke="var(--color-ink-3)" stroke-width="1.4" stroke-linecap="round"/>
                 </svg>
                 <input v-model="pickerSearch" type="search"
-                  placeholder="搜索同事姓名、用户名、部门"
+                  :placeholder="t('chat.searchContact')"
                   class="flex-1 bg-transparent outline-none text-[14px] font-serif"
                   style="color: var(--color-ink);" />
               </div>
@@ -477,11 +479,11 @@ function closePicker() {
             <!-- 列表 — 滑动收键盘, 避免遮挡 -->
             <div class="px-5 mt-3" @touchmove="dismissKeyboard">
               <div v-if="pickerSearching" class="text-center py-6 text-[13px]"
-                style="color: var(--color-ink-3);">加载中…</div>
+                style="color: var(--color-ink-3);">{{ t('chat.pickerLoading') }}</div>
               <!-- 搜索态: 平铺命中结果 (避免树+reactive Set 在 IME 期间卡死) -->
               <template v-else-if="isSearching">
                 <div v-if="!flatSearchResults.length" class="text-center py-6 text-[13px]"
-                  style="color: var(--color-ink-3);">无匹配联系人</div>
+                  style="color: var(--color-ink-3);">{{ t('chat.noMatch') }}</div>
                 <div v-else class="rounded-2xl overflow-hidden"
                   style="background: var(--color-card); border: 1px solid var(--color-divider);">
                   <button v-for="(u, i) in flatSearchResults" :key="u.id" @click="pickResult(u)"
@@ -502,7 +504,7 @@ function closePicker() {
               </template>
               <!-- 非搜索态: 树形分组 -->
               <div v-else-if="!dmTree.length" class="text-center py-6 text-[13px]"
-                style="color: var(--color-ink-3);">暂无同事</div>
+                style="color: var(--color-ink-3);">{{ t('chat.noColleagues') }}</div>
               <div v-else class="rounded-2xl overflow-hidden"
                 style="background: var(--color-card); border: 1px solid var(--color-divider);">
                 <template v-for="(co, ci) in dmTree" :key="co.name">
@@ -566,16 +568,16 @@ function closePicker() {
                   <path d="M11 11l3 3" stroke="var(--color-ink-3)" stroke-width="1.4" stroke-linecap="round"/>
                 </svg>
                 <input v-model="pickerSearch" @input="doPickerSearch" type="search"
-                  placeholder="搜索项目名称"
+                  :placeholder="t('chat.searchProject')"
                   class="flex-1 bg-transparent outline-none text-[14px] font-serif"
                   style="color: var(--color-ink);" />
               </div>
             </div>
             <div class="px-5 mt-3">
               <div v-if="pickerSearching && !pickerResults.length" class="text-center py-6 text-[13px]"
-                style="color: var(--color-ink-3);">搜索中…</div>
+                style="color: var(--color-ink-3);">{{ t('chat.pickerSearching') }}</div>
               <div v-else-if="!pickerResults.length" class="text-center py-6 text-[13px]"
-                style="color: var(--color-ink-3);">{{ pickerSearch ? '无匹配项目' : '输入关键词搜索' }}</div>
+                style="color: var(--color-ink-3);">{{ pickerSearch ? t('chat.noMatchProject') : t('chat.searchHint') }}</div>
               <div v-else class="rounded-2xl"
                 style="background: var(--color-card); border: 1px solid var(--color-divider);">
                 <button v-for="(p, i) in pickerResults" :key="p.id" @click="pickResult(p)"
@@ -588,7 +590,7 @@ function closePicker() {
                     <div class="font-serif text-[15px] font-medium truncate">{{ p.project_name }}</div>
                     <div class="text-[11px] mt-0.5" style="color: var(--color-ink-3);">
                       <span v-if="p.current_stage" style="color: var(--color-accent); font-weight: 600;">● {{ p.current_stage }}</span>
-                      <span v-if="p.quotation_customer">{{ p.current_stage ? ' · ' : '' }}<span class="tabular" style="color: var(--color-ink); font-weight: 600;">¥{{ (p.quotation_customer / 10000).toFixed(2) }}万</span></span>
+                      <span v-if="p.quotation_customer">{{ p.current_stage ? ' · ' : '' }}<span class="tabular" style="color: var(--color-ink); font-weight: 600;">{{ t('project.amountWan', { amount: (p.quotation_customer / 10000).toFixed(2) }) }}</span></span>
                     </div>
                   </div>
                   <span class="text-[18px]" style="color: var(--color-ink-3);">›</span>
@@ -596,7 +598,7 @@ function closePicker() {
               </div>
               <div class="text-[11px] font-serif italic mt-3 text-center"
                 style="color: var(--color-ink-3);">
-                选中后会自动创建群聊，群名 = 项目名（成员可在群设置里手动添加）
+                {{ t('chat.groupCreateHint') }}
               </div>
             </div>
           </template>
@@ -605,9 +607,9 @@ function closePicker() {
           <template v-else>
 
           <div class="px-7 mt-3 mb-1">
-            <div class="font-serif" style="font-size: 22px; font-weight: 500; line-height: 1.3;">想和谁聊?</div>
+            <div class="font-serif" style="font-size: 22px; font-weight: 500; line-height: 1.3;">{{ t('chat.mainQ') }}</div>
             <div class="font-serif italic mt-1.5"
-              style="font-size: 13px; color: var(--color-ink-3);">选一个开始 · 也可以先问 AI 助手</div>
+              style="font-size: 13px; color: var(--color-ink-3);">{{ t('chat.mainSub') }}</div>
           </div>
 
           <div class="px-5 mt-5 flex flex-col gap-3">
@@ -618,21 +620,21 @@ function closePicker() {
               <PixelP :size="36" />
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1.5">
-                  <span class="font-serif" style="font-size: 17px; font-weight: 600;">源助手 AI</span>
+                  <span class="font-serif" style="font-size: 17px; font-weight: 600;">{{ t('chat.aiFull') }}</span>
                   <span class="text-[9px] font-bold px-1.5 py-px rounded"
-                    style="color: #2F66D6; background: #E5EEFB;">BETA</span>
+                    style="color: #2F66D6; background: #E5EEFB;">{{ t('chat.aiBeta') }}</span>
                 </div>
                 <div class="text-[12px] mt-1" style="color: var(--color-ink-3); line-height: 1.5;">
-                  你的销售助理 · 知道你所有项目、客户、跟进记录，可以总结、起草、分析。
+                  {{ t('chat.aiTagline') }}
                 </div>
                 <div class="flex flex-wrap gap-1.5 mt-2.5">
-                  <span v-for="t in ['/分析赢率','/起草回复','/总结群消息']" :key="t"
+                  <span v-for="sug in [t('chat.sugAnalyze'), t('chat.sugDraft'), t('chat.sugSummary')]" :key="sug"
                     class="text-[10px] px-2 py-0.5 rounded-full"
-                    style="color: #2F66D6; background: #E5EEFB; font-family: ui-monospace, monospace;">{{ t }}</span>
+                    style="color: #2F66D6; background: #E5EEFB; font-family: ui-monospace, monospace;">{{ sug }}</span>
                 </div>
               </div>
               <span class="absolute text-[11px] font-semibold"
-                style="top: 14px; right: 14px; color: #2F66D6;">推荐 →</span>
+                style="top: 14px; right: 14px; color: #2F66D6;">{{ t('chat.recommended') }}</span>
             </button>
 
             <!-- 私聊同事 -->
@@ -647,8 +649,8 @@ function closePicker() {
                 </svg>
               </div>
               <div class="flex-1">
-                <div class="font-serif" style="font-size: 16px; font-weight: 500;">私聊同事</div>
-                <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">从通讯录选 1 人，开始一对一对话</div>
+                <div class="font-serif" style="font-size: 16px; font-weight: 500;">{{ t('chat.dmTitle') }}</div>
+                <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">{{ t('chat.dmHint') }}</div>
               </div>
               <span class="text-[18px]" style="color: var(--color-ink-3);">›</span>
             </button>
@@ -667,8 +669,8 @@ function closePicker() {
                 </svg>
               </div>
               <div class="flex-1">
-                <div class="font-serif" style="font-size: 16px; font-weight: 500;">项目群</div>
-                <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">选一个项目 · 自动拉相关人 · 群内可 @AI</div>
+                <div class="font-serif" style="font-size: 16px; font-weight: 500;">{{ t('chat.groupTitle') }}</div>
+                <div class="text-[12px] mt-0.5" style="color: var(--color-ink-3);">{{ t('chat.groupHint') }}</div>
               </div>
               <span class="text-[18px]" style="color: var(--color-ink-3);">›</span>
             </button>
@@ -676,7 +678,7 @@ function closePicker() {
 
           <div class="px-7 mt-6 text-center text-[11px] font-serif italic"
             style="color: var(--color-ink-3);">
-            群和私聊里都可以 @源助手 提问，无需切换
+            {{ t('chat.atAiTip') }}
           </div>
           </template>
         </div>
