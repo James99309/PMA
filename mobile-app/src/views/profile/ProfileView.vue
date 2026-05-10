@@ -20,6 +20,7 @@ async function loadPendingCount() {
 
 const router = useRouter()
 const auth = useAuthStore()
+const { t, locale } = useI18n()
 
 // Bundle 版本（Capgo 当前激活的）
 const bundleId = ref('builtin')
@@ -51,7 +52,7 @@ function tapRegionRow(r) {
   if (r.id === auth.regionId) return
   // 没有对区 token (单区用户): 不应进 sheet (UI 已经隐藏)
   if (!auth.tokens[r.id]) {
-    switchError.value = `${r.label}系统未授权该账号，请联系 admin 设为「海外支持」`
+    switchError.value = t('profile.switchUnauthorized', { label: r.label })
     return
   }
   switchError.value = ''
@@ -76,7 +77,7 @@ async function confirmSwitch() {
     window.location.reload()
   } else {
     switching.value = false
-    switchError.value = `${targetRegion.value.label}系统未授权该账号`
+    switchError.value = t('profile.switchUnauthorizedShort', { label: targetRegion.value.label })
   }
 }
 
@@ -86,24 +87,24 @@ async function handleLogout() {
 }
 
 async function checkUpdate() {
-  bundleStatus.value = '检查中…'
+  bundleStatus.value = t('profile.bundleChecking')
   try {
     const latest = await CapacitorUpdater.getLatest()
     if (latest?.version && latest.version !== bundleVer.value) {
-      bundleStatus.value = `发现新版 ${latest.version}，下载中…`
+      bundleStatus.value = t('profile.bundleNewFound', { ver: latest.version })
       const dl = await CapacitorUpdater.download({ url: latest.url, version: latest.version })
-      bundleStatus.value = `下载完成，重启 App 生效`
+      bundleStatus.value = t('profile.bundleDownloaded')
       await CapacitorUpdater.set({ id: dl.id })
     } else {
-      bundleStatus.value = '已是最新版本'
+      bundleStatus.value = t('profile.bundleLatest')
     }
   } catch (e) {
     const msg = e?.message || String(e || '')
     const benign = ['no_new_version_available', 'no_channel', 'already_set']
     if (benign.some(k => msg.includes(k))) {
-      bundleStatus.value = '已是最新版本'
+      bundleStatus.value = t('profile.bundleLatest')
     } else {
-      bundleStatus.value = `检查失败: ${msg}`
+      bundleStatus.value = t('profile.bundleCheckFail', { msg })
     }
   }
 }
@@ -119,19 +120,18 @@ onMounted(async () => {
   }
 })
 
-const { t, locale } = useI18n()
 // Eyebrow 文案: away 时双语提示
 const eyebrow = computed(() => auth.isAway ? `${t('profile.eyebrowAway')} · ${auth.regionId.toUpperCase()}` : t('profile.eyebrow'))
 const title = computed(() => auth.isAway ? `${t('profile.title')} · Profile` : t('profile.title'))
 
 // 语言切换 — 同步到 i18n + localStorage + 后端 user.language_preference
 const showLangPicker = ref(false)
-const LANG_OPTIONS = [
-  { code: 'zh', label: '简体中文' },
-  { code: 'en', label: 'English' },
-]
+const LANG_OPTIONS = computed(() => [
+  { code: 'zh', label: t('profile.langZh') },
+  { code: 'en', label: t('profile.langEn') },
+])
 const currentLangLabel = computed(() =>
-  LANG_OPTIONS.find(o => o.code === locale.value)?.label || '简体中文'
+  LANG_OPTIONS.value.find(o => o.code === locale.value)?.label || t('profile.langZh')
 )
 async function selectLang(code) {
   setLocale(code)              // 立即生效 + 本地缓存 + axios header 下次自动用新 lang
@@ -149,14 +149,15 @@ async function selectLang(code) {
 
 // 结算货币 — 只读展示, 修改入口在 Web 端
 // 切换会影响报销/绩效/薪酬的统计口径, mobile 不开放避免来回切造成混乱
-const CURRENCY_LABEL = {
-  CNY: '¥ 人民币', USD: '$ 美元',     HKD: 'HK$ 港币',     TWD: 'NT$ 新台币',
-  SGD: 'S$ 新加坡元', MYR: 'RM 马来西亚元', IDR: 'Rp 印尼盾', THB: '฿ 泰铢', VND: '₫ 越南盾',
-}
+const CURRENCY_LABEL = computed(() => ({
+  CNY: t('profile.currCNY'), USD: t('profile.currUSD'), HKD: t('profile.currHKD'),
+  TWD: t('profile.currTWD'), SGD: t('profile.currSGD'), MYR: t('profile.currMYR'),
+  IDR: t('profile.currIDR'), THB: t('profile.currTHB'), VND: t('profile.currVND'),
+}))
 const currentCurrency = computed(() => {
   const code = auth.user?.settlement_currency
-  if (!code) return auth.regionId === 'sg' ? '区域默认 USD' : '区域默认 CNY'
-  return CURRENCY_LABEL[code] || code
+  if (!code) return auth.regionId === 'sg' ? t('profile.regionDefaultUSD') : t('profile.regionDefaultCNY')
+  return CURRENCY_LABEL.value[code] || code
 })
 </script>
 
@@ -183,7 +184,7 @@ const currentCurrency = computed(() => {
             {{ auth.user?.real_name || auth.user?.username }}
           </p>
           <p class="text-[12px] mt-0.5 truncate" style="color: var(--color-ink-3);">
-            {{ auth.user?.email || auth.user?.username || '' }}{{ auth.isAway ? ' · 跨域账户' : '' }}
+            {{ auth.user?.email || auth.user?.username || '' }}{{ auth.isAway ? t('profile.crossAccountSuffix') : '' }}
           </p>
         </div>
       </div>
@@ -224,7 +225,7 @@ const currentCurrency = computed(() => {
                 <span class="font-mono uppercase tracking-wider" style="font-size: 10px; color: var(--color-ink-3);">{{ r.id }}</span>
               </div>
               <div class="mt-0.5" style="font-size: 12px; color: var(--color-ink-3);">
-                {{ r.id === 'cn' ? '深圳 · GMT+8' : 'Singapore · GMT+8' }}
+                {{ r.id === 'cn' ? t('profile.cnDc') : t('profile.sgDc') }}
               </div>
             </div>
             <!-- 状态 chip / hint -->
@@ -352,10 +353,10 @@ const currentCurrency = computed(() => {
             <div class="mx-auto" style="width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.10); margin-bottom: 14px;"></div>
             <div class="px-6 pb-2">
               <div class="font-serif" style="font-size: 22px; line-height: 1.25; color: var(--color-ink); letter-spacing: -0.3px;">
-                切换到 {{ targetRegion?.flag }} {{ targetRegion?.label }}库?
+                {{ t('profile.switchToTitle', { flag: targetRegion?.flag, label: targetRegion?.label }) }}
               </div>
               <div class="mt-2.5" style="font-size: 13.5px; color: var(--color-ink-3); line-height: 1.55;">
-                你将看到{{ targetRegion?.label }}库的项目、客户和消息。{{ currentRegion.label }}库的数据不会受影响,你可以随时切回。
+                {{ t('profile.switchToBody', { label: targetRegion?.label, cur: currentRegion.label }) }}
               </div>
             </div>
             <!-- 概览对比卡 -->
@@ -363,14 +364,14 @@ const currentCurrency = computed(() => {
               style="background: white; border-radius: 14px; border: 1px solid var(--color-divider);">
               <div class="flex items-center gap-2.5">
                 <div class="flex-1" style="opacity: 0.55;">
-                  <div style="font-size: 11px; color: var(--color-ink-3); margin-bottom: 4px;">当前</div>
+                  <div style="font-size: 11px; color: var(--color-ink-3); margin-bottom: 4px;">{{ t('profile.switchToCurrent') }}</div>
                   <div style="font-size: 14.5px; font-weight: 600; color: var(--color-ink-2);">
                     {{ currentRegion.flag }} {{ currentRegion.label }}
                   </div>
                 </div>
                 <span style="font-size: 18px; color: #A8A29B; font-weight: 200;">→</span>
                 <div class="flex-1">
-                  <div style="font-size: 11px; color: #B8762A; margin-bottom: 4px; font-weight: 600;">切换到</div>
+                  <div style="font-size: 11px; color: #B8762A; margin-bottom: 4px; font-weight: 600;">{{ t('profile.switchToTarget') }}</div>
                   <div style="font-size: 14.5px; font-weight: 600; color: var(--color-ink);">
                     {{ targetRegion?.flag }} {{ targetRegion?.label }}
                   </div>
@@ -384,12 +385,12 @@ const currentCurrency = computed(() => {
               <button @click="cancelSwitch"
                 class="flex-1 py-3.5 rounded-xl"
                 style="background: transparent; border: 1px solid var(--color-divider-strong); font-size: 15px; color: var(--color-ink-2); font-weight: 500;">
-                取消
+                {{ t('common.cancel') }}
               </button>
               <button @click="confirmSwitch"
                 class="rounded-xl text-white font-semibold"
                 style="flex: 2; padding: 14px 0; background: var(--color-ink); border: none; font-size: 15px;">
-                切到 {{ targetRegion?.label }}库
+                {{ t('profile.switchToConfirm', { label: targetRegion?.label }) }}
               </button>
             </div>
           </div>
@@ -405,7 +406,7 @@ const currentCurrency = computed(() => {
             style="background: rgba(26,26,26,0.92); backdrop-filter: blur(8px); color: #fff; font-size: 13.5px; font-weight: 500; box-shadow: 0 18px 48px rgba(0,0,0,0.22);">
             <span class="inline-block animate-spin"
               style="width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.25); border-top-color: #fff; border-radius: 7px;"></span>
-            正在切换到 {{ targetRegion?.label }}库…
+            {{ t('profile.switchingTo', { label: targetRegion?.label }) }}
           </div>
         </div>
       </Transition>
