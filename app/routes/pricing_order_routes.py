@@ -721,9 +721,10 @@ def update_total_discount_rate(order_id):
         # 检查编辑权限 - 使用统一的权限检查函数
         (can_edit_pricing, can_edit_settlement, is_approval_context,
          can_edit_quantity, can_edit_discount_price, can_edit_basic_info) = check_pricing_edit_permission(pricing_order, current_user)
-        if not can_edit_pricing:
-            return jsonify({'success': False, 'message': '无权限编辑此批价单'})
-        
+        required_can_edit = can_edit_settlement if tab_type == 'settlement' else can_edit_pricing
+        if not required_can_edit:
+            return jsonify({'success': False, 'message': '无权限编辑此' + ('结算单' if tab_type == 'settlement' else '批价单')})
+
         # 根据tab类型获取相应的明细列表
         if tab_type == 'pricing':
             details = pricing_order.pricing_details

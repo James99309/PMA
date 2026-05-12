@@ -143,7 +143,7 @@
     .model-cell-display .nd { font-size: 11px; color: #94a3b8; margin-top: 1px; white-space: pre-wrap; }
 
     @media print {
-      #tabBar, #approvalDrawer { display: none !important; }
+      header, #tabBar, #approvalDrawer { display: none !important; }
       #pageScroll { height: auto; padding: 0; overflow: visible; }
       .excel-paper { box-shadow: none !important; margin: 0 !important; padding: 20px !important; width: 100% !important; max-width: none !important; }
       td.sign-blank { height: 40px !important; }
@@ -174,6 +174,21 @@
     {# 利润 KPI（始终显示，结算单编辑后实时更新） #}
     {% set gp = (pricing_order.pricing_total_amount or 0) - (pricing_order.settlement_total_amount or 0) %}
     {% set gm = (gp / pricing_order.pricing_total_amount * 100) if pricing_order.pricing_total_amount and pricing_order.pricing_total_amount > 0 else 0 %}
+    {# 总折扣（随 tab 切换：批价/结算）#}
+    <span class="text-sm text-slate-500 inline-flex items-center gap-1">
+      总折扣
+      <input id="kpiTotalDiscount" type="number" step="0.1" min="0"
+        data-tab-type="pricing"
+        data-pricing-value="{{ '%.1f' % pricing_order.pricing_discount_percentage }}"
+        data-settlement-value="{{ '%.1f' % pricing_order.settlement_discount_percentage }}"
+        data-can-edit-pricing="{{ 'true' if can_edit_pricing else 'false' }}"
+        data-can-edit-settlement="{{ 'true' if can_edit_settlement else 'false' }}"
+        value="{{ '%.1f' % pricing_order.pricing_discount_percentage }}"
+        class="w-20 text-right text-sm border border-slate-200 rounded px-1.5 py-0.5 text-slate-700 font-medium focus:border-primary focus:outline-none disabled:bg-slate-50 disabled:text-slate-400"
+        onchange="PricingEditor.updateTotalDiscount(this.value)"
+        {% if not can_edit_pricing %}disabled{% endif %}>%
+    </span>
+    <span class="text-slate-300">|</span>
     <span class="text-sm text-slate-500">毛利润 <span id="kpiGrossProfit" class="text-slate-700 font-medium">{{ currency_symbol }} {{ '{:,.2f}'.format(gp) }}</span></span>
     <span class="text-slate-300">|</span>
     <span class="text-sm text-slate-500">毛利率 <span id="kpiGrossMargin" class="text-slate-700 font-medium">{{ '%.1f' % gm }}%</span></span>
@@ -190,6 +205,13 @@
       class="px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
       <span class="material-symbols-outlined text-base">approval</span>
       <span id="drawerBtnText">审批流程 ›</span>
+    </button>
+    {% endif %}
+
+    {% if pricing_order.status in ['draft', 'rejected'] and (pricing_order.created_by == current_user.id or current_user.role in ['admin', 'ceo']) %}
+    <button type="button" onclick="PricingEditor.deletePricingOrder()"
+      class="px-3 py-1.5 rounded-md text-sm flex items-center gap-1.5 border border-red-300 bg-red-50 text-red-700 hover:bg-red-100">
+      <span class="material-symbols-outlined text-base">delete</span>删除
     </button>
     {% endif %}
 
@@ -392,8 +414,13 @@
                 <span style="color:#475569;font-size:11px;flex-shrink:0">%</span>
               </div>
             </td>
-            <td class="readonly" style="text-align:right">
+            <td class="{% if can_edit_pricing %}editable{% else %}readonly{% endif %}" style="text-align:right">
+              {% if can_edit_pricing %}
+              <input type="number" class="cell-price" data-detail-id="{{ detail.id }}" value="{{ '%.2f' % detail.unit_price }}" step="0.01" min="0" style="text-align:right;width:100%"
+                onchange="PricingEditor.updatePricingDetailPrice(this)">
+              {% else %}
               <span class="cell-price">{{ '{:,.2f}'.format(detail.unit_price) }}</span>
+              {% endif %}
             </td>
             <td class="readonly" style="text-align:right">
               <span class="cell-subtotal">{{ '{:,.2f}'.format(detail.total_price) }}</span>
@@ -605,7 +632,17 @@
             </td>
             <td class="readonly" style="text-align:center">{{ detail.quantity }}</td>
             <td class="readonly col-market" style="text-align:right">{{ '{:,.2f}'.format(detail.market_price) }}</td>
-            <td class="readonly col-discount" style="text-align:center">{{ '%.1f' % (detail.discount_rate * 100) }}%</td>
+            <td class="col-discount {% if can_edit_settlement %}editable{% else %}readonly{% endif %}" style="text-align:center">
+              {% if can_edit_settlement %}
+              <div style="display:flex;align-items:center;justify-content:center;gap:1px">
+                <input type="number" class="cell-settle-discount" data-detail-id="{{ detail.id }}"
+                  value="{{ '%.1f' % (detail.discount_rate * 100) }}" min="0" step="0.1"
+                  style="text-align:right;width:calc(100% - 12px)"
+                  onchange="PricingEditor.updateSettlementDiscount(this)">
+                <span style="color:#475569;font-size:11px;flex-shrink:0">%</span>
+              </div>
+              {% else %}{{ '%.1f' % (detail.discount_rate * 100) }}%{% endif %}
+            </td>
             <td class="{% if can_edit_settlement %}editable{% else %}readonly{% endif %}" style="text-align:right">
               <input type="number" class="cell-settle-price" data-detail-id="{{ detail.id }}"
                 value="{{ '%.2f' % detail.unit_price }}" step="0.01" style="text-align:right"
@@ -763,9 +800,23 @@ const PricingEditor = (() => {
       document.querySelectorAll('[data-tab]').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       _updatePrintTitle();
+      _syncTotalDiscountInput();
     });
   });
   _updatePrintTitle(); // 初始化
+
+  /* ── 顶栏总折扣框：随 tab 切换显示对应值与可编辑性 ── */
+  function _syncTotalDiscountInput() {
+    const input = document.getElementById('kpiTotalDiscount');
+    if (!input) return;
+    const tab = document.querySelector('[data-tab].active')?.dataset.tab || 'pricing';
+    const isPricing = tab === 'pricing';
+    input.dataset.tabType = isPricing ? 'pricing' : 'settlement';
+    input.value = isPricing ? input.dataset.pricingValue : input.dataset.settlementValue;
+    const canEdit = (isPricing ? input.dataset.canEditPricing : input.dataset.canEditSettlement) === 'true';
+    input.disabled = !canEdit;
+  }
+  _syncTotalDiscountInput();
 
   /* ── 审批抽屉 ── */
   const drawerEl  = document.getElementById('approvalDrawer');
@@ -782,7 +833,7 @@ const PricingEditor = (() => {
     scrollEl.classList.remove('drawer-open');
     btnTextEl.textContent = '审批流程 ›';
   }
-  document.getElementById('approvalToggleBtn').addEventListener('click', toggleDrawer);
+  document.getElementById('approvalToggleBtn')?.addEventListener('click', toggleDrawer);
 
   /* ── 关闭浮层菜单 ── */
   // (菜单已移除，保留空调用以防引用)
@@ -932,6 +983,32 @@ const PricingEditor = (() => {
     if (e.target.matches('.cell-settle-note')) e.target._detached = true;
   });
 
+  /* ── 结算行内即时联动：折扣% / 结算价 改变即刷新同行其他单元格 ── */
+  document.getElementById('settlementTbody')?.addEventListener('input', e => {
+    const row = e.target.closest('tr.product-row');
+    if (!row) return;
+    if (!e.target.matches('.cell-settle-discount,.cell-settle-price')) return;
+    const marketTxt = (row.cells[6]?.textContent || '').replace(/,/g, '');
+    const market = parseFloat(marketTxt) || 0;
+    const qty = parseInt(row.cells[5]?.textContent) || 0;
+    const discInput = row.querySelector('.cell-settle-discount');
+    const priceInput = row.querySelector('.cell-settle-price');
+    const subEl = row.querySelector('.cell-settle-subtotal');
+    if (e.target.matches('.cell-settle-discount')) {
+      const disc = parseFloat(e.target.value) || 0;
+      const price = market * disc / 100;
+      if (priceInput && priceInput !== document.activeElement) priceInput.value = price.toFixed(2);
+      if (subEl) subEl.textContent = _fmt(price * qty);
+    } else if (e.target.matches('.cell-settle-price')) {
+      const price = parseFloat(e.target.value) || 0;
+      if (market > 0 && discInput && discInput !== document.activeElement) {
+        discInput.value = (price / market * 100).toFixed(1);
+      }
+      if (subEl) subEl.textContent = _fmt(price * qty);
+    }
+    _recalcSettlementTotal();
+  });
+
   /* ── 行内计算：市场价 / 折扣% / 数量 → 批价 / 小计 ── */
   document.getElementById('pricingTbody').addEventListener('input', e => {
     const row = e.target.closest('tr.product-row');
@@ -943,7 +1020,7 @@ const PricingEditor = (() => {
     const subtotal = price * qty;
     const priceEl  = row.querySelector('.cell-price');
     const subEl    = row.querySelector('.cell-subtotal');
-    if (priceEl) priceEl.textContent = _fmt(price);
+    _setPriceCell(priceEl, price);
     if (subEl)   subEl.textContent   = _fmt(subtotal);
     _recalcPricingTotal();
 
@@ -969,9 +1046,15 @@ const PricingEditor = (() => {
         if (e.target.matches('.cell-market,.cell-discount')) {
           // 批价 = market × disc% → 结算价跟随批价，折扣率/面价同步显示
           const spInput = sRow.querySelector('.cell-settle-price');
-          if (spInput) spInput.value = price.toFixed(2);
+          if (spInput && spInput !== document.activeElement) spInput.value = price.toFixed(2);
           if (sRow.cells[6]) sRow.cells[6].textContent = market > 0 ? _fmt(market) : '0.00';
-          if (sRow.cells[7]) sRow.cells[7].textContent = disc.toFixed(1) + '%';
+          // 结算折扣%：若是可编辑 input 则改 value，否则改文本（避免清空 input 元素）
+          const sDiscInput = sRow.querySelector('.cell-settle-discount');
+          if (sDiscInput) {
+            if (sDiscInput !== document.activeElement) sDiscInput.value = disc.toFixed(1);
+          } else if (sRow.cells[7]) {
+            sRow.cells[7].textContent = disc.toFixed(1) + '%';
+          }
           const q = parseInt(sRow.cells[5]?.textContent) || qty;
           const subEl2 = sRow.querySelector('.cell-settle-subtotal');
           if (subEl2) subEl2.textContent = _fmt(price * q);
@@ -982,6 +1065,54 @@ const PricingEditor = (() => {
   });
 
   function _fmt(n) { return n.toLocaleString('zh-CN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+  function _setPriceCell(el, val) {
+    if (!el) return;
+    if (el.tagName === 'INPUT') {
+      if (el !== document.activeElement) el.value = Number(val).toFixed(2);
+    } else {
+      el.textContent = _fmt(val);
+    }
+  }
+
+  /* ── 批价直接编辑：反算折扣% + 同步小计/汇总/结算行 ── */
+  document.getElementById('pricingTbody').addEventListener('input', e => {
+    const row = e.target.closest('tr.product-row');
+    if (!row || !e.target.matches('.cell-price')) return;
+    const market = parseFloat((row.querySelector('.cell-market')?.value || '').replace(/,/g, '')) || 0;
+    const qty = parseInt(row.querySelector('.cell-qty')?.value) || 0;
+    const price = parseFloat(e.target.value) || 0;
+    const subEl = row.querySelector('.cell-subtotal');
+    if (subEl) subEl.textContent = _fmt(price * qty);
+    if (market > 0) {
+      const discInput = row.querySelector('.cell-discount');
+      if (discInput && discInput !== document.activeElement) discInput.value = (price / market * 100).toFixed(2);
+    }
+    _recalcPricingTotal();
+    // 同步到结算行（与折扣%变更逻辑一致）
+    const pid = row.dataset.id;
+    let sRow = pid ? document.querySelector(`#settlementTbody tr[data-pricing-detail-id="${pid}"]`) : null;
+    if (!sRow) {
+      const pRows = [...document.querySelectorAll('#pricingTbody tr.product-row')];
+      const sRows = [...document.querySelectorAll('#settlementTbody tr.product-row')];
+      sRow = sRows[pRows.indexOf(row)] ?? null;
+    }
+    if (sRow) {
+      const sDiscDisplay = market > 0 ? (price / market * 100).toFixed(1) : '0';
+      const spInput = sRow.querySelector('.cell-settle-price');
+      if (spInput && spInput !== document.activeElement) spInput.value = price.toFixed(2);
+      const sDiscInput = sRow.querySelector('.cell-settle-discount');
+      if (sDiscInput) {
+        if (sDiscInput !== document.activeElement) sDiscInput.value = sDiscDisplay;
+      } else if (sRow.cells[7]) {
+        sRow.cells[7].textContent = sDiscDisplay + '%';
+      }
+      const q = parseInt(sRow.cells[5]?.textContent) || qty;
+      const subEl2 = sRow.querySelector('.cell-settle-subtotal');
+      if (subEl2) subEl2.textContent = _fmt(price * q);
+      _recalcSettlementTotal();
+    }
+  });
 
   function _recalcPricingTotal() {
     let total = 0;
@@ -1046,7 +1177,7 @@ const PricingEditor = (() => {
       <td class="editable" style="text-align:center"><input type="number" class="cell-qty" value="${data.quantity||1}" min="1" style="text-align:center"></td>
       <td class="editable col-market" style="text-align:right"><input type="text" inputmode="decimal" class="cell-market" value="" style="text-align:right"></td>
       <td class="editable col-discount" style="text-align:center"><div style="display:flex;align-items:center;justify-content:center;gap:1px"><input type="number" class="cell-discount" value="100" min="0" step="0.1" style="text-align:right;width:calc(100% - 12px)"><span style="color:#475569;font-size:11px;flex-shrink:0">%</span></div></td>
-      <td class="readonly" style="text-align:right"><span class="cell-price"></span></td>
+      <td class="editable" style="text-align:right"><input type="number" class="cell-price" value="" step="0.01" min="0" style="text-align:right;width:100%"></td>
       <td class="readonly" style="text-align:right"><span class="cell-subtotal"></span></td>
       <td class="editable col-note"><input class="cell-note" value=""></td>
       <td class="delete-cell"><span class="material-symbols-outlined" onclick="PricingEditor.deleteRow(this)" style="cursor:pointer;color:transparent;font-size:14px;transition:color .15s">delete</span></td>`;
@@ -1216,11 +1347,153 @@ const PricingEditor = (() => {
       });
       const data = await res.json();
       if (data.success && data.updated_detail) {
-        const subEl = input.closest('tr')?.querySelector('.cell-settle-subtotal');
+        const tr = input.closest('tr');
+        const subEl = tr?.querySelector('.cell-settle-subtotal');
         if (subEl) subEl.textContent = data.updated_detail.total_price.toFixed(2);
+        const discEl = tr?.querySelector('.cell-settle-discount');
+        if (discEl && discEl !== document.activeElement) {
+          discEl.value = (data.updated_detail.discount_rate * 100).toFixed(1);
+        }
         if (data.settlement_total_amount) _updateKPI(data.settlement_total_amount);
+        if (data.settlement_discount_percentage !== undefined) _setKpiDiscount('settlement', data.settlement_discount_percentage);
       }
     } catch (err) { console.error('结算明细更新失败', err); }
+  }
+
+  async function updatePricingDetailPrice(input) {
+    const detailId = input.dataset.detailId;
+    if (!detailId) return;
+    const unitPrice = parseFloat(input.value) || 0;
+    try {
+      const res = await fetch(`/pricing_order/${ORDER_ID}/update_pricing_detail`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ detail_id: parseInt(detailId), unit_price: unitPrice })
+      });
+      const data = await res.json();
+      if (data.success && data.updated_detail) {
+        // 后端返回准确折扣率，回写到 cell-discount（避免本地反算的精度漂移）
+        const tr = input.closest('tr');
+        const discInput = tr?.querySelector('.cell-discount');
+        if (discInput && discInput !== document.activeElement) {
+          discInput.value = (data.updated_detail.discount_rate * 100).toFixed(2);
+        }
+        const subEl = tr?.querySelector('.cell-subtotal');
+        if (subEl) subEl.textContent = _fmt(data.updated_detail.total_price);
+        if (data.pricing_total_amount) {
+          const ptEl = document.getElementById('pricingTotal');
+          if (ptEl) ptEl.textContent = `${CURRENCY_SYM} ${data.pricing_total_amount}`;
+        }
+        if (data.pricing_discount_percentage !== undefined) _setKpiDiscount('pricing', data.pricing_discount_percentage);
+      } else if (!data.success) {
+        alert(data.message || '单价更新失败');
+      }
+    } catch (err) { console.error('批价单单价更新失败', err); }
+  }
+
+  async function updateSettlementDiscount(input) {
+    const detailId = input.dataset.detailId;
+    if (!detailId) return;
+    const discountRate = parseFloat(input.value) / 100;
+    try {
+      const res = await fetch(`/pricing_order/${ORDER_ID}/update_settlement_detail`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ detail_id: parseInt(detailId), discount_rate: discountRate })
+      });
+      const data = await res.json();
+      if (data.success && data.updated_detail) {
+        const tr = input.closest('tr');
+        const priceEl = tr?.querySelector('.cell-settle-price');
+        if (priceEl && priceEl !== document.activeElement) priceEl.value = data.updated_detail.unit_price.toFixed(2);
+        const subEl = tr?.querySelector('.cell-settle-subtotal');
+        if (subEl) subEl.textContent = data.updated_detail.total_price.toFixed(2);
+        if (data.settlement_total_amount) _updateKPI(data.settlement_total_amount);
+        if (data.settlement_discount_percentage !== undefined) _setKpiDiscount('settlement', data.settlement_discount_percentage);
+      } else if (!data.success) {
+        alert(data.message || '折扣率更新失败');
+      }
+    } catch (err) { console.error('结算折扣率更新失败', err); }
+  }
+
+  async function updateTotalDiscount(value) {
+    const input = document.getElementById('kpiTotalDiscount');
+    if (!input || input.disabled) return;
+    const tabType = input.dataset.tabType || 'pricing';
+    const rate = parseFloat(value);
+    if (isNaN(rate) || rate < 0) {
+      alert('总折扣率不能为负数');
+      input.value = input.dataset[tabType + 'Value'];
+      return;
+    }
+    try {
+      const res = await fetch(`/pricing_order/${ORDER_ID}/update_total_discount`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tab_type: tabType, total_discount_rate: rate })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.message || '更新失败');
+        input.value = input.dataset[tabType + 'Value'];
+        return;
+      }
+      // 刷新对应 tab 内所有行的折扣%/批价/小计
+      if (tabType === 'pricing') {
+        (data.updated_details || []).forEach(d => {
+          const row = document.querySelector(`#pricingTbody tr[data-id="${d.id}"]`);
+          if (!row) return;
+          const discInput = row.querySelector('.cell-discount');
+          if (discInput && discInput !== document.activeElement) discInput.value = (d.discount_rate * 100).toFixed(1);
+          const priceEl = row.querySelector('.cell-price');
+          _setPriceCell(priceEl, d.unit_price);
+          const subEl = row.querySelector('.cell-subtotal');
+          if (subEl) subEl.textContent = _fmt(d.total_price);
+        });
+        const ptEl = document.getElementById('pricingTotal');
+        if (ptEl && data.pricing_total_amount) ptEl.textContent = `${CURRENCY_SYM} ${data.pricing_total_amount}`;
+        if (data.pricing_discount_percentage !== undefined) _setKpiDiscount('pricing', data.pricing_discount_percentage);
+        // 重新计算毛利（基于 pricing 改动）
+        const pt = parseFloat(String(data.pricing_total_amount || '0').replace(/,/g, ''));
+        const stEl = document.getElementById('settlementTotal');
+        const stStr = stEl ? stEl.textContent.replace(CURRENCY_SYM, '').trim() : '0';
+        _recalcKPIFrom(pt, parseFloat(stStr.replace(/,/g, '')) || 0);
+      } else {
+        (data.updated_details || []).forEach(d => {
+          const row = document.querySelector(`#settlementTbody tr[data-id="${d.id}"]`);
+          if (!row) return;
+          const discInput = row.querySelector('.cell-settle-discount');
+          if (discInput && discInput !== document.activeElement) discInput.value = (d.discount_rate * 100).toFixed(1);
+          const priceInput = row.querySelector('.cell-settle-price');
+          if (priceInput && priceInput !== document.activeElement) priceInput.value = d.unit_price.toFixed(2);
+          const subEl = row.querySelector('.cell-settle-subtotal');
+          if (subEl) subEl.textContent = _fmt(d.total_price);
+        });
+        if (data.settlement_total_amount) _updateKPI(data.settlement_total_amount);
+        if (data.settlement_discount_percentage !== undefined) _setKpiDiscount('settlement', data.settlement_discount_percentage);
+      }
+    } catch (err) {
+      console.error('总折扣率更新失败', err);
+      alert('总折扣率更新失败');
+      input.value = input.dataset[tabType + 'Value'];
+    }
+  }
+
+  function _setKpiDiscount(tabType, percentage) {
+    const input = document.getElementById('kpiTotalDiscount');
+    if (!input) return;
+    const val = parseFloat(percentage).toFixed(1);
+    input.dataset[tabType + 'Value'] = val;
+    if ((input.dataset.tabType || 'pricing') === tabType) input.value = val;
+  }
+
+  function _recalcKPIFrom(pt, st) {
+    const gp = pt - st;
+    const gm = pt > 0 ? gp / pt * 100 : 0;
+    const kpiGP = document.getElementById('kpiGrossProfit');
+    const kpiGM = document.getElementById('kpiGrossMargin');
+    if (kpiGP) kpiGP.textContent = `${CURRENCY_SYM} ${_fmt(gp)}`;
+    if (kpiGM) kpiGM.textContent = `${gm.toFixed(1)}%`;
   }
 
   function _updateKPI(settlementTotalStr) {
@@ -1238,7 +1511,25 @@ const PricingEditor = (() => {
 
   function printDoc() { _updatePrintTitle(); window.print(); }
 
-  return { addRow, deleteRow, save, updateSettlementDetail, updateSettlementNote, closeDrawer, syncDate, syncDelivery, printDoc };
+  async function deletePricingOrder() {
+    if (!confirm('确定要删除当前批价单吗？此操作不可恢复。')) return;
+    try {
+      const res = await fetch(`/pricing_order/${ORDER_ID}/delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (data.success) {
+        window.location.href = {{ back_url | tojson }};
+      } else {
+        alert(data.message || '删除失败');
+      }
+    } catch (err) {
+      alert('请求失败：' + err.message);
+    }
+  }
+
+  return { addRow, deleteRow, save, updatePricingDetailPrice, updateSettlementDetail, updateSettlementDiscount, updateSettlementNote, updateTotalDiscount, closeDrawer, syncDate, syncDelivery, printDoc, deletePricingOrder };
 })();
 </script>
 

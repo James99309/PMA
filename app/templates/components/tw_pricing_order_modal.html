@@ -2291,10 +2291,6 @@ window.PricingOrderModal = (function() {
      * 创建批价单
      */
     async function createPricingOrder() {
-        // 先打开模态框
-        open();
-        showLoading();
-
         try {
             const response = await fetch(`/pricing_order/project/${config.projectId}/start_pricing_process`, {
                 method: 'POST',
@@ -2309,17 +2305,14 @@ window.PricingOrderModal = (function() {
 
             const data = await response.json();
 
-            if (data.success) {
-                state.pricingOrderId = data.pricing_order_id;
-                loadPricingOrder(data.pricing_order_id);
+            if (data.success && data.redirect_url) {
+                window.location.href = data.redirect_url;
             } else {
                 showToast(data.message || '{{ _("创建失败") }}', 'error');
-                hideLoading();
             }
         } catch (error) {
             console.error('创建批价单失败:', error);
             showToast('{{ _("创建批价单失败") }}', 'error');
-            hideLoading();
         }
     }
 
