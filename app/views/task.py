@@ -318,6 +318,71 @@ def get_task(id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+def _fmt_dt(v):
+    if not v:
+        return _('（无）')
+    if hasattr(v, 'strftime'):
+        # date 或 datetime
+        return v.strftime('%Y-%m-%d %H:%M') if isinstance(v, datetime) else v.strftime('%Y-%m-%d')
+    return str(v)
+
+
+def _user_names(user_ids):
+    """根据 user_id 列表返回 'A、B、C' 形式的中文名串，找不到的用 'ID:n' 兜底。"""
+    if not user_ids:
+        return _('（无）')
+    users = User.query.filter(User.id.in_(list(user_ids))).all()
+    name_map = {u.id: (u.real_name or u.username) for u in users}
+    return '、'.join(name_map.get(uid, f'ID:{uid}') for uid in user_ids)
+
+
+def _build_task_change_log(t, before):
+    """对比任务修改前后的关键字段，返回多行变更描述。空列表表示无变更。"""
+    PRIORITY_LABELS = {'normal': _('普通'), 'high': _('高'), 'urgent': _('紧急'), 'low': _('低')}
+    lines = []
+
+    def diff(label, old, new, formatter=None):
+        if old == new:
+            return
+        f = formatter or (lambda v: v if v not in (None, '') else _('（无）'))
+        lines.append(f'{label}：{f(old)} → {f(new)}')
+
+    diff(_('标题'), before['title'], t.title)
+    diff(_('描述'), before['description'], t.description)
+    diff(_('优先级'), before['priority'], t.priority,
+         lambda v: PRIORITY_LABELS.get(v, v) if v else _('（无）'))
+    diff(_('截止时间'), before['due_date'], t.due_date, _fmt_dt)
+    diff(_('开始时间'), before['start_date'], t.start_date, _fmt_dt)
+    # 关联项目 / 报价单：按 id 对比，用快照里的名称展示旧值
+    if before['project_id'] != t.project_id:
+        old = before['project_name'] or _('（无）')
+        new = (t.project.project_name if t.project else _('（无）'))
+        lines.append(f"{_('关联项目')}：{old} → {new}")
+    if before['quotation_id'] != t.quotation_id:
+        old = before['quotation_number'] or _('（无）')
+        new = (t.quotation.quotation_number if t.quotation else _('（无）'))
+        lines.append(f"{_('关联报价单')}：{old} → {new}")
+
+    # 负责人
+    if before['assignee_id'] != t.assignee_id:
+        ids = [i for i in [before['assignee_id'], t.assignee_id] if i]
+        name_map = {u.id: (u.real_name or u.username) for u in User.query.filter(User.id.in_(ids)).all()} if ids else {}
+        old_name = name_map.get(before['assignee_id'], _('（无）')) if before['assignee_id'] else _('（无）')
+        new_name = name_map.get(t.assignee_id, _('（无）')) if t.assignee_id else _('（无）')
+        lines.append(f"{_('负责人')}：{old_name} → {new_name}")
+
+    # 协助人（集合对比，顺序无关）
+    if set(before['shared_with_users']) != set(t.shared_with_users or []):
+        lines.append(f"{_('协助人')}：{_user_names(before['shared_with_users'])} → {_user_names(t.shared_with_users or [])}")
+
+    # 审计人
+    new_reviewer_ids = sorted(r.reviewer_id for r in t.task_reviewers)
+    if before['reviewer_ids'] != new_reviewer_ids:
+        lines.append(f"{_('审计人')}：{_user_names(before['reviewer_ids'])} → {_user_names(new_reviewer_ids)}")
+
+    return lines
+
+
 @task.route('/api/<int:id>', methods=['PUT'])
 @login_required
 def update_task(id):
@@ -332,6 +397,22 @@ def update_task(id):
         data = request.get_json()
         if not data:
             return jsonify({'success': False, 'message': '无效的请求数据'}), 400
+
+        # ── 快照修改前的关键字段，用于生成变更日志 ──
+        before = {
+            'title': t.title,
+            'description': t.description,
+            'priority': t.priority,
+            'due_date': t.due_date,
+            'start_date': t.start_date,
+            'assignee_id': t.assignee_id,
+            'shared_with_users': list(t.shared_with_users or []),
+            'reviewer_ids': sorted(r.reviewer_id for r in t.task_reviewers),
+            'project_id': t.project_id,
+            'project_name': t.project.project_name if t.project else None,
+            'quotation_id': t.quotation_id,
+            'quotation_number': t.quotation.quotation_number if t.quotation else None,
+        }
 
         for field in ['title', 'description', 'priority', 'external_link', 'external_link_label']:
             if field in data:
@@ -386,6 +467,17 @@ def update_task(id):
 
         if 'status' in data and data['status'] in ('pending', 'in_progress', 'paused'):
             t.status = data['status']
+
+        # ── 生成变更日志（写入 TaskReply, reply_type='update'）──
+        change_lines = _build_task_change_log(t, before)
+        if change_lines:
+            db.session.add(TaskReply(
+                task_id=t.id,
+                subtask_id=None,
+                author_id=current_user.id,
+                content='\n'.join(change_lines),
+                reply_type='update',
+            ))
 
         db.session.commit()
         return jsonify({'success': True, 'message': _('任务已更新'), 'data': t.to_dict()})

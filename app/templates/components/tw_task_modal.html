@@ -75,7 +75,8 @@
          @click.stop>
         <!-- 标题栏 -->
         <div class="flex items-center justify-between px-5 py-3">
-            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('新建任务') }}</h3>
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white"
+                x-text="editingTaskId ? '{{ _('编辑任务') }}' : '{{ _('新建任务') }}'"></h3>
             <button @click="close()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
                 <span class="material-symbols-outlined text-xl">close</span>
             </button>
@@ -262,8 +263,8 @@
             </button>
             <button @click="submit()" :disabled="submitting"
                     class="px-4 py-1.5 text-sm text-white bg-primary hover:bg-primary/90 rounded-lg disabled:opacity-50">
-                <span x-show="!submitting">{{ _('创建任务') }}</span>
-                <span x-show="submitting">{{ _('创建中...') }}</span>
+                <span x-show="!submitting" x-text="editingTaskId ? '{{ _('保存修改') }}' : '{{ _('创建任务') }}'"></span>
+                <span x-show="submitting" x-text="editingTaskId ? '{{ _('保存中...') }}' : '{{ _('创建中...') }}'"></span>
             </button>
         </div>
     </div>
@@ -369,6 +370,7 @@ function taskCreateModal() {
     return {
         open: false,
         submitting: false,
+        editingTaskId: null,   // null = 创建模式，有值 = 编辑模式
         allUsers: [],
         filteredUsers: [],
         userSearch: '',
@@ -414,15 +416,88 @@ function taskCreateModal() {
 
         async openModal(detail) {
             this.resetForm();
-            if (detail && detail.project_id) {
+            detail = detail || {};
+            if (this.allUsers.length === 0) await this.loadUsers();
+
+            if (detail.taskId) {
+                // 编辑模式
+                this.editingTaskId = detail.taskId;
+                this.open = true;
+                await this.loadTaskForEdit(detail.taskId);
+                return;
+            }
+
+            // 创建模式
+            if (detail.project_id) {
                 this.form.project_id = detail.project_id;
                 this.showProjectSection = true;
             }
             this.open = true;
-            if (this.allUsers.length === 0) await this.loadUsers();
             // 默认选中当前用户
             if (this.selectedUsers.length === 0 && __taskCurrentUserId) {
                 this.selectedUsers = [{ id: __taskCurrentUserId, name: __taskCurrentUserName || '我' }];
+            }
+        },
+
+        async loadTaskForEdit(taskId) {
+            try {
+                const res = await fetch('/task/api/' + taskId);
+                const data = await res.json();
+                if (!data.success) {
+                    if (window.showToast) window.showToast(data.message || '{{ _("加载任务失败") }}', 'error');
+                    this.close();
+                    return;
+                }
+                const t = data.data;
+                this.form.title = t.title || '';
+                this.form.description = t.description || '';
+                this.form.priority = t.priority || 'normal';
+                this.form.start_date = t.start_date ? t.start_date.slice(0, 10) : '';
+                // datetime-local 需要 'YYYY-MM-DDTHH:mm'
+                this.form.due_date = t.due_date ? t.due_date.slice(0, 16) : '';
+                this.form.customer_id = t.customer_id || null;
+
+                // 主指派人 + 协助人 → selectedUsers（主指派排第一位）
+                const users = [];
+                if (t.assignee_id) {
+                    const u = this.allUsers.find(x => x.id === t.assignee_id);
+                    users.push({
+                        id: t.assignee_id,
+                        name: u ? (u.real_name || u.username) : (t.assignee_name || ('ID:' + t.assignee_id))
+                    });
+                }
+                for (const uid of (t.shared_with_users || [])) {
+                    if (uid === t.assignee_id) continue;
+                    const u = this.allUsers.find(x => x.id === uid);
+                    users.push({ id: uid, name: u ? (u.real_name || u.username) : ('ID:' + uid) });
+                }
+                this.selectedUsers = users;
+
+                // 审计人
+                this.selectedReviewers = (t.reviewers || []).map(r => {
+                    const u = this.allUsers.find(x => x.id === r.reviewer_id);
+                    return {
+                        id: r.reviewer_id,
+                        name: u ? (u.real_name || u.username) : (r.reviewer_name || ('ID:' + r.reviewer_id))
+                    };
+                });
+
+                // 关联项目/报价
+                if (t.project_id) {
+                    this.showProjectSection = true;
+                    this.form.project_id = t.project_id;
+                    this.selectedProjectName = t.project_name || '';
+                    this.form.quotation_id = t.quotation_id || '';
+                    try {
+                        const qres = await fetch('/task/api/project-quotations/' + t.project_id);
+                        const qdata = await qres.json();
+                        if (qdata.success) this.quotationOptions = qdata.data;
+                    } catch (e) { /* ignore */ }
+                }
+            } catch (e) {
+                console.error('加载任务失败:', e);
+                if (window.showToast) window.showToast('{{ _("网络错误") }}', 'error');
+                this.close();
             }
         },
 
@@ -438,6 +513,7 @@ function taskCreateModal() {
             // 默认开始日期：今天
             const today = new Date();
             const defaultStart = today.getFullYear() + '-' + pad(today.getMonth()+1) + '-' + pad(today.getDate());
+            this.editingTaskId = null;
             this.form = { title: '', description: '', priority: 'normal', start_date: defaultStart, due_date: defaultDue, project_id: null, quotation_id: '', customer_id: null };
             this.userSearch = '';
             this.selectedUsers = [];
@@ -567,37 +643,37 @@ function taskCreateModal() {
                 return;
             }
             this.submitting = true;
+            const isEdit = !!this.editingTaskId;
             try {
                 // 第一个选中用户为主指派人，其余为协助人
                 const payload = { ...this.form };
                 payload.assignee_id = this.selectedUsers[0].id;
-                if (this.selectedUsers.length > 1) {
-                    payload.shared_with_users = this.selectedUsers.slice(1).map(u => u.id);
-                }
-                // 审计人（会审多选）
-                if (this.selectedReviewers.length > 0) {
-                    payload.reviewer_ids = this.selectedReviewers.map(r => r.id);
-                }
+                payload.shared_with_users = this.selectedUsers.slice(1).map(u => u.id);
+                // 审计人（会审多选）— 编辑模式下需传空数组以清空
+                payload.reviewer_ids = this.selectedReviewers.map(r => r.id);
                 if (!payload.quotation_id) payload.quotation_id = null;
-                const res = await fetch('/task/api/create', {
-                    method: 'POST',
+
+                const url = isEdit ? ('/task/api/' + this.editingTaskId) : '/task/api/create';
+                const method = isEdit ? 'PUT' : 'POST';
+                const res = await fetch(url, {
+                    method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
                 if (data.success) {
-                    // 上传附件
-                    const taskId = data.data.id;
+                    // 上传附件（编辑模式只追加新文件）
+                    const taskId = isEdit ? this.editingTaskId : data.data.id;
                     for (const file of this.pendingFiles) {
                         const fd = new FormData();
                         fd.append('file', file);
                         try { await fetch('/task/api/' + taskId + '/attachments', { method: 'POST', body: fd }); } catch (e) { /* ignore */ }
                     }
-                    if (window.showToast) window.showToast('{{ _("任务创建成功") }}', 'success');
+                    if (window.showToast) window.showToast(isEdit ? '{{ _("任务已更新") }}' : '{{ _("任务创建成功") }}', 'success');
                     this.close();
-                    window.dispatchEvent(new CustomEvent('task-created', { detail: data.data }));
+                    window.dispatchEvent(new CustomEvent(isEdit ? 'task-updated' : 'task-created', { detail: data.data }));
                 } else {
-                    if (window.showToast) window.showToast(data.message || '{{ _("创建失败") }}', 'error');
+                    if (window.showToast) window.showToast(data.message || (isEdit ? '{{ _("更新失败") }}' : '{{ _("创建失败") }}'), 'error');
                 }
             } catch (e) {
                 if (window.showToast) window.showToast('{{ _("网络错误") }}', 'error');
