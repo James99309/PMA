@@ -9,6 +9,7 @@ PMA 在临时目录执行，输出 .xlsx。
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -139,6 +140,13 @@ class ExportToExcelTool(BaseTool):
     description = (
         '生成 Excel 文档（.xlsx）。\n'
         '当用户说"生成Excel"、"导出表格"、"导出Excel"、"下载Excel"时使用。\n\n'
+        '⚠️ 重要：**禁止**把 query_pma_database 返回的数据手抄到 python_code 里（会被 max_tokens 截断！）。\n'
+        '系统会自动注入 `query_results` 变量，结构：\n'
+        '  query_results = [\n'
+        '      {"sql": "...", "columns": ["c1","c2"], "rows": [[v1,v2], ...]},\n'
+        '      ...   # 按本轮查询时间先后排列, [-1] 是最近一次\n'
+        '  ]\n'
+        '直接用 `query_results[-1]["rows"]` / `query_results[-2]["rows"]` 等引用即可。\n\n'
         '参数：\n'
         '- python_code（必填）：使用 [PMA Excel 样式库] 写完整 openpyxl 代码。\n'
         '  代码结尾必须是 wb.save("__OUTPUT__")，工具会自动替换为实际路径。\n'
@@ -152,12 +160,14 @@ class ExportToExcelTool(BaseTool):
         '  wb, ws = init_workbook(db_type=DB_TYPE, sheet_title="总览")\n'
         '  row = write_title(ws, "报表标题", row=1, col_span=列数)\n'
         '  row = write_header_row(ws, ["列1", "列2", ...], row=row)\n'
+        '  data = query_results[-1]["rows"]   # 直接引用查询结果，不要内联\n'
         '  for i, item in enumerate(data):\n'
-        '      row = write_data_row(ws, row, [item.a, item.b], alt=(i%2==1))\n'
+        '      row = write_data_row(ws, row, list(item), alt=(i%2==1))\n'
         '  auto_column_width(ws)\n'
         '  freeze_header(ws)\n'
         '  wb.save("__OUTPUT__")\n\n'
-        '多 Sheet：wb.create_sheet("明细") 后对新 ws 同样调用样式函数。\n'
+        '多 Sheet：wb.create_sheet("明细") 后对新 ws 同样调用样式函数；\n'
+        '  两个 sheet 分别用 query_results[-2]["rows"] 和 query_results[-1]["rows"]。\n'
         '返回结果包含 download_url，直接回复"Excel已生成"即可，无需重复链接。'
     )
     input_schema = {
@@ -180,12 +190,13 @@ class ExportToExcelTool(BaseTool):
         python_code = tool_input.get('python_code', '').strip()
         title = tool_input.get('title', '').strip()
         user = context.get('user')
+        query_results = context.get('query_results') or []
 
         if not python_code:
             return {'error': 'python_code 参数不能为空'}
-        return self._execute_python_code(python_code, title, user)
+        return self._execute_python_code(python_code, title, user, query_results)
 
-    def _execute_python_code(self, code: str, title: str, user) -> dict:
+    def _execute_python_code(self, code: str, title: str, user, query_results: list) -> dict:
         output_filename = self._make_filename(title)
         os.makedirs(_STORAGE_DIR, exist_ok=True)
         final_path = os.path.join(_STORAGE_DIR, output_filename)
@@ -205,6 +216,13 @@ class ExportToExcelTool(BaseTool):
 
             Path(os.path.join(tmpdir, 'pma_xlsx_style.py')).write_text(style_code, encoding='utf-8')
 
+            # 把当前 run 的查询结果落到 JSON,供子进程通过 query_results 变量引用
+            data_path = os.path.join(tmpdir, '_query_results.json')
+            Path(data_path).write_text(
+                json.dumps(query_results, ensure_ascii=False, default=str),
+                encoding='utf-8',
+            )
+
             tmp_out = os.path.join(tmpdir, 'output.xlsx')
             if '__OUTPUT__' in code:
                 code = code.replace('__OUTPUT__', tmp_out)
@@ -214,8 +232,14 @@ class ExportToExcelTool(BaseTool):
                     f'wb.save("{tmp_out}")',
                     code
                 )
+            prelude = (
+                'import json as _json, os as _os\n'
+                'with open(_os.path.join(_os.path.dirname(__file__), "_query_results.json"),'
+                ' "r", encoding="utf-8") as _f:\n'
+                '    query_results = _json.load(_f)\n\n'
+            )
             script_path = os.path.join(tmpdir, 'gen.py')
-            Path(script_path).write_text(code, encoding='utf-8')
+            Path(script_path).write_text(prelude + code, encoding='utf-8')
 
             try:
                 result = subprocess.run(

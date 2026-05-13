@@ -11,6 +11,7 @@ export_to_word 工具：生成精美 Word 文档。
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -42,6 +43,9 @@ class ExportToWordTool(BaseTool):
     description = (
         '生成 Word 文档（.docx）。\n'
         '当用户说"生成报告"、"导出Word"、"生成文档"、"下载报告"时使用。\n\n'
+        '⚠️ 重要：**禁止**把 query_pma_database 返回的数据手抄到 python_code 里（会被 max_tokens 截断！）。\n'
+        '系统会自动注入 `query_results` 变量，结构为 [{"sql":..,"columns":..,"rows":..}, ...]，\n'
+        '直接用 `query_results[-1]["rows"]` 引用最近一次查询结果。\n\n'
         '参数选择：\n'
         '- python_code（推荐）：使用 [PMA Word 样式库] 中的函数写完整 python-docx 代码。'
         '代码必须调用 init_doc(db_type=DB_TYPE) 初始化，最后 doc.save(OUTPUT_PATH) 保存。'
@@ -74,9 +78,10 @@ class ExportToWordTool(BaseTool):
         markdown = tool_input.get('markdown', '').strip()
         title = tool_input.get('title', '').strip()
         user = context.get('user')
+        query_results = context.get('query_results') or []
 
         if python_code:
-            return self._execute_python_code(python_code, title, user)
+            return self._execute_python_code(python_code, title, user, query_results)
         elif markdown:
             return self._execute_pandoc(markdown, title, user)
         else:
@@ -84,7 +89,7 @@ class ExportToWordTool(BaseTool):
 
     # ── python-docx 路径 ────────────────────────────────────────────
 
-    def _execute_python_code(self, code: str, title: str, user) -> dict:
+    def _execute_python_code(self, code: str, title: str, user, query_results: list) -> dict:
         output_filename = self._make_filename(title)
         os.makedirs(_STORAGE_DIR, exist_ok=True)
         final_path = os.path.join(_STORAGE_DIR, output_filename)
@@ -99,6 +104,13 @@ class ExportToWordTool(BaseTool):
             except Exception as e:
                 logger.warning(f'[export_to_word] 无法加载 skill_body: {e}')
 
+            # 把当前 run 的查询结果落到 JSON,供子进程通过 query_results 变量引用
+            data_path = os.path.join(tmpdir, '_query_results.json')
+            Path(data_path).write_text(
+                json.dumps(query_results, ensure_ascii=False, default=str),
+                encoding='utf-8',
+            )
+
             tmp_out = os.path.join(tmpdir, 'output.docx')
             # 替换 __OUTPUT__ 占位符，或兜底替换 doc.save(...)
             if '__OUTPUT__' in code:
@@ -109,8 +121,14 @@ class ExportToWordTool(BaseTool):
                     f'doc.save("{tmp_out}")',
                     code
                 )
+            prelude = (
+                'import json as _json, os as _os\n'
+                'with open(_os.path.join(_os.path.dirname(__file__), "_query_results.json"),'
+                ' "r", encoding="utf-8") as _f:\n'
+                '    query_results = _json.load(_f)\n\n'
+            )
             script_path = os.path.join(tmpdir, 'gen.py')
-            Path(script_path).write_text(code, encoding='utf-8')
+            Path(script_path).write_text(prelude + code, encoding='utf-8')
 
             try:
                 result = subprocess.run(
