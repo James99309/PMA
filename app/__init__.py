@@ -292,6 +292,10 @@ def create_app(config_class=Config):
     from app.models.prospect_project import ProspectProject, ProspectStakeholder
     from app.models.prospect_claim_request import ProspectClaimRequest
     from app.models.chat import ChatConversation, ChatParticipant, ChatMessage, ChatTranslation
+    from app.models.training import (
+        TrainingModuleState, TrainingQuizAttempt,
+        TrainingStreak, TrainingApplicationSubmission,
+    )
 
     # 导入所有视图
     from app.views import main, customer, project, auth, user_bp
@@ -524,6 +528,11 @@ def create_app(config_class=Config):
     from app.routes.internal_api import internal_api_bp
     app.register_blueprint(internal_api_bp)
     csrf.exempt(internal_api_bp)  # 内部 API 使用 token 鉴权，豁免 CSRF
+
+    # pma-training v2 内部 API (X-Internal-Token + X-User-ID 鉴权)
+    from app.routes.training_api import training_api_bp
+    app.register_blueprint(training_api_bp)
+    csrf.exempt(training_api_bp)
 
     # 注册备份管理蓝图
     from app.routes.backup_routes import backup_bp
