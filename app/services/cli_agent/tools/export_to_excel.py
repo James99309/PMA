@@ -232,11 +232,22 @@ class ExportToExcelTool(BaseTool):
                     f'wb.save("{tmp_out}")',
                     code
                 )
+            # prelude:用 _QueryResultsList 包装,越界时给出明确长度信息,
+            # 避免 AI 看到光秃秃的 IndexError 不知道实际有几项
             prelude = (
                 'import json as _json, os as _os\n'
+                'class _QueryResultsList(list):\n'
+                '    def __getitem__(self, k):\n'
+                '        try:\n'
+                '            return super().__getitem__(k)\n'
+                '        except IndexError:\n'
+                '            raise IndexError(\n'
+                '                f"query_results[{k!r}] 越界:当前共 {len(self)} 项,"\n'
+                '                f"有效索引 [0, {len(self)-1}] 或 [-{len(self)}, -1]"\n'
+                '            ) from None\n'
                 'with open(_os.path.join(_os.path.dirname(__file__), "_query_results.json"),'
                 ' "r", encoding="utf-8") as _f:\n'
-                '    query_results = _json.load(_f)\n\n'
+                '    query_results = _QueryResultsList(_json.load(_f))\n\n'
             )
             script_path = os.path.join(tmpdir, 'gen.py')
             Path(script_path).write_text(prelude + code, encoding='utf-8')
@@ -251,7 +262,14 @@ class ExportToExcelTool(BaseTool):
 
             if result.returncode != 0:
                 logger.error(f'[export_to_excel] openpyxl 执行失败:\n{result.stderr}')
-                return {'error': f'Excel 生成失败: {result.stderr[:300]}'}
+                err_text = result.stderr[:400]
+                # 越界类错误时,再补一句当前可用项数,方便 AI 直接修正
+                if 'IndexError' in result.stderr and 'query_results' in result.stderr:
+                    err_text += (
+                        f'\n[系统提示] 当前 query_results 共 {len(query_results)} 项。'
+                        f'如需更多数据请重新调用 query_pma_database。'
+                    )
+                return {'error': f'Excel 生成失败: {err_text}'}
 
             if not os.path.exists(tmp_out):
                 return {'error': '代码执行成功但未找到输出文件，请确认代码中有 wb.save("__OUTPUT__")'}

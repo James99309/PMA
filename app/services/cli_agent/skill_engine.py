@@ -495,14 +495,14 @@ def _render_output_template(
 
 _ARTIFACT_CSS = """
   *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;font-size:13px;color:#111827;background:#fff;padding:4px}
-  table{border-collapse:collapse;width:100%;font-size:13px}
-  thead tr{background:#f9fafb;border-bottom:1px solid #e5e7eb}
-  th{padding:8px 12px;text-align:left;font-weight:600;color:#374151;white-space:nowrap;font-size:12px;letter-spacing:.02em}
-  td{padding:7px 12px;border-bottom:1px solid #f3f4f6;vertical-align:top;color:#111827}
+  body{font-family:system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;font-size:13px;color:#111827;background:#fff;padding:4px;overflow:auto}
+  table{border-collapse:collapse;min-width:100%;width:max-content;font-size:13px}
+  thead tr{background:#f9fafb;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:1}
+  th{padding:8px 12px;text-align:left;font-weight:600;color:#374151;white-space:nowrap;font-size:12px;letter-spacing:.02em;background:#f9fafb}
+  td{padding:7px 12px;border-bottom:1px solid #f3f4f6;vertical-align:top;color:#111827;min-width:90px;max-width:280px;word-break:break-word;overflow-wrap:break-word}
   tbody tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:#f9fafb}
-  td.num{text-align:right;font-variant-numeric:tabular-nums;color:#374151}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;color:#374151;white-space:nowrap}
   .empty{text-align:center;color:#9ca3af;padding:20px;font-size:12px}
   .card{display:flex;align-items:flex-start;gap:12px;padding:4px 0}
   .av{width:36px;height:36px;border-radius:50%;background:#e5e7eb;color:#374151;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0}
