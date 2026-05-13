@@ -28,10 +28,12 @@ class MeetingRecorder {
         // 配置
         this.recordingId = options.recordingId;
         this.mode = options.mode || 'microphone';
+        this.externalStream = options.externalStream || null;  // 用于 mode='external_stream'
         this.chunkDuration = options.chunkDuration || 30; // 秒
         this.maxDuration = options.maxDuration || 3 * 60 * 60; // 3小时
         this.uploadUrl = options.uploadUrl || '/meeting/api/recordings/chunk';
         this.completeUrl = options.completeUrl || `/meeting/api/recordings/${this.recordingId}/complete`;
+        this.track = options.track || 'mixed';  // 双轨录音：'mixed' / 'system'
 
         // 回调
         this.onTimeUpdate = options.onTimeUpdate || (() => {});
@@ -78,7 +80,9 @@ class MeetingRecorder {
 
         try {
             await this._initMediaRecorder();
-            this.mediaRecorder.start();
+            // 传入 timeslice (1000ms) 让 MediaRecorder 自动每秒触发一次 ondataavailable
+            // 这样 audioChunks 始终有最新数据，停止录音时不会丢失
+            this.mediaRecorder.start(1000);
             this._startTimer();
             this._startChunkUpload();
             this._setState('recording');
@@ -121,9 +125,12 @@ class MeetingRecorder {
         this._setState('stopped');
         this._stopTimer();
 
-        // 停止 MediaRecorder
+        // 停止 MediaRecorder（异步：等 onstop 触发后才能保证最后一次 ondataavailable 已完成）
         if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-            this.mediaRecorder.stop();
+            await new Promise((resolve) => {
+                this.mediaRecorder.onstop = () => resolve();
+                this.mediaRecorder.stop();
+            });
         }
 
         // 停止音轨
@@ -136,7 +143,7 @@ class MeetingRecorder {
             this.audioContext.close();
         }
 
-        // 上传剩余数据
+        // 上传剩余数据（此时 audioChunks 包含完整音频）
         await this._uploadRemainingChunks();
 
         // 通知服务器录音完成
@@ -196,7 +203,10 @@ class MeetingRecorder {
     async _initMediaRecorder() {
         let stream;
 
-        if (this.mode === 'microphone_system') {
+        if (this.mode === 'external_stream' && this.externalStream) {
+            // 外部传入的混合 stream（避免重复 getDisplayMedia / getUserMedia）
+            stream = this.externalStream;
+        } else if (this.mode === 'microphone_system') {
             stream = await this._getMixedStream();
         } else {
             stream = await navigator.mediaDevices.getUserMedia({
@@ -426,6 +436,7 @@ class MeetingRecorder {
         formData.append('chunk', blob, 'audio.webm');
         formData.append('recording_id', this.recordingId);
         formData.append('duration', this.elapsedTime);
+        formData.append('track', this.track);
         if (isFinal) {
             formData.append('is_final', 'true');
         }

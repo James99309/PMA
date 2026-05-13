@@ -540,6 +540,7 @@ function messagePanel() {
                 'worklog_mention': 'alternate_email',
                 'worklog_submitted': 'task_alt',
                 'workitem_shared': 'event',
+                'meeting_invite': 'record_voice_over',
                 'workitem_cancelled': 'event_busy',
                 'workitem_completed': 'event_available',
                 'workitem_time_changed': 'schedule',
@@ -759,6 +760,22 @@ function messagePanel() {
             // 流失项目申请参与 → 打开项目详情页（项目负责人在那里处理）
             if (item.message_type === 'prospect_claim_request' && item.related_object_id) {
                 window.location.href = `/project/view/${item.related_object_id}`;
+                return;
+            }
+
+            // 会议旁听邀请 → 启动 guest 模式浮窗，实时同步发起人的转录翻译
+            if (item.message_type === 'meeting_invite' && item.related_object_id) {
+                if (window.Alpine && Alpine.store('meeting')) {
+                    Alpine.store('meeting').openAsGuest({
+                        recordingId: item.related_object_id,
+                        title: item.content || item.title || '会议旁听',
+                    });
+                    // 关闭消息面板
+                    this.close && this.close();
+                } else {
+                    // 兜底跳详情页
+                    window.location.href = `/meeting/minutes/${item.related_object_id}`;
+                }
                 return;
             }
 

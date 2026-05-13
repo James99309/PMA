@@ -58,13 +58,19 @@ class MeetingRecording(db.Model):
     recording_mode = Column(String(50))  # 'microphone' / 'microphone_system'
     duration_seconds = Column(Integer, default=0)  # 录音时长（秒）
     file_size_bytes = Column(Integer, default=0)  # 文件大小（字节）
-    storage_path = Column(String(500))  # Supabase 存储路径
+    storage_path = Column(String(500))  # 混音轨存储路径（mic + system，回放用）
     storage_url = Column(String(1000))  # 访问URL
 
+    # 仅对方端（系统音频）独立录音 — pyannote 在此轨道做声纹分离，
+    # 避免把 mic（已知是当前用户）也卷入分离造成 SPEAKER_xx 与 me/peer 错乱
+    system_storage_path = Column(String(500))
+    system_storage_url = Column(String(1000))
+
     # 分块上传状态
-    total_chunks = Column(Integer, default=0)  # 总块数
-    uploaded_chunks = Column(Integer, default=0)  # 已上传块数
-    chunk_paths = Column(JSON, default=list)  # 各块存储路径
+    total_chunks = Column(Integer, default=0)  # 总块数（mixed 轨）
+    uploaded_chunks = Column(Integer, default=0)  # 已上传块数（mixed 轨）
+    chunk_paths = Column(JSON, default=list)  # 各块存储路径（mixed 轨）
+    system_chunk_paths = Column(JSON, default=list)  # system 轨各块路径
 
     # 状态
     status = Column(String(20), default='recording', index=True)
@@ -73,6 +79,10 @@ class MeetingRecording(db.Model):
     # 系统字段
     owner_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     owner = relationship('User', backref='meeting_recordings')
+
+    # 邀请旁听的 PMA 同事 user_id 列表
+    # 被邀请人不录音不上传，仅订阅同一份 transcript；列表/详情页权限会放行
+    invited_user_ids = Column(JSON, default=list)
 
     created_at = Column(DateTime, default=get_local_time)
     updated_at = Column(DateTime, default=get_local_time, onupdate=get_local_time)
@@ -117,11 +127,13 @@ class MeetingRecording(db.Model):
             'duration_display': self.get_duration_display(),
             'file_size_bytes': self.file_size_bytes,
             'storage_url': self.storage_url,
+            'system_storage_url': self.system_storage_url,
             'status': self.status,
             'status_display': self.get_status_display(),
             'error_message': self.error_message,
             'owner_id': self.owner_id,
             'owner_name': self.owner.real_name or self.owner.username if self.owner else None,
+            'invited_user_ids': self.invited_user_ids or [],
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'has_transcript': self.transcript is not None,
             'has_minutes': self.minutes is not None
@@ -256,6 +268,14 @@ class MeetingMinutes(db.Model):
     summary = Column(Text)  # 会议摘要
     key_points = Column(JSON, default=list)  # 关键要点列表 ['要点1', '要点2']
     decisions = Column(JSON, default=list)  # 决策事项列表 ['决策1', '决策2']
+    # V2 新增
+    chapters = Column(JSON, default=list)     # AI 切分章节 [{t, title, summary, speakers}]
+    key_quotes = Column(JSON, default=list)   # 金句 [{speaker, text, ts, category}]（整句原话）
+    highlights = Column(JSON, default=list)   # 段落里高光短语 ["跨语种","浮窗形态",...]（3-12 字）
+    # 多语言翻译版本（按需生成 + 缓存入库）
+    # 结构：{ "en": {summary, key_points, key_quotes, chapters, highlights, decisions}, "ja": {...} }
+    # 不含 host 母语本身 — 那是顶层字段
+    translations = Column(JSON, default=dict)
 
     # 参与者（从说话人映射获取）
     participants = Column(JSON, default=list)  # [{user_id, name, is_external}]
@@ -316,6 +336,10 @@ class MeetingMinutes(db.Model):
             data['summary'] = self.summary
             data['key_points'] = self.key_points
             data['decisions'] = self.decisions
+            data['chapters'] = self.chapters or []
+            data['key_quotes'] = self.key_quotes or []
+            data['highlights'] = self.highlights or []
+            data['translations'] = self.translations or {}
             data['action_items'] = [a.to_dict() for a in self.action_items if not a.is_deleted]
         return data
 

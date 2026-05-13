@@ -1,96 +1,221 @@
-{% extends 'components/tw_layout.html' %}
-{% from 'components/tw_buttons.html' import tw_btn, tw_btn_icon %}
+{% from 'components/tw_layout.html' import render_tw_layout, render_tw_layout_script with context %}
+{% from 'components/tw_buttons.html' import tw_btn, tw_btn_icon with context %}
+<!DOCTYPE html>
+<html lang="{{ session.get('language', 'zh') }}">
+<head>
+    <script>document.documentElement.classList.add(localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{{ recording.title or _('会议纪要') }}</title>
+    <link rel="dns-prefetch" href="https://fonts.googleapis.cn">
+    <link rel="dns-prefetch" href="https://fonts.gstatic.cn">
+    <link rel="preconnect" href="https://fonts.googleapis.cn" crossorigin>
+    <link rel="preconnect" href="https://fonts.gstatic.cn" crossorigin>
+    <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.cn/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.cn/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="/static/vendor/tailwind/tailwind.forms.min.js"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/collapse.min.js') }}"></script>
+    <script defer src="{{ url_for('static', filename='vendor/alpine/alpine.min.js') }}"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#faf8f6",
+                        "background-dark": "#1a1816",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        [x-cloak] { display: none !important; }
 
-{% block title %}{{ recording.title or _('会议纪要') }}{% endblock %}
+        /* 公用荧光笔样式（设计稿 pma-shared.jsx:52）：
+           上半透明 + 下半淡黄，模拟"记号笔"划线，不整块填充。
+           金句 / AI highlights / 搜索命中 三处共用同一颜色，视觉一致。
+           ❗用 .pma-hl-pen 命名空间避免跟 TL;DR 蓝色 .pma-hl 冲突 */
+        .pma-hl-pen {
+            background: linear-gradient(180deg, transparent 55%, #fef3a8 55%);
+            padding: 0 2px;
+        }
 
-{% block styles %}
-<style>
-/* Tab 切换动画 */
-.tab-content {
-    animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* 时间轴样式 */
-.transcript-item:hover {
-    background-color: rgba(var(--primary-rgb, 59, 130, 246), 0.05);
-}
-
-/* 进度条动画 */
-.progress-bar {
-    background: linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6);
-    background-size: 200% 100%;
-    animation: progressShimmer 2s linear infinite;
-}
-
-@keyframes progressShimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-}
-
-/* 音频播放器样式 */
-.audio-player {
-    -webkit-appearance: none;
-    width: 100%;
-    height: 6px;
-    border-radius: 3px;
-    background: #e2e8f0;
-    outline: none;
-}
-
-.audio-player::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #3b82f6;
-    cursor: pointer;
-}
-
-/* 说话人映射卡片 */
-.speaker-card {
-    transition: all 0.2s ease;
-}
-
-.speaker-card:hover {
-    border-color: #3b82f6;
-}
-</style>
-{% endblock %}
-
-{% block content %}
-<div x-data="meetingMinutesDetailApp()" x-init="loadData()" class="min-h-screen bg-slate-50 dark:bg-slate-950">
-    <!-- 顶部导航 -->
-    <div class="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-        <div class="max-w-5xl mx-auto px-4 py-3">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-4">
-                    <a href="{{ url_for('meeting.minutes_list') }}"
-                       class="flex items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                        <span class="material-symbols-outlined">arrow_back</span>
-                        <span class="hidden sm:inline">{{ _('返回') }}</span>
-                    </a>
-                    <div>
-                        <h1 class="text-lg font-semibold text-slate-900 dark:text-white truncate max-w-md"
-                            x-text="recording.title || '{{ _("会议纪要") }}'"></h1>
-                        <p class="text-sm text-slate-500 dark:text-slate-400" x-text="formatDate(recording.meeting_time)"></p>
+        .tab-content {
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .transcript-item:hover {
+            background-color: rgba(var(--primary-rgb, 59, 130, 246), 0.05);
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6);
+            background-size: 200% 100%;
+            animation: progressShimmer 2s linear infinite;
+        }
+        @keyframes progressShimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .audio-player {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #e2e8f0;
+            outline: none;
+        }
+        .audio-player::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+        }
+        .speaker-card {
+            transition: all 0.2s ease;
+        }
+        .speaker-card:hover {
+            border-color: #3b82f6;
+        }
+        /* 设计稿：TL;DR 内的蓝色高亮关键词 */
+        .pma-hl {
+            background: rgba(37, 99, 235, 0.10);
+            color: #1d4ed8;
+            padding: 0 4px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        .dark .pma-hl {
+            background: rgba(96, 165, 250, 0.15);
+            color: #93c5fd;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark">
+{% call(slot) render_tw_layout(active_page='meeting_minutes') %}
+{% if slot == 'content' %}
+<div x-data="meetingMinutesDetailApp()" x-init="loadData()" class="min-h-screen bg-background-light dark:bg-black">
+    <!-- 主要内容区（顶部 DetailTitleBar 按设计稿放在 page padding 内、tab 卡片之上） -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 pt-5 pb-4">
+        <!-- DetailTitleBar：返回 + 标题 + 副标 + 右侧操作按钮，跟设计稿一致 -->
+        <div class="flex items-start justify-between gap-3 mb-5">
+            <div class="flex items-start gap-4 min-w-0 flex-1">
+                <a href="{{ url_for('meeting.minutes_list') }}"
+                   class="inline-flex items-center gap-1 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors flex-shrink-0 mt-1">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">arrow_back</span>
+                    <span class="hidden sm:inline text-sm">{{ _('返回') }}</span>
+                </a>
+                <div class="min-w-0 flex-1 leading-tight">
+                    {# 标题 + 状态 badge 一行 #}
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <h1 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white truncate"
+                            x-text="recording.title || '{{ _("会议录音") }}'"></h1>
+                        <span x-show="recording.status === 'transcribed' || recording.status === 'minutes_generated' || recording.status === 'published'"
+                              class="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">
+                            {{ _('已转录') }}
+                        </span>
+                        <span x-show="minutes" class="text-[11px] px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 font-medium inline-flex items-center gap-0.5">
+                            <span class="material-symbols-outlined" style="font-size: 12px;">auto_awesome</span>
+                            {{ _('AI 纪要') }}
+                        </span>
+                    </div>
+                    {# 副标：日期 · 时长 · 说话人数 · 形式 #}
+                    <div class="text-[12px] text-slate-400 mt-1.5 inline-flex items-center gap-2 flex-wrap">
+                        <span class="font-mono" x-text="formatDate(recording.meeting_time)"></span>
+                        <span class="text-slate-300">·</span>
+                        <span x-show="recording.duration_display">{{ _('时长') }} <span class="font-mono" x-text="recording.duration_display"></span></span>
+                        <template x-if="speakerStats && speakerStats.length > 0">
+                            <span class="inline-flex items-center gap-1">
+                                <span class="text-slate-300">·</span>
+                                <span class="material-symbols-outlined" style="font-size: 13px;">groups</span>
+                                <span x-text="speakerStats.length + ' 位说话人'"></span>
+                            </span>
+                        </template>
+                        <span class="text-slate-300">·</span>
+                        <span>{{ _('麦克风 + 系统音频') }}</span>
                     </div>
                 </div>
-                <div class="flex items-center gap-2">
-                    {{ tw_btn_icon('file_download', onclick='showExportModal = true', title=_('导出')) }}
-                    {{ tw_btn_icon('share', onclick='showShareModal = true', title=_('分享')) }}
-                </div>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+                <button @click="showAiPanel = !showAiPanel"
+                        class="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-[13px] font-semibold transition-colors">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">auto_awesome</span>
+                    {{ _('AI 问答') }}
+                </button>
+                <button class="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-800"
+                        title="{{ _('翻译切换 · 开发中') }}">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">translate</span>
+                    {{ _('翻译') }}
+                </button>
+                <button @click="showExportModal = true"
+                        class="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">file_download</span>
+                    {{ _('导出') }}
+                </button>
+                <button @click="showShareModal = true"
+                        class="inline-flex items-center gap-1 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[13px] hover:bg-slate-50 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">share</span>
+                    {{ _('分享') }}
+                </button>
             </div>
         </div>
-    </div>
 
-    <!-- 主要内容区 -->
-    <div class="max-w-5xl mx-auto px-4 py-6">
-        <!-- 说话人映射提示（转录完成但未映射时显示） -->
+        <!-- 说话人 mapping 引导 banner（轮询发现 SPEAKER_xx 没 mapping 时出现） -->
+        <div x-show="needsMappingBanner" x-cloak
+             class="mb-4 px-4 py-3 rounded-xl flex items-center gap-3 border"
+             style="background: linear-gradient(90deg, rgba(139,92,246,0.08), rgba(99,102,241,0.05));"
+             :class="needsMappingBanner ? 'border-violet-200 dark:border-violet-800/50' : ''">
+            <div class="w-8 h-8 rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center flex-shrink-0">
+                <span class="material-symbols-outlined text-violet-600" style="font-size: 16px;">groups</span>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-slate-900 dark:text-white">
+                    {{ _('AI 已识别') }} <span x-text="unmappedSpeakerCount"></span> {{ _('位说话人') }}
+                </div>
+                <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {{ _('设置真实姓名后，纪要、转录、行动项里都会自动套用') }}
+                </div>
+            </div>
+            <button @click="openSpeakerMappingModal()"
+                    class="flex-shrink-0 px-3.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-lg inline-flex items-center gap-1.5">
+                <span class="material-symbols-outlined" style="font-size: 14px;">edit</span>
+                {{ _('立即设置') }}
+            </button>
+            <button @click="dismissMappingBanner()"
+                    class="flex-shrink-0 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-white/60 rounded"
+                    :title="'{{ _('稍后再说') }}'">
+                <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+            </button>
+        </div>
+
+        <!-- 内容卡片区 -->
+        <!-- 说话人映射提示 -->
         <div x-show="showSpeakerMapping" x-cloak
              class="bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-800 mb-6 overflow-hidden">
             <div class="p-6">
@@ -110,11 +235,9 @@
                     </button>
                 </div>
 
-                <!-- 说话人卡片列表 -->
                 <div class="space-y-4">
                     <template x-for="(speaker, index) in speakers" :key="speaker.id">
                         <div class="speaker-card p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700">
-                            <!-- 说话人标识 -->
                             <div class="flex items-start gap-4 mb-3">
                                 <div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-medium"
                                      :style="{ backgroundColor: getSpeakerColor(index) }">
@@ -126,7 +249,6 @@
                                 </div>
                             </div>
 
-                            <!-- 操作栏 -->
                             <div class="flex items-center justify-between">
                                 <button @click="playSpeakerSample(speaker)"
                                         class="flex items-center gap-1 text-sm text-primary hover:text-primary/80">
@@ -134,7 +256,6 @@
                                     <span>{{ _('试听') }}</span>
                                 </button>
 
-                                <!-- 用户选择 -->
                                 <div class="relative">
                                     <select x-model="speaker.mapped_user_id"
                                             class="pl-3 pr-8 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/50 focus:border-primary">
@@ -147,7 +268,6 @@
                                 </div>
                             </div>
 
-                            <!-- 外部人员输入（当选择添加外部人员时显示） -->
                             <div x-show="speaker.mapped_user_id === 'external'" x-cloak class="mt-3">
                                 <input type="text" x-model="speaker.external_name"
                                        placeholder="{{ _('输入外部人员姓名') }}"
@@ -176,7 +296,6 @@
         <!-- 转录中/生成中进度 -->
         <div x-show="showProgress" x-cloak
              class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 mb-6 p-8 text-center">
-            <!-- 转录中 -->
             <template x-if="recording.status === 'transcribing'">
                 <div>
                     <div class="mb-4">
@@ -195,7 +314,6 @@
                 </div>
             </template>
 
-            <!-- 纪要生成中 -->
             <template x-if="minutes?.status === 'generating'">
                 <div>
                     <div class="mb-4">
@@ -225,12 +343,12 @@
             </template>
         </div>
 
-        <!-- Tab 切换 -->
+        <!-- Tab 切换（sticky 在顶部，滚动时始终可见） -->
         <div x-show="!showProgress && !showSpeakerMapping" x-cloak>
-            <div class="bg-white dark:bg-slate-900 rounded-t-2xl border border-b-0 border-slate-200 dark:border-slate-800">
+            <div class="bg-white dark:bg-slate-900 rounded-t-2xl border border-b-0 border-slate-200 dark:border-slate-800 sticky top-0 z-40">
                 <div class="flex border-b border-slate-200 dark:border-slate-800">
                     <button @click="activeTab = 'minutes'"
-                            class="flex-1 py-4 text-sm font-medium transition-colors relative"
+                            class="flex-1 py-3.5 text-sm font-medium transition-colors relative focus:outline-none"
                             :class="activeTab === 'minutes' ? 'text-primary' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
                         <div class="flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined text-lg">description</span>
@@ -239,7 +357,7 @@
                         <div x-show="activeTab === 'minutes'" class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
                     </button>
                     <button @click="activeTab = 'transcript'"
-                            class="flex-1 py-4 text-sm font-medium transition-colors relative"
+                            class="flex-1 py-3.5 text-sm font-medium transition-colors relative focus:outline-none"
                             :class="activeTab === 'transcript' ? 'text-primary' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
                         <div class="flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined text-lg">article</span>
@@ -248,7 +366,7 @@
                         <div x-show="activeTab === 'transcript'" class="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
                     </button>
                     <button @click="activeTab = 'playback'"
-                            class="flex-1 py-4 text-sm font-medium transition-colors relative"
+                            class="flex-1 py-3.5 text-sm font-medium transition-colors relative focus:outline-none"
                             :class="activeTab === 'playback' ? 'text-primary' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'">
                         <div class="flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined text-lg">play_circle</span>
@@ -259,144 +377,441 @@
                 </div>
             </div>
 
-            <!-- Tab 内容 -->
-            <div class="bg-white dark:bg-slate-900 rounded-b-2xl border border-t-0 border-slate-200 dark:border-slate-800 overflow-hidden">
-                <!-- 会议纪要 Tab -->
+            <div class="bg-white dark:bg-slate-900 rounded-b-2xl border border-t-0 border-slate-200 dark:border-slate-800">
+                <!-- 会议纪要 Tab（按设计稿 pma-minutes.jsx 严格对齐） -->
                 <div x-show="activeTab === 'minutes'" class="tab-content">
-                    <template x-if="minutes">
-                        <div class="p-6 space-y-6">
-                            <!-- 会议摘要 -->
-                            <div>
-                                <h3 class="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
-                                    <span class="material-symbols-outlined text-base">push_pin</span>
-                                    {{ _('会议摘要') }}
-                                </h3>
-                                <div class="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
-                                    <p class="text-slate-700 dark:text-slate-300" x-text="minutes.summary || '{{ _("暂无摘要") }}'"></p>
-                                </div>
-                            </div>
+                    <div :class="showAiPanel ? 'grid lg:grid-cols-[1fr_360px]' : 'block'">
+                        <!-- 主区 -->
+                        <div class="p-7 sm:p-9">
+                            <template x-if="minutes">
+                                <div>
+                                    {# 1. AI 整理的纪要 标题 #}
+                                    <div class="mb-6">
+                                        <div class="flex items-center gap-2 text-violet-600 dark:text-violet-400 text-[12px] font-semibold tracking-[0.04em] uppercase mb-2.5">
+                                            <span class="material-symbols-outlined" style="font-size: 13px;">auto_awesome</span>
+                                            {{ _('AI 整理的纪要') }}
+                                        </div>
+                                        <h2 class="text-[28px] sm:text-[30px] font-semibold text-slate-900 dark:text-white leading-[1.2] tracking-[-0.01em]"
+                                            x-text="minutes?.title || recording.title"></h2>
+                                        <div class="mt-2 text-[13px] text-slate-500 dark:text-slate-400">
+                                            {{ _('由 PMA 在') }} <span x-text="formatHM(minutes?.created_at)"></span> {{ _('自动整理') }}
+                                            <span class="mx-1.5">·</span>
+                                            <span x-text="(speakerStats?.length || 0) + ' {{ _("位说话人") }}'"></span>
+                                            <span x-show="transcript?.language" class="mx-1.5">·</span>
+                                            <span x-show="transcript?.language" x-text="transcript?.language?.toUpperCase()"></span>
+                                        </div>
+                                    </div>
 
-                            <!-- 关键要点 -->
-                            <div x-show="minutes.key_points && minutes.key_points.length > 0">
-                                <h3 class="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
-                                    <span class="material-symbols-outlined text-base">target</span>
-                                    {{ _('关键要点') }}
-                                </h3>
-                                <ul class="space-y-2">
-                                    <template x-for="point in minutes.key_points" :key="point">
-                                        <li class="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                                            <span class="material-symbols-outlined text-primary text-base mt-0.5">check_circle</span>
-                                            <span class="text-slate-700 dark:text-slate-300" x-text="point"></span>
-                                        </li>
-                                    </template>
-                                </ul>
-                            </div>
+                                    {# 2. TL;DR 米色渐变卡 + 蓝色高亮 #}
+                                    <section class="rounded-[14px] p-[18px_22px] mb-7"
+                                             style="background: linear-gradient(180deg, #faf4e2 0%, #f6efdb 100%); border: 1px solid #e9d99c;">
+                                        <div class="flex items-center gap-2 mb-2.5">
+                                            <span class="material-symbols-outlined text-amber-600" style="font-size: 14px;">bolt</span>
+                                            <span class="text-[12px] font-bold tracking-[0.06em] text-amber-700 uppercase">TL;DR</span>
+                                        </div>
+                                        <p class="text-[16px] leading-[1.65] text-slate-800 m-0"
+                                           x-html="highlightSummary(displayMinutes?.summary || '{{ _("暂无摘要") }}')"></p>
+                                    </section>
 
-                            <!-- 行动项 -->
-                            <div x-show="actionItems && actionItems.length > 0">
-                                <h3 class="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
-                                    <span class="material-symbols-outlined text-base">task_alt</span>
-                                    {{ _('行动项') }}
-                                </h3>
-                                <div class="space-y-3">
-                                    <template x-for="item in actionItems" :key="item.id">
-                                        <div class="p-4 border border-slate-200 dark:border-slate-700 rounded-xl">
-                                            <div class="flex items-start gap-3">
-                                                <button @click="toggleActionItem(item)"
-                                                        class="mt-0.5 flex-shrink-0">
-                                                    <span class="material-symbols-outlined text-xl"
-                                                          :class="item.status === 'completed' ? 'text-green-500' : 'text-slate-400 hover:text-primary'">
-                                                        <template x-if="item.status === 'completed'">check_box</template>
-                                                        <template x-if="item.status !== 'completed'">check_box_outline_blank</template>
-                                                    </span>
-                                                </button>
-                                                <div class="flex-1">
-                                                    <p class="text-slate-900 dark:text-white"
-                                                       :class="{ 'line-through opacity-60': item.status === 'completed' }"
-                                                       x-text="item.title"></p>
-                                                    <div class="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500 dark:text-slate-400">
-                                                        <span x-show="item.assignee_name" class="flex items-center gap-1">
-                                                            <span class="material-symbols-outlined text-base">person</span>
-                                                            <span x-text="item.assignee_name"></span>
-                                                        </span>
-                                                        <span x-show="item.due_date" class="flex items-center gap-1"
-                                                              :class="isOverdue(item.due_date) && item.status !== 'completed' ? 'text-red-500' : ''">
-                                                            <span class="material-symbols-outlined text-base">event</span>
-                                                            <span x-text="formatDate(item.due_date)"></span>
-                                                            <span x-show="isOverdue(item.due_date) && item.status !== 'completed'" class="text-xs">({{ _('已逾期') }})</span>
-                                                        </span>
+                                    {# 3. 参会人员 #}
+                                    {% set _section_head = '<div class="flex items-baseline gap-2.5 mb-3.5"><div class="flex items-center gap-2">' %}
+                                    <section class="mb-8">
+                                        <div class="flex items-baseline gap-2.5 mb-3.5">
+                                            <div class="flex items-center gap-2">
+                                                <span class="material-symbols-outlined text-slate-700" style="font-size: 16px;">groups</span>
+                                                <h3 class="text-[16px] font-bold text-slate-900 dark:text-white tracking-[-0.005em]">{{ _('参会人员') }}</h3>
+                                                <span class="text-[13px] text-slate-400" x-text="speakerStats?.length || 0"></span>
+                                            </div>
+                                        </div>
+                                        <div class="flex flex-wrap gap-2.5">
+                                            <template x-for="(sp, i) in speakerStats" :key="sp.key">
+                                                <div class="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 pl-2 pr-3.5 py-2 rounded-full">
+                                                    <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-semibold flex-shrink-0"
+                                                         :style="{ backgroundColor: speakerColorOf(sp.key) }"
+                                                         x-text="sp.name.charAt(0).toUpperCase()"></div>
+                                                    <div class="text-[13px] font-semibold text-slate-900 dark:text-white leading-tight"
+                                                         x-text="sp.name"></div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </section>
+
+                                    {# 4. 章节 #}
+                                    <section class="mb-8">
+                                        <div class="flex items-baseline gap-2.5 mb-3.5">
+                                            <div class="flex items-center gap-2">
+                                                <span class="material-symbols-outlined text-slate-700" style="font-size: 16px;">list</span>
+                                                <h3 class="text-[16px] font-bold text-slate-900 dark:text-white tracking-[-0.005em]">{{ _('章节') }}</h3>
+                                                <span class="text-[13px] text-slate-400" x-text="(minutes?.chapters || []).length || 0"></span>
+                                            </div>
+                                            <span class="text-[12px] text-slate-400">· {{ _('点击章节跳到录音对应位置') }}</span>
+                                        </div>
+                                        <template x-if="(minutes?.chapters || []).length > 0">
+                                            <div>
+                                                <template x-for="(c, i) in displayMinutes.chapters" :key="i">
+                                                    <div :class="i ? 'border-t border-slate-100 dark:border-slate-800' : ''"
+                                                         class="grid grid-cols-[64px_1fr_auto] gap-3.5 py-3.5 px-1 items-start">
+                                                        <button @click="seekToTime(c.start_time || _tsToSec(c.t) || 0)"
+                                                                class="font-mono inline-flex items-center justify-center gap-1 px-1 rounded-md border border-slate-200 dark:border-slate-700 text-[12px] text-slate-700 dark:text-slate-200 h-[26px]">
+                                                            <span class="material-symbols-outlined text-slate-400" style="font-size: 10px;">play_arrow</span>
+                                                            <span x-text="c.t || '00:00'"></span>
+                                                        </button>
+                                                        <div>
+                                                            <div class="text-[15px] font-semibold text-slate-900 dark:text-white mb-1" x-text="c.title"></div>
+                                                            <div class="text-[13.5px] text-slate-500 dark:text-slate-400 leading-[1.55]" x-text="c.summary"></div>
+                                                        </div>
+                                                        <div class="flex items-center" style="margin-left:0;">
+                                                            <template x-for="(sid, k) in (c.speakers || [])" :key="k">
+                                                                <div class="w-[22px] h-[22px] rounded-full flex items-center justify-center text-white text-[10px] font-semibold border-2 border-white dark:border-slate-900"
+                                                                     :style="{ backgroundColor: speakerColorOf(sid), marginLeft: k ? '-6px' : '0' }"
+                                                                     x-text="speakerNameOf(sid).charAt(0).toUpperCase()"></div>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                        <template x-if="!(minutes?.chapters || []).length">
+                                            <div class="px-4 py-6 bg-slate-50 dark:bg-slate-800/30 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center text-[13px] text-slate-400">
+                                                {{ _('AI 未识别出明显章节 · 可在「完整转录」按时间线查看') }}
+                                            </div>
+                                        </template>
+                                    </section>
+
+                                    {# 5. 关键决策 #}
+                                    <section x-show="displayMinutes.decisions && displayMinutes.decisions.length > 0" class="mb-8">
+                                        <div class="flex items-center gap-2 mb-3.5">
+                                            <span class="material-symbols-outlined text-slate-700" style="font-size: 16px;">flag</span>
+                                            <h3 class="text-[16px] font-bold text-slate-900 dark:text-white tracking-[-0.005em]">{{ _('关键决策') }}</h3>
+                                            <span class="text-[13px] text-slate-400" x-text="(displayMinutes.decisions || []).length"></span>
+                                        </div>
+                                        <div class="space-y-2.5">
+                                            <template x-for="(d, i) in (displayMinutes.decisions || [])" :key="i">
+                                                <div class="flex gap-3.5 px-4 py-3.5 rounded-[10px]"
+                                                     style="background: rgba(31,138,91,0.08); border: 1px solid rgba(31,138,91,0.18);">
+                                                    <div class="flex-shrink-0 w-[22px] h-[22px] rounded-md bg-emerald-600 text-white flex items-center justify-center mt-0.5">
+                                                        <span class="material-symbols-outlined" style="font-size: 14px;">check</span>
+                                                    </div>
+                                                    <div class="flex-1 min-w-0">
+                                                        <div class="text-[14.5px] text-slate-800 dark:text-slate-200 leading-[1.55]"
+                                                             x-text="typeof d === 'string' ? d : (d.text || d.ink || '')"></div>
+                                                        <div x-show="typeof d === 'object' && (d.by || d.t)"
+                                                             class="flex items-center gap-2 mt-1.5 text-[12px] text-slate-500">
+                                                            <template x-if="typeof d === 'object' && d.by">
+                                                                <div class="w-[18px] h-[18px] rounded-full flex items-center justify-center text-white text-[9px] font-semibold"
+                                                                     :style="{ backgroundColor: speakerColorOf(d.by) }"
+                                                                     x-text="speakerNameOf(d.by).charAt(0).toUpperCase()"></div>
+                                                            </template>
+                                                            <span x-show="typeof d === 'object' && d.by" x-text="speakerNameOf(d.by)"></span>
+                                                            <span x-show="typeof d === 'object' && d.by && d.t">·</span>
+                                                            <span x-show="typeof d === 'object' && d.t" class="font-mono" x-text="d.t"></span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div class="flex items-center gap-1">
-                                                    <button @click="addToCalendar(item)"
-                                                            class="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                                                            title="{{ _('添加到日历') }}">
-                                                        <span class="material-symbols-outlined text-lg">calendar_add_on</span>
+                                            </template>
+                                        </div>
+                                    </section>
+
+                                    {# 6. 待办事项 Action Items（表格风） #}
+                                    <section x-show="actionItems && actionItems.length > 0" class="mb-8">
+                                        <div class="flex items-center gap-2 mb-3.5">
+                                            <span class="material-symbols-outlined text-slate-700" style="font-size: 16px;">task_alt</span>
+                                            <h3 class="text-[16px] font-bold text-slate-900 dark:text-white tracking-[-0.005em]">{{ _('待办事项') }} · Action Items</h3>
+                                            <span class="text-[13px] text-slate-400" x-text="actionItems.length"></span>
+                                            <div class="flex-1"></div>
+                                            <button class="inline-flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-0 px-2.5 py-1.5 rounded-lg text-[12px] font-semibold hover:bg-blue-100"
+                                                    title="{{ _('功能开发中') }}">
+                                                <span class="material-symbols-outlined" style="font-size: 12px;">link</span>
+                                                {{ _('同步全部到任务系统') }}
+                                            </button>
+                                        </div>
+                                        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-[12px] overflow-hidden">
+                                            <template x-for="(item, i) in actionItems" :key="item.id">
+                                                <div :class="i ? 'border-t border-slate-100 dark:border-slate-800' : ''"
+                                                     class="grid grid-cols-[24px_1fr_140px_110px_28px] gap-3.5 px-4 py-3 items-center">
+                                                    <button @click="toggleActionItem(item)" class="flex-shrink-0">
+                                                        <span class="material-symbols-outlined text-[18px]"
+                                                              :class="item.status === 'completed' ? 'text-emerald-500' : 'text-slate-300'"
+                                                              x-text="item.status === 'completed' ? 'check_box' : 'check_box_outline_blank'"></span>
                                                     </button>
-                                                    <button @click="editActionItem(item)"
-                                                            class="p-2 text-slate-400 hover:text-primary hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
-                                                            title="{{ _('编辑') }}">
-                                                        <span class="material-symbols-outlined text-lg">edit</span>
+                                                    <div class="text-[14px] text-slate-900 dark:text-white leading-[1.5]"
+                                                         :class="{ 'line-through opacity-60': item.status === 'completed' }"
+                                                         x-text="item.title"></div>
+                                                    <div x-show="item.assignee_name" class="flex items-center gap-2">
+                                                        <div class="w-[22px] h-[22px] rounded-full flex items-center justify-center text-white text-[10px] font-semibold"
+                                                             :style="{ backgroundColor: getSpeakerColor((item.assignee_name || '').charCodeAt(0) % 8) }"
+                                                             x-text="(item.assignee_name || '?').charAt(0).toUpperCase()"></div>
+                                                        <span class="text-[13px] text-slate-700 dark:text-slate-200" x-text="item.assignee_name"></span>
+                                                    </div>
+                                                    <span x-show="!item.assignee_name" class="text-[12px] text-slate-300">—</span>
+                                                    <span class="font-mono text-[12px]"
+                                                          :class="isOverdue(item.due_date) && item.status !== 'completed' ? 'text-red-500 font-semibold' : 'text-slate-500'"
+                                                          x-text="item.due_date ? formatDate(item.due_date) : '—'"></span>
+                                                    <button @click="addToCalendar(item)"
+                                                            class="text-slate-300 hover:text-primary"
+                                                            title="{{ _('添加到日历') }}">
+                                                        <span class="material-symbols-outlined" style="font-size: 15px;">link</span>
                                                     </button>
                                                 </div>
+                                            </template>
+                                        </div>
+                                    </section>
+
+                                    {# 7. 关键引用（金句） #}
+                                    <section x-show="(displayMinutes.key_points || []).length > 0 || (displayMinutes.key_quotes || []).length > 0" class="mb-8">
+                                        <div class="flex items-baseline gap-2.5 mb-3.5">
+                                            <div class="flex items-center gap-2">
+                                                {# 严格复刻设计稿 I.quote SVG #}
+                                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M7 7h4v6c0 2-1.5 3.5-4 4"/>
+                                                    <path d="M14 7h4v6c0 2-1.5 3.5-4 4"/>
+                                                </svg>
+                                                <h3 class="text-[16px] font-bold text-slate-900 dark:text-white tracking-[-0.005em]">{{ _('关键引用') }}</h3>
+                                                <span class="text-[13px] text-slate-400" x-text="(displayMinutes.key_quotes || displayMinutes.key_points || []).length"></span>
                                             </div>
+                                            <span class="text-[12px] text-slate-400">· {{ _('AI 标记的高价值原话') }}</span>
+                                        </div>
+                                        <div class="space-y-3.5">
+                                            <template x-for="(q, i) in (displayMinutes.key_quotes || displayMinutes.key_points || [])" :key="i">
+                                                <blockquote class="m-0 p-[16px_20px_16px_22px] bg-slate-50 dark:bg-slate-800/40 rounded-[10px]"
+                                                            style="border-left: 3px solid #6f5bf6;">
+                                                    <div class="text-[16px] italic text-slate-900 dark:text-white leading-[1.6]"
+                                                         x-text="'&ldquo;' + (typeof q === 'string' ? q : (q.text || q.q || '')) + '&rdquo;'"></div>
+                                                    <div class="flex items-center gap-2 mt-2.5 text-[12px] text-slate-500">
+                                                        <template x-if="typeof q === 'object' && (q.speaker || q.by)">
+                                                            <div class="w-[18px] h-[18px] rounded-full flex items-center justify-center text-white text-[9px] font-semibold"
+                                                                 :style="{ backgroundColor: speakerColorOf(q.speaker || q.by) }"
+                                                                 x-text="speakerNameOf(q.speaker || q.by).charAt(0).toUpperCase()"></div>
+                                                        </template>
+                                                        <span x-show="typeof q === 'object' && (q.speaker || q.by)" class="font-medium text-slate-700 dark:text-slate-200"
+                                                              x-text="speakerNameOf(q.speaker || q.by)"></span>
+                                                        <template x-if="typeof q === 'object' && q.category">
+                                                            <span class="px-1.5 py-0.5 rounded bg-violet-100 text-violet-700 text-[10px] font-medium" x-text="q.category"></span>
+                                                        </template>
+                                                        <span x-show="typeof q === 'object' && (q.speaker || q.by) && (q.ts || q.t)">·</span>
+                                                        <span x-show="typeof q === 'object' && (q.ts || q.t)" class="font-mono" x-text="q.ts || q.t"></span>
+                                                        <div class="flex-1"></div>
+                                                        <button x-show="typeof q === 'object' && (q.ts || q.t || q.start_time !== undefined)"
+                                                                @click="seekToTime(q.start_time || _tsToSec(q.ts || q.t) || 0)"
+                                                                class="text-slate-500 hover:text-primary inline-flex items-center gap-1 text-[12px]">
+                                                            <span class="material-symbols-outlined" style="font-size: 12px;">play_arrow</span>
+                                                            {{ _('跳转到录音') }}
+                                                        </button>
+                                                    </div>
+                                                </blockquote>
+                                            </template>
+                                        </div>
+                                    </section>
+
+                                    {# 8. 下一步会议安排 #}
+                                    <section x-show="minutes.next_meeting" class="mb-8">
+                                        <div class="flex items-center gap-2 mb-3.5">
+                                            <span class="material-symbols-outlined text-slate-700" style="font-size: 16px;">event</span>
+                                            <h3 class="text-[16px] font-bold text-slate-900 dark:text-white tracking-[-0.005em]">{{ _('下一步会议安排') }}</h3>
+                                        </div>
+                                        <div class="flex items-center gap-4 px-4 py-3.5 rounded-[10px]"
+                                             style="background: rgba(37,99,235,0.06); border: 1px solid rgba(37,99,235,0.18);">
+                                            <div class="w-[46px] h-[46px] rounded-[10px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center flex-shrink-0">
+                                                <div class="text-[10px] font-bold tracking-[0.06em] text-red-500" x-text="(minutes.next_meeting?.month || '5月')"></div>
+                                                <div class="font-mono text-[18px] font-bold text-slate-900 dark:text-white leading-none" x-text="(minutes.next_meeting?.day || '22')"></div>
+                                            </div>
+                                            <div class="flex-1">
+                                                <div class="text-[14px] font-semibold text-slate-900 dark:text-white" x-text="minutes.next_meeting?.title"></div>
+                                                <div class="text-[12px] text-slate-500 mt-0.5" x-text="minutes.next_meeting?.subtitle"></div>
+                                            </div>
+                                            <button class="bg-blue-600 text-white px-3.5 py-2 rounded-lg text-[13px] font-semibold hover:bg-blue-700">
+                                                {{ _('添加到日历') }}
+                                            </button>
+                                        </div>
+                                    </section>
+
+                                    {# 9. Regen footer #}
+                                    <div class="mt-7 px-4 py-3.5 rounded-[12px] flex items-center gap-3"
+                                         style="background: rgba(248,243,228,0.5); border: 1px dashed rgba(60,42,15,0.18);">
+                                        <span class="material-symbols-outlined text-violet-600" style="font-size: 16px;">auto_awesome</span>
+                                        <div class="flex-1 text-[13px] text-slate-500">
+                                            {{ _('纪要不准确？你可以编辑、也可以让 AI 用不同的视角重新整理。') }}
+                                        </div>
+                                        <button @click="editMinutes()"
+                                                class="inline-flex items-center gap-1.5 bg-transparent border border-slate-300 dark:border-slate-600 px-3 py-1.5 rounded-lg text-[13px] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                                            <span class="material-symbols-outlined" style="font-size: 13px;">edit</span>
+                                            {{ _('手动编辑') }}
+                                        </button>
+                                        <button @click="regenerateMinutes()"
+                                                class="inline-flex items-center gap-1.5 bg-violet-600 hover:bg-violet-700 text-white border-0 px-3 py-1.5 rounded-lg text-[13px] font-semibold">
+                                            <span class="material-symbols-outlined" style="font-size: 13px;">auto_fix_high</span>
+                                            {{ _('重新生成') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+
+                            <template x-if="!minutes">
+                                <div class="py-14 text-center">
+                                    {# 后台自动生成中：录音结束后 stop 路由会 spawn 线程跑 AI #}
+                                    <template x-if="isAutoGenerating">
+                                        <div>
+                                            <div class="w-16 h-16 mx-auto rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-3">
+                                                <span class="material-symbols-outlined text-3xl text-purple-600 animate-pulse">auto_awesome</span>
+                                            </div>
+                                            <h3 class="text-base font-medium text-slate-700 dark:text-slate-200 mb-1.5">{{ _('AI 正在生成纪要…') }}</h3>
+                                            <p class="text-sm text-slate-400 mb-4">{{ _('基于完整转录提取摘要、决策、待办，预计 20–60 秒') }}</p>
+                                            <div class="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                                                <span class="material-symbols-outlined animate-spin" style="font-size: 14px;">progress_activity</span>
+                                                <span>{{ _('页面会自动刷新') }}</span>
+                                            </div>
+                                            <p x-show="generateMinutesError" x-cloak
+                                               class="mt-3 text-xs text-red-500" x-text="generateMinutesError"></p>
+                                        </div>
+                                    </template>
+
+                                    {# 兜底空状态（极少触发：转录还没好 / 后台任务失败后用户手动重试） #}
+                                    <template x-if="!isAutoGenerating">
+                                        <div>
+                                            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-3 block">auto_awesome</span>
+                                            <h3 class="text-base font-medium text-slate-700 dark:text-slate-200 mb-1.5">{{ _('还没有会议纪要') }}</h3>
+                                            <p class="text-sm text-slate-400 mb-5"
+                                               x-text="(transcript && transcript.segments && transcript.segments.length > 0)
+                                                       ? '{{ _('AI 将基于完整转录提取摘要、决策、待办') }}'
+                                                       : '{{ _('转录完成后才能生成纪要') }}'"></p>
+                                            <button @click="generateMinutes()"
+                                                    :disabled="isGeneratingMinutes || !transcript || !transcript.segments || transcript.segments.length === 0"
+                                                    class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                                                <span class="material-symbols-outlined" style="font-size: 18px;"
+                                                      :class="isGeneratingMinutes ? 'animate-spin' : ''"
+                                                      x-text="isGeneratingMinutes ? 'progress_activity' : 'auto_awesome'"></span>
+                                                <span x-text="isGeneratingMinutes ? '{{ _('正在生成…') }}' : '{{ _('生成会议纪要') }}'"></span>
+                                            </button>
+                                            <p x-show="generateMinutesError" x-cloak
+                                               class="mt-3 text-xs text-red-500" x-text="generateMinutesError"></p>
                                         </div>
                                     </template>
                                 </div>
-                            </div>
-
-                            <!-- 决策事项 -->
-                            <div x-show="minutes.decisions && minutes.decisions.length > 0">
-                                <h3 class="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
-                                    <span class="material-symbols-outlined text-base">gavel</span>
-                                    {{ _('决策事项') }}
-                                </h3>
-                                <ul class="space-y-2">
-                                    <template x-for="decision in minutes.decisions" :key="decision">
-                                        <li class="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                                            <span class="material-symbols-outlined text-green-600 dark:text-green-400 text-base mt-0.5">verified</span>
-                                            <span class="text-slate-700 dark:text-slate-300" x-text="decision"></span>
-                                        </li>
-                                    </template>
-                                </ul>
-                            </div>
+                            </template>
                         </div>
-                    </template>
 
-                    <!-- 无纪要时 -->
-                    <template x-if="!minutes">
-                        <div class="p-12 text-center">
-                            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4">description</span>
-                            <h3 class="text-lg font-medium text-slate-900 dark:text-white mb-2">{{ _('暂无会议纪要') }}</h3>
-                            <p class="text-slate-500 dark:text-slate-400 mb-6">{{ _('完成说话人映射后将自动生成纪要') }}</p>
-                        </div>
-                    </template>
-
-                    <!-- 底部操作栏 -->
-                    <div x-show="minutes" class="border-t border-slate-200 dark:border-slate-800 p-4">
-                        <div class="flex items-center justify-between">
-                            <div class="text-sm text-slate-500 dark:text-slate-400">
-                                {{ _('版本:') }} v<span x-text="minutes?.version || 1"></span> |
-                                {{ _('生成时间:') }} <span x-text="formatDate(minutes?.created_at)"></span> |
-                                {{ _('状态:') }}
-                                <span :class="minutes?.status === 'published' ? 'text-green-600' : 'text-amber-600'"
-                                      x-text="minutes?.status === 'published' ? '{{ _("已发布") }}' : '{{ _("草稿") }}'"></span>
+                        <!-- 右侧 AI 问答面板（按设计稿） -->
+                        <aside x-show="showAiPanel"
+                               class="hidden lg:flex flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-[80px] self-start"
+                               style="height: calc(100vh - 100px); min-height: 720px;">
+                            {# header #}
+                            <div class="px-5 py-[18px] border-b border-slate-100 dark:border-slate-800 flex items-center gap-2.5">
+                                <div class="w-[30px] h-[30px] rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-violet-600 dark:text-violet-400" style="font-size: 16px;">auto_awesome</span>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="text-[14px] font-semibold text-slate-900 dark:text-white">{{ _('AI 问答') }}</div>
+                                    <div class="text-[12px] text-slate-500">{{ _('基于本次会议的全部内容') }}</div>
+                                </div>
+                                <button @click="showAiPanel = false"
+                                        class="text-slate-400 hover:text-slate-700 p-1">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                                </button>
                             </div>
-                            <div class="flex items-center gap-2">
+
+                            {# 消息流 #}
+                            <div class="px-5 py-4 flex-1 overflow-y-auto flex flex-col gap-3.5" x-ref="aiChatScroll">
+                                {# 欢迎消息 + 建议问题（aiChatHistory 为空时显示） #}
+                                <template x-if="aiChatHistory.length === 0">
+                                    <div class="flex gap-2.5">
+                                        <div class="w-[26px] h-[26px] rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                            <span class="material-symbols-outlined text-violet-600" style="font-size: 13px;">auto_awesome</span>
+                                        </div>
+                                        <div class="max-w-[85%] bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 rounded-xl text-[13.5px] leading-[1.55] text-slate-800 dark:text-slate-200">
+                                            {{ _('嗨，我已经读完了本次会议。试试问我：') }}
+                                            <div class="flex flex-col gap-1.5 mt-2.5">
+                                                {% set _suggestions = ['这次会议的核心决策是什么？', '有哪些待办需要我跟进？', '把待办整理成给负责人的邮件'] %}
+                                                {% for q in _suggestions %}
+                                                <button @click="sendAiChat('{{ q }}')"
+                                                        class="text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-[13px] text-slate-700 dark:text-slate-200 hover:border-violet-300 hover:bg-violet-50/30">
+                                                    {{ q }}
+                                                </button>
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </template>
+
+                                {# 真实对话消息流 #}
+                                <template x-for="(m, i) in aiChatHistory" :key="i">
+                                    <div class="flex gap-2.5" :class="m.role === 'user' ? 'flex-row-reverse' : ''">
+                                        <div class="w-[26px] h-[26px] rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
+                                             :class="m.role === 'user' ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-violet-100 dark:bg-violet-900/40'">
+                                            <span class="material-symbols-outlined" style="font-size: 13px;"
+                                                  :class="m.role === 'user' ? 'text-blue-600' : 'text-violet-600'"
+                                                  x-text="m.role === 'user' ? 'person' : 'auto_awesome'"></span>
+                                        </div>
+                                        <div class="max-w-[85%] px-3.5 py-2.5 rounded-xl text-[13.5px] leading-[1.55] whitespace-pre-wrap"
+                                             :class="m.role === 'user' ? 'bg-blue-50 dark:bg-blue-900/30 text-slate-900 dark:text-white' : 'bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200'"
+                                             x-text="m.content"></div>
+                                    </div>
+                                </template>
+
+                                {# loading 中的占位 #}
+                                <template x-if="aiChatLoading">
+                                    <div class="flex gap-2.5">
+                                        <div class="w-[26px] h-[26px] rounded-lg bg-violet-100 dark:bg-violet-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                            <span class="material-symbols-outlined text-violet-600 animate-spin" style="font-size: 13px;">progress_activity</span>
+                                        </div>
+                                        <div class="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 px-3.5 py-2.5 rounded-xl text-[13px] text-slate-400">
+                                            {{ _('AI 正在思考…') }}
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            {# 输入框 #}
+                            <div class="px-4 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20">
+                                <div class="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-[10px] pl-3 pr-1.5 py-1.5 focus-within:border-violet-400 transition-colors">
+                                    <span class="material-symbols-outlined text-violet-500" style="font-size: 14px;">auto_awesome</span>
+                                    <input type="text" x-model="aiChatInput"
+                                           @keydown.enter.prevent="sendAiChat()"
+                                           :disabled="aiChatLoading"
+                                           placeholder="{{ _('向 AI 提问关于本次会议……') }}"
+                                           class="flex-1 border-0 outline-0 bg-transparent text-[13.5px] text-slate-700 dark:text-white placeholder-slate-400 disabled:opacity-50">
+                                    <button @click="sendAiChat()"
+                                            :disabled="aiChatLoading || !aiChatInput.trim()"
+                                            class="w-[30px] h-[30px] rounded-[7px] bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center disabled:bg-slate-200 dark:disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors">
+                                        <span class="material-symbols-outlined" style="font-size: 14px;"
+                                              x-text="aiChatLoading ? 'progress_activity' : 'arrow_upward'"
+                                              :class="aiChatLoading ? 'animate-spin' : ''"></span>
+                                    </button>
+                                </div>
+                                <div x-show="aiChatError" x-cloak class="mt-2 text-[11px] text-red-500" x-text="aiChatError"></div>
+                            </div>
+                        </aside>
+                    </div>
+
+                    {# Footer: 版本 + 重新生成 + 编辑 + 发布 #}
+                    <div x-show="minutes" class="border-t border-slate-200 dark:border-slate-800 px-6 py-3 bg-slate-50/60 dark:bg-slate-900/40">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <div class="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-2">
+                                <span>v<span x-text="minutes?.version || 1"></span></span>
+                                <span class="text-slate-300">·</span>
+                                <span x-text="formatDate(minutes?.created_at)"></span>
+                                <span class="text-slate-300">·</span>
+                                <span class="inline-flex items-center gap-1"
+                                      :class="minutes?.status === 'published' ? 'text-emerald-600' : 'text-amber-600'">
+                                    <span class="w-1.5 h-1.5 rounded-full"
+                                          :class="minutes?.status === 'published' ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                                    <span x-text="minutes?.status === 'published' ? '{{ _("已发布") }}' : '{{ _("草稿") }}'"></span>
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-1">
                                 <button @click="regenerateMinutes()"
-                                        class="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-1">
-                                    <span class="material-symbols-outlined text-base">refresh</span>
+                                        class="px-3 h-8 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">refresh</span>
                                     {{ _('重新生成') }}
                                 </button>
                                 <button @click="editMinutes()"
-                                        class="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-1">
-                                    <span class="material-symbols-outlined text-base">edit</span>
+                                        class="px-3 h-8 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">edit</span>
                                     {{ _('编辑') }}
                                 </button>
                                 <button @click="publishMinutes()"
                                         x-show="minutes?.status !== 'published'"
-                                        class="px-4 py-1.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg flex items-center gap-1">
-                                    <span class="material-symbols-outlined text-base">publish</span>
+                                        class="px-3 h-8 text-xs bg-primary hover:bg-primary/90 text-white rounded-lg inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">publish</span>
                                     {{ _('发布纪要') }}
                                 </button>
                             </div>
@@ -404,134 +819,349 @@
                     </div>
                 </div>
 
-                <!-- 完整转录 Tab -->
+                <!-- 完整转录 Tab（按 pma-other-tabs.jsx 严格对齐：220 + 1fr + 280 三列） -->
                 <div x-show="activeTab === 'transcript'" class="tab-content">
-                    <template x-if="transcript && transcript.segments">
-                        <div class="p-6">
-                            <!-- 搜索框 -->
-                            <div class="mb-4">
-                                <div class="relative">
-                                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-                                    <input type="text" x-model="transcriptSearch"
-                                           placeholder="{{ _('搜索转录内容...') }}"
-                                           class="w-full pl-10 pr-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-primary/50 focus:border-primary">
+                    <template x-if="transcript && transcript.segments && transcript.segments.length > 0">
+                        <div class="grid lg:grid-cols-[220px_1fr] xl:grid-cols-[220px_1fr_280px] min-h-[720px]">
+                            {# ========== 左侧 220px 说话人侧栏 ========== #}
+                            <aside class="hidden lg:block border-r border-slate-200 dark:border-slate-800 p-4 sticky top-[57px] self-start h-[calc(100vh-57px)] overflow-y-auto"
+                                   style="background: rgba(248,243,228,0.5);">
+                                <div class="text-[11px] font-bold text-slate-500 tracking-[0.08em] uppercase mb-3">{{ _('说话人') }}</div>
+                                <div class="flex flex-col gap-2">
+                                    <template x-for="(sp, i) in speakerStats" :key="sp.key">
+                                        <button class="flex items-center gap-2.5 px-2.5 py-2 bg-transparent border-0 rounded-lg text-left w-full hover:bg-white dark:hover:bg-slate-800 transition-colors">
+                                            <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-semibold flex-shrink-0"
+                                                 :style="{ backgroundColor: speakerColorOf(sp.key) }"
+                                                 x-text="sp.name.charAt(0).toUpperCase()"></div>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="text-[13.5px] font-semibold text-slate-900 dark:text-white truncate" x-text="sp.name"></div>
+                                                <div class="text-[11px] text-slate-500" x-text="sp.count + ' 段 · ' + Math.round(sp.count * 12) + 's'"></div>
+                                            </div>
+                                            <div class="w-2 h-2 rounded-full flex-shrink-0" :style="{ backgroundColor: speakerColorOf(sp.key) }"></div>
+                                        </button>
+                                    </template>
+                                </div>
+                                <button @click="openSpeakerMappingModal()"
+                                        class="mt-3.5 w-full inline-flex items-center justify-center gap-1.5 bg-transparent border border-dashed border-slate-300 dark:border-slate-600 py-2 rounded-lg text-[12px] text-slate-500 hover:text-primary hover:border-primary">
+                                    <span class="material-symbols-outlined" style="font-size: 13px;">edit</span>
+                                    {{ _('编辑说话人') }}
+                                </button>
+                                <button @click="triggerDiarize()"
+                                        x-show="(transcript?.segments || []).some(s => (s.speaker === 'me' || s.speaker === 'peer'))"
+                                        :disabled="isDiarizing"
+                                        class="mt-2 w-full inline-flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 py-1.5 rounded-lg text-[11px] text-slate-400 hover:text-purple-600 hover:border-purple-300 disabled:opacity-50"
+                                        :title="'{{ _('AI 声纹分离：自动按声音区分说话人') }}'">
+                                    <span class="material-symbols-outlined" style="font-size: 12px;"
+                                          :class="isDiarizing ? 'animate-spin' : ''"
+                                          x-text="isDiarizing ? 'progress_activity' : 'auto_awesome'"></span>
+                                    <span x-text="isDiarizing ? '{{ _('识别中…') }}' : '{{ _('AI 识别说话人') }}'"></span>
+                                </button>
+
+                            </aside>
+
+                            {# ========== 主区 ========== #}
+                            <div class="pb-20 px-7">
+                                {# 工具栏 sticky 在 tab 下方：外白色（跟 tab 一致），input 内米色 #}
+                                <div class="flex items-center gap-2 sticky top-[57px] z-30 bg-white dark:bg-slate-900 -mx-7 px-7 py-3">
+                                    <div class="relative flex-1 min-w-0">
+                                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" style="font-size: 14px;">search</span>
+                                        <input type="text" x-model="transcriptSearch"
+                                               @input="_onSearchInput()"
+                                               @keydown.enter.prevent="searchNext()"
+                                               @keydown.escape="transcriptSearch = ''; _searchDebounced = ''"
+                                               placeholder="{{ _('在转录中搜索…（Enter 下一个，Esc 清空）') }}"
+                                               class="w-full pl-9 pr-3 h-9 text-[13px] border border-slate-200 dark:border-slate-700 rounded-[10px] focus:border-primary outline-none"
+                                               style="background: rgba(248,243,228,0.5);">
+                                    </div>
+                                    {# 搜索结果工具栏（有搜索词时才出现） #}
+                                    <div x-show="_searchDebounced" x-cloak
+                                         class="inline-flex items-center gap-1 h-9 px-2 bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-700/50 rounded-[10px]">
+                                        <span class="text-[12px] font-semibold text-violet-700 dark:text-violet-300 px-1"
+                                              x-text="filteredSegments.length === 0 ? '{{ _('无匹配') }}'
+                                                      : (searchActiveIdx + 1) + '/' + filteredSegments.length"></span>
+                                        <button @click="searchPrev()" :disabled="filteredSegments.length === 0"
+                                                class="w-7 h-7 rounded flex items-center justify-center text-violet-600 hover:bg-violet-100 disabled:opacity-30"
+                                                :title="'{{ _('上一个') }}'">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">expand_less</span>
+                                        </button>
+                                        <button @click="searchNext()" :disabled="filteredSegments.length === 0"
+                                                class="w-7 h-7 rounded flex items-center justify-center text-violet-600 hover:bg-violet-100 disabled:opacity-30"
+                                                :title="'{{ _('下一个') }}'">
+                                            <span class="material-symbols-outlined" style="font-size: 16px;">expand_more</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {# 段落列表 - 搜索模式下整段可点击跳转上下文 #}
+                                <div>
+                                    <template x-for="(segment, idx) in filteredSegments" :key="idx">
+                                        <div :data-search-idx="idx"
+                                             :data-seg-idx="(transcript?.segments || []).indexOf(segment)"
+                                             @click="_searchDebounced && viewInContext((transcript?.segments || []).indexOf(segment))"
+                                             :class="[
+                                                idx ? 'border-t border-slate-100 dark:border-slate-800' : '',
+                                                _searchDebounced ? 'cursor-pointer hover:bg-violet-50/40 dark:hover:bg-violet-900/15 -mx-2 px-2 rounded transition-colors' : '',
+                                                _searchDebounced && idx === searchActiveIdx ? 'bg-violet-50/60 dark:bg-violet-900/25 ring-1 ring-violet-200 dark:ring-violet-700/40' : ''
+                                             ]"
+                                             class="grid grid-cols-[60px_36px_1fr] gap-[14px] items-start py-3.5 relative">
+                                            <button @click.stop="seekToTime(segment.start_time)"
+                                                    class="font-mono text-[12px] text-slate-500 hover:text-primary bg-transparent border-0 p-0 inline-flex items-center gap-1 mt-1 self-start"
+                                                    :title="'{{ _('跳到录音此处') }}'">
+                                                <span class="material-symbols-outlined text-slate-400" style="font-size: 10px;">play_arrow</span>
+                                                <span x-text="formatSegTimestamp(segment)"></span>
+                                            </button>
+                                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-[12px] font-semibold flex-shrink-0 mt-0.5"
+                                                 :style="{ backgroundColor: speakerColorOf(segment.speaker) }"
+                                                 x-text="speakerNameOf(segment.speaker).charAt(0).toUpperCase()"></div>
+                                            <div class="min-w-0">
+                                                <div class="flex items-center gap-2 mb-1">
+                                                    <span class="text-[13.5px] font-semibold"
+                                                          :style="{ color: speakerColorOf(segment.speaker) }"
+                                                          x-text="speakerNameOf(segment.speaker)"></span>
+                                                    <span x-show="segment.source_lang && segment.source_lang !== 'zh'"
+                                                          class="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-bold uppercase"
+                                                          x-text="(segment.source_lang || '').toUpperCase()"></span>
+                                                    <span x-show="segment.is_highlight"
+                                                          class="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium inline-flex items-center gap-0.5">
+                                                        <span class="material-symbols-outlined" style="font-size: 10px;">bookmark</span>
+                                                        {{ _('金句') }}
+                                                    </span>
+                                                    {# 搜索模式：右侧加可见的"查看上下文"提示 #}
+                                                    <span x-show="_searchDebounced"
+                                                          class="ml-auto inline-flex items-center gap-1 text-[11px] text-violet-600 dark:text-violet-400 font-medium">
+                                                        <span class="material-symbols-outlined" style="font-size: 12px;">unfold_more</span>
+                                                        {{ _('点击查看上下文') }}
+                                                    </span>
+                                                </div>
+                                                <div class="text-[15px] leading-[1.65] text-slate-800 dark:text-slate-100"
+                                                     x-html="highlightSearch(segment.text)"></div>
+                                                <div x-show="transcriptShowTranslation && segmentTranslation(segment) && segmentTranslation(segment) !== segment.text"
+                                                     class="mt-1.5 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-r text-[13.5px] text-slate-500 dark:text-slate-300 leading-relaxed inline-flex items-start gap-2"
+                                                     style="border-left: 2px solid #6f5bf6;">
+                                                    <span class="material-symbols-outlined text-violet-500 flex-shrink-0 mt-0.5" style="font-size: 12px;">auto_awesome</span>
+                                                    <span x-html="highlightSearch(segmentTranslation(segment))"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
                                 </div>
                             </div>
 
-                            <!-- 转录内容 -->
-                            <div class="space-y-1">
-                                <template x-for="segment in filteredSegments" :key="segment.start_time">
-                                    <div class="transcript-item flex gap-4 p-3 rounded-lg cursor-pointer"
-                                         @click="seekToTime(segment.start_time)">
-                                        <div class="flex-shrink-0 text-xs text-slate-400 dark:text-slate-500 font-mono w-14">
-                                            [<span x-text="formatSegmentTime(segment.start_time)"></span>]
-                                        </div>
-                                        <div class="flex-shrink-0 w-16 text-sm font-medium"
-                                             :style="{ color: getSpeakerColorByLabel(segment.speaker) }"
-                                             x-text="getSpeakerName(segment.speaker)"></div>
-                                        <div class="flex-1 text-slate-700 dark:text-slate-300" x-text="segment.text"></div>
-                                        <button class="flex-shrink-0 p-1 text-slate-400 hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
-                                                @click.stop="playSegment(segment)">
-                                            <span class="material-symbols-outlined text-lg">play_arrow</span>
+                            {# ========== 右侧 280px AI 标记面板 ========== #}
+                            <aside class="hidden xl:block border-l border-slate-200 dark:border-slate-800 px-5 py-[22px] sticky top-[57px] self-start h-[calc(100vh-57px)] overflow-y-auto"
+                                   style="background: rgba(248,243,228,0.5);">
+                                <div class="text-[11px] font-bold text-slate-500 tracking-[0.08em] uppercase mb-3">{{ _('AI 标记') }}</div>
+                                <div class="flex flex-col gap-3">
+                                    {# 决策：删除——decisions 是字符串数组无位置信息，点击跳 0 无意义。
+                                       决策内容已在会议纪要 tab 完整展示 #}
+
+                                    {# Action items：点击跳到完整转录中该 action 出处 #}
+                                    <template x-for="(item, i) in (actionItems || []).slice(0, 3)" :key="'act-' + i">
+                                        <button @click="jumpToActionItem(item)"
+                                                class="flex items-center gap-2.5 px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-[10px] text-left hover:border-blue-300 hover:bg-blue-50/30 transition-colors">
+                                            <div class="w-6 h-6 rounded-md bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                                                <span class="material-symbols-outlined text-blue-600" style="font-size: 13px;">task_alt</span>
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="text-[13px] font-semibold text-slate-900 dark:text-white">Action <span x-show="item.assignee_name" x-text="'· ' + item.assignee_name"></span></div>
+                                                <div class="text-[11px] text-slate-500 truncate" x-text="item.title"></div>
+                                            </div>
+                                            <span class="material-symbols-outlined text-slate-300" style="font-size: 14px;">chevron_right</span>
                                         </button>
+                                    </template>
+                                    {# 金句：点击跳到完整转录中该金句出处 #}
+                                    <template x-for="(q, i) in (minutes?.key_quotes || minutes?.key_points || []).slice(0, 3)" :key="'q-' + i">
+                                        <button @click="jumpToQuote(q)"
+                                                class="flex items-center gap-2.5 px-3 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-[10px] text-left hover:border-violet-300 hover:bg-violet-50/30 transition-colors">
+                                            <div class="w-6 h-6 rounded-md bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M7 7h4v6c0 2-1.5 3.5-4 4"/>
+                                                    <path d="M14 7h4v6c0 2-1.5 3.5-4 4"/>
+                                                </svg>
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="text-[13px] font-semibold text-slate-900 dark:text-white">{{ _('金句') }}
+                                                    <span x-show="typeof q === 'object' && (q.speaker || q.by)" x-text="'· ' + speakerNameOf(q.speaker || q.by)"></span>
+                                                </div>
+                                                <div class="font-mono text-[11px] text-slate-500" x-text="(typeof q === 'object' && (q.ts || q.t)) || ''"></div>
+                                            </div>
+                                            <span class="material-symbols-outlined text-slate-300" style="font-size: 14px;">chevron_right</span>
+                                        </button>
+                                    </template>
+                                    {# 一段话总结 #}
+                                    <div x-show="displayMinutes?.summary"
+                                         class="mt-4 px-3.5 py-3.5 rounded-[10px]"
+                                         style="background: rgba(111,91,246,0.08);">
+                                        <div class="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 text-[12px] font-bold mb-1.5">
+                                            <span class="material-symbols-outlined" style="font-size: 12px;">auto_awesome</span>
+                                            {{ _('一段话总结') }}
+                                        </div>
+                                        <div class="text-[13px] text-slate-700 dark:text-slate-200 leading-[1.55]"
+                                             x-text="displayMinutes?.summary"></div>
                                     </div>
-                                </template>
-                            </div>
+                                    <template x-if="!minutes || ((displayMinutes.decisions || []).length === 0 && (actionItems || []).length === 0 && (displayMinutes.key_points || []).length === 0)">
+                                        <div class="px-3 py-6 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-700 rounded-[10px] text-center text-[12px] text-slate-400">
+                                            {{ _('AI 标记将在生成纪要后显示') }}
+                                        </div>
+                                    </template>
+                                </div>
+                            </aside>
                         </div>
                     </template>
 
-                    <!-- 无转录时 -->
-                    <template x-if="!transcript || !transcript.segments">
-                        <div class="p-12 text-center">
-                            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-4">article</span>
-                            <h3 class="text-lg font-medium text-slate-900 dark:text-white mb-2">{{ _('暂无转录内容') }}</h3>
-                            <p class="text-slate-500 dark:text-slate-400">{{ _('转录完成后将在此显示完整内容') }}</p>
+                    <template x-if="!transcript || !transcript.segments || transcript.segments.length === 0">
+                        <div class="py-16 text-center">
+                            <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 mb-3 block">article</span>
+                            <h3 class="text-base font-medium text-slate-700 dark:text-slate-200 mb-1.5">{{ _('暂无转录内容') }}</h3>
+                            <p class="text-sm text-slate-400">{{ _('转录完成后将在此显示完整内容') }}</p>
                         </div>
                     </template>
                 </div>
 
-                <!-- 录音回放 Tab -->
-                <div x-show="activeTab === 'playback'" class="tab-content">
-                    <div class="p-6">
-                        <div class="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-6">
-                            <!-- 文件名 -->
-                            <div class="flex items-center gap-2 mb-6 text-slate-600 dark:text-slate-400">
-                                <span class="material-symbols-outlined">audio_file</span>
-                                <span x-text="recording.title + '_' + formatDateForFile(recording.meeting_time) + '.webm'"></span>
-                            </div>
+                <!-- 录音回放 Tab（按 pma-other-tabs.jsx PlaybackPage 严格对齐） -->
+                <div x-show="activeTab === 'playback'"
+                     x-effect="if (activeTab === 'playback') loadWaveform()"
+                     class="tab-content">
+                    <div class="px-7 py-7 pb-7">
 
-                            <!-- 播放器 -->
-                            <div class="space-y-4">
-                                <!-- 进度条 -->
-                                <div class="flex items-center gap-4">
-                                    <button @click="togglePlayback()"
-                                            class="w-12 h-12 rounded-full bg-primary hover:bg-primary/90 text-white flex items-center justify-center">
-                                        <span class="material-symbols-outlined text-2xl" x-text="isPlaying ? 'pause' : 'play_arrow'"></span>
-                                    </button>
-                                    <div class="flex-1">
-                                        <input type="range" x-model="playbackProgress"
-                                               @input="seekPlayback()"
-                                               min="0" max="100"
-                                               class="audio-player">
-                                    </div>
-                                    <span class="text-sm text-slate-600 dark:text-slate-400 font-mono w-24 text-right">
-                                        <span x-text="formatTime(currentPlaybackTime)"></span> / <span x-text="recording.duration_display"></span>
-                                    </span>
-                                </div>
-
-                                <!-- 控制栏 -->
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <span class="material-symbols-outlined text-slate-400 text-lg">volume_up</span>
-                                        <input type="range" x-model="volume" min="0" max="100"
-                                               class="w-24 h-1 bg-slate-300 dark:bg-slate-600 rounded-full appearance-none cursor-pointer">
-                                    </div>
-                                    <div class="flex items-center gap-3">
-                                        <button @click="skipTime(-15)"
-                                                class="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                                            <span class="material-symbols-outlined text-lg">replay</span>
-                                            15s
-                                        </button>
+                        {# ========== 波形播放器卡 ========== #}
+                        <div class="rounded-[14px] p-[22px_24px]"
+                             style="background: rgba(248,243,228,0.5); border: 1px solid rgba(60,42,15,0.10);">
+                            <div class="flex items-center gap-3.5">
+                                <button @click="togglePlayback()"
+                                        class="w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center border-0 flex-shrink-0"
+                                        style="box-shadow: 0 2px 10px rgba(37,99,235,0.35);">
+                                    <span class="material-symbols-outlined" style="font-size: 22px;" x-text="isPlaying ? 'pause' : 'play_arrow'"></span>
+                                </button>
+                                <div class="flex-1 min-w-0">
+                                    {# 计时 + 倍速 + 下载 #}
+                                    <div class="flex items-center gap-1.5 font-mono text-[13px] text-slate-500 mb-2">
+                                        <span class="text-slate-900 dark:text-white font-semibold tabular-nums" x-text="formatTime(currentPlaybackTime)"></span>
+                                        <span>/</span>
+                                        <span x-text="recording.duration_display"></span>
+                                        <span class="flex-1"></span>
                                         <select x-model="playbackSpeed"
-                                                class="text-sm border-0 bg-transparent text-slate-600 dark:text-slate-400 focus:ring-0">
-                                            <option value="0.5">0.5x</option>
+                                                @change="if($refs.audioPlayer) $refs.audioPlayer.playbackRate = parseFloat(playbackSpeed)"
+                                                class="px-2 py-[3px] rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-[12px] font-mono">
                                             <option value="0.75">0.75x</option>
-                                            <option value="1" selected>1x</option>
+                                            <option value="1">1.0x</option>
                                             <option value="1.25">1.25x</option>
                                             <option value="1.5">1.5x</option>
-                                            <option value="2">2x</option>
+                                            <option value="2">2.0x</option>
                                         </select>
-                                        <button @click="skipTime(15)"
-                                                class="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
-                                            15s
-                                            <span class="material-symbols-outlined text-lg">forward</span>
+                                        <button @click="downloadRecording()" class="bg-transparent border-0 p-1 text-slate-500 hover:text-slate-900">
+                                            <span class="material-symbols-outlined" style="font-size: 15px;">download</span>
                                         </button>
+                                    </div>
+                                    {# 波形（48px 高 + 真实音频解码 + 红色游标线） #}
+                                    <div class="relative">
+                                        <div class="flex items-center gap-[2px] h-12 cursor-pointer" @click="seekFromWaveform($event)">
+                                            <template x-for="i in 120" :key="i">
+                                                <div :style="{
+                                                        flex: '1',
+                                                        height: (
+                                                            (waveformPeaks.length === 120 ? waveformPeaks[i-1] : Math.abs(Math.sin(i * 0.34) * 0.4 + Math.sin(i * 0.13) * 0.4 + Math.cos(i * 0.08) * 0.3 + 0.5))
+                                                            * 100) + '%',
+                                                        minHeight: '2px',
+                                                        background: ((i-1) / 120 * 100) < playbackProgress ? '#2563eb' : 'rgba(60,42,15,0.22)',
+                                                        borderRadius: '1.5px',
+                                                        transition: 'background 0.15s'
+                                                     }"></div>
+                                            </template>
+                                        </div>
+                                        {# 当前播放位置的红色游标线 #}
+                                        <div class="absolute top-0 bottom-0 w-0.5 bg-red-500 pointer-events-none transition-all"
+                                             :style="{ left: `calc(${playbackProgress}% - 1px)` }">
+                                            <div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-red-500 shadow"></div>
+                                        </div>
+                                    </div>
+                                    {# 章节时间戳 marker：按真实 chapters 渲染（最多 6 个） #}
+                                    <div class="relative h-4 mt-1" x-show="audioDurationSec > 0 && (minutes?.chapters || []).length > 0">
+                                        <template x-for="(c, k) in (minutes?.chapters || []).slice(0, 6)" :key="k">
+                                            <div class="absolute top-0 font-mono text-[10px] text-slate-400 -translate-x-1/2"
+                                                 :style="{ left: chapterPctOf(c) + '%' }"
+                                                 x-text="c.t || ''"></div>
+                                        </template>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- 提示 -->
-                            <div class="mt-6 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                                <span class="material-symbols-outlined text-base">tips_and_updates</span>
-                                <span>{{ _('点击转录文本中的时间戳可跳转到对应位置') }}</span>
+                            {# 章节标签横排：真实 chapters，按 c.t (mm:ss) 跳转，按当前进度高亮 #}
+                            <div class="flex items-center gap-2 mt-4 flex-wrap">
+                                <template x-if="(minutes?.chapters || []).length === 0">
+                                    <div class="font-mono inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-400">
+                                        <span class="material-symbols-outlined" style="font-size: 11px;">label</span>
+                                        {{ _('AI 未识别出明显章节') }}
+                                    </div>
+                                </template>
+                                <template x-for="(c, k) in (minutes?.chapters || [])" :key="k">
+                                    <button @click="seekToTime(_tsToSec(c.t) || 0)"
+                                            class="font-mono px-2.5 py-1 rounded-md text-[11px] inline-flex items-center gap-1.5 border"
+                                            :class="k === currentChapterIndex
+                                                    ? 'bg-blue-50 border-blue-200 text-blue-700 font-semibold'
+                                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 hover:border-blue-300'">
+                                        <span x-text="c.title || ''"></span>
+                                        <span class="opacity-60" x-text="'· ' + (c.t || '')"></span>
+                                    </button>
+                                </template>
+                            </div>
+
+                            {# 跳转控制 #}
+                            <div class="flex items-center gap-3 mt-4 text-xs text-slate-500">
+                                <button @click="skipTime(-15)"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded hover:bg-white dark:hover:bg-slate-800">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">replay</span> 15s
+                                </button>
+                                <button @click="skipTime(15)"
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded hover:bg-white dark:hover:bg-slate-800">
+                                    15s <span class="material-symbols-outlined" style="font-size: 14px;">forward</span>
+                                </button>
+                                <span class="ml-auto inline-flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">volume_up</span>
+                                    <input type="range" x-model="volume"
+                                           @input="if($refs.audioPlayer) $refs.audioPlayer.volume = volume/100"
+                                           min="0" max="100"
+                                           class="w-24 h-1 accent-blue-600 cursor-pointer">
+                                </span>
                             </div>
                         </div>
 
-                        <!-- 下载按钮 -->
-                        <div class="mt-4 flex justify-end">
-                            <button @click="downloadRecording()"
-                                    class="flex items-center gap-2 px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
-                                <span class="material-symbols-outlined text-lg">download</span>
-                                {{ _('下载录音') }}
-                            </button>
+                        {# ========== 同步字幕黑色面板（按设计稿 #1c1a16 米色暗黑底） ========== #}
+                        <div class="mt-6 rounded-[14px] p-[24px_28px] relative min-h-[220px]"
+                             style="background: #1c1a16;">
+                            <div class="absolute top-3.5 left-[18px] flex items-center gap-1.5 text-white/50 text-[11px] font-semibold tracking-[0.06em]">
+                                <span class="material-symbols-outlined" style="font-size: 11px;">closed_caption</span>
+                                {{ _('实时字幕') }}
+                                <span class="text-white/30">·</span>
+                                <span x-text="({'zh':'中文','zh-CN':'中文','en':'English','ms':'Bahasa Melayu','id':'Bahasa Indonesia','ja':'日本語','ko':'한국어','th':'ไทย','vi':'Tiếng Việt','tl':'Tagalog'})[userViewLang] || userViewLang"></span>
+                            </div>
+
+                            <template x-if="(transcript?.segments || []).length === 0">
+                                <div class="mt-7 text-white/40 text-sm text-center">{{ _('暂无字幕数据') }}</div>
+                            </template>
+
+                            <div class="mt-[26px] flex flex-col gap-[18px]" x-show="(transcript?.segments || []).length > 0">
+                                <template x-for="(seg, i) in playbackSubtitleWindow" :key="i">
+                                    <div :class="seg.isCurrent ? 'text-[20px] text-white font-medium leading-[1.55]' : 'text-[14px] text-white/40 leading-[1.6]'">
+                                        <span class="font-mono mr-3"
+                                              :class="seg.isCurrent ? 'text-[13px] text-violet-400 font-semibold' : 'text-[12px]'"
+                                              x-text="(seg.isCurrent ? '▸ ' : '') + (formatSegTimestamp(seg) || '')"></span>
+                                        <span class="mr-1"
+                                              :style="seg.isCurrent ? { color: '#a89cf7' } : { color: '#a8a59c' }"
+                                              x-text="speakerNameOf(seg.speaker) + ' · '"></span>
+                                        <span x-text="segmentTranslation(seg) || (seg.text || '')"></span>
+                                    </div>
+                                </template>
+                            </div>
                         </div>
+
+                        {# 说话人时间轴已删除：1v1 对话场景信息密度过低，价值不足 #}
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 隐藏的音频元素 -->
     <audio x-ref="audioPlayer" @timeupdate="onTimeUpdate()" @ended="isPlaying = false"></audio>
 
     <!-- 导出弹窗 -->
@@ -572,6 +1202,145 @@
         </div>
     </div>
 
+    <!-- 说话人映射 modal（三列：SPEAKER 卡 → 箭头 → 团队成员卡） -->
+    <div x-show="showSpeakerMappingModal" x-cloak
+         class="fixed inset-0 z-50 flex items-center justify-center p-4"
+         @keydown.escape.window="showSpeakerMappingModal = false">
+        <div class="absolute inset-0 bg-black/50" @click="showSpeakerMappingModal = false"></div>
+        <div class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+            {# header #}
+            <div class="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('编辑说话人映射') }}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ _('把声纹分组关联到真实成员，纪要会自动套用') }}</p>
+                </div>
+                <button @click="showSpeakerMappingModal = false" class="p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            {# 内容（每个 SPEAKER 一行三列卡片）me 段已知是当前用户，不出现在 mapping 列表 #}
+            <div class="p-5 space-y-3 overflow-y-auto flex-1">
+                <template x-for="(sp, i) in mappableSpeakers" :key="sp.key">
+                    <div class="grid grid-cols-[1fr_24px_1fr] gap-3 items-center p-3.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl">
+                        {# 左：SPEAKER 卡 + 试听 + 示例 #}
+                        <div>
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                                     :style="{ backgroundColor: getSpeakerColor(i) }"
+                                     x-text="String.fromCharCode(65 + i)"></div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-semibold text-slate-900 dark:text-white">
+                                        {{ _('说话人') }} <span x-text="String.fromCharCode(65 + i)"></span>
+                                    </div>
+                                    <div class="text-[10px] text-slate-400 font-mono"
+                                         x-text="sp.key + ' · ' + sp.count + ' {{ _("段") }}'"></div>
+                                </div>
+                                <button @click="previewSpeaker(sp.key)"
+                                        :disabled="previewingSpeaker === sp.key"
+                                        class="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md text-slate-500 hover:text-primary hover:border-primary disabled:opacity-50 inline-flex items-center justify-center"
+                                        :title="'{{ _('试听该说话人样本') }}'">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;"
+                                          :class="previewingSpeaker === sp.key ? 'animate-pulse' : ''"
+                                          x-text="previewingSpeaker === sp.key ? 'pause' : 'play_arrow'"></span>
+                                </button>
+                            </div>
+                            {# 示例发言 #}
+                            <div class="mt-2 text-[12px] text-slate-500 italic leading-snug pl-1"
+                                 style="font-family: Georgia, serif;"
+                                 x-text="'&ldquo;' + (speakerSampleText(sp.key) || '...') + '&rdquo;'"></div>
+                        </div>
+
+                        {# 中：箭头 #}
+                        <div class="flex justify-center text-slate-300">
+                            <span class="material-symbols-outlined" style="font-size: 18px;">chevron_right</span>
+                        </div>
+
+                        {# 右：成员选择器 #}
+                        <div>
+                            {# 已选状态 #}
+                            <template x-if="speakerMappingDraft[sp.key] && (speakerMappingDraft[sp.key].user_id || speakerMappingDraft[sp.key].external_name)">
+                                <div class="flex items-center gap-2.5 p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                    <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                                         :style="{ backgroundColor: avatarColorForName(speakerMappingDraft[sp.key].display_name) }"
+                                         x-text="(speakerMappingDraft[sp.key].display_name || '?').charAt(0).toUpperCase()"></div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm font-semibold text-slate-900 dark:text-white truncate"
+                                             x-text="speakerMappingDraft[sp.key].display_name"></div>
+                                        <div class="text-[10px] text-slate-500"
+                                             x-text="speakerMappingDraft[sp.key].user_id ? 'PMA 用户' : '{{ _("外部嘉宾") }}'"></div>
+                                    </div>
+                                    {# 置信度 pill（仅 ai_infer 来源） #}
+                                    <template x-if="speakerInferConfidence(sp.key) > 0 && speakerMappingDraft[sp.key].source === 'ai_infer'">
+                                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded"
+                                              :class="speakerInferConfidence(sp.key) >= 0.85 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'"
+                                              x-text="(speakerInferConfidence(sp.key) >= 0.85 ? '{{ _("高匹配") }}' : '{{ _("建议确认") }}') + ' · ' + Math.round(speakerInferConfidence(sp.key) * 100) + '%'"></span>
+                                    </template>
+                                    <button @click="speakerMappingDraft[sp.key] = null"
+                                            class="text-slate-400 hover:text-red-500 p-1">
+                                        <span class="material-symbols-outlined" style="font-size: 14px;">close</span>
+                                    </button>
+                                </div>
+                            </template>
+
+                            {# 未选 - 搜索/选择 PMA 用户或填外部嘉宾 #}
+                            <template x-if="!(speakerMappingDraft[sp.key] && (speakerMappingDraft[sp.key].user_id || speakerMappingDraft[sp.key].external_name))">
+                                <div class="relative">
+                                    <input type="text"
+                                           x-model="userSearchInput[sp.key]"
+                                           @focus="activeSearchKey = sp.key"
+                                           placeholder="{{ _('搜索 PMA 用户 或 输入外部嘉宾姓名') }}"
+                                           class="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none">
+                                    {# 搜索下拉 #}
+                                    <div x-show="activeSearchKey === sp.key && (userSearchInput[sp.key] || '').trim()"
+                                         x-cloak
+                                         @click.outside="activeSearchKey = null"
+                                         class="absolute top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-10">
+                                        <template x-for="u in filteredUsers(userSearchInput[sp.key])" :key="u.id">
+                                            <button @click="selectUserForSpeaker(sp.key, u)"
+                                                    class="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-left">
+                                                <div class="w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0"
+                                                     :style="{ backgroundColor: avatarColorForName(u.real_name) }"
+                                                     x-text="u.real_name.charAt(0).toUpperCase()"></div>
+                                                <span class="text-sm text-slate-900 dark:text-white" x-text="u.real_name"></span>
+                                                <span class="text-[10px] text-slate-400" x-text="u.username"></span>
+                                            </button>
+                                        </template>
+                                        {# 添加为外部嘉宾 #}
+                                        <button @click="selectExternalForSpeaker(sp.key, userSearchInput[sp.key])"
+                                                class="w-full flex items-center gap-2 px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-left border-t border-slate-100 dark:border-slate-800">
+                                            <span class="material-symbols-outlined text-slate-400" style="font-size: 14px;">add</span>
+                                            <span class="text-sm text-slate-700 dark:text-slate-300">
+                                                {{ _('添加为外部嘉宾') }}: "<span x-text="userSearchInput[sp.key]"></span>"
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="mappableSpeakers.length === 0">
+                    <div class="text-center text-sm text-slate-400 py-6">{{ _('没有可编辑的说话人') }}</div>
+                </template>
+            </div>
+
+            {# footer #}
+            <div class="flex items-center justify-end gap-2 p-4 border-t border-slate-200 dark:border-slate-800 flex-shrink-0">
+                <button @click="showSpeakerMappingModal = false"
+                        class="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                    {{ _('取消') }}
+                </button>
+                <button @click="saveSpeakerMapping()"
+                        :disabled="isSavingMapping"
+                        class="px-4 py-1.5 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg disabled:opacity-50 inline-flex items-center gap-1.5">
+                    <span x-show="isSavingMapping" class="material-symbols-outlined animate-spin" style="font-size: 14px;">progress_activity</span>
+                    {{ _('保存映射') }}
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- 分享弹窗 -->
     <div x-show="showShareModal" x-cloak
          class="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -590,11 +1359,15 @@
         </div>
     </div>
 </div>
-{% endblock %}
+{% endif %}
+{% endcall %}
 
-{% block scripts %}
+{{ render_tw_layout_script() }}
+
 <script>
 const RECORDING_ID = {{ recording.id }};
+// 服务端预渲染数据（首屏直接用，无需等 fetch）
+const INITIAL_RECORDING = {{ initial_data_json | safe }};
 
 function meetingMinutesDetailApp() {
     return {
@@ -606,56 +1379,250 @@ function meetingMinutesDetailApp() {
         availableUsers: [],
         activeTab: 'minutes',
         transcriptSearch: '',
+        _searchDebounced: '',
+        _searchTimer: null,
+        searchActiveIdx: 0,         // 当前定位到第几个匹配段
+        _flashSegmentIdx: -1,       // 临时高亮某段（viewInContext 触发）
+        transcriptShowTranslation: true,  // 完整转录：是否同时显示翻译
+
+        // 当前用户期望看到的翻译语言（每个用户独立、localStorage 记忆）
+        // 缺失时按需触发后端 translate-segments / translate-minutes 入库
+        userViewLang: 'zh',
+        _translatingSegments: false,
+        _translatingMinutes: false,
         showProgress: false,
         showSpeakerMapping: false,
         showExportModal: false,
         showShareModal: false,
         isMappingSpeakers: false,
 
-        // 播放器相关
         isPlaying: false,
         playbackProgress: 0,
         currentPlaybackTime: 0,
         volume: 80,
         playbackSpeed: 1,
+        playbackShowTranslation: false,  // 同步字幕：原文/翻译切换
+        waveformPeaks: [],               // 真实波形 120 点峰值（0-1 归一化）
+        _waveformLoading: false,
+        _waveformLoaded: false,
+        isGeneratingMinutes: false,      // 生成纪要 loading
+        generateMinutesError: '',
+        _autoPollHandle: null,           // 后台生成轮询句柄
+        showAiPanel: true,               // 右侧 AI 问答面板默认展开
+        // 声纹 / 说话人 mapping
+        showSpeakerMappingModal: false,
+        // {SPEAKER_00: {user_id, external_name, display_name, source}}
+        speakerMappingDraft: {},
+        userSearchInput: {},             // {SPEAKER_00: '搜索字符串'}
+        activeSearchKey: null,
+        previewingSpeaker: null,         // 当前试听中的 SPEAKER key
+        _previewAudio: null,             // <audio> 元素引用
+        _previewTimeout: null,
+        isSavingMapping: false,
+        isDiarizing: false,
+        // AI 聊天面板
+        aiChatHistory: [],               // [{role: 'user'|'assistant', content}]
+        aiChatInput: '',
+        aiChatLoading: false,
+        aiChatError: '',
 
-        // 颜色映射
         speakerColors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'],
 
+        // 把 server-side 嵌入的初始数据填充进 store（无 fetch 延迟）
+        // 读 localStorage 上次选的翻译目标语种
+        _loadUserViewLang() {
+            try {
+                const v = localStorage.getItem('pma_meeting_native_lang');
+                if (v) { this.userViewLang = v; return; }
+            } catch (_) {}
+            // 兜底用浏览器 locale 第一段（en-US → en）
+            this.userViewLang = ((navigator.language || 'zh-CN').split('-')[0]).toLowerCase();
+        },
+
+        // 取 segment 在当前用户母语下应显示的翻译文本（不存在则返回 ''）
+        segmentTranslation(s) {
+            if (!s) return '';
+            const want = (this.userViewLang || '').toLowerCase();
+            const src = (s.source_lang || '').toLowerCase();
+            if (!want || src === want) return '';
+            const tr = s.translations || {};
+            if (tr[want]) return tr[want];
+            // 兼容旧数据：translation 字段是某个语种的翻译，只有 target_lang 命中才能用
+            const target = (s.target_lang || '').toLowerCase();
+            if (target === want && s.translation) return s.translation;
+            return '';
+        },
+
+        // 当前用户母语视图下的 minutes（翻译版本优先；缺失字段回退原始）
+        get displayMinutes() {
+            if (!this.minutes) return null;
+            const want = (this.userViewLang || '').toLowerCase();
+            const trAll = this.minutes.translations || {};
+            const tr = trAll[want];
+            if (!tr) return this.minutes;
+            return {
+                ...this.minutes,
+                summary: tr.summary || this.minutes.summary,
+                key_points: tr.key_points || this.displayMinutes.key_points,
+                decisions: tr.decisions || this.displayMinutes.decisions,
+                key_quotes: tr.key_quotes || this.displayMinutes.key_quotes,
+                chapters: tr.chapters || this.minutes.chapters,
+                highlights: tr.highlights || this.minutes.highlights,
+            };
+        },
+
+        // 检测 segments 是否缺当前母语翻译；缺则触发后端按需翻译
+        async _ensureSegmentsTranslated() {
+            if (this._translatingSegments) return;
+            const segs = (this.transcript && this.transcript.segments) || [];
+            if (segs.length === 0) return;
+            const want = (this.userViewLang || '').toLowerCase();
+            if (!want) return;
+            const need = segs.some(s => {
+                const src = (s.source_lang || '').toLowerCase();
+                if (src === want) return false;
+                const tr = s.translations || {};
+                if (tr[want]) return false;
+                const tgt = (s.target_lang || '').toLowerCase();
+                if (tgt === want && s.translation) return false;
+                return true;
+            });
+            if (!need) return;
+            this._translatingSegments = true;
+            try {
+                const r = await fetch(`/meeting/api/recordings/${RECORDING_ID}/translate-segments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || ''
+                    },
+                    body: JSON.stringify({ to_lang: want })
+                });
+                const d = await r.json();
+                if (d && d.translated > 0) await this.loadData();
+            } catch (e) { console.warn('[translate-segments] failed:', e); }
+            this._translatingSegments = false;
+        },
+
+        async _ensureMinutesTranslated() {
+            if (this._translatingMinutes) return;
+            if (!this.minutes) return;
+            const want = (this.userViewLang || '').toLowerCase();
+            if (!want) return;
+            const tr = this.minutes.translations || {};
+            if (tr[want]) return;
+            this._translatingMinutes = true;
+            try {
+                const r = await fetch(`/meeting/api/recordings/${RECORDING_ID}/translate-minutes`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || ''
+                    },
+                    body: JSON.stringify({ to_lang: want })
+                });
+                const d = await r.json();
+                if (d && d.success) await this.loadData();
+            } catch (e) { console.warn('[translate-minutes] failed:', e); }
+            this._translatingMinutes = false;
+        },
+
+        // 用户在详情页改母语 → 持久化 + 触发翻译
+        setUserViewLang(lang) {
+            this.userViewLang = (lang || 'zh').toLowerCase();
+            try { localStorage.setItem('pma_meeting_native_lang', this.userViewLang); } catch (_) {}
+            this._ensureSegmentsTranslated();
+            this._ensureMinutesTranslated();
+        },
+
+        _hydrateFromInitial() {
+            if (typeof INITIAL_RECORDING === 'undefined' || !INITIAL_RECORDING) return false;
+            const r = INITIAL_RECORDING;
+            this.recording = r;
+            this.transcript = r.transcript || null;
+            this.minutes = r.minutes || null;
+            this.actionItems = (this.minutes && this.minutes.action_items) || [];
+            this.speakers = r.speakers || [];
+            this.availableUsers = r.available_users || [];
+            this._normalizeSegmentTimes();
+            this.updateDisplayState();
+            this._maybeStartAutoPoll();
+            // 多语言：用户母语跟会议原语种不同时，触发按需翻译填充
+            this._loadUserViewLang();
+            this._ensureSegmentsTranslated();
+            this._ensureMinutesTranslated();
+            return true;
+        },
+
         async loadData() {
+            // 首屏：直接用预渲染数据，立刻有内容（无空白等待）
+            if (!this._hydrated) {
+                this._hydrated = true;
+                if (this._hydrateFromInitial()) return;
+            }
+            // 后续刷新（轮询/手动 reload）才走 API
             try {
                 const response = await fetch(`/meeting/api/recordings/${RECORDING_ID}`);
                 const data = await response.json();
-
                 if (data.success) {
-                    this.recording = data.recording;
-                    this.transcript = data.transcript;
-                    this.minutes = data.minutes;
-                    this.actionItems = data.action_items || [];
-                    this.speakers = data.speakers || [];
-                    this.availableUsers = data.available_users || [];
-
-                    // 判断显示状态
+                    const r = data.recording || {};
+                    this.recording = r;
+                    this.transcript = r.transcript || null;
+                    this.minutes = r.minutes || null;
+                    this.actionItems = (this.minutes && this.minutes.action_items) || [];
+                    this.speakers = r.speakers || [];
+                    this.availableUsers = r.available_users || [];
+                    this._normalizeSegmentTimes();
                     this.updateDisplayState();
+                    this._maybeStartAutoPoll();
                 }
             } catch (error) {
                 console.error('加载数据失败:', error);
             }
         },
 
+        // 给每个 segment 算 start_time / end_time（秒数）：
+        // - 已经有 start_time 的不动（事后整段转写）
+        // - 只有 ts 的，用首段 ts 作基准换算成相对秒数
+        // - 都没有的，按 5s/段平均估
+        _normalizeSegmentTimes() {
+            const segs = (this.transcript && this.transcript.segments) || [];
+            if (segs.length === 0) return;
+
+            let baseMs = null;
+            for (const s of segs) {
+                if (s.ts && baseMs === null) {
+                    const t = Date.parse(s.ts);
+                    if (!isNaN(t)) baseMs = t;
+                }
+            }
+
+            segs.forEach((s, i) => {
+                if (typeof s.start_time !== 'number') {
+                    if (s.ts && baseMs !== null) {
+                        const t = Date.parse(s.ts);
+                        s.start_time = isNaN(t) ? i * 5 : Math.max(0, (t - baseMs) / 1000);
+                    } else {
+                        s.start_time = i * 5;
+                    }
+                }
+                if (typeof s.end_time !== 'number') {
+                    const dur = (typeof s.duration_ms === 'number') ? s.duration_ms / 1000 : 5;
+                    s.end_time = s.start_time + dur;
+                }
+            });
+        },
+
         updateDisplayState() {
-            // 转录中或纪要生成中显示进度
             this.showProgress = this.recording.status === 'transcribing' ||
                                this.recording.status === 'uploading' ||
                                (this.minutes && this.minutes.status === 'generating');
 
-            // 转录完成但未映射说话人时显示映射面板
             this.showSpeakerMapping = this.transcript &&
                                       !this.transcript.speakers_mapped &&
                                       this.speakers.length > 0 &&
                                       !this.showProgress;
 
-            // 如果正在进行中，定时刷新
             if (this.showProgress) {
                 setTimeout(() => this.loadData(), 3000);
             }
@@ -681,8 +1648,146 @@ function meetingMinutesDetailApp() {
             return label;
         },
 
+        // 从 segments 里聚合 speaker → speaker_display 的映射
+        // ❗用 getter 让 Alpine 自动追踪 transcript 依赖，segments 一变就重算（无需手动 invalidate cache）
+        get speakerDisplayMap() {
+            const map = {};
+            const segs = (this.transcript && this.transcript.segments) || [];
+            for (const s of segs) {
+                if (s.speaker && s.speaker_display && !map[s.speaker]) {
+                    map[s.speaker] = s.speaker_display;
+                }
+            }
+            return map;
+        },
+
+        // 转录 tab：把 segment.speaker key 映射成名字
+        // 优先级：segment.speaker_display（用户已 mapping）> me/peer 默认 > SPEAKER_N 兜底
+        speakerNameOf(key) {
+            if (!key) return '{{ _("匿名") }}';
+            const m = this.speakerDisplayMap[key];
+            if (m) return m;
+            if (key === 'me') return '{{ _("我") }}';
+            if (key === 'peer') return '{{ _("对方") }}';
+            if (key.startsWith('SPEAKER_')) {
+                return '{{ _("说话人") }} ' + key.replace('SPEAKER_', '');
+            }
+            return this.getSpeakerName(key);
+        },
+
+        // 头像颜色：保证视觉跨组件一致
+        //   有 mapping 后的真名 → 按真名 hash（跟 modal 选人时颜色一致）
+        //   系统 key（me/peer/SPEAKER_xx）→ 按索引调色板
+        //   纯名字 string（章节/金句里直接写的）→ 直接按名字 hash
+        speakerColorOf(key) {
+            if (!key) return '#94a3b8';
+            const display = this.speakerDisplayMap[key];
+            if (display) return this.avatarColorForName(display);
+            if (key === 'me' || key === 'peer' || key.startsWith('SPEAKER_')) {
+                return this.getSpeakerColor(this.speakerIndexOf(key));
+            }
+            return this.avatarColorForName(key);
+        },
+
+        // 转录 tab：把 segment.speaker key 映射成 speakerColors 的索引（用于配色稳定）
+        speakerIndexOf(key) {
+            if (!this._speakerKeyIndex) this._speakerKeyIndex = {};
+            if (this._speakerKeyIndex[key] !== undefined) return this._speakerKeyIndex[key];
+            const idx = Object.keys(this._speakerKeyIndex).length;
+            this._speakerKeyIndex[key] = idx;
+            return idx;
+        },
+
+        // 转录 tab 侧栏：按 speaker key 聚合段落数
+        get speakerStats() {
+            const segs = (this.transcript && this.transcript.segments) || [];
+            const stats = {};
+            // 当前用户名（owner_name 优先；fallback 'me'）
+            const meName = (this.recording && this.recording.owner_name) || '我';
+            for (const s of segs) {
+                let k = s.speaker || 'unknown';
+                // 'me' 段统一归为 owner — 永远是当前会议发起人，不参与 SPEAKER mapping
+                if (k === 'me') k = '__me__';
+                if (!stats[k]) {
+                    stats[k] = {
+                        key: k,
+                        name: (k === '__me__') ? meName : this.speakerNameOf(k),
+                        count: 0,
+                        isMe: (k === '__me__')
+                    };
+                }
+                stats[k].count++;
+            }
+            return Object.values(stats);
+        },
+        // mapping modal 专用：只列出"对方端"说话人，me/__me__ 不需要 mapping
+        get mappableSpeakers() {
+            return this.speakerStats.filter(sp => !sp.isMe && sp.key !== 'me');
+        },
+
+        // 回放 tab：取当前段及前后各一段，做"电影字幕"效果
+        get playbackSubtitleWindow() {
+            const segs = (this.transcript && this.transcript.segments) || [];
+            if (segs.length === 0) return [];
+            // 找当前段：第一个 start_time 大于 currentPlaybackTime 的前一个段
+            let curIdx = 0;
+            for (let i = 0; i < segs.length; i++) {
+                const st = (typeof segs[i].start_time === 'number') ? segs[i].start_time : 0;
+                if (st > this.currentPlaybackTime) break;
+                curIdx = i;
+            }
+            const win = [];
+            if (segs[curIdx - 1]) win.push({ ...segs[curIdx - 1], isCurrent: false });
+            win.push({ ...segs[curIdx], isCurrent: true });
+            if (segs[curIdx + 1]) win.push({ ...segs[curIdx + 1], isCurrent: false });
+            return win;
+        },
+
+        // 波形条点击 → seek
+        seekFromWaveform(ev) {
+            const audio = this.$refs.audioPlayer;
+            if (!audio) return;
+            // 首次点击：初始化 src，等元数据再让用户点
+            if (!audio.src) {
+                audio.src = `/meeting/audio/${RECORDING_ID}`;
+                this._fixWebmDuration(audio);
+                return;
+            }
+            const rect = ev.currentTarget.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width));
+            // 优先用 audio.duration（webm hack 后已修），fallback 用 recording.duration_seconds
+            let dur = Number.isFinite(audio.duration) && audio.duration > 0
+                      ? audio.duration
+                      : parseFloat(this.recording?.duration_seconds || 0);
+            if (!dur || !Number.isFinite(dur)) return;
+            audio.currentTime = pct * dur;
+            this.playbackProgress = pct * 100;
+        },
+
+        // 复制全文（按格式：[时间] 说话人: 原文 / 翻译）
+        async copyTranscript() {
+            const segs = (this.transcript && this.transcript.segments) || [];
+            const lines = segs.map(s => {
+                const ts = this.formatSegTimestamp(s);
+                const name = this.speakerNameOf(s.speaker);
+                let line = `[${ts}] ${name}: ${s.text || ''}`;
+                const tr = this.segmentTranslation(s);
+                if (this.transcriptShowTranslation && tr && tr !== s.text) {
+                    line += `\n    → ${tr}`;
+                }
+                return line;
+            });
+            const text = lines.join('\n');
+            try {
+                await navigator.clipboard.writeText(text);
+                alert('{{ _("已复制到剪贴板") }}');
+            } catch (e) {
+                console.error('复制失败:', e);
+                alert('{{ _("复制失败") }}');
+            }
+        },
+
         canConfirmMapping() {
-            // 至少映射一个说话人
             return this.speakers.some(s => s.mapped_user_id || s.external_name);
         },
 
@@ -705,7 +1810,6 @@ function meetingMinutesDetailApp() {
 
                 const data = await response.json();
                 if (data.success) {
-                    // 重新加载数据
                     await this.loadData();
                 }
             } catch (error) {
@@ -719,35 +1823,269 @@ function meetingMinutesDetailApp() {
             this.showSpeakerMapping = false;
         },
 
+        // 缓存 filtered 列表：模板多处引用，没缓存每次都跑 670 段 filter
         get filteredSegments() {
             if (!this.transcript || !this.transcript.segments) return [];
-            if (!this.transcriptSearch) return this.transcript.segments;
-
-            const search = this.transcriptSearch.toLowerCase();
-            return this.transcript.segments.filter(s =>
-                s.text.toLowerCase().includes(search) ||
-                this.getSpeakerName(s.speaker).toLowerCase().includes(search)
-            );
+            const q = (this._searchDebounced || '').trim().toLowerCase();
+            const segs = this.transcript.segments;
+            // cache key = transcript 引用 + 搜索词
+            if (this._filterCache &&
+                this._filterCache.segs === segs &&
+                this._filterCache.q === q) {
+                return this._filterCache.result;
+            }
+            const result = !q
+                ? segs
+                : segs.filter(s =>
+                    ((s.text || '') + ' ' + this.segmentTranslation(s)).toLowerCase().includes(q) ||
+                    this.speakerNameOf(s.speaker).toLowerCase().includes(q)
+                  );
+            this._filterCache = { segs, q, result };
+            return result;
         },
 
-        // 播放器方法
+        // 触发搜索 debounce（input 上 @input 调用）
+        _onSearchInput() {
+            if (this._searchTimer) clearTimeout(this._searchTimer);
+            this._searchTimer = setTimeout(() => {
+                this._searchDebounced = this.transcriptSearch || '';
+                this.searchActiveIdx = 0;  // 重置选中
+                this._scrollToSearchActive();
+            }, 250);
+        },
+
+        // 上一个/下一个匹配
+        searchPrev() {
+            const n = this.filteredSegments.length;
+            if (n === 0) return;
+            this.searchActiveIdx = (this.searchActiveIdx - 1 + n) % n;
+            this._scrollToSearchActive();
+        },
+        searchNext() {
+            const n = this.filteredSegments.length;
+            if (n === 0) return;
+            this.searchActiveIdx = (this.searchActiveIdx + 1) % n;
+            this._scrollToSearchActive();
+        },
+
+        _scrollToSearchActive() {
+            this.$nextTick(() => {
+                const el = document.querySelector(`[data-search-idx="${this.searchActiveIdx}"]`);
+                if (el) el.scrollIntoView({ block: 'center' });  // instant，不要 smooth
+            });
+        },
+
+        // "在完整转录中查看"：清空搜索 + 滚到该段 + 黄色 flash
+        viewInContext(segmentIdx) {
+            this.transcriptSearch = '';
+            this._searchDebounced = '';
+            this._flashSegmentIdx = segmentIdx;
+            this.$nextTick(() => {
+                const el = document.querySelector(`[data-seg-idx="${segmentIdx}"]`);
+                if (el) el.scrollIntoView({ block: 'center' });  // instant
+                setTimeout(() => { this._flashSegmentIdx = -1; }, 2000);
+            });
+        },
+
+        // 把匹配文字用荧光笔效果高亮（设计稿 hl:[[12,60]] 长片段荧光）：
+        // 1. AI highlights 短语（3-12 字关键词）
+        // 2. AI key_quotes 金句原句（30-150 字长片段，对应设计稿 pinned 段的长荧光）
+        // 3. 搜索词高亮（覆盖在荧光之上）
+        highlightSearch(text) {
+            if (!text) return '';
+            let safe = this._escapeHtml(text);
+
+            // 1+2. AI highlights 短语 + key_quotes 金句原文（合并匹配集合）
+            const phrases = [];
+            const hlArr = (this.minutes && this.minutes.highlights) || [];
+            for (const h of hlArr) {
+                if (typeof h === 'string' && h) phrases.push(h);
+            }
+            // highlightSearch 是在 segment.text 原文上找匹配，必须用**原始语种**的 quotes/highlights，不走 displayMinutes
+            const quotes = (this.minutes && (this.minutes.key_quotes || this.minutes.key_points)) || [];
+            for (const q of quotes) {
+                const qt = (typeof q === 'string' ? q : (q && q.text)) || '';
+                if (!qt) continue;
+                // 整句先加（AI 偶尔会逐字复制原文）
+                phrases.push(qt);
+                // 容错：AI 常把"因为/第二个/对不对"等口语去掉、把英文标点换中文。
+                // 按标点拆成子句，≥6 字的子句单独匹配 → 即使整句对不上，子句仍能命中原文
+                const parts = qt.split(/[，。,.！!？?；;、\s]+/);
+                for (const part of parts) {
+                    if (part && part.length >= 6) phrases.push(part);
+                }
+            }
+            // 长片段先匹配，避免被短片段切断
+            phrases.sort((a, b) => (b || '').length - (a || '').length);
+            for (const ph of phrases) {
+                const p = (ph || '').trim();
+                if (!p || p.length < 2 || p.length > 200) continue;
+                const safeP = this._escapeHtml(p).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                try {
+                    safe = safe.replace(new RegExp(safeP, 'g'),
+                        m => `<span class="pma-hl-pen">${m}</span>`);
+                } catch (_) {}
+            }
+
+            // 2. 搜索词高亮（橙黄荧光笔变体，覆盖在金句之上以便定位）
+            const sq = (this._searchDebounced || '').trim();
+            if (sq) {
+                const safeQ = this._escapeHtml(sq).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                try {
+                    safe = safe.replace(new RegExp(safeQ, 'gi'),
+                        m => `<span class="pma-hl-pen">${m}</span>`);
+                } catch (_) {}
+            }
+            return safe;
+        },
+
+        // 找到最接近某个时间点（秒）的 segment 索引（绝对索引在 transcript.segments 里）
+        _findSegmentByTime(targetSec) {
+            const segs = (this.transcript && this.transcript.segments) || [];
+            if (segs.length === 0) return -1;
+            let best = 0, bestDiff = Infinity;
+            for (let i = 0; i < segs.length; i++) {
+                const st = parseFloat(segs[i].start_time);
+                if (!isFinite(st)) continue;
+                const diff = Math.abs(st - targetSec);
+                if (diff < bestDiff) { bestDiff = diff; best = i; }
+            }
+            return best;
+        },
+
+        // 在 segments 文字里找包含某段文本的段索引（金句反向定位）
+        _findSegmentByText(text) {
+            const segs = (this.transcript && this.transcript.segments) || [];
+            if (!text) return -1;
+            const core = text.trim().replace(/^[，。！？、""''（）()…\s]+|[，。！？、""''（）()…\s]+$/g, '');
+            if (core.length < 4) return -1;
+            // 优先：完整子串匹配
+            for (let i = 0; i < segs.length; i++) {
+                if ((segs[i].text || '').includes(core)) return i;
+            }
+            // fallback：前 8 字符匹配
+            const head = core.slice(0, 8);
+            for (let i = 0; i < segs.length; i++) {
+                if ((segs[i].text || '').includes(head)) return i;
+            }
+            return -1;
+        },
+
+        // 跳转到金句出处段
+        jumpToQuote(q) {
+            // 切到完整转录 tab
+            this.activeTab = 'transcript';
+            // 先用 ts 定位（精确），失败再用 text 反查
+            const ts = typeof q === 'object' ? (q.ts || q.t) : null;
+            let segIdx = -1;
+            if (ts) {
+                const sec = this._tsToSec(ts);
+                if (sec > 0) segIdx = this._findSegmentByTime(sec);
+            }
+            if (segIdx < 0) {
+                const text = typeof q === 'object' ? (q.text || q.q) : q;
+                segIdx = this._findSegmentByText(text);
+            }
+            if (segIdx >= 0) this.viewInContext(segIdx);
+        },
+
+        // 跳转到 action item 出处段（用 action.title 或 description 反查 segments）
+        jumpToActionItem(item) {
+            this.activeTab = 'transcript';
+            // 优先 source_t 字段（如果有）
+            if (item.source_t) {
+                const sec = this._tsToSec(item.source_t);
+                if (sec > 0) {
+                    const segIdx = this._findSegmentByTime(sec);
+                    if (segIdx >= 0) { this.viewInContext(segIdx); return; }
+                }
+            }
+            // fallback：用 title 关键词搜
+            if (item.title) {
+                this.transcriptSearch = item.title.slice(0, 8);
+                this._onSearchInput();
+            }
+        },
+
+        _escapeHtml(s) {
+            return String(s || '').replace(/[&<>"']/g, c => (
+                { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+            ));
+        },
+
+        // 用 WebAudio 解码音频文件，下采样到 120 个峰值，渲染真实波形
+        async loadWaveform() {
+            if (this._waveformLoaded || this._waveformLoading) return;
+            this._waveformLoading = true;
+            try {
+                const resp = await fetch(`/meeting/audio/${RECORDING_ID}`);
+                if (!resp.ok) throw new Error('音频不可用');
+                const buf = await resp.arrayBuffer();
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                const audioCtx = new Ctx();
+                const decoded = await audioCtx.decodeAudioData(buf);
+                const ch = decoded.getChannelData(0);
+                const bins = 120;
+                const blockSize = Math.max(1, Math.floor(ch.length / bins));
+                const peaks = new Array(bins);
+                for (let i = 0; i < bins; i++) {
+                    let sum = 0;
+                    const start = i * blockSize;
+                    const end = Math.min(start + blockSize, ch.length);
+                    for (let j = start; j < end; j++) sum += Math.abs(ch[j]);
+                    peaks[i] = sum / Math.max(1, end - start);
+                }
+                const max = Math.max(...peaks) || 1;
+                this.waveformPeaks = peaks.map(p => p / max);
+                this._waveformLoaded = true;
+                try { audioCtx.close(); } catch (_) {}
+            } catch (e) {
+                console.warn('[playback] 波形加载失败:', e.message || e);
+                // 失败就保持 mock 公式渲染（不致命）
+            } finally {
+                this._waveformLoading = false;
+            }
+        },
+
         togglePlayback() {
             const audio = this.$refs.audioPlayer;
             if (!audio.src) {
-                audio.src = `/meeting/api/recordings/${RECORDING_ID}/audio`;
+                audio.src = `/meeting/audio/${RECORDING_ID}`;
+                this._fixWebmDuration(audio);
             }
 
             if (this.isPlaying) {
                 audio.pause();
             } else {
-                audio.play();
+                audio.play().catch(err => {
+                    console.error('播放失败:', err);
+                    this.isPlaying = false;
+                });
             }
             this.isPlaying = !this.isPlaying;
         },
 
+        // webm 流式录音不写 duration header，duration 一直是 Infinity
+        // hack: seek 到极远位置强制浏览器扫完整个文件，duration 就会变成真实值
+        _fixWebmDuration(audio) {
+            const onLoaded = () => {
+                if (audio.duration === Infinity) {
+                    audio.currentTime = 1e101;
+                    const onTimeUpdate = () => {
+                        audio.removeEventListener('timeupdate', onTimeUpdate);
+                        audio.currentTime = 0;
+                    };
+                    audio.addEventListener('timeupdate', onTimeUpdate);
+                }
+                audio.removeEventListener('loadedmetadata', onLoaded);
+            };
+            audio.addEventListener('loadedmetadata', onLoaded);
+        },
+
         seekPlayback() {
             const audio = this.$refs.audioPlayer;
-            if (audio.duration) {
+            // webm 流式录音的 duration 可能是 Infinity / NaN，必须用 isFinite 判断
+            if (Number.isFinite(audio.duration) && audio.duration > 0) {
                 audio.currentTime = (this.playbackProgress / 100) * audio.duration;
             }
         },
@@ -755,10 +2093,11 @@ function meetingMinutesDetailApp() {
         seekToTime(seconds) {
             const audio = this.$refs.audioPlayer;
             if (!audio.src) {
-                audio.src = `/meeting/api/recordings/${RECORDING_ID}/audio`;
+                audio.src = `/meeting/audio/${RECORDING_ID}`;
+                this._fixWebmDuration(audio);
             }
             audio.currentTime = seconds;
-            audio.play();
+            audio.play().catch(err => console.error('播放失败:', err));
             this.isPlaying = true;
             this.activeTab = 'playback';
         },
@@ -801,6 +2140,422 @@ function meetingMinutesDetailApp() {
             return new Date(dateStr) < new Date();
         },
 
+        // 发送 AI 聊天问题
+        async sendAiChat(presetQuestion = null) {
+            const q = (presetQuestion || this.aiChatInput || '').trim();
+            if (!q || this.aiChatLoading) return;
+            this.aiChatError = '';
+            // 推 user 消息
+            this.aiChatHistory.push({ role: 'user', content: q });
+            this.aiChatInput = '';
+            this.aiChatLoading = true;
+            this._scrollAiChatBottom();
+
+            try {
+                const r = await fetch(`/meeting/api/recordings/${RECORDING_ID}/ai-chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: q,
+                        // 只带最近 6 条历史给后端控成本
+                        history: this.aiChatHistory.slice(-7, -1),
+                    }),
+                });
+                const data = await r.json();
+                if (!data.success) {
+                    this.aiChatError = data.message || '{{ _("AI 回答失败") }}';
+                    return;
+                }
+                this.aiChatHistory.push({ role: 'assistant', content: data.answer || '' });
+            } catch (e) {
+                this.aiChatError = e.message || String(e);
+            } finally {
+                this.aiChatLoading = false;
+                this._scrollAiChatBottom();
+            }
+        },
+
+        _scrollAiChatBottom() {
+            setTimeout(() => {
+                const el = this.$refs.aiChatScroll;
+                if (el) el.scrollTop = el.scrollHeight;
+            }, 60);
+        },
+
+        // 真实 audio 总时长（秒）：优先 audio.duration，fallback recording.duration_seconds
+        get audioDurationSec() {
+            const audio = this.$refs && this.$refs.audioPlayer;
+            if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+                return audio.duration;
+            }
+            return parseFloat(this.recording?.duration_seconds || 0) || 0;
+        },
+
+        // 章节在波形上的位置百分比（0-100）
+        chapterPctOf(c) {
+            const dur = this.audioDurationSec;
+            if (!dur) return 0;
+            const sec = this._tsToSec(c.t);
+            return Math.max(0, Math.min(100, (sec / dur) * 100));
+        },
+
+        // 当前播放进度落在哪个章节
+        get currentChapterIndex() {
+            const chapters = (this.minutes && this.minutes.chapters) || [];
+            if (chapters.length === 0) return -1;
+            const cur = this.currentPlaybackTime || 0;
+            let idx = 0;
+            for (let i = 0; i < chapters.length; i++) {
+                const sec = this._tsToSec(chapters[i].t);
+                if (sec <= cur) idx = i;
+                else break;
+            }
+            return idx;
+        },
+
+        // 把 "mm:ss" / "h:mm:ss" 时间戳转成秒
+        _tsToSec(ts) {
+            if (typeof ts !== 'string' || !ts) return 0;
+            const parts = ts.split(':').map(p => parseInt(p, 10));
+            if (parts.some(isNaN)) return 0;
+            if (parts.length === 2) return parts[0] * 60 + parts[1];
+            if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+            return parts[0] || 0;
+        },
+
+        // 后台 AI 生成中？= transcript 已就绪 + 录音状态推到了 transcribed/minutes_generated + 还没拿到 minutes
+        get isAutoGenerating() {
+            if (this.minutes) return false;
+            if (!this.transcript || !this.transcript.segments || this.transcript.segments.length === 0) return false;
+            const st = this.recording && this.recording.status;
+            return st === 'transcribed' || st === 'minutes_generated';
+        },
+
+        // 轮询策略：
+        // - 录音中 / 上传中 → 3s 间隔（被邀请旁听人能准实时看到新转录段）
+        // - 纪要生成中 → 4s 间隔
+        // - 两种都满足时取 3s
+        _maybeStartAutoPoll() {
+            if (this._autoPollHandle) return;
+            const isLive = this.recording && ['recording', 'uploading'].includes(this.recording.status);
+            if (!isLive && !this.isAutoGenerating) return;
+            const interval = isLive ? 3000 : 4000;
+            this._autoPollHandle = setInterval(() => {
+                const stillLive = this.recording && ['recording', 'uploading'].includes(this.recording.status);
+                const stillGen = this.isAutoGenerating && !this.minutes;
+                if (!stillLive && !stillGen) {
+                    clearInterval(this._autoPollHandle);
+                    this._autoPollHandle = null;
+                    return;
+                }
+                this.loadData();
+            }, interval);
+        },
+
+        // 是否显示 mapping 引导 banner
+        get needsMappingBanner() {
+            // 用户已 dismiss 过本次 recording → 不显示
+            try {
+                if (localStorage.getItem(`mapping_dismissed_${RECORDING_ID}`) === '1') return false;
+            } catch (_) {}
+            // 必须有 SPEAKER_xx 段落
+            const segs = (this.transcript && this.transcript.segments) || [];
+            const speakerKeys = new Set();
+            const mappedKeys = new Set();
+            for (const s of segs) {
+                if ((s.speaker || '').startsWith('SPEAKER_')) {
+                    speakerKeys.add(s.speaker);
+                    // 视为"已 mapping"的条件：用户手动确认（speaker_user_id / external_name / source=user|external|manual）
+                    if (s.speaker_user_id || s.speaker_external_name ||
+                        ['user', 'external', 'manual'].includes(s.speaker_display_source)) {
+                        mappedKeys.add(s.speaker);
+                    }
+                }
+            }
+            // 至少存在一个 SPEAKER 没被用户确认
+            return speakerKeys.size > 0 && mappedKeys.size < speakerKeys.size;
+        },
+
+        get unmappedSpeakerCount() {
+            const segs = (this.transcript && this.transcript.segments) || [];
+            const keys = new Set();
+            for (const s of segs) {
+                if ((s.speaker || '').startsWith('SPEAKER_')) keys.add(s.speaker);
+            }
+            return keys.size;
+        },
+
+        dismissMappingBanner() {
+            try { localStorage.setItem(`mapping_dismissed_${RECORDING_ID}`, '1'); } catch (_) {}
+            // 触发 reactivity
+            this.transcript = this.transcript ? { ...this.transcript } : null;
+        },
+
+        // 打开说话人 mapping modal：从 segments 还原 draft（仅"对方端"说话人）
+        openSpeakerMappingModal() {
+            const draft = {};
+            const search = {};
+            const segs = (this.transcript && this.transcript.segments) || [];
+            for (const sp of this.mappableSpeakers) {
+                // 找该 SPEAKER 的第一条 segment 拿已有 mapping 信息
+                const seg = segs.find(s => s.speaker === sp.key);
+                if (seg && seg.speaker_display) {
+                    draft[sp.key] = {
+                        user_id: seg.speaker_user_id || null,
+                        external_name: seg.speaker_external_name || null,
+                        display_name: seg.speaker_display,
+                        source: seg.speaker_display_source || 'manual',
+                    };
+                } else {
+                    draft[sp.key] = null;
+                }
+                search[sp.key] = '';
+            }
+            this.speakerMappingDraft = draft;
+            this.userSearchInput = search;
+            this.activeSearchKey = null;
+            this.showSpeakerMappingModal = true;
+        },
+
+        // 检测 Whisper hallucination（"嗯,嗯,嗯..."重复填充词）
+        // 与后端 _is_hallucinated_segment 等价逻辑
+        _isHallucinatedText(text) {
+            if (!text) return true;
+            const stripped = String(text).trim();
+            if (stripped.length < 6) return false;
+            // 中文字符级：去标点后单字符占比 > 70% 或 不同字符 ≤ 2
+            const clean = stripped.replace(/[\s　\W_]+/g, '');
+            if (clean.length >= 6) {
+                const counts = {};
+                for (const c of clean) counts[c] = (counts[c] || 0) + 1;
+                const top = Math.max(...Object.values(counts));
+                if (top / clean.length > 0.7) return true;
+                if (Object.keys(counts).length <= 2) return true;
+            }
+            // 英文 token 级
+            const tokens = (stripped.toLowerCase().match(/[a-z]+/g) || []);
+            if (tokens.length >= 5) {
+                const tc = {};
+                for (const t of tokens) tc[t] = (tc[t] || 0) + 1;
+                const top = Math.max(...Object.values(tc));
+                if (top >= 5 || top / tokens.length > 0.7) return true;
+            }
+            return false;
+        },
+
+        // 该 SPEAKER 的示例发言：先过滤 hallucination，再取最长一段
+        speakerSampleText(key) {
+            const segs = (this.transcript && this.transcript.segments) || [];
+            // 'me' 在 stats 里被归到 '__me__'，反向查回真实 segments
+            const realKey = (key === '__me__') ? 'me' : key;
+            const clean = segs.filter(s =>
+                s.speaker === realKey
+                && (s.text || '').length >= 15
+                && !this._isHallucinatedText(s.text)
+            );
+            if (clean.length === 0) {
+                const fallback = segs.find(s => s.speaker === realKey && !this._isHallucinatedText(s.text));
+                return fallback ? (fallback.text || '').slice(0, 80) : '';
+            }
+            clean.sort((a, b) => (b.text || '').length - (a.text || '').length);
+            return clean[0].text.slice(0, 80) + (clean[0].text.length > 80 ? '…' : '');
+        },
+
+        // 该 SPEAKER AI 推测的置信度（取首段的，所有段一样）
+        speakerInferConfidence(key) {
+            const segs = (this.transcript && this.transcript.segments) || [];
+            const seg = segs.find(s => s.speaker === key && typeof s.speaker_display_confidence === 'number');
+            return seg ? seg.speaker_display_confidence : 0;
+        },
+
+        // 试听该 SPEAKER 的样本片段
+        async previewSpeaker(key) {
+            // 已经在试听同一 SPEAKER → 停止
+            if (this.previewingSpeaker === key) {
+                this._stopPreview();
+                return;
+            }
+            this._stopPreview();
+
+            const segs = (this.transcript && this.transcript.segments) || [];
+            const seg = segs.find(s => s.speaker === key && typeof s.start_time === 'number');
+            if (!seg) {
+                alert('{{ _("没有可试听的片段") }}');
+                return;
+            }
+            const start = seg.start_time;
+            const end = (typeof seg.end_time === 'number') ? seg.end_time : start + 8;
+            const playDuration = Math.min(8, end - start);  // 最多播 8 秒
+
+            // 用主 audioPlayer（如果存在），否则新建一个临时 audio
+            let audio = this.$refs.audioPlayer;
+            if (!audio || !audio.src) {
+                if (!this._previewAudio) {
+                    this._previewAudio = new Audio(`/meeting/audio/${RECORDING_ID}`);
+                    this._fixWebmDuration(this._previewAudio);
+                }
+                audio = this._previewAudio;
+            }
+
+            this.previewingSpeaker = key;
+            try {
+                audio.currentTime = start;
+                await audio.play();
+                this._previewTimeout = setTimeout(() => this._stopPreview(), playDuration * 1000 + 200);
+            } catch (e) {
+                console.error('试听失败:', e);
+                this.previewingSpeaker = null;
+            }
+        },
+
+        _stopPreview() {
+            if (this._previewTimeout) {
+                clearTimeout(this._previewTimeout);
+                this._previewTimeout = null;
+            }
+            try {
+                if (this.$refs.audioPlayer && !this.isPlaying) this.$refs.audioPlayer.pause();
+                if (this._previewAudio) this._previewAudio.pause();
+            } catch (_) {}
+            this.previewingSpeaker = null;
+        },
+
+        // 搜索 PMA 用户
+        filteredUsers(query) {
+            if (!query || !query.trim()) return [];
+            const q = query.toLowerCase().trim();
+            return (this.availableUsers || []).filter(u =>
+                (u.real_name || '').toLowerCase().includes(q) ||
+                (u.username || '').toLowerCase().includes(q)
+            ).slice(0, 8);
+        },
+
+        // 给 SPEAKER 选 PMA 用户
+        selectUserForSpeaker(speakerKey, user) {
+            this.speakerMappingDraft[speakerKey] = {
+                user_id: user.id,
+                display_name: user.real_name || user.username,
+                source: 'user',
+            };
+            this.userSearchInput[speakerKey] = '';
+            this.activeSearchKey = null;
+        },
+
+        // 给 SPEAKER 添加为外部嘉宾
+        selectExternalForSpeaker(speakerKey, name) {
+            const n = (name || '').trim();
+            if (!n) return;
+            this.speakerMappingDraft[speakerKey] = {
+                external_name: n,
+                display_name: n,
+                source: 'external',
+            };
+            this.userSearchInput[speakerKey] = '';
+            this.activeSearchKey = null;
+        },
+
+        // 名字 → 头像背景色（hash）
+        avatarColorForName(name) {
+            const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+            if (!name) return palette[0];
+            let h = 0;
+            for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+            return palette[Math.abs(h) % palette.length];
+        },
+
+        async saveSpeakerMapping() {
+            if (this.isSavingMapping) return;
+            this.isSavingMapping = true;
+            try {
+                const mapping = {};
+                for (const [k, v] of Object.entries(this.speakerMappingDraft)) {
+                    if (!v || (!v.user_id && !v.external_name)) continue;
+                    if (v.user_id) {
+                        mapping[k] = { user_id: v.user_id, display_name: v.display_name };
+                    } else {
+                        mapping[k] = { external_name: v.external_name, display_name: v.display_name };
+                    }
+                }
+                if (Object.keys(mapping).length === 0) {
+                    alert('{{ _("请至少为一位说话人选择真实身份") }}');
+                    return;
+                }
+                const r = await fetch(`/meeting/api/recordings/${RECORDING_ID}/speaker-mapping`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mapping })
+                });
+                const data = await r.json();
+                if (!data.success) {
+                    alert(data.message || data.error || '{{ _("保存失败") }}');
+                    return;
+                }
+                this.showSpeakerMappingModal = false;
+                // 关闭 banner（用户已主动 mapping 过）
+                try { localStorage.setItem(`mapping_dismissed_${RECORDING_ID}`, '1'); } catch(_) {}
+                await this.loadData();
+            } catch (e) {
+                console.error('保存映射失败:', e);
+                alert('{{ _("保存失败") }}: ' + (e.message || e));
+            } finally {
+                this.isSavingMapping = false;
+            }
+        },
+
+        // 触发声纹分离（手动重跑）
+        async triggerDiarize() {
+            if (this.isDiarizing) return;
+            this.isDiarizing = true;
+            try {
+                const r = await fetch(`/meeting/api/recordings/${RECORDING_ID}/diarize`, {
+                    method: 'POST'
+                });
+                const data = await r.json();
+                if (!data.success) {
+                    alert(data.message || '{{ _("声纹分离触发失败") }}');
+                    return;
+                }
+                // 60s 后拉一次数据看结果（pyannote 推理需要时间）
+                setTimeout(() => { this.loadData(); this.isDiarizing = false; }, 60000);
+                // 同时每 15s 拉一次，监测 segments 变化
+                let polls = 0;
+                const ph = setInterval(() => {
+                    polls++;
+                    this.loadData();
+                    if (polls >= 8) clearInterval(ph);
+                }, 15000);
+            } catch (e) {
+                this.isDiarizing = false;
+                alert('{{ _("声纹分离触发失败") }}: ' + e.message);
+            }
+        },
+
+        // 首次生成会议纪要（空状态按钮触发）
+        async generateMinutes() {
+            if (this.isGeneratingMinutes) return;
+            this.isGeneratingMinutes = true;
+            this.generateMinutesError = '';
+            try {
+                const r = await fetch(`/meeting/api/recordings/${RECORDING_ID}/generate-minutes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ style: 'standard' })
+                });
+                const data = await r.json();
+                if (!data.success) {
+                    this.generateMinutesError = data.message || '{{ _("生成失败") }}';
+                    return;
+                }
+                // 拉一次新数据进来
+                await this.loadData();
+            } catch (e) {
+                console.error('生成纪要失败:', e);
+                this.generateMinutesError = e.message || '{{ _("生成失败") }}';
+            } finally {
+                this.isGeneratingMinutes = false;
+            }
+        },
+
         async regenerateMinutes() {
             if (!confirm('{{ _("重新生成将覆盖当前的会议纪要内容，确定继续吗？") }}')) return;
 
@@ -808,7 +2563,7 @@ function meetingMinutesDetailApp() {
                 await fetch(`/meeting/api/recordings/${RECORDING_ID}/regenerate-minutes`, {
                     method: 'POST'
                 });
-                this.minutes.status = 'generating';
+                if (this.minutes) this.minutes.status = 'generating';
                 this.showProgress = true;
                 setTimeout(() => this.loadData(), 2000);
             } catch (error) {
@@ -828,17 +2583,14 @@ function meetingMinutesDetailApp() {
         },
 
         editMinutes() {
-            // TODO: 实现编辑功能
             alert('{{ _("编辑功能即将上线") }}');
         },
 
         addToCalendar(item) {
-            // TODO: 实现添加到日历
             alert('{{ _("添加到日历功能即将上线") }}');
         },
 
         editActionItem(item) {
-            // TODO: 实现编辑行动项
             alert('{{ _("编辑功能即将上线") }}');
         },
 
@@ -851,7 +2603,6 @@ function meetingMinutesDetailApp() {
             this.showExportModal = false;
         },
 
-        // 格式化方法
         formatDate(dateStr) {
             if (!dateStr) return '';
             const date = new Date(dateStr);
@@ -877,21 +2628,61 @@ function meetingMinutesDetailApp() {
         },
 
         formatTime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            const s = seconds % 60;
+            const total = Math.floor(Number(seconds) || 0);
+            const h = Math.floor(total / 3600);
+            const m = Math.floor((total % 3600) / 60);
+            const s = total % 60;
             if (h > 0) {
                 return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
             }
             return `${m}:${s.toString().padStart(2, '0')}`;
         },
 
+        // 给纪要标题副标用：从 ISO 日期取 HH:MM
+        formatHM(dateStr) {
+            if (!dateStr) return '';
+            try {
+                return new Date(dateStr).toLocaleTimeString('zh-CN', {
+                    hour: '2-digit', minute: '2-digit', hour12: false
+                });
+            } catch (_) { return ''; }
+        },
+
+        // TL;DR 高亮处理：现在仅做 HTML 转义（避免 XSS）+ 把 [[hl]]xxx[[/hl]] 包成 .pma-hl 高亮
+        // AI prompt 未来可生成 [[hl]] 标签自动高亮关键短语
+        highlightSummary(text) {
+            if (!text) return '';
+            const esc = String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+            return esc.replace(/\[\[hl\]\](.+?)\[\[\/hl\]\]/g,
+                '<span class="pma-hl">$1</span>');
+        },
+
         formatSegmentTime(seconds) {
             const m = Math.floor(seconds / 60);
             const s = Math.floor(seconds % 60);
             return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        },
+
+        // 段落时间戳：优先用相对秒数 (mm:ss)，跟设计稿一致
+        // _normalizeSegmentTimes 已经给所有 segment 算了 start_time（即使原始只有 ISO ts）
+        formatSegTimestamp(segment) {
+            if (typeof segment.start_time === 'number') {
+                return this.formatSegmentTime(segment.start_time);
+            }
+            // 兜底：实在没 start_time 才用 ISO（极少触发）
+            if (segment.ts) {
+                try {
+                    const d = new Date(segment.ts);
+                    return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                } catch (_) { return segment.ts; }
+            }
+            return '';
         }
     };
 }
 </script>
-{% endblock %}
+</body>
+</html>

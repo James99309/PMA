@@ -1,0 +1,1311 @@
+{#
+=============================================================================
+会议浮窗组件 (Meeting Panel)
+=============================================================================
+全局右侧滑出面板，用于实时会议（录音 + 实时翻译）。
+
+特性：
+- 三态：最小化（底部气泡）/ 浮动（30vw 右侧）/ 全屏
+- 双轨道：录音始终运行 + 翻译可选启用
+- 跨页面持久（挂在 layout 顶层，路由切换不销毁）
+- 与聊天面板 splitMode 协调（避免右侧空间冲突）
+
+使用方式：
+{% from 'components/tw_meeting_panel.html' import
+    render_meeting_panel, render_meeting_panel_script %}
+
+在 layout 底部调用：
+{{ render_meeting_panel() }}
+{{ render_meeting_panel_script() }}
+
+任意页面通过事件触发：
+$dispatch('open-meeting-panel', {
+    recordingId: 123,                  // 必填，已创建的录音 ID
+    title: 'NF 周会',
+    enableTranslation: true,
+    sourceLang: 'zh-CN',
+    targetLang: 'en'
+})
+=============================================================================
+#}
+
+{# 会议浮窗主体 #}
+{% macro render_meeting_panel() %}
+<!-- 最小化气泡（会议进行中且浮窗未展开时显示） -->
+<div x-data
+     x-show="$store.meeting && $store.meeting.active && $store.meeting.state === 'minimized'"
+     x-cloak
+     @click="$store.meeting.setState('floating')"
+     class="fixed bottom-6 right-6 z-40 cursor-pointer">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3 hover:shadow-2xl transition-shadow">
+        <div class="relative">
+            <span class="material-symbols-outlined text-red-500 text-2xl">mic</span>
+            <span class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+        </div>
+        <div>
+            <div class="text-sm font-medium text-slate-900 dark:text-white"
+                 x-text="$store.meeting.title || '{{ _('会议中') }}'"></div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 font-mono"
+                 x-text="$store.meeting.formatTime($store.meeting.elapsedTime)"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 主浮窗 -->
+<div x-data="meetingPanel()"
+     x-show="$store.meeting && $store.meeting.active && ($store.meeting.state === 'floating' || $store.meeting.state === 'fullscreen')"
+     x-cloak
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0 translate-x-8"
+     x-transition:enter-end="opacity-100 translate-x-0"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100 translate-x-0"
+     x-transition:leave-end="opacity-0 translate-x-8"
+     @keydown.escape.window="if ($store.meeting.state === 'fullscreen') $store.meeting.setState('floating')"
+     :class="$store.meeting.state === 'fullscreen'
+             ? 'fixed inset-0 md:inset-4 z-50 max-w-4xl mx-auto'
+             : 'fixed top-16 right-0 bottom-0 z-30 w-full md:w-[30vw] md:min-w-[380px]'"
+     class="bg-white dark:bg-slate-900 shadow-2xl border-l border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden md:rounded-l-2xl">
+
+    <!-- 标题栏 -->
+    <div class="flex-shrink-0 h-14 px-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+            <div class="relative flex-shrink-0">
+                <span class="material-symbols-outlined text-red-500"
+                      x-text="$store.meeting.recording ? 'mic' : 'mic_off'"></span>
+                <span x-show="$store.meeting.recording && !$store.meeting.paused"
+                      class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></span>
+            </div>
+            <div class="min-w-0 flex-1">
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white truncate"
+                    x-text="$store.meeting.title || '{{ _('会议中') }}'"></h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 font-mono"
+                   x-text="$store.meeting.formatTime($store.meeting.elapsedTime)"></p>
+            </div>
+        </div>
+        <div class="flex items-center gap-1">
+            <button @click="$store.meeting.setState('minimized')"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    :title="'{{ _('最小化') }}'">
+                <span class="material-symbols-outlined text-lg">minimize</span>
+            </button>
+            <button @click="$store.meeting.setState($store.meeting.state === 'fullscreen' ? 'floating' : 'fullscreen')"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    :title="$store.meeting.state === 'fullscreen' ? '{{ _('还原') }}' : '{{ _('全屏') }}'">
+                <span class="material-symbols-outlined text-lg"
+                      x-text="$store.meeting.state === 'fullscreen' ? 'close_fullscreen' : 'open_in_full'"></span>
+            </button>
+            <button @click="confirmClose()"
+                    class="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-600 transition-colors"
+                    :title="'{{ _('关闭') }}'">
+                <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 主内容区（可滚动） -->
+    <div class="flex-1 overflow-y-auto relative">
+
+        <!-- 等待音频：屏幕共享未授权或未勾选"分享音频" -->
+        <div x-show="$store.meeting._phase === 'awaiting_audio'" x-cloak
+             class="absolute inset-0 z-10 bg-white dark:bg-slate-900 p-6 overflow-y-auto flex items-center justify-center">
+            <div class="max-w-md mx-auto text-center space-y-4">
+                <div class="w-16 h-16 mx-auto rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                    <span class="material-symbols-outlined text-3xl text-amber-600 dark:text-amber-400">volume_off</span>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-slate-900 dark:text-white">{{ _('未检测到会议音频') }}</h3>
+                    <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                        {{ _('请重新选择第三方会议窗口（Zoom / 腾讯会议 / Google Meet）') }}
+                    </p>
+                </div>
+
+                <div class="text-left bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-200 space-y-2">
+                    <div class="flex items-start gap-2">
+                        <span class="material-symbols-outlined flex-shrink-0" style="font-size: 16px;">check_circle</span>
+                        <span>{{ _('系统对话框里选会议软件的窗口') }}</span>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="material-symbols-outlined flex-shrink-0" style="font-size: 16px;">check_circle</span>
+                        <span>{{ _('务必勾选「分享音频 / Share audio」') }}</span>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="material-symbols-outlined flex-shrink-0" style="font-size: 16px;">headphones</span>
+                        <span>{{ _('建议戴耳机，避免扬声器回灌') }}</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-center gap-2 pt-2">
+                    <button @click="$store.meeting.close()"
+                            class="px-4 py-2 text-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                        {{ _('取消') }}
+                    </button>
+                    <button @click="$store.meeting.reselectWindow()"
+                            class="px-4 py-2 text-sm bg-primary hover:bg-primary/90 text-white rounded-lg inline-flex items-center gap-1.5">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">screen_share</span>
+                        {{ _('重新选择会议窗口') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 检测中：刚弹出系统对话框 -->
+        <div x-show="$store.meeting._phase === 'checking_audio'" x-cloak
+             class="absolute inset-0 z-10 bg-white/95 dark:bg-slate-900/95 flex items-center justify-center">
+            <div class="text-center space-y-3">
+                <span class="material-symbols-outlined text-4xl text-primary animate-pulse">screen_share</span>
+                <p class="text-sm text-slate-600 dark:text-slate-300">{{ _('请在浏览器对话框中选择会议窗口') }}</p>
+                <p class="text-[11px] text-slate-400">{{ _('并勾选「分享音频」') }}</p>
+            </div>
+        </div>
+
+        <!-- 错误提示条（权限拒绝等） -->
+        <div x-show="$store.meeting._errorMessage" x-cloak
+             class="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 px-4 py-3">
+            <div class="flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
+                <span class="material-symbols-outlined text-base flex-shrink-0">error</span>
+                <span class="flex-1" x-text="$store.meeting._errorMessage"></span>
+                <button @click="$store.meeting._errorMessage = ''"
+                        class="text-red-500 hover:text-red-700">
+                    <span class="material-symbols-outlined text-base">close</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 待上传提示（离线时） -->
+        <div x-show="$store.meeting._pendingChunks > 0" x-cloak
+             class="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 px-4 py-2">
+            <div class="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300">
+                <span class="material-symbols-outlined text-sm">cloud_upload</span>
+                <span>{{ _('待上传:') }} <span x-text="$store.meeting._pendingChunks"></span> {{ _('块') }}</span>
+            </div>
+        </div>
+
+        <!-- 会议元信息条（紧凑头）-->
+        <div class="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 text-[11px]">
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-medium"
+                  :class="$store.meeting.mode === 'guest' ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'">
+                <span class="w-1.5 h-1.5 rounded-full animate-pulse"
+                      :class="$store.meeting.mode === 'guest' ? 'bg-violet-500' : 'bg-purple-500'"></span>
+                <span x-text="$store.meeting.mode === 'guest' ? '{{ _('旁听中') }}' : '{{ _('实时 AI') }}'"></span>
+            </span>
+            <span class="text-slate-500 dark:text-slate-400"
+                  x-text="$store.meeting.mode === 'guest' ? ($store.meeting.hostName ? $store.meeting.hostName + ' {{ _('的会议') }}' : '{{ _('对方会议') }}') : '{{ _('麦克风 + 会议音频') }}'"></span>
+            <span class="text-slate-300 dark:text-slate-600">·</span>
+            <div class="relative inline-flex items-center gap-1 text-slate-500 dark:text-slate-400"
+                 @click.away="$store.meeting._showLangDropdown = false">
+                <span class="material-symbols-outlined" style="font-size: 12px;">language</span>
+                {{ _('翻译为') }}
+                <button @click="$store.meeting._showLangDropdown = !$store.meeting._showLangDropdown"
+                        class="font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-0.5 hover:text-violet-600">
+                    <span x-text="$store.meeting.langName($store.meeting.nativeLang)"></span>
+                    <span class="material-symbols-outlined" style="font-size: 12px;">expand_more</span>
+                </button>
+                <div x-show="$store.meeting._showLangDropdown" x-cloak
+                     class="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg py-1 min-w-[120px]">
+                    <template x-for="opt in $store.meeting._langOptions" :key="opt.code">
+                        <button @click="$store.meeting.setNativeLang(opt.code)"
+                                class="w-full px-3 py-1.5 text-left text-[12px] hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                :class="$store.meeting.nativeLang === opt.code ? 'text-violet-600 font-semibold' : 'text-slate-700 dark:text-slate-200'">
+                            <span x-text="opt.label"></span>
+                            <span x-show="$store.meeting.nativeLang === opt.code" class="material-symbols-outlined ml-auto" style="font-size: 14px;">check</span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+            <button @click="$store.meeting.toggleTranslationPause()"
+                    class="ml-auto w-6 h-6 flex items-center justify-center rounded text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    :title="$store.meeting.translationPaused ? '{{ _('继续翻译') }}' : '{{ _('暂停翻译') }}'">
+                <span class="material-symbols-outlined" style="font-size: 14px;"
+                      x-text="$store.meeting.translationPaused ? 'play_arrow' : 'pause'"></span>
+            </button>
+        </div>
+
+        <!-- 邀请同事旁听条（仅 host 模式） -->
+        <div x-show="$store.meeting.mode === 'host'" x-cloak
+             class="px-4 py-2 border-b border-slate-200 dark:border-slate-700 flex items-center flex-wrap gap-1.5 text-[11px]">
+            <span class="material-symbols-outlined text-slate-400" style="font-size: 14px;">group_add</span>
+            <span class="text-slate-500 dark:text-slate-400">{{ _('邀请旁听') }}</span>
+            <template x-for="u in $store.meeting.invitedUsers" :key="u.id">
+                <span class="inline-flex items-center gap-1 pl-0.5 pr-1 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+                    <span class="w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-semibold flex-shrink-0"
+                          :style="{ backgroundColor: $store.meeting.userColorOf(u.id) }"
+                          x-text="(u.real_name || u.username || '?').charAt(0).toUpperCase()"></span>
+                    <span class="text-[11px]" x-text="u.real_name || u.username"></span>
+                    <button @click="$store.meeting.removeInvitedChip(u.id)"
+                            class="w-3.5 h-3.5 inline-flex items-center justify-center rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-red-500"
+                            :title="'{{ _('移除') }}'">
+                        <span class="material-symbols-outlined" style="font-size: 12px;">close</span>
+                    </button>
+                </span>
+            </template>
+            <button @click="$store.meeting.openInviteModal()"
+                    class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border border-dashed border-slate-300 dark:border-slate-600 text-slate-500 hover:text-violet-600 hover:border-violet-400">
+                <span class="material-symbols-outlined" style="font-size: 12px;">add</span>
+                <span x-text="$store.meeting.invitedUsers.length === 0 ? '{{ _('添加同事') }}' : '{{ _('继续添加') }}'"></span>
+            </button>
+        </div>
+
+        <!-- 翻译消息流（主体，全宽，无头像列） -->
+        <div class="px-4 py-4 translation-stream-scroll" x-ref="translationStream">
+            <!-- 空状态 -->
+            <template x-if="$store.meeting.translationMessages.length === 0">
+                <div class="text-center py-12 text-sm text-slate-400 dark:text-slate-500">
+                    <span class="material-symbols-outlined text-4xl mb-2 block opacity-60">graphic_eq</span>
+                    {{ _('开始说话，翻译将出现在这里') }}
+                </div>
+            </template>
+
+            <!-- 消息列表：每条全宽，原文+翻译同一气泡 -->
+            <div class="space-y-5">
+                <template x-for="msg in $store.meeting.translationMessages" :key="msg.id">
+                    <div>
+                        <!-- 顶部一行：人名 + 时间 + "正在听" -->
+                        <div class="flex items-center gap-2 mb-1.5 px-0.5">
+                            <span class="text-[13px] font-semibold"
+                                  :class="msg.isMe ? 'text-slate-900 dark:text-white' : 'text-slate-900 dark:text-white'"
+                                  x-text="msg.isMe ? '{{ _('我') }}' : (msg.speakerName || '{{ _('对方') }}')"></span>
+                            <span class="text-[11px] text-slate-400 font-mono" x-text="msg.timeLabel"></span>
+                            <span x-show="msg.isPartial" x-cloak
+                                  class="inline-flex items-center gap-1 text-[10px] text-red-500 font-medium">
+                                <span class="w-1.5 h-1.5 rounded-full bg-red-500 status-pulse"></span>
+                                {{ _('正在听') }}
+                            </span>
+                        </div>
+                        <!-- 单一气泡：原文 + 翻译（同卡片，分隔） -->
+                        <div class="rounded-xl bg-white dark:bg-slate-800/40 overflow-hidden">
+                            <!-- 原文 -->
+                            <div class="px-4 py-3 relative">
+                                <span class="absolute top-2 right-3 text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide"
+                                      x-text="$store.meeting.langName(msg.detectedLang || 'zh-CN')"></span>
+                                <div class="text-[15px] text-slate-900 dark:text-white leading-relaxed pr-12" x-text="msg.original"></div>
+                            </div>
+                            <!-- 翻译（仅 wasTranslated 渲染） -->
+                            <template x-if="msg.wasTranslated">
+                                <div class="px-4 py-3 bg-purple-50/70 dark:bg-purple-900/15 border-t border-slate-100 dark:border-slate-700/50 relative">
+                                    <span class="absolute top-2 right-3 text-[10px] text-purple-500 dark:text-purple-400 font-medium uppercase tracking-wide inline-flex items-center gap-0.5">
+                                        <span class="material-symbols-outlined" style="font-size: 10px;">translate</span>
+                                        <span x-text="$store.meeting.langName($store.meeting.nativeLang)"></span>
+                                    </span>
+                                    <div class="text-[15px] text-slate-800 dark:text-slate-100 leading-relaxed pr-14" x-text="msg.translation"></div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Guest 模式底部状态条（只显示发起人 + 旁听标识，无控制按钮） -->
+    <div x-show="$store.meeting.mode === 'guest'" x-cloak
+         class="flex-shrink-0 border-t border-slate-200 dark:border-slate-700 bg-violet-50 dark:bg-violet-900/20 px-4 py-3 flex items-center gap-2.5 text-[12.5px]">
+        <span class="material-symbols-outlined text-violet-500" style="font-size: 18px;">hearing</span>
+        <div class="flex-1 min-w-0">
+            <div class="font-medium text-violet-700 dark:text-violet-300">{{ _('旁听模式') }}</div>
+            <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                <span x-show="$store.meeting.hostName"><span x-text="$store.meeting.hostName"></span> {{ _('的会议') }} · </span>
+                {{ _('每 3 秒同步') }}
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部录音控制条（仅 host 模式） -->
+    <div x-show="$store.meeting.mode === 'host'" x-cloak
+         class="flex-shrink-0 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-3">
+
+        <!-- 就绪态：等待用户手动点开始 -->
+        <template x-if="$store.meeting._phase === 'ready'">
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 text-xs flex-1">
+                    <span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span>
+                    <span class="font-medium">{{ _('会议音频已连接') }}</span>
+                </div>
+                <button @click="$store.meeting.reselectWindow()"
+                        class="text-xs px-2.5 h-9 rounded-full text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 inline-flex items-center gap-1">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">cached</span>
+                    {{ _('重选') }}
+                </button>
+                <button @click="$store.meeting.startRecording()"
+                        class="px-4 h-9 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold inline-flex items-center gap-1.5 shadow">
+                    <span class="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+                    {{ _('开始录音') }}
+                </button>
+            </div>
+        </template>
+
+        <!-- 录制中/暂停态 -->
+        <template x-if="$store.meeting._phase === 'recording' || $store.meeting._phase === 'paused'">
+            <div class="flex items-center gap-3">
+                <!-- 录制时长 -->
+                <div class="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <span class="w-2 h-2 rounded-full"
+                          :class="$store.meeting.paused ? 'bg-amber-500' : 'bg-red-500 animate-pulse'"></span>
+                    <span class="font-mono text-sm font-semibold tabular-nums"
+                          x-text="$store.meeting.formatTime($store.meeting.elapsedTime)">00:00:00</span>
+                </div>
+                <!-- 波形 -->
+                <div class="flex items-center gap-0.5 h-5 flex-1 overflow-hidden">
+                    <template x-for="i in 28">
+                        <div class="w-0.5 bg-slate-300 dark:bg-slate-600 rounded"
+                             :style="{
+                                 height: $store.meeting.paused ? '20%' : (Math.random() * 80 + 20) + '%',
+                                 transition: 'height 0.3s ease',
+                                 opacity: $store.meeting.paused ? 0.3 : 0.7
+                             }"></div>
+                    </template>
+                </div>
+                <!-- 暂停/继续 -->
+                <button @click="$store.meeting.togglePause()"
+                        class="w-9 h-9 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors"
+                        :title="$store.meeting.paused ? '{{ _('继续') }}' : '{{ _('暂停') }}'">
+                    <span class="material-symbols-outlined text-lg"
+                          x-text="$store.meeting.paused ? 'play_arrow' : 'pause'"></span>
+                </button>
+                <!-- 结束 -->
+                <button @click="confirmStop()"
+                        class="px-3 h-9 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-medium inline-flex items-center gap-1.5 transition-colors"
+                        :title="'{{ _('结束并生成纪要') }}'">
+                    <span class="w-2 h-2 rounded-full bg-white"></span>
+                    {{ _('结束') }}
+                </button>
+            </div>
+        </template>
+
+        <!-- 等待音频态：录音按钮灰色禁用，提示去重选 -->
+        <template x-if="$store.meeting._phase === 'awaiting_audio' || $store.meeting._phase === 'checking_audio'">
+            <div class="flex items-center gap-3">
+                <div class="text-xs text-slate-400 flex-1 inline-flex items-center gap-1.5">
+                    <span class="material-symbols-outlined" style="font-size: 14px;">volume_off</span>
+                    {{ _('等待会议音频…') }}
+                </div>
+                <button disabled
+                        class="px-4 h-9 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-400 text-sm font-semibold inline-flex items-center gap-1.5 cursor-not-allowed">
+                    <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                    {{ _('开始录音') }}
+                </button>
+            </div>
+        </template>
+    </div>
+
+    <!-- 停止确认弹窗 -->
+    <div x-show="showStopConfirm" x-cloak
+         class="absolute inset-0 z-10 bg-black/50 flex items-center justify-center p-4"
+         @click.self="showStopConfirm = false"
+         @keydown.escape.window="showStopConfirm = false">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-white mb-2">{{ _('结束会议？') }}</h3>
+            <p class="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                {{ _('停止后将上传剩余音频并开始转录。') }}
+            </p>
+            <div class="flex justify-end gap-2">
+                <button @click="showStopConfirm = false"
+                        class="px-4 py-2 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                    {{ _('取消') }}
+                </button>
+                <button @click="$store.meeting.stop(); showStopConfirm = false"
+                        class="px-4 py-2 text-sm bg-red-500 hover:bg-red-600 text-white rounded-lg">
+                    {{ _('结束会议') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 邀请同事 modal（独立 z-index，覆盖在浮窗之上） -->
+<div x-data
+     x-show="$store.meeting && $store.meeting._showInviteModal" x-cloak
+     class="fixed inset-0 z-[1200] bg-black/40 flex items-center justify-center p-4"
+     @click.self="$store.meeting._showInviteModal = false"
+     @keydown.escape.window="$store.meeting._showInviteModal = false">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+        <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ _('邀请 PMA 同事旁听') }}</h3>
+            <p class="text-[12px] text-slate-500 dark:text-slate-400 mt-1">
+                {{ _('被邀请人将在自己的会议列表看到这场会议，并实时同步转录与翻译') }}
+            </p>
+        </div>
+        <div class="px-5 py-3 border-b border-slate-100 dark:border-slate-800">
+            <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" style="font-size: 16px;">search</span>
+                <input type="text" x-model="$store.meeting._inviteSearch"
+                       placeholder="{{ _('搜索同事...') }}"
+                       class="w-full pl-9 pr-3 h-9 text-sm border border-slate-200 dark:border-slate-700 dark:bg-slate-800 rounded-lg focus:border-primary outline-none">
+            </div>
+        </div>
+        <div class="overflow-y-auto flex-1 py-1">
+            <template x-for="u in $store.meeting.filteredAvailableUsers" :key="u.id">
+                <label class="flex items-center gap-3 px-5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                    <input type="checkbox"
+                           :checked="$store.meeting.isInviteDraftSelected(u.id)"
+                           @change="$store.meeting.toggleInviteDraft(u)"
+                           class="w-4 h-4 rounded text-violet-600 focus:ring-violet-500">
+                    <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-semibold flex-shrink-0"
+                         :style="{ backgroundColor: $store.meeting.userColorOf(u.id) }"
+                         x-text="(u.real_name || u.username || '?').charAt(0).toUpperCase()"></div>
+                    <span class="text-sm text-slate-700 dark:text-slate-200" x-text="u.real_name || u.username"></span>
+                </label>
+            </template>
+            <template x-if="$store.meeting.filteredAvailableUsers.length === 0">
+                <div class="text-center text-sm text-slate-400 py-8">{{ _('没有匹配的同事') }}</div>
+            </template>
+        </div>
+        <div class="px-5 py-3 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <span class="text-[12px] text-slate-500">
+                {{ _('已选') }} <span class="font-semibold text-slate-700 dark:text-slate-200" x-text="$store.meeting._inviteDraft.length"></span> {{ _('人') }}
+            </span>
+            <div class="flex gap-2">
+                <button @click="$store.meeting._showInviteModal = false"
+                        class="px-3 h-8 text-sm rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+                    {{ _('取消') }}
+                </button>
+                <button @click="$store.meeting.saveInvited()"
+                        class="px-4 h-8 text-sm rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-medium">
+                    {{ _('确定') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}
+
+
+{# 会议浮窗 JavaScript #}
+{% macro render_meeting_panel_script() %}
+{# 复用现有的 MeetingRecorder 类 #}
+<script src="{{ url_for('static', filename='js/meeting-recorder.js') }}"></script>
+{# 实时翻译轨道 #}
+<script src="{{ url_for('static', filename='js/realtime-translator.js') }}"></script>
+<script>
+// 全局 Alpine store: $store.meeting
+document.addEventListener('alpine:init', () => {
+    Alpine.store('meeting', {
+        // ====== 状态 ======
+        active: false,                    // 浮窗是否激活
+        state: 'floating',                // floating / minimized / fullscreen
+        mode: 'host',                     // 'host' 发起人（录音+翻译）/ 'guest' 旁听人（订阅显示）
+        recordingId: null,
+        title: '',
+        hostName: '',                     // guest 模式下显示"X 正在录会议"
+        elapsedTime: 0,
+        recording: false,
+        paused: false,
+        _guestPollHandle: null,           // guest 轮询定时器
+        _guestRenderSig: '',              // 渲染签名（segCount:lang:trKeyCount），变化才重建 UI
+
+        // 翻译相关
+        translationPaused: false,
+        nativeLang: 'zh-CN',
+        translationMessages: [],
+        _showLangDropdown: false,
+        _langOptions: [
+            {code: 'zh-CN', label: '中文'},
+            {code: 'en', label: 'English'},
+            {code: 'ms', label: 'Bahasa Melayu'},
+            {code: 'id', label: 'Bahasa Indonesia'},
+            {code: 'ja', label: '日本語'},
+            {code: 'ko', label: '한국어'},
+            {code: 'th', label: 'ไทย'},
+            {code: 'vi', label: 'Tiếng Việt'},
+            {code: 'tl', label: 'Tagalog'},
+        ],
+        setNativeLang(code) {
+            this.nativeLang = code;
+            this._showLangDropdown = false;
+            try { localStorage.setItem('pma_meeting_native_lang', code); } catch (_) {}
+            // guest 模式：清空签名让下次 refresh 强制重渲染（按新母语取译版）
+            if (this.mode === 'guest') {
+                this._guestRenderSig = '';
+                this._guestRefresh();
+            }
+            // host 模式：后续 chunk 的实时翻译目标语种自动用 nativeLang，无需额外动作
+        },
+
+        // 参与者
+        participants: [],
+
+        // 邀请旁听（PMA 同事）
+        invitedUsers: [],           // [{id, real_name, username}]
+        availableUsers: [],         // 选人列表
+        _showInviteModal: false,
+        _inviteSearch: '',
+        _inviteDraft: [],           // modal 编辑中的 id 集合（确认后才同步到 invitedUsers）
+        // 头像色板（跟详情页 speakerColors 一致）
+        _userPalette: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'],
+        userColorOf(id) {
+            const n = parseInt(id, 10) || 0;
+            return this._userPalette[Math.abs(n) % this._userPalette.length];
+        },
+
+        // 阶段状态机：
+        //   idle              → 浮窗未激活
+        //   checking_audio    → 已弹屏幕共享对话框，等待用户选窗口
+        //   awaiting_audio    → 屏幕已共享但没勾"分享音频"，需重新选择
+        //   ready             → 屏幕+音频就绪，等待用户手动点"开始录音"
+        //   recording         → 真正录制中
+        //   paused            → 暂停
+        //   stopped           → 已结束
+        _phase: 'idle',
+
+        // 内部
+        _recorder: null,             // MeetingRecorder 实例
+        _translatorMe: null,         // 翻译轨道（麦克风 = 我说的）
+        _translatorPeer: null,       // 翻译轨道（系统音频 = 对方说的）
+        _pendingChunks: 0,           // 待上传分块数
+        _errorMessage: '',           // 录音错误（权限拒绝等）
+
+        // ====== 公共方法 ======
+        async open(config) {
+            this.recordingId = config.recordingId;
+            this.title = config.title || '{{ _('会议录音') }}';
+            this.elapsedTime = config.elapsedTime || 0;
+            // 母语优先级：config 传入 > localStorage 记忆 > 浏览器 locale > zh-CN
+            let lang = config.nativeLang;
+            if (!lang) {
+                try { lang = localStorage.getItem('pma_meeting_native_lang'); } catch (_) {}
+            }
+            if (!lang) {
+                const loc = (navigator.language || 'zh-CN');
+                lang = loc.toLowerCase().startsWith('zh') ? 'zh-CN' : loc.split('-')[0];
+            }
+            this.nativeLang = lang;
+            this.translationMessages = [];
+            this.participants = config.participants || [];
+            this._errorMessage = '';
+            this.active = true;
+            this.state = 'floating';
+            this._phase = 'checking_audio';
+
+            window.dispatchEvent(new CustomEvent('meeting-panel-opened'));
+
+            // 异步加载可邀请的 PMA 同事列表（不阻塞屏幕共享流程）
+            this._loadAvailableUsers();
+
+            // 立即请求屏幕共享，检测是否有音频
+            await this._requestDisplayStream();
+        },
+
+        // ====== Guest 模式（旁听）======
+        async openAsGuest(config) {
+            this.mode = 'guest';
+            this.recordingId = config.recordingId;
+            this.title = config.title || '{{ _('会议旁听') }}';
+            this.hostName = '';
+            this.translationMessages = [];
+            this._guestRenderSig = '';
+            this.active = true;
+            this.state = 'floating';
+            this._phase = 'guest_listening';
+            // 母语优先级跟 host 一致
+            let lang = null;
+            try { lang = localStorage.getItem('pma_meeting_native_lang'); } catch (_) {}
+            if (!lang) {
+                const loc = (navigator.language || 'zh-CN');
+                lang = loc.toLowerCase().startsWith('zh') ? 'zh-CN' : loc.split('-')[0];
+            }
+            this.nativeLang = lang;
+            window.dispatchEvent(new CustomEvent('meeting-panel-opened'));
+            // 立刻拉一次 + 启动轮询
+            await this._guestRefresh();
+            this._guestStartPolling();
+        },
+
+        async _guestRefresh() {
+            if (!this.recordingId) return;
+            try {
+                const r = await fetch(`/meeting/api/recordings/${this.recordingId}`);
+                const d = await r.json();
+                if (!d.success) return;
+                const rec = d.recording || {};
+                this.title = rec.title || this.title;
+                this.hostName = rec.owner_name || '';
+                const segs = (rec.transcript && rec.transcript.segments) || [];
+                const lang = (this.nativeLang || '').toLowerCase();
+                // 全量重建：异步翻译入库后下次轮询能让已显示段自动更新到当前母语版本
+                // 段数 500 以下重建成本可忽略
+                const rebuilt = segs.map((s, i) => {
+                    const isMe = (s.speaker === 'me');
+                    const tr = s.translations || {};
+                    let translation = tr[lang] || '';
+                    if (!translation) {
+                        const target = (s.target_lang || '').toLowerCase();
+                        if (target === lang && s.translation) translation = s.translation;
+                    }
+                    const wasTranslated = !!translation && translation !== s.text;
+                    return {
+                        id: 'seg-' + i,
+                        speakerName: isMe ? (this.hostName || '{{ _('发起人') }}') : '{{ _('对方') }}',
+                        isMe: false,
+                        original: s.text || '',
+                        translation,
+                        wasTranslated,
+                        detectedLang: s.source_lang,
+                        _ts: 0,
+                        timeLabel: this._formatSegTime(s),
+                    };
+                });
+                // 只有内容变化时才重渲染（避免每 2s 都把 DOM 重建）
+                const newSig = segs.length + ':' + lang + ':' +
+                    segs.reduce((n, s) => n + Object.keys(s.translations || {}).length, 0);
+                if (newSig !== this._guestRenderSig) {
+                    this.translationMessages = rebuilt;
+                    this._guestRenderSig = newSig;
+                    // 滚到底
+                    setTimeout(() => {
+                        const stream = document.querySelector('.translation-stream-scroll');
+                        if (!stream) return;
+                        let el = stream.parentElement;
+                        while (el && el !== document.body) {
+                            const oy = getComputedStyle(el).overflowY;
+                            if (oy === 'auto' || oy === 'scroll') {
+                                el.scrollTop = el.scrollHeight;
+                                return;
+                            }
+                            el = el.parentElement;
+                        }
+                    }, 60);
+                }
+                // 缺译版本 → 异步触发后端翻译入库（下次轮询自动更新已显示段）
+                this._guestEnsureTranslated(segs);
+                // 录音结束 → 停止轮询 + 2 秒后跳详情页（让用户看到完整最后一段）
+                if (rec.status && !['recording', 'uploading'].includes(rec.status)) {
+                    this._guestStopPolling();
+                    if (!this._guestEndedRedirecting) {
+                        this._guestEndedRedirecting = true;
+                        // 在浮窗内显示"已结束 → 即将跳转纪要"
+                        this.translationMessages.push({
+                            id: 'guest-end-' + Date.now(),
+                            speakerName: '',
+                            isMe: false,
+                            original: '',
+                            translation: '',
+                            wasTranslated: false,
+                            _systemMsg: '{{ _('会议已结束，正在跳转到会议纪要…') }}',
+                            timeLabel: '',
+                            _ts: 0,
+                        });
+                        const targetId = this.recordingId;
+                        setTimeout(() => {
+                            window.location.href = `/meeting/minutes/${targetId}`;
+                        }, 2000);
+                    }
+                }
+            } catch (e) { console.warn('[meeting-guest] refresh failed:', e); }
+        },
+
+        async _guestEnsureTranslated(segs) {
+            const lang = (this.nativeLang || '').toLowerCase();
+            if (!lang || !segs || segs.length === 0) return;
+            const need = segs.some(s => {
+                const src = (s.source_lang || '').toLowerCase();
+                if (src === lang) return false;
+                const tr = s.translations || {};
+                if (tr[lang]) return false;
+                const tgt = (s.target_lang || '').toLowerCase();
+                return !(tgt === lang && s.translation);
+            });
+            if (!need) return;
+            if (this._guestTranslating) return;
+            this._guestTranslating = true;
+            try {
+                await fetch(`/meeting/api/recordings/${this.recordingId}/translate-segments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || ''
+                    },
+                    body: JSON.stringify({ to_lang: lang })
+                });
+            } catch (_) {}
+            this._guestTranslating = false;
+        },
+
+        _guestStartPolling() {
+            this._guestStopPolling();
+            // 2 秒 — host 那边一个 chunk ≈ 30s，2s 间隔保证最坏 2s 延迟，且压力可控
+            this._guestPollHandle = setInterval(() => { this._guestRefresh(); }, 2000);
+        },
+        _guestStopPolling() {
+            if (this._guestPollHandle) {
+                clearInterval(this._guestPollHandle);
+                this._guestPollHandle = null;
+            }
+        },
+
+        _formatSegTime(s) {
+            if (typeof s.start_time === 'number' && isFinite(s.start_time)) {
+                const sec = Math.floor(s.start_time);
+                const m = String(Math.floor(sec / 60)).padStart(2, '0');
+                const ss = String(sec % 60).padStart(2, '0');
+                return `${m}:${ss}`;
+            }
+            if (s.ts) {
+                try { return new Date(s.ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }); }
+                catch (_) {}
+            }
+            return '';
+        },
+
+        // ====== 邀请同事旁听 ======
+        async _loadAvailableUsers() {
+            try {
+                const r = await fetch('/meeting/api/available-users');
+                const d = await r.json();
+                if (d.success) this.availableUsers = d.users || [];
+            } catch (e) { console.warn('[meeting] load available users failed:', e); }
+        },
+        get filteredAvailableUsers() {
+            const q = (this._inviteSearch || '').toLowerCase().trim();
+            if (!q) return this.availableUsers;
+            return this.availableUsers.filter(u =>
+                (u.real_name || '').toLowerCase().includes(q) ||
+                (u.username || '').toLowerCase().includes(q)
+            );
+        },
+        isInviteDraftSelected(id) { return this._inviteDraft.includes(id); },
+        openInviteModal() {
+            this._inviteDraft = this.invitedUsers.map(u => u.id);
+            this._inviteSearch = '';
+            this._showInviteModal = true;
+        },
+        toggleInviteDraft(user) {
+            const i = this._inviteDraft.indexOf(user.id);
+            if (i >= 0) this._inviteDraft.splice(i, 1);
+            else this._inviteDraft.push(user.id);
+        },
+        async saveInvited() {
+            const ids = [...this._inviteDraft];
+            // 同步到 chip 列表（用 availableUsers 反查 name）
+            this.invitedUsers = ids.map(id => {
+                const u = this.availableUsers.find(x => x.id === id);
+                return u ? { id: u.id, real_name: u.real_name, username: u.username } : { id };
+            });
+            this._showInviteModal = false;
+            // 立刻 POST 到后端（即使还没开始录音，后端有了 invited_user_ids 也能发通知）
+            if (this.recordingId) {
+                try {
+                    await fetch(`/meeting/api/recordings/${this.recordingId}/invite`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || ''
+                        },
+                        body: JSON.stringify({ invited_user_ids: ids })
+                    });
+                } catch (e) { console.warn('[meeting] save invited failed:', e); }
+            }
+        },
+        removeInvitedChip(id) {
+            this.invitedUsers = this.invitedUsers.filter(u => u.id !== id);
+            // 同步到后端
+            if (this.recordingId) {
+                fetch(`/meeting/api/recordings/${this.recordingId}/invite`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name=csrf-token]')?.content || ''
+                    },
+                    body: JSON.stringify({ invited_user_ids: this.invitedUsers.map(u => u.id) })
+                }).catch(e => console.warn('[meeting] remove invited failed:', e));
+            }
+        },
+
+        // 请求 getDisplayMedia + 检测 audio track，更新 _phase
+        async _requestDisplayStream() {
+            console.log('[meeting] _requestDisplayStream → checking_audio');
+            this._phase = 'checking_audio';
+            this._errorMessage = '';
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true, audio: true
+                });
+                this._preDisplayStream = stream;
+                const audioTrack = stream.getAudioTracks()[0];
+                if (!audioTrack || audioTrack.readyState !== 'live') {
+                    console.log('[meeting] no audio track → awaiting_audio');
+                    this._phase = 'awaiting_audio';
+                    stream.getVideoTracks().forEach(t => { try { t.stop(); } catch(_) {} });
+                    if (audioTrack) { try { audioTrack.stop(); } catch(_) {} }
+                    this._preDisplayStream = null;
+                } else {
+                    console.log('[meeting] audio track live → ready');
+                    this._phase = 'ready';
+                    stream.getVideoTracks().forEach(t => { try { t.stop(); } catch(_) {} });
+                    // 监听用户在浏览器原生 UI 上点"停止分享"
+                    // ❗用闭包 trackRef 锁定本次 audioTrack；防止旧监听器在新 stream 就绪后误触
+                    const trackRef = audioTrack;
+                    audioTrack.addEventListener('ended', () => {
+                        const cur = this._preDisplayStream && this._preDisplayStream.getAudioTracks()[0];
+                        if (cur !== trackRef) {
+                            console.log('[meeting] stale ended event ignored (track replaced)');
+                            return;
+                        }
+                        if (this._phase === 'ready' || this._phase === 'awaiting_audio') {
+                            console.log('[meeting] live audio ended → awaiting_audio');
+                            this._phase = 'awaiting_audio';
+                            this._preDisplayStream = null;
+                        } else {
+                            console.log('[meeting] audio ended during phase=' + this._phase + ', not changing');
+                        }
+                    });
+                }
+            } catch (e) {
+                console.log('[meeting] getDisplayMedia rejected → awaiting_audio:', e.message);
+                this._phase = 'awaiting_audio';
+                this._preDisplayStream = null;
+            }
+        },
+
+        // 用户点"重新选择会议窗口"
+        async reselectWindow() {
+            console.log('[meeting] reselectWindow clicked, phase=' + this._phase);
+            // 仅在准备阶段允许；录制中要求先停止
+            if (this._phase !== 'awaiting_audio' && this._phase !== 'ready') return;
+            // 先把 phase 设到 checking_audio，避免旧 stream stop 时的 ended 监听器把状态拉回 awaiting_audio
+            this._phase = 'checking_audio';
+            if (this._preDisplayStream) {
+                this._preDisplayStream.getTracks().forEach(t => { try { t.stop(); } catch(_) {} });
+                this._preDisplayStream = null;
+            }
+            await this._requestDisplayStream();
+        },
+
+        // 用户点"开始录音"
+        async startRecording() {
+            if (this._phase !== 'ready') return;
+            if (!this._preDisplayStream || this._preDisplayStream.getAudioTracks().length === 0) {
+                this._phase = 'awaiting_audio';
+                return;
+            }
+            await this._startRecording();
+            if (this.recording) {
+                this._phase = 'recording';
+                await this.enableTranslation();
+            }
+        },
+
+        close() {
+            // guest 模式：停轮询，跳过录音/翻译相关清理
+            if (this.mode === 'guest') {
+                this._guestStopPolling();
+                this.mode = 'host';  // 重置回默认，下次开浮窗按 host 流程
+                this.active = false;
+                this._phase = 'idle';
+                window.dispatchEvent(new CustomEvent('meeting-panel-closed'));
+                return;
+            }
+            this._stopRecording();
+            this._stopTranslators();
+            this.active = false;
+            this._errorMessage = '';
+            this._phase = 'idle';
+            window.dispatchEvent(new CustomEvent('meeting-panel-closed'));
+        },
+
+        // 语言显示名（用于气泡里 "中文 · 原文"）
+        langName(code) {
+            const map = {
+                'zh-CN': '中文', 'zh': '中文',
+                'en': 'English', 'ms': 'Bahasa Melayu',
+                'id': 'Bahasa Indonesia', 'ja': '日本語',
+                'ko': '한국어', 'th': 'ภาษาไทย',
+                'vi': 'Tiếng Việt', 'tl': 'Filipino'
+            };
+            return map[code] || code;
+        },
+
+        // 头像配色（同名稳定）
+        avatarColor(name) {
+            if (!name) return '#94a3b8';
+            const palette = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#06b6d4','#84cc16'];
+            let h = 0;
+            for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+            return palette[Math.abs(h) % palette.length];
+        },
+
+        _stopTranslators() {
+            if (this._translatorMe) {
+                try { this._translatorMe.stop(); } catch (_) {}
+                this._translatorMe = null;
+            }
+            if (this._translatorPeer) {
+                try { this._translatorPeer.stop(); } catch (_) {}
+                this._translatorPeer = null;
+            }
+            // 释放 me translator 专用的独立 mic stream
+            if (this._translatorMicStream) {
+                this._translatorMicStream.getTracks().forEach(t => { try { t.stop(); } catch(_) {} });
+                this._translatorMicStream = null;
+            }
+        },
+
+        setState(newState) {
+            this.state = newState;
+        },
+
+        togglePause() {
+            if (!this._recorder) {
+                this.paused = !this.paused;
+                return;
+            }
+            if (this.paused) {
+                this._recorder.resume();
+                if (this._translatorMe) this._translatorMe.resume();
+                if (this._translatorPeer) this._translatorPeer.resume();
+                this._phase = 'recording';
+            } else {
+                this._recorder.pause();
+                if (this._translatorMe) this._translatorMe.pause();
+                if (this._translatorPeer) this._translatorPeer.pause();
+                this._phase = 'paused';
+            }
+            this.paused = !this.paused;
+        },
+
+        async stop() {
+            const recordingId = this.recordingId;
+            this._phase = 'stopped';
+            if (this._recorder) {
+                try {
+                    await this._recorder.stop();
+                } catch (e) {
+                    console.error('停止录音失败:', e);
+                }
+                this._recorder = null;
+            }
+            this.close();
+            if (recordingId) {
+                window.location.href = `/meeting/minutes/${recordingId}`;
+            }
+        },
+
+        async enableTranslation() {
+            if (typeof RealtimeTranslator === 'undefined') {
+                this._errorMessage = '{{ _('翻译模块未加载') }}';
+                return;
+            }
+            if (!this.recordingId) {
+                this._errorMessage = '{{ _('会议未启动，无法翻译') }}';
+                return;
+            }
+            console.log('[meeting] enabling translation, native=', this.nativeLang);
+
+            try {
+                // 1. 麦克风翻译轨道
+                // ❗为 me translator **独立** getUserMedia 一份新 stream。
+                //   原因：_micStream 已经被 mixContext.createMediaStreamSource 接管，
+                //   再让 translator 内部的 VAD AudioContext 引用同一个 stream，
+                //   Chrome 会在 MediaRecorder.stop+start 循环时把 audio track 变 ended。
+                //   独立 stream 完全隔离，资源占用可接受（同一物理麦克风设备）。
+                let micStream;
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({
+                        audio: { echoCancellation: true, noiseSuppression: true }
+                    });
+                    this._translatorMicStream = micStream;
+                } catch (e) {
+                    this._errorMessage = '{{ _('麦克风翻译轨权限失败') }}: ' + (e.message || e);
+                    return;
+                }
+
+                this._translatorMe = new RealtimeTranslator({
+                    recordingId: this.recordingId,
+                    stream: micStream,
+                    speaker: 'me',
+                    nativeLang: this.nativeLang,
+                    chunkMs: 5000,
+                    onMessage: (msg) => {
+                        this.addTranslationMessage({
+                            speakerName: '{{ _('我') }}', isMe: true,
+                            original: msg.original, translation: msg.translation,
+                            detectedLang: msg.detectedLang, wasTranslated: msg.wasTranslated
+                        });
+                    },
+                    onError: (err) => { this._errorMessage = '{{ _('我的翻译') }}: ' + err; }
+                });
+                await this._translatorMe.start();
+                console.log('[meeting] mic translator started');
+
+                // 2. 线上模式 + displayStream 可用 → 启动 peer translator
+                const displayStream = this._preDisplayStream;
+                this._preDisplayStream = null;
+                if (displayStream) {
+                    const audioTrack = displayStream.getAudioTracks()[0];
+                    if (!audioTrack) {
+                        displayStream.getTracks().forEach(t => t.stop());
+                        this._errorMessage = '{{ _('⚠️ 屏幕共享未勾选"分享音频"，对方无法翻译') }}';
+                    } else if (audioTrack.readyState !== 'live') {
+                        this._errorMessage = '⚠️ 系统音频不可用（' + audioTrack.readyState + '）';
+                        displayStream.getTracks().forEach(t => t.stop());
+                    } else {
+                        // 直接用原 audio track，不 clone（clone 会因引用计数立即变 ended）
+                        const peerStream = new MediaStream([audioTrack]);
+                        audioTrack.addEventListener('ended', () => {
+                            if (this._translatorPeer) { this._translatorPeer.stop(); this._translatorPeer = null; }
+                            displayStream.getVideoTracks().forEach(t => t.stop());
+                        });
+                        this._translatorPeer = new RealtimeTranslator({
+                            recordingId: this.recordingId,
+                            stream: peerStream,
+                            speaker: 'peer',
+                            nativeLang: this.nativeLang,
+                            chunkMs: 5000,
+                            onMessage: (msg) => {
+                                this.addTranslationMessage({
+                                    speakerName: '{{ _('对方') }}', isMe: false,
+                                    original: msg.original, translation: msg.translation,
+                                    detectedLang: msg.detectedLang, wasTranslated: msg.wasTranslated
+                                });
+                            },
+                            onError: (err) => { this._errorMessage = '{{ _('对方翻译') }}: ' + err; }
+                        });
+                        await this._translatorPeer.start();
+                        console.log('[meeting] peer translator started');
+                        displayStream.getVideoTracks().forEach(t => t.stop());
+                    }
+                }
+            } catch (e) {
+                console.error('启动翻译失败:', e);
+                this._errorMessage = '{{ _('启动翻译失败') }}: ' + (e.message || e);
+            }
+        },
+
+        toggleTranslationPause() {
+            this.translationPaused = !this.translationPaused;
+            if (this.translationPaused) {
+                if (this._translatorMe) this._translatorMe.pause();
+                if (this._translatorPeer) this._translatorPeer.pause();
+            } else {
+                if (this._translatorMe) this._translatorMe.resume();
+                if (this._translatorPeer) this._translatorPeer.resume();
+            }
+        },
+
+        async disableTranslation() {
+            if (this._translatorMe) {
+                try { await this._translatorMe.stop(); } catch (_) {}
+                this._translatorMe = null;
+            }
+            if (this._translatorPeer) {
+                try { await this._translatorPeer.stop(); } catch (_) {}
+                this._translatorPeer = null;
+            }
+            this.translationEnabled = false;
+        },
+
+        addTranslationMessage(msg) {
+            const now = Date.now();
+            const MERGE_WINDOW_MS = 4500;
+            const last = this.translationMessages[this.translationMessages.length - 1];
+
+            if (last && last.isMe === !!msg.isMe && (now - (last._ts || 0)) < MERGE_WINDOW_MS) {
+                last.original = (last.original + (last.original ? ' ' : '') + (msg.original || '')).trim();
+                last.translation = (last.translation + (last.translation ? ' ' : '') + (msg.translation || '')).trim();
+                last._ts = now;
+                last.timeLabel = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                last.isPartial = !!msg.isPartial;
+                // 任一段被翻译过 → 整条消息视为翻译
+                if (msg.wasTranslated) last.wasTranslated = true;
+                last.detectedLang = msg.detectedLang || last.detectedLang;
+            } else {
+                this.translationMessages.push({
+                    id: msg.id || now,
+                    speakerName: msg.speakerName || '',
+                    isMe: !!msg.isMe,
+                    original: msg.original || '',
+                    translation: msg.translation || '',
+                    isPartial: !!msg.isPartial,
+                    detectedLang: msg.detectedLang || 'zh',
+                    wasTranslated: !!msg.wasTranslated,
+                    _ts: now,
+                    timeLabel: msg.timeLabel || new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                });
+            }
+
+            // 自动滚动到底部
+            // 浮窗重构后 .translation-stream-scroll 本身不再是滚动容器，
+            // 真正滚动条在它的祖先 .flex-1.overflow-y-auto 上 → 往上找
+            setTimeout(() => {
+                const stream = document.querySelector('.translation-stream-scroll');
+                if (!stream) return;
+                let el = stream.parentElement;
+                while (el && el !== document.body) {
+                    const oy = getComputedStyle(el).overflowY;
+                    if (oy === 'auto' || oy === 'scroll') {
+                        el.scrollTop = el.scrollHeight;
+                        return;
+                    }
+                    el = el.parentElement;
+                }
+            }, 60);
+        },
+
+        langPairLabel() {
+            const labels = {
+                'zh-CN': '中', 'en': '英', 'ms': '马', 'id': '印', 'ja': '日'
+            };
+            return `${labels[this.sourceLang] || this.sourceLang} ⇄ ${labels[this.targetLang] || this.targetLang}`;
+        },
+
+        formatTime(s) {
+            const h = Math.floor(s / 3600);
+            const m = Math.floor((s % 3600) / 60);
+            const sec = s % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        },
+
+        // ====== 录音内部方法 ======
+        async _startRecording() {
+            if (typeof MeetingRecorder === 'undefined') {
+                this._errorMessage = '{{ _('录音模块未加载') }}';
+                console.error('[meeting] MeetingRecorder class not loaded');
+                return;
+            }
+            if (!this.recordingId) {
+                this._errorMessage = '{{ _('缺少录音 ID') }}';
+                return;
+            }
+
+            // 自己拿麦克风（不让 MeetingRecorder 拿，避免后续翻译再调一次重复弹权限）
+            try {
+                this._micStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+                });
+            } catch (e) {
+                this._errorMessage = '{{ _('麦克风权限被拒绝') }}: ' + (e.message || e);
+                return;
+            }
+
+            // 双轨录音：
+            //   mixed 轨 = mic + system audio 混音 → 回放用（用户能听到完整对话）
+            //   system 轨 = 仅系统音频 → pyannote 单边声纹分离用（mic 已知是 me，跳过）
+            let mixedStream = this._micStream;
+            let systemStream = null;
+            if (this._preDisplayStream && this._preDisplayStream.getAudioTracks().length > 0) {
+                try {
+                    this._mixContext = new (window.AudioContext || window.webkitAudioContext)();
+                    const dest = this._mixContext.createMediaStreamDestination();
+                    const micSrc = this._mixContext.createMediaStreamSource(this._micStream);
+                    micSrc.connect(dest);
+                    // 系统音频用两次 clone：一次进混音、一次单独录 system 轨
+                    const sysTracks = this._preDisplayStream.getAudioTracks();
+                    const sysForMix = sysTracks[0].clone();
+                    const sysSrc = this._mixContext.createMediaStreamSource(new MediaStream([sysForMix]));
+                    sysSrc.connect(dest);
+                    mixedStream = dest.stream;
+                    systemStream = new MediaStream([sysTracks[0].clone()]);
+                    console.log('[meeting] 双轨录音就绪: mixed (mic+sys) + system');
+                } catch (e) {
+                    console.warn('[meeting] 音频混合失败，仅录 mic:', e);
+                    mixedStream = this._micStream;
+                    systemStream = null;
+                }
+            }
+
+            const self = this;
+            this._recorder = new MeetingRecorder({
+                recordingId: this.recordingId,
+                mode: 'external_stream',
+                externalStream: mixedStream,
+                chunkDuration: 30,
+                initialTime: this.elapsedTime,
+                uploadUrl: `/meeting/api/recordings/${this.recordingId}/upload-chunk`,
+                completeUrl: `/meeting/api/recordings/${this.recordingId}/stop`,
+                track: 'mixed',
+                onTimeUpdate: (s) => { self.elapsedTime = s; },
+                onStateChange: (state) => {
+                    self.recording = (state === 'recording' || state === 'paused');
+                    self.paused = (state === 'paused');
+                },
+                onUploadProgress: (n) => { self._pendingChunks = n; },
+                onError: (msg) => {
+                    self._errorMessage = msg;
+                    console.error('[meeting] recorder error:', msg);
+                }
+            });
+
+            // 第二个 recorder：仅 system 轨，独立分块上传（pyannote 用）
+            if (systemStream) {
+                this._systemRecorder = new MeetingRecorder({
+                    recordingId: this.recordingId,
+                    mode: 'external_stream',
+                    externalStream: systemStream,
+                    chunkDuration: 30,
+                    uploadUrl: `/meeting/api/recordings/${this.recordingId}/upload-chunk`,
+                    completeUrl: `/meeting/api/recordings/${this.recordingId}/stop`,
+                    track: 'system',
+                    // system 轨不发 stop API，跟着主 recorder 走；这里只用分块上传能力
+                    onError: (msg) => console.warn('[meeting] system recorder:', msg)
+                });
+            }
+
+            try {
+                await this._recorder.start();
+                if (this._systemRecorder) {
+                    try { await this._systemRecorder.start(); }
+                    catch (e) { console.warn('[meeting] system recorder start failed:', e); }
+                }
+            } catch (e) {
+                this._errorMessage = e.message || '{{ _('启动录音失败') }}';
+                this._recorder = null;
+            }
+        },
+
+        _stopRecording() {
+            if (this._recorder) {
+                try { this._recorder.cancel(); } catch (e) { /* ignore */ }
+                this._recorder = null;
+            }
+            if (this._systemRecorder) {
+                try { this._systemRecorder.cancel(); } catch (e) { /* ignore */ }
+                this._systemRecorder = null;
+            }
+            // 释放麦克风
+            if (this._micStream) {
+                this._micStream.getTracks().forEach(t => { try { t.stop(); } catch(_) {} });
+                this._micStream = null;
+            }
+            // 释放屏幕共享
+            if (this._preDisplayStream) {
+                this._preDisplayStream.getTracks().forEach(t => { try { t.stop(); } catch(_) {} });
+                this._preDisplayStream = null;
+            }
+            // 关闭混音 AudioContext
+            if (this._mixContext) {
+                try { this._mixContext.close(); } catch(_) {}
+                this._mixContext = null;
+            }
+            this.recording = false;
+        }
+    });
+});
+
+// 浮窗组件本地状态（确认弹窗等）
+function meetingPanel() {
+    return {
+        showStopConfirm: false,
+
+        confirmStop() {
+            this.showStopConfirm = true;
+        },
+
+        confirmClose() {
+            // 录音中关闭 = 询问是否结束会议
+            if (this.$store.meeting.recording) {
+                this.showStopConfirm = true;
+            } else {
+                this.$store.meeting.close();
+            }
+        },
+
+        init() {
+            // 监听全局 open-meeting-panel 事件
+            window.addEventListener('open-meeting-panel', (e) => {
+                this.$store.meeting.open(e.detail || {});
+            });
+        }
+    };
+}
+</script>
+{% endmacro %}

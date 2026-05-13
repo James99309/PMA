@@ -37,13 +37,11 @@ Tailwind 共享导航菜单组件
 </a>
 
 
-<!-- 会议纪要（开发中，仅管理员可见） -->
-{% if current_user.role == 'admin' %}
+<!-- 会议纪要：所有用户可见（列表 query 按 owner/invited/admin 自动过滤） -->
 <a class="flex items-center gap-3 px-3 py-2 rounded-lg {% if active_page == 'meeting_minutes' %}bg-primary/20 dark:bg-primary/30{% else %}hover:bg-slate-100 dark:hover:bg-slate-800{% endif %}" href="{{ url_for('meeting.minutes_list') }}">
     <span class="material-symbols-outlined {% if active_page == 'meeting_minutes' %}fill text-primary{% else %}text-slate-600 dark:text-slate-400{% endif %}">description</span>
     <span class="{% if active_page == 'meeting_minutes' %}text-primary{% else %}text-slate-600 dark:text-slate-300{% endif %} text-sm font-medium">{{ _('会议纪要') }}</span>
 </a>
-{% endif %}
 
 <!-- 智能终端（CLI Agent），由 cli_agent 权限模块控制 -->
 {% if current_user.role == 'admin' or has_permission('cli_agent', 'view') or config.get('ENABLE_CLI_AGENT') %}

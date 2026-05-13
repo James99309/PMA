@@ -184,6 +184,32 @@ class Message(db.Model):
         db.session.commit()
 
     @classmethod
+    def create_meeting_invite(cls, sender_id, recipient_id, recording):
+        """会议旁听邀请通知
+
+        Args:
+            sender_id: 发起录音的人
+            recipient_id: 被邀请旁听的人
+            recording: MeetingRecording 对象
+        """
+        from app.models.user import User
+        sender = db.session.get(User, sender_id)
+        sender_name = sender.real_name or sender.username if sender else '未知用户'
+
+        return cls(
+            message_type='meeting_invite',
+            sender_id=sender_id,
+            recipient_id=recipient_id,
+            title=f'{sender_name} 邀请你旁听会议',
+            content=(recording.title or '')[:100],
+            related_object_type='meeting_recording',
+            related_object_id=recording.id,
+            extra_data={
+                'meeting_time': recording.meeting_time.isoformat() if recording.meeting_time else None,
+            }
+        )
+
+    @classmethod
     def create_workitem_shared(cls, sender_id, recipient_id, work_item):
         """创建行程共享通知
 

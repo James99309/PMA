@@ -37,6 +37,7 @@ Tailwind 统一布局组件
 {% from 'components/tw_task_modal.html' import render_task_create_button, render_task_create_modal, render_task_detail_modal, render_task_modal_script %}
 {% from 'components/tw_onboarding.html' import render_onboarding_resources, render_onboarding_script %}
 {% from 'components/tw_chat_panel.html' import render_chat_button, render_chat_panel, render_chat_panel_script %}
+{% from 'components/tw_meeting_panel.html' import render_meeting_panel, render_meeting_panel_script %}
 
 {% macro render_tw_layout(active_page='dashboard', show_search=true, search_value='', search_placeholder=none) %}
 {% set is_splitview = request.args.get('splitview') == '1' %}
@@ -377,6 +378,38 @@ document.addEventListener('submit', function(e) {
         </div>
     </header>
 
+    <!-- 会议旁听邀请横幅（顶栏正下方下拉提醒；检测到 active 邀请才显示） -->
+    {% if current_user.is_authenticated %}
+    <div x-data="meetingInviteBanner()" x-init="init()"
+         x-show="visible && current"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="-translate-y-full opacity-0"
+         x-transition:enter-end="translate-y-0 opacity-100"
+         x-cloak
+         class="fixed top-16 left-0 right-0 z-40 bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg">
+        <div class="max-w-5xl mx-auto px-4 py-2.5 flex items-center gap-3">
+            <span class="material-symbols-outlined flex-shrink-0" style="font-size: 22px;">record_voice_over</span>
+            <div class="flex-1 min-w-0 text-sm">
+                <span class="font-semibold" x-text="current?.owner_name || '同事'"></span>
+                <span>{{ _('邀请你旁听') }}</span>
+                <span class="font-medium opacity-90" x-text="'《' + (current?.title || '') + '》'"></span>
+                <span x-show="invites.length > 1" class="ml-1 text-[11px] opacity-80"
+                      x-text="'(+' + (invites.length - 1) + ' {{ _('个其他邀请') }})'"></span>
+            </div>
+            <button @click="join(current)"
+                    class="px-3 h-8 rounded-md bg-white/20 hover:bg-white/30 text-white text-sm font-medium inline-flex items-center gap-1.5">
+                <span class="material-symbols-outlined" style="font-size: 16px;">hearing</span>
+                {{ _('加入旁听') }}
+            </button>
+            <button @click="dismiss(current?.id)"
+                    class="w-7 h-7 inline-flex items-center justify-center rounded-md hover:bg-white/20"
+                    :title="'{{ _('稍后') }}'">
+                <span class="material-symbols-outlined" style="font-size: 18px;">close</span>
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- 下方内容区域 -->
     <div class="flex-1 flex overflow-hidden relative pt-16">
         <!-- 移动端遮罩层 -->
@@ -451,6 +484,9 @@ document.addEventListener('submit', function(e) {
     <!-- 任务模态框 -->
     {{ render_task_create_modal() }}
     {{ render_task_detail_modal() }}
+
+    <!-- 会议浮窗 -->
+    {{ render_meeting_panel() }}
 </div>
 {% endif %}
 {% endmacro %}
@@ -469,6 +505,57 @@ document.addEventListener('submit', function(e) {
 <script src="{{ url_for('static', filename='js/user-search-picker.js') }}"></script>
 {# 任务模态框脚本 #}
 {{ render_task_modal_script(current_user.id, current_user.real_name or current_user.username) }}
+{# 会议浮窗脚本 #}
+{{ render_meeting_panel_script() }}
+{# 会议邀请横幅组件 #}
+<script>
+function meetingInviteBanner() {
+    return {
+        invites: [],
+        visible: false,
+        _pollHandle: null,
+        get current() { return this.invites[0] || null; },
+        async init() {
+            await this.refresh();
+            // 每 25 秒拉一次（邀请频率低，不必过频）
+            this._pollHandle = setInterval(() => this.refresh(), 25000);
+        },
+        async refresh() {
+            try {
+                const r = await fetch('/meeting/api/active-invites');
+                const d = await r.json();
+                if (!d.success) return;
+                // sessionStorage 里 dismiss 过的 id 不再显示（本次会话内）
+                const dismissed = JSON.parse(sessionStorage.getItem('pma_dismissed_invites') || '[]');
+                this.invites = (d.invites || []).filter(x => !dismissed.includes(x.id));
+                this.visible = this.invites.length > 0;
+            } catch (e) { /* ignore */ }
+        },
+        join(invite) {
+            if (!invite) return;
+            if (window.Alpine && Alpine.store('meeting')) {
+                Alpine.store('meeting').openAsGuest({
+                    recordingId: invite.id,
+                    title: invite.title,
+                });
+                this.dismiss(invite.id);
+            } else {
+                window.location.href = `/meeting/minutes/${invite.id}`;
+            }
+        },
+        dismiss(id) {
+            if (!id) { this.visible = false; return; }
+            try {
+                const ds = JSON.parse(sessionStorage.getItem('pma_dismissed_invites') || '[]');
+                if (!ds.includes(id)) ds.push(id);
+                sessionStorage.setItem('pma_dismissed_invites', JSON.stringify(ds));
+            } catch (_) {}
+            this.invites = this.invites.filter(x => x.id !== id);
+            this.visible = this.invites.length > 0;
+        },
+    };
+}
+</script>
 {# 新手引导资源 #}
 {{ render_onboarding_resources() }}
 {# 检测刚登录标记，设置 sessionStorage 供消息面板使用 #}

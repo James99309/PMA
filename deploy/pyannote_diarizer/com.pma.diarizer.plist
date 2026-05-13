@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PMA 声纹分离服务 launchd 配置
+  放到 ~/Library/LaunchAgents/com.pma.diarizer.plist
+  加载：launchctl load ~/Library/LaunchAgents/com.pma.diarizer.plist
+  停止：launchctl unload ~/Library/LaunchAgents/com.pma.diarizer.plist
+  日志：/Users/jing/pma-diarizer/logs/{stdout,stderr}.log
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.pma.diarizer</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/jing/pma-diarizer/venv/bin/uvicorn</string>
+        <string>main:app</string>
+        <string>--host</string>
+        <string>100.110.41.83</string>
+        <string>--port</string>
+        <string>8080</string>
+        <string>--workers</string>
+        <string>1</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/jing/pma-diarizer</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- 把 HF token 写在这里，或用 .env -->
+        <key>PYANNOTE_AUTH_TOKEN</key>
+        <string>REPLACE_ME_HF_TOKEN</string>
+        <key>PYANNOTE_MODEL</key>
+        <string>pyannote/speaker-diarization-3.1</string>
+        <key>LOG_LEVEL</key>
+        <string>INFO</string>
+        <!-- macOS 后台进程默认 PATH 不含 brew，要补上让 ffmpeg 可用 -->
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/jing/pma-diarizer/logs/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/jing/pma-diarizer/logs/stderr.log</string>
+
+    <!-- 防 sleep（推理服务必须保持唤醒） -->
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>
