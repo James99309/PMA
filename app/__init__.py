@@ -197,6 +197,12 @@ def create_app(config_class=Config):
         if request.path.startswith('/expense/api/'):
             logger.debug(f'CSRF exempt Expense API path: {request.path}, Method: {request.method}')
             return True
+
+        # CLI Agent API 路径豁免:闲置超 1h 后 CSRF token 过期会导致 HTTP 400
+        # 已有 @login_required + _require_cli_access() 双重保护,JSON 请求 + 自定义 header
+        if request.path.startswith('/cli/api/'):
+            logger.debug(f'CSRF exempt CLI API path: {request.path}, Method: {request.method}')
+            return True
             
         # 审批配置模块API路径豁免
         if request.path.startswith('/admin/approval/field-options/'):
