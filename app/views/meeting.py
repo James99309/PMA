@@ -900,95 +900,141 @@ def api_realtime_translate(recording_id):
                 'ja': 'ja', 'ko': 'ko', 'th': 'th', 'vi': 'vi', 'tl': 'tl'}
     native_whisper = lang_map.get(native_lang, 'zh')
 
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        return jsonify({'success': False, 'message': 'OpenAI API key 未配置'}), 503
-
     t_start = time.time()
 
-    # 1. 写临时 webm 文件（可能是裸 chunk 无 header）
-    with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
-        tmp.write(chunk_file.read())
-        webm_path = tmp.name
+    # initial_prompt 引导"商务会议"语境减少 hallucination；用母语提示帮助识别
+    prompts_by_lang = {
+        'zh': '以下是一段商务会议的录音对话。',
+        'en': 'The following is a business meeting conversation.',
+        'ms': 'Berikut adalah perbualan mesyuarat perniagaan.',
+        'id': 'Berikut adalah percakapan rapat bisnis.',
+        'ja': '以下はビジネスミーティングの会話です。',
+        'ko': '다음은 비즈니스 회의 대화입니다。',
+        'th': 'ต่อไปนี้เป็นการสนทนาในการประชุมทางธุรกิจ',
+        'vi': 'Sau đây là cuộc trò chuyện trong cuộc họp kinh doanh.',
+        'tl': 'Ang sumusunod ay isang pag-uusap sa business meeting.',
+    }
+    # 滚动上下文：把同一 recording+speaker 的上一段原文塞进 prompt
+    rolling_ctx = _get_realtime_history(recording_id, speaker)
+    base_prompt = prompts_by_lang.get(native_whisper, '')
+    # PMA 业务词汇（参会人 real_name）— 提升同音字人名识别
+    vocab_prompt = _build_vocab_prompt(recording)
+    whisper_prompt = ' '.join(p for p in [vocab_prompt, base_prompt, rolling_ctx] if p).strip()
 
-    # 2. 用 ffmpeg 转码成 wav（ffmpeg 能解析无 header 的裸 webm payload，并重建）
-    #    Whisper 直接吃 webm chunk 会报 "Invalid file format"，因为只有第一个 chunk 有 EBML header
-    wav_path = webm_path.replace('.webm', '.wav')
+    # 路由：优先走 Mac mini whisper_proxy 服务（容器无需 ffmpeg 和 OPENAI_API_KEY）
+    # 未配置 PMA_WHISPER_SERVICE_URL 时退回本地 ffmpeg+OpenAI SDK（本地开发用）
+    whisper_service_url = os.environ.get('PMA_WHISPER_SERVICE_URL', '').rstrip('/')
+
+    tmp_path = None  # 仅本地 fallback 路径使用，远程路径无 temp file
     try:
-        import subprocess
-        result = subprocess.run(
-            ['ffmpeg', '-y', '-i', webm_path, '-f', 'wav', '-ar', '16000', '-ac', '1', wav_path],
-            capture_output=True, timeout=15
-        )
-        if result.returncode != 0:
-            # ffmpeg 失败 → 静默丢弃（无效音频/纯噪音）
-            stderr_text = result.stderr.decode(errors='ignore')
-            # 取最后 800 字符（错误信息通常在末尾）
-            current_app.logger.warning(
-                f"[realtime-translate] ffmpeg 转码失败 speaker={speaker} "
-                f"webm_size={os.path.getsize(webm_path)} "
-                f"returncode={result.returncode} "
-                f"stderr_tail={stderr_text[-800:]}"
+        if whisper_service_url:
+            # ── 远程路径：直接发 webm bytes 给 Mac mini ──
+            import requests as _http, types
+            webm_bytes = chunk_file.read()
+            try:
+                resp = _http.post(
+                    f"{whisper_service_url}/transcribe",
+                    files={'audio': ('chunk.webm', webm_bytes, 'audio/webm')},
+                    data={
+                        'native_lang': native_whisper,
+                        'prompt': whisper_prompt,
+                        'temperature': '0',
+                        'model': 'whisper-1',
+                    },
+                    timeout=90,
+                )
+            except _http.exceptions.RequestException as e:
+                current_app.logger.error(f"[realtime-translate] whisper service unreachable: {e}")
+                return jsonify({'success': False, 'message': f'Whisper 服务不可达: {e}'}), 502
+
+            if resp.status_code != 200:
+                current_app.logger.error(
+                    f"[realtime-translate] whisper service error {resp.status_code}: {resp.text[:300]}"
+                )
+                return jsonify({'success': False, 'message': f'Whisper 服务错误 HTTP {resp.status_code}'}), resp.status_code
+
+            data = resp.json()
+            # ffmpeg 转码失败时,whisper_proxy 返回 _empty=True,语义同原静默丢弃
+            if data.get('_empty'):
+                return jsonify({
+                    'success': True,
+                    'empty': True,
+                    'speaker': speaker,
+                    'duration_ms': int((time.time() - t_start) * 1000)
+                })
+
+            # 包装成与 OpenAI SDK 同接口的对象（getattr 兼容）
+            transcript_resp = types.SimpleNamespace(
+                text=data.get('text', ''),
+                language=data.get('language', native_whisper),
+                segments=[types.SimpleNamespace(**s) for s in (data.get('segments') or [])],
             )
-            return jsonify({
-                'success': True,
-                'empty': True,
-                'speaker': speaker,
-                'duration_ms': int((time.time() - t_start) * 1000)
-            })
-        else:
             current_app.logger.info(
-                f"[realtime-translate] ffmpeg OK speaker={speaker} "
-                f"webm={os.path.getsize(webm_path)} → wav={os.path.getsize(wav_path)}"
+                f"[realtime-translate] remote OK speaker={speaker} "
+                f"webm={len(webm_bytes)} text_len={len(transcript_resp.text)} segs={len(transcript_resp.segments)}"
             )
-    except Exception as e:
-        current_app.logger.warning(f"ffmpeg 转码失败: {e}")
-        return jsonify({
-            'success': True,
-            'empty': True,
-            'speaker': speaker,
-            'duration_ms': int((time.time() - t_start) * 1000)
-        })
-    finally:
-        try:
-            os.unlink(webm_path)
-        except Exception:
-            pass
+        else:
+            # ── 本地 fallback 路径：保留原有 ffmpeg + OpenAI SDK 实现 ──
+            api_key = os.environ.get('OPENAI_API_KEY')
+            if not api_key:
+                return jsonify({'success': False, 'message': 'OpenAI API key 未配置 (或缺少 PMA_WHISPER_SERVICE_URL)'}), 503
 
-    tmp_path = wav_path  # 后续清理 wav
+            # 1. 写临时 webm 文件（可能是裸 chunk 无 header）
+            with tempfile.NamedTemporaryFile(suffix='.webm', delete=False) as tmp:
+                tmp.write(chunk_file.read())
+                webm_path = tmp.name
 
-    try:
-        from openai import OpenAI
-        client = OpenAI(api_key=api_key)
+            wav_path = webm_path.replace('.webm', '.wav')
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ['ffmpeg', '-y', '-i', webm_path, '-f', 'wav', '-ar', '16000', '-ac', '1', wav_path],
+                    capture_output=True, timeout=15
+                )
+                if result.returncode != 0:
+                    stderr_text = result.stderr.decode(errors='ignore')
+                    current_app.logger.warning(
+                        f"[realtime-translate] ffmpeg 转码失败 speaker={speaker} "
+                        f"webm_size={os.path.getsize(webm_path)} "
+                        f"returncode={result.returncode} "
+                        f"stderr_tail={stderr_text[-800:]}"
+                    )
+                    return jsonify({
+                        'success': True,
+                        'empty': True,
+                        'speaker': speaker,
+                        'duration_ms': int((time.time() - t_start) * 1000)
+                    })
+                current_app.logger.info(
+                    f"[realtime-translate] ffmpeg OK speaker={speaker} "
+                    f"webm={os.path.getsize(webm_path)} → wav={os.path.getsize(wav_path)}"
+                )
+            except Exception as e:
+                current_app.logger.warning(f"ffmpeg 转码失败: {e}")
+                return jsonify({
+                    'success': True,
+                    'empty': True,
+                    'speaker': speaker,
+                    'duration_ms': int((time.time() - t_start) * 1000)
+                })
+            finally:
+                try:
+                    os.unlink(webm_path)
+                except Exception:
+                    pass
 
-        # 3. Whisper 转写 — 不传 language，让它自动检测；用 verbose_json 拿 detected_lang
-        # initial_prompt 引导"商务会议"语境减少 hallucination；用母语提示帮助识别
-        prompts_by_lang = {
-            'zh': '以下是一段商务会议的录音对话。',
-            'en': 'The following is a business meeting conversation.',
-            'ms': 'Berikut adalah perbualan mesyuarat perniagaan.',
-            'id': 'Berikut adalah percakapan rapat bisnis.',
-            'ja': '以下はビジネスミーティングの会話です。',
-            'ko': '다음은 비즈니스 회의 대화입니다。',
-            'th': 'ต่อไปนี้เป็นการสนทนาในการประชุมทางธุรกิจ',
-            'vi': 'Sau đây là cuộc trò chuyện trong cuộc họp kinh doanh.',
-            'tl': 'Ang sumusunod ay isang pag-uusap sa business meeting.',
-        }
-        # 滚动上下文：把同一 recording+speaker 的上一段原文塞进 prompt
-        # Whisper 会把它当作"刚才在说什么"的语境，专有名词/人名/术语连贯性显著提升
-        rolling_ctx = _get_realtime_history(recording_id, speaker)
-        base_prompt = prompts_by_lang.get(native_whisper, '')
-        # PMA 业务词汇（参会人 real_name）— 提升同音字人名识别
-        vocab_prompt = _build_vocab_prompt(recording)
-        whisper_prompt = ' '.join(p for p in [vocab_prompt, base_prompt, rolling_ctx] if p).strip()
-        with open(tmp_path, 'rb') as f:
-            transcript_resp = client.audio.transcriptions.create(
-                model='whisper-1',
-                file=f,
-                response_format='verbose_json',  # 拿 detected language
-                prompt=whisper_prompt,
-                temperature=0
-            )
+            tmp_path = wav_path
+
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            with open(tmp_path, 'rb') as f:
+                transcript_resp = client.audio.transcriptions.create(
+                    model='whisper-1',
+                    file=f,
+                    response_format='verbose_json',
+                    prompt=whisper_prompt,
+                    temperature=0
+                )
         original_text = (transcript_resp.text if hasattr(transcript_resp, 'text') else '').strip()
         detected_lang = getattr(transcript_resp, 'language', None) or native_whisper
         # Whisper 返回的可能是英文 'chinese' / 'english' 或 ISO 'zh' / 'en'，做一次归一
